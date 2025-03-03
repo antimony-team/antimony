@@ -1,0 +1,37 @@
+.sb-node-editor-toolbar
+  position: absolute
+  left: 8px
+  top: 8px
+  background-color: var(--overlay-color)
+  border: 1px solid var(--primary-color-border)
+  z-index: 10
+  border-radius: 4px
+  display: flex
+  flex-direction: column
+  padding: 6px
+
+  .p-button
+    color: var(--primary-color-border)
+    width: 36px
+
+    &:not(.sb-iconoir-button)
+      padding: 8px !important
+
+    &:hover
+      backdrop-filter: brightness(1.2)
+
+      &:active
+        backdrop-filter: brightness(1.4)
+
+    &.toggled
+      border-color: var(--primary-color-border)
+      backdrop-filter: brightness(1.4)
+
+  .p-divider
+    padding: 0
+    margin-top: 4px
+    margin-bottom: 4px
+
+    &::before
+      border-top-color: var(--primary-color-border)
+      filter: brightness(0.7)

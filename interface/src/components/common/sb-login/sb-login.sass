@@ -1,0 +1,77 @@
+.sb-login-container
+  position: fixed
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  background-color: var(--primary-color)
+  display: flex
+  align-items: center
+  justify-content: end
+  z-index: 10
+
+.sb-login-content
+  display: flex
+  position: relative
+  flex-direction: column
+  gap: 14px
+  border-radius: 8px
+  background-color: var(--primary-color-brighter)
+  width: 400px
+  align-items: center
+  padding: 50px 48px 20px 48px
+  margin-right: auto
+  margin-left: auto
+
+  @media (min-width: 1000px)
+    margin-right: 300px
+
+  .p-button
+    margin-top: 20px
+    width: 100%
+    background-color: var(--primary-color-border)
+    border: none
+
+    span
+      color: var(--primary-color)
+      font-weight: 600
+
+.sb-login-content-icon
+  display: flex
+  align-items: center
+  justify-content: center
+  padding: 16px 0
+
+.sb-login-header-icon
+  background-color: var(--primary-color)
+  filter: brightness(1.8)
+  border-radius: 120px
+  padding: 8px
+  height: 130px
+  width: 130px
+  display: flex
+  align-items: center
+  justify-content: center
+
+  i
+    font-size: 45pt
+    color: var(--primary-color-text)
+    filter: brightness(0.6)
+
+
+.sb-login-remember
+  display: flex
+  gap: 8px
+  align-items: center
+  color: var(--primary-color-text)
+  align-self: start
+  font-size: 14px
+
+.sb-login-content-header
+  position: absolute
+  display: inline-flex
+  padding: 16px 48px
+  left: 45px
+  top: -25px
+  background: var(--primary-color-border)
+  color: var(--primary-color)

@@ -1,0 +1,16 @@
+- id: 19c7d29d-fb89-4632-b021-c5625f96ba86
+  name: CN2
+  publicWrite: false
+  publicDeploy: false
+- id: db59b478-0241-40ae-b553-d16a24e34626
+  name: CldInf
+  publicWrite: true
+  publicDeploy: true
+- id: 3e0a6746-46d5-4687-8939-274b35ce29b9
+  name: SB_Test_Collection1
+  publicWrite: true
+  publicDeploy: false
+- id: c7a61325-d71d-4aae-8a10-0adb66d8cde2
+  name: SB_Test_Collection2
+  publicWrite: false
+  publicDeploy: true

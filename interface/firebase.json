@@ -1,0 +1,14 @@
+{
+  "hosting": {
+    "site": "antimony-ost",
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "antimony-development",
+          "region": "europe-west1"
+        }
+      }
+    ]
+  }
+}

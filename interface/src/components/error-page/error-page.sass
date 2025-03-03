@@ -1,0 +1,55 @@
+.sb-error-page-container
+  position: fixed
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  background-color: var(--primary-color)
+  display: flex
+  align-items: center
+  justify-content: center
+  flex-direction: column
+  gap: 32px
+
+.sb-error-network-content
+  display: flex
+  flex-direction: column
+  background-color: var(--primary-color-brighter)
+  padding: 16px
+  width: min(500px, 80vw)
+
+.sb-error-network-entry
+  display: flex
+  flex-direction: row
+  align-items: center
+  justify-content: space-between
+  margin-left: 12px
+  height: 40px
+  font-size: 16pt
+
+  .pi
+    font-size: 20pt
+    color: var(--success-color)
+    filter: brightness(1.5)
+
+  span
+    font-style: italic
+
+  .p-progress-spinner
+    width: 35px
+    height: 35px
+    margin-right: 0
+
+.sb-error-stack-content
+  background-color: var(--primary-color-brighter)
+  padding: 16px
+  white-space: pre-wrap
+  font-family: Iosevka, monospace
+
+.sb-error-page-code
+  text-align: center
+  font-size: 90pt
+
+.sb-error-page-message
+  text-align: center
+  font-size: 25pt

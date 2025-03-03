@@ -1,0 +1,246 @@
+.p-button
+  transition: all 0.1s ease-in
+  border-color: transparent
+
+  &:not(.p-button-danger,.p-button-outlined,.p-button-icon-only)
+    color: var(--primary-color)
+    background-color: var(--primary-color-border)
+
+  &.p-button-icon-only
+    padding: 0.75rem 0
+    background-color: transparent
+
+    &.p-disabled
+      filter: brightness(0.5)
+      cursor: pointer !important
+
+  &.p-button-outlined
+    color: var(--primary-color-border)
+    border-color: var(--primary-color-border)
+    background-color: transparent
+
+  // We compensate for the iconoir icons being slightly smaller by giving it less padding
+  &.sb-iconoir-button
+    padding: 6px !important
+
+  &:hover
+    filter: brightness(1.25)
+
+  &:active
+    filter: brightness(1)
+
+  .p-badge
+    width: 0.75rem
+    height: 0.75rem
+    min-width: unset
+
+.p-tooltip
+  transition: opacity 0.2s ease-in-out !important
+  opacity: 0 !important
+
+  &.p-tooltip-active
+    opacity: 1 !important
+
+.p-tree
+  background-color: transparent
+  border: none
+  padding: 8px
+
+.p-tree-filter
+  background-color: transparent
+
+.p-treenode
+  border-radius: 4px
+
+.p-treenode-content
+  padding: 0
+  box-shadow: none
+  outline: none
+
+.p-treenode-label
+  text-overflow: ellipsis
+  overflow: hidden
+
+.p-contextmenu
+  background-color: var(--header-color)
+  border-left: 3px solid var(--primary-color-border)
+  max-height: 300px
+  overflow-y: auto
+
+  // This makes it so context menus can expand if the content too wide
+  min-width: 12.5rem
+  width: auto
+
+.p-splitter
+  background-color: transparent
+  border: none
+  width: 100%
+
+  .p-splitter-panel
+   min-width: 0
+
+.p-menubar
+  background-color: var(--primary-color)
+  border: var(--primary-color-border) solid 1px
+  border-radius: 0 0 4px 4px
+  margin-right: -1px
+
+.p-megamenu-panel,.p-submenu-header
+  background-color: var(--primary-color)
+  border-radius: 4px
+
+.p-dialog:not(.p-confirm-dialog)
+  border-radius: 6px
+  border: var(--primary-color-border) solid 1px
+
+  .p-dialog-content
+    border-radius: 6px
+    padding: 0
+    display: flex
+    flex-direction: column
+    align-items: stretch
+    overflow: hidden
+
+.p-confirm-dialog
+  background-color: var(--overlay-color)
+  border: 1px solid var(--primary-color-border)
+
+  .border-circle
+    border: 1px solid var(--primary-color-border)
+
+.p-inputtextarea
+  resize: none
+
+.p-inputtext,.p-dropdown,.p-button
+  &:focus
+    outline: none
+    box-shadow: none
+
+.p-accordion-header-link
+  background-color: transparent
+  border: none
+  padding: 12px 0
+
+.p-accordion-header-text
+  font-size: 22px
+  font-weight: 400
+
+.p-accordion-content
+  background-color: transparent
+  border: none
+  padding: 8px
+
+.p-image
+  display: flex
+
+.p-chip
+  user-select: none
+
+.p-dropdown-panel
+  background-color: var(--overlay-color)
+  border-color: var(--primary-color-border)
+
+  .p-dropdown-item
+    background-color: transparent
+
+    &:focus-visible
+      outline: none
+
+    &:hover
+      backdrop-filter: brightness(1.2)
+
+  .p-dropdown-header
+    background-color: transparent
+    border-color: var(--primary-color-border)
+    padding: 10px 10px
+
+    .p-dropdown-filter
+      padding: 8px
+
+.pi-severity-success
+  color: var(--success-color-text)
+
+.pi-severity-danger
+  color: var(--danger-color-text)
+
+.pi-severity-warning
+  color: var(--warning-color-text)
+
+.p-inline-message
+  &.sb-mini-message
+    padding: 4px
+    margin-top: 1px
+
+    .p-inline-message-text
+      font-size: 12px
+
+    .p-inline-message-icon
+      display: none
+
+.p-menuitem-link
+  padding: 12px 14px
+
+  .p-menuitem-icon
+    margin-right: 12px
+
+.p-datepicker-trigger
+  background-color: var(--primary-color-border) !important
+
+.p-overlaypanel
+  border: 1px solid var(--primary-color-border)
+
+  &.p-overlaypanel-flipped
+    &:before
+      border-top-color: var(--primary-color-border)
+      border-bottom-color: transparent
+
+    &:after
+      border-top-color: var(--primary-color-border)
+      border-bottom-color: transparent
+
+  &:before
+    border-top-color: transparent
+    border-bottom-color: var(--primary-color-border)
+
+  &:after
+    border-top-color: transparent
+    border-bottom-color: var(--primary-color-border)
+
+.p-datepicker
+  background-color: var(--overlay-color)
+  border: 1px solid var(--primary-color-border)
+
+
+  .p-datepicker-header
+    padding-top: 0
+    background-color: var(--overlay-color)
+    border-color: var(--primary-color-border)
+
+  .p-timepicker
+    border-color: var(--primary-color-border)
+
+  .p-datepicker-buttonbar
+    padding: 8px 4px 0 4px
+    border-color: var(--primary-color-border)
+
+    button
+      background-color: transparent
+      border-color: var(--primary-color-border)
+      color: var(--primary-color-border)
+      width: 100px
+
+  td
+    padding: 3px
+
+.p-slider-handle
+  border-color: var(--primary-color-border)
+
+  &:hover
+    background-color: var(--primary-color-border)
+
+.p-slider-range
+  background-color: var(--primary-color-border)
+
+.p-placeholder
+  font-style: italic
+  opacity: 0.7

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="297mm"
+   height="297mm"
+   viewBox="0 0 297 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   sodipodi:docname="logo.svg"
+   inkscape:export-filename="../public/icons/favicon.png"
+   inkscape:export-xdpi="21.889999"
+   inkscape:export-ydpi="21.889999"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#363636"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.66724888"
+     inkscape:cx="541.77686"
+     inkscape:cy="546.27293"
+     inkscape:window-width="1728"
+     inkscape:window-height="1000"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Logo"
+     inkscape:groupmode="layer"
+     id="layer1"
+     style="display:inline"
+     sodipodi:insensitive="true">
+    <path
+       id="rect1-5"
+       style="fill:none;stroke:#141f29;stroke-width:7.79324;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 211.67763,211.54527 -63.11608,63.1161 -63.116093,-63.1161 63.116093,-63.11608 z m -1e-5,-126.232189 -63.1161,63.116099 L 85.44544,85.313082 148.56153,22.19699 Z" />
+    <g
+       id="g18"
+       transform="matrix(1.082395,0,0,1.082395,34.910073,-12.30647)">
+      <circle
+         style="fill:#141f29;fill-opacity:1;stroke:none;stroke-width:0.476;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+         id="path2-0"
+         cy="36.745396"
+         cx="105.44287"
+         r="20" />
+      <circle
+         style="fill:#609e9f;fill-opacity:1;stroke:none;stroke-width:0.850721;stroke-linecap:round;stroke-opacity:1"
+         id="circle18"
+         cy="36.745396"
+         cx="105.44287"
+         r="11.527368" />
+    </g>
+    <use
+       x="0"
+       y="0"
+       xlink:href="#g18"
+       id="use18"
+       transform="matrix(1.1752426,0,0,1.1752426,-26.118314,-4.8133113)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use18"
+       id="use19"
+       transform="translate(-63.950903,57.942093)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use19"
+       id="use20"
+       transform="translate(125.3266)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use19"
+       id="use21"
+       transform="translate(-5.4119748e-7,126.61421)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use20"
+       id="use22"
+       transform="translate(-5.4119748e-7,126.61421)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use18"
+       id="use23"
+       transform="translate(-5.4119748e-7,243.78599)" />
+    <path
+       style="fill:#141f29;fill-opacity:1;stroke:#141f29;stroke-width:7.79324;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 89.53258,148.42918 H 207.59047"
+       id="path23" />
+    <g
+       id="g24"
+       transform="matrix(1.1653268,0,0,1.1653268,30.561742,-24.621848)">
+      <rect
+         style="fill:#141f29;fill-opacity:1;stroke:#141f29;stroke-width:4.41134;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="rect23"
+         width="26.640715"
+         height="26.640715"
+         x="39.112225"
+         y="135.17963"
+         ry="4.2815299"
+         rx="4.6383405" />
+      <rect
+         style="fill:#609e9f;fill-opacity:1;stroke:none;stroke-width:2.84092;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="use24"
+         width="17.15674"
+         height="17.15674"
+         x="43.85421"
+         y="139.92162"
+         ry="2.7573245"
+         rx="2.9871118" />
+    </g>
+    <use
+       x="0"
+       y="0"
+       xlink:href="#g24"
+       id="use25"
+       transform="translate(115.32647)" />
+  </g>
+</svg>

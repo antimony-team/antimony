@@ -1,0 +1,55 @@
+.sb-node-editor-simulation-panel
+  position: absolute
+  right: 8px
+  top: 8px
+  background-color: var(--overlay-color)
+  border: 1px solid var(--primary-color-border)
+  z-index: 10
+  border-radius: 4px
+  display: flex
+  flex-direction: column
+  padding: 12px
+  width: 230px
+
+  .simulation-panel-title
+    font-size: 16pt
+    font-weight: 700
+
+  .simulation-panel-value
+    font-size: 11pt
+
+  .simulation-panel-heading
+    font-weight: 600
+    margin-top: 8px
+
+  .simulation-panel-group
+    display: flex
+    align-items: center
+    gap: 4px
+
+  .simulation-panel-reset
+    padding: 4px !important
+    width: 28px
+    margin-left: 4px
+
+  .simulation-panel-stabilize
+    margin-top: 4px
+    justify-content: center
+    padding: 8px
+
+    .p-button-label
+      flex: 0 0 auto
+
+  .p-slider
+    flex-grow: 1
+    margin-right: 10px
+    margin-left: 10px
+
+  .p-divider
+    padding: 0
+    margin-top: 4px
+    margin-bottom: 4px
+
+    &::before
+      border-top-color: var(--primary-color-border)
+      filter: brightness(0.7)

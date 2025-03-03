@@ -1,0 +1,107 @@
+.filter-overlay-panel
+  padding: 0
+  border-color: var(--primary-color-border)
+
+  .p-overlaypanel-content
+    padding: 0
+
+.filters-container
+  padding: 16px
+  background-color: var(--overlay-color)
+  border-radius: 8px
+  display: flex
+  flex-direction: column
+  gap: 8px
+
+.filters-title
+  color: var(--primary-color-text)
+  font-size: 20px
+  font-weight: 600
+
+.filters-chips-container
+  display: flex
+  margin-bottom: 8px
+  flex-wrap: wrap
+  gap: 8px
+
+.filter-chip
+  cursor: pointer
+  border-radius: 16px
+  font-weight: 500
+  color: #FFFFFF
+  transition: background-color 0.3s ease, transform 0.2s ease
+
+  &.running
+    color: var(--success-color-text)
+    &.active
+      background-color: var(--success-color)
+      transform: scale(1.05)
+    &.inactive
+      border: 1px solid var(--success-color-text)
+      background-color: #2A3A44
+
+  &.failed
+    color: var(--danger-color-text)
+    &.active
+      background-color: var(--danger-color)
+      transform: scale(1.05)
+    &.inactive
+      border: 1px solid var(--danger-color-text)
+      background-color: #2A3A44
+
+  &.scheduled
+    color: var(--info-color-text)
+    &.active
+      background-color: var(--info-color)
+      transform: scale(1.05)
+    &.inactive
+      border: 1px solid var(--info-color-text)
+      background-color: #2A3A44
+
+  &.deploying
+    color: var(--warning-color-text)
+    &.active
+      background-color: var(--warning-color)
+      transform: scale(1.05)
+    &.inactive
+      border: 1px solid var(--warning-color-text)
+      background-color: #2A3A44
+
+  &.done
+    color: var(--neutral-color-text)
+    &.active
+      background-color: var(--neutral-color)
+      transform: scale(1.05)
+    &.inactive
+      border: 1px solid var(--neutral-color-text)
+      background-color: #2A3A44
+
+  &:hover
+    transform: scale(1.05)
+
+.group-chip
+  cursor: pointer
+  border-radius: 16px
+  font-weight: 500
+  color: #FFFFFF
+  transition: background-color 0.3s ease, transform 0.2s ease
+  &.active
+    color: var(--neutral-color-text)
+    background-color: var(--neutral-color)
+    transform: scale(1.05)
+  &.inactive
+    border: 1px solid var(--neutral-color-text)
+    background-color: #2A3A44
+
+  &:hover
+    transform: scale(1.05)
+
+.Apply-Filters-Container
+  display: flex
+  justify-content: flex-end
+
+.filters-apply-button
+  &.p-button
+    color: var(--primary-color-border) !important
+    border: 1px solid var(--primary-color-border) !important
+    background-color: transparent !important

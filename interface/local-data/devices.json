@@ -1,0 +1,54 @@
+[
+  {
+    "kind": "nokia_srlinux",
+    "name": "Nokia SR Linux",
+    "interfacePattern": "e1-$",
+    "interfaceStart": 1,
+    "images": [
+      "ghcr.io/nokia/srlinux"
+    ],
+    "type": "Router"
+  },
+  {
+    "kind": "ceos",
+    "name": "Arista cEOS",
+    "interfacePattern": "eth$",
+    "interfaceStart": 1,
+    "type": "VM"
+  },
+  {
+    "kind": "arista_ceos",
+    "name": "Arista cEOS",
+    "interfacePattern": "eth$",
+    "interfaceStart": 1,
+    "type": "VM"
+  },
+  {
+    "kind": "cisco_xrd",
+    "name": "Cisco XRd",
+    "interfacePattern": "Gi0/0/0/$",
+    "interfaceStart": 1,
+    "type": "Cisco"
+  },
+  {
+    "kind": "linux",
+    "name": "Linux Container",
+    "interfacePattern": "eth$",
+    "interfaceStart": 1,
+    "type": "Container"
+  },
+  {
+    "kind": "linux",
+    "name": "Linux Container",
+    "interfacePattern": "eth$",
+    "interfaceStart": 1,
+    "type": "Linux"
+  },
+  {
+    "kind": "ext-container",
+    "name": "External Container",
+    "interfacePattern": "enp5s$",
+    "interfaceStart": 1,
+    "type": "Docker"
+  }
+]

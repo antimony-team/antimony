@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "noImplicitAny": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "strict": true,
+    "target": "esnext",
+    "allowJs": true,
+    "jsx": "react",
+    "baseUrl": ".",
+    "skipLibCheck": true,
+    "typeRoots": [
+      "node_modules/@types",
+    ],
+    "paths": {
+      "@sb/*": [
+        "src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

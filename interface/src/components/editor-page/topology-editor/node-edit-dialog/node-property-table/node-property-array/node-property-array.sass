@@ -1,0 +1,44 @@
+.sb-node-property-array
+  background-color: transparent
+  border: none
+  display: flex
+  flex-direction: column
+
+  & > div
+    height: 50px
+    display: flex
+    align-items: center
+    justify-content: space-between
+    flex-grow: 1
+    width: 100%
+    padding: 4px
+    gap: 4px
+
+    &:last-child
+      margin-bottom: 8px
+
+    & > div
+      width: 100%
+
+    &:nth-child(odd)
+      backdrop-filter: brightness(0.85)
+
+  .p-listbox-list-wrapper
+    background-color: transparent
+
+  .p-listbox
+    background-color: transparent
+
+.sb-property-array-add-button
+  vertical-align: baseline
+  padding: 4px 12px !important
+  color: rgba(255, 255, 255, 0.87)
+  background: transparent
+  border: 1px dashed var(--primary-color-border)
+  border-radius: 4px
+
+  .p-button-label
+    flex: revert
+
+  &:hover
+    filter: brightness(1)

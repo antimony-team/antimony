@@ -1,0 +1,163 @@
+.sb-dock-status-messages
+  display: flex
+  flex-direction: column
+  min-width: 700px
+  max-height: 340px
+  border-radius: 6px
+  max-width: 600px
+
+  .sb-dock-status-messages-header
+    padding: 4px 8px 4px 16px
+    display: flex
+    flex-direction: row
+    justify-content: space-between
+    border-radius: 6px 6px 6px 6px
+    background-color: var(--header-color)
+    margin: -1px
+    z-index: 1
+    border: 1px solid var(--primary-color-border)
+
+    .sb-dock-status-messages-left
+      display: flex
+      gap: 10px
+      align-items: center
+
+      > span
+        color: var(--primary-color-text)
+        margin-right: 4px
+
+    .p-button
+      color: var(--primary-color-text)
+      filter: brightness(1.5)
+
+    .p-chip
+      gap: 8px
+      padding: 2px 8px
+      font-size: 12pt
+      border-radius: 6px
+      background-color: transparent
+      border: 1px solid var(--primary-color-border)
+      cursor: pointer
+
+      &.selected
+        backdrop-filter: brightness(2.1)
+
+      &.error > .p-chip-icon
+        color: var(--danger-color-text)
+
+      &.warn > .p-chip-icon
+        color: var(--warning-color-text)
+
+      &.info > .p-chip-icon
+        color: var(--info-color-text)
+
+      &.success > .p-chip-icon
+        color: var(--success-color-text)
+
+      &:hover
+        filter: brightness(1.2)
+
+      .p-chip-text
+        margin: 0
+
+      .p-chip-icon
+        margin: 0
+
+  .p-overlaypanel-content
+    padding: 0
+    display: flex
+    flex-direction: column
+    align-items: stretch
+    overflow: hidden
+
+    .p-listbox
+      border: none
+      width: 100% !important
+      overflow-y: scroll
+      background-color: var(--primary-color)
+
+      li:not(:first-child)
+        border-top: 1px solid var(--primary-color-border)
+
+      .p-listbox-list
+        padding: 0
+
+        li:nth-child(even)
+          backdrop-filter: brightness(1.15)
+
+    .p-listbox-item
+      padding: 0
+
+.sb-dock-status-messages-item-container
+  display: flex
+  flex-grow: 1
+  justify-content: space-between
+  align-items: center
+  padding: 8px 12px
+  cursor: auto
+  gap: 8px
+
+  > span
+    font-weight: 600
+    text-transform: uppercase
+    font-size: 10pt
+
+    &::before
+      content: "<"
+
+    &::after
+      content: ">"
+
+.sb-dock-status-messages-item
+  display: flex
+  flex-direction: row
+  align-items: center
+  gap: 8px
+  height: 40px
+
+  > span
+    font-weight: 700
+
+  .sb-dock-status-messages-date
+    display: flex
+    flex-direction: column
+    align-items: center
+    opacity: 0.8
+    font-size: 11pt
+    margin-right: 8px
+    font-family: Iosevka, monospace
+    color: var(--primary-color-text)
+
+    :nth-child(2)
+      font-size: 10pt
+
+  .sb-dock-status-messages-text
+    display: flex
+    flex-direction: column
+
+    .sb-dock-status-messages-summary,.sb-dock-status-messages-detail
+      text-overflow: ellipsis
+      overflow: hidden
+      white-space: nowrap
+      max-width: 500px
+
+    .sb-dock-status-messages-detail
+      font-size: 9pt
+      filter: brightness(0.65)
+      font-style: italic
+
+  i
+    font-size: 14pt
+    margin-right: 8px
+
+  &.error > i
+    color: var(--danger-color-text)
+
+  &.warn > i
+    color: var(--warning-color-text)
+
+  &.info > i
+    color: var(--info-color-text)
+
+  &.success > i
+    color: var(--success-color-text)

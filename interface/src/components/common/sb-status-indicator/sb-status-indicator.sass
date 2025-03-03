@@ -1,0 +1,93 @@
+.sb-indicator-container
+  background-color: var(--primary-color)
+  position: fixed
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  display: flex
+  align-items: center
+  justify-content: center
+
+.sb-indicator-loader-panel
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 12px
+  padding: 34px
+  background-color: var(--primary-color-brighter)
+  border-radius: 6px
+
+  .sb-indicator-loader-panel-title
+    font-weight: 700
+    font-size: 34pt
+
+  .sb-indicator-loader-panel-text
+    font-size: 12pt
+    font-style: italic
+
+  svg
+    margin-top: 22px
+
+.sb-indicator-error-panel
+  position: fixed
+  top: 5px
+  margin-left: auto
+  margin-right: auto
+  width: fit-content
+  left: 0
+  right: 0
+  display: flex
+  flex-direction: column
+  z-index: 1200
+  background-color: var(--overlay-color)
+  border: 1px solid var(--primary-color-border)
+  border-radius: 6px
+  padding: 12px
+  gap: 12px
+
+.sb-indicator-error-header
+  display: flex
+  flex-direction: row
+  align-items: center
+  gap: 12px
+  font-weight: 700
+  position: relative
+
+  i
+    font-size: 16pt
+
+  .sb-indicator-error-icon-overlay
+    position: absolute
+    font-size: 9pt
+    top: 12px
+    left: 12px
+    background-color: var(--danger-color-text)
+    border-radius: 100%
+
+.sb-indicator-error-content
+  display: flex
+  flex-direction: column
+  flex-grow: 1
+  gap: 4px
+
+.sb-indicator-error-entry
+  display: flex
+  flex-direction: row
+  align-items: center
+  justify-content: space-between
+  margin-left: 12px
+  height: 25px
+
+  .pi
+    font-size: 15pt
+    color: var(--success-color)
+    filter: brightness(1.5)
+
+  span
+    font-style: italic
+
+  .p-progress-spinner
+    width: 25px
+    height: 25px
+    margin-right: 0

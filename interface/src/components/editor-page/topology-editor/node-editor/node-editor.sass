@@ -1,0 +1,42 @@
+.vis-network
+  outline: none
+
+  canvas
+    outline: none
+
+  &:active
+    cursor: grabbing
+
+.vis-tooltip
+  font-family: Iosevka, monospace !important
+  background-color: var(--overlay-color) !important
+  border-color: var(--primary-color-border) !important
+  color: var(--primary-color-text) !important
+
+.sb-node-editor
+  width: 100%
+  height: 100%
+  position: relative
+  backdrop-filter: brightness(1.05)
+
+.sb-node-editor-menubar
+  position: absolute
+  z-index: 1
+  transition: top ease 0.2s
+  top: 0
+  left: 0
+  right: 0
+
+  &.sb-node-editor-menubar-disabled
+    top: -60px
+
+.sb-node-editor-dial
+  position: absolute
+  visibility: hidden
+
+  ul
+    visibility: visible
+
+    .p-speeddial-action
+      background-color: rgb(139, 184, 182)
+      box-shadow: 1px 1px 4px 0 rgba(0,0,0,0.75)

@@ -1,0 +1,76 @@
+.sb-property-table
+  margin-bottom: 8px
+
+.sb-node-new-property-overlay
+  background-color: var(--overlay-color)
+  border-color: var(--primary-color-border)
+
+  .p-inputtext
+    width: 100%
+
+  .p-listbox
+    border: none
+    width: auto !important
+    margin-top: 12px
+    border-radius: 0
+    background-color: transparent
+
+    .p-listbox-list-wrapper
+      height: 310px
+      width: 260px
+      overflow-y: auto
+
+    .p-listbox-empty-message
+      padding-left: 12px
+
+    .p-listbox-item-group
+      background-color: transparent
+      border: 1px solid transparent
+      padding: 0
+      margin-right: 12px
+      user-select: none
+      font-weight: 400
+      cursor: pointer
+      border-radius: 2px
+
+      div
+        padding: 12px
+
+      &:hover
+        backdrop-filter: brightness(1.2)
+
+      &:active
+        backdrop-filter: brightness(1.3)
+
+    .p-listbox-list
+      padding: 0
+
+.sb-property-table-add-button
+  padding: 8px 12px
+  color: rgba(255, 255, 255, 0.87)
+  border: 1px dashed var(--primary-color-border)
+  border-radius: 2px
+  width: 100%
+  display: flex
+  justify-content: center
+
+  .p-button-label
+    flex: revert
+
+.sb-property-table-key
+  width: 270px
+  display: flex
+  align-items: center
+  gap: 8px
+  padding-right: 4px
+
+.sb-property-table-value
+  width: 100%
+
+.sb-property-table-type
+  // For some reason width doesn't work here with table-layout: auto.
+  min-width: 90px
+  max-width: 90px
+
+.sb-property-table-actions
+  width: 100px

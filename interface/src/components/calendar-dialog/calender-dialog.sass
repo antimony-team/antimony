@@ -1,0 +1,156 @@
+@import "react-big-calendar/lib/css/react-big-calendar.css"
+
+.calender-dialog
+  max-height: 70%
+  height: 70%
+  width: 80%
+
+  .sb-dialog-content
+    padding: 0 !important
+    overflow: hidden
+
+  .calendar-container
+    // Compensation for the -1px border
+    height: calc(100% + 1px)
+
+  .rbc-time-view
+    margin: 0 -1px -1px -1px
+
+  .rbc-calendar
+    background-color: #1e1e2d
+    color: #e0e0e0
+    margin: 0 -1px -1px -1px
+    border-color: var(--primary-color-border) !important
+
+.rbc-day-slot .rbc-time-slot
+  border-color: var(--primary-color-border)
+  filter: brightness(0.6)
+
+.rbc-toolbar
+  background-color: var(--overlay-color)
+  padding: 10px
+  text-align: center
+  margin-bottom: 0
+
+  .rbc-toolbar-label
+    font-size: 20px
+    font-weight: 600
+
+  .rbc-btn-group
+    display: flex
+    justify-content: center
+    gap: 10px
+
+    button
+      background-color: transparent
+      border: 1px solid var(--primary-color-border)
+      color: var(--primary-color-border)
+      padding: 10px 14px
+      border-radius: 4px !important
+      font-size: 14px
+      font-weight: 600
+      cursor: pointer
+      transition: background-color 0.2s
+
+      &.rbc-active
+        background-color: var(--primary-color-border)
+        border-color: var(--primary-color-border)
+        color: var(--primary-color)
+
+      &:active:not(.rbc-active)
+        color: var(--primary-color-border)
+        background-color: transparent
+        border: 1px solid var(--primary-color-border)
+        filter: brightness(1.4)
+
+      &:hover
+        filter: brightness(1.2)
+
+.rbc-header
+  background-color: #252537
+  color: var(--primary-color-text)
+  padding: 5px
+  border-left-color: var(--primary-color-border) !important
+  border-right-color: var(--primary-color-border) !important
+  border-bottom-color: var(--primary-color-border) !important
+
+.rbc-time-view,.rbc-month-row
+  .rbc-row
+    min-height: 30px
+
+.rbc-agenda-view
+  .rbc-agenda-empty
+    margin: 8px
+
+.rbc-date-cell
+  color: #e0e0e0
+
+//.rbc-month-view
+  //.rbc-row
+  //  border-bottom: 1px solid #3e3e4e
+
+  //.rbc-date-cell
+  //  transition: background-color 0.2s
+
+//.rbc-day-bg
+//  &:hover
+//    background-color: #3e3e4e
+
+.rbc-today
+  background-color: #2e2e3e
+
+.rbc-event
+  background-color: #00bcd4
+  border-radius: 5px
+  color: #fff
+  font-size: 14px
+  padding: 2px 4px
+  transition: background-color 0.2s
+
+  &:hover
+    background-color: #0097a7
+
+.rbc-event-label
+  color: #fff
+
+.rbc-time-view
+  border-color: var(--primary-color-border)
+  .rbc-time-header
+    border-bottom: 1px solid #3e3e4e
+
+  .rbc-timeslot-group
+    border-color: transparent
+
+.rbc-time-header.rbc-overflowing
+  border-color: transparent
+
+.rbc-off-range-bg
+  background-color: #1A2B34
+
+.rbc-time-content
+  border: 1px solid var(--primary-color-border)
+
+.rbc-time-content > * + * > *
+  border-left: 1px solid var(--primary-color-border)
+
+.rbc-day-bg + .rbc-day-bg
+  border-left: 1px solid var(--primary-color-border)
+
+.rbc-time-header-content
+  border-color: var(--primary-color-border)
+
+.rbc-month-view
+  border-color: var(--primary-color-border)
+
+.rbc-month-view .rbc-row
+  border-color: var(--primary-color-border)
+
+.rbc-month-row + .rbc-month-row
+  border-color: var(--primary-color-border)
+
+.rbc-show-more
+  background-color: var(--primary-color-border)
+  color: black
+  border-radius: 4px
+  padding: 1px
+

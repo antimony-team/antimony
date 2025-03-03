@@ -1,0 +1,21 @@
+.sb-admin-page-left
+  flex: 0 0 360px
+
+  transition: transform ease 0.3s
+
+  &.sb-admin-page-left-maximized
+    transform: translateX(-420px)
+
+.sb-admin-page-right
+  transition: margin-left ease 0.3s
+  margin-left: 0
+
+  &.sb-admin-page-right-maximized
+    margin-left: -368px
+
+.sb-admin-page-content
+  margin: 0
+  transition: margin-top ease 0.3s
+
+  &.sb-admin-page-content-maximized
+    margin: -90px

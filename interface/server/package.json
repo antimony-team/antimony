@@ -1,0 +1,22 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@types/node": "^22.9.0",
+    "express": "^4.21.1",
+    "express-bearer-token": "^2.4.0",
+    "http-proxy": "^1.18.1",
+    "jsonwebtoken": "^9.0.2",
+    "node-fs": "^0.1.7",
+    "random-sentence": "^1.0.4",
+    "random-words": "^2.0.1",
+    "socket.io": "^4.8.1",
+    "txtgen": "^3.0.7",
+    "yaml": "^2.6.0"
+  }
+}
