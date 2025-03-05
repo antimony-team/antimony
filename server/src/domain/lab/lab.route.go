@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterResources(route *gin.Engine, handler Handler) {
+func RegisterRoutes(route *gin.Engine, handler Handler) {
 	routes := route.Group("/labs")
 	{
 		routes.GET("", handler.Get)

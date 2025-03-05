@@ -39,10 +39,10 @@ func (r *collectionRepository) GetByUuid(ctx context.Context, collectionId strin
 	result := r.db.WithContext(ctx).Where("uuid = ?", collectionId).Preload("Creator").First(collection)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return collection, utils.ErrorUuidNotFound
+		return nil, utils.ErrorUuidNotFound
 	}
 
-	return collection, r.db.Error
+	return collection, result.Error
 }
 
 func (r *collectionRepository) Create(ctx context.Context, collection *Collection) error {

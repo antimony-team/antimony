@@ -36,8 +36,7 @@ func (h *collectionHandler) Get(ctx *gin.Context) {
 
 func (h *collectionHandler) Create(ctx *gin.Context) {
 	payload := CollectionIn{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -53,14 +52,12 @@ func (h *collectionHandler) Create(ctx *gin.Context) {
 
 func (h *collectionHandler) Update(ctx *gin.Context) {
 	payload := CollectionIn{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
 
-	err = h.collectionService.Update(ctx, payload, ctx.Param("id"))
-	if err != nil {
+	if err := h.collectionService.Update(ctx, payload, ctx.Param("id")); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -69,8 +66,7 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 }
 
 func (h *collectionHandler) Delete(ctx *gin.Context) {
-	err := h.collectionService.Delete(ctx, ctx.Param("id"))
-	if err != nil {
+	if err := h.collectionService.Delete(ctx, ctx.Param("id")); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

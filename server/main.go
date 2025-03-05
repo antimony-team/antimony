@@ -1,28 +1,52 @@
 package main
 
 import (
+	"antimonyBackend/src/config"
+	"antimonyBackend/src/core"
 	"antimonyBackend/src/domain/collection"
+	"antimonyBackend/src/domain/lab"
+	"antimonyBackend/src/domain/schema"
+	"antimonyBackend/src/domain/statusMessage"
 	"antimonyBackend/src/domain/topology"
 	"antimonyBackend/src/domain/user"
 	"antimonyBackend/src/utils"
+	"fmt"
+	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"log"
+	"sync"
+	"time"
 )
 
 func main() {
+	log.SetTimeFormat("[2006-01-02 15:04:05]")
+
+	antimonyConfig := config.Load()
+	storageManager := core.CreateStorageManager(antimonyConfig)
+
 	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database")
+		log.Fatalf("Failed to connect to database: %s", err.Error())
 	}
 
 	loadTestData(db)
 
 	var (
+		schemaService = schema.CreateService(antimonyConfig)
+		schemaHandler = schema.CreateHandler(schemaService)
+	)
+
+	var (
 		userRepository = user.CreateRepository(db)
 		userService    = user.CreateService(userRepository)
 		userHandler    = user.CreateHandler(userService)
+	)
+
+	var (
+		statusMessageRepository = statusMessage.CreateRepository(db)
+		statusMessageService    = statusMessage.CreateService(statusMessageRepository)
+		statusMessageHandler    = statusMessage.CreateHandler(statusMessageService)
 	)
 
 	var (
@@ -33,18 +57,41 @@ func main() {
 
 	var (
 		topologyRepository = topology.CreateRepository(db)
-		topologyService    = topology.CreateService(topologyRepository, collectionRepository)
+		topologyService    = topology.CreateService(topologyRepository, collectionRepository, storageManager, schemaService.Get())
 		topologyHandler    = topology.CreateHandler(topologyService)
 	)
 
+	var (
+		labRepository = lab.CreateRepository(db)
+		labService    = lab.CreateService(labRepository, topologyRepository)
+		labHandler    = lab.CreateHandler(labService)
+	)
+
+	gin.SetMode(gin.ReleaseMode)
 	server := gin.Default()
 
-	user.RegisterResources(server, userHandler)
-	topology.RegisterResources(server, topologyHandler)
-	collection.RegisterResources(server, collectionHandler)
+	lab.RegisterRoutes(server, labHandler)
+	user.RegisterRoutes(server, userHandler)
+	schema.RegisterRoutes(server, schemaHandler)
+	topology.RegisterRoutes(server, topologyHandler)
+	collection.RegisterRoutes(server, collectionHandler)
+	statusMessage.RegisterRoutes(server, statusMessageHandler)
 
-	if err := server.Run("localhost:3000"); err != nil {
-		log.Fatalf("error running server: %v", err)
+	var serverGroup sync.WaitGroup
+	serverGroup.Add(1)
+	socket := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	go startServer(server, socket, &serverGroup)
+
+	time.Sleep(100)
+	log.Info("Antimony API is ready to serve calls!", "socket", socket)
+	serverGroup.Wait()
+}
+
+func startServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	if err := server.Run(socket); err != nil {
+		log.Fatalf("Failed to start web server on %s: %s", socket, err.Error())
 	}
 }
 
@@ -82,8 +129,6 @@ func loadTestData(db *gorm.DB) {
 
 	db.Create(&topology.Topology{
 		UUID:         utils.GenerateUuid(),
-		Definition:   "",
-		Metadata:     "",
 		GitSourceUrl: "",
 		Collection:   collection1,
 		Creator:      user1,

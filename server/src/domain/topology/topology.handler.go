@@ -36,8 +36,7 @@ func (h *topologyHandler) Get(ctx *gin.Context) {
 
 func (h *topologyHandler) Create(ctx *gin.Context) {
 	payload := TopologyIn{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

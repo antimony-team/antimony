@@ -10,6 +10,7 @@ import (
 type (
 	Repository interface {
 		Get(ctx context.Context) ([]Lab, error)
+		GetByUuid(ctx context.Context, labId string) (*Lab, error)
 		Create(ctx context.Context, lab *Lab) error
 		Update(ctx context.Context, lab *Lab) error
 		Delete(ctx context.Context, lab *Lab) error
@@ -26,32 +27,32 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *labRepository) Get(ctx context.Context) ([]Collection, error) {
-	topologies := make([]Collection, 0)
-	result := r.db.WithContext(ctx).Preload("Creator").Find(&topologies)
+func (r *labRepository) Get(ctx context.Context) ([]Lab, error) {
+	labs := make([]Lab, 0)
+	result := r.db.WithContext(ctx).Preload("Creator").Preload("Topology").Find(&labs)
 
-	return topologies, result.Error
+	return labs, result.Error
 }
 
-func (r *labRepository) GetByUuid(ctx context.Context, topologyId string) (*Collection, error) {
-	topology := &Collection{}
-	result := r.db.WithContext(ctx).Where("uuid = ?", topologyId).Preload("Creator").First(topology)
+func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
+	lab := &Lab{}
+	result := r.db.WithContext(ctx).Where("uuid = ?", labId).Preload("Creator").Preload("Topology").First(labId)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return topology, utils.ErrorUuidNotFound
+		return nil, utils.ErrorUuidNotFound
 	}
 
-	return topology, r.db.Error
+	return lab, result.Error
 }
 
-func (r *labRepository) Create(ctx context.Context, topology *Collection) error {
-	return r.db.WithContext(ctx).Create(topology).Error
+func (r *labRepository) Create(ctx context.Context, lab *Lab) error {
+	return r.db.WithContext(ctx).Create(lab).Error
 }
 
-func (r *labRepository) Update(ctx context.Context, topology *Collection) error {
-	return r.db.WithContext(ctx).Save(topology).Error
+func (r *labRepository) Update(ctx context.Context, lab *Lab) error {
+	return r.db.WithContext(ctx).Save(lab).Error
 }
 
-func (r *labRepository) Delete(ctx context.Context, topology *Collection) error {
-	return r.db.WithContext(ctx).Delete(topology).Error
+func (r *labRepository) Delete(ctx context.Context, lab *Lab) error {
+	return r.db.WithContext(ctx).Delete(lab).Error
 }

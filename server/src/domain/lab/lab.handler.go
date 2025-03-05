@@ -13,19 +13,19 @@ type (
 		Delete(ctx *gin.Context)
 	}
 
-	collectionHandler struct {
-		collectionService Service
+	labHandler struct {
+		labService Service
 	}
 )
 
-func CreateHandler(collectionService Service) Handler {
-	return &collectionHandler{
-		collectionService: collectionService,
+func CreateHandler(labService Service) Handler {
+	return &labHandler{
+		labService: labService,
 	}
 }
 
-func (h *collectionHandler) Get(ctx *gin.Context) {
-	result, err := h.collectionService.Get(ctx)
+func (h *labHandler) Get(ctx *gin.Context) {
+	result, err := h.labService.Get(ctx)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -34,15 +34,14 @@ func (h *collectionHandler) Get(ctx *gin.Context) {
 	ctx.JSON(utils.OkResponse(result))
 }
 
-func (h *collectionHandler) Create(ctx *gin.Context) {
-	payload := CollectionIn{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+func (h *labHandler) Create(ctx *gin.Context) {
+	payload := LabIn{}
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
 
-	result, err := h.collectionService.Create(ctx, payload)
+	result, err := h.labService.Create(ctx, payload)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -51,16 +50,14 @@ func (h *collectionHandler) Create(ctx *gin.Context) {
 	ctx.JSON(utils.OkResponse(result))
 }
 
-func (h *collectionHandler) Update(ctx *gin.Context) {
-	payload := CollectionIn{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+func (h *labHandler) Update(ctx *gin.Context) {
+	payload := LabIn{}
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
 
-	err = h.collectionService.Update(ctx, payload, ctx.Param("id"))
-	if err != nil {
+	if err := h.labService.Update(ctx, payload, ctx.Param("id")); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -68,9 +65,8 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 	ctx.JSON(utils.OkResponse(nil))
 }
 
-func (h *collectionHandler) Delete(ctx *gin.Context) {
-	err := h.collectionService.Delete(ctx, ctx.Param("id"))
-	if err != nil {
+func (h *labHandler) Delete(ctx *gin.Context) {
+	if err := h.labService.Delete(ctx, ctx.Param("id")); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

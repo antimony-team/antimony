@@ -36,13 +36,13 @@ func (r *topologyRepository) Get(ctx context.Context) ([]Topology, error) {
 
 func (r *topologyRepository) GetByUuid(ctx context.Context, topologyId string) (*Topology, error) {
 	topology := &Topology{}
-	result := r.db.WithContext(ctx).Where("uuid = ?", topologyId).First(topology)
+	result := r.db.WithContext(ctx).Where("uuid = ?", topologyId).Preload("Creator").First(topology)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return topology, utils.ErrorUuidNotFound
+		return nil, utils.ErrorUuidNotFound
 	}
 
-	return topology, r.db.Error
+	return topology, result.Error
 }
 
 func (r *topologyRepository) Create(ctx context.Context, topology *Topology) error {

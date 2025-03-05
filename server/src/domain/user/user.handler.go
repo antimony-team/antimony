@@ -23,8 +23,7 @@ func CreateHandler(userService Service) Handler {
 
 func (h *userHandler) Login(ctx *gin.Context) {
 	payload := Credentials{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

@@ -9,8 +9,6 @@ import (
 type Topology struct {
 	gorm.Model
 	UUID         string
-	Definition   string
-	Metadata     string
 	GitSourceUrl string
 	Collection   collection.Collection
 	CollectionID uint

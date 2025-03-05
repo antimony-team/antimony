@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"antimonyBackend/src/domain/topology"
 	"antimonyBackend/src/domain/user"
 	"antimonyBackend/src/utils"
 	"github.com/gin-gonic/gin"
@@ -15,13 +16,15 @@ type (
 	}
 
 	labService struct {
-		labRepo Repository
+		labRepo      Repository
+		topologyRepo topology.Repository
 	}
 )
 
-func CreateService(labRepo Repository) Service {
+func CreateService(labRepo Repository, topologyRepo topology.Repository) Service {
 	return &labService{
-		labRepo: labRepo,
+		labRepo:      labRepo,
+		topologyRepo: topologyRepo,
 	}
 }
 
@@ -35,9 +38,10 @@ func (u *labService) Get(ctx *gin.Context) ([]LabOut, error) {
 	for i, obj := range objs {
 		result[i] = LabOut{
 			UUID:         obj.UUID,
-			PublicEdit:   obj.PublicEdit,
-			PublicDeploy: obj.PublicDeploy,
+			StartTime:    obj.StartTime,
+			EndTime:      obj.EndTime,
 			CreatorEmail: obj.Creator.Email,
+			TopologyId:   obj.Topology.UUID,
 		}
 	}
 
@@ -45,35 +49,58 @@ func (u *labService) Get(ctx *gin.Context) ([]LabOut, error) {
 }
 
 func (u *labService) Create(ctx *gin.Context, req LabIn) (string, error) {
+	labTopology, err := u.topologyRepo.GetByUuid(ctx, req.TopologyId)
+	if err != nil {
+		return "", err
+	}
+
 	newUuid := utils.GenerateUuid()
-	err := u.labRepo.Create(ctx, &LabIn{
-		UUID:         newUuid,
-		PublicEdit:   req.PublicEdit,
-		PublicDeploy: req.PublicDeploy,
-		Creator:      user.User{},
+	err = u.labRepo.Create(ctx, &Lab{
+		UUID:      newUuid,
+		Name:      req.Name,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+		Creator:   user.User{},
+		Topology:  *labTopology,
 	})
 
 	return newUuid, err
 }
 
-func (u *labService) Update(ctx *gin.Context, req LabIn, collectionId string) error {
-	collection, err := u.labRepo.GetByUuid(ctx, collectionId)
+func (u *labService) Update(ctx *gin.Context, req LabIn, labId string) error {
+	lab, err := u.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
 	}
 
-	collection.Name = req.Name
-	collection.PublicEdit = req.PublicEdit
-	collection.PublicDeploy = req.PublicDeploy
+	// Don't allow modifications to running labs
+	if lab.Instance != nil {
+		return utils.ErrorRunningLab
+	}
 
-	return u.labRepo.Update(ctx, collection)
+	labTopology, err := u.topologyRepo.GetByUuid(ctx, req.TopologyId)
+	if err != nil {
+		return err
+	}
+
+	lab.Name = req.Name
+	lab.StartTime = req.StartTime
+	lab.EndTime = req.EndTime
+	lab.Topology = *labTopology
+
+	return u.labRepo.Update(ctx, lab)
 }
 
-func (u *labService) Delete(ctx *gin.Context, collectionId string) error {
-	collection, err := u.labRepo.GetByUuid(ctx, collectionId)
+func (u *labService) Delete(ctx *gin.Context, labId string) error {
+	lab, err := u.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
 	}
 
-	return u.labRepo.Delete(ctx, collection)
+	// Don't allow deletion of running labs
+	if lab.Instance != nil {
+		return utils.ErrorRunningLab
+	}
+
+	return u.labRepo.Delete(ctx, lab)
 }

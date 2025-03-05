@@ -1,0 +1,72 @@
+package config
+
+import (
+	"github.com/charmbracelet/log"
+	"gopkg.in/yaml.v3"
+	"os"
+)
+
+type (
+	AntimonyConfig struct {
+		Containerlab clabConfig
+		Storage      storageConfig
+		Server       serverConfig
+		Database     databaseConfig
+	}
+
+	clabConfig struct {
+		SchemaUrl      string `yaml:"schemaUrl"`
+		SchemaFallback string `yaml:"schemaFallback"`
+	}
+
+	storageConfig struct {
+		Directory string `yaml:"directory"`
+	}
+
+	serverConfig struct {
+		Host string `yaml:"host"`
+		Port uint   `yaml:"port"`
+	}
+
+	databaseConfig struct {
+		Host string `yaml:"host"`
+		Port uint   `yaml:"port"`
+	}
+)
+
+func Load() *AntimonyConfig {
+	config := defaultConfig()
+
+	if configData, err := os.ReadFile("./config.yml"); err != nil {
+		log.Warn("Failed to load ./config.yml.")
+		data, err := yaml.Marshal(&config)
+		err = os.WriteFile("./config.yml", data, 0755)
+		if err != nil {
+			log.Error("Failed to write default config to ./config.yml.")
+		}
+	} else if err := yaml.Unmarshal(configData, &config); err != nil {
+		log.Errorf("Failed to parse config.yml: %v", err.Error())
+	}
+
+	return config
+}
+
+func defaultConfig() *AntimonyConfig {
+	return &AntimonyConfig{
+		Storage: storageConfig{
+			Directory: "./data/",
+		},
+		Server: serverConfig{
+			Host: "127.0.0.1",
+			Port: 3000,
+		},
+		Database: databaseConfig{
+			Host: "127.0.0.1",
+			Port: 3000,
+		},
+		Containerlab: clabConfig{
+			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
+			SchemaFallback: "./clab.schema.json",
+		},
+	}
+}
