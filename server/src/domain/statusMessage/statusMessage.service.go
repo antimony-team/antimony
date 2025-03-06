@@ -3,6 +3,7 @@ package statusMessage
 import (
 	"antimonyBackend/src/utils"
 	"github.com/gin-gonic/gin"
+	socketio "github.com/googollee/go-socket.io"
 )
 
 type (
@@ -12,12 +13,14 @@ type (
 
 	statusMessageService struct {
 		statusMessageRepo Repository
+		socketServer      *socketio.Server
 	}
 )
 
-func CreateService(userRepo Repository) Service {
+func CreateService(userRepo Repository, socketServer *socketio.Server) Service {
 	return &statusMessageService{
 		statusMessageRepo: userRepo,
+		socketServer:      socketServer,
 	}
 }
 

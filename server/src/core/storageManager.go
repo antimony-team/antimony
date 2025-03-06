@@ -18,14 +18,14 @@ type (
 
 	storageManager struct {
 		storagePath string
-		cache       map[string]string
+		fileCache   map[string]string
 	}
 )
 
 func CreateStorageManager(config *config.AntimonyConfig) StorageManager {
 	storageManager := &storageManager{
 		storagePath: config.Storage.Directory,
-		cache:       make(map[string]string),
+		fileCache:   make(map[string]string),
 	}
 
 	storageManager.PreloadFiles(config)
@@ -55,7 +55,7 @@ func (s *storageManager) PreloadFiles(config *config.AntimonyConfig) {
 		var content string
 		if err := s.Read(e.Name(), &content); err != nil {
 			filePath := filepath.Join(s.storagePath, e.Name())
-			log.Error("Failed to preload storage file '%s': %s", filePath, err.Error())
+			log.Warnf("Failed to preload storage file '%s': %s", filePath, err.Error())
 			continue
 		}
 		preloadCount++
@@ -70,7 +70,7 @@ func (s *storageManager) Read(fileName string, content *string) error {
 		return err
 	} else {
 		*content = string(data)
-		s.cache[fileName] = string(data)
+		s.fileCache[fileName] = string(data)
 	}
 
 	return nil

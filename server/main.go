@@ -4,6 +4,7 @@ import (
 	"antimonyBackend/src/config"
 	"antimonyBackend/src/core"
 	"antimonyBackend/src/domain/collection"
+	"antimonyBackend/src/domain/instance"
 	"antimonyBackend/src/domain/lab"
 	"antimonyBackend/src/domain/schema"
 	"antimonyBackend/src/domain/statusMessage"
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
+	socketio "github.com/googollee/go-socket.io"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"sync"
@@ -21,6 +23,8 @@ import (
 
 func main() {
 	log.SetTimeFormat("[2006-01-02 15:04:05]")
+
+	socketServer := socketio.NewServer(nil)
 
 	antimonyConfig := config.Load()
 	storageManager := core.CreateStorageManager(antimonyConfig)
@@ -31,6 +35,10 @@ func main() {
 	}
 
 	loadTestData(db)
+
+	var (
+		instanceService = instance.CreateService(antimonyConfig, socketServer)
+	)
 
 	var (
 		schemaService = schema.CreateService(antimonyConfig)
@@ -45,7 +53,7 @@ func main() {
 
 	var (
 		statusMessageRepository = statusMessage.CreateRepository(db)
-		statusMessageService    = statusMessage.CreateService(statusMessageRepository)
+		statusMessageService    = statusMessage.CreateService(statusMessageRepository, socketServer)
 		statusMessageHandler    = statusMessage.CreateHandler(statusMessageService)
 	)
 
@@ -63,31 +71,42 @@ func main() {
 
 	var (
 		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(labRepository, topologyRepository)
+		labService    = lab.CreateService(labRepository, topologyRepository, instanceService)
 		labHandler    = lab.CreateHandler(labService)
 	)
 
 	gin.SetMode(gin.ReleaseMode)
-	server := gin.Default()
+	webServer := gin.Default()
 
-	lab.RegisterRoutes(server, labHandler)
-	user.RegisterRoutes(server, userHandler)
-	schema.RegisterRoutes(server, schemaHandler)
-	topology.RegisterRoutes(server, topologyHandler)
-	collection.RegisterRoutes(server, collectionHandler)
-	statusMessage.RegisterRoutes(server, statusMessageHandler)
+	lab.RegisterRoutes(webServer, labHandler)
+	user.RegisterRoutes(webServer, userHandler)
+	schema.RegisterRoutes(webServer, schemaHandler)
+	topology.RegisterRoutes(webServer, topologyHandler)
+	collection.RegisterRoutes(webServer, collectionHandler)
+	statusMessage.RegisterRoutes(webServer, statusMessageHandler)
 
 	var serverGroup sync.WaitGroup
 	serverGroup.Add(1)
 	socket := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
-	go startServer(server, socket, &serverGroup)
+
+	go startWebServer(webServer, socket, &serverGroup)
+	go startSocketServer(socketServer, &serverGroup)
 
 	time.Sleep(100)
-	log.Info("Antimony API is ready to serve calls!", "socket", socket)
+	log.Info("Antimony API is ready to serve calls!", "conn", socket)
 	serverGroup.Wait()
 }
 
-func startServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
+func startSocketServer(socketServer *socketio.Server, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	err := socketServer.Serve()
+	if err != nil {
+		log.Fatalf("Failed to start socket server: %s", err.Error())
+	}
+}
+
+func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
 	if err := server.Run(socket); err != nil {

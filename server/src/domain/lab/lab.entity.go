@@ -31,13 +31,13 @@ type LabIn struct {
 }
 
 type LabOut struct {
-	UUID         string            `json:"uuid"`
-	Name         string            `json:"name"`
-	StartTime    time.Time         `json:"startTime"`
-	EndTime      time.Time         `json:"endTime"`
-	CreatorEmail string            `json:"creatorEmail"`
-	TopologyId   string            `json:"topologyId"`
-	Instance     instance.Instance `json:"instance"`
+	UUID         string             `json:"uuid"`
+	Name         string             `json:"name"`
+	StartTime    time.Time          `json:"startTime"`
+	EndTime      time.Time          `json:"endTime"`
+	CreatorEmail string             `json:"creatorEmail"`
+	TopologyId   string             `json:"topologyId"`
+	Instance     *instance.Instance `json:"instance,omitempty"`
 }
 
 type LabFilter struct {

@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"antimonyBackend/src/domain/instance"
 	"antimonyBackend/src/domain/topology"
 	"antimonyBackend/src/domain/user"
 	"antimonyBackend/src/utils"
@@ -16,15 +17,17 @@ type (
 	}
 
 	labService struct {
-		labRepo      Repository
-		topologyRepo topology.Repository
+		labRepo         Repository
+		topologyRepo    topology.Repository
+		instanceService instance.Service
 	}
 )
 
-func CreateService(labRepo Repository, topologyRepo topology.Repository) Service {
+func CreateService(labRepo Repository, topologyRepo topology.Repository, instanceService instance.Service) Service {
 	return &labService{
-		labRepo:      labRepo,
-		topologyRepo: topologyRepo,
+		labRepo:         labRepo,
+		topologyRepo:    topologyRepo,
+		instanceService: instanceService,
 	}
 }
 
@@ -38,10 +41,12 @@ func (u *labService) Get(ctx *gin.Context) ([]LabOut, error) {
 	for i, obj := range objs {
 		result[i] = LabOut{
 			UUID:         obj.UUID,
+			Name:         obj.Name,
 			StartTime:    obj.StartTime,
 			EndTime:      obj.EndTime,
 			CreatorEmail: obj.Creator.Email,
 			TopologyId:   obj.Topology.UUID,
+			Instance:     u.instanceService.GetInstanceForLab(obj.UUID),
 		}
 	}
 
@@ -97,7 +102,7 @@ func (u *labService) Delete(ctx *gin.Context, labId string) error {
 		return err
 	}
 
-	// Don't allow deletion of running labs
+	// Don't allow the deletion of running labs
 	if lab.Instance != nil {
 		return utils.ErrorRunningLab
 	}

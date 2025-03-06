@@ -47,8 +47,6 @@ func loadSchema(config *config.AntimonyConfig) any {
 			}
 		}
 	} else {
-		defer resp.Body.Close()
-
 		if err := json.NewDecoder(resp.Body).Decode(&schema); err != nil {
 			log.Fatal("Failed to parse remote clab schema. Exiting.")
 		}
