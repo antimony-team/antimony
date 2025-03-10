@@ -1,7 +1,7 @@
 package statusMessage
 
 import (
-	"antimonyBackend/src/domain/user"
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -31,7 +31,7 @@ func (h *statusMessageHandler) Get(ctx *gin.Context) {
 	}
 
 	// TODO: Add proper user ID from token
-	result, err := h.statusMessageService.Get(ctx, user.NativeUserID, filter)
+	result, err := h.statusMessageService.Get(ctx, auth.NativeUserID, filter)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return

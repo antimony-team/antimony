@@ -12,6 +12,7 @@ type (
 		Storage      storageConfig
 		Server       serverConfig
 		Database     databaseConfig
+		Auth         authConfig
 	}
 
 	clabConfig struct {
@@ -28,9 +29,17 @@ type (
 		Port uint   `yaml:"port"`
 	}
 
+	authConfig struct {
+		EnableNativeAdmin bool     `yaml:"enableNativeAdmin"`
+		OpenIdIssuer      string   `yaml:"openIdIssuer"`
+		OpenIdClientId    string   `yaml:"openIdClientId"`
+		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
+	}
+
 	databaseConfig struct {
-		Host string `yaml:"host"`
-		Port uint   `yaml:"port"`
+		Host      string `yaml:"host"`
+		Port      uint   `yaml:"port"`
+		LocalFile string `yaml:"localFile"`
 	}
 )
 
@@ -61,12 +70,19 @@ func defaultConfig() *AntimonyConfig {
 			Port: 3000,
 		},
 		Database: databaseConfig{
-			Host: "127.0.0.1",
-			Port: 3000,
+			Host:      "127.0.0.1",
+			Port:      3000,
+			LocalFile: "./test.db",
 		},
 		Containerlab: clabConfig{
 			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
 			SchemaFallback: "./clab.schema.json",
+		},
+		Auth: authConfig{
+			EnableNativeAdmin: true,
+			OpenIdIssuer:      "",
+			OpenIdClientId:    "",
+			OpenIdAdminGroups: make([]string, 0),
 		},
 	}
 }

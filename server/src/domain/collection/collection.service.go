@@ -1,6 +1,7 @@
 package collection
 
 import (
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/domain/user"
 	"antimonyBackend/src/utils"
 	"github.com/gin-gonic/gin"
@@ -8,71 +9,114 @@ import (
 
 type (
 	Service interface {
-		Get(ctx *gin.Context) ([]CollectionOut, error)
-		Create(ctx *gin.Context, req CollectionIn) (string, error)
-		Update(ctx *gin.Context, req CollectionIn, collectionId string) error
-		Delete(ctx *gin.Context, collectionId string) error
+		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]CollectionOut, error)
+		Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error)
+		Update(ctx *gin.Context, req CollectionIn, collectionId string, authUser auth.AuthenticatedUser) error
+		Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error
 	}
 
 	collectionService struct {
 		collectionRepo Repository
+		userService    user.Service
 	}
 )
 
-func CreateService(collectionRepo Repository) Service {
+func CreateService(collectionRepo Repository, userService user.Service) Service {
 	return &collectionService{
 		collectionRepo: collectionRepo,
+		userService:    userService,
 	}
 }
 
-func (u *collectionService) Get(ctx *gin.Context) ([]CollectionOut, error) {
-	objs, err := u.collectionRepo.Get(ctx)
+func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]CollectionOut, error) {
+	var (
+		collections []Collection
+		err         error
+	)
+
+	if authUser.IsAdmin {
+		collections, err = u.collectionRepo.GetAll(ctx)
+	} else {
+		collections, err = u.collectionRepo.GetByNames(ctx, authUser.Collections)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]CollectionOut, len(objs))
-	for i, obj := range objs {
+	result := make([]CollectionOut, len(collections))
+	for i, collection := range collections {
 		result[i] = CollectionOut{
-			UUID:         obj.UUID,
-			PublicEdit:   obj.PublicEdit,
-			PublicDeploy: obj.PublicDeploy,
-			CreatorEmail: obj.Creator.Email,
+			ID:           collection.UUID,
+			Name:         collection.Name,
+			PublicWrite:  collection.PublicWrite,
+			PublicDeploy: collection.PublicDeploy,
+			Creator:      u.userService.UserToOut(collection.Creator),
 		}
 	}
 
 	return result, err
 }
 
-func (u *collectionService) Create(ctx *gin.Context, req CollectionIn) (string, error) {
+func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error) {
+	// Deny request if the user is not an admin
+	if !authUser.IsAdmin {
+		return "", utils.ErrorNoWriteAccessToCollection
+	}
+
+	// Don't allow duplicate collection names
+	if nameExists, err := u.collectionRepo.DoesNameExist(ctx, req.Name); err != nil {
+		return "", err
+	} else if nameExists {
+		return "", utils.ErrorCollectionExists
+	}
+
 	newUuid := utils.GenerateUuid()
-	err := u.collectionRepo.Create(ctx, &Collection{
+
+	return newUuid, u.collectionRepo.Create(ctx, &Collection{
 		UUID:         newUuid,
-		PublicEdit:   req.PublicEdit,
+		Name:         req.Name,
+		PublicWrite:  req.PublicWrite,
 		PublicDeploy: req.PublicDeploy,
 		Creator:      user.User{},
 	})
-
-	return newUuid, err
 }
 
-func (u *collectionService) Update(ctx *gin.Context, req CollectionIn, collectionId string) error {
+func (u *collectionService) Update(ctx *gin.Context, req CollectionIn, collectionId string, authUser auth.AuthenticatedUser) error {
 	collection, err := u.collectionRepo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
 	}
 
+	// Deny request if user is not the owner of the requested topology or an admin
+	if !authUser.IsAdmin && authUser.UserId != collection.Creator.UUID {
+		return utils.ErrorNoWriteAccessToCollection
+	}
+
+	// Don't allow duplicate collection names
+	if collection.Name != req.Name {
+		if nameExists, err := u.collectionRepo.DoesNameExist(ctx, req.Name); err != nil {
+			return err
+		} else if nameExists {
+			return utils.ErrorCollectionExists
+		}
+	}
+	
 	collection.Name = req.Name
-	collection.PublicEdit = req.PublicEdit
+	collection.PublicWrite = req.PublicWrite
 	collection.PublicDeploy = req.PublicDeploy
 
 	return u.collectionRepo.Update(ctx, collection)
 }
 
-func (u *collectionService) Delete(ctx *gin.Context, collectionId string) error {
+func (u *collectionService) Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error {
 	collection, err := u.collectionRepo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
+	}
+
+	// Deny request if user is not the owner of the requested topology or an admin
+	if !authUser.IsAdmin && authUser.UserId != collection.Creator.UUID {
+		return utils.ErrorNoWriteAccessToCollection
 	}
 
 	return u.collectionRepo.Delete(ctx, collection)

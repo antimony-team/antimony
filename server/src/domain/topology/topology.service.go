@@ -1,6 +1,7 @@
 package topology
 
 import (
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/core"
 	"antimonyBackend/src/domain/collection"
 	"antimonyBackend/src/domain/user"
@@ -10,35 +11,38 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
+	"slices"
 )
 
 type (
 	Service interface {
-		Get(ctx *gin.Context) ([]TopologyOut, error)
-		Create(ctx *gin.Context, req TopologyIn) (string, error)
-		Update(ctx *gin.Context, req TopologyIn, topologyId string) error
-		Delete(ctx *gin.Context, topologyId string) error
+		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error)
+		Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error)
+		Update(ctx *gin.Context, req TopologyIn, topologyId string, authUser auth.AuthenticatedUser) error
+		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
 	}
 
 	topologyService struct {
 		topologyRepo   Repository
 		collectionRepo collection.Repository
+		userService    user.Service
 		storageManager core.StorageManager
 		schemaLoader   gojsonschema.JSONLoader
 	}
 )
 
-func CreateService(topologyRepo Repository, collectionRepo collection.Repository, storageManager core.StorageManager, clabSchema any) Service {
+func CreateService(topologyRepo Repository, collectionRepo collection.Repository, userService user.Service, storageManager core.StorageManager, clabSchema any) Service {
 	return &topologyService{
 		topologyRepo:   topologyRepo,
 		collectionRepo: collectionRepo,
+		userService:    userService,
 		storageManager: storageManager,
 		schemaLoader:   gojsonschema.NewGoLoader(clabSchema),
 	}
 }
 
-func (u *topologyService) Get(ctx *gin.Context) ([]TopologyOut, error) {
-	topologies, err := u.topologyRepo.Get(ctx)
+func (u *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error) {
+	topologies, err := u.topologyRepo.GetFromCollections(ctx, authUser.Collections)
 	if err != nil {
 		return nil, err
 	}
@@ -56,28 +60,32 @@ func (u *topologyService) Get(ctx *gin.Context) ([]TopologyOut, error) {
 		}
 
 		result = append(result, TopologyOut{
-			UUID:         topology.UUID,
+			ID:           topology.UUID,
 			Definition:   definition,
 			Metadata:     metadata,
 			GitSourceUrl: topology.GitSourceUrl,
 			CollectionId: topology.Collection.UUID,
-			CreatorEmail: topology.Creator.Email,
+			Creator:      u.userService.UserToOut(topology.Creator),
 		})
 	}
 
 	return result, err
 }
 
-func (u *topologyService) Create(ctx *gin.Context, req TopologyIn) (string, error) {
+func (u *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error) {
 	topologyCollection, err := u.collectionRepo.GetByUuid(ctx, req.CollectionId)
 	if err != nil {
 		return "", err
 	}
 
+	// Deny request if user does not have access to the target collection
+	if !authUser.IsAdmin && (!topologyCollection.PublicWrite || !slices.Contains(authUser.Collections, req.CollectionId)) {
+		return "", utils.ErrorNoWriteAccessToCollection
+	}
+
 	if err := u.validateTopology(req.Definition); err != nil {
 		return "", err
 	}
-
 	if err := u.validateMetadata(req.Metadata); err != nil {
 		return "", err
 	}
@@ -88,20 +96,30 @@ func (u *topologyService) Create(ctx *gin.Context, req TopologyIn) (string, erro
 		return "", err
 	}
 
+	creatorUser, err := u.userService.GetByUuid(ctx, authUser.UserId)
+	if err != nil {
+		return "", utils.ErrorUnauthorized
+	}
+
 	err = u.topologyRepo.Create(ctx, &Topology{
 		UUID:         newUuid,
 		GitSourceUrl: req.GitSourceUrl,
 		Collection:   *topologyCollection,
-		Creator:      user.User{},
+		Creator:      *creatorUser,
 	})
 
 	return newUuid, err
 }
 
-func (u *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId string) error {
+func (u *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId string, authUser auth.AuthenticatedUser) error {
 	topology, err := u.topologyRepo.GetByUuid(ctx, topologyId)
 	if err != nil {
 		return err
+	}
+
+	// Deny request if user is not the owner of the requested topology or an admin
+	if !authUser.IsAdmin && authUser.UserId != topology.Creator.UUID {
+		return utils.ErrorNoWriteAccessToTopology
 	}
 
 	topologyCollection, err := u.collectionRepo.GetByUuid(ctx, req.CollectionId)
@@ -109,10 +127,14 @@ func (u *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId st
 		return err
 	}
 
+	// Deny request if user does not have access to target collection
+	if !authUser.IsAdmin && (!topologyCollection.PublicWrite || !slices.Contains(authUser.Collections, req.CollectionId)) {
+		return utils.ErrorNoWriteAccessToCollection
+	}
+
 	if err := u.validateTopology(req.Definition); err != nil {
 		return err
 	}
-
 	if err := u.validateMetadata(req.Metadata); err != nil {
 		return err
 	}
@@ -127,10 +149,15 @@ func (u *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId st
 	return u.topologyRepo.Update(ctx, topology)
 }
 
-func (u *topologyService) Delete(ctx *gin.Context, topologyId string) error {
+func (u *topologyService) Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error {
 	topology, err := u.topologyRepo.GetByUuid(ctx, topologyId)
 	if err != nil {
 		return err
+	}
+
+	// Deny request if user is not the owner of the requested topology or an admin
+	if !authUser.IsAdmin && authUser.UserId != topology.Creator.UUID {
+		return utils.ErrorNoWriteAccessToTopology
 	}
 
 	return u.topologyRepo.Delete(ctx, topology)

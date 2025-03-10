@@ -8,7 +8,7 @@ import (
 
 type Topology struct {
 	gorm.Model
-	UUID         string
+	UUID         string `gorm:"unique"`
 	GitSourceUrl string
 	Collection   collection.Collection
 	CollectionID uint
@@ -24,10 +24,10 @@ type TopologyIn struct {
 }
 
 type TopologyOut struct {
-	UUID         string `json:"uuid"`
-	Definition   string `json:"definition"`
-	Metadata     string `json:"metadata"`
-	GitSourceUrl string `json:"gitSourceUrl"`
-	CollectionId string `json:"collectionId"`
-	CreatorEmail string `json:"creatorEmail"`
+	ID           string       `json:"id"`
+	Definition   string       `json:"definition"`
+	Metadata     string       `json:"metadata"`
+	GitSourceUrl string       `json:"gitSourceUrl"`
+	CollectionId string       `json:"collectionId"`
+	Creator      user.UserOut `json:"creator"`
 }

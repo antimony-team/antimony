@@ -5,8 +5,10 @@ import (
 )
 
 func RegisterRoutes(route *gin.Engine, handler Handler) {
-	routes := route.Group("/login")
+	routes := route.Group("/users")
 	{
-		routes.POST("", handler.Login)
+		routes.POST("/login", handler.LoginNative)
+		routes.GET("/login/openid", handler.LoginOIDC)
+		routes.GET("/login/success", handler.LoginSuccess)
 	}
 }

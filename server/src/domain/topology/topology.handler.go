@@ -1,6 +1,7 @@
 package topology
 
 import (
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +26,8 @@ func CreateHandler(topologyService Service) Handler {
 }
 
 func (h *topologyHandler) Get(ctx *gin.Context) {
-	result, err := h.topologyService.Get(ctx)
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.topologyService.Get(ctx, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -41,7 +43,8 @@ func (h *topologyHandler) Create(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.topologyService.Create(ctx, payload)
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.topologyService.Create(ctx, payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -58,7 +61,8 @@ func (h *topologyHandler) Update(ctx *gin.Context) {
 		return
 	}
 
-	err = h.topologyService.Update(ctx, payload, ctx.Param("id"))
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	err = h.topologyService.Update(ctx, payload, ctx.Param("id"), authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -68,7 +72,8 @@ func (h *topologyHandler) Update(ctx *gin.Context) {
 }
 
 func (h *topologyHandler) Delete(ctx *gin.Context) {
-	err := h.topologyService.Delete(ctx, ctx.Param("id"))
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	err := h.topologyService.Delete(ctx, ctx.Param("id"), authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return

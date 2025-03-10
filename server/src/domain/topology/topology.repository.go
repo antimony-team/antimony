@@ -9,8 +9,8 @@ import (
 
 type (
 	Repository interface {
-		Get(ctx context.Context) ([]Topology, error)
 		GetByUuid(ctx context.Context, topologyId string) (*Topology, error)
+		GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error)
 		Create(ctx context.Context, topology *Topology) error
 		Update(ctx context.Context, topology *Topology) error
 		Delete(ctx context.Context, topology *Topology) error
@@ -27,16 +27,20 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *topologyRepository) Get(ctx context.Context) ([]Topology, error) {
+func (r *topologyRepository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error) {
 	topologies := make([]Topology, 0)
-	result := r.db.WithContext(ctx).Preload("Collection").Preload("Creator").Find(&topologies)
+	result := r.db.WithContext(ctx).
+		Joins("Collection").
+		Joins("Creator").
+		Where("Collection.name IN ?", collectionNames).
+		Find(&topologies)
 
 	return topologies, result.Error
 }
 
 func (r *topologyRepository) GetByUuid(ctx context.Context, topologyId string) (*Topology, error) {
 	topology := &Topology{}
-	result := r.db.WithContext(ctx).Where("uuid = ?", topologyId).Preload("Creator").First(topology)
+	result := r.db.WithContext(ctx).Where("uuid = ?", topologyId).Preload("Collection").Preload("Creator").First(topology)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, utils.ErrorUuidNotFound

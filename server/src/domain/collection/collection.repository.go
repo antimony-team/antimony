@@ -9,8 +9,10 @@ import (
 
 type (
 	Repository interface {
-		Get(ctx context.Context) ([]Collection, error)
+		GetAll(ctx context.Context) ([]Collection, error)
+		GetByNames(ctx context.Context, collectionNames []string) ([]Collection, error)
 		GetByUuid(ctx context.Context, collectionId string) (*Collection, error)
+		DoesNameExist(ctx context.Context, collectionName string) (bool, error)
 		Create(ctx context.Context, collection *Collection) error
 		Update(ctx context.Context, collection *Collection) error
 		Delete(ctx context.Context, collection *Collection) error
@@ -27,16 +29,39 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *collectionRepository) Get(ctx context.Context) ([]Collection, error) {
+func (r *collectionRepository) GetAll(ctx context.Context) ([]Collection, error) {
 	collections := make([]Collection, 0)
 	result := r.db.WithContext(ctx).Preload("Creator").Find(&collections)
 
 	return collections, result.Error
 }
 
+func (r *collectionRepository) GetByNames(ctx context.Context, collectionNames []string) ([]Collection, error) {
+	collections := make([]Collection, 0)
+	result := r.db.WithContext(ctx).
+		Preload("Creator").
+		Where("Name IN ?", collectionNames).
+		Find(&collections)
+
+	return collections, result.Error
+}
+
+func (r *collectionRepository) DoesNameExist(ctx context.Context, collectionName string) (bool, error) {
+	collection := &Collection{}
+	result := r.db.WithContext(ctx).
+		Where("name = ? AND deleted_at IS NULL", collectionName).
+		Limit(1).
+		Find(collection)
+
+	return result.RowsAffected > 0, result.Error
+}
+
 func (r *collectionRepository) GetByUuid(ctx context.Context, collectionId string) (*Collection, error) {
 	collection := &Collection{}
-	result := r.db.WithContext(ctx).Where("uuid = ?", collectionId).Preload("Creator").First(collection)
+	result := r.db.WithContext(ctx).
+		Preload("Creator").
+		Where("uuid = ?", collectionId).
+		First(collection)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, utils.ErrorUuidNotFound

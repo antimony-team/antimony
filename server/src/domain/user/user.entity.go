@@ -6,15 +6,17 @@ import (
 
 type User struct {
 	gorm.Model
-	UUID    string
-	OpenID  string
-	Email   string
-	IsAdmin bool
+	UUID string `gorm:"index"`
+	Sub  string `gorm:"index"`
+	Name string
 }
 
-type Credentials struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+type UserOut struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
-const NativeUserID = "00000000-0000-0000-0000-00000000000"
+type CredentialsIn struct {
+	Username string `json:"username" ,binding:"required"`
+	Password string `json:"password" ,binding:"required"`
+}

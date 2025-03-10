@@ -10,14 +10,14 @@ import (
 
 type Lab struct {
 	gorm.Model
-	UUID       string
+	UUID       string `gorm:"index"`
 	Name       string
 	StartTime  time.Time
 	EndTime    time.Time
-	Creator    user.User
-	CreatorID  uint
 	Topology   topology.Topology
 	TopologyID uint
+	Creator    user.User
+	CreatorID  uint
 
 	// Not persisted, set to nil if lab is not running yet
 	Instance *instance.Instance `gorm:"-"`
@@ -31,13 +31,13 @@ type LabIn struct {
 }
 
 type LabOut struct {
-	UUID         string             `json:"uuid"`
-	Name         string             `json:"name"`
-	StartTime    time.Time          `json:"startTime"`
-	EndTime      time.Time          `json:"endTime"`
-	CreatorEmail string             `json:"creatorEmail"`
-	TopologyId   string             `json:"topologyId"`
-	Instance     *instance.Instance `json:"instance,omitempty"`
+	ID         string             `json:"id"`
+	Name       string             `json:"name"`
+	StartTime  time.Time          `json:"startTime"`
+	EndTime    time.Time          `json:"endTime"`
+	TopologyId string             `json:"topologyId"`
+	Creator    user.UserOut       `json:"creator"`
+	Instance   *instance.Instance `json:"instance,omitempty"`
 }
 
 type LabFilter struct {

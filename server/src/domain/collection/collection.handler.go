@@ -1,7 +1,9 @@
 package collection
 
 import (
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/utils"
+	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +27,8 @@ func CreateHandler(collectionService Service) Handler {
 }
 
 func (h *collectionHandler) Get(ctx *gin.Context) {
-	result, err := h.collectionService.Get(ctx)
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.collectionService.Get(ctx, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -37,11 +40,14 @@ func (h *collectionHandler) Get(ctx *gin.Context) {
 func (h *collectionHandler) Create(ctx *gin.Context) {
 	payload := CollectionIn{}
 	if err := ctx.Bind(&payload); err != nil {
+		log.Errorf("COLLECTION CREATE: %v", payload.PublicWrite)
+		log.Errorf("COLLECTION DEPLOY: %v", payload.PublicDeploy)
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
 
-	result, err := h.collectionService.Create(ctx, payload)
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.collectionService.Create(ctx, payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -57,7 +63,8 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.collectionService.Update(ctx, payload, ctx.Param("id")); err != nil {
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if err := h.collectionService.Update(ctx, payload, ctx.Param("id"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -66,7 +73,8 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 }
 
 func (h *collectionHandler) Delete(ctx *gin.Context) {
-	if err := h.collectionService.Delete(ctx, ctx.Param("id")); err != nil {
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if err := h.collectionService.Delete(ctx, ctx.Param("id"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

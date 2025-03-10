@@ -1,81 +1,132 @@
 package lab
 
 import (
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/domain/instance"
 	"antimonyBackend/src/domain/topology"
 	"antimonyBackend/src/domain/user"
 	"antimonyBackend/src/utils"
+	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
+	"slices"
+	"sort"
+	"sync"
+	"time"
 )
 
 type (
 	Service interface {
-		Get(ctx *gin.Context) ([]LabOut, error)
-		Create(ctx *gin.Context, req LabIn) (string, error)
-		Update(ctx *gin.Context, req LabIn, labId string) error
-		Delete(ctx *gin.Context, labId string) error
+		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]LabOut, error)
+		Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error)
+		Update(ctx *gin.Context, req LabIn, labId string, authUser auth.AuthenticatedUser) error
+		Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error
 	}
 
 	labService struct {
-		labRepo         Repository
-		topologyRepo    topology.Repository
-		instanceService instance.Service
+		labRepo          Repository
+		topologyRepo     topology.Repository
+		instanceService  instance.Service
+		userService      user.Service
+		labScheduleMutex *sync.Mutex
+		labSchedule      []*Lab
 	}
 )
 
-func CreateService(labRepo Repository, topologyRepo topology.Repository, instanceService instance.Service) Service {
-	return &labService{
-		labRepo:         labRepo,
-		topologyRepo:    topologyRepo,
-		instanceService: instanceService,
+func CreateService(labRepo Repository, topologyRepo topology.Repository, instanceService instance.Service, userService user.Service) Service {
+	labSchedule, err := labRepo.Get()
+	if err != nil {
+		log.Fatal("Failed to load scheduled labs from database. Exiting.")
+	}
+
+	labService := &labService{
+		labRepo:          labRepo,
+		topologyRepo:     topologyRepo,
+		instanceService:  instanceService,
+		userService:      userService,
+		labScheduleMutex: &sync.Mutex{},
+		labSchedule:      labSchedule,
+	}
+
+	go labService.LabDeployer()
+
+	return labService
+}
+
+func (s *labService) LabDeployer() {
+	for {
+		log.Infof("[SCHEDULER] Scheduled labs: %v", s.labSchedule)
+		if len(s.labSchedule) > 0 && s.labSchedule[0].StartTime.Unix() <= time.Now().Unix() {
+			log.Infof("[SCHEDULER] Deploying lab %s (%s) with containerlab", s.labSchedule[0].Name, s.labSchedule[0].Topology.Collection.Name)
+
+			// Remove lab from schedule list
+			s.labScheduleMutex.Lock()
+			s.labSchedule = s.labSchedule[1:]
+			s.labScheduleMutex.Unlock()
+		}
+		time.Sleep(5 * time.Second)
 	}
 }
 
-func (u *labService) Get(ctx *gin.Context) ([]LabOut, error) {
-	objs, err := u.labRepo.Get(ctx)
+func (s *labService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]LabOut, error) {
+	labs, err := s.labRepo.GetFromCollections(ctx, authUser.Collections)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]LabOut, len(objs))
-	for i, obj := range objs {
+	result := make([]LabOut, len(labs))
+	for i, lab := range labs {
 		result[i] = LabOut{
-			UUID:         obj.UUID,
-			Name:         obj.Name,
-			StartTime:    obj.StartTime,
-			EndTime:      obj.EndTime,
-			CreatorEmail: obj.Creator.Email,
-			TopologyId:   obj.Topology.UUID,
-			Instance:     u.instanceService.GetInstanceForLab(obj.UUID),
+			ID:         lab.UUID,
+			Name:       lab.Name,
+			StartTime:  lab.StartTime,
+			EndTime:    lab.EndTime,
+			TopologyId: lab.Topology.UUID,
+			Creator:    s.userService.UserToOut(lab.Creator),
+			Instance:   s.instanceService.GetInstanceForLab(lab.UUID),
 		}
 	}
 
 	return result, err
 }
 
-func (u *labService) Create(ctx *gin.Context, req LabIn) (string, error) {
-	labTopology, err := u.topologyRepo.GetByUuid(ctx, req.TopologyId)
+func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error) {
+	labTopology, err := s.topologyRepo.GetByUuid(ctx, req.TopologyId)
 	if err != nil {
 		return "", err
 	}
 
+	// Deny request if user does not have access to the lab topology's collection
+	if !authUser.IsAdmin && (!labTopology.Collection.PublicDeploy || !slices.Contains(authUser.Collections, labTopology.Collection.Name)) {
+		return "", utils.ErrorNoDeployAccessToCollection
+	}
+
 	newUuid := utils.GenerateUuid()
-	err = u.labRepo.Create(ctx, &Lab{
+	lab := &Lab{
 		UUID:      newUuid,
 		Name:      req.Name,
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
 		Creator:   user.User{},
 		Topology:  *labTopology,
-	})
+	}
+
+	// Add created lab to schedule if it was successfully added to the database
+	if err := s.labRepo.Create(ctx, lab); err == nil {
+		s.scheduleLab(lab)
+	}
 
 	return newUuid, err
 }
 
-func (u *labService) Update(ctx *gin.Context, req LabIn, labId string) error {
-	lab, err := u.labRepo.GetByUuid(ctx, labId)
+func (s *labService) Update(ctx *gin.Context, req LabIn, labId string, authUser auth.AuthenticatedUser) error {
+	lab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
+	}
+
+	// Deny request if user is not the owner of the requested lab or an admin
+	if !authUser.IsAdmin && authUser.UserId != lab.Creator.UUID {
+		return utils.ErrorNoWriteAccessToLab
 	}
 
 	// Don't allow modifications to running labs
@@ -83,7 +134,7 @@ func (u *labService) Update(ctx *gin.Context, req LabIn, labId string) error {
 		return utils.ErrorRunningLab
 	}
 
-	labTopology, err := u.topologyRepo.GetByUuid(ctx, req.TopologyId)
+	labTopology, err := s.topologyRepo.GetByUuid(ctx, req.TopologyId)
 	if err != nil {
 		return err
 	}
@@ -93,13 +144,18 @@ func (u *labService) Update(ctx *gin.Context, req LabIn, labId string) error {
 	lab.EndTime = req.EndTime
 	lab.Topology = *labTopology
 
-	return u.labRepo.Update(ctx, lab)
+	return s.labRepo.Update(ctx, lab)
 }
 
-func (u *labService) Delete(ctx *gin.Context, labId string) error {
-	lab, err := u.labRepo.GetByUuid(ctx, labId)
+func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error {
+	lab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
+	}
+
+	// Deny request if user is not the owner of the requested lab or an admin
+	if !authUser.IsAdmin && authUser.UserId != lab.Creator.UUID {
+		return utils.ErrorNoWriteAccessToLab
 	}
 
 	// Don't allow the deletion of running labs
@@ -107,5 +163,23 @@ func (u *labService) Delete(ctx *gin.Context, labId string) error {
 		return utils.ErrorRunningLab
 	}
 
-	return u.labRepo.Delete(ctx, lab)
+	return s.labRepo.Delete(ctx, lab)
+}
+
+func (s *labService) scheduleLab(lab *Lab) {
+	insertIndex := sort.Search(len(s.labSchedule), func(i int) bool {
+		return s.labSchedule[i].StartTime.Unix() >= lab.StartTime.Unix()
+	})
+
+	if insertIndex == len(s.labSchedule) {
+		s.labScheduleMutex.Lock()
+		s.labSchedule = append(s.labSchedule, lab)
+		s.labScheduleMutex.Unlock()
+		return
+	}
+
+	s.labScheduleMutex.Lock()
+	s.labSchedule = append(s.labSchedule[:insertIndex+1], s.labSchedule[insertIndex:]...)
+	s.labSchedule[insertIndex] = lab
+	s.labScheduleMutex.Unlock()
 }

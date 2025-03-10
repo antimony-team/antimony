@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"antimonyBackend/src/auth"
 	"antimonyBackend/src/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +26,8 @@ func CreateHandler(labService Service) Handler {
 }
 
 func (h *labHandler) Get(ctx *gin.Context) {
-	result, err := h.labService.Get(ctx)
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.labService.Get(ctx, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -41,7 +43,8 @@ func (h *labHandler) Create(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.labService.Create(ctx, payload)
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.labService.Create(ctx, payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
@@ -57,7 +60,8 @@ func (h *labHandler) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.labService.Update(ctx, payload, ctx.Param("id")); err != nil {
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if err := h.labService.Update(ctx, payload, ctx.Param("id"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -66,7 +70,8 @@ func (h *labHandler) Update(ctx *gin.Context) {
 }
 
 func (h *labHandler) Delete(ctx *gin.Context) {
-	if err := h.labService.Delete(ctx, ctx.Param("id")); err != nil {
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if err := h.labService.Delete(ctx, ctx.Param("id"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

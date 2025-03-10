@@ -29,6 +29,7 @@ func CreateService(config *config.AntimonyConfig, socketServer *socketio.Server)
 }
 
 func (s *instanceService) Init() {
+	s.socketServer.OnEvent("/instances", string(Deploy), s.onDeploy)
 	s.socketServer.OnEvent("/instances", string(Destroy), s.onDestroy)
 	s.socketServer.OnEvent("/instances", string(Redeploy), s.onRedeploy)
 	s.socketServer.OnEvent("/instances", string(StartNode), s.onStartNode)
@@ -36,6 +37,7 @@ func (s *instanceService) Init() {
 	s.socketServer.OnEvent("/instances", string(SaveNode), s.onSaveNode)
 }
 
+func (s *instanceService) onDeploy(c socketio.Conn, msg string)    {}
 func (s *instanceService) onDestroy(c socketio.Conn, msg string)   {}
 func (s *instanceService) onRedeploy(c socketio.Conn, msg string)  {}
 func (s *instanceService) onStopNode(c socketio.Conn, msg string)  {}

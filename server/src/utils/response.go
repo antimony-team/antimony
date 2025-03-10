@@ -17,12 +17,16 @@ func OkResponse(obj any) (int, Response) {
 
 func ErrorResponse(err error) (int, Response) {
 	switch {
+	case errors.Is(err, ErrorUnauthorized):
+		return http.StatusUnauthorized, Response{Code: -1, Message: err.Error()}
 	case errors.Is(err, ErrorUuidNotFound):
-		return http.StatusNotFound, Response{Code: 404, Message: err.Error()}
+		return http.StatusNotFound, Response{Code: -1, Message: err.Error()}
 	case errors.Is(err, ErrorValidationError):
-		return http.StatusNotFound, Response{Code: 422, Message: err.Error()}
+		return http.StatusBadRequest, Response{Code: -1, Message: err.Error()}
+	case errors.Is(err, ErrorCollectionExists):
+		return http.StatusBadRequest, Response{Code: 2001, Message: err.Error()}
 	case errors.Is(err, ErrorServer):
-		return http.StatusInternalServerError, Response{Code: 500, Message: err.Error()}
+		return http.StatusInternalServerError, Response{Code: -1, Message: err.Error()}
 	default:
 		return http.StatusInternalServerError, Response{Code: -1, Message: err.Error()}
 	}
