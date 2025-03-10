@@ -1,7 +1,7 @@
 import React, {useRef, useState} from 'react';
 
 import YAML from 'yaml';
-import SBInput from '@sb/components/common/sb-input/sb-input';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
@@ -18,7 +18,7 @@ interface TopologyAddDialogProps {
 const TopologyAddDialog = (props: TopologyAddDialogProps) => {
   const [topologyName, setTopologyName] = useState<string>('');
 
-  const topologyNameRef = useRef<HTMLInputElement>(null);
+  const topologyNameRef = useRef<SBInputRef>(null);
 
   const topologyStore = useTopologyStore();
   const notificationStore = useStatusMessages();
@@ -64,7 +64,7 @@ const TopologyAddDialog = (props: TopologyAddDialogProps) => {
       submitLabel="Apply"
       onSubmit={onSubmit}
       onCancel={props.onClose}
-      onShow={() => topologyNameRef.current?.focus()}
+      onShow={() => topologyNameRef.current?.input?.focus()}
     >
       <SBInput
         ref={topologyNameRef}

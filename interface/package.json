@@ -36,6 +36,7 @@
     "react-loader-spinner": "^6.1.6",
     "react-monaco-editor": "^0.56.2",
     "react-router": "^7.0.2",
+    "react-tooltip": "^5.28.0",
     "socket.io-client": "^4.8.1",
     "url": "^0.11.4",
     "uuid": "^10.0.0",

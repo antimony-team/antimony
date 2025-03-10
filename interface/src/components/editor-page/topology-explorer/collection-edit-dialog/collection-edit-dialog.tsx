@@ -1,9 +1,10 @@
+import {ErrorCodes} from '@sb/types/error-codes';
 import React, {useEffect, useRef, useState} from 'react';
 
 import {isEqual} from 'lodash-es';
 import {Checkbox} from 'primereact/checkbox';
 
-import SBInput from '@sb/components/common/sb-input/sb-input';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import {useCollectionStore, useStatusMessages} from '@sb/lib/stores/root-store';
 
@@ -19,7 +20,7 @@ interface CollectionEditDialogProps {
 }
 
 const CollectionEditDialog = (props: CollectionEditDialogProps) => {
-  const collectionNameRef = useRef<HTMLInputElement>(null);
+  const collectionNameRef = useRef<SBInputRef>(null);
 
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
@@ -40,7 +41,7 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
     }
   }, [props.isOpen]);
 
-  function onNameSubmit(name: string, isImplicit: boolean) {
+  async function onNameSubmit(name: string, isImplicit: boolean) {
     if (isImplicit) {
       setUpdatedCollection({
         ...updatedCollection,
@@ -57,52 +58,64 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
   async function onSubmit(collection?: CollectionIn) {
     collection ??= updatedCollection;
 
-    if (!props.editingCollection) {
-      collectionStore.add(collection).then(result => {
-        if (result.isErr()) {
-          notificationStore.error(
-            result.error.message,
-            'Failed to create collection'
+    // Edit existing collection
+    if (props.editingCollection) {
+      if (
+        isEqual(collection, {
+          name: props.editingCollection.name,
+          publicDeploy: props.editingCollection.publicDeploy,
+          publicWrite: props.editingCollection.publicWrite,
+        })
+      ) {
+        props.onClose();
+        return;
+      }
+
+      const result = await collectionStore.update(
+        props.editingCollection.id,
+        collection
+      );
+      if (result.isErr()) {
+        if (result.error.code === ErrorCodes.ErrorCollectionExists) {
+          collectionNameRef.current?.setValidationError(
+            'A collection with that name already exists.'
           );
         } else {
-          notificationStore.success(
-            'Collection has been created successfully.'
-          );
-          props.onClose();
-        }
-      });
-      return;
-    }
-
-    if (
-      isEqual(collection, {
-        name: props.editingCollection.name,
-        publicDeploy: props.editingCollection.publicDeploy,
-        publicWrite: props.editingCollection.publicWrite,
-      })
-    ) {
-      props.onClose();
-      return;
-    }
-
-    collectionStore
-      .update(props.editingCollection.id, collection)
-      .then(result => {
-        if (result.isErr()) {
           notificationStore.error(
             result.error.message,
             'Failed to edit collection'
           );
-        } else {
-          notificationStore.success('Collection has been edited successfully.');
-          props.onClose();
         }
-      });
+      } else {
+        notificationStore.success('Collection has been edited successfully.');
+        props.onClose();
+      }
+      return;
+    }
+
+    // Create new collection
+    const result = await collectionStore.add(collection);
+    if (result.isErr()) {
+      if (result.error.code === ErrorCodes.ErrorCollectionExists) {
+        collectionNameRef.current?.setValidationError(
+          'A collection with that name already exists.'
+        );
+      } else {
+        notificationStore.error(
+          result.error.message,
+          'Failed to create collection'
+        );
+      }
+    } else {
+      notificationStore.success('Collection has been created successfully.');
+      props.onClose();
+    }
   }
 
   return (
     <SBDialog
       onClose={props.onClose}
+      onCancel={props.onClose}
       isOpen={props.isOpen}
       headerTitle={
         props.editingCollection ? 'Edit Collection' : 'Add Collection'
@@ -110,8 +123,7 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
       className="sb-collection-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onCancel={props.onClose}
-      onShow={() => collectionNameRef.current?.focus()}
+      onShow={() => collectionNameRef.current?.input?.focus()}
     >
       <div className="flex gap-4 flex-column">
         <SBInput

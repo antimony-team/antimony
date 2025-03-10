@@ -1,3 +1,5 @@
+import {RemoteDataBinder} from '@sb/lib/stores/data-binder/remote-data-binder';
+import Cookies from 'js-cookie';
 import React, {ChangeEvent, FormEvent, useEffect, useState} from 'react';
 
 import classNames from 'classnames';
@@ -15,11 +17,29 @@ import {useDataBinder} from '@sb/lib/stores/root-store';
 import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
 
 import './sb-login.sass';
+import {useSearchParams} from 'react-router';
 
 const SBLogin = observer(() => {
   const [particlesReady, setParticlesReady] = useState(false);
 
   const dataBinder = useDataBinder();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.has('authToken')) {
+      const token = searchParams.get('authToken');
+      console.log('RECEIVED TOKEN: ', token);
+
+      if ('setupConnection' in dataBinder) {
+        (dataBinder as unknown as RemoteDataBinder).setupConnection(
+          token!,
+          true
+        );
+
+        Cookies.set('authToken', token!);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     void initParticlesEngine(async engine => {
@@ -54,6 +74,15 @@ const SBLogin = observer(() => {
             setLoginError('Invalid username or password');
           }
         });
+    }
+
+    function loginWithOIDC() {
+      window.location.replace('http://localhost:8080/api/users/login/openid');
+      // dataBinder.login({}, checkedRemember).then(response => {
+      //   if (!response) {
+      //     setLoginError('Failed to login with OpenID connect');
+      //   }
+      // });
     }
 
     function onUsernameChange(event: ChangeEvent<HTMLInputElement>) {
@@ -116,7 +145,8 @@ const SBLogin = observer(() => {
           </div>
         </div>
 
-        <Button label="LOGIN" type="submit" aria-label="Login" />
+        <Button label="LOGIN" type="submit" />
+        <Button label="Login with OpenID Connect" onClick={loginWithOIDC} />
 
         <div className="sb-login-content-header">
           <span>SIGN IN</span>

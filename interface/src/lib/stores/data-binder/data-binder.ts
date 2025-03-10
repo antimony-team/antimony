@@ -24,7 +24,7 @@ export abstract class DataBinder {
   public abstract logout(): void;
 
   public abstract login(
-    credentials: UserCredentials,
+    credentials: UserCredentials | {},
     saveCookie: boolean
   ): Promise<boolean>;
 

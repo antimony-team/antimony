@@ -13,7 +13,7 @@ import {If} from '@sb/types/control';
 import {YAMLDocument} from '@sb/types/types';
 import {NodeEditor} from '@sb/lib/node-editor';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
-import SBInput from '@sb/components/common/sb-input/sb-input';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {TopologyDefinition} from '@sb/types/domain/topology';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
@@ -36,11 +36,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
   props: NodeEditDialogProps
 ) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
-  const [nameValidationError, setNameValidationError] = useState<string | null>(
-    null
-  );
-
-  const nameFieldRef = useRef<HTMLInputElement>(null);
+  const nameFieldRef = useRef<SBInputRef>(null);
 
   const topologyStore = useTopologyStore();
   const schemaStore = useSchemaStore();
@@ -112,14 +108,13 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
   }
 
   function onClose() {
-    setNameValidationError(null);
     setNodeKind(null);
     props.onClose();
   }
 
   function onSave() {
     if (!nodeEditor?.getNodeName()) {
-      setNameValidationError("Name can't be empty");
+      nameFieldRef.current?.setValidationError("Name can't be empty");
       return;
     }
 
@@ -137,7 +132,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     // Don't focus input field if dialog was open to edit
     if (props.editingNode) return;
 
-    nameFieldRef.current?.focus();
+    nameFieldRef.current?.input?.focus();
   }
 
   return (
@@ -165,7 +160,6 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
             defaultValue={props.editingNode}
             placeholder="e.g. Arista cEOS"
             onValueSubmit={nodeEditor!.onUpdateName}
-            validationError={nameValidationError}
           />
           <SBDropdown
             id="node-editor-kind"

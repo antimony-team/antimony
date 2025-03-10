@@ -4,6 +4,8 @@ import {InterfaceConfig} from '@sb/types/domain/device-info';
 export type TopologyIn = {
   collectionId: uuid4;
   definition: string;
+  metadata: string;
+  gitSourceUrl: string;
 };
 
 export type TopologyOut = TopologyIn & {

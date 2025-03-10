@@ -41,7 +41,7 @@ export class RemoteDataBinder extends DataBinder {
     saveCookie: boolean
   ): Promise<boolean> {
     const tokenResponse = await this.post<UserCredentials, AuthResponse>(
-      '/users/auth',
+      '/users/login',
       credentials,
       false,
       true
@@ -88,10 +88,15 @@ export class RemoteDataBinder extends DataBinder {
       Authorization: `Bearer ${this.authToken}`,
     });
 
-    if (!response || !response.ok) {
-      this.handleNetworkError(response?.status);
+    // Connection error
+    if (!response) {
       await new Promise(resolve => setTimeout(resolve, this.fetchRetryTimer));
       return this.fetch(path, method, body, false, skipAuthentication);
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      this.logout();
+      return Result.createErr({code: -1, message: 'Unauthorized'});
     }
 
     runInAction(() => (this.hasAPIError = false));
@@ -130,30 +135,31 @@ export class RemoteDataBinder extends DataBinder {
   private setupConnection(token: string, isAdmin: boolean) {
     this.authToken = token;
     this.isAdmin = isAdmin;
+    this.isLoggedIn = true;
 
-    this.socket = io(window.location.host, {
-      auth: {
-        token: this.authToken,
-      },
-    });
-
-    this.socket.on('connect_error', () => {
-      runInAction(() => (this.hasSocketError = true));
-    });
-
-    this.socket.on('connect', () => {
-      runInAction(() => {
-        this.hasSocketError = false;
-        this.isLoggedIn = true;
-      });
-    });
+    // this.socket = io(window.location.host, {
+    //   auth: {
+    //     token: this.authToken,
+    //   },
+    // });
+    //
+    // this.socket.on('connect_error', () => {
+    //   runInAction(() => (this.hasSocketError = true));
+    // });
+    //
+    // this.socket.on('connect', () => {
+    //   runInAction(() => {
+    //     this.hasSocketError = false;
+    //     this.isLoggedIn = true;
+    //   });
+    // });
   }
 
   @action
   private handleNetworkError(status: number | undefined) {
     if (!status || status === 503 || status === 504) {
       this.hasAPIError = true;
-    } else if (status === 403) {
+    } else if (status === 401) {
       this.logout();
     }
   }
