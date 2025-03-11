@@ -14,7 +14,7 @@ type AuthResponse = {
 
 export class RemoteDataBinder extends DataBinder {
   private readonly apiUrl = process.env.SB_API_SERVER_URL ?? 'localhost';
-  private authToken: string | null = null;
+  private accessToken: string | null = null;
 
   @observable accessor isAdmin = false;
   @observable accessor isLoggedIn = false;
@@ -28,11 +28,9 @@ export class RemoteDataBinder extends DataBinder {
   constructor() {
     super();
 
-    if (Cookies.get('authToken') !== undefined) {
-      this.setupConnection(
-        Cookies.get('authToken')!,
-        JSON.parse(Cookies.get('isAdmin') || 'false')
-      );
+    const accessToken = Cookies.get('accessToken');
+    if (accessToken !== undefined) {
+      this.processAccessToken(accessToken);
     }
   }
 
@@ -46,6 +44,7 @@ export class RemoteDataBinder extends DataBinder {
       false,
       true
     );
+
     if (!tokenResponse.isOk()) {
       console.error(
         '[AUTH] Failed to login user with provided credentials. Aborting.'
@@ -59,11 +58,40 @@ export class RemoteDataBinder extends DataBinder {
     );
 
     if (saveCookie) {
-      Cookies.set('authToken', this.authToken!);
       Cookies.set('isAdmin', String(this.isAdmin));
     }
 
     return true;
+  }
+
+  @action
+  private processAccessToken(token: string) {
+    try {
+      const tokenData = JSON.parse(atob(token.split('.')[1]));
+      this.accessToken = token;
+      this.isAdmin = tokenData.isAdmin;
+      this.isLoggedIn = true;
+    } catch (e) {
+      console.log('Failed to parse access token. Logging out.');
+      this.logout();
+    }
+  }
+
+  private async refreshToken(): Promise<Result<DataResponse<void>>> {
+    const refreshResponse = await this.get<void>(
+      '/users/login/refresh',
+      false,
+      true
+    );
+
+    // If authenticated with OIDC, attempt to re-authenticate
+    if (refreshResponse.isErr() && Cookies.get('authOidc') === 'true') {
+      window.location.replace('http://localhost:8080/api/users/login/openid');
+    } else if (refreshResponse.isOk()) {
+      this.processAccessToken(Cookies.get('accessToken')!);
+    }
+
+    return refreshResponse;
   }
 
   @action
@@ -85,26 +113,52 @@ export class RemoteDataBinder extends DataBinder {
     const response = await fetchResource(this.apiUrl + path, method, body, {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.authToken}`,
     });
 
-    // Connection error
-    if (!response) {
+    if (!response || response.status === 504) {
+      runInAction(() => (this.hasAPIError = true));
       await new Promise(resolve => setTimeout(resolve, this.fetchRetryTimer));
       return this.fetch(path, method, body, false, skipAuthentication);
     }
 
-    if (response.status === 401 || response.status === 403) {
+    // Server error, logout and return generic error
+    if (response.status >= 500) {
+      runInAction(() => (this.hasAPIError = true));
       this.logout();
-      return Result.createErr({code: -1, message: 'Unauthorized'});
+      return Result.createErr({code: -1, message: 'Server Error'});
     }
 
-    runInAction(() => (this.hasAPIError = false));
+    // Acecss token is expired, attempt to refresh before retrying
+    if (response.status === 498) {
+      const refreshResponse = await this.refreshToken();
+      if (refreshResponse.isErr()) {
+        return refreshResponse;
+      } else {
+        return this.fetch(path, method, body, false, skipAuthentication);
+      }
+    }
+
+    // No access token was provided or was invalid
+    if (response.status === 401 || response.status === 403) {
+      this.logout();
+      return Result.createErr({code: -1, message: 'Unauthorized request.'});
+    }
 
     const responseBody = await response.json();
 
+    runInAction(() => (this.hasAPIError = false));
+
     if ('code' in responseBody) {
       return Result.createErr(responseBody);
+    }
+
+    const accessToken = Cookies.get('accessToken');
+    console.log('accessToken', accessToken);
+    if (accessToken !== undefined) {
+      const tokenParts = accessToken.split('.');
+      console.log('accessToken2', atob(tokenParts[1]));
+      const data = JSON.parse(atob(tokenParts[1]));
+      console.log('expiring', new Date(data['exp'] * 1000));
     }
 
     return Result.createOk({
@@ -114,14 +168,13 @@ export class RemoteDataBinder extends DataBinder {
   }
 
   public logout() {
-    Cookies.remove('authToken');
+    Cookies.remove('accessToken');
     Cookies.remove('isAdmin');
 
     if (this.socket && this.socket.connected) {
       this.socket.disconnect();
     }
 
-    this.authToken = null;
     this.isAdmin = false;
     this.isLoggedIn = false;
   }
@@ -133,13 +186,12 @@ export class RemoteDataBinder extends DataBinder {
 
   @action
   private setupConnection(token: string, isAdmin: boolean) {
-    this.authToken = token;
     this.isAdmin = isAdmin;
     this.isLoggedIn = true;
 
     // this.socket = io(window.location.host, {
     //   auth: {
-    //     token: this.authToken,
+    //     token: this.accessToken,
     //   },
     // });
     //

@@ -1,5 +1,3 @@
-import {RemoteDataBinder} from '@sb/lib/stores/data-binder/remote-data-binder';
-import Cookies from 'js-cookie';
 import React, {ChangeEvent, FormEvent, useEffect, useState} from 'react';
 
 import classNames from 'classnames';
@@ -25,21 +23,21 @@ const SBLogin = observer(() => {
   const dataBinder = useDataBinder();
   const [searchParams] = useSearchParams();
 
-  useEffect(() => {
-    if (searchParams.has('authToken')) {
-      const token = searchParams.get('authToken');
-      console.log('RECEIVED TOKEN: ', token);
-
-      if ('setupConnection' in dataBinder) {
-        (dataBinder as unknown as RemoteDataBinder).setupConnection(
-          token!,
-          true
-        );
-
-        Cookies.set('authToken', token!);
-      }
-    }
-  }, [searchParams]);
+  // useEffect(() => {
+  //   if (searchParams.has('authToken')) {
+  //     const token = searchParams.get('authToken');
+  //     console.log('RECEIVED TOKEN: ', token);
+  //
+  //     if ('setupConnection' in dataBinder) {
+  //       (dataBinder as unknown as RemoteDataBinder).setupConnection(
+  //         token!,
+  //         true
+  //       );
+  //
+  //       Cookies.set('authToken', token!);
+  //     }
+  //   }
+  // }, [searchParams]);
 
   useEffect(() => {
     void initParticlesEngine(async engine => {
