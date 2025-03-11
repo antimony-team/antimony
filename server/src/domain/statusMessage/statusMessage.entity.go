@@ -1,7 +1,7 @@
 package statusMessage
 
 import (
-	"antimonyBackend/src/domain/user"
+	"antimonyBackend/domain/user"
 	"gorm.io/gorm"
 	"time"
 )

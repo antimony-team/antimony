@@ -1,8 +1,8 @@
 package core
 
 import (
-	"antimonyBackend/src/config"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/config"
+	"antimonyBackend/utils"
 	"fmt"
 	"github.com/charmbracelet/log"
 	"os"

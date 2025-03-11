@@ -1,11 +1,11 @@
 package topology
 
 import (
-	"antimonyBackend/src/auth"
-	"antimonyBackend/src/core"
-	"antimonyBackend/src/domain/collection"
-	"antimonyBackend/src/domain/user"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/auth"
+	"antimonyBackend/core"
+	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/user"
+	"antimonyBackend/utils"
 	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/log"

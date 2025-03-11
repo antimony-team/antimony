@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"antimonyBackend/src/config"
+	"antimonyBackend/config"
 	"encoding/json"
 	"github.com/charmbracelet/log"
 	"net/http"

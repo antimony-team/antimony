@@ -25,10 +25,12 @@ database:
   localFile: ./antimony.db
 storage:
   # Topology definition and metadata files will be stored in this directory.
-  # Default: ./data/
-  directory: ./data/
+  # Default: ./storage/
+  directory: ./storage/
 containerlab:
   # Default: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
   schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
-  # Default: ./clab.schema.json
-  schemaFallback: ./clab.schema.json
+  # Default: ./data/clab.schema.json
+  schemaFallback: ./data/clab.schema.json
+  # Default: ./data/device-config.json
+  deviceConfig: ./data/device-config.json

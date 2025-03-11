@@ -1,0 +1,57 @@
+name: antimony-backend
+
+services:
+  backend:
+    container_name: antimony-backend
+    build:
+      context: ./src
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - SB_MODE=dev
+  db:
+    container_name: antimony-backend-db
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      - POSTGRES_PASSWORD=antimony
+      - POSTGRES_USER=antimony
+      - POSTGRES_DB=antimony
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U antimony" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - ./.db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+  oidc-server-mock:
+    container_name: oidc-server-mock
+    image: ghcr.io/soluto/oidc-server-mock:latest
+    ports:
+      - '4011:80'
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      LOGIN_OPTIONS_INLINE: |
+        {
+          "AllowRememberLogin": false
+        }
+      LOGOUT_OPTIONS_INLINE: |
+        {
+          "AutomaticRedirectAfterSignOut": true
+        }
+      API_SCOPES_INLINE: |
+        - Name: antimony-server
+      API_RESOURCES_INLINE: |
+        - Name: antimony-server
+          Scopes:
+            - openid
+      SERVER_OPTIONS_PATH: /tmp/config/oidc-options.json
+      USERS_CONFIGURATION_PATH : /tmp/config/oidc-users.json
+      CLIENTS_CONFIGURATION_PATH: /tmp/config/oidc-clients.json
+    volumes:
+      - ./test/config:/tmp/config:ro

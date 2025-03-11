@@ -27,6 +27,8 @@ func ErrorResponse(err error) (int, Response) {
 		return http.StatusBadRequest, Response{Code: 2001, Message: err.Error()}
 	case errors.Is(err, ErrorServer):
 		return http.StatusInternalServerError, Response{Code: -1, Message: err.Error()}
+	case errors.Is(err, ErrorTokenInvalid):
+		return 498, Response{Code: -1, Message: err.Error()}
 	default:
 		return http.StatusInternalServerError, Response{Code: -1, Message: err.Error()}
 	}

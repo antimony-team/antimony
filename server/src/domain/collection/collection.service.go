@@ -1,9 +1,9 @@
 package collection
 
 import (
-	"antimonyBackend/src/auth"
-	"antimonyBackend/src/domain/user"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/auth"
+	"antimonyBackend/domain/user"
+	"antimonyBackend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -100,7 +100,7 @@ func (u *collectionService) Update(ctx *gin.Context, req CollectionIn, collectio
 			return utils.ErrorCollectionExists
 		}
 	}
-	
+
 	collection.Name = req.Name
 	collection.PublicWrite = req.PublicWrite
 	collection.PublicDeploy = req.PublicDeploy

@@ -1,9 +1,8 @@
 package collection
 
 import (
-	"antimonyBackend/src/auth"
-	"antimonyBackend/src/utils"
-	"github.com/charmbracelet/log"
+	"antimonyBackend/auth"
+	"antimonyBackend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -40,8 +39,6 @@ func (h *collectionHandler) Get(ctx *gin.Context) {
 func (h *collectionHandler) Create(ctx *gin.Context) {
 	payload := CollectionIn{}
 	if err := ctx.Bind(&payload); err != nil {
-		log.Errorf("COLLECTION CREATE: %v", payload.PublicWrite)
-		log.Errorf("COLLECTION DEPLOY: %v", payload.PublicDeploy)
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

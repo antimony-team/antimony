@@ -1,7 +1,7 @@
 package statusMessage
 
 import (
-	"antimonyBackend/src/utils"
+	"antimonyBackend/utils"
 	"github.com/gin-gonic/gin"
 	socketio "github.com/googollee/go-socket.io"
 )

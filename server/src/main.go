@@ -1,17 +1,18 @@
 package main
 
 import (
-	"antimonyBackend/src/auth"
-	"antimonyBackend/src/config"
-	"antimonyBackend/src/core"
-	"antimonyBackend/src/domain/collection"
-	"antimonyBackend/src/domain/instance"
-	"antimonyBackend/src/domain/lab"
-	"antimonyBackend/src/domain/schema"
-	"antimonyBackend/src/domain/statusMessage"
-	"antimonyBackend/src/domain/topology"
-	"antimonyBackend/src/domain/user"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/auth"
+	"antimonyBackend/config"
+	"antimonyBackend/core"
+	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/device"
+	"antimonyBackend/domain/instance"
+	"antimonyBackend/domain/lab"
+	"antimonyBackend/domain/schema"
+	"antimonyBackend/domain/statusMessage"
+	"antimonyBackend/domain/topology"
+	"antimonyBackend/domain/user"
+	"antimonyBackend/utils"
 	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
@@ -46,6 +47,11 @@ func main() {
 
 	var (
 		instanceService = instance.CreateService(antimonyConfig, socketServer)
+	)
+
+	var (
+		devicesService = device.CreateService(antimonyConfig)
+		devicesHandler = device.CreateHandler(devicesService)
 	)
 
 	var (
@@ -89,6 +95,7 @@ func main() {
 	// Public endpoints
 	user.RegisterRoutes(webServer, userHandler)
 	schema.RegisterRoutes(webServer, schemaHandler)
+	device.RegisterRoutes(webServer, devicesHandler)
 
 	// Authenticated endpoints
 	lab.RegisterRoutes(webServer, labHandler, authManager)
@@ -99,10 +106,6 @@ func main() {
 	var serverGroup sync.WaitGroup
 	serverGroup.Add(1)
 	socket := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
-
-	webServer.GET("/devices", func(ctx *gin.Context) {
-		ctx.JSON(utils.OkResponse(make([]string, 0)))
-	})
 
 	go startWebServer(webServer, socket, &serverGroup)
 	go startSocketServer(socketServer, &serverGroup)
@@ -156,6 +159,7 @@ func loadTestData(db *gorm.DB) {
 	}
 
 	user1 := user.User{
+		UUID: utils.GenerateUuid(),
 		Sub:  "1117",
 		Name: "kian.gribi@ost.ch",
 	}

@@ -1,0 +1,12 @@
+[
+  {
+    "ClientId": "antimony-server",
+    "Description": "Antimony Server",
+    "AllowedGrantTypes": ["implicit"],
+    "AllowAccessTokensViaBrowser": true,
+    "RedirectUris": ["http://localhost:3000/users/login/success"],
+    "AllowedScopes": ["openid"],
+    "IdentityTokenLifetime": 3600,
+    "AccessTokenLifetime": 3600
+  }
+]

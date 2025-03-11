@@ -1,8 +1,8 @@
 package statusMessage
 
 import (
-	"antimonyBackend/src/auth"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/auth"
+	"antimonyBackend/utils"
 	"github.com/gin-gonic/gin"
 )
 

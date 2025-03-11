@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"antimonyBackend/src/config"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/config"
+	"antimonyBackend/utils"
 	"context"
 	"crypto/rand"
 	"github.com/charmbracelet/log"
@@ -12,17 +12,19 @@ import (
 	"golang.org/x/oauth2"
 	"os"
 	"slices"
-	"strings"
+	"time"
 )
 
 type (
 	AuthManager interface {
 		Init(config *config.AntimonyConfig)
-		CreateToken(userId string) (string, error)
-		LoginNative(username string, password string) (string, error)
+		CreateAuthToken(userId string) (string, error)
+		CreateAccessToken(authUser AuthenticatedUser) (string, error)
+		LoginNative(username string, password string) (string, string, error)
 		GetAuthCodeURL(stateToken string) string
 		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) string) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
+		RefreshAccessToken(authToken string) (string, error)
 	}
 
 	authManager struct {
@@ -87,7 +89,7 @@ func (m *authManager) Init(config *config.AntimonyConfig) {
 		ClientSecret: m.oidcSecret,
 		RedirectURL:  "http://localhost:3000/users/login/success",
 		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID, "openid"},
+		Scopes:       []string{oidc.ScopeOpenID},
 	}
 
 	if m.isNativeEnabled {
@@ -99,19 +101,27 @@ func (m *authManager) Init(config *config.AntimonyConfig) {
 	}
 }
 
+func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
+	if authUser, err := m.authenticate(authToken); err != nil {
+		return "", err
+	} else if newAccessToken, err := m.CreateAccessToken(*authUser); err != nil {
+		return "", err
+	} else {
+		return newAccessToken, nil
+	}
+}
+
 func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		header := strings.Split(ctx.GetHeader("Authorization"), " ")
-		if len(header) < 2 {
-			log.Errorf("Failed to get auth header")
+		accessToken, err := ctx.Cookie("accessToken")
+		if err != nil {
 			ctx.JSON(utils.ErrorResponse(utils.ErrorUnauthorized))
 			ctx.Abort()
 			return
 		}
 
-		if user, err := m.authenticate(header[1]); err != nil {
-			log.Errorf("Failed to authenticate: %s", err.Error())
-			ctx.JSON(utils.ErrorResponse(utils.ErrorUnauthorized))
+		if user, err := m.authenticate(accessToken); err != nil {
+			ctx.JSON(utils.ErrorResponse(utils.ErrorTokenInvalid))
 			ctx.Abort()
 			return
 
@@ -175,35 +185,51 @@ func (m *authManager) GetAuthCodeURL(stateToken string) string {
 	return m.oauth2Config.AuthCodeURL(stateToken)
 }
 
-func (m *authManager) LoginNative(username string, password string) (string, error) {
+func (m *authManager) LoginNative(username string, password string) (string, string, error) {
 	if m.isNativeEnabled && username == m.nativeUsername && password == m.nativePassword {
-		return m.CreateToken(NativeUserID)
+		authUser := m.authenticatedUsers[NativeUserID]
+		if authToken, err := m.CreateAuthToken(NativeUserID); err != nil {
+			return "", "", err
+		} else if accessToken, err := m.CreateAccessToken(*authUser); err != nil {
+			return "", "", err
+		} else {
+			return authToken, accessToken, nil
+		}
 	}
 
-	return "", utils.ErrorInvalidCredentials
+	return "", "", utils.ErrorInvalidCredentials
 }
 
 func (m *authManager) authenticate(tokenString string) (*AuthenticatedUser, error) {
 	if token, err := jwt.Parse(tokenString, m.tokenParser); err != nil {
-		log.Errorf("[AUTH] Failed to parse token: %s", err.Error())
-		return nil, utils.ErrorInvalidToken
+		return nil, utils.ErrorTokenInvalid
 	} else if tokenClaims, ok := token.Claims.(jwt.MapClaims); !ok {
-		log.Errorf("[AUTH] Failed to parse token claims")
-		return nil, utils.ErrorInvalidToken
-	} else if userSub, ok := tokenClaims["id"]; !ok {
-		log.Errorf("[AUTH] Failed to get id from token")
-		return nil, utils.ErrorInvalidToken
-	} else if permissions, ok := m.authenticatedUsers[userSub.(string)]; !ok {
-		log.Errorf("[AUTH] Failed to get user from id")
-		return nil, utils.ErrorInvalidToken
+		return nil, utils.ErrorTokenInvalid
+	} else if userId, ok := tokenClaims["id"]; !ok {
+		return nil, utils.ErrorTokenInvalid
+	} else if permissions, ok := m.authenticatedUsers[userId.(string)]; !ok {
+		return nil, utils.ErrorTokenInvalid
 	} else {
 		return permissions, nil
 	}
 }
 
-func (m *authManager) CreateToken(userId string) (string, error) {
+func (m *authManager) CreateAuthToken(userId string) (string, error) {
 	sbToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id": userId,
+		"id":  userId,
+		"nbf": time.Now().Unix(),
+		"exp": time.Now().Add(time.Hour * 720).Unix(),
+	})
+
+	return sbToken.SignedString(m.jwtSecret)
+}
+
+func (m *authManager) CreateAccessToken(authUser AuthenticatedUser) (string, error) {
+	sbToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":      authUser.UserId,
+		"isAdmin": authUser.IsAdmin,
+		"nbf":     time.Now().Unix(),
+		"exp":     time.Now().Add(time.Second * 20).Unix(),
 	})
 
 	return sbToken.SignedString(m.jwtSecret)
@@ -211,7 +237,7 @@ func (m *authManager) CreateToken(userId string) (string, error) {
 
 func (m *authManager) tokenParser(token *jwt.Token) (interface{}, error) {
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, utils.ErrorInvalidToken
+		return nil, utils.ErrorTokenInvalid
 	}
 
 	return m.jwtSecret, nil

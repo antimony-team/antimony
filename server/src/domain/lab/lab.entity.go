@@ -1,9 +1,9 @@
 package lab
 
 import (
-	"antimonyBackend/src/domain/instance"
-	"antimonyBackend/src/domain/topology"
-	"antimonyBackend/src/domain/user"
+	"antimonyBackend/domain/instance"
+	"antimonyBackend/domain/topology"
+	"antimonyBackend/domain/user"
 	"gorm.io/gorm"
 	"time"
 )

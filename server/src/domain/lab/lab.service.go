@@ -1,11 +1,11 @@
 package lab
 
 import (
-	"antimonyBackend/src/auth"
-	"antimonyBackend/src/domain/instance"
-	"antimonyBackend/src/domain/topology"
-	"antimonyBackend/src/domain/user"
-	"antimonyBackend/src/utils"
+	"antimonyBackend/auth"
+	"antimonyBackend/domain/instance"
+	"antimonyBackend/domain/topology"
+	"antimonyBackend/domain/user"
+	"antimonyBackend/utils"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"slices"
@@ -54,7 +54,6 @@ func CreateService(labRepo Repository, topologyRepo topology.Repository, instanc
 
 func (s *labService) LabDeployer() {
 	for {
-		log.Infof("[SCHEDULER] Scheduled labs: %v", s.labSchedule)
 		if len(s.labSchedule) > 0 && s.labSchedule[0].StartTime.Unix() <= time.Now().Unix() {
 			log.Infof("[SCHEDULER] Deploying lab %s (%s) with containerlab", s.labSchedule[0].Name, s.labSchedule[0].Topology.Collection.Name)
 

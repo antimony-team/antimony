@@ -1,8 +1,8 @@
 package topology
 
 import (
-	"antimonyBackend/src/domain/collection"
-	"antimonyBackend/src/domain/user"
+	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/user"
 	"gorm.io/gorm"
 )
 

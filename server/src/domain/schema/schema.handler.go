@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"antimonyBackend/src/utils"
+	"antimonyBackend/utils"
 	"github.com/gin-gonic/gin"
 )
 

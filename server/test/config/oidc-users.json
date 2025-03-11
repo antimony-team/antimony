@@ -1,0 +1,36 @@
+[
+  {
+    "SubjectId":"1",
+    "Username":"zoey101",
+    "Password":"123",
+    "Claims": [
+      {
+        "Type": "name",
+        "Value": "Zoey Moreno",
+        "ValueType": "string"
+      },
+      {
+        "Type": "email",
+        "Value": "zoey.moreno@ost.ch",
+        "ValueType": "string"
+      }
+    ]
+  },
+  {
+    "SubjectId":"1",
+    "Username":"mynamejeff",
+    "Password":"123",
+    "Claims": [
+      {
+        "Type": "name",
+        "Value": "Jeff Tatum",
+        "ValueType": "string"
+      },
+      {
+        "Type": "email",
+        "Value": "jeff.tatum@ost.ch",
+        "ValueType": "string"
+      }
+    ]
+  }
+]

@@ -1,7 +1,7 @@
 package instance
 
 import (
-	"antimonyBackend/src/config"
+	"antimonyBackend/config"
 	socketio "github.com/googollee/go-socket.io"
 )
 

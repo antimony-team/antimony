@@ -1,7 +1,7 @@
 package topology
 
 import (
-	"antimonyBackend/src/auth"
+	"antimonyBackend/auth"
 	"github.com/gin-gonic/gin"
 )
 

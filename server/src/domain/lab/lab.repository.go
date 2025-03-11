@@ -1,7 +1,7 @@
 package lab
 
 import (
-	"antimonyBackend/src/utils"
+	"antimonyBackend/utils"
 	"context"
 	"errors"
 	"gorm.io/gorm"
