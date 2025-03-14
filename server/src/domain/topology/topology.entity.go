@@ -18,8 +18,8 @@ type Topology struct {
 
 type TopologyIn struct {
 	Definition   string `json:"definition" binding:"required"`
-	Metadata     string `json:"metadata" binding:"required"`
-	GitSourceUrl string `json:"gitSourceUrl" binding:"required"`
+	Metadata     string `json:"metadata"`
+	GitSourceUrl string `json:"gitSourceUrl"`
 	CollectionId string `json:"collectionId" binding:"required"`
 }
 

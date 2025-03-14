@@ -6,11 +6,11 @@ import (
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
-	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
+	"gopkg.in/yaml.v3"
 	"slices"
 )
 
@@ -42,7 +42,16 @@ func CreateService(topologyRepo Repository, collectionRepo collection.Repository
 }
 
 func (u *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error) {
-	topologies, err := u.topologyRepo.GetFromCollections(ctx, authUser.Collections)
+	var (
+		topologies []Topology
+		err        error
+	)
+
+	if authUser.IsAdmin {
+		topologies, err = u.topologyRepo.GetAll(ctx)
+	} else {
+		topologies, err = u.topologyRepo.GetFromCollections(ctx, authUser.Collections)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -166,12 +175,12 @@ func (u *topologyService) Delete(ctx *gin.Context, topologyId string, authUser a
 func (u *topologyService) validateTopology(definition string) error {
 	var definitionObj any
 
-	if err := json.Unmarshal(([]byte)(definition), &definitionObj); err != nil {
-		return utils.ErrorValidationError
+	if err := yaml.Unmarshal(([]byte)(definition), &definitionObj); err != nil {
+		return err
 	}
 
 	if _, err := gojsonschema.Validate(u.schemaLoader, gojsonschema.NewGoLoader(definitionObj)); err != nil {
-		return utils.ErrorValidationError
+		return err
 	}
 
 	return nil

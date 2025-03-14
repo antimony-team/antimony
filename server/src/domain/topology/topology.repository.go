@@ -9,6 +9,7 @@ import (
 
 type (
 	Repository interface {
+		GetAll(ctx context.Context) ([]Topology, error)
 		GetByUuid(ctx context.Context, topologyId string) (*Topology, error)
 		GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error)
 		Create(ctx context.Context, topology *Topology) error
@@ -25,6 +26,13 @@ func CreateRepository(db *gorm.DB) Repository {
 	return &topologyRepository{
 		db: db,
 	}
+}
+
+func (r *topologyRepository) GetAll(ctx context.Context) ([]Topology, error) {
+	collections := make([]Topology, 0)
+	result := r.db.WithContext(ctx).Preload("Collection").Preload("Creator").Find(&collections)
+
+	return collections, result.Error
 }
 
 func (r *topologyRepository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error) {

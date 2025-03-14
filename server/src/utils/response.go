@@ -21,8 +21,6 @@ func ErrorResponse(err error) (int, Response) {
 		return http.StatusUnauthorized, Response{Code: -1, Message: err.Error()}
 	case errors.Is(err, ErrorUuidNotFound):
 		return http.StatusNotFound, Response{Code: -1, Message: err.Error()}
-	case errors.Is(err, ErrorValidationError):
-		return http.StatusBadRequest, Response{Code: -1, Message: err.Error()}
 	case errors.Is(err, ErrorCollectionExists):
 		return http.StatusBadRequest, Response{Code: 2001, Message: err.Error()}
 	case errors.Is(err, ErrorServer):

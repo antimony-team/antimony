@@ -7,7 +7,6 @@ var ErrorRunningLab = errors.New("unable to modify running lab")
 var ErrorOpenIDError = errors.New("failed to authenticate via openid connect")
 var ErrorUuidNotFound = errors.New("the specified uuid was not found")
 var ErrorTokenInvalid = errors.New("the auth token provided was invalid")
-var ErrorValidationError = errors.New("the data provided was invalid")
 var ErrorCollectionExists = errors.New("a collection with that name already exists")
 var ErrorInvalidCredentials = errors.New("the credentials provided were invalid")
 
