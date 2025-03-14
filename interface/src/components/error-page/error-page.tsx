@@ -66,17 +66,6 @@ const ErrorPage = (props: ErrorPageProps) => {
                 </Otherwise>
               </Choose>
             </div>
-            <div className="sb-error-network-entry">
-              <span>External Resources</span>
-              <Choose>
-                <When condition={dataBinder.hasExternalError}>
-                  <ProgressSpinner strokeWidth="5" />
-                </When>
-                <Otherwise>
-                  <i className="pi pi-check" />
-                </Otherwise>
-              </Choose>
-            </div>{' '}
           </div>
         </When>
         <When condition={error}>

@@ -101,17 +101,6 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
                 </Otherwise>
               </Choose>
             </div>
-            <div className="sb-indicator-error-entry">
-              <span>External Resources</span>
-              <Choose>
-                <When condition={dataBinder.hasExternalError}>
-                  <ProgressSpinner strokeWidth="5" />
-                </When>
-                <Otherwise>
-                  <i className="pi pi-check" />
-                </Otherwise>
-              </Choose>
-            </div>
           </div>
         </div>
       </div>

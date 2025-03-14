@@ -1,4 +1,4 @@
-import {computed, observable} from 'mobx';
+import {observable} from 'mobx';
 
 import {uuid4} from '@sb/types/types';
 import {generateUuidv4} from '@sb/lib/utils/utils';
@@ -18,13 +18,8 @@ export class LocalDataBinder extends DataBinder {
   protected async fetch<R, T>(
     path: string,
     method: string,
-    body?: R,
-    isExternal = false
+    body?: R
   ): Promise<Result<DataResponse<T>>> {
-    if (isExternal) {
-      return this.fetchExternal(path, method, body);
-    }
-
     const parts = path.split(/[/?&]/);
     switch (parts[1]) {
       case 'topologies':
@@ -142,6 +137,8 @@ export class LocalDataBinder extends DataBinder {
       creatorId: '-1',
       collectionId: targetCollection.id,
       definition: topology.definition,
+      metadata: '',
+      gitSourceUrl: '',
     });
     window.localStorage.setItem('topologies', JSON.stringify(topologies));
 
@@ -264,11 +261,6 @@ export class LocalDataBinder extends DataBinder {
     return true;
   }
   public logout() {}
-
-  @computed
-  public get hasConnectionError() {
-    return this.hasExternalError;
-  }
 }
 
 function safeParseJsonLocalStorage(key: string, defaultValue: string) {

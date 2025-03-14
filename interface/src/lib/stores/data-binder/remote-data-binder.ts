@@ -21,7 +21,6 @@ export class RemoteDataBinder extends DataBinder {
 
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
-  @observable accessor hasExternalError = false;
 
   public socket: Socket = io();
 
@@ -41,8 +40,7 @@ export class RemoteDataBinder extends DataBinder {
     const tokenResponse = await this.post<UserCredentials, AuthResponse>(
       '/users/login',
       credentials,
-      false,
-      true
+      false
     );
 
     if (!tokenResponse.isOk()) {
@@ -51,11 +49,6 @@ export class RemoteDataBinder extends DataBinder {
       );
       return false;
     }
-
-    this.setupConnection(
-      tokenResponse.data.payload.token,
-      tokenResponse.data.payload.isAdmin
-    );
 
     if (saveCookie) {
       Cookies.set('isAdmin', String(this.isAdmin));
@@ -70,28 +63,28 @@ export class RemoteDataBinder extends DataBinder {
       const tokenData = JSON.parse(atob(token.split('.')[1]));
       this.accessToken = token;
       this.isAdmin = tokenData.isAdmin;
-      this.isLoggedIn = true;
+      this.setupConnection();
     } catch (e) {
       console.log('Failed to parse access token. Logging out.');
       this.logout();
     }
   }
 
-  private async refreshToken(): Promise<Result<DataResponse<void>>> {
-    const refreshResponse = await this.get<void>(
-      '/users/login/refresh',
-      false,
-      true
+  private async refreshToken(): Promise<Result<null>> {
+    const refreshResponse = await fetchResource(
+      this.apiUrl + '/users/login/refresh',
+      'GET'
     );
 
-    // If authenticated with OIDC, attempt to re-authenticate
-    if (refreshResponse.isErr() && Cookies.get('authOidc') === 'true') {
-      window.location.replace('http://localhost:8080/api/users/login/openid');
-    } else if (refreshResponse.isOk()) {
-      this.processAccessToken(Cookies.get('accessToken')!);
+    if (!refreshResponse || refreshResponse.status !== 200) {
+      if (Cookies.get('authOidc') === 'true') {
+        window.location.replace(this.apiUrl + '/users/login/openid');
+      }
     }
 
-    return refreshResponse;
+    this.processAccessToken(Cookies.get('accessToken')!);
+
+    return Result.createOk(null);
   }
 
   @action
@@ -99,16 +92,15 @@ export class RemoteDataBinder extends DataBinder {
     path: string,
     method: string,
     body?: R,
-    isExternal = false,
-    skipAuthentication = false
+    authenticated = true
   ): Promise<Result<DataResponse<T>>> {
-    if (!skipAuthentication && !isExternal && !this.isLoggedIn) {
+    if (authenticated && !this.isLoggedIn) {
       return Result.createErr({code: -1, message: 'Unauthorized'});
     }
 
-    if (isExternal) {
-      return this.fetchExternal<R, T>(path, method, body);
-    }
+    // if (isExternal) {
+    //   return this.fetchExternal<R, T>(path, method, body);
+    // }
 
     const response = await fetchResource(this.apiUrl + path, method, body, {
       Accept: 'application/json',
@@ -118,7 +110,7 @@ export class RemoteDataBinder extends DataBinder {
     if (!response || response.status === 504) {
       runInAction(() => (this.hasAPIError = true));
       await new Promise(resolve => setTimeout(resolve, this.fetchRetryTimer));
-      return this.fetch(path, method, body, false, skipAuthentication);
+      return this.fetch(path, method, body, authenticated);
     }
 
     // Server error, logout and return generic error
@@ -134,7 +126,7 @@ export class RemoteDataBinder extends DataBinder {
       if (refreshResponse.isErr()) {
         return refreshResponse;
       } else {
-        return this.fetch(path, method, body, false, skipAuthentication);
+        return this.fetch(path, method, body, authenticated);
       }
     }
 
@@ -144,21 +136,18 @@ export class RemoteDataBinder extends DataBinder {
       return Result.createErr({code: -1, message: 'Unauthorized request.'});
     }
 
-    const responseBody = await response.json();
+    let responseBody = {payload: {} as T};
+
+    try {
+      responseBody = await response.json();
+    } catch (e) {
+      /* empty */
+    }
 
     runInAction(() => (this.hasAPIError = false));
 
     if ('code' in responseBody) {
       return Result.createErr(responseBody);
-    }
-
-    const accessToken = Cookies.get('accessToken');
-    console.log('accessToken', accessToken);
-    if (accessToken !== undefined) {
-      const tokenParts = accessToken.split('.');
-      console.log('accessToken2', atob(tokenParts[1]));
-      const data = JSON.parse(atob(tokenParts[1]));
-      console.log('expiring', new Date(data['exp'] * 1000));
     }
 
     return Result.createOk({
@@ -168,8 +157,10 @@ export class RemoteDataBinder extends DataBinder {
   }
 
   public logout() {
-    Cookies.remove('accessToken');
-    Cookies.remove('isAdmin');
+    void this.get('/users/logout');
+
+    // Cookies.remove('accessToken');
+    // Cookies.remove('isAdmin');
 
     if (this.socket && this.socket.connected) {
       this.socket.disconnect();
@@ -181,14 +172,12 @@ export class RemoteDataBinder extends DataBinder {
 
   @computed
   public get hasConnectionError() {
-    return this.hasExternalError || this.hasAPIError || this.hasSocketError;
+    return this.hasAPIError || this.hasSocketError;
   }
 
   @action
-  private setupConnection(token: string, isAdmin: boolean) {
-    this.isAdmin = isAdmin;
+  private setupConnection() {
     this.isLoggedIn = true;
-
     // this.socket = io(window.location.host, {
     //   auth: {
     //     token: this.accessToken,

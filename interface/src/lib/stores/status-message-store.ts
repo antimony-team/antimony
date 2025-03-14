@@ -44,6 +44,7 @@ export class StatusMessageStore extends DataStore<
   protected get resourcePath(): string {
     return '/status-messages';
   }
+
   protected handleUpdate(response: DataResponse<StatusMessageOut[]>): void {
     this.data = response.payload
       .map(msg => StatusMessageStore.parseMessage(msg, true))

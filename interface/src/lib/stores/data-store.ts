@@ -19,9 +19,6 @@ export abstract class DataStore<T, I, O> {
 
   protected abstract get resourcePath(): string;
   protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
-  protected get isExternal(): boolean {
-    return false;
-  }
 
   constructor(rootStore: RootStore) {
     this.rootStore = rootStore;
@@ -39,8 +36,7 @@ export abstract class DataStore<T, I, O> {
 
     this.handleData(
       await this.rootStore._dataBinder.get<O[]>(
-        this.resourcePath + this.getParams,
-        this.isExternal
+        this.resourcePath + this.getParams
       )
     );
   }

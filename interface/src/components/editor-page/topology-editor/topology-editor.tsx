@@ -18,6 +18,7 @@ import {
   useSchemaStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
+import {useBeforeUnload} from 'react-router';
 import {
   SimulationConfig,
   SimulationConfigContext,
@@ -51,7 +52,9 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     ValidationState.Done
   );
 
+  // Set to true if topology has pending changes and validation succeeded
   const [hasPendingEdits, setPendingEdits] = useState(false);
+
   const [isNodeEditDialogOpen, setNodeEditDialogOpen] = useState(false);
   const [openTopology, setOpenTopology] = useState<Topology | null>(null);
   const [currentlyEditedNode, setCurrentlyEditedNode] = useState<string | null>(
@@ -75,14 +78,23 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
   }, []);
 
   const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
-    if (editReport.isEdited) {
+    setPendingEdits(editReport.isEdited);
+    setOpenTopology(editReport.updatedTopology);
+  }, []);
+
+  useEffect(() => {
+    if (hasPendingEdits || validationState !== ValidationState.Done) {
       document.title = 'Antimony*';
     } else {
       document.title = 'Antimony';
     }
-    setPendingEdits(editReport.isEdited);
-    setOpenTopology(editReport.updatedTopology);
-  }, []);
+  }, [hasPendingEdits, validationState]);
+
+  useBeforeUnload(ev => {
+    if (hasPendingEdits || validationState !== ValidationState.Done) {
+      ev.preventDefault();
+    }
+  });
 
   useEffect(() => {
     topologyStore.manager.onEdit.register(onTopologyEdit);
@@ -108,8 +120,8 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
 
     try {
       /*
-       * If the topology is empty, instantly return an error as it can't be empty
-       * We need to have this special case because the monaco YAML validator won't recognize
+       * If the topology is empty, instantly return an error as it's not allowed to be empty.
+       * We need to have this special case because the monaco YAML validator won't classify
        * an empty file as invalid.
        */
       if (!content) {

@@ -105,7 +105,6 @@ containers:
     logs:
       - "[INFO] Initializing container... Loading network and system configurations."
       - "[INFO] Network check initiated."
-      - "[ERROR] Unable to reach external services."
       - "[INFO] Retrying network connection."
       - "[ERROR] Connection failed after multiple attempts."
       - "[INFO] Terminating container due to network issues."

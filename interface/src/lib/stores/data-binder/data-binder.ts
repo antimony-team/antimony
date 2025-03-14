@@ -1,6 +1,5 @@
-import {computed, observable, runInAction} from 'mobx';
+import {computed, observable} from 'mobx';
 
-import {fetchResource} from '@sb/lib/utils/utils';
 import {UserCredentials} from '@sb/types/types';
 import {Result} from '@sb/types/result';
 
@@ -14,11 +13,10 @@ export abstract class DataBinder {
 
   @observable accessor isAdmin = false;
   @observable accessor isLoggedIn = false;
-  @observable accessor hasExternalError = false;
 
   @computed
   public get hasConnectionError() {
-    return this.hasExternalError;
+    return false;
   }
 
   public abstract logout(): void;
@@ -35,86 +33,36 @@ export abstract class DataBinder {
     path: string,
     method: string,
     body?: R,
-    isExternal?: boolean,
-    skipAuthentication?: boolean
+    authenticated?: boolean
   ): Promise<Result<DataResponse<T>>>;
 
   public async get<T>(
     path: string,
-    isExternal = false,
-    skipAuthentication = false
+    authenticated = false
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<void, T>(
-      path,
-      'GET',
-      undefined,
-      isExternal,
-      skipAuthentication
-    );
+    return this.fetch<void, T>(path, 'GET', undefined, authenticated);
   }
 
   public async delete<T>(
     path: string,
-    isExternal = false,
-    skipAuthentication = false
+    authenticated = false
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<void, T>(
-      path,
-      'DELETE',
-      undefined,
-      isExternal,
-      skipAuthentication
-    );
+    return this.fetch<void, T>(path, 'DELETE', undefined, authenticated);
   }
 
   public async post<R, T>(
     path: string,
     body: R,
-    isExternal = false,
     skipAuthentication = false
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(path, 'POST', body, isExternal, skipAuthentication);
+    return this.fetch<R, T>(path, 'POST', body, skipAuthentication);
   }
 
   public async patch<R, T>(
     path: string,
     body: R,
-    isExternal = false,
-    skipAuthentication = false
+    authenticated = false
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(
-      path,
-      'PATCH',
-      body,
-      isExternal,
-      skipAuthentication
-    );
-  }
-
-  /**
-   * Fetches additional data over the network.
-   *
-   * This method always operates the same and is separate from the main fetch method.
-   */
-  protected async fetchExternal<R, T>(
-    path: string,
-    method: string,
-    body?: R,
-    requestHeaders?: HeadersInit
-  ): Promise<Result<DataResponse<T>>> {
-    const response = await fetchResource(path, method, body, requestHeaders);
-
-    if (!response || !response.ok) {
-      runInAction(() => (this.hasExternalError = true));
-      await new Promise(resolve => setTimeout(resolve, this.fetchRetryTimer));
-      return this.fetchExternal(path, method, body, requestHeaders);
-    }
-
-    runInAction(() => (this.hasExternalError = false));
-
-    return Result.createOk({
-      payload: JSON.parse(await response.text()),
-      headers: response.headers,
-    });
+    return this.fetch<R, T>(path, 'PATCH', body, authenticated);
   }
 }

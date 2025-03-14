@@ -40,6 +40,8 @@ const TopologyAddDialog = (props: TopologyAddDialogProps) => {
         name: name ?? topologyName,
         topology: {nodes: {}},
       }),
+      metadata: '',
+      gitSourceUrl: '',
     };
     topologyStore.add<string>(newTopology).then(result => {
       if (result.isErr()) {
