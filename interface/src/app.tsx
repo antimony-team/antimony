@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 
 import classNames from 'classnames';
 import {Toast} from 'primereact/toast';
@@ -11,6 +11,7 @@ import {
   useDataBinder,
   useStatusMessages,
   useRootStore,
+  useCollectionStore,
 } from '@sb/lib/stores/root-store';
 import SBConfirm, {
   SBConfirmRef,
@@ -32,6 +33,7 @@ const App: React.FC = observer(() => {
 
   const rootStore = useRootStore();
   const dataBinder = useDataBinder();
+  const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
   const [doneLoading, setDoneLoading] = useState(false);
@@ -47,6 +49,10 @@ const App: React.FC = observer(() => {
     if (!dataBinder.isLoggedIn) setDoneLoading(false);
   }, [dataBinder.isLoggedIn]);
 
+  const hasEditorAccess = useMemo(() => {
+    return dataBinder.isAdmin || collectionStore.hasWritableCollections;
+  }, [dataBinder.isAdmin, collectionStore.hasWritableCollections]);
+
   return (
     <PrimeReactProvider>
       <RootStoreContext.Provider value={rootStore}>
@@ -61,10 +67,28 @@ const App: React.FC = observer(() => {
             <div className="flex flex-grow-1 gap-2 min-h-0">
               <Routes>
                 <Choose>
+                  {/* Redirect editor and dashboard to editor in offline mode */}
                   <When condition={process.env.IS_OFFLINE}>
                     <Route path="/" element={<EditorPage />} />
                     <Route path="/editor" element={<EditorPage />} />
                   </When>
+
+                  {/* Allow access to dashboard but not editor if user doesn't have access to editor */}
+                  <When condition={!hasEditorAccess}>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route
+                      path="/editor"
+                      element={
+                        <ErrorPage
+                          code="403"
+                          message="You do not have access to this page"
+                          isVisible={true}
+                        />
+                      }
+                    />
+                  </When>
+
+                  {/* Otherwise allow both routes */}
                   <Otherwise>
                     <Route path="/" element={<DashboardPage />} />
                     <Route path="/editor" element={<EditorPage />} />

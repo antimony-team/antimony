@@ -124,7 +124,7 @@ const StatusMessagePanel = observer(
           options={filteredStatusMessages}
           optionLabel="name"
           itemTemplate={messageTemplate}
-          emptyMessage="No messages found"
+          emptyMessage="No status messages"
         />
       </OverlayPanel>
     );

@@ -1,7 +1,8 @@
+import {Button} from 'primereact/button';
 import React, {useEffect} from 'react';
 
 import classNames from 'classnames';
-import {useRouteError} from 'react-router';
+import {useNavigate, useRouteError} from 'react-router';
 import {ProgressSpinner} from 'primereact/progressspinner';
 
 import {useDataBinder} from '@sb/lib/stores/root-store';
@@ -20,6 +21,8 @@ interface ErrorPageProps {
 const ErrorPage = (props: ErrorPageProps) => {
   const error: Error | null = useRouteError() as Error | null;
   const dataBinder = useDataBinder();
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!error) return;
@@ -72,6 +75,7 @@ const ErrorPage = (props: ErrorPageProps) => {
           <div className="sb-error-stack-content">{error!.stack}</div>
         </When>
       </Choose>
+      <Button label="Take me back!" onClick={() => navigate('/')} />
     </div>
   );
 };

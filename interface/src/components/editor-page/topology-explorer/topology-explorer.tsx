@@ -16,11 +16,12 @@ import {ContextMenu} from 'primereact/contextmenu';
 
 import {
   useCollectionStore,
+  useDataBinder,
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {uuid4} from '@sb/types/types';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import SBConfirm from '@sb/components/common/sb-confirm/sb-confirm';
 import CollectionEditDialog from '@sb/components/editor-page/topology-explorer/collection-edit-dialog/collection-edit-dialog';
 import ExplorerTreeNode from './explorer-tree-node/explorer-tree-node';
@@ -53,6 +54,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     string | null
   >(null);
 
+  const dataBinder = useDataBinder();
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
@@ -346,12 +348,14 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       />
       <SBConfirm />
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />
-      <Button
-        className="sb-topology-explorer-add-group"
-        icon="pi pi-plus"
-        onClick={onAddCollection}
-        aria-label="Add Group"
-      />
+      <If condition={dataBinder.isAdmin}>
+        <Button
+          className="sb-topology-explorer-add-group"
+          icon="pi pi-plus"
+          onClick={onAddCollection}
+          aria-label="Add Group"
+        />
+      </If>
     </div>
   );
 });

@@ -14,7 +14,6 @@ type AuthResponse = {
 
 export class RemoteDataBinder extends DataBinder {
   private readonly apiUrl = process.env.SB_API_SERVER_URL ?? 'localhost';
-  private accessToken: string | null = null;
 
   @observable accessor isAdmin = false;
   @observable accessor isLoggedIn = false;
@@ -61,7 +60,6 @@ export class RemoteDataBinder extends DataBinder {
   private processAccessToken(token: string) {
     try {
       const tokenData = JSON.parse(atob(token.split('.')[1]));
-      this.accessToken = token;
       this.isAdmin = tokenData.isAdmin;
       this.setupConnection();
     } catch (e) {
@@ -130,8 +128,8 @@ export class RemoteDataBinder extends DataBinder {
       }
     }
 
-    // No access token was provided or was invalid
-    if (response.status === 401 || response.status === 403) {
+    // Auth token is expired or invalid
+    if (response.status === 401) {
       this.logout();
       return Result.createErr({code: -1, message: 'Unauthorized request.'});
     }
@@ -158,9 +156,6 @@ export class RemoteDataBinder extends DataBinder {
 
   public logout() {
     void this.get('/users/logout');
-
-    // Cookies.remove('accessToken');
-    // Cookies.remove('isAdmin');
 
     if (this.socket && this.socket.connected) {
       this.socket.disconnect();
