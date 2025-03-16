@@ -44,18 +44,18 @@ type (
 	}
 )
 
-func Load() *AntimonyConfig {
+func Load(fileName string) *AntimonyConfig {
 	config := defaultConfig()
 
-	if configData, err := os.ReadFile("./config.yml"); err != nil {
-		log.Warn("Failed to load ./config.yml.")
+	if configData, err := os.ReadFile(fileName); err != nil {
+		log.Warn("Failed to load configuration file.", "path", fileName)
 		data, err := yaml.Marshal(&config)
-		err = os.WriteFile("./config.yml", data, 0755)
+		err = os.WriteFile(fileName, data, 0755)
 		if err != nil {
-			log.Error("Failed to write default config to ./config.yml.")
+			log.Error("Failed to write default configuration file.", "path", fileName)
 		}
 	} else if err := yaml.Unmarshal(configData, &config); err != nil {
-		log.Errorf("Failed to parse config.yml: %v", err.Error())
+		log.Error("Failed to parse configuration file.", "error", err.Error())
 	}
 
 	return config

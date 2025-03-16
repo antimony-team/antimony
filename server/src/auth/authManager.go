@@ -149,7 +149,7 @@ func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper fu
 	var claims struct {
 		Sub     string   `json:"sub"`
 		Groups  []string `json:"groups"`
-		Profile string   `json:"profile"`
+		Profile string   `json:"email"`
 	}
 
 	err = info.Claims(&claims)

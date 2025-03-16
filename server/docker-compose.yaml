@@ -29,29 +29,14 @@ services:
       - ./.db:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-  oidc-server-mock:
-    container_name: oidc-server-mock
-    image: ghcr.io/soluto/oidc-server-mock:latest
+  keycloak-server:
+    container_name: keycloak-server
+    image: quay.io/keycloak/keycloak:latest
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./test/keycloak:/opt/keycloak/data/h2
     ports:
       - '4011:8080'
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      LOGIN_OPTIONS_INLINE: |
-        {
-          "AllowRememberLogin": false
-        }
-      LOGOUT_OPTIONS_INLINE: |
-        {
-          "AutomaticRedirectAfterSignOut": true
-        }
-      API_SCOPES_INLINE: |
-        - Name: antimony-server
-      API_RESOURCES_INLINE: |
-        - Name: antimony-server
-          Scopes:
-            - openid
-      SERVER_OPTIONS_PATH: /tmp/config/oidc-options.json
-      USERS_CONFIGURATION_PATH : /tmp/config/oidc-users.json
-      CLIENTS_CONFIGURATION_PATH: /tmp/config/oidc-clients.json
-    volumes:
-      - ./test/config:/tmp/config:ro

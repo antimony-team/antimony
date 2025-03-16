@@ -2,7 +2,6 @@ package user
 
 import (
 	"antimonyBackend/utils"
-	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -71,7 +70,6 @@ func (h *userHandler) Logout(ctx *gin.Context) {
 
 func (h *userHandler) LoginOIDC(ctx *gin.Context) {
 	url := h.userService.GetAuthCodeURL(ctx.Request.Referer())
-	log.Infof("Redirecting to OIDC: %s", url)
 	http.Redirect(ctx.Writer, ctx.Request, url, http.StatusFound)
 }
 

@@ -13,6 +13,7 @@ import (
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
+	"flag"
 	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,11 @@ import (
 )
 
 func main() {
+	configFileName := flag.String("config", "./config.yml", "Path to the configuration file")
+	flag.Parse()
+
+	log.Infof("config file: %s", *configFileName)
+
 	_ = godotenv.Load()
 
 	log.SetTimeFormat("[2006-01-02 15:04:05]")
@@ -33,7 +39,7 @@ func main() {
 
 	socketServer := socketio.NewServer(nil)
 
-	antimonyConfig := config.Load()
+	antimonyConfig := config.Load(*configFileName)
 	authManager := auth.CreateAuthManager(antimonyConfig)
 	storageManager := core.CreateStorageManager(antimonyConfig)
 
@@ -160,24 +166,56 @@ func loadTestData(db *gorm.DB) {
 
 	user1 := user.User{
 		UUID: utils.GenerateUuid(),
-		Sub:  "1117",
+		Sub:  "doesntmatter",
 		Name: "kian.gribi@ost.ch",
 	}
 
 	collection1 := collection.Collection{
 		UUID:         utils.GenerateUuid(),
-		Name:         "test1",
+		Name:         "hidden-group",
 		PublicWrite:  true,
 		PublicDeploy: false,
 		Creator:      user1,
 	}
 
-	db.Create(&collection1)
-
-	db.Create(&topology.Topology{
+	db.Create(&collection.Collection{
 		UUID:         utils.GenerateUuid(),
-		GitSourceUrl: "",
-		Collection:   collection1,
+		Name:         "fs25-cldinf",
+		PublicWrite:  false,
+		PublicDeploy: false,
 		Creator:      user1,
 	})
+
+	db.Create(&collection.Collection{
+		UUID:         utils.GenerateUuid(),
+		Name:         "fs25-nisec",
+		PublicWrite:  true,
+		PublicDeploy: false,
+		Creator:      user1,
+	})
+
+	db.Create(&collection.Collection{
+		UUID:         utils.GenerateUuid(),
+		Name:         "hs25-cn1",
+		PublicWrite:  false,
+		PublicDeploy: true,
+		Creator:      user1,
+	})
+
+	db.Create(&collection.Collection{
+		UUID:         utils.GenerateUuid(),
+		Name:         "hs25-cn2",
+		PublicWrite:  true,
+		PublicDeploy: true,
+		Creator:      user1,
+	})
+
+	db.Create(&collection1)
+
+	//db.Create(&topology.Topology{
+	//	UUID:         utils.GenerateUuid(),
+	//	GitSourceUrl: "",
+	//	Collection:   collection1,
+	//	Creator:      user1,
+	//})
 }
