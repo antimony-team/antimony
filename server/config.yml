@@ -8,7 +8,7 @@ auth:
   # Default: true
   enableNativeAdmin: true
   # Default: ""
-  openIdIssuer: "https://gitlab.ost.ch"
+  openIdIssuer: "http://localhost:4011"
   # Default: ""
   openIdClientId: 5c5fefc302e06bc577a0a61922a3eae620445436f6b02628ba5cdccf1f0e78bc
   # Users in these OpenID groups are granted admin privileges.

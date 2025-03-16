@@ -2,7 +2,6 @@ package utils
 
 import "errors"
 
-var ErrorServer = errors.New("there was a problem processing the request")
 var ErrorRunningLab = errors.New("unable to modify running lab")
 var ErrorOpenIDError = errors.New("failed to authenticate via openid connect")
 var ErrorUuidNotFound = errors.New("the specified uuid was not found")
@@ -16,3 +15,4 @@ var ErrorNoWriteAccessToLab = errors.New("write access to the provided lab is no
 var ErrorNoWriteAccessToTopology = errors.New("write access to the provided topology is not granted")
 var ErrorNoWriteAccessToCollection = errors.New("write access to the provided collection is not granted")
 var ErrorNoDeployAccessToCollection = errors.New("deploy access to the provided collection is not granted")
+var ErrorNoPermissionToCreateCollections = errors.New("permission to create collections is not granted")

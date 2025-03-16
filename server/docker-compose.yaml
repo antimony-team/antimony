@@ -33,7 +33,7 @@ services:
     container_name: oidc-server-mock
     image: ghcr.io/soluto/oidc-server-mock:latest
     ports:
-      - '4011:80'
+      - '4011:8080'
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       LOGIN_OPTIONS_INLINE: |

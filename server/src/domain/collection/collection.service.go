@@ -60,7 +60,7 @@ func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUse
 func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error) {
 	// Deny request if the user is not an admin
 	if !authUser.IsAdmin {
-		return "", utils.ErrorNoWriteAccessToCollection
+		return "", utils.ErrorNoPermissionToCreateCollections
 	}
 
 	// Don't allow duplicate collection names
