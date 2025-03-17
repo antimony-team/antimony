@@ -39,6 +39,8 @@ type (
 
 	databaseConfig struct {
 		Host      string `yaml:"host"`
+		User      string `yaml:"user"`
+		Database  string `yaml:"database"`
 		Port      uint   `yaml:"port"`
 		LocalFile string `yaml:"localFile"`
 	}
@@ -72,6 +74,8 @@ func defaultConfig() *AntimonyConfig {
 		},
 		Database: databaseConfig{
 			Host:      "127.0.0.1",
+			User:      "antimony",
+			Database:  "antimony",
 			Port:      5432,
 			LocalFile: "./test.db",
 		},

@@ -19,6 +19,10 @@ database:
   host: 127.0.0.1
   # Default: 5432
   port: 5432
+  # Default: antimony
+  database: antimony
+  # Default: antimony
+  user: antimony
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
   localFile: ./antimony.db

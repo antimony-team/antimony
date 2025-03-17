@@ -4,39 +4,49 @@ services:
   backend:
     container_name: antimony-backend
     build:
-      context: ./src
+      context: .
     depends_on:
-      db:
+      keycloak-server:
+        condition: service_started
+      antimony-database:
         condition: service_healthy
     environment:
       - SB_MODE=dev
-  db:
-    container_name: antimony-backend-db
+    ports:
+      - "3000:3000"
+  antimony-database:
+    container_name: antimony-database
     image: postgres
     restart: always
     shm_size: 128mb
+    env_file: ./.env
     environment:
-      - POSTGRES_PASSWORD=antimony
-      - POSTGRES_USER=antimony
-      - POSTGRES_DB=antimony
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD_SB=antimony
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U antimony" ]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 3s
       retries: 3
     volumes:
       - ./.db:/var/lib/postgresql/data
+      - ./test/postgres:/docker-entrypoint-initdb.d/
     ports:
       - "5432:5432"
   keycloak-server:
     container_name: keycloak-server
     image: quay.io/keycloak/keycloak:latest
-    command: start-dev
+    command: start-dev --http-port 4011
+#    healthcheck:
+#      test: curl -f http://localhost:4011
+#      interval: 10s
+#      timeout: 3s
+#      retries: 3
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
       - ./test/keycloak:/opt/keycloak/data/h2
     ports:
-      - '4011:8080'
+      - "4011:4011"

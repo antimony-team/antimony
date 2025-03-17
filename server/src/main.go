@@ -13,12 +13,12 @@ import (
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
-	"flag"
 	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	socketio "github.com/googollee/go-socket.io"
 	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"os"
@@ -27,69 +27,48 @@ import (
 )
 
 func main() {
-	configFileName := flag.String("config", "./config.yml", "Path to the configuration file")
-	flag.Parse()
-
-	log.Infof("config file: %s", *configFileName)
-
+	// Load environment variables from .env file if present
 	_ = godotenv.Load()
+
+	cmdArgs := utils.ParseArguments()
 
 	log.SetTimeFormat("[2006-01-02 15:04:05]")
 	log.SetReportCaller(true)
 
-	socketServer := socketio.NewServer(nil)
-
-	antimonyConfig := config.Load(*configFileName)
+	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 	authManager := auth.CreateAuthManager(antimonyConfig)
 	storageManager := core.CreateStorageManager(antimonyConfig)
 
-	err := os.Remove(antimonyConfig.Database.LocalFile)
-	db, err := gorm.Open(sqlite.Open(antimonyConfig.Database.LocalFile), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %s", err.Error())
-	}
-
+	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
 	loadTestData(db)
+
+	socketServer := socketio.NewServer(nil)
 
 	var (
 		instanceService = instance.CreateService(antimonyConfig, socketServer)
-	)
 
-	var (
 		devicesService = device.CreateService(antimonyConfig)
 		devicesHandler = device.CreateHandler(devicesService)
-	)
 
-	var (
 		schemaService = schema.CreateService(antimonyConfig)
 		schemaHandler = schema.CreateHandler(schemaService)
-	)
 
-	var (
 		userRepository = user.CreateRepository(db)
 		userService    = user.CreateService(userRepository, authManager)
 		userHandler    = user.CreateHandler(userService)
-	)
 
-	var (
 		statusMessageRepository = statusMessage.CreateRepository(db)
 		statusMessageService    = statusMessage.CreateService(statusMessageRepository, socketServer)
 		statusMessageHandler    = statusMessage.CreateHandler(statusMessageService)
-	)
 
-	var (
 		collectionRepository = collection.CreateRepository(db)
 		collectionService    = collection.CreateService(collectionRepository, userService)
 		collectionHandler    = collection.CreateHandler(collectionService)
-	)
 
-	var (
 		topologyRepository = topology.CreateRepository(db)
 		topologyService    = topology.CreateService(topologyRepository, collectionRepository, userService, storageManager, schemaService.Get())
 		topologyHandler    = topology.CreateHandler(topologyService)
-	)
 
-	var (
 		labRepository = lab.CreateRepository(db)
 		labService    = lab.CreateService(labRepository, topologyRepository, instanceService, userService)
 		labHandler    = lab.CreateHandler(labService)
@@ -109,16 +88,51 @@ func main() {
 	collection.RegisterRoutes(webServer, collectionHandler, authManager)
 	statusMessage.RegisterRoutes(webServer, statusMessageHandler, authManager)
 
-	var serverGroup sync.WaitGroup
-	serverGroup.Add(1)
-	socket := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	var serverWaitGroup sync.WaitGroup
+	serverWaitGroup.Add(1)
+	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
 
-	go startWebServer(webServer, socket, &serverGroup)
-	go startSocketServer(socketServer, &serverGroup)
+	go startWebServer(webServer, connection, &serverWaitGroup)
+	go startSocketServer(socketServer, &serverWaitGroup)
 
 	time.Sleep(100)
-	log.Info("Antimony API is ready to serve calls!", "conn", socket)
-	serverGroup.Wait()
+	log.Info("Antimony API is ready to serve calls!", "conn", connection)
+	serverWaitGroup.Wait()
+}
+
+func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *gorm.DB {
+	var (
+		db  *gorm.DB
+		err error
+	)
+
+	if useLocalDatabase {
+		log.Info("Connecting to local SQLite database", "path", config.Database.LocalFile)
+
+		err = os.Remove(config.Database.LocalFile)
+		db, err = gorm.Open(sqlite.Open(config.Database.LocalFile), &gorm.Config{})
+	} else {
+		connection := fmt.Sprintf("%s@%s:%d/%s", config.Database.User, config.Database.Host, config.Database.Port, config.Database.Database)
+		log.Info("Connecting to remote PostgreSQL database", "conn", connection)
+
+		dsn := fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%d",
+			config.Database.Host,
+			config.Database.User,
+			//os.Getenv("SB_DATABASE_PASSWORD"),
+			"password123",
+			config.Database.Database,
+			config.Database.Port,
+		)
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	}
+
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %s", err.Error())
+		os.Exit(1)
+	}
+
+	return db
 }
 
 func startSocketServer(socketServer *socketio.Server, waitGroup *sync.WaitGroup) {
@@ -139,6 +153,8 @@ func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup
 }
 
 func loadTestData(db *gorm.DB) {
+	db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users")
+
 	err := db.AutoMigrate(&user.User{})
 	if err != nil {
 		panic("Failed to migrate users")
@@ -169,6 +185,7 @@ func loadTestData(db *gorm.DB) {
 		Sub:  "doesntmatter",
 		Name: "kian.gribi@ost.ch",
 	}
+	db.Create(&user1)
 
 	collection1 := collection.Collection{
 		UUID:         utils.GenerateUuid(),
@@ -212,10 +229,10 @@ func loadTestData(db *gorm.DB) {
 
 	db.Create(&collection1)
 
-	//db.Create(&topology.Topology{
-	//	UUID:         utils.GenerateUuid(),
-	//	GitSourceUrl: "",
-	//	Collection:   collection1,
-	//	Creator:      user1,
-	//})
+	db.Create(&topology.Topology{
+		UUID:         utils.GenerateUuid(),
+		GitSourceUrl: "",
+		Collection:   collection1,
+		Creator:      user1,
+	})
 }

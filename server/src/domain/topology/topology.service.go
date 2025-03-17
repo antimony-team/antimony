@@ -88,7 +88,7 @@ func (u *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	}
 
 	// Deny request if user does not have access to the target collection
-	if !authUser.IsAdmin && (!topologyCollection.PublicWrite || !slices.Contains(authUser.Collections, req.CollectionId)) {
+	if !authUser.IsAdmin && (!topologyCollection.PublicWrite || !slices.Contains(authUser.Collections, topologyCollection.Name)) {
 		return "", utils.ErrorNoWriteAccessToCollection
 	}
 

@@ -1,6 +1,6 @@
 server:
   # Default: 127.0.0.1
-  host: 127.0.0.1
+  host: 0.0.0.0
   # Default: 3000
   port: 3000
 auth:
@@ -8,7 +8,7 @@ auth:
   # Default: true
   enableNativeAdmin: true
   # Default: ""
-  openIdIssuer: "http://localhost:4011/realms/antimony"
+  openIdIssuer: "http://keycloak-server:4011/realms/antimony"
   # Default: ""
   openIdClientId: 5c5fefc302e06bc577a0a61922a3eae620445436f6b02628ba5cdccf1f0e78bc
   # Users in these OpenID groups are granted admin privileges.
@@ -17,9 +17,13 @@ auth:
     - antimony-admin
 database:
   # Default: 127.0.0.1
-  host: 127.0.0.1
+  host: antimony-database
   # Default: 5432
   port: 5432
+  # Default: antimony
+  database: antimony
+  # Default: antimony
+  user: antimony
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
   localFile: ./antimony.db

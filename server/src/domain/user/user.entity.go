@@ -6,14 +6,14 @@ import (
 
 type User struct {
 	gorm.Model
-	UUID string `gorm:"index"`
+	UUID string `gorm:"uniqueindex"`
 	Sub  string `gorm:"index"`
 	Name string
 }
 
 type UserOut struct {
 	ID   string `json:"id"`
-	Name string `json:"name"`
+	Name string `json:"Name"`
 }
 
 type CredentialsIn struct {

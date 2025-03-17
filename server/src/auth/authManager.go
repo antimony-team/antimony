@@ -79,7 +79,7 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 func (m *authManager) Init(config *config.AntimonyConfig) {
 	provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
 	if err != nil {
-		log.Fatalf("Failed to connect to Sub provider: %s", err.Error())
+		log.Fatalf("Failed to connect to OpenID provider: %s", err.Error())
 		os.Exit(1)
 	}
 
