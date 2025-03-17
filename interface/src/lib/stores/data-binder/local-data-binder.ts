@@ -134,7 +134,10 @@ export class LocalDataBinder extends DataBinder {
 
     topologies.push({
       id: topologyId,
-      creatorId: '-1',
+      creator: {
+        id: '-1',
+        name: 'local',
+      },
       collectionId: targetCollection.id,
       definition: topology.definition,
       metadata: '',

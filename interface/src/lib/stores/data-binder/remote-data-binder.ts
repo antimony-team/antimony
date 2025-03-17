@@ -1,3 +1,4 @@
+import {EMPTY_AUTH_USER} from '@sb/types/domain/user';
 import Cookies from 'js-cookie';
 import {io, Socket} from 'socket.io-client';
 import {action, computed, observable, runInAction} from 'mobx';
@@ -15,7 +16,6 @@ type AuthResponse = {
 export class RemoteDataBinder extends DataBinder {
   private readonly apiUrl = process.env.SB_API_SERVER_URL ?? 'localhost';
 
-  @observable accessor isAdmin = false;
   @observable accessor isLoggedIn = false;
 
   @observable accessor hasAPIError = false;
@@ -50,7 +50,7 @@ export class RemoteDataBinder extends DataBinder {
     }
 
     if (saveCookie) {
-      Cookies.set('isAdmin', String(this.isAdmin));
+      // Cookies.set('isAdmin', String(this.isAdmin));
     }
 
     return true;
@@ -60,7 +60,12 @@ export class RemoteDataBinder extends DataBinder {
   private processAccessToken(token: string) {
     try {
       const tokenData = JSON.parse(atob(token.split('.')[1]));
-      this.isAdmin = tokenData.isAdmin;
+      this.authUser = {
+        id: tokenData.id,
+        // TODO(kian): Add actual name to user object
+        name: tokenData.id,
+        isAdmin: tokenData.isAdmin,
+      };
       this.setupConnection();
     } catch (e) {
       console.log('Failed to parse access token. Logging out.');
@@ -161,7 +166,7 @@ export class RemoteDataBinder extends DataBinder {
       this.socket.disconnect();
     }
 
-    this.isAdmin = false;
+    this.authUser = EMPTY_AUTH_USER;
     this.isLoggedIn = false;
   }
 

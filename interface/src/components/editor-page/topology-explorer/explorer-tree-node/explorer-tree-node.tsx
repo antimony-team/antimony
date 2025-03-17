@@ -1,10 +1,16 @@
-import React, {MouseEvent} from 'react';
+import {
+  useAuthUser,
+  useCollectionStore,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {SBTooltipOptions} from '@sb/lib/utils/utils';
+import {Choose, Otherwise, When} from '@sb/types/control';
+
+import {uuid4} from '@sb/types/types';
 
 import {Button} from 'primereact/button';
 import {TreeNode} from 'primereact/treenode';
-
-import {uuid4} from '@sb/types/types';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import React, {MouseEvent, useMemo} from 'react';
 
 interface ExplorerTreeNodeProps {
   node: TreeNode;
@@ -20,6 +26,35 @@ interface ExplorerTreeNodeProps {
 const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   props: ExplorerTreeNodeProps
 ) => {
+  const authUser = useAuthUser();
+  const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
+
+  const isTopologyNode = props.node.leaf;
+
+  const isEditable = useMemo(() => {
+    if (isTopologyNode) {
+      const creator = topologyStore.lookup.get(
+        props.node.key as string
+      )?.creator;
+      return authUser.isAdmin || (creator && creator.id === authUser.id);
+    } else {
+      const publicWrite = collectionStore.lookup.get(
+        props.node.key as string
+      )?.publicWrite;
+      return authUser.isAdmin || publicWrite;
+    }
+  }, [authUser, collectionStore.lookup, topologyStore.lookup]);
+
+  const isDeployable = useMemo(() => {
+    if (!isTopologyNode || process.env.IS_OFFLINE) return false;
+
+    const publicDeploy = collectionStore.lookup.get(
+      props.node.key as string
+    )?.publicDeploy;
+    return authUser.isAdmin || publicDeploy;
+  }, [authUser, collectionStore.lookup]);
+
   function onAddTopology(event: MouseEvent<HTMLButtonElement>) {
     props.onAddTopology(props.node.key as uuid4);
     event.stopPropagation();
@@ -48,7 +83,7 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   return (
     <div className="flex align-self-stretch w-full align-items-center justify-content-between">
       <Choose>
-        <When condition={props.node.leaf}>
+        <When condition={isTopologyNode}>
           <span
             className="tree-node p-treenode-label"
             data-pr-position="right"
@@ -64,29 +99,32 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
               severity="danger"
               rounded
               text
-              tooltip="Delete Topology"
               onClick={onDeleteTopology}
-              tooltipOptions={{showDelay: 500}}
+              tooltipOptions={SBTooltipOptions}
+              tooltip={
+                !isEditable
+                  ? 'No permissions to delete topology'
+                  : 'Delete Topology'
+              }
               aria-label="Delete Topology"
+              disabled={!isEditable}
             />
             <Button
               icon="pi pi-play"
               severity="success"
               rounded
               text
-              disabled={!!process.env.IS_OFFLINE}
+              tooltipOptions={SBTooltipOptions}
               tooltip={
                 process.env.IS_OFFLINE
                   ? 'Deploying not available in offline build.'
-                  : 'Deploy Topology'
+                  : !isDeployable
+                    ? 'No permissions to deploy topology'
+                    : 'Deploy Topology'
               }
-              tooltipOptions={{
-                position: 'bottom',
-                showDelay: 500,
-                showOnDisabled: true,
-              }}
               onClick={onDeployTopology}
               aria-label="Deploy Topology"
+              disabled={!isDeployable}
             />
           </div>
         </When>
@@ -106,30 +144,45 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
               severity="secondary"
               rounded
               text
-              tooltip="Edit Collection"
+              tooltipOptions={SBTooltipOptions}
+              tooltip={
+                !isEditable
+                  ? 'No permissions to edit collection'
+                  : 'Edit Collection'
+              }
               onClick={onEditCollection}
-              tooltipOptions={{showDelay: 500}}
               aria-label="Edit Collection"
+              disabled={!isEditable}
             />
             <Button
               icon="pi pi-trash"
               severity="danger"
               rounded
               text
-              tooltip="Delete Collection"
+              tooltipOptions={SBTooltipOptions}
+              tooltip={
+                !isEditable
+                  ? 'No permissions to delete collection'
+                  : 'Delete Collection'
+              }
               onClick={onDeleteCollection}
               aria-label="Delete Collection"
-              tooltipOptions={{showDelay: 500}}
+              disabled={!isEditable}
             />
             <Button
               icon="pi pi-plus"
               severity="success"
               rounded
               text
-              tooltip="Add Topology"
+              tooltipOptions={SBTooltipOptions}
+              tooltip={
+                !isEditable
+                  ? 'No permissions to add collection'
+                  : 'Add Collection'
+              }
               onClick={onAddTopology}
-              tooltipOptions={{showDelay: 500}}
               aria-label="Add Topology"
+              disabled={!isEditable}
             />
           </div>
         </Otherwise>

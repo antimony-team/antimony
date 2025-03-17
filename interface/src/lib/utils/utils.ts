@@ -1,3 +1,4 @@
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 import {Edge, Node} from 'vis';
 import {DataSet} from 'vis-data/peer';
 
@@ -163,3 +164,9 @@ export function generateUuidv4() {
     ).toString(16)
   );
 }
+
+export const SBTooltipOptions: TooltipOptions = {
+  position: 'top',
+  showDelay: 200,
+  showOnDisabled: true,
+};

@@ -1,36 +1,32 @@
-import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+import SBConfirm from '@sb/components/common/sb-confirm/sb-confirm';
+import TopologyAddDialog from '@sb/components/editor-page/topology-editor/topology-add-dialog/topology-add-dialog';
+
+import './topology-explorer.sass';
+import CollectionEditDialog from '@sb/components/editor-page/topology-explorer/collection-edit-dialog/collection-edit-dialog';
 
 import {
-  Tree,
-  TreeEventNodeEvent,
-  TreeExpandedKeysType,
-  TreeSelectionEvent,
-} from 'primereact/tree';
-import {observer} from 'mobx-react-lite';
-import {Button} from 'primereact/button';
-import {Message} from 'primereact/message';
-import {Tooltip} from 'primereact/tooltip';
-import {TreeNode} from 'primereact/treenode';
-import {MenuItem} from 'primereact/menuitem';
-import {ContextMenu} from 'primereact/contextmenu';
-
-import {
+  useAuthUser,
   useCollectionStore,
   useDataBinder,
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {uuid4} from '@sb/types/types';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import SBConfirm from '@sb/components/common/sb-confirm/sb-confirm';
-import CollectionEditDialog from '@sb/components/editor-page/topology-explorer/collection-edit-dialog/collection-edit-dialog';
-import ExplorerTreeNode from './explorer-tree-node/explorer-tree-node';
-import TopologyAddDialog from '@sb/components/editor-page/topology-editor/topology-add-dialog/topology-add-dialog';
-
-import './topology-explorer.sass';
-import {Image} from 'primereact/image';
 import {Collection} from '@sb/types/domain/collection';
 import {Topology} from '@sb/types/domain/topology';
+import {uuid4} from '@sb/types/types';
+import {observer} from 'mobx-react-lite';
+import {Button} from 'primereact/button';
+import {ContextMenu} from 'primereact/contextmenu';
+import {Image} from 'primereact/image';
+import {MenuItem} from 'primereact/menuitem';
+import {Message} from 'primereact/message';
+import {Tooltip} from 'primereact/tooltip';
+
+import {Tree, TreeExpandedKeysType, TreeSelectionEvent} from 'primereact/tree';
+import {TreeNode} from 'primereact/treenode';
+import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+import ExplorerTreeNode from './explorer-tree-node/explorer-tree-node';
 
 interface TopologyBrowserProps {
   selectedTopologyId?: string | null;
@@ -54,13 +50,15 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     string | null
   >(null);
 
+  const authUser = useAuthUser();
   const dataBinder = useDataBinder();
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
   const contextMenuRef = useRef<ContextMenu | null>(null);
-  const contextMenuTarget = useRef<string | null>(null);
+  // const contextMenuTarget = useRef<string | null>(null);
+  // const contextMenuTargetEditable = useRef<boolean>(false);
 
   const topologyTree = useMemo(() => {
     const topologyTree: TreeNode[] = [];
@@ -78,7 +76,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       topologyTree.push({
         key: collection.id,
         label: collection.name,
-        icon: 'pi pi-folder',
+        icon: (
+          <span className="material-symbols-outlined">
+            {authUser.isAdmin || collection.publicWrite
+              ? 'bookmark_manager'
+              : 'folder_eye'}
+          </span>
+        ),
         selectable: false,
         leaf: false,
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
@@ -199,53 +203,55 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
+    if (!authUser.isAdmin) return;
+
     setContextMenuModel(containerContextMenu);
     contextMenuRef!.current!.show(e);
   }
 
-  function onContextMenuTree(e: TreeEventNodeEvent) {
-    if (e.node.leaf) {
-      setContextMenuModel(topologyContextMenu);
-    } else {
-      setContextMenuModel(collectionContextMenu);
-    }
+  // function onContextMenuTree(e: TreeEventNodeEvent) {
+  //   if (e.node.leaf) {
+  //     setContextMenuModel(topologyContextMenu);
+  //   } else {
+  //     setContextMenuModel(collectionContextMenu);
+  //   }
+  //
+  //   contextMenuTargetEditable.current = isCollectionEditable(e.node.key);
+  //   contextMenuRef!.current!.show(e.originalEvent);
+  // }
 
-    contextMenuTarget.current = e.node.key as string;
-    contextMenuRef!.current!.show(e.originalEvent);
-  }
-
-  const onEditCollectionContext = () => {
-    if (!contextMenuTarget.current) return;
-    onEditCollection(contextMenuTarget.current ?? undefined);
-  };
-
-  const onDeleteCollectionContext = () => {
-    if (!contextMenuTarget.current) return;
-    onDeleteCollectionRequest(contextMenuTarget.current);
-  };
-
-  const onAddTopologyContext = () => {
-    if (
-      !contextMenuTarget.current ||
-      !topologyStore.lookup.has(contextMenuTarget.current)
-    ) {
-      return;
-    }
-
-    void onAddTopology(
-      topologyStore.lookup.get(contextMenuTarget.current)!.collectionId
-    );
-  };
-
-  const onDeployTopologyContext = () => {
-    if (!contextMenuTarget.current) return;
-    props.onTopologyDeploy(contextMenuTarget.current);
-  };
-
-  const onDeleteTopologyContext = () => {
-    if (!contextMenuTarget.current) return;
-    onDeleteTopologyRequest(contextMenuTarget.current);
-  };
+  // const onEditCollectionContext = () => {
+  //   if (!contextMenuTarget.current) return;
+  //   onEditCollection(contextMenuTarget.current ?? undefined);
+  // };
+  //
+  // const onDeleteCollectionContext = () => {
+  //   if (!contextMenuTarget.current) return;
+  //   onDeleteCollectionRequest(contextMenuTarget.current);
+  // };
+  //
+  // const onAddTopologyContext = () => {
+  //   if (
+  //     !contextMenuTarget.current ||
+  //     !topologyStore.lookup.has(contextMenuTarget.current)
+  //   ) {
+  //     return;
+  //   }
+  //
+  //   void onAddTopology(
+  //     topologyStore.lookup.get(contextMenuTarget.current)!.collectionId
+  //   );
+  // };
+  //
+  // const onDeployTopologyContext = () => {
+  //   if (!contextMenuTarget.current) return;
+  //   props.onTopologyDeploy(contextMenuTarget.current);
+  // };
+  //
+  // const onDeleteTopologyContext = () => {
+  //   if (!contextMenuTarget.current) return;
+  //   onDeleteTopologyRequest(contextMenuTarget.current);
+  // };
 
   const containerContextMenu = [
     {
@@ -256,47 +262,47 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     },
   ];
 
-  const collectionContextMenu = [
-    {
-      id: 'create',
-      label: 'Add Topology',
-      icon: 'pi pi-plus',
-      command: () => onAddTopology(contextMenuTarget.current),
-    },
-    {
-      id: 'edit',
-      label: 'Edit Collection',
-      icon: 'pi pi-file-edit',
-      command: onEditCollectionContext,
-    },
-    {
-      id: 'delete',
-      label: 'Delete Collection',
-      icon: 'pi pi-trash',
-      command: onDeleteCollectionContext,
-    },
-  ];
-
-  const topologyContextMenu = [
-    {
-      id: 'create',
-      label: 'Deploy Lab',
-      icon: 'pi pi-play',
-      command: onDeployTopologyContext,
-    },
-    {
-      id: 'create',
-      label: 'Add Topology',
-      icon: 'pi pi-plus',
-      command: onAddTopologyContext,
-    },
-    {
-      id: 'delete',
-      label: 'Delete Topology',
-      icon: 'pi pi-trash',
-      command: onDeleteTopologyContext,
-    },
-  ];
+  // const collectionContextMenu = [
+  //   {
+  //     id: 'create',
+  //     label: 'Add Topology',
+  //     icon: 'pi pi-plus',
+  //     command: () => onAddTopology(contextMenuTarget.current),
+  //   },
+  //   {
+  //     id: 'edit',
+  //     label: 'Edit Collection',
+  //     icon: 'pi pi-file-edit',
+  //     command: onEditCollectionContext,
+  //   },
+  //   {
+  //     id: 'delete',
+  //     label: 'Delete Collection',
+  //     icon: 'pi pi-trash',
+  //     command: onDeleteCollectionContext,
+  //   },
+  // ];
+  //
+  // const topologyContextMenu = [
+  //   {
+  //     id: 'create',
+  //     label: 'Deploy Lab',
+  //     icon: 'pi pi-play',
+  //     command: onDeployTopologyContext,
+  //   },
+  //   {
+  //     id: 'create',
+  //     label: 'Add Topology',
+  //     icon: 'pi pi-plus',
+  //     command: onAddTopologyContext,
+  //   },
+  //   {
+  //     id: 'delete',
+  //     label: 'Delete Topology',
+  //     icon: 'pi pi-trash',
+  //     command: onDeleteTopologyContext,
+  //   },
+  // ];
 
   return (
     <div className="sb-topology-explorer" onContextMenu={onContextMenu}>
@@ -331,11 +337,12 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             onDeleteTopology={onDeleteTopologyRequest}
           />
         )}
-        onContextMenu={e => onContextMenuTree(e)}
+        // onContextMenu={e => onContextMenuTree(e)}
         onSelectionChange={onSelectionChange}
         onToggle={e => setExpandedKeys(e.value)}
       />
       <TopologyAddDialog
+        key={createTopologyCollection}
         collectionId={createTopologyCollection}
         onCreated={onTopologyAdded}
         onClose={() => setCreateTopologCollection(null)}
@@ -348,7 +355,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       />
       <SBConfirm />
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />
-      <If condition={dataBinder.isAdmin}>
+      <If condition={authUser.isAdmin}>
         <Button
           className="sb-topology-explorer-add-group"
           icon="pi pi-plus"

@@ -1,3 +1,4 @@
+import {User} from '@sb/types/domain/user';
 import {Position, uuid4, YAMLDocument} from '@sb/types/types';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 
@@ -10,14 +11,14 @@ export type TopologyIn = {
 
 export type TopologyOut = TopologyIn & {
   id: uuid4;
-  creatorId: uuid4;
+  creator: User;
 };
 
 export type Topology = TopologyMeta & {
   id: uuid4;
   definition: YAMLDocument<TopologyDefinition>;
   collectionId: uuid4;
-  creatorId: uuid4;
+  creator: User;
 };
 
 export interface TopologyDefinition {

@@ -12,6 +12,7 @@ import {
   useStatusMessages,
   useRootStore,
   useCollectionStore,
+  useAuthUser,
 } from '@sb/lib/stores/root-store';
 import SBConfirm, {
   SBConfirmRef,
@@ -33,6 +34,7 @@ const App: React.FC = observer(() => {
 
   const rootStore = useRootStore();
   const dataBinder = useDataBinder();
+  const authUser = useAuthUser();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
@@ -50,8 +52,8 @@ const App: React.FC = observer(() => {
   }, [dataBinder.isLoggedIn]);
 
   const hasEditorAccess = useMemo(() => {
-    return dataBinder.isAdmin || collectionStore.hasWritableCollections;
-  }, [dataBinder.isAdmin, collectionStore.hasWritableCollections]);
+    return authUser.isAdmin || collectionStore.hasWritableCollections;
+  }, [authUser.isAdmin, collectionStore.hasWritableCollections]);
 
   return (
     <PrimeReactProvider>

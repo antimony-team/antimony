@@ -63,6 +63,10 @@ export const useDataBinder = () => {
   return useContext(RootStoreContext)._dataBinder;
 };
 
+export const useAuthUser = () => {
+  return useContext(RootStoreContext)._dataBinder.authUser;
+};
+
 export const useTopologyStore = () => {
   return useContext(RootStoreContext)._topologyStore;
 };

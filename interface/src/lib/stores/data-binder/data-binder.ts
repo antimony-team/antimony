@@ -1,3 +1,4 @@
+import {AuthenticatedUser, EMPTY_AUTH_USER} from '@sb/types/domain/user';
 import {computed, observable} from 'mobx';
 
 import {UserCredentials} from '@sb/types/types';
@@ -11,7 +12,7 @@ export type DataResponse<T> = {
 export abstract class DataBinder {
   protected readonly fetchRetryTimer = 5000;
 
-  @observable accessor isAdmin = false;
+  @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
   @observable accessor isLoggedIn = false;
 
   @computed

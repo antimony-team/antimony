@@ -81,6 +81,8 @@ export class TopologyManager {
       definition: this.editingTopology.definition.toString({
         collectionStyle: 'block',
       }),
+      metadata: '',
+      gitSourceUrl: '',
     });
 
     if (result.isOk()) {
@@ -548,7 +550,10 @@ export class TopologyManager {
     return {
       id: topology.id,
       collectionId: topology.collectionId,
-      creatorId: topology.creatorId,
+      creator: {
+        id: topology.creator.id,
+        name: topology.creator.name,
+      },
       positions: cloneDeep(topology.positions),
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),

@@ -1,8 +1,14 @@
-import React, {useRef, useState} from 'react';
+import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
+import {SelectItem} from 'primereact/selectitem';
+import React, {useMemo, useRef, useState} from 'react';
 
 import YAML from 'yaml';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
+import {
+  useCollectionStore,
+  useStatusMessages,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
@@ -21,11 +27,14 @@ const TopologyAddDialog = (props: TopologyAddDialogProps) => {
   const topologyNameRef = useRef<SBInputRef>(null);
 
   const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
   function onNameSubmit(name: string, isImplicit: boolean) {
     if (isImplicit) {
       setTopologyName(name);
+    } else if (name === '') {
+      return "Can't be empty";
     } else {
       void onSubmit(name);
     }
@@ -57,6 +66,19 @@ const TopologyAddDialog = (props: TopologyAddDialogProps) => {
     });
   }
 
+  const [selectedCollectionId, setSelectedCollectionId] = useState(
+    props.collectionId
+  );
+
+  const collectionOptions: SelectItem[] = useMemo(() => {
+    return collectionStore.data
+      .filter(collection => collection.publicWrite)
+      .map(collection => ({
+        label: collection.name,
+        value: collection.id,
+      }));
+  }, [topologyStore.data]);
+
   return (
     <SBDialog
       onClose={props.onClose}
@@ -68,6 +90,20 @@ const TopologyAddDialog = (props: TopologyAddDialogProps) => {
       onCancel={props.onClose}
       onShow={() => topologyNameRef.current?.input?.focus()}
     >
+      <div className="mb-3">
+        <SBDropdown
+          id="add-topology-collection"
+          label="Collection"
+          icon={<span className="material-symbols-outlined">folder</span>}
+          hasFilter={false}
+          useSelectTemplate={true}
+          useItemTemplate={true}
+          value={selectedCollectionId}
+          options={collectionOptions}
+          emptyMessage="No collections found"
+          onValueSubmit={setSelectedCollectionId}
+        />
+      </div>
       <SBInput
         ref={topologyNameRef}
         onValueSubmit={onNameSubmit}
