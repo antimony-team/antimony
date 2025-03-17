@@ -8,12 +8,12 @@ import (
 
 type Topology struct {
 	gorm.Model
-	UUID         string `gorm:"unique"`
+	UUID         string `gorm:"uniqueIndex;not null"`
 	GitSourceUrl string
 	Collection   collection.Collection
-	CollectionID uint
+	CollectionID uint `gorm:"not null"`
 	Creator      user.User
-	CreatorID    uint
+	CreatorID    uint `gorm:"not null"`
 }
 
 type TopologyIn struct {

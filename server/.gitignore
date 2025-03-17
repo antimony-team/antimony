@@ -25,10 +25,9 @@ go.work.sum
 .env
 
 # Project files
-.idea
+.idea/
 
 # Testing files
-test.db
-data/old
-
+antimony.db
+.db/
 storage/

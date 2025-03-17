@@ -12,6 +12,10 @@ services:
         condition: service_healthy
     environment:
       - SB_MODE=dev
+      - SB_OIDC_SECRET=MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
+      - SB_DATABASE_PASSWORD=antimony
+      - SB_NATIVE_USERNAME=admin
+      - SB_NATIVE_PASSWORD=admin
     ports:
       - "3000:3000"
   antimony-database:
@@ -38,11 +42,6 @@ services:
     container_name: keycloak-server
     image: quay.io/keycloak/keycloak:latest
     command: start-dev --http-port 4011
-#    healthcheck:
-#      test: curl -f http://localhost:4011
-#      interval: 10s
-#      timeout: 3s
-#      retries: 3
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin

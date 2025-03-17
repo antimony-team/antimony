@@ -56,9 +56,18 @@ func (s *userService) GetAuthCodeURL(stateToken string) string {
 }
 
 func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error) {
-	authUser, err := s.authManager.AuthenticateWithCode(authCode, func(userSub string, userProfile string) string {
-		user, err := s.userRepo.GetBySub(ctx, userSub)
-		if err != nil {
+	authUser, err := s.authManager.AuthenticateWithCode(authCode, func(userSub string, userProfile string) (string, error) {
+		var (
+			user       *User
+			userExists bool
+			err        error
+		)
+
+		if user, userExists, err = s.userRepo.GetBySub(ctx, userSub); err != nil {
+			return "", err
+		}
+
+		if !userExists {
 			// Create the user if not registered yet
 			err = s.userRepo.Create(ctx, &User{
 				UUID: utils.GenerateUuid(),
@@ -66,12 +75,12 @@ func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (s
 				Name: userProfile,
 			})
 		} else {
-			// Update the name of the user if it has changed
-			err = s.userRepo.Update(ctx, &User{
-				Name: userProfile,
-			})
+			// Update the name of the user in case it has changed
+			user.Name = userProfile
+			err = s.userRepo.Update(ctx, user)
 		}
-		return user.UUID
+
+		return user.UUID, err
 	})
 	if err != nil {
 		return "", "", err

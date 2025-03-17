@@ -6,9 +6,9 @@ import (
 
 type User struct {
 	gorm.Model
-	UUID string `gorm:"uniqueindex"`
-	Sub  string `gorm:"index"`
-	Name string
+	UUID string `gorm:"uniqueIndex;not null"`
+	Sub  string `gorm:"index;not null"`
+	Name string `gorm:"not null"`
 }
 
 type UserOut struct {

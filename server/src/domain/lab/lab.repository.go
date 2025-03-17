@@ -42,8 +42,8 @@ func (r *labRepository) Get() ([]*Lab, error) {
 func (r *labRepository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Lab, error) {
 	labs := make([]Lab, 0)
 	result := r.db.WithContext(ctx).
-		Joins("JOIN topologies ON topologies.uuid = labs.topology_id").
-		Joins("JOIN collections ON collections.uuid = topologies.collection_id").
+		Joins("JOIN topologies ON topologies.id = labs.topology_id").
+		Joins("JOIN collections ON collections.id = topologies.collection_id").
 		Where("collections.name IN ?", collectionNames).
 		Find(&labs)
 

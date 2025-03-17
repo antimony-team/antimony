@@ -36,11 +36,11 @@ func (r *topologyRepository) GetAll(ctx context.Context) ([]Topology, error) {
 }
 
 func (r *topologyRepository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error) {
-	topologies := make([]Topology, 0)
+	var topologies []Topology
 	result := r.db.WithContext(ctx).
-		Joins("Collection").
-		Joins("Creator").
-		Where("Collection.name IN ?", collectionNames).
+		Joins("JOIN collections ON collections.id = topologies.collection_id").
+		Joins("JOIN users ON users.id = topologies.creator_id").
+		Where("collections.name IN ?", collectionNames).
 		Find(&topologies)
 
 	return topologies, result.Error

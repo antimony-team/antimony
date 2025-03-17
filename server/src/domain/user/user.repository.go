@@ -12,7 +12,7 @@ type (
 		Create(ctx context.Context, user *User) error
 		Update(ctx context.Context, user *User) error
 		GetByUuid(ctx context.Context, uuid string) (*User, error)
-		GetBySub(ctx context.Context, openId string) (*User, error)
+		GetBySub(ctx context.Context, openId string) (*User, bool, error)
 	}
 
 	userRepository struct {
@@ -37,11 +37,11 @@ func (r *userRepository) GetByUuid(ctx context.Context, userId string) (*User, e
 	return user, nil
 }
 
-func (r *userRepository) GetBySub(ctx context.Context, userSub string) (*User, error) {
+func (r *userRepository) GetBySub(ctx context.Context, userSub string) (*User, bool, error) {
 	user := &User{}
-	result := r.db.WithContext(ctx).First(&user, "sub = ?", userSub)
+	result := r.db.WithContext(ctx).Find(&user, "sub = ?", userSub).Limit(1)
 
-	return user, result.Error
+	return user, result.RowsAffected > 0, result.Error
 }
 
 func (r *userRepository) Update(ctx context.Context, user *User) error {

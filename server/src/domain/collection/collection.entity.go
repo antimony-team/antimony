@@ -7,12 +7,12 @@ import (
 
 type Collection struct {
 	gorm.Model
-	UUID         string `gorm:"index"`
-	Name         string `gorm:"index"`
+	UUID         string `gorm:"uniqueIndex;not null"`
+	Name         string `gorm:"uniqueIndex;not null"`
 	PublicWrite  bool
 	PublicDeploy bool
 	Creator      user.User
-	CreatorID    uint
+	CreatorID    uint `gorm:"not null"`
 }
 
 type CollectionIn struct {

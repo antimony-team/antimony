@@ -31,9 +31,13 @@ func main() {
 	_ = godotenv.Load()
 
 	cmdArgs := utils.ParseArguments()
+	isDevMode := *cmdArgs.DevelopmentMode
 
 	log.SetTimeFormat("[2006-01-02 15:04:05]")
-	log.SetReportCaller(true)
+
+	if isDevMode {
+		log.SetReportCaller(true)
+	}
 
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 	authManager := auth.CreateAuthManager(antimonyConfig)
@@ -89,13 +93,12 @@ func main() {
 	statusMessage.RegisterRoutes(webServer, statusMessageHandler, authManager)
 
 	var serverWaitGroup sync.WaitGroup
-	serverWaitGroup.Add(1)
 	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
 
 	go startWebServer(webServer, connection, &serverWaitGroup)
 	go startSocketServer(socketServer, &serverWaitGroup)
-
 	time.Sleep(100)
+
 	log.Info("Antimony API is ready to serve calls!", "conn", connection)
 	serverWaitGroup.Wait()
 }
@@ -119,8 +122,7 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 			"host=%s user=%s password=%s dbname=%s port=%d",
 			config.Database.Host,
 			config.Database.User,
-			//os.Getenv("SB_DATABASE_PASSWORD"),
-			"password123",
+			os.Getenv("SB_DATABASE_PASSWORD"),
 			config.Database.Database,
 			config.Database.Port,
 		)
@@ -136,6 +138,7 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 }
 
 func startSocketServer(socketServer *socketio.Server, waitGroup *sync.WaitGroup) {
+	waitGroup.Add(1)
 	defer waitGroup.Done()
 
 	err := socketServer.Serve()
@@ -145,6 +148,7 @@ func startSocketServer(socketServer *socketio.Server, waitGroup *sync.WaitGroup)
 }
 
 func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
+	waitGroup.Add(1)
 	defer waitGroup.Done()
 
 	if err := server.Run(socket); err != nil {

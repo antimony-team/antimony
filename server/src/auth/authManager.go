@@ -22,7 +22,7 @@ type (
 		CreateAccessToken(authUser AuthenticatedUser) (string, error)
 		LoginNative(username string, password string) (string, string, error)
 		GetAuthCodeURL(stateToken string) string
-		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) string) (*AuthenticatedUser, error)
+		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
 		RefreshAccessToken(authToken string) (string, error)
 	}
@@ -132,7 +132,7 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 	}
 }
 
-func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) string) (*AuthenticatedUser, error) {
+func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error) {
 	ctx := context.TODO()
 	token, err := m.oauth2Config.Exchange(ctx, authCode)
 	if err != nil {
@@ -171,7 +171,11 @@ func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper fu
 	}
 
 	// Register authenticated user
-	userId := userSubToIdMapper(userSub, userProfile)
+	userId, err := userSubToIdMapper(userSub, userProfile)
+	if err != nil {
+		return nil, err
+	}
+
 	authenticatedUser := &AuthenticatedUser{
 		UserId:      userId,
 		IsAdmin:     isAdmin,

@@ -10,14 +10,14 @@ import (
 
 type Lab struct {
 	gorm.Model
-	UUID       string `gorm:"index"`
-	Name       string
-	StartTime  time.Time
-	EndTime    time.Time
+	UUID       string    `gorm:"uniqueIndex;not null"`
+	Name       string    `gorm:"index;not null"`
+	StartTime  time.Time `gorm:"index;not null"`
+	EndTime    time.Time `gorm:"index;not null"`
 	Topology   topology.Topology
-	TopologyID uint
+	TopologyID uint `gorm:"not null"`
 	Creator    user.User
-	CreatorID  uint
+	CreatorID  uint `gorm:"not null"`
 
 	// Not persisted, set to nil if lab is not running yet
 	Instance *instance.Instance `gorm:"-"`
