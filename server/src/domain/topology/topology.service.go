@@ -6,11 +6,11 @@ import (
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
-	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v3"
+	"maps"
 	"slices"
 )
 
@@ -61,9 +61,11 @@ func (u *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 		var (
 			definition string
 			metadata   string
+			bindFiles  map[string]string
+			err        error
 		)
 
-		if err := u.loadTopology(topology.UUID, &definition, &metadata); err != nil {
+		if definition, metadata, bindFiles, err = u.loadTopology(topology.UUID, topology.BindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}
@@ -74,6 +76,7 @@ func (u *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			Metadata:     metadata,
 			GitSourceUrl: topology.GitSourceUrl,
 			CollectionId: topology.Collection.UUID,
+			BindFiles:    bindFiles,
 			Creator:      u.userService.UserToOut(topology.Creator),
 		})
 	}
@@ -101,7 +104,7 @@ func (u *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 
 	newUuid := utils.GenerateUuid()
 
-	if err := u.saveTopology(newUuid, req.Definition, req.Metadata); err != nil {
+	if err := u.saveTopology(newUuid, req.Definition, req.Metadata, req.BindFiles); err != nil {
 		return "", err
 	}
 
@@ -114,6 +117,7 @@ func (u *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 		UUID:         newUuid,
 		GitSourceUrl: req.GitSourceUrl,
 		Collection:   *topologyCollection,
+		BindFiles:    slices.Collect(maps.Keys(req.BindFiles)),
 		Creator:      *creatorUser,
 	})
 
@@ -148,13 +152,14 @@ func (u *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId st
 		return err
 	}
 
-	if err := u.saveTopology(topology.UUID, req.Definition, req.Metadata); err != nil {
+	if err := u.saveTopology(topology.UUID, req.Definition, req.Metadata, req.BindFiles); err != nil {
 		return err
 	}
 
 	topology.GitSourceUrl = req.GitSourceUrl
 	topology.Collection = *topologyCollection
-
+	topology.BindFiles = slices.Collect(maps.Keys(req.BindFiles))
+	
 	return u.topologyRepo.Update(ctx, topology)
 }
 
@@ -191,42 +196,49 @@ func (u *topologyService) validateMetadata(metadata string) error {
 	return nil
 }
 
-func (u *topologyService) saveTopology(topologyId string, definition string, metadata string) error {
-	definitionFile := getDefinitionFileName(topologyId)
-	if err := u.storageManager.Write(definitionFile, definition); err != nil {
-		log.Errorf("Failed to write topology definition to '%s': %s", definitionFile, err.Error())
+func (u *topologyService) saveTopology(topologyId string, definition string, metadata string, bindFiles map[string]string) error {
+	if err := u.storageManager.WriteTopology(topologyId, definition); err != nil {
+		log.Errorf("Failed to write topology definition for %s: %s", topologyId, err.Error())
 		return err
 	}
 
-	metadataFile := getMetadataFileName(topologyId)
-	if err := u.storageManager.Write(metadataFile, metadata); err != nil {
-		log.Errorf("Failed to write typology metadata to '%s': %s", metadataFile, err.Error())
+	if err := u.storageManager.WriteMetadata(topologyId, metadata); err != nil {
+		log.Errorf("Failed to write typology metadata for %s: %s", topologyId, err.Error())
 		return err
 	}
 
-	return nil
-}
-
-func (u *topologyService) loadTopology(topologyId string, definition *string, metadata *string) error {
-	definitionFile := getDefinitionFileName(topologyId)
-	if err := u.storageManager.Read(definitionFile, definition); err != nil {
-		log.Errorf("Failed to read topology definition from '%s': %s", definitionFile, err.Error())
-		return err
-	}
-
-	metadataFile := getMetadataFileName(topologyId)
-	if err := u.storageManager.Read(metadataFile, metadata); err != nil {
-		log.Errorf("Failed to read typology metadata from '%s': %s", metadataFile, err.Error())
-		return err
+	for filePath, fileContent := range bindFiles {
+		if err := u.storageManager.WriteBindFile(topologyId, filePath, fileContent); err != nil {
+			log.Errorf("Failed to write bind file '%s' for '%s': %s", filePath, topologyId, err.Error())
+			return err
+		}
 	}
 
 	return nil
 }
 
-func getDefinitionFileName(topologyId string) string {
-	return fmt.Sprintf("%s.clab.yaml", topologyId)
-}
+func (u *topologyService) loadTopology(topologyId string, bindFilePaths []string) (string, string, map[string]string, error) {
+	var definition, metadata string
 
-func getMetadataFileName(topologyId string) string {
-	return fmt.Sprintf("%s.meta", topologyId)
+	if err := u.storageManager.ReadTopology(topologyId, &definition); err != nil {
+		log.Errorf("Failed to read topology definition for %s: %s", topologyId, err.Error())
+		return "", "", nil, err
+	}
+
+	if err := u.storageManager.ReadMetadata(topologyId, &metadata); err != nil {
+		log.Errorf("Failed to read typology metadata for %s: %s", topologyId, err.Error())
+		return "", "", nil, err
+	}
+
+	bindFiles := make(map[string]string)
+	for filePath := range bindFilePaths {
+		var fileContent string
+		if err := u.storageManager.ReadBindFile(topologyId, bindFilePaths[filePath], &fileContent); err != nil {
+			log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFilePaths[filePath], topologyId, err.Error())
+			return "", "", nil, err
+		}
+		bindFiles[bindFilePaths[filePath]] = fileContent
+	}
+
+	return definition, metadata, bindFiles, nil
 }

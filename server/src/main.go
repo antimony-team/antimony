@@ -12,6 +12,7 @@ import (
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/test"
 	"antimonyBackend/utils"
 	"fmt"
 	"github.com/charmbracelet/log"
@@ -44,7 +45,7 @@ func main() {
 	storageManager := core.CreateStorageManager(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
-	loadTestData(db)
+	test.GenerateTestData(db, storageManager)
 
 	socketServer := socketio.NewServer(nil)
 
@@ -154,89 +155,4 @@ func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup
 	if err := server.Run(socket); err != nil {
 		log.Fatalf("Failed to start web server on %s: %s", socket, err.Error())
 	}
-}
-
-func loadTestData(db *gorm.DB) {
-	db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users")
-
-	err := db.AutoMigrate(&user.User{})
-	if err != nil {
-		panic("Failed to migrate users")
-	}
-
-	err = db.AutoMigrate(&collection.Collection{})
-	if err != nil {
-		panic("Failed to migrate collections")
-	}
-
-	err = db.AutoMigrate(&topology.Topology{})
-	if err != nil {
-		panic("Failed to migrate topologies")
-	}
-
-	err = db.AutoMigrate(&lab.Lab{})
-	if err != nil {
-		panic("Failed to migrate labs")
-	}
-
-	err = db.AutoMigrate(&statusMessage.StatusMessage{})
-	if err != nil {
-		panic("Failed to migrate status messages")
-	}
-
-	user1 := user.User{
-		UUID: utils.GenerateUuid(),
-		Sub:  "doesntmatter",
-		Name: "kian.gribi@ost.ch",
-	}
-	db.Create(&user1)
-
-	collection1 := collection.Collection{
-		UUID:         utils.GenerateUuid(),
-		Name:         "hidden-group",
-		PublicWrite:  true,
-		PublicDeploy: false,
-		Creator:      user1,
-	}
-
-	db.Create(&collection.Collection{
-		UUID:         utils.GenerateUuid(),
-		Name:         "fs25-cldinf",
-		PublicWrite:  false,
-		PublicDeploy: false,
-		Creator:      user1,
-	})
-
-	db.Create(&collection.Collection{
-		UUID:         utils.GenerateUuid(),
-		Name:         "fs25-nisec",
-		PublicWrite:  true,
-		PublicDeploy: false,
-		Creator:      user1,
-	})
-
-	db.Create(&collection.Collection{
-		UUID:         utils.GenerateUuid(),
-		Name:         "hs25-cn1",
-		PublicWrite:  false,
-		PublicDeploy: true,
-		Creator:      user1,
-	})
-
-	db.Create(&collection.Collection{
-		UUID:         utils.GenerateUuid(),
-		Name:         "hs25-cn2",
-		PublicWrite:  true,
-		PublicDeploy: true,
-		Creator:      user1,
-	})
-
-	db.Create(&collection1)
-
-	db.Create(&topology.Topology{
-		UUID:         utils.GenerateUuid(),
-		GitSourceUrl: "",
-		Collection:   collection1,
-		Creator:      user1,
-	})
 }

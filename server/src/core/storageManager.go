@@ -11,9 +11,12 @@ import (
 
 type (
 	StorageManager interface {
-		PreloadFiles(config *config.AntimonyConfig)
-		Read(fileName string, content *string) error
-		Write(fileName string, content string) error
+		ReadTopology(topologyId string, content *string) error
+		WriteTopology(topologyId string, content string) error
+		ReadMetadata(topologyId string, content *string) error
+		WriteMetadata(topologyId string, content string) error
+		ReadBindFile(topologyId string, filePath string, content *string) error
+		WriteBindFile(topologyId string, filePath string, content string) error
 	}
 
 	storageManager struct {
@@ -28,12 +31,36 @@ func CreateStorageManager(config *config.AntimonyConfig) StorageManager {
 		fileCache:   make(map[string]string),
 	}
 
-	storageManager.PreloadFiles(config)
+	storageManager.preloadFiles(config)
 
 	return storageManager
 }
 
-func (s *storageManager) PreloadFiles(config *config.AntimonyConfig) {
+func (s *storageManager) ReadTopology(topologyId string, content *string) error {
+	return s.read(getDefinitionFilePath(topologyId), content)
+}
+
+func (s *storageManager) WriteTopology(topologyId string, content string) error {
+	return s.write(getDefinitionFilePath(topologyId), content)
+}
+
+func (s *storageManager) ReadMetadata(topologyId string, content *string) error {
+	return s.read(getMetadataFilePath(topologyId), content)
+}
+
+func (s *storageManager) WriteMetadata(topologyId string, content string) error {
+	return s.write(getMetadataFilePath(topologyId), content)
+}
+
+func (s *storageManager) ReadBindFile(topologyId string, filePath string, content *string) error {
+	return s.read(getBindFilePath(topologyId, filePath), content)
+}
+
+func (s *storageManager) WriteBindFile(topologyId string, filePath string, content string) error {
+	return s.write(getBindFilePath(topologyId, filePath), content)
+}
+
+func (s *storageManager) preloadFiles(config *config.AntimonyConfig) {
 	files, err := os.ReadDir(config.Storage.Directory)
 
 	if err != nil {
@@ -53,7 +80,7 @@ func (s *storageManager) PreloadFiles(config *config.AntimonyConfig) {
 	preloadCount := 0
 	for _, e := range files {
 		var content string
-		if err := s.Read(e.Name(), &content); err != nil {
+		if err := s.read(e.Name(), &content); err != nil {
 			filePath := filepath.Join(s.storagePath, e.Name())
 			log.Warnf("Failed to preload storage file '%s': %s", filePath, err.Error())
 			continue
@@ -64,19 +91,40 @@ func (s *storageManager) PreloadFiles(config *config.AntimonyConfig) {
 	log.Info("Successfully preloaded files from storage.", "files", fmt.Sprintf("%d/%d", preloadCount, len(files)))
 }
 
-func (s *storageManager) Read(fileName string, content *string) error {
-	filePath := filepath.Join(s.storagePath, fileName)
-	if data, err := os.ReadFile(filePath); err != nil {
+func (s *storageManager) read(filePath string, content *string) error {
+	absolutePath := filepath.Join(s.storagePath, filePath)
+	if data, err := os.ReadFile(absolutePath); err != nil {
 		return err
 	} else {
 		*content = string(data)
-		s.fileCache[fileName] = string(data)
+		s.fileCache[filePath] = string(data)
 	}
 
 	return nil
 }
 
-func (s *storageManager) Write(fileName string, content string) error {
-	filePath := filepath.Join(s.storagePath, fileName)
-	return os.WriteFile(filePath, ([]byte)(content), 0755)
+func (s *storageManager) write(filePath string, content string) error {
+	absolutePath := filepath.Join(s.storagePath, filePath)
+
+	if _, err := os.ReadDir(filepath.Dir(absolutePath)); err != nil {
+		log.Errorf("failed to read directory: %s", err.Error())
+		if err = os.MkdirAll(filepath.Dir(absolutePath), 0755); err != nil {
+			log.Errorf("Failed: %s", err.Error())
+			return utils.ErrorFileStorage
+		}
+	}
+
+	return os.WriteFile(absolutePath, ([]byte)(content), 0755)
+}
+
+func getDefinitionFilePath(topologyId string) string {
+	return fmt.Sprintf("%s/topology.clab.yaml", topologyId)
+}
+
+func getMetadataFilePath(topologyId string) string {
+	return fmt.Sprintf("%s/topology.meta", topologyId)
+}
+
+func getBindFilePath(topologyId string, filePath string) string {
+	return fmt.Sprintf("%s/%s", topologyId, filePath)
 }
