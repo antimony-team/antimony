@@ -72,12 +72,17 @@ func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser 
 
 	newUuid := utils.GenerateUuid()
 
+	creator, err := u.userService.GetByUuid(ctx, authUser.UserId)
+	if err != nil {
+		return "", err
+	}
+
 	return newUuid, u.collectionRepo.Create(ctx, &Collection{
 		UUID:         newUuid,
 		Name:         req.Name,
 		PublicWrite:  req.PublicWrite,
 		PublicDeploy: req.PublicDeploy,
-		Creator:      user.User{},
+		Creator:      *creator,
 	})
 }
 

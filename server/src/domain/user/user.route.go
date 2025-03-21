@@ -9,6 +9,7 @@ func RegisterRoutes(route *gin.Engine, handler Handler) {
 	{
 		routes.POST("/login", handler.Login)
 		routes.GET("/logout", handler.Logout)
+		routes.GET("/login/check", handler.LoginCheck)
 		routes.GET("/login/openid", handler.LoginOIDC)
 		routes.GET("/login/success", handler.LoginSuccess)
 		routes.GET("/login/refresh", handler.RefreshToken)

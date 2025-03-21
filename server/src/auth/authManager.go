@@ -21,6 +21,7 @@ type (
 		CreateAuthToken(userId string) (string, error)
 		CreateAccessToken(authUser AuthenticatedUser) (string, error)
 		LoginNative(username string, password string) (string, string, error)
+		CheckToken(authToken string) bool
 		GetAuthCodeURL(stateToken string) string
 		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
@@ -124,7 +125,6 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 			ctx.JSON(utils.ErrorResponse(utils.ErrorTokenInvalid))
 			ctx.Abort()
 			return
-
 		} else {
 			ctx.Set("authUser", *user)
 			ctx.Next()
@@ -202,6 +202,11 @@ func (m *authManager) LoginNative(username string, password string) (string, str
 	}
 
 	return "", "", utils.ErrorInvalidCredentials
+}
+
+func (m *authManager) CheckToken(authToken string) bool {
+	_, err := m.authenticate(authToken)
+	return err == nil
 }
 
 func (m *authManager) authenticate(tokenString string) (*AuthenticatedUser, error) {

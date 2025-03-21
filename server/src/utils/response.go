@@ -25,8 +25,13 @@ func ErrorResponse(err error) (int, Response) {
 		return http.StatusBadRequest, Response{Code: 1001, Message: err.Error()}
 	case errors.Is(err, ErrorCollectionExists):
 		return http.StatusBadRequest, Response{Code: 2001, Message: err.Error()}
+	case errors.Is(err, ErrorTopologyExists):
+		return http.StatusBadRequest, Response{Code: 3001, Message: err.Error()}
+	case errors.Is(err, ErrorBindFileExists):
+		return http.StatusBadRequest, Response{Code: 4001, Message: err.Error()}
 	// Permission / Access errors
 	case errors.Is(err, ErrorNoWriteAccessToLab),
+		errors.Is(err, ErrorNoWriteAccessToBindFile),
 		errors.Is(err, ErrorNoWriteAccessToTopology),
 		errors.Is(err, ErrorNoWriteAccessToCollection),
 		errors.Is(err, ErrorNoDeployAccessToCollection),

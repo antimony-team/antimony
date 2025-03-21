@@ -10,7 +10,7 @@ func RegisterRoutes(route *gin.Engine, handler Handler, authManager auth.AuthMan
 	{
 		routes.GET("", handler.Get)
 		routes.POST("", handler.Create)
-		routes.PATCH("/:id", handler.Update)
-		routes.DELETE("/:id", handler.Delete)
+		routes.PATCH("/:collectionId", handler.Update)
+		routes.DELETE("/:collectionId", handler.Delete)
 	}
 }

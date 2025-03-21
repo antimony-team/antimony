@@ -13,7 +13,7 @@ import (
 )
 
 func GenerateTestData(db *gorm.DB, storage core.StorageManager) {
-	db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users")
+	db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
 	err := db.AutoMigrate(&user.User{})
 	if err != nil {
@@ -23,6 +23,11 @@ func GenerateTestData(db *gorm.DB, storage core.StorageManager) {
 	err = db.AutoMigrate(&collection.Collection{})
 	if err != nil {
 		panic("Failed to migrate collections")
+	}
+
+	err = db.AutoMigrate(&topology.BindFile{})
+	if err != nil {
+		panic("Failed to migrate bind files")
 	}
 
 	err = db.AutoMigrate(&topology.Topology{})
@@ -89,13 +94,35 @@ func GenerateTestData(db *gorm.DB, storage core.StorageManager) {
 	db.Create(&collection1)
 
 	topology1Uuid := utils.GenerateUuid()
-	db.Create(&topology.Topology{
+	topology1 := topology.Topology{
 		UUID:         topology1Uuid,
+		Name:         "ctd",
 		GitSourceUrl: "",
 		Collection:   collection1,
 		Creator:      user1,
+	}
+	db.Create(&topology1)
+
+	db.Create(&topology.BindFile{
+		UUID:     utils.GenerateUuid(),
+		FilePath: "leaf01/interfaces",
+		Topology: topology1,
 	})
+	db.Create(&topology.BindFile{
+		UUID:     utils.GenerateUuid(),
+		FilePath: "leaf01/daemons",
+		Topology: topology1,
+	})
+	db.Create(&topology.BindFile{
+		UUID:     utils.GenerateUuid(),
+		FilePath: "leaf01/frr.conf",
+		Topology: topology1,
+	})
+
 	writeTopologyFile(topology1Uuid, cvx03, storage)
+	writeBindFile(topology1Uuid, "leaf01/interfaces", "", storage)
+	writeBindFile(topology1Uuid, "leaf01/daemons", "", storage)
+	writeBindFile(topology1Uuid, "leaf01/frr.conf", "", storage)
 }
 
 const cvx03 = `name: ctd # Cumulus Linux Test Drive
@@ -153,5 +180,15 @@ topology:
 func writeTopologyFile(topologyId string, content string, storage core.StorageManager) {
 	if err := storage.WriteTopology(topologyId, content); err != nil {
 		log.Fatalf("Failed to write test topology: %s", err.Error())
+	}
+
+	if err := storage.WriteMetadata(topologyId, content); err != nil {
+		log.Fatalf("Failed to write test topology: %s", err.Error())
+	}
+}
+
+func writeBindFile(topologyId string, filePath string, content string, storage core.StorageManager) {
+	if err := storage.WriteBindFile(topologyId, filePath, content); err != nil {
+		log.Fatalf("Failed to write test topology bind file: %s", err.Error())
 	}
 }

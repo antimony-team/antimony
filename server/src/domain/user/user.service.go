@@ -13,6 +13,7 @@ type (
 		GetByUuid(ctx context.Context, userId string) (*User, error)
 		GetAuthCodeURL(stateToken string) string
 		LoginNative(req CredentialsIn) (string, string, error)
+		LoginCheck(accessToken string) bool
 		RefreshAccessToken(authToken string) (string, error)
 		AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error)
 	}
@@ -37,6 +38,10 @@ func (s *userService) UserToOut(user User) UserOut {
 		ID:   user.UUID,
 		Name: user.Name,
 	}
+}
+
+func (s *userService) LoginCheck(accessToken string) bool {
+	return s.authManager.CheckToken(accessToken)
 }
 
 func (s *userService) RefreshAccessToken(authToken string) (string, error) {
@@ -68,14 +73,14 @@ func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (s
 		}
 
 		if !userExists {
-			// Create the user if not registered yet
+			// CreateBindFile the user if not registered yet
 			err = s.userRepo.Create(ctx, &User{
 				UUID: utils.GenerateUuid(),
 				Sub:  userSub,
 				Name: userProfile,
 			})
 		} else {
-			// Update the name of the user in case it has changed
+			// UpdateBindFile the name of the user in case it has changed
 			user.Name = userProfile
 			err = s.userRepo.Update(ctx, user)
 		}

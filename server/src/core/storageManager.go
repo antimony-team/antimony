@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type (
@@ -17,21 +18,24 @@ type (
 		WriteMetadata(topologyId string, content string) error
 		ReadBindFile(topologyId string, filePath string, content *string) error
 		WriteBindFile(topologyId string, filePath string, content string) error
+		DeleteBindFile(topologyId string, filePath string) error
 	}
 
 	storageManager struct {
-		storagePath string
-		fileCache   map[string]string
+		storagePath    string
+		fileCache      map[string]string
+		fileCacheMutex *sync.Mutex
 	}
 )
 
 func CreateStorageManager(config *config.AntimonyConfig) StorageManager {
 	storageManager := &storageManager{
-		storagePath: config.Storage.Directory,
-		fileCache:   make(map[string]string),
+		storagePath:    config.Storage.Directory,
+		fileCache:      make(map[string]string),
+		fileCacheMutex: &sync.Mutex{},
 	}
 
-	storageManager.preloadFiles(config)
+	//storageManager.preloadFiles(config)
 
 	return storageManager
 }
@@ -58,6 +62,10 @@ func (s *storageManager) ReadBindFile(topologyId string, filePath string, conten
 
 func (s *storageManager) WriteBindFile(topologyId string, filePath string, content string) error {
 	return s.write(getBindFilePath(topologyId, filePath), content)
+}
+
+func (s *storageManager) DeleteBindFile(topologyId string, filePath string) error {
+	return s.delete(getBindFilePath(topologyId, filePath))
 }
 
 func (s *storageManager) preloadFiles(config *config.AntimonyConfig) {
@@ -97,7 +105,9 @@ func (s *storageManager) read(filePath string, content *string) error {
 		return err
 	} else {
 		*content = string(data)
+		s.fileCacheMutex.Lock()
 		s.fileCache[filePath] = string(data)
+		s.fileCacheMutex.Unlock()
 	}
 
 	return nil
@@ -107,14 +117,21 @@ func (s *storageManager) write(filePath string, content string) error {
 	absolutePath := filepath.Join(s.storagePath, filePath)
 
 	if _, err := os.ReadDir(filepath.Dir(absolutePath)); err != nil {
-		log.Errorf("failed to read directory: %s", err.Error())
 		if err = os.MkdirAll(filepath.Dir(absolutePath), 0755); err != nil {
-			log.Errorf("Failed: %s", err.Error())
 			return utils.ErrorFileStorage
 		}
 	}
 
 	return os.WriteFile(absolutePath, ([]byte)(content), 0755)
+}
+
+func (s *storageManager) delete(filePath string) error {
+	absolutePath := filepath.Join(s.storagePath, filePath)
+	if err := os.RemoveAll(absolutePath); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func getDefinitionFilePath(topologyId string) string {

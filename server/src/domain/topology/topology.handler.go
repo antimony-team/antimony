@@ -12,6 +12,10 @@ type (
 		Create(ctx *gin.Context)
 		Update(ctx *gin.Context)
 		Delete(ctx *gin.Context)
+
+		CreateBindFile(ctx *gin.Context)
+		UpdateBindFile(ctx *gin.Context)
+		DeleteBindFile(ctx *gin.Context)
 	}
 
 	topologyHandler struct {
@@ -55,15 +59,13 @@ func (h *topologyHandler) Create(ctx *gin.Context) {
 
 func (h *topologyHandler) Update(ctx *gin.Context) {
 	payload := TopologyIn{}
-	err := ctx.Bind(&payload)
-	if err != nil {
+	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
 
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	err = h.topologyService.Update(ctx, payload, ctx.Param("id"), authUser)
-	if err != nil {
+	if err := h.topologyService.Update(ctx, payload, ctx.Param("topologyId"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -73,8 +75,50 @@ func (h *topologyHandler) Update(ctx *gin.Context) {
 
 func (h *topologyHandler) Delete(ctx *gin.Context) {
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	err := h.topologyService.Delete(ctx, ctx.Param("id"), authUser)
+	if err := h.topologyService.Delete(ctx, ctx.Param("topologyId"), authUser); err != nil {
+		ctx.JSON(utils.ErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.OkResponse(nil))
+}
+
+func (h *topologyHandler) CreateBindFile(ctx *gin.Context) {
+	payload := BindFileIn{}
+	if err := ctx.Bind(&payload); err != nil {
+		ctx.JSON(utils.ErrorResponse(err))
+		return
+	}
+
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	result, err := h.topologyService.CreateBindFile(ctx, ctx.Param("topologyId"), payload, authUser)
 	if err != nil {
+		ctx.JSON(utils.ErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.OkResponse(result))
+}
+
+func (h *topologyHandler) UpdateBindFile(ctx *gin.Context) {
+	payload := BindFileIn{}
+	if err := ctx.Bind(&payload); err != nil {
+		ctx.JSON(utils.ErrorResponse(err))
+		return
+	}
+
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if err := h.topologyService.UpdateBindFile(ctx, payload, ctx.Param("bindFileId"), authUser); err != nil {
+		ctx.JSON(utils.ErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.OkResponse(nil))
+}
+
+func (h *topologyHandler) DeleteBindFile(ctx *gin.Context) {
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if err := h.topologyService.DeleteBindFile(ctx, ctx.Param("bindFileId"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

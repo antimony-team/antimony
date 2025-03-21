@@ -9,6 +9,7 @@ import (
 type (
 	Handler interface {
 		Login(ctx *gin.Context)
+		LoginCheck(ctx *gin.Context)
 		Logout(ctx *gin.Context)
 		LoginOIDC(ctx *gin.Context)
 		LoginSuccess(ctx *gin.Context)
@@ -59,6 +60,18 @@ func (h *userHandler) Login(ctx *gin.Context) {
 	} else {
 		ctx.SetCookie("authToken", refreshToken, 0, "/", "", false, true)
 		ctx.SetCookie("accessToken", accessToken, 0, "/", "", false, false)
+	}
+}
+
+func (h *userHandler) LoginCheck(ctx *gin.Context) {
+	accessToken, err := ctx.Cookie("Authorization")
+	if err != nil {
+		ctx.JSON(200, gin.H{})
+		return
+	} else if !h.userService.LoginCheck(accessToken) {
+		ctx.JSON(401, gin.H{})
+	} else {
+		ctx.JSON(200, gin.H{})
 	}
 }
 

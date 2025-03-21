@@ -30,14 +30,14 @@ func CreateRepository(db *gorm.DB) Repository {
 }
 
 func (r *collectionRepository) GetAll(ctx context.Context) ([]Collection, error) {
-	collections := make([]Collection, 0)
+	var collections []Collection
 	result := r.db.WithContext(ctx).Preload("Creator").Find(&collections)
 
 	return collections, result.Error
 }
 
 func (r *collectionRepository) GetByNames(ctx context.Context, collectionNames []string) ([]Collection, error) {
-	collections := make([]Collection, 0)
+	var collections []Collection
 	result := r.db.WithContext(ctx).
 		Preload("Creator").
 		Where("Name IN ?", collectionNames).
@@ -47,27 +47,27 @@ func (r *collectionRepository) GetByNames(ctx context.Context, collectionNames [
 }
 
 func (r *collectionRepository) DoesNameExist(ctx context.Context, collectionName string) (bool, error) {
-	collection := &Collection{}
+	var collection Collection
 	result := r.db.WithContext(ctx).
 		Where("name = ? AND deleted_at IS NULL", collectionName).
 		Limit(1).
-		Find(collection)
+		Find(&collection)
 
 	return result.RowsAffected > 0, result.Error
 }
 
 func (r *collectionRepository) GetByUuid(ctx context.Context, collectionId string) (*Collection, error) {
-	collection := &Collection{}
+	var collection Collection
 	result := r.db.WithContext(ctx).
 		Preload("Creator").
 		Where("uuid = ?", collectionId).
-		First(collection)
+		First(&collection)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, utils.ErrorUuidNotFound
 	}
 
-	return collection, result.Error
+	return &collection, result.Error
 }
 
 func (r *collectionRepository) Create(ctx context.Context, collection *Collection) error {

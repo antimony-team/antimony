@@ -61,7 +61,7 @@ func (h *labHandler) Update(ctx *gin.Context) {
 	}
 
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	if err := h.labService.Update(ctx, payload, ctx.Param("id"), authUser); err != nil {
+	if err := h.labService.Update(ctx, payload, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -71,7 +71,7 @@ func (h *labHandler) Update(ctx *gin.Context) {
 
 func (h *labHandler) Delete(ctx *gin.Context) {
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	if err := h.labService.Delete(ctx, ctx.Param("id"), authUser); err != nil {
+	if err := h.labService.Delete(ctx, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}

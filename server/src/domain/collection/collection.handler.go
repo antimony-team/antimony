@@ -61,7 +61,7 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 	}
 
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	if err := h.collectionService.Update(ctx, payload, ctx.Param("id"), authUser); err != nil {
+	if err := h.collectionService.Update(ctx, payload, ctx.Param("collectionId"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
@@ -71,7 +71,7 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 
 func (h *collectionHandler) Delete(ctx *gin.Context) {
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	if err := h.collectionService.Delete(ctx, ctx.Param("id"), authUser); err != nil {
+	if err := h.collectionService.Delete(ctx, ctx.Param("collectionId"), authUser); err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
 	}
