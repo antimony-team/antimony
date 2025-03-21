@@ -16,10 +16,10 @@ type AuthResponse = {
 export class RemoteDataBinder extends DataBinder {
   private readonly apiUrl = process.env.SB_API_SERVER_URL ?? 'localhost';
 
-  @observable accessor isLoggedIn = false;
-
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
+
+  private refreshTokenPromise: Promise<Result<null>> | null = null;
 
   public socket: Socket = io();
 
@@ -28,7 +28,20 @@ export class RemoteDataBinder extends DataBinder {
 
     const accessToken = Cookies.get('accessToken');
     if (accessToken !== undefined) {
-      this.processAccessToken(accessToken);
+      this.refreshToken().then(result => {
+        if (result.isOk()) {
+          this.processAccessToken(accessToken);
+          this.isLoggedIn = true;
+          this.isReady = true;
+        } else if (Cookies.get('authOidc') === 'true') {
+          window.location.replace(this.apiUrl + '/users/login/openid');
+          return Result.createErr({code: -1, message: 'Unauthorized'});
+        } else {
+          this.isReady = true;
+        }
+      });
+    } else {
+      this.isReady = true;
     }
   }
 
@@ -57,40 +70,6 @@ export class RemoteDataBinder extends DataBinder {
   }
 
   @action
-  private processAccessToken(token: string) {
-    try {
-      const tokenData = JSON.parse(atob(token.split('.')[1]));
-      this.authUser = {
-        id: tokenData.id,
-        // TODO(kian): Add actual name to user object
-        name: tokenData.id,
-        isAdmin: tokenData.isAdmin,
-      };
-      this.setupConnection();
-    } catch (e) {
-      console.log('Failed to parse access token. Logging out.');
-      this.logout();
-    }
-  }
-
-  private async refreshToken(): Promise<Result<null>> {
-    const refreshResponse = await fetchResource(
-      this.apiUrl + '/users/login/refresh',
-      'GET'
-    );
-
-    if (!refreshResponse || refreshResponse.status !== 200) {
-      if (Cookies.get('authOidc') === 'true') {
-        window.location.replace(this.apiUrl + '/users/login/openid');
-      }
-    }
-
-    this.processAccessToken(Cookies.get('accessToken')!);
-
-    return Result.createOk(null);
-  }
-
-  @action
   protected async fetch<R, T>(
     path: string,
     method: string,
@@ -100,10 +79,6 @@ export class RemoteDataBinder extends DataBinder {
     if (authenticated && !this.isLoggedIn) {
       return Result.createErr({code: -1, message: 'Unauthorized'});
     }
-
-    // if (isExternal) {
-    //   return this.fetchExternal<R, T>(path, method, body);
-    // }
 
     const response = await fetchResource(this.apiUrl + path, method, body, {
       Accept: 'application/json',
@@ -118,8 +93,8 @@ export class RemoteDataBinder extends DataBinder {
 
     // Server error, logout and return generic error
     if (response.status >= 500) {
-      runInAction(() => (this.hasAPIError = true));
-      this.logout();
+      // runInAction(() => (this.hasAPIError = true));
+      // this.logout();
       return Result.createErr({code: -1, message: 'Server Error'});
     }
 
@@ -127,6 +102,10 @@ export class RemoteDataBinder extends DataBinder {
     if (response.status === 498) {
       const refreshResponse = await this.refreshToken();
       if (refreshResponse.isErr()) {
+        if (Cookies.get('authOidc') === 'true') {
+          window.location.replace(this.apiUrl + '/users/login/openid');
+          return refreshResponse;
+        }
         return refreshResponse;
       } else {
         return this.fetch(path, method, body, authenticated);
@@ -159,15 +138,55 @@ export class RemoteDataBinder extends DataBinder {
     });
   }
 
-  public logout() {
-    void this.get('/users/logout');
+  @action
+  private processAccessToken(token: string) {
+    try {
+      const tokenData = JSON.parse(atob(token.split('.')[1]));
+      this.authUser = {
+        id: tokenData.id,
+        // TODO(kian): Add actual name to user object
+        name: tokenData.id,
+        isAdmin: tokenData.isAdmin,
+      };
+    } catch (e) {
+      console.log('Failed to parse access token. Logging out.');
+      this.logout();
+    }
+  }
 
+  private async refreshToken(): Promise<Result<null>> {
+    // Make sure only one promise to refresh the token is running at a time
+    if (this.refreshTokenPromise === null) {
+      this.refreshTokenPromise = fetchResource(
+        this.apiUrl + '/users/login/refresh',
+        'GET'
+      )
+        .then(response => {
+          if (!response || response.status !== 200) {
+            return Result.createErr({code: -1, message: 'Unauthorized'});
+          }
+          this.processAccessToken(Cookies.get('accessToken')!);
+
+          return Result.createOk(null);
+        })
+        .finally(() => (this.refreshTokenPromise = null));
+    }
+
+    return this.refreshTokenPromise;
+  }
+
+  public logout() {
+    // Make sure logout is only executed once
+    if (!this.isLoggedIn) return;
+
+    this.isLoggedIn = false;
+
+    void fetchResource(this.apiUrl + '/users/logout', 'GET');
     if (this.socket && this.socket.connected) {
       this.socket.disconnect();
     }
 
     this.authUser = EMPTY_AUTH_USER;
-    this.isLoggedIn = false;
   }
 
   @computed
@@ -175,9 +194,13 @@ export class RemoteDataBinder extends DataBinder {
     return this.hasAPIError || this.hasSocketError;
   }
 
-  @action
-  private setupConnection() {
-    this.isLoggedIn = true;
+  private async checkAuthentication(): Promise<boolean> {
+    const response = await fetchResource(
+      this.apiUrl + '/users/login/check',
+      'GET'
+    );
+
+    return response?.status === 200;
     // this.socket = io(window.location.host, {
     //   auth: {
     //     token: this.accessToken,

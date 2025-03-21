@@ -4,7 +4,9 @@
   position: relative
 
 .sb-explorer-node-buttons
-  padding: 4px
+  height: 40px
+  display: flex
+  align-items: center
 
   .p-button-icon-only
     width: 2rem
@@ -12,8 +14,10 @@
     padding: 0
     transition: opacity 0.1s ease
 
-.p-treenode-content:has(.p-button-icon-only)
+.p-treenode-droppoint
+  height: 0
 
+.p-treenode-content
   span.material-symbols-outlined
     margin-right: 8px
     color: rgba(255, 255, 255, 0.6)

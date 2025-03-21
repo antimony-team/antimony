@@ -2,6 +2,16 @@ import {User} from '@sb/types/domain/user';
 import {Position, uuid4, YAMLDocument} from '@sb/types/types';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 
+export type BindFileIn = {
+  filePath: string;
+  content: string;
+};
+
+export type BindFile = BindFileIn & {
+  id: uuid4;
+  topologyId: uuid4;
+};
+
 export type TopologyIn = {
   collectionId: uuid4;
   definition: string;
@@ -12,13 +22,18 @@ export type TopologyIn = {
 export type TopologyOut = TopologyIn & {
   id: uuid4;
   creator: User;
+  bindFiles: BindFile[];
 };
 
 export type Topology = TopologyMeta & {
   id: uuid4;
+  name: string;
   definition: YAMLDocument<TopologyDefinition>;
+  definitionString: string;
   collectionId: uuid4;
   creator: User;
+  gitSourceUrl: string;
+  bindFiles: BindFile[];
 };
 
 export interface TopologyDefinition {

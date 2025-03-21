@@ -1,79 +1,90 @@
-import {ErrorCodes} from '@sb/types/error-codes';
-import React, {useEffect, useRef, useState} from 'react';
-
-import {isEqual} from 'lodash-es';
-import {Checkbox} from 'primereact/checkbox';
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import {useCollectionStore, useStatusMessages} from '@sb/lib/stores/root-store';
 
 import './collection-edit-dialog.sass';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {Collection, CollectionIn} from '@sb/types/domain/collection';
+import {ErrorCodes} from '@sb/types/error-codes';
 
-interface CollectionEditDialogProps {
+import {isEqual} from 'lodash';
+import {observer, useLocalObservable} from 'mobx-react-lite';
+import {Checkbox} from 'primereact/checkbox';
+import React, {useEffect, useRef, useState} from 'react';
+
+export interface CollectionEditDialogState {
   // Set to null if the dialog is meant to add a new collection
   editingCollection: Collection | null;
-
-  isOpen: boolean;
-  onClose: () => void;
+  action: DialogAction;
 }
 
-const CollectionEditDialog = (props: CollectionEditDialogProps) => {
+interface CollectionEditDialogProps {
+  dialogState: DialogState<CollectionEditDialogState>;
+}
+
+const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
   const collectionNameRef = useRef<SBInputRef>(null);
 
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
-  const [updatedCollection, setUpdatedCollection] = useState<CollectionIn>({
-    name: props.editingCollection?.name ?? '',
-    publicDeploy: props.editingCollection?.publicDeploy ?? false,
-    publicWrite: props.editingCollection?.publicWrite ?? false,
+  const editingCollection = useLocalObservable<CollectionIn>(() => ({
+    name: props.dialogState.state?.editingCollection?.name ?? '',
+    publicDeploy:
+      props.dialogState.state?.editingCollection?.publicDeploy ?? false,
+    publicWrite:
+      props.dialogState.state?.editingCollection?.publicWrite ?? false,
+  }));
+
+  const [originalCollection, setOriginalCollection] = useState<CollectionIn>({
+    name: props.dialogState.state?.editingCollection?.name ?? '',
+    publicWrite:
+      props.dialogState.state?.editingCollection?.publicWrite ?? false,
+    publicDeploy:
+      props.dialogState.state?.editingCollection?.publicDeploy ?? false,
   });
 
+  // Reset editing object when dialog is opened
   useEffect(() => {
-    if (props.isOpen) {
-      setUpdatedCollection({
-        name: props.editingCollection?.name ?? '',
-        publicDeploy: props.editingCollection?.publicDeploy ?? false,
-        publicWrite: props.editingCollection?.publicWrite ?? false,
-      });
-    }
-  }, [props.isOpen]);
+    if (props.dialogState.isOpen && props.dialogState.state) {
+      const editCollection = {
+        name: props.dialogState.state.editingCollection?.name ?? '',
+        publicWrite:
+          props.dialogState.state.editingCollection?.publicWrite ?? false,
+        publicDeploy:
+          props.dialogState.state.editingCollection?.publicDeploy ?? false,
+      };
+      setOriginalCollection(editCollection);
 
-  async function onNameSubmit(name: string, isImplicit: boolean) {
-    if (isImplicit) {
-      setUpdatedCollection({
-        ...updatedCollection,
-        name,
-      });
-    } else {
-      void onSubmit({
-        ...updatedCollection,
-        name,
-      });
+      editingCollection.name = editCollection.name;
+      editingCollection.publicWrite = editCollection.publicWrite;
+      editingCollection.publicDeploy = editCollection.publicDeploy;
     }
+  }, [props.dialogState.isOpen]);
+
+  async function onNameChange(name: string, isImplicit: boolean) {
+    editingCollection.name = name;
+    if (!isImplicit) void onSubmit();
   }
 
-  async function onSubmit(collection?: CollectionIn) {
-    collection ??= updatedCollection;
+  async function onSubmit() {
+    if (!props.dialogState.state) return;
 
-    // Edit existing collection
-    if (props.editingCollection) {
-      if (
-        isEqual(collection, {
-          name: props.editingCollection.name,
-          publicDeploy: props.editingCollection.publicDeploy,
-          publicWrite: props.editingCollection.publicWrite,
-        })
-      ) {
-        props.onClose();
+    if (editingCollection.name === '') {
+      collectionNameRef.current?.setValidationError("Name can't be empty");
+      return;
+    }
+
+    if (props.dialogState.state.action === DialogAction.Edit) {
+      if (isEqual(editingCollection, originalCollection)) {
+        props.dialogState.close();
         return;
       }
 
       const result = await collectionStore.update(
-        props.editingCollection.id,
-        collection
+        props.dialogState.state.editingCollection!.id,
+        editingCollection
       );
       if (result.isErr()) {
         if (result.error.code === ErrorCodes.ErrorCollectionExists) {
@@ -88,38 +99,46 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
         }
       } else {
         notificationStore.success('Collection has been edited successfully.');
-        props.onClose();
+        props.dialogState.close();
       }
-      return;
-    }
-
-    // Create new collection
-    const result = await collectionStore.add(collection);
-    if (result.isErr()) {
-      if (result.error.code === ErrorCodes.ErrorCollectionExists) {
-        collectionNameRef.current?.setValidationError(
-          'A collection with that name already exists.'
-        );
+    } else if (props.dialogState.state.action === DialogAction.Add) {
+      const result = await collectionStore.add(editingCollection);
+      if (result.isErr()) {
+        if (result.error.code === ErrorCodes.ErrorCollectionExists) {
+          collectionNameRef.current?.setValidationError(
+            'A collection with that name already exists.'
+          );
+        } else {
+          notificationStore.error(
+            result.error.message,
+            'Failed to create collection'
+          );
+        }
       } else {
-        notificationStore.error(
-          result.error.message,
-          'Failed to create collection'
-        );
+        notificationStore.success('Collection has been created successfully.');
+        props.dialogState.close();
       }
-    } else {
-      notificationStore.success('Collection has been created successfully.');
-      props.onClose();
+    }
+  }
+
+  function getDialogHeader(): string {
+    if (!props.dialogState.state) return '';
+
+    switch (props.dialogState.state.action) {
+      case DialogAction.Add:
+        return 'Add Collection';
+      case DialogAction.Edit:
+        return 'Edit Collection';
+      case DialogAction.Duplicate:
+        return 'Duplicate Collection';
     }
   }
 
   return (
     <SBDialog
-      onClose={props.onClose}
-      onCancel={props.onClose}
-      isOpen={props.isOpen}
-      headerTitle={
-        props.editingCollection ? 'Edit Collection' : 'Add Collection'
-      }
+      onClose={props.dialogState.close}
+      isOpen={props.dialogState.isOpen}
+      headerTitle={getDialogHeader()}
       className="sb-collection-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
@@ -128,22 +147,17 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
       <div className="flex gap-4 flex-column">
         <SBInput
           ref={collectionNameRef}
-          onValueSubmit={onNameSubmit}
+          onValueSubmit={onNameChange}
           placeholder="e.g. CN2"
           id="collection-edit-name"
-          defaultValue={updatedCollection.name}
+          defaultValue={editingCollection.name}
           label="Collection Name"
         />
         <div className="flex align-items-center">
           <Checkbox
             inputId="collection-edit-candeploy"
-            onChange={e =>
-              setUpdatedCollection({
-                ...updatedCollection,
-                publicDeploy: e.checked!,
-              })
-            }
-            checked={updatedCollection.publicDeploy}
+            onChange={e => (editingCollection.publicDeploy = e.checked!)}
+            checked={editingCollection.publicDeploy}
           />
           <label htmlFor="collection-edit-candeploy" className="ml-2">
             Public Deploy
@@ -152,13 +166,8 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
         <div className="flex align-items-center">
           <Checkbox
             inputId="collection-edit-publicwrite"
-            onChange={e =>
-              setUpdatedCollection({
-                ...updatedCollection,
-                publicWrite: e.checked!,
-              })
-            }
-            checked={updatedCollection.publicWrite}
+            onChange={e => (editingCollection.publicWrite = e.checked!)}
+            checked={editingCollection.publicWrite}
           />
           <label htmlFor="collection-edit-publicwrite" className="ml-2">
             Public Write
@@ -167,6 +176,6 @@ const CollectionEditDialog = (props: CollectionEditDialogProps) => {
       </div>
     </SBDialog>
   );
-};
+});
 
 export default CollectionEditDialog;

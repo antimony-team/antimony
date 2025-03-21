@@ -76,11 +76,6 @@ const SBLogin = observer(() => {
 
     function loginWithOIDC() {
       window.location.replace('http://localhost:8080/api/users/login/openid');
-      // dataBinder.login({}, checkedRemember).then(response => {
-      //   if (!response) {
-      //     setLoginError('Failed to login with OpenID connect');
-      //   }
-      // });
     }
 
     function onUsernameChange(event: ChangeEvent<HTMLInputElement>) {
@@ -166,7 +161,10 @@ const SBLogin = observer(() => {
     <If condition={particlesReady}>
       <div
         className={classNames('sb-login-container', 'sb-animated-overlay', {
-          visible: !dataBinder.isLoggedIn && !dataBinder.hasConnectionError,
+          visible:
+            !dataBinder.isLoggedIn &&
+            !dataBinder.hasConnectionError &&
+            dataBinder.isReady,
         })}
       >
         <If condition={!dataBinder.isLoggedIn}>

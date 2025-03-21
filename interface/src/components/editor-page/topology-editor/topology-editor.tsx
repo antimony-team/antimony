@@ -178,7 +178,9 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     }
 
     const result = await topologyStore.manager.save();
-    if (result.isErr()) {
+    if (result === null) {
+      return;
+    } else if (result.isErr()) {
       notificatioStore.error(result.error.message, 'Failed to save topology.');
     } else {
       notificatioStore.success('Topology has been saved!');
@@ -314,11 +316,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
             </div>
             <div className="flex-grow-1 min-h-0">
               <Splitter className="h-full">
-                <SplitterPanel
-                  className="flex align-items-center justify-content-center"
-                  minSize={10}
-                  size={30}
-                >
+                <SplitterPanel minSize={10} size={30}>
                   <MonacoWrapper
                     ref={monacoWrapperRef}
                     validationError={validationError}
@@ -329,10 +327,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
                     setValidationError={onSetValidationError}
                   />
                 </SplitterPanel>
-                <SplitterPanel
-                  className="flex align-items-center justify-content-center"
-                  minSize={10}
-                >
+                <SplitterPanel minSize={10}>
                   <SimulationConfigContext.Provider
                     value={new SimulationConfig()}
                   >

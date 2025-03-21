@@ -14,6 +14,7 @@ export const MonacoOptions: editor.IStandaloneEditorConstructionOptions = {
   },
   automaticLayout: true,
   scrollBeyondLastLine: false,
+  smoothScrolling: true,
   hideCursorInOverviewRuler: true,
   overviewRulerBorder: false,
   overviewRulerLanes: 0,

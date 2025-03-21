@@ -7,8 +7,9 @@ import {Position, YAMLDocument} from '@sb/types/types';
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
+import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {
+  BindFile,
   NodeConnection,
   Topology,
   TopologyDefinition,
@@ -73,16 +74,16 @@ export class TopologyManager {
    * Submits the current topology to the API and resets the referenced saved
    * topology to the current topology if the upload was successful.
    */
-  public async save(): Promise<Result<null>> {
-    if (!this.editingTopology) return Result.createOk(null);
+  public async save(): Promise<Result<DataResponse<void>> | null> {
+    if (!this.editingTopology) return null;
 
     const result = await this.topologyStore.update(this.editingTopology.id, {
       collectionId: this.editingTopology.collectionId,
-      definition: this.editingTopology.definition.toString({
-        collectionStyle: 'block',
-      }),
+      definition: TopologyManager.serializeTopology(
+        this.editingTopology.definition
+      ),
       metadata: '',
-      gitSourceUrl: '',
+      gitSourceUrl: this.editingTopology.gitSourceUrl,
     });
 
     if (result.isOk()) {
@@ -98,7 +99,7 @@ export class TopologyManager {
       });
     }
 
-    return Result.createOk(null);
+    return result;
   }
 
   /**
@@ -306,6 +307,14 @@ export class TopologyManager {
     );
   }
 
+  public static serializeTopology(
+    definition: YAMLDocument<TopologyDefinition>
+  ) {
+    return definition.toString({
+      collectionStyle: 'block',
+    });
+  }
+
   public static parseTopology(
     definitionString: string,
     schema: ClabSchema
@@ -438,31 +447,43 @@ export class TopologyManager {
     return {positions, connections, connectionMap};
   }
 
-  public parseTopologies(input: TopologyOut[], schema: ClabSchema) {
+  public parseTopologies(
+    input: TopologyOut[],
+    schema: ClabSchema
+  ): [Topology[], BindFile[]] {
     const topologies: Topology[] = [];
-    for (const topology of input) {
+    const bindFiles: BindFile[] = [];
+    for (const topologyOut of input) {
       const definition = TopologyManager.parseTopology(
-        topology.definition,
+        topologyOut.definition,
         schema
       );
 
       if (!definition) {
-        console.error('[NET] Failed to parse incoming topology: ', topology);
+        console.error('[NET] Failed to parse incoming topology: ', topologyOut);
         continue;
       }
 
-      topologies.push({
-        ...topology,
+      const topology: Topology = {
+        ...topologyOut,
+        name: definition.get('name') as string,
         definition: definition,
+        definitionString: topologyOut.definition,
         ...this.buildTopologyMetadata(definition),
-      });
+      };
+
+      bindFiles.push(...topology.bindFiles);
+      topologies.push(topology);
     }
 
-    return topologies.toSorted((a, b) =>
-      (a.definition.get('name') as string)?.localeCompare(
-        b.definition.get('name') as string
-      )
-    );
+    return [
+      topologies.toSorted((a, b) =>
+        (a.definition.get('name') as string)?.localeCompare(
+          b.definition.get('name') as string
+        )
+      ),
+      bindFiles,
+    ];
   }
 
   /**
@@ -549,6 +570,7 @@ export class TopologyManager {
   private static cloneTopology(topology: Topology): Topology {
     return {
       id: topology.id,
+      name: topology.name,
       collectionId: topology.collectionId,
       creator: {
         id: topology.creator.id,
@@ -558,6 +580,9 @@ export class TopologyManager {
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),
+      definitionString: topology.definitionString,
+      gitSourceUrl: topology.gitSourceUrl,
+      bindFiles: cloneDeep(topology.bindFiles),
     };
   }
 }

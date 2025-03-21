@@ -37,7 +37,7 @@ interface SBInputProps {
   autoFocus?: boolean;
 
   doubleClick?: boolean;
-  explicitSubmit?: boolean;
+  ignoreBlurSubmit?: boolean;
 
   onValueSubmit?: (
     value: string,
@@ -84,7 +84,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
   }
 
   function onBlur(event: FocusEvent<HTMLInputElement>) {
-    if (props.explicitSubmit) {
+    if (props.ignoreBlurSubmit) {
       setEditing(false);
       setContent(props.defaultValue);
       return;

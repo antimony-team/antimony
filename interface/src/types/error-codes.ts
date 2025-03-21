@@ -16,4 +16,8 @@ export enum ErrorCodes {
   ErrorInvalidCredentials = 1001,
 
   ErrorCollectionExists = 2001,
+
+  ErrorTopologyExists = 3001,
+
+  ErrorBindFileExists = 4001,
 }

@@ -69,7 +69,9 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
             icon="pi pi-times"
             label={props.cancelLabel ?? 'Cancel'}
             outlined
-            onClick={() => props.onCancel?.call(null)}
+            onClick={() =>
+              props.onCancel?.call(null) ?? props.onClose?.call(null)
+            }
             className="w-8rem"
             aria-label="Cancel"
           />

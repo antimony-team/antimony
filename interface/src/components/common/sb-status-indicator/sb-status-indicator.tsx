@@ -30,9 +30,9 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
 
   useEffect(() => {
     const isDone = rootStore.fetchState === FetchState.Done;
-    if (dataBinder.isLoggedIn && !isDone && !loaderVisible) {
+    if (!isDone && !loaderVisible) {
       setLoaderVisible(true);
-    } else if (dataBinder.isLoggedIn && isDone && loaderVisible) {
+    } else if (isDone && loaderVisible) {
       setTimeout(() => {
         setLoaderVisible(false);
         props.setDoneLoading();
@@ -40,7 +40,6 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
     }
   }, [
     dataBinder.hasConnectionError,
-    dataBinder.isLoggedIn,
     loaderVisible,
     props,
     rootStore.fetchState,

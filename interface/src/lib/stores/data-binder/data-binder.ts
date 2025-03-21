@@ -12,8 +12,13 @@ export type DataResponse<T> = {
 export abstract class DataBinder {
   protected readonly fetchRetryTimer = 5000;
 
-  @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
+  // Set to true when all preloading and auth processes have finished
+  @observable accessor isReady = false;
+
+  // Set to true if the client is authenticated and has access to the resources
   @observable accessor isLoggedIn = false;
+
+  @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
 
   @computed
   public get hasConnectionError() {
