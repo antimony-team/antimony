@@ -26,12 +26,12 @@ type (
 	}
 
 	labService struct {
-		labRepo          Repository
-		userRepo         user.Repository
-		topologyRepo     topology.Repository
-		instanceService  instance.Service
-		labScheduleMutex *sync.Mutex
-		labSchedule      []Lab
+		labRepo           Repository
+		userRepo          user.Repository
+		topologyRepo      topology.Repository
+		instanceService   instance.Service
+		labScheduleMutex  *sync.Mutex
+		labSchedule       []Lab
 		containerProvider containerlab.DeploymentProvider
 	}
 )
@@ -43,12 +43,12 @@ func CreateService(labRepo Repository, userRepo user.Repository, topologyRepo to
 	}
 
 	labService := &labService{
-		labRepo:          labRepo,
-		userRepo:         userRepo,
-		topologyRepo:     topologyRepo,
-		instanceService:  instanceService,
-		labScheduleMutex: &sync.Mutex{},
-		labSchedule:      labSchedule,
+		labRepo:           labRepo,
+		userRepo:          userRepo,
+		topologyRepo:      topologyRepo,
+		instanceService:   instanceService,
+		labScheduleMutex:  &sync.Mutex{},
+		labSchedule:       labSchedule,
 		containerProvider: &containerlab.Service{},
 	}
 
@@ -61,9 +61,7 @@ func (s *labService) LabDeployer() {
 	for {
 		if len(s.labSchedule) > 0 && s.labSchedule[0].StartTime.Unix() <= time.Now().Unix() {
 			labName := s.labSchedule[0].Name
-			log.Infof("[SCHEDULER] Deploying lab %s (%s) with containerlab", s.labSchedule[0].Name, s.labSchedule[0].Topology.Collection.Name)
 			collectionID := fmt.Sprintf("%v", s.labSchedule[0].Topology.UUID)
-
 			topologyFile := fmt.Sprintf("storage/%s/topology.clab.yaml", collectionID)
 
 			log.Infof("[SCHEDULER] Deploying topology file: %s", topologyFile)

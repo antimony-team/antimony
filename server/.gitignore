@@ -30,4 +30,4 @@ go.work.sum
 # Testing files
 antimony.db
 .db/
-storage/
+/storage/
