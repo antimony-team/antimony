@@ -12,15 +12,13 @@ type (
 	}
 
 	instanceService struct {
-		instances    map[string]Instance
-		socketServer *socketio.Server
+		instances map[string]Instance
 	}
 )
 
-func CreateService(config *config.AntimonyConfig, socketServer *socketio.Server) Service {
+func CreateService(config *config.AntimonyConfig) Service {
 	instanceService := &instanceService{
-		instances:    make(map[string]Instance),
-		socketServer: socketServer,
+		instances: make(map[string]Instance),
 	}
 
 	instanceService.Init()
@@ -29,12 +27,12 @@ func CreateService(config *config.AntimonyConfig, socketServer *socketio.Server)
 }
 
 func (s *instanceService) Init() {
-	s.socketServer.OnEvent("/instances", string(Deploy), s.onDeploy)
-	s.socketServer.OnEvent("/instances", string(Destroy), s.onDestroy)
-	s.socketServer.OnEvent("/instances", string(Redeploy), s.onRedeploy)
-	s.socketServer.OnEvent("/instances", string(StartNode), s.onStartNode)
-	s.socketServer.OnEvent("/instances", string(StopNode), s.onStopNode)
-	s.socketServer.OnEvent("/instances", string(SaveNode), s.onSaveNode)
+	//s.socketServer.OnEvent("/instances", string(Deploy), s.onDeploy)
+	//s.socketServer.OnEvent("/instances", string(Destroy), s.onDestroy)
+	//s.socketServer.OnEvent("/instances", string(Redeploy), s.onRedeploy)
+	//s.socketServer.OnEvent("/instances", string(StartNode), s.onStartNode)
+	//s.socketServer.OnEvent("/instances", string(StopNode), s.onStopNode)
+	//s.socketServer.OnEvent("/instances", string(SaveNode), s.onSaveNode)
 }
 
 func (s *instanceService) onDeploy(c socketio.Conn, msg string)    {}

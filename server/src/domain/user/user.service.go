@@ -9,7 +9,6 @@ import (
 
 type (
 	Service interface {
-		UserToOut(user User) UserOut
 		GetByUuid(ctx context.Context, userId string) (*User, error)
 		GetAuthCodeURL(stateToken string) string
 		LoginNative(req CredentialsIn) (string, string, error)
@@ -31,13 +30,6 @@ func CreateService(userRepo Repository, authManager auth.AuthManager) Service {
 	}
 
 	return userService
-}
-
-func (s *userService) UserToOut(user User) UserOut {
-	return UserOut{
-		ID:   user.UUID,
-		Name: user.Name,
-	}
 }
 
 func (s *userService) LoginCheck(accessToken string) bool {
@@ -71,16 +63,17 @@ func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (s
 		if user, userExists, err = s.userRepo.GetBySub(ctx, userSub); err != nil {
 			return "", err
 		}
-
+		
 		if !userExists {
-			// CreateBindFile the user if not registered yet
-			err = s.userRepo.Create(ctx, &User{
+			// Create the user if not registered yet
+			user = &User{
 				UUID: utils.GenerateUuid(),
 				Sub:  userSub,
 				Name: userProfile,
-			})
+			}
+			err = s.userRepo.Create(ctx, user)
 		} else {
-			// UpdateBindFile the name of the user in case it has changed
+			// Update the name of the user in case it has changed
 			user.Name = userProfile
 			err = s.userRepo.Update(ctx, user)
 		}

@@ -1,18 +1,17 @@
 package test
 
 import (
-	"antimonyBackend/core"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/lab"
-	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"gorm.io/gorm"
 	"log"
 )
 
-func GenerateTestData(db *gorm.DB, storage core.StorageManager) {
+func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
 	err := db.AutoMigrate(&user.User{})
@@ -38,11 +37,6 @@ func GenerateTestData(db *gorm.DB, storage core.StorageManager) {
 	err = db.AutoMigrate(&lab.Lab{})
 	if err != nil {
 		panic("Failed to migrate labs")
-	}
-
-	err = db.AutoMigrate(&statusMessage.StatusMessage{})
-	if err != nil {
-		panic("Failed to migrate status messages")
 	}
 
 	user1 := user.User{
@@ -177,7 +171,7 @@ topology:
     - endpoints: ["spine01:swp1", "leaf01:swp51"]
     - endpoints: ["spine01:swp2", "leaf02:swp51"]`
 
-func writeTopologyFile(topologyId string, content string, storage core.StorageManager) {
+func writeTopologyFile(topologyId string, content string, storage storage.StorageManager) {
 	if err := storage.WriteTopology(topologyId, content); err != nil {
 		log.Fatalf("Failed to write test topology: %s", err.Error())
 	}
@@ -187,7 +181,7 @@ func writeTopologyFile(topologyId string, content string, storage core.StorageMa
 	}
 }
 
-func writeBindFile(topologyId string, filePath string, content string, storage core.StorageManager) {
+func writeBindFile(topologyId string, filePath string, content string, storage storage.StorageManager) {
 	if err := storage.WriteBindFile(topologyId, filePath, content); err != nil {
 		log.Fatalf("Failed to write test topology bind file: %s", err.Error())
 	}

@@ -16,15 +16,15 @@ type (
 	}
 
 	collectionService struct {
+		userRepo       user.Repository
 		collectionRepo Repository
-		userService    user.Service
 	}
 )
 
-func CreateService(collectionRepo Repository, userService user.Service) Service {
+func CreateService(collectionRepo Repository, userRepo user.Repository) Service {
 	return &collectionService{
+		userRepo:       userRepo,
 		collectionRepo: collectionRepo,
-		userService:    userService,
 	}
 }
 
@@ -50,7 +50,7 @@ func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUse
 			Name:         collection.Name,
 			PublicWrite:  collection.PublicWrite,
 			PublicDeploy: collection.PublicDeploy,
-			Creator:      u.userService.UserToOut(collection.Creator),
+			Creator:      u.userRepo.UserToOut(collection.Creator),
 		}
 	}
 
@@ -72,7 +72,7 @@ func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser 
 
 	newUuid := utils.GenerateUuid()
 
-	creator, err := u.userService.GetByUuid(ctx, authUser.UserId)
+	creator, err := u.userRepo.GetByUuid(ctx, authUser.UserId)
 	if err != nil {
 		return "", err
 	}
