@@ -1,3 +1,29 @@
+import useResizeObserver from '@react-hook/resize-observer';
+import LabDialog from '@sb/components/dashboard-page/lab-dialog/lab-dialog';
+import LabFilterDialog from '@sb/components/dashboard-page/lab-filter-dialog/lab-filter-dialog';
+import ReservationDialog from '@sb/components/dashboard-page/reservation-dialog/reservation-dialog';
+
+import './dashboard-page.sass';
+
+import {
+  useCollectionStore,
+  useLabStore,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
+import {FetchState} from '@sb/types/types';
+
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+import {Button} from 'primereact/button';
+import {Chip} from 'primereact/chip';
+import {IconField} from 'primereact/iconfield';
+import {Image} from 'primereact/image';
+import {InputIcon} from 'primereact/inputicon';
+import {InputText} from 'primereact/inputtext';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import {Paginator} from 'primereact/paginator';
 import React, {
   MouseEvent,
   useCallback,
@@ -5,40 +31,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
-
-import classNames from 'classnames';
-import {Chip} from 'primereact/chip';
-import {Image} from 'primereact/image';
-import {observer} from 'mobx-react-lite';
-import {Button} from 'primereact/button';
 import {useSearchParams} from 'react-router';
-import {IconField} from 'primereact/iconfield';
-import {InputIcon} from 'primereact/inputicon';
-import {InputText} from 'primereact/inputtext';
-import {Paginator} from 'primereact/paginator';
-import {OverlayPanel} from 'primereact/overlaypanel';
 
-import {
-  useCollectionStore,
-  useLabStore,
-  useStatusMessages,
-} from '@sb/lib/stores/root-store';
-import {FetchState} from '@sb/types/types';
-import useResizeObserver from '@react-hook/resize-observer';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-import LabDialog from '@sb/components/dashboard-page/lab-dialog/lab-dialog';
-import LabFilterDialog from '@sb/components/dashboard-page/lab-filter-dialog/lab-filter-dialog';
-import ReservationDialog from '@sb/components/dashboard-page/reservation-dialog/reservation-dialog';
-
-import './dashboard-page.sass';
-import {Lab, LabState} from '@sb/types/domain/lab';
-
-const statusIcons: Record<LabState, string> = {
-  [LabState.Scheduled]: 'pi pi-calendar',
-  [LabState.Deploying]: 'pi pi-sync pi-spin',
-  [LabState.Running]: 'pi pi-check',
-  [LabState.Failed]: 'pi pi-times',
-  [LabState.Done]: 'pi pi-check',
+const statusIcons: Record<InstanceState, string> = {
+  [InstanceState.Scheduled]: 'pi pi-calendar',
+  [InstanceState.Deploying]: 'pi pi-sync pi-spin',
+  [InstanceState.Stopping]: 'pi pi-sync pi-times',
+  [InstanceState.Running]: 'pi pi-check',
+  [InstanceState.Failed]: 'pi pi-times',
+  [InstanceState.Done]: 'pi pi-check',
 };
 
 const DashboardPage: React.FC = observer(() => {
@@ -99,27 +100,30 @@ const DashboardPage: React.FC = observer(() => {
   function handleLabDate(lab: Lab): string {
     let timeString: Date;
 
-    switch (lab.state) {
-      case LabState.Scheduled:
-        timeString = new Date(lab.startDate);
-        return timeString.toISOString().split('T')[0];
+    console.log('DATE: ', lab);
 
-      case LabState.Deploying:
-      case LabState.Running:
-        timeString = new Date(lab.startDate);
+    if (lab.instance === null) {
+      // timeString = new Date(lab.startDate);
+      timeString = new Date();
+      return timeString.toISOString().split('T')[0];
+    }
+
+    switch (lab.instance.state) {
+      case InstanceState.Deploying:
+      case InstanceState.Running:
+        timeString = new Date(lab.startTime);
         return timeString.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
         });
-
-      case LabState.Done:
-      case LabState.Failed:
-        timeString = new Date(lab.endDate);
+      case InstanceState.Done:
+      case InstanceState.Stopping:
+      case InstanceState.Failed:
+        timeString = new Date(lab.endTime);
         return timeString.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
         });
-
       default:
         return '';
     }
@@ -162,6 +166,14 @@ const DashboardPage: React.FC = observer(() => {
     return <></>;
   }
 
+  const getStateClasses = (lab: Lab) => ({
+    scheduled: lab.instance === null,
+    running: lab.instance?.state === InstanceState.Running,
+    deploying: lab.instance?.state === InstanceState.Deploying,
+    done: lab.instance?.state === InstanceState.Done,
+    failed: lab.instance?.state === InstanceState.Failed,
+  });
+
   return (
     <div className="height-100 width-100 sb-card overflow-y-hidden overflow-x-hidden sb-labs-container">
       <div className="search-bar sb-card">
@@ -185,7 +197,7 @@ const DashboardPage: React.FC = observer(() => {
         {labStore.stateFilter.map((state, index) => (
           <Chip
             key={index}
-            label={LabState[state]}
+            label={InstanceState[state]}
             removable={true}
             onRemove={() => labStore.toggleStateFilter(state)}
             className="chip"
@@ -235,16 +247,10 @@ const DashboardPage: React.FC = observer(() => {
                     <span>{lab.name}</span>
                   </div>
                   <div
-                    className={classNames('lab-state', {
-                      running: lab.state === LabState.Running,
-                      scheduled: lab.state === LabState.Scheduled,
-                      deploying: lab.state === LabState.Deploying,
-                      done: lab.state === LabState.Done,
-                      failed: lab.state === LabState.Failed,
-                    })}
+                    className={classNames('lab-state', getStateClasses(lab))}
                   >
                     <div className="lab-state-buttons">
-                      <If condition={lab.state === LabState.Scheduled}>
+                      <If condition={lab.instance === null}>
                         <Button
                           icon="pi pi-calendar"
                           severity="info"
@@ -277,16 +283,19 @@ const DashboardPage: React.FC = observer(() => {
                     </div>
                     <span className="lab-state-label">
                       <div
-                        className={classNames('lab-state-label-icon', {
-                          running: lab.state === LabState.Running,
-                          scheduled: lab.state === LabState.Scheduled,
-                          deploying: lab.state === LabState.Deploying,
-                          done: lab.state === LabState.Done,
-                          failed: lab.state === LabState.Failed,
-                        })}
+                        className={classNames(
+                          'lab-state-label-icon',
+                          getStateClasses(lab)
+                        )}
                       >
-                        <i className={statusIcons[lab.state]}></i>
-                        <span>{LabState[lab.state]}</span>
+                        <i
+                          className={
+                            statusIcons[
+                              lab.instance?.state ?? InstanceState.Scheduled
+                            ]
+                          }
+                        ></i>
+                        <span>{InstanceState[lab.instance?.state ?? -1]}</span>
                       </div>
                       <div className="lab-state-date">
                         <i className="pi pi-clock"></i>

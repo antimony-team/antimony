@@ -2,7 +2,6 @@ import LabDialogPanel from '@sb/components/dashboard-page/lab-dialog/lab-dialog-
 import {
   useDeviceStore,
   useCollectionStore,
-  useLabStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import classNames from 'classnames';
@@ -40,7 +39,7 @@ const LabDialog: React.FC<LabDialogProps> = (props: LabDialogProps) => {
   const [selectedNode, setSelectedNode] = useState<IdType | null>(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
 
-  const labStore = useLabStore();
+  // const labStore = useLabStore();
   const collectionStore = useCollectionStore();
   const deviceStore = useDeviceStore();
   const topologyStore = useTopologyStore();
@@ -69,9 +68,9 @@ const LabDialog: React.FC<LabDialogProps> = (props: LabDialogProps) => {
     return generateGraph(
       openTopology,
       deviceStore,
-      topologyStore.manager,
-      true,
-      props.lab?.nodeMeta
+      topologyStore.manager
+      //true
+      // props.lab?.nodeMeta
     );
   }, [deviceStore, openTopology, topologyStore.manager]);
 
@@ -104,27 +103,30 @@ const LabDialog: React.FC<LabDialogProps> = (props: LabDialogProps) => {
   function onCopyActiveNode() {
     if (!props.lab) return;
 
-    const nodeMeta = labStore.metaLookup
-      .get(props.lab.id)!
-      .get(selectedNode as string);
-
-    if (nodeMeta) {
-      const textToCopy = nodeMeta.webSsh + ':' + nodeMeta.port;
-
-      navigator.clipboard.writeText(textToCopy).catch(err => {
-        console.error('Failed to copy to clipboard:', err);
-      });
-    }
+    // TODO(): Reimplement
+    // const nodeMeta = labStore.metaLookup
+    //   .get(props.lab.id)!
+    //   .get(selectedNode as string);
+    //
+    // if (nodeMeta) {
+    //   const textToCopy = nodeMeta.webSsh + ':' + nodeMeta.port;
+    //
+    //   navigator.clipboard.writeText(textToCopy).catch(err => {
+    //     console.error('Failed to copy to clipboard:', err);
+    //   });
+    // }
   }
 
   function onOpenActiveNode() {
     if (!props.lab) return;
 
-    const nodeMeta = labStore.metaLookup
-      .get(props.lab.id)!
-      .get(selectedNode as string);
+    // TODO(): Reimplement
 
-    if (nodeMeta) window.open(nodeMeta.webSsh);
+    // const nodeMeta = labStore.metaLookup
+    //   .get(props.lab.id)!
+    //   .get(selectedNode as string);
+    //
+    // if (nodeMeta) window.open(nodeMeta.webSsh);
   }
 
   const networkContextMenuItems = useMemo(() => {

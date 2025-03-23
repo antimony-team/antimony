@@ -1,21 +1,45 @@
+import {User} from '@sb/types/domain/user';
 import {uuid4} from '@sb/types/types';
 
 export type LabIn = {
   name: string;
-  startDate: string;
-  endDate: string;
+  startTime: string;
+  endTime: string;
   topologyId: uuid4;
 };
 
 export type Lab = LabIn & {
   id: uuid4;
+  creator: User;
   collectionId: uuid4;
-  nodeMeta: NodeMeta[];
-  edgesharkLink: string;
-  runnerId: uuid4;
-  latestStateChange: string;
-  state: LabState;
+  instance: Instance | null;
 };
+
+export type Instance = {
+  deployed: Date;
+  edgesharkLink: string;
+  state: InstanceState;
+  latestStateChange: Date;
+  nodes: InstanceNode[];
+};
+
+export type InstanceNode = {
+  name: string;
+  ipv4: string;
+  ipv6: string;
+  port: number;
+  user: string;
+  webSSH: string;
+};
+
+export enum InstanceState {
+  Scheduled = -1,
+  Deploying,
+  Stopping,
+  Running,
+  Failed,
+  Done,
+}
 
 export type NodeMeta = {
   name: string;
@@ -24,11 +48,3 @@ export type NodeMeta = {
   port: number;
   webSsh: string;
 };
-
-export enum LabState {
-  Scheduled,
-  Deploying,
-  Running,
-  Failed,
-  Done,
-}

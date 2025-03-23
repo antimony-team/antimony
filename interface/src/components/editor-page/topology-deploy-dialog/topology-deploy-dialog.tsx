@@ -59,8 +59,8 @@ const TopologyDeployDialog = (props: TopologyDeployDialogProps) => {
 
     const lab: LabIn = {
       name: deployingTopology?.definition.get('name') as string,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startTime: startDate.toISOString(),
+      endTime: endDate.toISOString(),
       topologyId: deployingTopology?.id,
     };
 

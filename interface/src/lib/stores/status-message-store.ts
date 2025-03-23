@@ -9,7 +9,6 @@ import {
   SBConfirmOpenProps,
   SBConfirmRef,
 } from '@sb/components/common/sb-confirm/sb-confirm';
-import {RemoteDataBinder} from '@sb/lib/stores/data-binder/remote-data-binder';
 import {
   Severity,
   SeverityMapping,
@@ -31,14 +30,14 @@ export class StatusMessageStore extends DataStore<
   constructor(rootStore: RootStore) {
     super(rootStore);
 
-    if (!process.env.IS_OFFLINE) {
-      (this.rootStore._dataBinder as RemoteDataBinder).socket.on(
-        'status-message',
-        data => {
-          this.handleMessage(StatusMessageStore.parseMessage(data, false));
-        }
-      );
-    }
+    // if (!process.env.IS_OFFLINE) {
+    //   (this.rootStore._dataBinder as RemoteDataBinder).socket.on(
+    //     'status-message',
+    //     data => {
+    //       this.handleMessage(StatusMessageStore.parseMessage(data, false));
+    //     }
+    //   );
+    // }
   }
 
   protected get resourcePath(): string {
@@ -46,14 +45,14 @@ export class StatusMessageStore extends DataStore<
   }
 
   protected handleUpdate(response: DataResponse<StatusMessageOut[]>): void {
-    this.data = response.payload
-      .map(msg => StatusMessageStore.parseMessage(msg, true))
-      .toSorted((a, b) => a.timestamp.valueOf() - b.timestamp.valueOf());
-    this.countBySeverity = new Map(
-      Object.entries(
-        Object.groupBy(this.data, message => message.severity)
-      ).map(([severity, list]) => [Number(severity), list.length])
-    );
+    // this.data = response.payload
+    //   .map(msg => StatusMessageStore.parseMessage(msg, true))
+    //   .toSorted((a, b) => a.timestamp.valueOf() - b.timestamp.valueOf());
+    // this.countBySeverity = new Map(
+    //   Object.entries(
+    //     Object.groupBy(this.data, message => message.severity)
+    //   ).map(([severity, list]) => [Number(severity), list.length])
+    // );
   }
 
   @computed

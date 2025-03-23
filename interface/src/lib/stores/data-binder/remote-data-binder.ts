@@ -20,8 +20,9 @@ export class RemoteDataBinder extends DataBinder {
   @observable accessor hasSocketError = false;
 
   private refreshTokenPromise: Promise<Result<null>> | null = null;
+  private accessToken: string = '';
 
-  public socket: Socket = io();
+  private socketMap: Map<string, Socket> = new Map();
 
   constructor() {
     super();
@@ -31,6 +32,8 @@ export class RemoteDataBinder extends DataBinder {
       this.refreshToken().then(result => {
         if (result.isOk()) {
           this.processAccessToken(accessToken);
+          this.connectSocket(accessToken);
+          this.accessToken = accessToken;
           this.isLoggedIn = true;
           this.isReady = true;
         } else if (Cookies.get('authOidc') === 'true') {
@@ -42,6 +45,52 @@ export class RemoteDataBinder extends DataBinder {
       });
     } else {
       this.isReady = true;
+    }
+  }
+
+  public subscribeNamespace<T>(namespace: string, onData: (data: T) => void) {
+    this.unsibscribeNamespace(namespace);
+
+    const socket = io(`/${namespace}]`, {
+      auth: {
+        token: this.accessToken,
+      },
+    });
+
+    socket.on('connect', () => {
+      console.log(`[SOCK] Connected to ns ${namespace}`);
+    });
+
+    socket.on('disconnect', () => {
+      console.log(`[SOCK] Disconnected from ns ${namespace}`);
+    });
+
+    socket.on('connect_error', e => {
+      console.log(
+        '[SOCK] Connection Error',
+        e,
+        'socket active: ',
+        socket.active
+      );
+
+      // Inactive socket means that the server rejected the connection
+      if (!socket.active) {
+        this.refreshToken().then(result => {
+          if (result.isOk()) {
+            socket.connect();
+          }
+        });
+      }
+    });
+
+    socket.on('data', onData);
+
+    this.socketMap.set(namespace, socket);
+  }
+
+  public unsibscribeNamespace(namespace: string) {
+    if (this.socketMap.has(namespace)) {
+      this.socketMap.get(namespace)!.disconnect();
     }
   }
 
@@ -182,9 +231,9 @@ export class RemoteDataBinder extends DataBinder {
     this.isLoggedIn = false;
 
     void fetchResource(this.apiUrl + '/users/logout', 'GET');
-    if (this.socket && this.socket.connected) {
-      this.socket.disconnect();
-    }
+    // if (this.socket && this.socket.connected) {
+    //   this.socket.disconnect();
+    // }
 
     this.authUser = EMPTY_AUTH_USER;
   }
@@ -194,27 +243,21 @@ export class RemoteDataBinder extends DataBinder {
     return this.hasAPIError || this.hasSocketError;
   }
 
-  private async checkAuthentication(): Promise<boolean> {
-    const response = await fetchResource(
-      this.apiUrl + '/users/login/check',
-      'GET'
-    );
-
-    return response?.status === 200;
-    // this.socket = io(window.location.host, {
+  private connectSocket(accessToken: string) {
+    // this.socket = io({
+    //   transports: ['websocket'],
     //   auth: {
-    //     token: this.accessToken,
+    //     token: accessToken,
     //   },
     // });
     //
-    // this.socket.on('connect_error', () => {
+    // this.socket.on('connect_error', e => {
     //   runInAction(() => (this.hasSocketError = true));
     // });
     //
     // this.socket.on('connect', () => {
     //   runInAction(() => {
     //     this.hasSocketError = false;
-    //     this.isLoggedIn = true;
     //   });
     // });
   }

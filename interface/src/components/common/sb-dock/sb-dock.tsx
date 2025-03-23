@@ -15,7 +15,7 @@ import {
   useDataBinder,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
-import CalendarDialog from '@sb/components/calendar-dialog/calender-dialog';
+import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
 
 import './sb-dock.sass';
 

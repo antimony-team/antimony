@@ -6,7 +6,6 @@ import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {FetchState} from '@sb/types/types';
 import {Topology} from '@sb/types/domain/topology';
-import {NodeMeta} from '@sb/types/domain/lab';
 
 export async function fetchResource<T>(
   path: string,
@@ -111,23 +110,23 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
 export function generateGraph(
   topology: Topology,
   deviceStore: DeviceStore,
-  topologyManager: TopologyManager,
-  showHostLabels?: boolean,
-  topologyNodeMeta?: NodeMeta[]
+  topologyManager: TopologyManager
+  // showHostLabels?: boolean,
+  // topologyNodeMeta?: NodeMeta[]
 ) {
   const nodes: DataSet<Node> = new DataSet();
 
-  for (const [index, [nodeName, node]] of Object.entries(
+  for (const [, [nodeName, node]] of Object.entries(
     topology.definition.toJS().topology.nodes
   ).entries()) {
-    let nodeLabel = nodeName;
-    if (showHostLabels && topologyNodeMeta && topologyNodeMeta.length > index) {
-      const meta = topologyNodeMeta[index];
-      nodeLabel = `${nodeName}\n${meta.webSsh}:${meta.port}`;
-    }
+    // const nodeLabel = nodeName;
+    // if (showHostLabels && topologyNodeMeta && topologyNodeMeta.length > index) {
+    //   const meta = topologyNodeMeta[index];
+    //   nodeLabel = `${nodeName}\n${meta.webSsh}:${meta.port}`;
+    // }
     nodes.add({
       id: nodeName,
-      label: nodeLabel,
+      label: nodeName,
       image: deviceStore.getNodeIcon(node?.kind),
       x: topology.positions.get(nodeName)?.x,
       y: topology.positions.get(nodeName)?.y,

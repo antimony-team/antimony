@@ -1,3 +1,4 @@
+import {InstanceState} from '@sb/types/domain/lab';
 import React from 'react';
 
 import classNames from 'classnames';
@@ -8,7 +9,6 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
 
 import './lab-filter-dialog.sass';
-import {LabState} from '@sb/types/domain/lab';
 
 interface FilterDialogProps {
   popOverRef: React.RefObject<OverlayPanel>;
@@ -18,7 +18,7 @@ const LabFilterDialog: React.FC<FilterDialogProps> = observer(
     const labStore = useLabStore();
     const collectionStore = useCollectionStore();
 
-    const toggleStateFilter = (state: LabState) => {
+    const toggleStateFilter = (state: InstanceState) => {
       if (labStore.stateFilter.includes(state)) {
         labStore.setStateFilter(labStore.stateFilter.filter(s => s !== state));
       } else {
@@ -41,23 +41,25 @@ const LabFilterDialog: React.FC<FilterDialogProps> = observer(
         <div className="filters-container">
           <div className="filters-title">States</div>
           <div className="filters-chips-container">
-            {Object.values(LabState)
+            {Object.values(InstanceState)
               .filter(value => typeof value === 'number') // Ensure only valid LabState values are used
               .map(option => (
                 <Chip
                   key={option}
-                  label={LabState[option]}
-                  onClick={() => toggleStateFilter(option as LabState)}
+                  label={InstanceState[option]}
+                  onClick={() => toggleStateFilter(option as InstanceState)}
                   className={classNames('filter-chip', {
-                    active: labStore.stateFilter.includes(option as LabState),
-                    inactive: !labStore.stateFilter.includes(
-                      option as LabState
+                    active: labStore.stateFilter.includes(
+                      option as InstanceState
                     ),
-                    running: option === LabState.Running,
-                    scheduled: option === LabState.Scheduled,
-                    deploying: option === LabState.Deploying,
-                    done: option === LabState.Done,
-                    failed: option === LabState.Failed,
+                    inactive: !labStore.stateFilter.includes(
+                      option as InstanceState
+                    ),
+                    running: option === InstanceState.Running,
+                    scheduled: option === InstanceState.Scheduled,
+                    deploying: option === InstanceState.Deploying,
+                    done: option === InstanceState.Done,
+                    failed: option === InstanceState.Failed,
                   })}
                 />
               ))}
