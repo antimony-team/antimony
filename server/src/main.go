@@ -3,15 +3,14 @@ package main
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/config"
-	"antimonyBackend/core"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/instance"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
-	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/storage"
 	"antimonyBackend/test"
 	"antimonyBackend/utils"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	socketio "github.com/googollee/go-socket.io"
 	"github.com/joho/godotenv"
+	"github.com/zishang520/socket.io/socket"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -42,15 +42,15 @@ func main() {
 
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 	authManager := auth.CreateAuthManager(antimonyConfig)
-	storageManager := core.CreateStorageManager(antimonyConfig)
+	storageManager := storage.CreateStorageManager(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
 	test.GenerateTestData(db, storageManager)
 
-	socketServer := socketio.NewServer(nil)
+	//notificationEvent := events.CreateEvent[events.NotificationEventData]()
 
 	var (
-		instanceService = instance.CreateService(antimonyConfig, socketServer)
+		instanceService = instance.CreateService(antimonyConfig)
 
 		devicesService = device.CreateService(antimonyConfig)
 		devicesHandler = device.CreateHandler(devicesService)
@@ -62,25 +62,23 @@ func main() {
 		userService    = user.CreateService(userRepository, authManager)
 		userHandler    = user.CreateHandler(userService)
 
-		statusMessageRepository = statusMessage.CreateRepository(db)
-		statusMessageService    = statusMessage.CreateService(statusMessageRepository, socketServer)
-		statusMessageHandler    = statusMessage.CreateHandler(statusMessageService)
-
 		collectionRepository = collection.CreateRepository(db)
-		collectionService    = collection.CreateService(collectionRepository, userService)
+		collectionService    = collection.CreateService(collectionRepository, userRepository)
 		collectionHandler    = collection.CreateHandler(collectionService)
 
 		topologyRepository = topology.CreateRepository(db)
-		topologyService    = topology.CreateService(topologyRepository, collectionRepository, userService, storageManager, schemaService.Get())
+		topologyService    = topology.CreateService(topologyRepository, userRepository, collectionRepository, storageManager, schemaService.Get())
 		topologyHandler    = topology.CreateHandler(topologyService)
 
 		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(labRepository, topologyRepository, instanceService, userService)
+		labService    = lab.CreateService(labRepository, userRepository, topologyRepository, instanceService)
 		labHandler    = lab.CreateHandler(labService)
 	)
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
+
+	io := socket.NewServer(nil, nil)
 
 	// Public endpoints
 	user.RegisterRoutes(webServer, userHandler)
@@ -91,17 +89,114 @@ func main() {
 	lab.RegisterRoutes(webServer, labHandler, authManager)
 	topology.RegisterRoutes(webServer, topologyHandler, authManager)
 	collection.RegisterRoutes(webServer, collectionHandler, authManager)
-	statusMessage.RegisterRoutes(webServer, statusMessageHandler, authManager)
 
-	var serverWaitGroup sync.WaitGroup
-	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	//io.Of("/notifications", nil).On("connection", func(clients ...any) {
+	//	log.Info("CONNECTED gmarlash")
+	//	client := clients[0].(*socket.Socket)
+	//	client.On("event", func(datas ...any) {
+	//	})
+	//
+	//	client.On("disconnect", func(clients ...any) {
+	//		log.Info("disconnected gmarlash")
+	//	})
+	//})
+	//
+	//fn := func(s *socket.Socket, ext func(*socket.ExtendedError)) {
+	//	log.Infof("test: %+v", s.Handshake().Auth)
+	//}
 
-	go startWebServer(webServer, connection, &serverWaitGroup)
-	go startSocketServer(socketServer, &serverWaitGroup)
+	//io.Use(fn)
+
+	//socketServer.OnConnect("/", func(s socketio.Conn) error {
+	//	s.SetContext("")
+	//	log.Info("connected:", s.ID())
+	//	return nil
+	//})
+	//
+	//socketServer.OnEvent("/", "notice", func(s socketio.Conn, msg string) {
+	//	log.Info("notice:", msg)
+	//	s.Emit("reply", "have "+msg)
+	//})
+	//
+	//socketServer.OnEvent("/chat", "msg", func(s socketio.Conn, msg string) string {
+	//	s.SetContext(msg)
+	//	return "recv " + msg
+	//})
+	//
+	//socketServer.OnEvent("/", "bye", func(s socketio.Conn) string {
+	//	last := s.Context().(string)
+	//	s.Emit("bye", last)
+	//	s.Close()
+	//	return last
+	//})
+	//
+	//socketServer.OnError("/", func(s socketio.Conn, e error) {
+	//	log.Info("meet error:", e)
+	//})
+	//
+	//socketServer.OnDisconnect("/", func(s socketio.Conn, reason string) {
+	//	log.Info("closed", reason)
+	//})
+
+	//socketServer.OnConnect("/", func(s socketio.Conn) error {
+	//	log.Info("client connected")
+	//	fmt.Println("connected:", s.ID())
+	//	//s.SetContext("")
+	//	return nil
+	//})
+	//
+	//socketServer.OnEvent("/", "connect", func(s socketio.Conn) error {
+	//	fmt.Println("message:", s.ID())
+	//	//s.SetContext("")
+	//	return nil
+	//})
+	//
+	//socketServer.OnEvent("/", "error", func(s socketio.Conn) error {
+	//	fmt.Println("err:", s.ID())
+	//	//s.SetContext("")
+	//	return nil
+	//})
+	//
+	//socketServer.OnEvent("/", "ping", func(s socketio.Conn) error {
+	//	fmt.Println("ping:", s.ID())
+	//	//s.SetContext("")
+	//	return nil
+	//})
+	//
+	//socketServer.OnError("/", func(s socketio.Conn, err error) {
+	//	log.Infof("Socket erorr: %v, %+v", err, s.URL())
+	//})
+	//
+	//socketServer.OnDisconnect("/", func(s socketio.Conn, msg string) {
+	//	fmt.Println("disconnected:", s.ID())
+	//	//s.SetContext("")
+	//})
+
+	//go func() {
+	//	if err := socketServer.Serve(); err != nil {
+	//		log.Fatalf("socketio listen error: %s\n", err)
+	//	}
+	//}()
+	//defer socketServer.Close()
+	//
+	c := socket.DefaultServerOptions()
+	webServer.GET("/socket.io/*any", gin.WrapH(io.ServeHandler(c)))
+	webServer.POST("/socket.io/*any", gin.WrapH(io.ServeHandler(c)))
+
+	//var serverWaitGroup sync.WaitGroup
+	//connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+
+	if err := webServer.Run(":3000"); err != nil {
+		log.Fatal("failed run app: ", err)
+	}
+
+	//serverWaitGroup.Add(1)
+	//go startSocketServer(socketServer, &serverWaitGroup)
+	//go startWebServer(webServer, connection, &serverWaitGroup)
 	time.Sleep(100)
 
-	log.Info("Antimony API is ready to serve calls!", "conn", connection)
-	serverWaitGroup.Wait()
+	//log.Info("Antimony API is ready to serve calls!", "conn", connection)
+	//serverWaitGroup.Wait()
 }
 
 func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *gorm.DB {
@@ -139,7 +234,6 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 }
 
 func startSocketServer(socketServer *socketio.Server, waitGroup *sync.WaitGroup) {
-	waitGroup.Add(1)
 	defer waitGroup.Done()
 
 	err := socketServer.Serve()
@@ -149,7 +243,6 @@ func startSocketServer(socketServer *socketio.Server, waitGroup *sync.WaitGroup)
 }
 
 func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
-	waitGroup.Add(1)
 	defer waitGroup.Done()
 
 	if err := server.Run(socket); err != nil {

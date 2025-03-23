@@ -1,48 +1,39 @@
 package statusMessage
 
 import (
-	"antimonyBackend/utils"
-	"github.com/gin-gonic/gin"
-	socketio "github.com/googollee/go-socket.io"
+	"antimonyBackend/domain/user"
+	"antimonyBackend/events"
+	"antimonyBackend/types"
 )
 
 type (
 	Service interface {
-		Get(ctx *gin.Context, userId string, filter StatusMessageFilter) ([]StatusMessageOut, error)
 	}
 
 	statusMessageService struct {
-		statusMessageRepo Repository
-		socketServer      *socketio.Server
+		userRepo          user.Repository
+		notificationEvent events.Event[events.NotificationEventData]
 	}
 )
 
-func CreateService(userRepo Repository, socketServer *socketio.Server) Service {
-	return &statusMessageService{
-		statusMessageRepo: userRepo,
-		socketServer:      socketServer,
+func CreateService(userRepo user.Repository, notificationEvent events.Event[events.NotificationEventData]) Service {
+	statusMessageService := &statusMessageService{
+		userRepo:          userRepo,
+		notificationEvent: notificationEvent,
 	}
+
+	notificationHandler := statusMessageService.OnNotification
+	notificationEvent.Subscribe(&notificationHandler)
+
+	return statusMessageService
 }
 
-func (s *statusMessageService) Get(ctx *gin.Context, userId string, filter StatusMessageFilter) ([]StatusMessageOut, error) {
-	allMessages, err := s.statusMessageRepo.Get(ctx, userId)
-	if err != nil {
-		return nil, err
-	}
+func (s *statusMessageService) OnNotification(notification events.NotificationEventData) {
 
-	result := make([]StatusMessageOut, 0)
-	for _, statusMessage := range utils.GetItemsFromList(allMessages, filter.Limit, filter.Offset) {
-		result = append(result, StatusMessageOut{
-			Type:      statusMessage.Type,
-			Content:   statusMessage.Content,
-			Timestamp: statusMessage.Timestamp,
-		})
-	}
-
-	return result, nil
 }
 
 type StatusMessageFilter struct {
-	Limit  int `query:"limit"`
-	Offset int `query:"offset"`
+	Limit          int              `query:"limit"`
+	Offset         int              `query:"offset"`
+	SeverityFilter []types.Severity `query:"severityFilter"`
 }

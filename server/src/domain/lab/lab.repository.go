@@ -3,13 +3,12 @@ package lab
 import (
 	"antimonyBackend/utils"
 	"context"
-	"errors"
 	"gorm.io/gorm"
 )
 
 type (
 	Repository interface {
-		Get() ([]*Lab, error)
+		GetAll() ([]Lab, error)
 		GetByUuid(ctx context.Context, labId string) (*Lab, error)
 		GetFromCollections(ctx context.Context, collectionNames []string) ([]Lab, error)
 		Create(ctx context.Context, lab *Lab) error
@@ -28,8 +27,8 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *labRepository) Get() ([]*Lab, error) {
-	labs := make([]*Lab, 0)
+func (r *labRepository) GetAll() ([]Lab, error) {
+	var labs []Lab
 	result := r.db.
 		Preload("Topology.Collection").
 		Preload("Creator").
@@ -39,8 +38,24 @@ func (r *labRepository) Get() ([]*Lab, error) {
 	return labs, result.Error
 }
 
+func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
+	var lab Lab
+	result := r.db.WithContext(ctx).
+		Preload("Creator").
+		Preload("Topology").
+		Where("uuid = ?", labId).
+		Limit(1).
+		Find(&lab)
+
+	if result.RowsAffected < 1 {
+		return nil, utils.ErrorUuidNotFound
+	}
+
+	return &lab, result.Error
+}
+
 func (r *labRepository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Lab, error) {
-	labs := make([]Lab, 0)
+	var labs []Lab
 	result := r.db.WithContext(ctx).
 		Joins("JOIN topologies ON topologies.id = labs.topology_id").
 		Joins("JOIN collections ON collections.id = topologies.collection_id").
@@ -48,17 +63,6 @@ func (r *labRepository) GetFromCollections(ctx context.Context, collectionNames 
 		Find(&labs)
 
 	return labs, result.Error
-}
-
-func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
-	lab := &Lab{}
-	result := r.db.WithContext(ctx).Where("uuid = ?", labId).Preload("Creator").Preload("Topology").First(labId)
-
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, utils.ErrorUuidNotFound
-	}
-
-	return lab, result.Error
 }
 
 func (r *labRepository) Create(ctx context.Context, lab *Lab) error {

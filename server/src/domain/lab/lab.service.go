@@ -24,25 +24,25 @@ type (
 
 	labService struct {
 		labRepo          Repository
+		userRepo         user.Repository
 		topologyRepo     topology.Repository
 		instanceService  instance.Service
-		userService      user.Service
 		labScheduleMutex *sync.Mutex
-		labSchedule      []*Lab
+		labSchedule      []Lab
 	}
 )
 
-func CreateService(labRepo Repository, topologyRepo topology.Repository, instanceService instance.Service, userService user.Service) Service {
-	labSchedule, err := labRepo.Get()
+func CreateService(labRepo Repository, userRepo user.Repository, topologyRepo topology.Repository, instanceService instance.Service) Service {
+	labSchedule, err := labRepo.GetAll()
 	if err != nil {
 		log.Fatal("Failed to load scheduled labs from database. Exiting.")
 	}
 
 	labService := &labService{
 		labRepo:          labRepo,
+		userRepo:         userRepo,
 		topologyRepo:     topologyRepo,
 		instanceService:  instanceService,
-		userService:      userService,
 		labScheduleMutex: &sync.Mutex{},
 		labSchedule:      labSchedule,
 	}
@@ -67,7 +67,16 @@ func (s *labService) LabDeployer() {
 }
 
 func (s *labService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]LabOut, error) {
-	labs, err := s.labRepo.GetFromCollections(ctx, authUser.Collections)
+	var (
+		labs []Lab
+		err  error
+	)
+
+	if authUser.IsAdmin {
+		labs, err = s.labRepo.GetAll()
+	} else {
+		labs, err = s.labRepo.GetFromCollections(ctx, authUser.Collections)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +84,14 @@ func (s *labService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]L
 	result := make([]LabOut, len(labs))
 	for i, lab := range labs {
 		result[i] = LabOut{
-			ID:         lab.UUID,
-			Name:       lab.Name,
-			StartTime:  lab.StartTime,
-			EndTime:    lab.EndTime,
-			TopologyId: lab.Topology.UUID,
-			Creator:    s.userService.UserToOut(lab.Creator),
-			Instance:   s.instanceService.GetInstanceForLab(lab.UUID),
+			ID:           lab.UUID,
+			Name:         lab.Name,
+			StartTime:    lab.StartTime,
+			EndTime:      lab.EndTime,
+			TopologyId:   lab.Topology.UUID,
+			CollectionId: lab.Topology.Collection.UUID,
+			Creator:      s.userRepo.UserToOut(lab.Creator),
+			Instance:     s.instanceService.GetInstanceForLab(lab.UUID),
 		}
 	}
 
@@ -99,20 +109,31 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 		return "", utils.ErrorNoDeployAccessToCollection
 	}
 
+	log.Errorf("Start date: %s", req.StartTime)
+
+	creatorUser, err := s.userRepo.GetByUuid(ctx, authUser.UserId)
+	if err != nil {
+		log.Errorf("lab create uuid: %+v", authUser)
+
+		return "", utils.ErrorUnauthorized
+	}
+
 	newUuid := utils.GenerateUuid()
 	lab := &Lab{
 		UUID:      newUuid,
 		Name:      req.Name,
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
-		Creator:   user.User{},
+		Creator:   *creatorUser,
 		Topology:  *labTopology,
 	}
 
 	// Add created lab to schedule if it was successfully added to the database
 	if err := s.labRepo.Create(ctx, lab); err == nil {
-		s.scheduleLab(lab)
+		s.scheduleLab(*lab)
 	}
+
+	log.Errorf("created: %v", lab)
 
 	return newUuid, err
 }
@@ -165,7 +186,7 @@ func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.Authen
 	return s.labRepo.Delete(ctx, lab)
 }
 
-func (s *labService) scheduleLab(lab *Lab) {
+func (s *labService) scheduleLab(lab Lab) {
 	insertIndex := sort.Search(len(s.labSchedule), func(i int) bool {
 		return s.labSchedule[i].StartTime.Unix() >= lab.StartTime.Unix()
 	})

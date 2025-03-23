@@ -11,6 +11,7 @@ type Instance struct {
 }
 
 type InstanceNode struct {
+	Name   string `json:"name"`
 	IPv4   string `json:"ipv4"`
 	IPV6   string `json:"ipv6"`
 	Port   int    `json:"port"`
