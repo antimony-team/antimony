@@ -2,10 +2,13 @@ package lab
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/deployment/containerlab"
 	"antimonyBackend/domain/instance"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
+	"context"
+	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"slices"
@@ -23,12 +26,13 @@ type (
 	}
 
 	labService struct {
-		labRepo          Repository
-		topologyRepo     topology.Repository
-		instanceService  instance.Service
-		userService      user.Service
-		labScheduleMutex *sync.Mutex
-		labSchedule      []*Lab
+		labRepo           Repository
+		topologyRepo      topology.Repository
+		instanceService   instance.Service
+		userService       user.Service
+		labScheduleMutex  *sync.Mutex
+		labSchedule       []*Lab
+		containerProvider containerlab.DeploymentProvider
 	}
 )
 
@@ -39,12 +43,13 @@ func CreateService(labRepo Repository, topologyRepo topology.Repository, instanc
 	}
 
 	labService := &labService{
-		labRepo:          labRepo,
-		topologyRepo:     topologyRepo,
-		instanceService:  instanceService,
-		userService:      userService,
-		labScheduleMutex: &sync.Mutex{},
-		labSchedule:      labSchedule,
+		labRepo:           labRepo,
+		topologyRepo:      topologyRepo,
+		instanceService:   instanceService,
+		userService:       userService,
+		labScheduleMutex:  &sync.Mutex{},
+		labSchedule:       labSchedule,
+		containerProvider: &containerlab.Service{},
 	}
 
 	go labService.LabDeployer()
@@ -55,8 +60,20 @@ func CreateService(labRepo Repository, topologyRepo topology.Repository, instanc
 func (s *labService) LabDeployer() {
 	for {
 		if len(s.labSchedule) > 0 && s.labSchedule[0].StartTime.Unix() <= time.Now().Unix() {
+			labName := s.labSchedule[0].Name
 			log.Infof("[SCHEDULER] Deploying lab %s (%s) with containerlab", s.labSchedule[0].Name, s.labSchedule[0].Topology.Collection.Name)
+			collectionID := fmt.Sprintf("%v", s.labSchedule[0].Topology.UUID)
 
+			topologyFile := fmt.Sprintf("storage/%s/topology.clab.yaml", collectionID)
+
+			log.Infof("[SCHEDULER] Deploying topology file: %s", topologyFile)
+			ctx := context.Background()
+			err := s.containerProvider.Deploy(ctx, topologyFile)
+			if err != nil {
+				log.Errorf("[SCHEDULER] Failed to deploy lab %s: %v", labName, err)
+			} else {
+				log.Infof("[SCHEDULER] Successfully deployed lab %s", labName)
+			}
 			// Remove lab from schedule list
 			s.labScheduleMutex.Lock()
 			s.labSchedule = s.labSchedule[1:]
@@ -93,7 +110,6 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 	if err != nil {
 		return "", err
 	}
-
 	// Deny request if user does not have access to the lab topology's collection
 	if !authUser.IsAdmin && (!labTopology.Collection.PublicDeploy || !slices.Contains(authUser.Collections, labTopology.Collection.Name)) {
 		return "", utils.ErrorNoDeployAccessToCollection

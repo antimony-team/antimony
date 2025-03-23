@@ -41,11 +41,11 @@ services:
   keycloak-server:
     container_name: keycloak-server
     image: quay.io/keycloak/keycloak:latest
-    command: start-dev --http-port 4011
+    command: start-dev --http-port 4022
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
       - ./test/keycloak:/opt/keycloak/data/h2
     ports:
-      - "4011:4011"
+      - "4022:4022"
