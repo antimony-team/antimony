@@ -119,9 +119,9 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 
 	// Don't allow duplicate topology names within the same collection
 	topologyName := s.getNameFromDefinition(req.Definition)
-	if nameExists, err := s.topologyRepo.DoesNameExist(ctx, topologyName, req.CollectionId); err != nil {
+	if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, req.CollectionId); err != nil {
 		return "", err
-	} else if nameExists {
+	} else if len(topologies) > 0 {
 		return "", utils.ErrorTopologyExists
 	}
 
@@ -175,11 +175,12 @@ func (s *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId st
 	}
 
 	// Don't allow duplicate topology names within the same collection
-	topologyName := s.getNameFromDefinition(req.Definition)
-	if nameExists, err := s.topologyRepo.DoesNameExist(ctx, topologyName, req.CollectionId); err != nil {
-		return err
-	} else if nameExists {
-		return utils.ErrorTopologyExists
+	if topologyName := s.getNameFromDefinition(req.Definition); topologyName != topology.Name {
+		if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, req.CollectionId); err != nil {
+			return err
+		} else if len(topologies) > 0 {
+			return utils.ErrorTopologyExists
+		}
 	}
 
 	if err := s.saveTopology(topology.UUID, req.Definition, req.Metadata); err != nil {

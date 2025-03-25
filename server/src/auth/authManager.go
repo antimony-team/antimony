@@ -20,8 +20,8 @@ type (
 		Init(config *config.AntimonyConfig)
 		CreateAuthToken(userId string) (string, error)
 		CreateAccessToken(authUser AuthenticatedUser) (string, error)
+		AuthenticateUser(tokenString string) (*AuthenticatedUser, error)
 		LoginNative(username string, password string) (string, string, error)
-		CheckToken(authToken string) bool
 		GetAuthCodeURL(stateToken string) string
 		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
@@ -103,7 +103,7 @@ func (m *authManager) Init(config *config.AntimonyConfig) {
 }
 
 func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
-	if authUser, err := m.authenticate(authToken); err != nil {
+	if authUser, err := m.AuthenticateUser(authToken); err != nil {
 		return "", err
 	} else if newAccessToken, err := m.CreateAccessToken(*authUser); err != nil {
 		return "", err
@@ -121,7 +121,7 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if user, err := m.authenticate(accessToken); err != nil {
+		if user, err := m.AuthenticateUser(accessToken); err != nil {
 			ctx.JSON(utils.ErrorResponse(utils.ErrorTokenInvalid))
 			ctx.Abort()
 			return
@@ -204,12 +204,7 @@ func (m *authManager) LoginNative(username string, password string) (string, str
 	return "", "", utils.ErrorInvalidCredentials
 }
 
-func (m *authManager) CheckToken(authToken string) bool {
-	_, err := m.authenticate(authToken)
-	return err == nil
-}
-
-func (m *authManager) authenticate(tokenString string) (*AuthenticatedUser, error) {
+func (m *authManager) AuthenticateUser(tokenString string) (*AuthenticatedUser, error) {
 	if token, err := jwt.Parse(tokenString, m.tokenParser); err != nil {
 		return nil, utils.ErrorTokenInvalid
 	} else if tokenClaims, ok := token.Claims.(jwt.MapClaims); !ok {

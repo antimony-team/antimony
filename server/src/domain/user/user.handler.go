@@ -68,7 +68,7 @@ func (h *userHandler) LoginCheck(ctx *gin.Context) {
 	if err != nil {
 		ctx.JSON(200, gin.H{})
 		return
-	} else if !h.userService.LoginCheck(accessToken) {
+	} else if !h.userService.IsTokenValid(accessToken) {
 		ctx.JSON(401, gin.H{})
 	} else {
 		ctx.JSON(200, gin.H{})
