@@ -26,7 +26,7 @@ export class LabStore extends DataStore<Lab, LabIn, Lab> {
     observe(this, 'getParams' as keyof this, () => this.fetch());
 
     // if (!process.env.IS_OFFLINE) {
-    //   (this.rootStore._dataBinder as RemoteDataBinder).socket.on(
+    //   (this.rootStore._dataBinder as DataBinder).socket.on(
     //     'labsUpdate',
     //     () => this.fetch()
     //   );

@@ -10,8 +10,6 @@ import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
-import {LocalDataBinder} from '@sb/lib/stores/data-binder/local-data-binder';
-import {RemoteDataBinder} from '@sb/lib/stores/data-binder/remote-data-binder';
 
 export class RootStore {
   _dataBinder: DataBinder;
@@ -24,11 +22,7 @@ export class RootStore {
   _statusMessagesStore: StatusMessageStore;
 
   constructor() {
-    if (process.env.IS_OFFLINE) {
-      this._dataBinder = new LocalDataBinder();
-    } else {
-      this._dataBinder = new RemoteDataBinder();
-    }
+    this._dataBinder = new DataBinder();
 
     this._schemaStore = new SchemaStore(this);
     this._deviceStore = new DeviceStore(this);
@@ -46,8 +40,7 @@ export class RootStore {
       this._labStore.fetchReport.state,
       this._deviceStore.fetchReport.state,
       this._collectionStore.fetchReport.state,
-      this._schemaStore.fetchReport.state,
-      this._statusMessagesStore.fetchReport.state
+      this._schemaStore.fetchReport.state
     );
   }
 }

@@ -9,7 +9,7 @@ import {FetchState} from '@sb/types/types';
 import {Choose, Otherwise, When} from '@sb/types/control';
 import ErrorPage from '@sb/components/error-page/error-page';
 import {useDataBinder, useRootStore} from '@sb/lib/stores/root-store';
-import {RemoteDataBinder} from '@sb/lib/stores/data-binder/remote-data-binder';
+import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 
 import './sb-status-indicator.sass';
 
@@ -79,7 +79,7 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
             <div className="sb-indicator-error-entry">
               <span>Antimony API</span>
               <Choose>
-                <When condition={(dataBinder as RemoteDataBinder).hasAPIError}>
+                <When condition={(dataBinder as DataBinder).hasAPIError}>
                   <ProgressSpinner strokeWidth="5" />
                 </When>
                 <Otherwise>
@@ -90,9 +90,7 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
             <div className="sb-indicator-error-entry">
               <span>Antimony Socket</span>
               <Choose>
-                <When
-                  condition={(dataBinder as RemoteDataBinder).hasSocketError}
-                >
+                <When condition={(dataBinder as DataBinder).hasSocketError}>
                   <ProgressSpinner strokeWidth="5" />
                 </When>
                 <Otherwise>

@@ -29,7 +29,7 @@ const SBLogin = observer(() => {
   //     console.log('RECEIVED TOKEN: ', token);
   //
   //     if ('setupConnection' in dataBinder) {
-  //       (dataBinder as unknown as RemoteDataBinder).setupConnection(
+  //       (dataBinder as unknown as DataBinder).setupConnection(
   //         token!,
   //         true
   //       );

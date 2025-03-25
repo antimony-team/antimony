@@ -5,6 +5,7 @@ import {Nullable} from 'primereact/ts-helpers';
 import {SelectItem} from 'primereact/selectitem';
 
 import {
+  useDataBinder,
   useLabStore,
   useStatusMessages,
   useTopologyStore,
@@ -32,6 +33,7 @@ const TopologyDeployDialog = (props: TopologyDeployDialogProps) => {
     return now;
   };
 
+  const dataBinder = useDataBinder();
   const labStore = useLabStore();
   const topologyStore = useTopologyStore();
   const notificationStore = useStatusMessages();
@@ -64,7 +66,7 @@ const TopologyDeployDialog = (props: TopologyDeployDialogProps) => {
       topologyId: deployingTopology?.id,
     };
 
-    labStore.add(lab).then(result => {
+    labStore.add<string>(lab).then(result => {
       if (result.isErr()) {
         notificationStore.error(
           result.error.message,
@@ -73,6 +75,10 @@ const TopologyDeployDialog = (props: TopologyDeployDialogProps) => {
       } else {
         notificationStore.success('Deployment has been scheduled.');
         props.onClose();
+
+        dataBinder.subscribeNamespace('logs/' + result.data.payload, data => {
+          console.log('[CLAB] ', data);
+        });
       }
     });
   }
