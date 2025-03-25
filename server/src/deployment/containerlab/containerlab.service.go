@@ -8,14 +8,16 @@ import (
 	"os/exec"
 )
 
-type DeploymentProvider interface {
-	Deploy(ctx context.Context, topologyFile string) error
-	Destroy(ctx context.Context, topologyFile string) error
-}
+type (
+	DeploymentProvider interface {
+		Deploy(ctx context.Context, topologyFile string, onLog func(data string)) error
+		Destroy(ctx context.Context, topologyFile string, onLog func(data string)) error
+	}
+)
 
 type Service struct{}
 
-func (s *Service) Deploy(ctx context.Context, topologyFile string) error {
+func (s *Service) Deploy(ctx context.Context, topologyFile string, onLog func(data string)) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile, "--reconfigure")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -29,8 +31,10 @@ func (s *Service) Deploy(ctx context.Context, topologyFile string) error {
 		return err
 	}
 
-	go readOutput(stdout, "stdout")
-	go readOutput(stderr, "stderr")
+	go readOutput(stdout, func(data string) {
+		log.Infof("[CLAB] Deploy output: %s", data)
+	})
+	go readOutput(stderr, onLog)
 
 	if err := cmd.Wait(); err != nil {
 		return err
@@ -38,7 +42,7 @@ func (s *Service) Deploy(ctx context.Context, topologyFile string) error {
 	return nil
 }
 
-func (s *Service) Destroy(ctx context.Context, topologyFile string) error {
+func (s *Service) Destroy(ctx context.Context, topologyFile string, onLog func(data string)) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
 
 	stderr, err := cmd.StderrPipe()
@@ -48,17 +52,20 @@ func (s *Service) Destroy(ctx context.Context, topologyFile string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	go readOutput(stderr, "stderr")
+
+	go readOutput(stderr, onLog)
 
 	if err := cmd.Wait(); err != nil {
 		return err
 	}
 	return nil
 }
-func readOutput(pipe io.Reader, pipeName string) {
+
+func readOutput(pipe io.Reader, onLog func(data string)) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
-		log.Infof("[%s] %s\n", pipeName, scanner.Text())
+		onLog(scanner.Text())
+		//log.Infof("[%s] %s\n", pipeName, scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
 	}

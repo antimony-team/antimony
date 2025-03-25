@@ -6,6 +6,8 @@ import (
 	"github.com/zishang520/socket.io/socket"
 	"maps"
 	"slices"
+	"strings"
+	"sync"
 )
 
 type (
@@ -17,19 +19,23 @@ type (
 
 	namespaceManager[T any] struct {
 		connectedClients map[string]*SocketConnectedUser
+		lock             *sync.Mutex
 		messages         []T
 		anonymous        bool
 	}
 )
 
-func CreateNamespace[T any](socketManager SocketManager, namespaceName string, anonymous bool) NamespaceManager[T] {
-	manager := namespaceManager[T]{
+func CreateNamespace[T any](socketManager SocketManager, anonymous bool, namespacePath ...string) NamespaceManager[T] {
+	messages := make([]T, 0)
+	manager := &namespaceManager[T]{
 		connectedClients: make(map[string]*SocketConnectedUser),
-		messages:         make([]T, 0),
+		messages:         messages,
 		anonymous:        anonymous,
+		lock:             &sync.Mutex{},
 	}
 
-	namespace := socketManager.Server().Of("/"+namespaceName, nil)
+	namespaceName := "/" + strings.Join(namespacePath, "/")
+	namespace := socketManager.Server().Of(namespaceName, nil)
 
 	if !anonymous {
 		namespace.Use(socketManager.SocketAuthenticatorMiddleware)
@@ -43,6 +49,12 @@ func CreateNamespace[T any](socketManager SocketManager, namespaceName string, a
 		if authUser == nil {
 			return
 		}
+
+		manager.lock.Lock()
+
+		client.Emit("backlog", manager.messages)
+
+		manager.lock.Unlock()
 
 		log.Info("User connected to socket namespace", "namespace", namespaceName, "user", authUser.UserId)
 		manager.connectedClients[authUser.UserId] = &SocketConnectedUser{
@@ -59,13 +71,17 @@ func CreateNamespace[T any](socketManager SocketManager, namespaceName string, a
 	return manager
 }
 
-func (m namespaceManager[T]) Send(msg T) {
+func (m *namespaceManager[T]) getMessages() *[]T {
+	return &m.messages
+}
+
+func (m *namespaceManager[T]) Send(msg T) {
 	m.sendTo(msg, lo.Filter(slices.Collect(maps.Values(m.connectedClients)), func(client *SocketConnectedUser, _ int) bool {
 		return client.IsAdmin
 	}))
 }
 
-func (m namespaceManager[T]) SendTo(msg T, receivers []string) {
+func (m *namespaceManager[T]) SendTo(msg T, receivers []string) {
 	if m.anonymous {
 		log.Warnf("Server is trying to send addressed socket message in anonymous namespace. Aborting.")
 		return
@@ -79,7 +95,7 @@ func (m namespaceManager[T]) SendTo(msg T, receivers []string) {
 	}))
 }
 
-func (m namespaceManager[T]) SendToAdmins(msg T) {
+func (m *namespaceManager[T]) SendToAdmins(msg T) {
 	if m.anonymous {
 		log.Warnf("Server is trying to send addressed socket message in anonymous namespace. Aborting.")
 		return
@@ -90,7 +106,11 @@ func (m namespaceManager[T]) SendToAdmins(msg T) {
 	}))
 }
 
-func (m namespaceManager[T]) sendTo(msg T, receivers []*SocketConnectedUser) {
+func (m *namespaceManager[T]) sendTo(msg T, receivers []*SocketConnectedUser) {
+	m.lock.Lock()
+	m.messages = append(m.messages, msg)
+	m.lock.Unlock()
+
 	log.Infof("Sending %v to %v", msg, receivers)
 	for _, client := range receivers {
 		if err := client.socket.Emit("data", msg); err != nil {

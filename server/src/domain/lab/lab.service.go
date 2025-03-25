@@ -34,7 +34,8 @@ type (
 		instanceService        instance.Service
 		labScheduleMutex       *sync.Mutex
 		labSchedule            []Lab
-		containerProvider      containerlab.DeploymentProvider
+		deploymentProvider     containerlab.DeploymentProvider
+		socketManager          socket.SocketManager
 		statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage]
 	}
 )
@@ -44,6 +45,7 @@ func CreateService(
 	userRepo user.Repository,
 	topologyRepo topology.Repository,
 	instanceService instance.Service,
+	socketManager socket.SocketManager,
 	statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage],
 ) Service {
 	labSchedule, err := labRepo.GetAll()
@@ -58,7 +60,8 @@ func CreateService(
 		instanceService:        instanceService,
 		labScheduleMutex:       &sync.Mutex{},
 		labSchedule:            labSchedule,
-		containerProvider:      &containerlab.Service{},
+		deploymentProvider:     &containerlab.Service{},
+		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}
 
@@ -78,8 +81,12 @@ func (s *labService) LabDeployer() {
 				"Lab Scheduler", fmt.Sprintf("Deploying topology %s (%s)", lab.Name, lab.Topology.Name),
 			))
 
+			containerlabLogNamespace := socket.CreateNamespace[string](s.socketManager, false, "logs", lab.UUID)
+
+			log.Infof("[SCHEDULER] Created namespace")
+			
 			ctx := context.Background()
-			err := s.containerProvider.Deploy(ctx, topologyFile)
+			err := s.deploymentProvider.Deploy(ctx, topologyFile, containerlabLogNamespace.Send)
 			if err != nil {
 				log.Infof("[SCHEDULER] Failed to deploy lab %s: %s", lab.Name, err.Error())
 				s.statusMessageNamespace.Send(statusMessage.Error(

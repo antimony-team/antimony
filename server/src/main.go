@@ -50,7 +50,7 @@ func main() {
 
 	socketManager := socket.CreateSocketManager(authManager)
 
-	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](socketManager, "status-messages", false)
+	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](socketManager, false, "status-messages")
 
 	var (
 		instanceService = instance.CreateService(antimonyConfig)
@@ -74,7 +74,7 @@ func main() {
 		topologyHandler    = topology.CreateHandler(topologyService)
 
 		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(labRepository, userRepository, topologyRepository, instanceService, statusMessageNamespace)
+		labService    = lab.CreateService(labRepository, userRepository, topologyRepository, instanceService, socketManager, statusMessageNamespace)
 		labHandler    = lab.CreateHandler(labService)
 	)
 
