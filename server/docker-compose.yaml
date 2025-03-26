@@ -1,14 +1,14 @@
-name: antimony-backend
+name: antimonyBackend
 
 services:
   backend:
-    container_name: antimony-backend
+    container_name: antimonyBackend
     build:
       context: .
     depends_on:
       keycloak-server:
         condition: service_started
-      antimony-database:
+      database:
         condition: service_healthy
     environment:
       - SB_MODE=dev
@@ -18,8 +18,8 @@ services:
       - SB_NATIVE_PASSWORD=admin
     ports:
       - "3000:3000"
-  antimony-database:
-    container_name: antimony-database
+  database:
+    container_name: database
     image: postgres
     restart: always
     shm_size: 128mb

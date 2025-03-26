@@ -4,8 +4,10 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/deployment/containerlab"
 	"antimonyBackend/domain/instance"
+	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/socket"
 	"antimonyBackend/utils"
 	"context"
 	"fmt"
@@ -26,30 +28,41 @@ type (
 	}
 
 	labService struct {
-		labRepo           Repository
-		userRepo          user.Repository
-		topologyRepo      topology.Repository
-		instanceService   instance.Service
-		labScheduleMutex  *sync.Mutex
-		labSchedule       []Lab
-		containerProvider containerlab.DeploymentProvider
+		labRepo                Repository
+		userRepo               user.Repository
+		topologyRepo           topology.Repository
+		instanceService        instance.Service
+		labScheduleMutex       *sync.Mutex
+		labSchedule            []Lab
+		deploymentProvider     containerlab.DeploymentProvider
+		socketManager          socket.SocketManager
+		statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage]
 	}
 )
 
-func CreateService(labRepo Repository, userRepo user.Repository, topologyRepo topology.Repository, instanceService instance.Service) Service {
+func CreateService(
+	labRepo Repository,
+	userRepo user.Repository,
+	topologyRepo topology.Repository,
+	instanceService instance.Service,
+	socketManager socket.SocketManager,
+	statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage],
+) Service {
 	labSchedule, err := labRepo.GetAll()
 	if err != nil {
 		log.Fatal("Failed to load scheduled labs from database. Exiting.")
 	}
 
 	labService := &labService{
-		labRepo:           labRepo,
-		userRepo:          userRepo,
-		topologyRepo:      topologyRepo,
-		instanceService:   instanceService,
-		labScheduleMutex:  &sync.Mutex{},
-		labSchedule:       labSchedule,
-		containerProvider: &containerlab.Service{},
+		labRepo:                labRepo,
+		userRepo:               userRepo,
+		topologyRepo:           topologyRepo,
+		instanceService:        instanceService,
+		labScheduleMutex:       &sync.Mutex{},
+		labSchedule:            labSchedule,
+		deploymentProvider:     &containerlab.Service{},
+		socketManager:          socketManager,
+		statusMessageNamespace: statusMessageNamespace,
 	}
 
 	go labService.LabDeployer()
@@ -60,18 +73,32 @@ func CreateService(labRepo Repository, userRepo user.Repository, topologyRepo to
 func (s *labService) LabDeployer() {
 	for {
 		if len(s.labSchedule) > 0 && s.labSchedule[0].StartTime.Unix() <= time.Now().Unix() {
-			labName := s.labSchedule[0].Name
-			collectionID := fmt.Sprintf("%v", s.labSchedule[0].Topology.UUID)
-			topologyFile := fmt.Sprintf("storage/%s/topology.clab.yaml", collectionID)
+			lab := s.labSchedule[0]
+			topologyFile := fmt.Sprintf("storage/%s/topology.clab.yaml", lab.Topology.UUID)
 
-			log.Infof("[SCHEDULER] Deploying topology file: %s", topologyFile)
+			log.Infof("[SCHEDULER] Deploying topology %s (%s)", lab.Name, lab.Topology.Name)
+			s.statusMessageNamespace.Send(statusMessage.Info(
+				"Lab Scheduler", fmt.Sprintf("Deploying topology %s (%s)", lab.Name, lab.Topology.Name),
+			))
+
+			containerlabLogNamespace := socket.CreateNamespace[string](s.socketManager, false, "logs", lab.UUID)
+
+			log.Infof("[SCHEDULER] Created namespace")
+			
 			ctx := context.Background()
-			err := s.containerProvider.Deploy(ctx, topologyFile)
+			err := s.deploymentProvider.Deploy(ctx, topologyFile, containerlabLogNamespace.Send)
 			if err != nil {
-				log.Errorf("[SCHEDULER] Failed to deploy lab %s: %v", labName, err)
+				log.Infof("[SCHEDULER] Failed to deploy lab %s: %s", lab.Name, err.Error())
+				s.statusMessageNamespace.Send(statusMessage.Error(
+					"Lab Scheduler", fmt.Sprintf("Failed to deploy lab %s: %s", lab.Name, err.Error()),
+				))
 			} else {
-				log.Infof("[SCHEDULER] Successfully deployed lab %s", labName)
+				log.Infof("[SCHEDULER] Successfully deployed lab %s!", lab.Name)
+				s.statusMessageNamespace.Send(statusMessage.Success(
+					"Lab Scheduler", fmt.Sprintf("Successfully deployed lab %s!", lab.Name),
+				))
 			}
+
 			// Remove lab from schedule list
 			s.labScheduleMutex.Lock()
 			s.labSchedule = s.labSchedule[1:]

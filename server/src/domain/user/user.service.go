@@ -12,7 +12,7 @@ type (
 		GetByUuid(ctx context.Context, userId string) (*User, error)
 		GetAuthCodeURL(stateToken string) string
 		LoginNative(req CredentialsIn) (string, string, error)
-		LoginCheck(accessToken string) bool
+		IsTokenValid(accessToken string) bool
 		RefreshAccessToken(authToken string) (string, error)
 		AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error)
 	}
@@ -32,8 +32,9 @@ func CreateService(userRepo Repository, authManager auth.AuthManager) Service {
 	return userService
 }
 
-func (s *userService) LoginCheck(accessToken string) bool {
-	return s.authManager.CheckToken(accessToken)
+func (s *userService) IsTokenValid(accessToken string) bool {
+	_, err := s.authManager.AuthenticateUser(accessToken)
+	return err == nil
 }
 
 func (s *userService) RefreshAccessToken(authToken string) (string, error) {
@@ -63,7 +64,7 @@ func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (s
 		if user, userExists, err = s.userRepo.GetBySub(ctx, userSub); err != nil {
 			return "", err
 		}
-		
+
 		if !userExists {
 			// Create the user if not registered yet
 			user = &User{

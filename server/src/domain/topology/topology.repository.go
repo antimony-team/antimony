@@ -12,8 +12,8 @@ type (
 	Repository interface {
 		GetAll(ctx context.Context) ([]Topology, error)
 		GetByUuid(ctx context.Context, topologyId string) (*Topology, error)
+		GetByName(ctx context.Context, topologyName string, collectionId string) ([]Topology, error)
 		GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error)
-		DoesNameExist(ctx context.Context, topologyName string, collectionId string) (bool, error)
 		Create(ctx context.Context, topology *Topology) error
 		Update(ctx context.Context, topology *Topology) error
 		Delete(ctx context.Context, topology *Topology) error
@@ -56,15 +56,15 @@ func (r *topologyRepository) GetFromCollections(ctx context.Context, collectionN
 	return topologies, result.Error
 }
 
-func (r *topologyRepository) DoesNameExist(ctx context.Context, topologyName string, collectionId string) (bool, error) {
-	var topology Topology
+func (r *topologyRepository) GetByName(ctx context.Context, topologyName string, collectionId string) ([]Topology, error) {
+	var topologies []Topology
 	result := r.db.WithContext(ctx).
 		Joins("JOIN collections ON collections.id = topologies.collection_id").
 		Where("topologies.name = ? AND collections.uuid = ? AND topologies.deleted_at IS NULL", topologyName, collectionId).
 		Limit(1).
-		Find(&topology)
+		Find(&topologies)
 
-	return result.RowsAffected > 0, result.Error
+	return topologies, result.Error
 }
 
 func (r *topologyRepository) GetByUuid(ctx context.Context, topologyId string) (*Topology, error) {

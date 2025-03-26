@@ -2,7 +2,6 @@ package instance
 
 import (
 	"antimonyBackend/config"
-	socketio "github.com/googollee/go-socket.io"
 )
 
 type (
@@ -35,12 +34,12 @@ func (s *instanceService) Init() {
 	//s.socketServer.OnEvent("/instances", string(SaveNode), s.onSaveNode)
 }
 
-func (s *instanceService) onDeploy(c socketio.Conn, msg string)    {}
-func (s *instanceService) onDestroy(c socketio.Conn, msg string)   {}
-func (s *instanceService) onRedeploy(c socketio.Conn, msg string)  {}
-func (s *instanceService) onStopNode(c socketio.Conn, msg string)  {}
-func (s *instanceService) onStartNode(c socketio.Conn, msg string) {}
-func (s *instanceService) onSaveNode(c socketio.Conn, msg string)  {}
+//func (s *instanceService) onDeploy(c socketio.Conn, msg string)    {}
+//func (s *instanceService) onDestroy(c socketio.Conn, msg string)   {}
+//func (s *instanceService) onRedeploy(c socketio.Conn, msg string)  {}
+//func (s *instanceService) onStopNode(c socketio.Conn, msg string)  {}
+//func (s *instanceService) onStartNode(c socketio.Conn, msg string) {}
+//func (s *instanceService) onSaveNode(c socketio.Conn, msg string)  {}
 
 func (s *instanceService) handleCommand(command InstanceCommand) error {
 	switch command {
