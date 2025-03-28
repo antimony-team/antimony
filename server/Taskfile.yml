@@ -1,0 +1,26 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  build:
+    dir: './src'
+    cmds:
+      - go build -o ../build/antimonyServer ./main.go
+      - cp -r ../data/ ../build/
+      - cp ../test/config.test.yml ../build/config.yml
+
+
+  run:
+    dir: './build'
+    cmds:
+      - task: build
+      - ./antimonyServer -config=./config.yml
+    env:
+      SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
+      SB_DATABASE_PASSWORD: password123
+      SB_NATIVE_USERNAME: admin
+      SB_NATIVE_PASSWORD: admin

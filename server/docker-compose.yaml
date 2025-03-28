@@ -2,7 +2,7 @@ name: antimonyBackend
 
 services:
   backend:
-    container_name: antimonyBackend
+    container_name: antimony-backend
     build:
       context: .
     depends_on:
@@ -11,7 +11,6 @@ services:
       database:
         condition: service_healthy
     environment:
-      - SB_MODE=dev
       - SB_OIDC_SECRET=MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       - SB_DATABASE_PASSWORD=antimony
       - SB_NATIVE_USERNAME=admin
@@ -46,6 +45,6 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
-      - ./test/keycloak:/opt/keycloak/data/h2
+      - ./test/keycloak:/opt/keycloak/data/h2:ro
     ports:
       - "4022:4022"

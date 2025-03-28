@@ -6,6 +6,6 @@ import (
 )
 
 type SocketConnectedUser struct {
-	auth.AuthenticatedUser
+	*auth.AuthenticatedUser
 	socket *socket.Socket
 }

@@ -7,9 +7,16 @@ import (
 )
 
 type (
+	// SocketManager Represents a wrapper around the socket.io objects and also manages all authenticated users.
 	SocketManager interface {
+		// Server A reference to the underlying socket.io server.
 		Server() *socket.Server
+		
+		// GetAuthUser Returns an auth user by access token. This can be used by namespace managers to identify
+		// an authenticated user sending a message or connecting to a namespace for the first time.
 		GetAuthUser(accessToken string) *auth.AuthenticatedUser
+
+		// SocketAuthenticatorMiddleware A middleware function that can be used for authenticated namespaces.
 		SocketAuthenticatorMiddleware(s *socket.Socket, next func(*socket.ExtendedError))
 	}
 

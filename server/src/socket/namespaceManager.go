@@ -1,94 +1,137 @@
 package socket
 
 import (
+	"antimonyBackend/auth"
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 	"github.com/zishang520/socket.io/socket"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
 )
 
 type (
+	// NamespaceManager Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
+	//
+	// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
+	// to provide a valid access token which will be used to authenticate them via auth.AuthManager.
 	NamespaceManager[T any] interface {
+		// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
 		Send(msg T)
+
+		// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
 		SendTo(msg T, receivers []string)
+
+		// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
 		SendToAdmins(msg T)
 	}
 
 	namespaceManager[T any] struct {
-		connectedClients map[string]*SocketConnectedUser
-		lock             *sync.Mutex
-		messages         []T
-		anonymous        bool
+		// A list of all connected clients, authenticated and anonymous clients
+		connectedClients []*SocketConnectedUser
+
+		// A map of all connected authenticated clients indexed by their user ID
+		connectedClientsMap  map[string]*SocketConnectedUser
+		connectedClientsLock *sync.Mutex
+		messages             []T
+		messagesLock         *sync.Mutex
+		isAnonymous          bool
 	}
 )
 
-func CreateNamespace[T any](socketManager SocketManager, anonymous bool, namespacePath ...string) NamespaceManager[T] {
+func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, namespacePath ...string) NamespaceManager[T] {
 	messages := make([]T, 0)
 	manager := &namespaceManager[T]{
-		connectedClients: make(map[string]*SocketConnectedUser),
-		messages:         messages,
-		anonymous:        anonymous,
-		lock:             &sync.Mutex{},
+		connectedClients:     make([]*SocketConnectedUser, 0),
+		connectedClientsMap:  make(map[string]*SocketConnectedUser),
+		messages:             messages,
+		isAnonymous:          isAnonymous,
+		messagesLock:         &sync.Mutex{},
+		connectedClientsLock: &sync.Mutex{},
 	}
 
 	namespaceName := "/" + strings.Join(namespacePath, "/")
 	namespace := socketManager.Server().Of(namespaceName, nil)
 
-	if !anonymous {
+	if !isAnonymous {
 		namespace.Use(socketManager.SocketAuthenticatorMiddleware)
 	}
 
-	namespace.On("connection", func(clients ...any) {
+	_ = namespace.On("connection", func(clients ...any) {
 		client := clients[0].(*socket.Socket)
-		accessToken, _ := client.Handshake().Auth.(map[string]any)["token"].(string)
-		authUser := socketManager.GetAuthUser(accessToken)
-		log.Info("User connected to socket namespace", "namespace", namespaceName, "user", accessToken)
-		if authUser == nil {
-			return
+
+		if !isAnonymous {
+			var authUser *auth.AuthenticatedUser
+			if accessToken, ok := client.Handshake().Auth.(map[string]any)["token"].(string); !ok {
+				return
+			} else if authUser = socketManager.GetAuthUser(accessToken); authUser == nil {
+				// This is just for consistency, as non-authenticated users should never make it past the middleware
+				return
+			}
+
+			socketClient := &SocketConnectedUser{
+				AuthenticatedUser: authUser,
+				socket:            client,
+			}
+
+			manager.connectedClientsLock.Lock()
+			manager.connectedClients = append(manager.connectedClients, socketClient)
+			manager.connectedClientsMap[authUser.UserId] = socketClient
+			manager.connectedClientsLock.Unlock()
+
+			_ = client.On("disconnect", func(clients ...any) {
+				log.Info("User disconnected from socket namespace", "namespace", namespaceName, "user", authUser.UserId)
+
+				manager.connectedClientsLock.Lock()
+				if i := slices.Index(manager.connectedClients, socketClient); i > -1 {
+					manager.connectedClients = append(manager.connectedClients[:i], manager.connectedClients[i+1:]...)
+				}
+				delete(manager.connectedClientsMap, authUser.UserId)
+				manager.connectedClientsLock.Unlock()
+			})
+
+			log.Info("User connected to socket namespace", "namespace", namespaceName, "user", authUser.UserId)
+		} else {
+			socketClient := &SocketConnectedUser{
+				socket: client,
+			}
+
+			manager.connectedClientsLock.Lock()
+			manager.connectedClients = append(manager.connectedClients, socketClient)
+			manager.connectedClientsLock.Unlock()
+
+			_ = client.On("disconnect", func(clients ...any) {
+				log.Info("Anonymous user disconnected from socket namespace", "namespace", namespaceName)
+
+				if i := slices.Index(manager.connectedClients, socketClient); i > -1 {
+					manager.connectedClientsLock.Lock()
+					manager.connectedClients = append(manager.connectedClients[:i], manager.connectedClients[i+1:]...)
+					manager.connectedClientsLock.Unlock()
+				}
+			})
+
+			log.Info("Anonymous user connected to socket namespace", "namespace")
 		}
 
-		manager.lock.Lock()
-
-		client.Emit("backlog", manager.messages)
-
-		manager.lock.Unlock()
-
-		log.Info("User connected to socket namespace", "namespace", namespaceName, "user", authUser.UserId)
-		manager.connectedClients[authUser.UserId] = &SocketConnectedUser{
-			AuthenticatedUser: *authUser,
-			socket:            client,
-		}
-
-		client.On("disconnect", func(clients ...any) {
-			log.Info("User disconnected from socket namespace", "namespace", namespaceName, "user", authUser.UserId)
-			delete(manager.connectedClients, authUser.UserId)
-		})
+		// Immediately send backlog of existing messages to user
+		_ = client.Emit("backlog", manager.messages)
 	})
 
 	return manager
 }
 
-func (m *namespaceManager[T]) getMessages() *[]T {
-	return &m.messages
-}
-
 func (m *namespaceManager[T]) Send(msg T) {
-	m.sendTo(msg, lo.Filter(slices.Collect(maps.Values(m.connectedClients)), func(client *SocketConnectedUser, _ int) bool {
-		return client.IsAdmin
-	}))
+	m.sendTo(msg, m.connectedClients)
 }
 
 func (m *namespaceManager[T]) SendTo(msg T, receivers []string) {
-	if m.anonymous {
-		log.Warnf("Server is trying to send addressed socket message in anonymous namespace. Aborting.")
+	if m.isAnonymous {
+		log.Errorf("Server is trying to send an addressed socket message in an anonymous namespace. Aborting.")
 		return
 	}
 
 	m.sendTo(msg, lo.FilterMap(receivers, func(userId string, _ int) (*SocketConnectedUser, bool) {
-		if client, ok := m.connectedClients[userId]; ok {
+		if client, ok := m.connectedClientsMap[userId]; ok {
 			return client, true
 		}
 		return nil, false
@@ -96,20 +139,20 @@ func (m *namespaceManager[T]) SendTo(msg T, receivers []string) {
 }
 
 func (m *namespaceManager[T]) SendToAdmins(msg T) {
-	if m.anonymous {
-		log.Warnf("Server is trying to send addressed socket message in anonymous namespace. Aborting.")
+	if m.isAnonymous {
+		log.Errorf("Server is trying to send an addressed socket message in an anonymous namespace. Aborting.")
 		return
 	}
 
-	m.sendTo(msg, lo.Filter(slices.Collect(maps.Values(m.connectedClients)), func(client *SocketConnectedUser, _ int) bool {
+	m.sendTo(msg, lo.Filter(m.connectedClients, func(client *SocketConnectedUser, _ int) bool {
 		return client.IsAdmin
 	}))
 }
 
 func (m *namespaceManager[T]) sendTo(msg T, receivers []*SocketConnectedUser) {
-	m.lock.Lock()
+	m.messagesLock.Lock()
 	m.messages = append(m.messages, msg)
-	m.lock.Unlock()
+	m.messagesLock.Unlock()
 
 	log.Infof("Sending %v to %v", msg, receivers)
 	for _, client := range receivers {
