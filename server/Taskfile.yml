@@ -18,7 +18,7 @@ tasks:
     dir: './build'
     cmds:
       - task: build
-      - ./antimonyServer -config=./config.yml
+      - sudo -E ./antimonyServer -config=./config.yml
     env:
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
