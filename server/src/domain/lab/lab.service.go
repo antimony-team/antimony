@@ -2,7 +2,7 @@ package lab
 
 import (
 	"antimonyBackend/auth"
-	"antimonyBackend/deployment/containerlab"
+	"antimonyBackend/deployment"
 	"antimonyBackend/domain/instance"
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
@@ -34,7 +34,7 @@ type (
 		instanceService        instance.Service
 		labScheduleMutex       *sync.Mutex
 		labSchedule            []Lab
-		deploymentProvider     containerlab.DeploymentProvider
+		deploymentProvider     deployment.DeploymentProvider
 		socketManager          socket.SocketManager
 		statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage]
 	}
@@ -60,7 +60,7 @@ func CreateService(
 		instanceService:        instanceService,
 		labScheduleMutex:       &sync.Mutex{},
 		labSchedule:            labSchedule,
-		deploymentProvider:     &containerlab.Service{},
+		deploymentProvider:     &deployment.ContainerlabProvider{},
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}
@@ -84,7 +84,7 @@ func (s *labService) LabDeployer() {
 			containerlabLogNamespace := socket.CreateNamespace[string](s.socketManager, false, "logs", lab.UUID)
 
 			log.Infof("[SCHEDULER] Created namespace")
-			
+
 			ctx := context.Background()
 			err := s.deploymentProvider.Deploy(ctx, topologyFile, containerlabLogNamespace.Send)
 			if err != nil {
