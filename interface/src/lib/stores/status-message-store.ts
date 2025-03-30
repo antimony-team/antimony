@@ -1,7 +1,7 @@
 import React from 'react';
 
 import {Toast} from 'primereact/toast';
-import {action, autorun, computed, observable} from 'mobx';
+import {action, computed, observable} from 'mobx';
 
 import {RootStore} from '@sb/lib/stores/root-store';
 import {
@@ -29,14 +29,10 @@ export class StatusMessageStore {
   constructor(rootStore: RootStore) {
     this.rootStore = rootStore;
 
-    autorun(() => {
-      if (this.rootStore._dataBinder.isLoggedIn) {
-        this.rootStore._dataBinder.subscribeNamespace(
-          'status-messages',
-          this.handleMessage.bind(this)
-        );
-      }
-    });
+    this.rootStore._dataBinder.subscribeNamespace(
+      'status-messages',
+      this.handleMessage.bind(this)
+    );
   }
 
   @action
@@ -50,7 +46,7 @@ export class StatusMessageStore {
     );
     this.data.push(message);
     this.data = [...this.data];
-    this.send(message.detail, message.summary, message.severity);
+    this.send(message.content, message.source, message.severity);
   }
 
   @computed

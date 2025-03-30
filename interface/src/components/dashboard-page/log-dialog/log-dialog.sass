@@ -1,0 +1,90 @@
+.sb-log-dialog
+  width: 1200px
+  height: 630px
+
+  .sb-dialog-content
+    padding: 0
+    position: relative
+    background-color: #0b1219
+
+    .sb-log-dialog-loading
+      margin-top: 8px
+      position: absolute
+      z-index: 2
+      margin-left: 5px
+
+      .sb-log-dialog-loading-line
+        display: flex
+        flex-direction: row
+        gap: 15px
+
+      .p-skeleton
+        height: 20px !important
+        margin-bottom: 8px
+
+    .sb-log-dialog-content
+      height: 100%
+      width: 100%
+      overflow: auto
+      position: relative
+
+      .sb-log-dialog-lines-background
+        position: absolute
+        height: 100%
+        width: 60px
+        border-right: solid 1px var(--primary-color-border)
+        background-color: var(--primary-color)
+        z-index: 1
+
+      pre
+        position: absolute
+        top: 0
+        margin: 0
+        padding: 0 24px 0 0
+        bottom: 50px
+        font-size: 18px
+        z-index: 2
+        font-family: Iosevka, monospace !important
+
+    .p-dropdown
+      position: absolute
+      right: 12px
+      top: 12px
+      z-index: 2
+
+.hljs-linenumber-separator
+  display: none
+
+.hljs-timestamp
+  color: var(--primary-color-text-darker)
+  font-style: italic
+
+.hljs-error
+  font-weight: 800
+  color: red
+
+.hljs-keyvalue
+  color: var(--primary-color-text-darker)
+
+.hljs-info
+  font-weight: 800
+  color: var(--info-color-text)
+
+.hljs-warning
+  font-weight: 800
+  color: var(--warning-color-text)
+
+.hljs-error
+  font-weight: 800
+  color: var(--danger-color-text)
+
+.hljs-linenumber
+  border-right: solid 1px var(--primary-color-border)
+  display: inline-block
+  font-weight: 800
+  padding: 3px 6px
+  width: 60px
+  text-align: right
+  background-color: var(--primary-color)
+  user-select: none
+  margin-right: 8px

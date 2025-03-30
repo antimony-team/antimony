@@ -4,17 +4,18 @@ import LabFilterDialog from '@sb/components/dashboard-page/lab-filter-dialog/lab
 import ReservationDialog from '@sb/components/dashboard-page/reservation-dialog/reservation-dialog';
 
 import './dashboard-page.sass';
+import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 
 import {
   useCollectionStore,
   useLabStore,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
+import {useDialogState} from '@sb/lib/utils/hooks';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 import {FetchState} from '@sb/types/types';
 
-import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {Chip} from 'primereact/chip';
@@ -33,21 +34,16 @@ import React, {
 } from 'react';
 import {useSearchParams} from 'react-router';
 
-const statusIcons: Record<InstanceState, string> = {
-  [InstanceState.Scheduled]: 'pi pi-calendar',
-  [InstanceState.Deploying]: 'pi pi-sync pi-spin',
-  [InstanceState.Stopping]: 'pi pi-sync pi-times',
-  [InstanceState.Running]: 'pi pi-check',
-  [InstanceState.Failed]: 'pi pi-times',
-  [InstanceState.Done]: 'pi pi-check',
-};
-
 const DashboardPage: React.FC = observer(() => {
-  const [selectedLab, setSelectedLab] = useState<Lab | null>(null);
-  const [isLabDialogOpen, setLabDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [reschedulingDialogLab, setReschedulingDialogLab] =
     useState<Lab | null>(null);
+
+  const labDialogState = useDialogState<Lab>(
+    null,
+    onCloseLabDialog,
+    onOpenLabDialog
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const popOver = useRef<OverlayPanel>(null);
@@ -73,17 +69,27 @@ const DashboardPage: React.FC = observer(() => {
   });
 
   useEffect(() => {
+    // If lab dialog is open during refresh, refresh lab too
+    if (labDialogState.state) {
+      if (labStore.lookup.get(labDialogState.state.id)) {
+        labDialogState.openWith(labStore.lookup.get(labDialogState.state.id)!);
+      } else {
+        labDialogState.close();
+      }
+    }
+  }, [labStore.data]);
+
+  useEffect(() => {
     calculatePageSize();
   }, [calculatePageSize, labStore.totalEntries]);
 
   useEffect(() => {
     if (
-      selectedLab === null &&
+      labDialogState.state === null &&
       searchParams.has('l') &&
       labStore.lookup.has(searchParams.get('l')!)
     ) {
-      setSelectedLab(labStore.lookup.get(searchParams.get('l')!)!);
-      setLabDialogOpen(true);
+      labDialogState.openWith(labStore.lookup.get(searchParams.get('l')!)!);
     }
   }, [labStore.lookup, searchParams, setSearchParams]);
 
@@ -100,9 +106,7 @@ const DashboardPage: React.FC = observer(() => {
   function handleLabDate(lab: Lab): string {
     let timeString: Date;
 
-    console.log('DATE: ', lab);
-
-    if (lab.instance === null) {
+    if (!lab.instance) {
       // timeString = new Date(lab.startDate);
       timeString = new Date();
       return timeString.toISOString().split('T')[0];
@@ -147,14 +151,13 @@ const DashboardPage: React.FC = observer(() => {
 
   function onStopConfirm() {}
 
-  function closeDialog() {
+  function onCloseLabDialog() {
     setSearchParams('');
-    setLabDialogOpen(false);
   }
 
-  function openLabDialog(lab: Lab) {
-    setSelectedLab(lab);
-    setLabDialogOpen(true);
+  function onOpenLabDialog(lab: Lab | null) {
+    if (!lab) return;
+
     setSearchParams({l: lab.id});
   }
 
@@ -165,14 +168,6 @@ const DashboardPage: React.FC = observer(() => {
   if (labStore.fetchReport.state !== FetchState.Done) {
     return <></>;
   }
-
-  const getStateClasses = (lab: Lab) => ({
-    scheduled: lab.instance === null,
-    running: lab.instance?.state === InstanceState.Running,
-    deploying: lab.instance?.state === InstanceState.Deploying,
-    done: lab.instance?.state === InstanceState.Done,
-    failed: lab.instance?.state === InstanceState.Failed,
-  });
 
   return (
     <div className="height-100 width-100 sb-card overflow-y-hidden overflow-x-hidden sb-labs-container">
@@ -232,11 +227,11 @@ const DashboardPage: React.FC = observer(() => {
                 <div
                   key={lab.id}
                   className="lab-item-card"
-                  onClick={() => openLabDialog(lab)}
+                  onClick={() => labDialogState.openWith(lab)}
                 >
                   <div
                     className="lab-group sb-corner-tab"
-                    onClick={() => openLabDialog(lab)}
+                    onClick={() => labDialogState.openWith(lab)}
                   >
                     <span>
                       {collectionStore.lookup.get(lab.collectionId)?.name ??
@@ -246,9 +241,7 @@ const DashboardPage: React.FC = observer(() => {
                   <div className="lab-name">
                     <span>{lab.name}</span>
                   </div>
-                  <div
-                    className={classNames('lab-state', getStateClasses(lab))}
-                  >
+                  <div className="lab-state">
                     <div className="lab-state-buttons">
                       <If condition={lab.instance === null}>
                         <Button
@@ -282,21 +275,7 @@ const DashboardPage: React.FC = observer(() => {
                       />
                     </div>
                     <span className="lab-state-label">
-                      <div
-                        className={classNames(
-                          'lab-state-label-icon',
-                          getStateClasses(lab)
-                        )}
-                      >
-                        <i
-                          className={
-                            statusIcons[
-                              lab.instance?.state ?? InstanceState.Scheduled
-                            ]
-                          }
-                        ></i>
-                        <span>{InstanceState[lab.instance?.state ?? -1]}</span>
-                      </div>
+                      <StateIndicator lab={lab} showText={true} />
                       <div className="lab-state-date">
                         <i className="pi pi-clock"></i>
                         <span>{handleLabDate(lab)}</span>
@@ -312,11 +291,7 @@ const DashboardPage: React.FC = observer(() => {
                 onClose={closeReschedulingDialog}
               />
             </If>
-            <LabDialog
-              isOpen={isLabDialogOpen}
-              lab={selectedLab}
-              closeDialog={closeDialog}
-            />
+            <LabDialog dialogState={labDialogState} />
           </When>
           <Otherwise>
             <div className="sb-dashboard-empty">

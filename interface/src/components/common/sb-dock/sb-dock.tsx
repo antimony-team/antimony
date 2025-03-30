@@ -11,6 +11,7 @@ import {Choose, If, Otherwise, When} from '@sb/types/control';
 import StatusMessagePanel from '@sb/components/common/sb-dock/status-message-panel/status-message-panel';
 import CreditsDialog from '@sb/components/credits-dialog/credits-dialog';
 import {
+  useAuthUser,
   useCollectionStore,
   useDataBinder,
   useStatusMessages,
@@ -23,6 +24,7 @@ const SBDock: React.FC = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
   const [isCalendarOpen, setCalendarOpen] = useState<boolean>(false);
 
+  const authUser = useAuthUser();
   const dataBinder = useDataBinder();
   const collectionStore = useCollectionStore();
   const navigate = useNavigate();
@@ -31,8 +33,8 @@ const SBDock: React.FC = observer(() => {
   const overlayRef = useRef<OverlayPanel>(null);
 
   const hasEditorAccess = useMemo(() => {
-    return dataBinder.isAdmin || collectionStore.hasWritableCollections;
-  }, [dataBinder.isAdmin, collectionStore.hasWritableCollections]);
+    return authUser.isAdmin || collectionStore.hasWritableCollections;
+  }, [authUser.isAdmin, collectionStore.hasWritableCollections]);
 
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">

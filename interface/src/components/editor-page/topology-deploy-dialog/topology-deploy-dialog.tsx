@@ -75,10 +75,6 @@ const TopologyDeployDialog = (props: TopologyDeployDialogProps) => {
       } else {
         notificationStore.success('Deployment has been scheduled.');
         props.onClose();
-
-        dataBinder.subscribeNamespace('logs/' + result.data.payload, data => {
-          console.log('[CLAB] ', data);
-        });
       }
     });
   }

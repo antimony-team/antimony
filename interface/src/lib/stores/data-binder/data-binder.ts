@@ -1,7 +1,7 @@
 import {AuthenticatedUser, EMPTY_AUTH_USER} from '@sb/types/domain/user';
 import Cookies from 'js-cookie';
 import {io, Socket} from 'socket.io-client';
-import {action, computed, observable, runInAction} from 'mobx';
+import {action, autorun, computed, observable, runInAction} from 'mobx';
 
 import {fetchResource} from '@sb/lib/utils/utils';
 import {UserCredentials} from '@sb/types/types';
@@ -15,6 +15,14 @@ type AuthResponse = {
 export type DataResponse<T> = {
   payload: T;
   headers?: Headers;
+};
+
+type Subscription = {
+  socket?: Socket;
+  namespace: string;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  callbacks: Set<(data: unknown) => void>;
+  isAnonymous: boolean;
 };
 
 export class DataBinder {
@@ -36,7 +44,7 @@ export class DataBinder {
   private refreshTokenPromise: Promise<Result<null>> | null = null;
   private accessToken: string = '';
 
-  private socketMap: Map<string, Socket> = new Map();
+  private subscriptions: Map<string, Subscription> = new Map();
 
   constructor() {
     const accessToken = Cookies.get('accessToken');
@@ -56,49 +64,129 @@ export class DataBinder {
     } else {
       this.isReady = true;
     }
+
+    // Automatically connect / disconnect subscriptions when logged in
+    autorun(() => {
+      if (this.isLoggedIn) {
+        this.connectSubscriptions();
+      } else {
+        this.disconnectSubscriptions();
+      }
+    });
   }
 
-  public subscribeNamespace<T>(namespace: string, onData: (data: T) => void) {
-    this.unsibscribeNamespace(namespace);
+  private connectSubscriptions() {
+    for (const [, subscription] of this.subscriptions) {
+      this.connectSubscription(subscription);
+    }
+  }
 
-    const socket = io(`/${namespace}`, {
-      auth: {
-        token: this.accessToken,
-      },
+  private disconnectSubscriptions() {
+    for (const [, subscription] of this.subscriptions) {
+      subscription.socket?.close();
+    }
+  }
+
+  /**
+   * Creates a socket and registers callbacks for a given subscription.
+   * @param subscription
+   * @private
+   */
+  private connectSubscription(subscription: Subscription) {
+    if (subscription.isAnonymous) {
+      subscription.socket = io(`/${subscription.namespace}`);
+    } else {
+      subscription.socket = io(`/${subscription.namespace}`, {
+        auth: {
+          token: this.accessToken,
+        },
+      });
+    }
+
+    subscription.socket.on('connect', () => {
+      console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
     });
 
-    socket.on('connect', () => {
-      console.log(`[SOCK] Connected to ns ${namespace}`);
+    subscription.socket.on('disconnect', () => {
+      console.log(`[SOCK] Disconnected from ns ${subscription.namespace}`);
     });
 
-    socket.on('disconnect', () => {
-      console.log(`[SOCK] Disconnected from ns ${namespace}`);
-    });
-
-    socket.on('backlog', data => {
-      for (const msg of data) onData(msg);
-    });
-
-    socket.on('connect_error', () => {
-      // Inactive socket means that the server rejected the connection
-      if (!socket.active) {
+    subscription.socket.on('connect_error', e => {
+      if (e.message === 'Invalid namespace') {
+        subscription.socket?.disconnect();
+        setTimeout(() => {
+          subscription.socket?.connect();
+        }, 2000);
+      } else if (e.message === 'Invalid Token') {
         this.refreshToken().then(result => {
           if (result.isOk()) {
-            // Retry socket subscription if token was refreshed
-            this.subscribeNamespace(namespace, onData);
+            // Retry socket subscription if token was refreshed successfully
+            this.connectSubscription(subscription);
           }
         });
       }
     });
 
-    socket.on('data', onData);
-
-    this.socketMap.set(namespace, socket);
+    subscription.callbacks.forEach(callback => {
+      subscription.socket!.on('backlog', data => {
+        for (const msg of data) callback(msg);
+      });
+      subscription.socket!.on('data', callback);
+    });
   }
 
-  public unsibscribeNamespace(namespace: string) {
-    if (this.socketMap.has(namespace)) {
-      this.socketMap.get(namespace)!.disconnect();
+  /**
+   * Subscribes a callback to a socket.io namespace.
+   *
+   * Directly connects to the namespace if subscription is anonymous or the user
+   * is already logged in.
+   * @param namespace The name of the namespace.
+   * @param onData The callback that is called when data is received from the namespace.
+   * @param isAnonymous Whether to connect to the socket regardless of authentication state.
+   */
+  public subscribeNamespace<T>(
+    namespace: string,
+    onData: (data: T) => void,
+    isAnonymous = false
+  ) {
+    const onDataGeneric = onData as (data: unknown) => void;
+
+    if (this.subscriptions.has(namespace)) {
+      const subscription = this.subscriptions.get(namespace)!;
+
+      // Add callback to subscription only if it's not already registered
+      if (!subscription.callbacks.has(onDataGeneric)) {
+        subscription.callbacks.add(onDataGeneric);
+      }
+    } else {
+      const subscription = {
+        namespace: namespace,
+        callbacks: new Set([onData as (data: unknown) => void]),
+        isAnonymous: isAnonymous,
+      };
+      this.subscriptions.set(namespace, subscription);
+
+      if (this.isLoggedIn || isAnonymous) {
+        this.connectSubscription(subscription);
+      }
+    }
+  }
+
+  /**
+   * Unsubscribes a callback from a namespace.
+   *
+   * @param namespace The name of the namespace.
+   * @param onData The callback that is called when data is received from the namespace.
+   */
+  public unsubscribeNamespace<T>(namespace: string, onData: (data: T) => void) {
+    if (this.subscriptions.has(namespace)) {
+      const subscription = this.subscriptions.get(namespace)!;
+      subscription.callbacks.delete(onData as (data: unknown) => void);
+
+      if (subscription.callbacks.size === 0) {
+        subscription.socket?.close();
+        this.subscriptions.delete(namespace);
+      }
     }
   }
 
@@ -195,6 +283,9 @@ export class DataBinder {
     });
   }
 
+  /**
+   * Sets the auth user based on the access token.
+   */
   @action
   private processAccessToken(accessToken: string) {
     try {
@@ -212,6 +303,11 @@ export class DataBinder {
     }
   }
 
+  /**
+   * Refreshes the access token for the Antimony API.
+   *
+   * @returns Ok<null> if the refreshing was successful.
+   */
   private async refreshToken(): Promise<Result<null>> {
     // Make sure only one promise to refresh the token is running at a time
     if (this.refreshTokenPromise === null) {
@@ -240,10 +336,6 @@ export class DataBinder {
     this.isLoggedIn = false;
 
     void fetchResource(this.apiUrl + '/users/logout', 'GET');
-    // if (this.socket && this.socket.connected) {
-    //   this.socket.disconnect();
-    // }
-
     this.authUser = EMPTY_AUTH_USER;
   }
 

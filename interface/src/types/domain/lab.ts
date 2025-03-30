@@ -12,7 +12,7 @@ export type Lab = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
-  instance: Instance | null;
+  instance?: Instance;
 };
 
 export type Instance = {
@@ -30,6 +30,7 @@ export type InstanceNode = {
   port: number;
   user: string;
   webSSH: string;
+  containerId: string;
 };
 
 export enum InstanceState {

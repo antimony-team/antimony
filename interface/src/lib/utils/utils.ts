@@ -169,3 +169,7 @@ export const SBTooltipOptions: TooltipOptions = {
   showDelay: 200,
   showOnDisabled: true,
 };
+
+export function conditional<T>(condition: boolean, onTrue: T, onFalse: T) {
+  return condition ? onTrue : onFalse;
+}

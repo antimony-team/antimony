@@ -12,13 +12,16 @@ export class DialogState<T> {
   @observable accessor isOpen: boolean = false;
 
   private readonly _onClose?: () => void;
+  private readonly _onOpen?: (state: T | null) => void;
 
   constructor(
     public dialogState: T | null,
-    onClose?: () => void
+    onClose?: () => void,
+    onOpen?: (state: T | null) => void
   ) {
     this.state = dialogState;
     this.isOpen = false;
+    this._onOpen = onOpen;
     this._onClose = onClose;
 
     this.close = this.close.bind(this);
@@ -34,15 +37,17 @@ export class DialogState<T> {
   public openWith(state: T | null) {
     this.state = state;
     this.isOpen = true;
+    if (this._onOpen) this._onOpen(state);
   }
 }
 
 export function useDialogState<T>(
-  defaultState: T | null,
-  onClose?: () => void
+  defaultState: T | null = null,
+  onClose?: () => void,
+  onOpen?: (state: T | null) => void
 ) {
   const [dialogState] = useState(
-    () => new DialogState<T>(defaultState, onClose)
+    () => new DialogState<T>(defaultState, onClose, onOpen)
   );
   return dialogState;
 }

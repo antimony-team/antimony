@@ -120,45 +120,6 @@
       border: none
       padding: 0
 
-  //&.running
-  //  color: var(--success-color)
-  //
-  //  .lab-state-date
-  //    &::before
-  //      background-color: var(--success-color)
-  //    border: 1px solid var(--success-color)
-  //
-  //&.failed
-  //  color: var(--danger-color)
-  //
-  //  .lab-state-date
-  //    &::before
-  //      background-color: var(--danger-color)
-  //    border: 1px solid var(--danger-color)
-  //
-  //&.scheduled
-  //  color: var(--info-color)
-  //  .lab-state-date
-  //    &::before
-  //      background-color: var(--info-color)
-  //    border: 1px solid var(--info-color)
-  //
-  //&.deploying
-  //  color: var(--warning-color)
-  //
-  //  .lab-state-date
-  //    &::before
-  //      background-color: var(--warning-color)
-  //    border: 1px solid var(--warning-color)
-  //
-  //&.done
-  //  color: var(--primary-color-text)
-  //
-  //  .lab-state-date
-  //    &::before
-  //      background-color: var(--primary-color-text)
-  //    border: 1px solid var(--primary-color-text)
-
   .lab-state-label
     display: flex
     border-radius: 4px
@@ -170,91 +131,16 @@
     gap: 4px
 
     .lab-state-label-icon
-      display: flex
-      flex-direction: row
-      align-items: center
-      gap: 6px
-      width: 120px
-      font-size: 15pt
-      padding: 4px 4px
-      border-radius: 24px
-
-      &.running
-        color: var(--success-color-text)
-        background-color: var(--success-color)
-
-        i
-          color: var(--success-color)
-          background-color: var(--success-color-text)
-
-      &.failed
-        color: var(--danger-color-text)
-        background-color: var(--danger-color)
-
-        i
-          color: var(--danger-color)
-          background-color: var(--danger-color-text)
-
-      &.scheduled
-        color: var(--info-color-text)
-        background-color: var(--info-color)
-
-        i
-          color: var(--info-color)
-          background-color: var(--info-color-text)
-
-      &.deploying
-        color: var(--warning-color-text)
-        background-color: var(--warning-color)
-
-        i
-          color: var(--warning-color)
-          background-color: var(--warning-color-text)
-
-      &.done
-        color: var(--neutral-color-text)
-        background-color: var(--neutral-color)
-
-        i
-          color: var(--neutral-color)
-          background-color: var(--neutral-color-text)
-
-      i
-        background-color: var(--primary-color-text)
-        border-radius: 16px
-
-      span
-        font-size: 11pt
-
-    .pi
-      font-size: 12pt
-      padding: 5px
-      align-content: center
+      width: 130px
 
     .lab-state-date
       color: var(--primary-color-text)
       display: flex
       align-items: center
       font-size: 10pt
-    //  padding: 4px
-    //  flex-grow: 1
-    //  margin-left: 10px
-    //  border-radius: 4px
-    //  color: var(--primary-color-text)
-    //  position: relative
-    //  filter: brightness(1) contrast(0.9)
-    //  align-self: center
-    //
-    //  &::before
-    //    content: ""
-    //    position: absolute
-    //    top: 0
-    //    bottom: 0
-    //    right: 0
-    //    left: 0
-    //    z-index: -1
-    //    border-radius: 3px
-    //    filter: brightness(0.5) contrast(0.9)
+
+      span
+        padding-left: 4px
 
 .dialog-header
   display: flex

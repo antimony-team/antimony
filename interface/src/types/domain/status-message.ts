@@ -3,8 +3,8 @@ import {uuid4} from '@sb/types/types';
 export interface StatusMessageOut {
   id: uuid4;
   timestamp: string;
-  summary: string;
-  detail: string;
+  source: string;
+  content: string;
   severity: Severity;
 }
 
@@ -12,8 +12,8 @@ export type StatusMessage = {
   id: uuid4;
   isRead: boolean;
   timestamp: Date;
-  summary: string;
-  detail: string;
+  source: string;
+  content: string;
   severity: Severity;
 };
 

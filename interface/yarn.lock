@@ -1841,6 +1841,13 @@
   dependencies:
     "@types/react" "*"
 
+"@types/react-highlight@^0.12.8":
+  version "0.12.8"
+  resolved "https://registry.yarnpkg.com/@types/react-highlight/-/react-highlight-0.12.8.tgz#46476e6ae60f21a60f5b1fd1954944c63f4b23d9"
+  integrity sha512-V7O7zwXUw8WSPd//YUO8sz489J/EeobJljASGhP0rClrvq+1Y1qWEpToGu+Pp7YuChxhAXSgkLkrOYpZX5A62g==
+  dependencies:
+    "@types/react" "*"
+
 "@types/react-tooltip@^4.2.4":
   version "4.2.4"
   resolved "https://registry.yarnpkg.com/@types/react-tooltip/-/react-tooltip-4.2.4.tgz#d0acad2a3061806e10aab91dd26a95a77fd35125"
@@ -4686,6 +4693,21 @@ he@^1.2.0:
   resolved "https://registry.yarnpkg.com/he/-/he-1.2.0.tgz#84ae65fa7eafb165fddb61566ae14baf05664f0f"
   integrity sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==
 
+highlight.js@^10.5.0:
+  version "10.7.3"
+  resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-10.7.3.tgz#697272e3991356e40c3cac566a74eef681756531"
+  integrity sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==
+
+highlight.js@^11.11.1:
+  version "11.11.1"
+  resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-11.11.1.tgz#fca06fa0e5aeecf6c4d437239135fabc15213585"
+  integrity sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==
+
+highlightjs-line-numbers.js@^2.9.0:
+  version "2.9.0"
+  resolved "https://registry.yarnpkg.com/highlightjs-line-numbers.js/-/highlightjs-line-numbers.js-2.9.0.tgz#82ed21889e3087f3f08cb4d32f87e2e165b2df7c"
+  integrity sha512-hMYK5VU+Qi0HmkkdZxamV71ALu9Hq2icQk2WP8OX5q7IPMilSv47ILlJu+fBvxAQdhjW6wONnSQeypsbeRM7WQ==
+
 hoist-non-react-statics@^3.3.0, hoist-non-react-statics@^3.3.2:
   version "3.3.2"
   resolved "https://registry.yarnpkg.com/hoist-non-react-statics/-/hoist-non-react-statics-3.3.2.tgz#ece0acaf71d62c2969c2ec59feff42a4b1a85b45"
@@ -6771,6 +6793,13 @@ react-graph-vis@^1.0.7:
     uuid "^2.0.1"
     vis-data "^7.1.2"
     vis-network "^9.0.0"
+
+react-highlight@^0.15.0:
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/react-highlight/-/react-highlight-0.15.0.tgz#66749d01969853327d499959558f9468330cd9d8"
+  integrity sha512-5uV/b/N4Z421GSVVe05fz+OfTsJtFzx/fJBdafZyw4LS70XjIZwgEx3Lrkfc01W/RzZ2Dtfb0DApoaJFAIKBtA==
+  dependencies:
+    highlight.js "^10.5.0"
 
 react-is@^16.13.1, react-is@^16.7.0:
   version "16.13.1"
