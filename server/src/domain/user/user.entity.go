@@ -13,7 +13,7 @@ type User struct {
 
 type UserOut struct {
 	ID   string `json:"id"`
-	Name string `json:"Name"`
+	Name string `json:"name"`
 }
 
 type CredentialsIn struct {

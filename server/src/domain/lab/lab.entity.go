@@ -57,13 +57,14 @@ type Instance struct {
 }
 
 type InstanceNode struct {
-	Name   string               `json:"name"`
-	IPv4   string               `json:"ipv4"`
-	IPv6   string               `json:"ipv6"`
-	Port   int                  `json:"port"`
-	User   string               `json:"user"`
-	WebSSH string               `json:"webSSH"`
-	State  deployment.NodeState `json:"state"`
+	Name        string               `json:"name"`
+	IPv4        string               `json:"ipv4"`
+	IPv6        string               `json:"ipv6"`
+	Port        int                  `json:"port"`
+	User        string               `json:"user"`
+	WebSSH      string               `json:"webSSH"`
+	ContainerId string               `json:"containerId"`
+	State       deployment.NodeState `json:"state"`
 }
 
 type InstanceState int

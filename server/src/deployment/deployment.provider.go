@@ -30,7 +30,7 @@ type InspectContainer struct {
 	LabName     string    `json:"lab_name"`
 	LabPath     string    `json:"labPath"`
 	Name        string    `json:"name"`
-	ContainerId string    `json:"containerId"`
+	ContainerId string    `json:"container_id"`
 	Image       string    `json:"image"`
 	Kind        string    `json:"kind"`
 	State       NodeState `json:"state"`

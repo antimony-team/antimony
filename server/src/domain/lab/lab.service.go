@@ -116,6 +116,16 @@ func (s *labService) deployLab(lab Lab) {
 				} else {
 					log.Infof("[SCHEDULER] Successfully deployed lab %s!", lab.Name)
 					s.runningInstances[lab.UUID].Nodes = s.parseInspectOutput(*output)
+					for _, container := range output.Containers {
+						containerLogNamespace := socket.CreateNamespace[string](
+							s.socketManager, false, true, "logs", lab.UUID, container.ContainerId,
+						)
+						err := s.deploymentProvider.StreamContainerLogs(ctx, container.ContainerId, containerLogNamespace.Send)
+						if err != nil {
+							log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
+						}
+					}
+
 					s.UpdateInstanceState(lab, InstanceStates.Running)
 
 					s.statusMessageNamespace.Send(statusMessage.Success(
@@ -138,12 +148,13 @@ func (s *labService) createInstance() *Instance {
 func (s *labService) parseInspectOutput(info deployment.InspectOutput) []InstanceNode {
 	return lo.Map(info.Containers, func(container deployment.InspectContainer, index int) InstanceNode {
 		return InstanceNode{
-			Name:  container.Name,
-			User:  "ins",
-			Port:  50005,
-			IPv4:  container.IPv4Address,
-			IPv6:  container.IPv6Address,
-			State: container.State,
+			Name:        container.Name,
+			User:        "ins",
+			Port:        50005,
+			IPv4:        container.IPv4Address,
+			IPv6:        container.IPv6Address,
+			State:       container.State,
+			ContainerId: container.ContainerId,
 		}
 	})
 }
