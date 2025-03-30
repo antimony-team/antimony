@@ -8,37 +8,37 @@ import (
 
 type StatusMessage struct {
 	ID        string         `json:"id"`
-	Summary   string         `json:"summary"`
-	Detail    string         `json:"detail"`
+	Source    string         `json:"source"`
+	Content   string         `json:"content"`
 	Timestamp time.Time      `json:"timestamp"`
 	Severity  types.Severity `json:"severity"`
 }
 
-func Success(summary string, detail string) StatusMessage {
-	return newStatusMessage(summary, detail, types.Success)
+func Success(source string, content string) StatusMessage {
+	return newStatusMessage(source, content, types.Success)
 }
 
-func Info(summary string, detail string) StatusMessage {
-	return newStatusMessage(summary, detail, types.Info)
+func Info(source string, content string) StatusMessage {
+	return newStatusMessage(source, content, types.Info)
 }
 
-func Warning(summary string, detail string) StatusMessage {
-	return newStatusMessage(summary, detail, types.Warning)
+func Warning(source string, content string) StatusMessage {
+	return newStatusMessage(source, content, types.Warning)
 }
 
-func Error(summary string, detail string) StatusMessage {
-	return newStatusMessage(summary, detail, types.Error)
+func Error(source string, content string) StatusMessage {
+	return newStatusMessage(source, content, types.Error)
 }
 
-func Fatal(summary string, detail string) StatusMessage {
-	return newStatusMessage(summary, detail, types.Fatal)
+func Fatal(source string, content string) StatusMessage {
+	return newStatusMessage(source, content, types.Fatal)
 }
 
-func newStatusMessage(summary string, detail string, severity types.Severity) StatusMessage {
+func newStatusMessage(source string, content string, severity types.Severity) StatusMessage {
 	return StatusMessage{
 		ID:        utils.GenerateUuid(),
-		Summary:   summary,
-		Detail:    detail,
+		Source:    source,
+		Content:   content,
 		Severity:  severity,
 		Timestamp: time.Now(),
 	}

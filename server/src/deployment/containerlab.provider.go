@@ -2,7 +2,9 @@ package deployment
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -16,36 +18,48 @@ func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile, "--reconfigure")
-	return runClabCommand(cmd, "Deploy", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) Redeploy(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
-	return runClabCommand(cmd, "Redeploy", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) Destroy(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
-	return runClabCommand(cmd, "Destroy", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 func (p *ContainerlabProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-	onData func(data string),
-) error {
+	onDone func(output *InspectOutput, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
-	return runClabCommand(cmd, "Inspect", onLog, onData)
+	runClabCommand(cmd, onLog, func(output *string, err error) {
+		if err != nil {
+			onDone(nil, err)
+			return
+		}
+		
+		var inspectOutput InspectOutput
+		err = json.Unmarshal([]byte(*output), &inspectOutput)
+		onDone(&inspectOutput, err)
+	})
 }
 
 func (p *ContainerlabProvider) Exec(
@@ -53,9 +67,10 @@ func (p *ContainerlabProvider) Exec(
 	topologyFile string,
 	content string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "exec", "-t", topologyFile, "--cmd", content)
-	return runClabCommand(cmd, "Exec", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) ExecOnNode(
@@ -64,18 +79,20 @@ func (p *ContainerlabProvider) ExecOnNode(
 	content string,
 	nodeLabel string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "exec", "-t", topologyFile, "--cmd", content, "--label", nodeLabel)
-	return runClabCommand(cmd, "ExecOnNode", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) Save(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "save", "-t", topologyFile)
-	return runClabCommand(cmd, "Save", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) SaveOnNode(
@@ -83,9 +100,10 @@ func (p *ContainerlabProvider) SaveOnNode(
 	topologyFile string,
 	nodeName string,
 	onLog func(data string),
-) error {
+	onDone func(output *string, err error),
+) {
 	cmd := exec.CommandContext(ctx, "containerlab", "save", "-t", topologyFile, "--label", nodeName)
-	return runClabCommand(cmd, "SaveOnNode", onLog, nil)
+	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) StreamContainerLogs(
@@ -110,33 +128,35 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 		return err
 	}
 
-	go readOutput(out, onLog)
+	go streamOutput(out, onLog)
 	return nil
 }
 
-func runClabCommand(cmd *exec.Cmd, operationName string, onLog func(data string), onData func(data string)) error {
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Errorf("Failed to read stdout from clab subprocess: %s", err.Error())
-		return err
-	}
+func runClabCommand(cmd *exec.Cmd, onLog func(data string), onDone func(output *string, err error)) {
+	var outputBuffer bytes.Buffer
+	cmd.Stdout = &outputBuffer
+
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		log.Errorf("Failed to read stderr from clab subprocess: %s", err.Error())
-		return err
+		onDone(nil, err)
+		return
 	}
 
 	if err := cmd.Start(); err != nil {
-		return err
+		onDone(nil, err)
+		return
 	}
 
-	go readOutput(stdout, onData)
-	go readOutput(stderr, onLog)
+	go streamOutput(stderr, onLog)
 
-	return cmd.Wait()
+	err = cmd.Wait()
+	outputData := outputBuffer.String()
+
+	onDone(&outputData, err)
 }
 
-func readOutput(pipe io.Reader, onLog func(data string)) {
+func streamOutput(pipe io.Reader, onLog func(data string)) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
 		onLog(scanner.Text())

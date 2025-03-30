@@ -117,7 +117,32 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	writeBindFile(topology1Uuid, "leaf01/interfaces", "", storage)
 	writeBindFile(topology1Uuid, "leaf01/daemons", "", storage)
 	writeBindFile(topology1Uuid, "leaf01/frr.conf", "", storage)
+
+	topology2Uuid := utils.GenerateUuid()
+	topology2 := topology.Topology{
+		UUID:         topology2Uuid,
+		Name:         "test1",
+		GitSourceUrl: "",
+		Collection:   collection1,
+		Creator:      user1,
+	}
+	db.Create(&topology2)
+	writeTopologyFile(topology2Uuid, test1, storage)
 }
+
+const test1 = `name: test1
+topology:
+  nodes:
+    node1:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux
+
+    node2:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux
+
+  links:
+    - endpoints: ["node1:e1-1", "node2:e1-1"]`
 
 const cvx03 = `name: ctd # Cumulus Linux Test Drive
 topology:

@@ -5,7 +5,6 @@ import (
 	"antimonyBackend/config"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/device"
-	"antimonyBackend/domain/instance"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/statusMessage"
@@ -50,11 +49,9 @@ func main() {
 
 	socketManager := socket.CreateSocketManager(authManager)
 
-	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](socketManager, false, "status-messages")
+	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](socketManager, false, false, "status-messages")
 
 	var (
-		instanceService = instance.CreateService(antimonyConfig)
-
 		devicesService = device.CreateService(antimonyConfig)
 		devicesHandler = device.CreateHandler(devicesService)
 
@@ -74,7 +71,7 @@ func main() {
 		topologyHandler    = topology.CreateHandler(topologyService)
 
 		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(labRepository, userRepository, topologyRepository, instanceService, socketManager, statusMessageNamespace)
+		labService    = lab.CreateService(labRepository, userRepository, topologyRepository, socketManager, statusMessageNamespace)
 		labHandler    = lab.CreateHandler(labService)
 	)
 
@@ -91,7 +88,7 @@ func main() {
 	topology.RegisterRoutes(webServer, topologyHandler, authManager)
 	collection.RegisterRoutes(webServer, collectionHandler, authManager)
 
-	// Register Socket.IO endpoints
+	// Register Socket.IO endpoints in web server
 	c := socketio.DefaultServerOptions()
 	webServer.GET("/socket.io/*any", gin.WrapH(socketManager.Server().ServeHandler(c)))
 	webServer.POST("/socket.io/*any", gin.WrapH(socketManager.Server().ServeHandler(c)))

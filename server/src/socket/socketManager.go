@@ -2,7 +2,6 @@ package socket
 
 import (
 	"antimonyBackend/auth"
-	"github.com/charmbracelet/log"
 	"github.com/zishang520/socket.io/socket"
 )
 
@@ -11,7 +10,7 @@ type (
 	SocketManager interface {
 		// Server A reference to the underlying socket.io server.
 		Server() *socket.Server
-		
+
 		// GetAuthUser Returns an auth user by access token. This can be used by namespace managers to identify
 		// an authenticated user sending a message or connecting to a namespace for the first time.
 		GetAuthUser(accessToken string) *auth.AuthenticatedUser
@@ -53,14 +52,12 @@ func (m *socketManager) Server() *socket.Server {
 func (m *socketManager) SocketAuthenticatorMiddleware(s *socket.Socket, next func(*socket.ExtendedError)) {
 	accessToken, ok := s.Handshake().Auth.(map[string]any)["token"].(string)
 	if !ok {
-		log.Errorf("Invalid socket connection. Ignoring.")
 		next(socket.NewExtendedError("Unauthorized", nil))
 		return
 	}
 
 	authUser, err := m.authManager.AuthenticateUser(accessToken)
 	if err != nil {
-		log.Errorf("Invalid socket connection. Ignoring.")
 		next(socket.NewExtendedError("Invalid Token", nil))
 		return
 	}

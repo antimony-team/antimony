@@ -33,21 +33,25 @@ type (
 		// A map of all connected authenticated clients indexed by their user ID
 		connectedClientsMap  map[string]*SocketConnectedUser
 		connectedClientsLock *sync.Mutex
-		messages             []T
-		messagesLock         *sync.Mutex
-		isAnonymous          bool
+
+		// The backlog of previously sent messages
+		backlog     []T
+		backlogLock *sync.Mutex
+		isAnonymous bool
+		useBacklog  bool
 	}
 )
 
-func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, namespacePath ...string) NamespaceManager[T] {
-	messages := make([]T, 0)
+func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, useBacklog bool, namespacePath ...string) NamespaceManager[T] {
+	backlog := make([]T, 0)
 	manager := &namespaceManager[T]{
 		connectedClients:     make([]*SocketConnectedUser, 0),
 		connectedClientsMap:  make(map[string]*SocketConnectedUser),
-		messages:             messages,
-		isAnonymous:          isAnonymous,
-		messagesLock:         &sync.Mutex{},
 		connectedClientsLock: &sync.Mutex{},
+		backlog:              backlog,
+		backlogLock:          &sync.Mutex{},
+		isAnonymous:          isAnonymous,
+		useBacklog:           useBacklog,
 	}
 
 	namespaceName := "/" + strings.Join(namespacePath, "/")
@@ -113,8 +117,10 @@ func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, names
 			log.Info("Anonymous user connected to socket namespace", "namespace")
 		}
 
-		// Immediately send backlog of existing messages to user
-		_ = client.Emit("backlog", manager.messages)
+		// Immediately send backlog to user if backlog is used in namespace
+		if useBacklog {
+			_ = client.Emit("backlog", manager.backlog)
+		}
 	})
 
 	return manager
@@ -150,11 +156,12 @@ func (m *namespaceManager[T]) SendToAdmins(msg T) {
 }
 
 func (m *namespaceManager[T]) sendTo(msg T, receivers []*SocketConnectedUser) {
-	m.messagesLock.Lock()
-	m.messages = append(m.messages, msg)
-	m.messagesLock.Unlock()
+	if m.useBacklog {
+		m.backlogLock.Lock()
+		m.backlog = append(m.backlog, msg)
+		m.backlogLock.Unlock()
+	}
 
-	log.Infof("Sending %v to %v", msg, receivers)
 	for _, client := range receivers {
 		if err := client.socket.Emit("data", msg); err != nil {
 			log.Warnf("Failed to emit socket message to client : %s", err.Error())
