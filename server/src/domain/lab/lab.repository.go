@@ -8,9 +8,9 @@ import (
 
 type (
 	Repository interface {
-		GetAll() ([]Lab, error)
+		GetAll(labFilter *LabFilter) ([]Lab, error)
 		GetByUuid(ctx context.Context, labId string) (*Lab, error)
-		GetFromCollections(ctx context.Context, collectionNames []string) ([]Lab, error)
+		GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]Lab, error)
 		Create(ctx context.Context, lab *Lab) error
 		Update(ctx context.Context, lab *Lab) error
 		Delete(ctx context.Context, lab *Lab) error
@@ -27,13 +27,33 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *labRepository) GetAll() ([]Lab, error) {
+func (r *labRepository) GetAll(labFilter *LabFilter) ([]Lab, error) {
 	var labs []Lab
-	result := r.db.
+	query := r.db.
 		Preload("Topology.Collection").
 		Preload("Creator").
-		Order("start_time").
-		Find(&labs)
+		Order("labs.start_time")
+
+	if labFilter != nil {
+		if labFilter.StartDate != nil {
+			query = query.Where("labs.start_time >= ?", labFilter.StartDate)
+		}
+		if labFilter.EndDate != nil {
+			query = query.Where("labs.end_time <= ?", labFilter.EndDate)
+		}
+		if len(labFilter.CollectionFilter) > 0 {
+			query = query.
+				Joins("JOIN topologies ON topologies.id = labs.topology_id").
+				Joins("JOIN collections ON collections.id = topologies.collection_id").
+				Where("collections.uuid IN ?", labFilter.CollectionFilter)
+		}
+		if labFilter.SearchQuery != nil && len(*labFilter.SearchQuery) > 0 {
+			query = query.
+				Where("labs.name LIKE ?", "%"+*labFilter.SearchQuery+"%")
+		}
+		query = query.Limit(labFilter.Limit).Offset(labFilter.Offset)
+	}
+	result := query.Find(&labs)
 
 	return labs, result.Error
 }
@@ -54,7 +74,7 @@ func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, erro
 	return &lab, result.Error
 }
 
-func (r *labRepository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Lab, error) {
+func (r *labRepository) GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]Lab, error) {
 	var labs []Lab
 	result := r.db.WithContext(ctx).
 		Joins("JOIN topologies ON topologies.id = labs.topology_id").

@@ -21,7 +21,9 @@ import (
 
 type (
 	Service interface {
-		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]LabOut, error)
+		// RunScheduler Starts looping through all scheduled labs and waits to deploy them
+		RunScheduler()
+		Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]LabOut, error)
 		Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error)
 		Update(ctx *gin.Context, req LabIn, labId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error
@@ -48,7 +50,7 @@ func CreateService(
 	socketManager socket.SocketManager,
 	statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage],
 ) Service {
-	labSchedule, err := labRepo.GetAll()
+	labSchedule, err := labRepo.GetAll(nil)
 	if err != nil {
 		log.Fatal("Failed to load scheduled labs from database. Exiting.")
 	}
@@ -65,8 +67,6 @@ func CreateService(
 		labUpdatesNamespace:    socket.CreateNamespace[string](socketManager, false, false, "lab-updates"),
 		statusMessageNamespace: statusMessageNamespace,
 	}
-
-	go labService.RunScheduler()
 
 	return labService
 }
@@ -85,106 +85,34 @@ func (s *labService) RunScheduler() {
 	}
 }
 
-func (s *labService) deployLab(lab Lab) {
-	topologyFile := fmt.Sprintf("storage/%s/topology.clab.yaml", lab.Topology.UUID)
-
-	log.Infof("[SCHEDULER] Deploying topology %s (%s)", lab.Name, lab.Topology.Name)
-	s.statusMessageNamespace.Send(statusMessage.Info(
-		"Lab Scheduler", fmt.Sprintf("Deploying topology %s (%s)", lab.Name, lab.Topology.Name),
-	))
-
-	s.runningInstances[lab.UUID] = s.createInstance()
-
-	logNamespace := socket.CreateNamespace[string](s.socketManager, false, true, "logs", lab.UUID)
-	s.UpdateInstanceState(lab, InstanceStates.Deploying)
-
-	ctx := context.Background()
-	go s.deploymentProvider.Deploy(ctx, topologyFile, logNamespace.Send, func(_ *string, err error) {
-		if err != nil {
-			log.Infof("[SCHEDULER] Failed to deploy lab %s: %s", lab.Name, err.Error())
-			s.statusMessageNamespace.Send(statusMessage.Error(
-				"Lab Scheduler", fmt.Sprintf("Failed to deploy lab %s: %s", lab.Name, err.Error()),
-			))
-
-			s.UpdateInstanceState(lab, InstanceStates.Failed)
-		} else {
-			// Fetch and attach lab runtime info and change state to running if successful
-			s.deploymentProvider.Inspect(ctx, topologyFile, logNamespace.Send, func(output *deployment.InspectOutput, err error) {
-				if err != nil {
-					log.Infof("[SCHEDULER] Failed to inspect lab %s: %s", lab.Name, err.Error())
-					s.UpdateInstanceState(lab, InstanceStates.Failed)
-				} else {
-					log.Infof("[SCHEDULER] Successfully deployed lab %s!", lab.Name)
-					s.runningInstances[lab.UUID].Nodes = s.parseInspectOutput(*output)
-					for _, container := range output.Containers {
-						containerLogNamespace := socket.CreateNamespace[string](
-							s.socketManager, false, true, "logs", lab.UUID, container.ContainerId,
-						)
-						err := s.deploymentProvider.StreamContainerLogs(ctx, container.ContainerId, containerLogNamespace.Send)
-						if err != nil {
-							log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
-						}
-					}
-
-					s.UpdateInstanceState(lab, InstanceStates.Running)
-
-					s.statusMessageNamespace.Send(statusMessage.Success(
-						"Lab Scheduler", fmt.Sprintf("Successfully deployed lab %s!", lab.Name),
-					))
-				}
-			})
-		}
-	})
-}
-
-func (s *labService) createInstance() *Instance {
-	return &Instance{
-		Deployed:          time.Now(),
-		LatestStateChange: time.Now(),
-		State:             InstanceStates.Deploying,
-	}
-}
-
-func (s *labService) parseInspectOutput(info deployment.InspectOutput) []InstanceNode {
-	return lo.Map(info.Containers, func(container deployment.InspectContainer, index int) InstanceNode {
-		return InstanceNode{
-			Name:        container.Name,
-			User:        "ins",
-			Port:        50005,
-			IPv4:        container.IPv4Address,
-			IPv6:        container.IPv6Address,
-			State:       container.State,
-			ContainerId: container.ContainerId,
-		}
-	})
-}
-
-func (s *labService) UpdateInstanceState(lab Lab, state InstanceState) {
-	s.runningInstances[lab.UUID].State = state
-	s.runningInstances[lab.UUID].LatestStateChange = time.Now()
-
-	// Send lab update to namespace so clients can refresh
-	s.labUpdatesNamespace.Send(lab.UUID)
-}
-
-func (s *labService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]LabOut, error) {
+func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]LabOut, error) {
 	var (
 		labs []Lab
 		err  error
 	)
 
 	if authUser.IsAdmin {
-		labs, err = s.labRepo.GetAll()
+		labs, err = s.labRepo.GetAll(&labFilter)
 	} else {
-		labs, err = s.labRepo.GetFromCollections(ctx, authUser.Collections)
+		labs, err = s.labRepo.GetFromCollections(ctx, labFilter, authUser.Collections)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]LabOut, len(labs))
-	for i, lab := range labs {
-		result[i] = LabOut{
+	hasStateFilter := len(labFilter.StateFilter) > 0
+
+	result := make([]LabOut, 0)
+	for _, lab := range labs {
+		instance, hasInstance := s.runningInstances[lab.UUID]
+		if hasStateFilter {
+			// Skip lab if state isn't in state filter
+			if (!hasInstance && !slices.Contains(labFilter.StateFilter, -1)) ||
+				!slices.Contains(labFilter.StateFilter, instance.State) {
+				continue
+			}
+		}
+		result = append(result, LabOut{
 			ID:           lab.UUID,
 			Name:         lab.Name,
 			StartTime:    lab.StartTime,
@@ -192,8 +120,8 @@ func (s *labService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]L
 			TopologyId:   lab.Topology.UUID,
 			CollectionId: lab.Topology.Collection.UUID,
 			Creator:      s.userRepo.UserToOut(lab.Creator),
-			Instance:     s.runningInstances[lab.UUID],
-		}
+			Instance:     instance,
+		})
 	}
 
 	return result, err
@@ -302,4 +230,86 @@ func (s *labService) scheduleLab(lab Lab) {
 	s.labSchedule = append(s.labSchedule[:insertIndex+1], s.labSchedule[insertIndex:]...)
 	s.labSchedule[insertIndex] = lab
 	s.labScheduleMutex.Unlock()
+}
+
+func (s *labService) deployLab(lab Lab) {
+	topologyFile := fmt.Sprintf("storage/%s/topology.clab.yaml", lab.Topology.UUID)
+
+	log.Infof("[SCHEDULER] Deploying topology %s (%s)", lab.Name, lab.Topology.Name)
+	s.statusMessageNamespace.Send(statusMessage.Info(
+		"Lab Scheduler", fmt.Sprintf("Deploying topology %s (%s)", lab.Name, lab.Topology.Name),
+	))
+
+	s.runningInstances[lab.UUID] = s.createInstance()
+
+	logNamespace := socket.CreateNamespace[string](s.socketManager, false, true, "logs", lab.UUID)
+	s.updateInstanceState(lab, InstanceStates.Deploying)
+
+	ctx := context.Background()
+	go s.deploymentProvider.Deploy(ctx, topologyFile, logNamespace.Send, func(_ *string, err error) {
+		if err != nil {
+			log.Infof("[SCHEDULER] Failed to deploy lab %s: %s", lab.Name, err.Error())
+			s.statusMessageNamespace.Send(statusMessage.Error(
+				"Lab Scheduler", fmt.Sprintf("Failed to deploy lab %s: %s", lab.Name, err.Error()),
+			))
+
+			s.updateInstanceState(lab, InstanceStates.Failed)
+		} else {
+			// Fetch and attach lab runtime info and change state to running if successful
+			s.deploymentProvider.Inspect(ctx, topologyFile, logNamespace.Send, func(output *deployment.InspectOutput, err error) {
+				if err != nil {
+					log.Infof("[SCHEDULER] Failed to inspect lab %s: %s", lab.Name, err.Error())
+					s.updateInstanceState(lab, InstanceStates.Failed)
+				} else {
+					log.Infof("[SCHEDULER] Successfully deployed lab %s!", lab.Name)
+					s.runningInstances[lab.UUID].Nodes = s.parseInspectOutput(*output)
+					for _, container := range output.Containers {
+						containerLogNamespace := socket.CreateNamespace[string](
+							s.socketManager, false, true, "logs", lab.UUID, container.ContainerId,
+						)
+						err := s.deploymentProvider.StreamContainerLogs(ctx, container.ContainerId, containerLogNamespace.Send)
+						if err != nil {
+							log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
+						}
+					}
+
+					s.updateInstanceState(lab, InstanceStates.Running)
+
+					s.statusMessageNamespace.Send(statusMessage.Success(
+						"Lab Scheduler", fmt.Sprintf("Successfully deployed lab %s!", lab.Name),
+					))
+				}
+			})
+		}
+	})
+}
+
+func (s *labService) createInstance() *Instance {
+	return &Instance{
+		Deployed:          time.Now(),
+		LatestStateChange: time.Now(),
+		State:             InstanceStates.Deploying,
+	}
+}
+
+func (s *labService) parseInspectOutput(info deployment.InspectOutput) []InstanceNode {
+	return lo.Map(info.Containers, func(container deployment.InspectContainer, index int) InstanceNode {
+		return InstanceNode{
+			Name:        container.Name,
+			User:        "ins",
+			Port:        50005,
+			IPv4:        container.IPv4Address,
+			IPv6:        container.IPv6Address,
+			State:       container.State,
+			ContainerId: container.ContainerId,
+		}
+	})
+}
+
+func (s *labService) updateInstanceState(lab Lab, state InstanceState) {
+	s.runningInstances[lab.UUID].State = state
+	s.runningInstances[lab.UUID].LatestStateChange = time.Now()
+
+	// Send lab update to namespace so clients can refresh
+	s.labUpdatesNamespace.Send(lab.UUID)
 }

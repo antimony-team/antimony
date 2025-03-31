@@ -39,13 +39,13 @@ type LabOut struct {
 }
 
 type LabFilter struct {
-	Limit            int
-	Offset           int
-	SearchQuery      string
-	StartDate        time.Time
-	EndDate          time.Time
-	StateFilter      []InstanceState
-	CollectionFilter []string
+	Limit            int             `form:"limit"`
+	Offset           int             `form:"offset"`
+	SearchQuery      *string         `form:"searchQuery"`
+	StartDate        *time.Time      `form:"startDate"`
+	EndDate          *time.Time      `form:"endDate"`
+	StateFilter      []InstanceState `form:"stateFilter[]"`
+	CollectionFilter []string        `form:"collectionFilter[]"`
 }
 
 type Instance struct {

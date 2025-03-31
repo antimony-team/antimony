@@ -75,6 +75,9 @@ func main() {
 		labHandler    = lab.CreateHandler(labService)
 	)
 
+	// Run lab scheduler in goroutine
+	go labService.RunScheduler()
+
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
 

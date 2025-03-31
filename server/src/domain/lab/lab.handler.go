@@ -27,7 +27,13 @@ func CreateHandler(labService Service) Handler {
 
 func (h *labHandler) Get(ctx *gin.Context) {
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	result, err := h.labService.Get(ctx, authUser)
+	var labFilter LabFilter
+	if err := ctx.BindQuery(&labFilter); err != nil {
+		ctx.JSON(utils.ErrorResponse(err))
+		return
+	}
+
+	result, err := h.labService.Get(ctx, labFilter, authUser)
 	if err != nil {
 		ctx.JSON(utils.ErrorResponse(err))
 		return
