@@ -48,8 +48,14 @@ func (r *labRepository) GetAll(labFilter *LabFilter) ([]Lab, error) {
 				Where("collections.uuid IN ?", labFilter.CollectionFilter)
 		}
 		if labFilter.SearchQuery != nil && len(*labFilter.SearchQuery) > 0 {
+			matchQuery := "%" + *labFilter.SearchQuery + "%"
 			query = query.
-				Where("labs.name LIKE ?", "%"+*labFilter.SearchQuery+"%")
+				Joins("JOIN topologies ON topologies.id = labs.topology_id").
+				Joins("JOIN collections ON collections.id = topologies.collection_id").
+				Where(
+					"labs.name LIKE ? OR topologies.name LIKE ? OR collections.name LIKE ?",
+					matchQuery, matchQuery, matchQuery,
+				)
 		}
 		query = query.Limit(labFilter.Limit).Offset(labFilter.Offset)
 	}

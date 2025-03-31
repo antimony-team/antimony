@@ -8,11 +8,11 @@ import (
 
 type (
 	AntimonyConfig struct {
-		Containerlab clabConfig
-		Storage      storageConfig
-		Server       serverConfig
-		Database     databaseConfig
-		Auth         authConfig
+		Containerlab clabConfig       `yaml:"containerlab"`
+		FileSystem   filesystemConfig `yaml:"fileSystem"`
+		Server       serverConfig     `yaml:"server"`
+		Database     databaseConfig   `yaml:"database"`
+		Auth         authConfig       `yaml:"auth"`
 	}
 
 	clabConfig struct {
@@ -21,8 +21,9 @@ type (
 		DeviceConfig   string `yaml:"deviceConfig"`
 	}
 
-	storageConfig struct {
-		Directory string `yaml:"directory"`
+	filesystemConfig struct {
+		Storage string `yaml:"storage"`
+		Run     string `yaml:"run"`
 	}
 
 	serverConfig struct {
@@ -65,8 +66,9 @@ func Load(fileName string) *AntimonyConfig {
 
 func defaultConfig() *AntimonyConfig {
 	return &AntimonyConfig{
-		Storage: storageConfig{
-			Directory: "./storage/",
+		FileSystem: filesystemConfig{
+			Storage: "./storage/",
+			Run:     "./run/",
 		},
 		Server: serverConfig{
 			Host: "127.0.0.1",

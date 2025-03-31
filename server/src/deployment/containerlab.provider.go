@@ -20,7 +20,7 @@ func (p *ContainerlabProvider) Deploy(
 	onLog func(data string),
 	onDone func(output *string, err error),
 ) {
-	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile, "--reconfigure")
+	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile, "--log-level", "debug")
 	runClabCommand(cmd, onLog, onDone)
 }
 
@@ -55,11 +55,36 @@ func (p *ContainerlabProvider) Inspect(
 			onDone(nil, err)
 			return
 		}
-		
+
+		if *output == "" {
+			onDone(&InspectOutput{
+				Containers: []InspectContainer{},
+			}, nil)
+		}
+
 		var inspectOutput InspectOutput
 		err = json.Unmarshal([]byte(*output), &inspectOutput)
 		onDone(&inspectOutput, err)
 	})
+}
+
+func (p *ContainerlabProvider) InspectAll(
+	ctx context.Context,
+) (*InspectOutput, error) {
+	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
+	if output, err := runClabCommandSync(cmd); err != nil {
+		return nil, err
+	} else {
+		if *output == "" {
+			return &InspectOutput{
+				Containers: []InspectContainer{},
+			}, nil
+		}
+
+		var inspectOutput InspectOutput
+		err = json.Unmarshal([]byte(*output), &inspectOutput)
+		return &inspectOutput, err
+	}
 }
 
 func (p *ContainerlabProvider) Exec(
@@ -130,6 +155,15 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 
 	go streamOutput(out, onLog)
 	return nil
+}
+
+func runClabCommandSync(cmd *exec.Cmd) (*string, error) {
+	var outputBuffer bytes.Buffer
+	cmd.Stdout = &outputBuffer
+
+	err := cmd.Run()
+	outputData := outputBuffer.String()
+	return &outputData, err
 }
 
 func runClabCommand(cmd *exec.Cmd, onLog func(data string), onDone func(output *string, err error)) {

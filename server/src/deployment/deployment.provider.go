@@ -3,14 +3,10 @@ package deployment
 import "context"
 
 type DeploymentProvider interface {
-	// Deploy Deploys a lab
 	Deploy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
-
-	// Destroy Destroys a lab
 	Destroy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
-
-	// Inspect Returns inspect information for the lab
 	Inspect(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *InspectOutput, err error))
+	InspectAll(ctx context.Context) (*InspectOutput, error)
 
 	// Redeploy Destroys the lab and redeploys it
 	Redeploy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))

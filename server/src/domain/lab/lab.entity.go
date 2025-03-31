@@ -10,14 +10,15 @@ import (
 
 type Lab struct {
 	gorm.Model
-	UUID       string    `gorm:"uniqueIndex;not null"`
-	Name       string    `gorm:"index;not null"`
-	StartTime  time.Time `gorm:"index;not null"`
-	EndTime    time.Time `gorm:"index;not null"`
-	Topology   topology.Topology
-	TopologyID uint `gorm:"not null"`
-	Creator    user.User
-	CreatorID  uint `gorm:"not null"`
+	UUID         string    `gorm:"uniqueIndex;not null"`
+	Name         string    `gorm:"index;not null"`
+	StartTime    time.Time `gorm:"index;not null"`
+	EndTime      time.Time `gorm:"index;not null"`
+	Topology     topology.Topology
+	TopologyID   uint `gorm:"not null"`
+	Creator      user.User
+	CreatorID    uint    `gorm:"not null"`
+	InstanceName *string `gotm:"uniqueIndex"`
 }
 
 type LabIn struct {
@@ -71,10 +72,16 @@ type InstanceState int
 
 const (
 	deploying InstanceState = iota
-	stopping
 	running
+	stopping
 	failed
-	inactive
+
+	// Pseudo-states that are defined by the absence of an Instance in a Lab.
+	//
+	// Lab has no Instance and the Lab.StartTime is in the past -> Inactive.
+	// Lab has no Instance and the Lab.StartTime is in the future -> Scheduled.
+	inactive  InstanceState = -1
+	scheduled InstanceState = -2
 )
 
 var InstanceStates = struct {
@@ -82,12 +89,14 @@ var InstanceStates = struct {
 	Stopping  InstanceState
 	Running   InstanceState
 	Failed    InstanceState
+	Scheduled InstanceState
 	Inactive  InstanceState
 }{
 	Deploying: deploying,
 	Stopping:  stopping,
 	Running:   running,
 	Failed:    failed,
+	Scheduled: scheduled,
 	Inactive:  inactive,
 }
 

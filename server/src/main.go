@@ -12,7 +12,6 @@ import (
 	"antimonyBackend/domain/user"
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
-	"antimonyBackend/test"
 	"antimonyBackend/utils"
 	"fmt"
 	"github.com/charmbracelet/log"
@@ -45,7 +44,7 @@ func main() {
 	storageManager := storage.CreateStorageManager(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
-	test.GenerateTestData(db, storageManager)
+	//test.GenerateTestData(db, storageManager)
 
 	socketManager := socket.CreateSocketManager(authManager)
 
@@ -67,12 +66,18 @@ func main() {
 		collectionHandler    = collection.CreateHandler(collectionService)
 
 		topologyRepository = topology.CreateRepository(db)
-		topologyService    = topology.CreateService(topologyRepository, userRepository, collectionRepository, storageManager, schemaService.Get())
-		topologyHandler    = topology.CreateHandler(topologyService)
+		topologyService    = topology.CreateService(
+			topologyRepository, userRepository, collectionRepository,
+			storageManager, schemaService.Get(),
+		)
+		topologyHandler = topology.CreateHandler(topologyService)
 
 		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(labRepository, userRepository, topologyRepository, socketManager, statusMessageNamespace)
-		labHandler    = lab.CreateHandler(labService)
+		labService    = lab.CreateService(
+			labRepository, userRepository, topologyRepository,
+			storageManager, socketManager, statusMessageNamespace,
+		)
+		labHandler = lab.CreateHandler(labService)
 	)
 
 	// Run lab scheduler in goroutine

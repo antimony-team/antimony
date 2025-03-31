@@ -6,13 +6,18 @@ vars:
   GREETING: Hello, World!
 
 tasks:
+  clean:
+    dir: './build'
+    cmds:
+      - sudo rm -rf ./run/
+      - sudo rm -rf ./storage/
+
   build:
     dir: './src'
     cmds:
       - go build -o ../build/antimonyServer ./main.go
       - cp -r ../data/ ../build/
       - cp ../test/config.test.yml ../build/config.yml
-
 
   run:
     dir: './build'

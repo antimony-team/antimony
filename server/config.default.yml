@@ -26,10 +26,13 @@ database:
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
   localFile: ./antimony.db
-storage:
+filesystem:
   # Topology definition and metadata files will be stored in this directory.
   # Default: ./storage/
-  directory: ./storage/
+  storage: ./storage/
+  # Runtime lab files will be stored in this directory.
+  # Default: ./run/
+  run: ./run/
 containerlab:
   # Default: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
   schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json

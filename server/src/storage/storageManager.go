@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/utils"
 	"fmt"
 	"github.com/charmbracelet/log"
+	cp "github.com/otiai10/copy"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,63 +20,105 @@ type (
 		ReadBindFile(topologyId string, filePath string, content *string) error
 		WriteBindFile(topologyId string, filePath string, content string) error
 		DeleteBindFile(topologyId string, filePath string) error
+
+		CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error
 	}
 
 	storageManager struct {
 		storagePath    string
+		runPath        string
 		fileCache      map[string]string
 		fileCacheMutex *sync.Mutex
+		copyOptions    cp.Options
 	}
 )
 
 func CreateStorageManager(config *config.AntimonyConfig) StorageManager {
 	storageManager := &storageManager{
-		storagePath:    config.Storage.Directory,
+		storagePath:    config.FileSystem.Storage,
+		runPath:        config.FileSystem.Run,
 		fileCache:      make(map[string]string),
 		fileCacheMutex: &sync.Mutex{},
+		copyOptions: cp.Options{
+			Sync: true,
+		},
 	}
 
+	storageManager.setupDirectories()
 	//storageManager.preloadFiles(config)
 
 	return storageManager
 }
 
+func (s *storageManager) CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error {
+	absoluteStoragePath := filepath.Join(s.storagePath, topologyId)
+	absoluteRunPath := filepath.Join(s.runPath, labId)
+
+	if err := cp.Copy(absoluteStoragePath, absoluteRunPath, s.copyOptions); err != nil {
+		log.Errorf("Failed to create run directory for lab: %s", err.Error())
+		return err
+	}
+
+	runDefinitionPath := getRunDefinitionFilePath(labId)
+	if err := s.writeRun(runDefinitionPath, topologyDefinition); err != nil {
+		log.Errorf("Failed to write run definition for lab: %s", err.Error())
+		return err
+	}
+
+	*topologyFilePath = filepath.Join(s.runPath, runDefinitionPath)
+	return nil
+}
+
 func (s *storageManager) ReadTopology(topologyId string, content *string) error {
-	return s.read(getDefinitionFilePath(topologyId), content)
+	return s.readStorage(getDefinitionFilePath(topologyId), content)
 }
 
 func (s *storageManager) WriteTopology(topologyId string, content string) error {
-	return s.write(getDefinitionFilePath(topologyId), content)
+	return s.writeStorage(getDefinitionFilePath(topologyId), content)
 }
 
 func (s *storageManager) ReadMetadata(topologyId string, content *string) error {
-	return s.read(getMetadataFilePath(topologyId), content)
+	return s.readStorage(getMetadataFilePath(topologyId), content)
 }
 
 func (s *storageManager) WriteMetadata(topologyId string, content string) error {
-	return s.write(getMetadataFilePath(topologyId), content)
+	return s.writeStorage(getMetadataFilePath(topologyId), content)
 }
 
 func (s *storageManager) ReadBindFile(topologyId string, filePath string, content *string) error {
-	return s.read(getBindFilePath(topologyId, filePath), content)
+	return s.readStorage(getBindFilePath(topologyId, filePath), content)
 }
 
 func (s *storageManager) WriteBindFile(topologyId string, filePath string, content string) error {
-	return s.write(getBindFilePath(topologyId, filePath), content)
+	return s.writeStorage(getBindFilePath(topologyId, filePath), content)
 }
 
 func (s *storageManager) DeleteBindFile(topologyId string, filePath string) error {
-	return s.delete(getBindFilePath(topologyId, filePath))
+	return s.deleteStorage(getBindFilePath(topologyId, filePath))
 }
 
-func (s *storageManager) preloadFiles(config *config.AntimonyConfig) {
-	files, err := os.ReadDir(config.Storage.Directory)
-
-	if err != nil {
-		log.Info("Storage directory not found. Creating.")
-		if err = os.MkdirAll(config.Storage.Directory, 0755); err != nil || !utils.IsDirectoryWritable(config.Storage.Directory) {
-			log.Fatal("Storage directory is not writable. Exiting.")
+func (s *storageManager) setupDirectories() {
+	if _, err := os.ReadDir(s.storagePath); err != nil || !utils.IsDirectoryWritable(s.storagePath) {
+		log.Info("Storage directory not found. Creating.", "dir", s.storagePath)
+		if err = os.MkdirAll(s.storagePath, 0755); err != nil {
+			log.Fatal("Storage directory is not accessible. Exiting.", "dir", s.storagePath)
+			return
 		}
+	}
+
+	if _, err := os.ReadDir(s.runPath); err != nil || !utils.IsDirectoryWritable(s.runPath) {
+		log.Info("Run directory not found. Creating.", "dir", s.runPath)
+		if err = os.MkdirAll(s.runPath, 0755); err != nil {
+			log.Fatal("Run directory is not accessible. Exiting.", "dir", s.runPath)
+			return
+		}
+	}
+}
+
+func (s *storageManager) preloadFiles() {
+	files, err := os.ReadDir(s.storagePath)
+	if err != nil {
+		return
 	}
 
 	if len(files) == 0 {
@@ -99,34 +142,51 @@ func (s *storageManager) preloadFiles(config *config.AntimonyConfig) {
 	log.Info("Successfully preloaded files from storage.", "files", fmt.Sprintf("%d/%d", preloadCount, len(files)))
 }
 
-func (s *storageManager) read(filePath string, content *string) error {
-	absolutePath := filepath.Join(s.storagePath, filePath)
-	if data, err := os.ReadFile(absolutePath); err != nil {
+func (s *storageManager) writeStorage(relativeFilePath string, content string) error {
+	return s.write(filepath.Join(s.storagePath, relativeFilePath), content)
+}
+
+func (s *storageManager) writeRun(relativeFilePath string, content string) error {
+	return s.write(filepath.Join(s.runPath, relativeFilePath), content)
+}
+
+func (s *storageManager) readStorage(relativeFilePath string, content *string) error {
+	return s.read(filepath.Join(s.storagePath, relativeFilePath), content)
+}
+
+func (s *storageManager) readRun(relativeFilePath string, content *string) error {
+	return s.read(filepath.Join(s.runPath, relativeFilePath), content)
+}
+
+func (s *storageManager) deleteStorage(relativePath string) error {
+	return s.delete(filepath.Join(s.storagePath, relativePath))
+}
+
+func (s *storageManager) deleteRun(relativePath string) error {
+	return s.delete(filepath.Join(s.runPath, relativePath))
+}
+
+func (s *storageManager) read(absoluteFilePath string, content *string) error {
+	if data, err := os.ReadFile(absoluteFilePath); err != nil {
 		return err
 	} else {
 		*content = string(data)
-		s.fileCacheMutex.Lock()
-		s.fileCache[filePath] = string(data)
-		s.fileCacheMutex.Unlock()
 	}
 
 	return nil
 }
 
-func (s *storageManager) write(filePath string, content string) error {
-	absolutePath := filepath.Join(s.storagePath, filePath)
-
-	if _, err := os.ReadDir(filepath.Dir(absolutePath)); err != nil {
-		if err = os.MkdirAll(filepath.Dir(absolutePath), 0755); err != nil {
+func (s *storageManager) write(absoluteFilePath string, content string) error {
+	if _, err := os.ReadDir(filepath.Dir(absoluteFilePath)); err != nil {
+		if err = os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
 			return utils.ErrorFileStorage
 		}
 	}
 
-	return os.WriteFile(absolutePath, ([]byte)(content), 0755)
+	return os.WriteFile(absoluteFilePath, ([]byte)(content), 0755)
 }
 
-func (s *storageManager) delete(filePath string) error {
-	absolutePath := filepath.Join(s.storagePath, filePath)
+func (s *storageManager) delete(absolutePath string) error {
 	if err := os.RemoveAll(absolutePath); err != nil {
 		return err
 	}
@@ -135,7 +195,11 @@ func (s *storageManager) delete(filePath string) error {
 }
 
 func getDefinitionFilePath(topologyId string) string {
-	return fmt.Sprintf("%s/topology.clab.yaml", topologyId)
+	return filepath.Join(topologyId, "topology.clab.yaml")
+}
+
+func getRunDefinitionFilePath(labId string) string {
+	return filepath.Join(labId, "topology.clab.yaml")
 }
 
 func getMetadataFilePath(topologyId string) string {
