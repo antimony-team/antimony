@@ -7,11 +7,7 @@ import {Button} from 'primereact/button';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
 import {uuid4} from '@sb/types/types';
-import {
-  TopologyEditReport,
-  TopologyEditSource,
-  TopologyManager,
-} from '@sb/lib/topology-manager';
+import {TopologyEditReport, TopologyEditSource} from '@sb/lib/topology-manager';
 import {
   useCollectionStore,
   useStatusMessages,
@@ -129,7 +125,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         return;
       }
 
-      const definition = TopologyManager.parseTopology(
+      const definition = topologyStore.parseTopology(
         content,
         schemaStore.clabSchema
       );

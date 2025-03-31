@@ -47,11 +47,15 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
           </span>
         </div>
         <div className="flex align-items-center gap-1">
+          <span className="property-title">Name:</span>
+          <span className="property-value">{props.lab.name}</span>
+        </div>
+        <div className="flex align-items-center gap-1">
           <span className="property-title">Collection:</span>
           <span className="property-value">{collection?.name}</span>
         </div>
         <div className="flex align-items-center gap-1">
-          <span className="property-title">Deployer:</span>
+          <span className="property-title">Owner:</span>
           <span className="property-value">{props.lab.creator.name}</span>
         </div>
         <If condition={props.lab.instance}>

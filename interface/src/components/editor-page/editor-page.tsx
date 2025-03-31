@@ -1,23 +1,24 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import LabEditDialog, {
+  LabEditDialogState,
+} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
+
+import './editor-page.sass';
+import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
+import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
+import {Topology} from '@sb/types/domain/topology';
+
+import {uuid4} from '@sb/types/types';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
+import React, {useCallback, useEffect, useState} from 'react';
 import {useSearchParams} from 'react-router';
-
-import {uuid4} from '@sb/types/types';
 import TopologyEditor from './topology-editor/topology-editor';
 import TopologyExplorer from './topology-explorer/topology-explorer';
-import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
-import TopologyDeployDialog from './topology-deploy-dialog/topology-deploy-dialog';
-
-import './editor-page.sass';
-import {Topology} from '@sb/types/domain/topology';
 
 const EditorPage: React.FC = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
-  const [deployingTopology, setDeployingTopology] = useState<Topology | null>(
-    null
-  );
+  const labEditDialogState = useDialogState<LabEditDialogState>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -86,7 +87,11 @@ const EditorPage: React.FC = observer(() => {
   function onDeployTopology(id: uuid4) {
     if (!topologyStore.lookup.has(id)) return;
 
-    setDeployingTopology(topologyStore.lookup.get(id)!);
+    labEditDialogState.openWith({
+      editingLab: null,
+      topologyId: id,
+      action: DialogAction.Add,
+    });
   }
 
   function onSelectConfirm(id: string) {
@@ -129,11 +134,7 @@ const EditorPage: React.FC = observer(() => {
           />
         </div>
       </div>
-      <TopologyDeployDialog
-        key={deployingTopology?.id}
-        deployingTopology={deployingTopology}
-        onClose={() => setDeployingTopology(null)}
-      />
+      <LabEditDialog dialogState={labEditDialogState} />
     </>
   );
 });

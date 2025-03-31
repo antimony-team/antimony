@@ -94,11 +94,11 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
         } else {
           notificationStore.error(
             result.error.message,
-            'Failed to edit collection'
+            'Failed to update collection'
           );
         }
       } else {
-        notificationStore.success('Collection has been edited successfully.');
+        notificationStore.success('Collection has been updated successfully.');
         props.dialogState.close();
       }
     } else if (props.dialogState.state.action === DialogAction.Add) {

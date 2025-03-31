@@ -1,3 +1,6 @@
+import {ClabSchema} from '@sb/types/domain/schema';
+import {YAMLDocument} from '@sb/types/types';
+import {validate} from 'jsonschema';
 import {action, observable, observe} from 'mobx';
 
 import {RootStore} from '@sb/lib/stores/root-store';
@@ -7,10 +10,12 @@ import {
   BindFile,
   BindFileIn,
   Topology,
+  TopologyDefinition,
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {parseDocument} from 'yaml';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -40,7 +45,7 @@ export class TopologyStore extends DataStore<
   protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
     if (!this.rootStore._schemaStore?.clabSchema) return;
 
-    const [data, bindFiles] = this.manager.parseTopologies(
+    const [data, bindFiles] = this.parseTopologies(
       response.payload,
       this.rootStore._schemaStore.clabSchema
     );
@@ -85,5 +90,58 @@ export class TopologyStore extends DataStore<
     if (result.isOk()) await this.fetch();
 
     return result;
+  }
+
+  private parseTopologies(
+    input: TopologyOut[],
+    schema: ClabSchema
+  ): [Topology[], BindFile[]] {
+    const topologies: Topology[] = [];
+    const bindFiles: BindFile[] = [];
+    for (const topologyOut of input) {
+      const definition = this.parseTopology(topologyOut.definition, schema);
+
+      if (!definition) {
+        console.error('[NET] Failed to parse incoming topology: ', topologyOut);
+        continue;
+      }
+
+      const topology: Topology = {
+        ...topologyOut,
+        name: definition.get('name') as string,
+        definition: definition,
+        definitionString: topologyOut.definition,
+        ...this.manager.buildTopologyMetadata(definition),
+      };
+
+      bindFiles.push(...topology.bindFiles);
+      topologies.push(topology);
+    }
+
+    return [
+      topologies.toSorted((a, b) =>
+        (a.definition.get('name') as string)?.localeCompare(
+          b.definition.get('name') as string
+        )
+      ),
+      bindFiles,
+    ];
+  }
+
+  public parseTopology(
+    definitionString: string,
+    schema: ClabSchema
+  ): YAMLDocument<TopologyDefinition> | null {
+    const definition = parseDocument(definitionString, {
+      keepSourceTokens: true,
+    });
+    if (
+      definition.errors.length > 0 ||
+      validate(definition.toJS(), schema).errors.length > 0
+    ) {
+      return null;
+    }
+
+    return definition;
   }
 }

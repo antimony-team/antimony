@@ -6,20 +6,21 @@ import React from 'react';
 import './state-indicator.sass';
 
 export const LabStateStatusIcons: Record<InstanceState, string> = {
-  [InstanceState.Scheduled]: 'pi pi-calendar',
   [InstanceState.Deploying]: 'pi pi-sync pi-spin',
-  [InstanceState.Stopping]: 'pi pi-sync pi-times',
   [InstanceState.Running]: 'pi pi-check',
+  [InstanceState.Stopping]: 'pi pi-sync pi-times',
   [InstanceState.Failed]: 'pi pi-exclamation-triangle',
   [InstanceState.Inactive]: 'pi pi-times',
+  [InstanceState.Scheduled]: 'pi pi-calendar',
 };
 
 export const getLabStateIconClass = (lab: Lab) => ({
-  scheduled: !lab.instance,
-  running: lab.instance?.state === InstanceState.Running,
-  deploying: lab.instance?.state === InstanceState.Deploying,
-  done: lab.instance?.state === InstanceState.Inactive,
-  failed: lab.instance?.state === InstanceState.Failed,
+  running: lab.state === InstanceState.Running,
+  deploying: lab.state === InstanceState.Deploying,
+  stopping: lab.state === InstanceState.Stopping,
+  failed: lab.state === InstanceState.Failed,
+  inactive: lab.state === InstanceState.Inactive,
+  scheduled: lab.state === InstanceState.Scheduled,
 });
 
 interface StateIndicatorProps {
@@ -35,15 +36,9 @@ const StateIndicator = (props: StateIndicatorProps) => {
         getLabStateIconClass(props.lab)
       )}
     >
-      <i
-        className={
-          LabStateStatusIcons[
-            props.lab.instance?.state ?? InstanceState.Scheduled
-          ]
-        }
-      ></i>
+      <i className={LabStateStatusIcons[props.lab.state]}></i>
       <If condition={props.showText}>
-        <span>{InstanceState[props.lab.instance?.state ?? -1]}</span>
+        <span>{InstanceState[props.lab.state]}</span>
       </If>
     </div>
   );

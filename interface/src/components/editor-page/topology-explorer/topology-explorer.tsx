@@ -419,7 +419,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     collectionId: string
   ) {
     const topology = topologyStore.lookup.get(topologyId)!;
-    console.log('ID: ', topologyId, 'Topo:', topology);
     const result = await topologyStore.update(topology.id, {
       ...topology,
       metadata: '',
@@ -430,7 +429,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (result.isErr()) {
       notificationStore.error(result.error.message, 'Failed to move topology');
     } else {
-      // If move was successful, expand target collection node
+      // If the move was successful, expand the target collection node
       setNodeExpanded(collectionId, true);
       loadNodeExpandKeys();
     }

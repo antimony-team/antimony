@@ -9,7 +9,7 @@ import {
 } from '@sb/lib/stores/root-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
-import {Topology} from '@sb/types/domain/topology';
+import {Topology, TopologyIn} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
 import {isEqual} from 'lodash';
 import {observer, useLocalObservable} from 'mobx-react-lite';
@@ -61,7 +61,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
-  // Reset editing object when dialog is opened
+  // Reset editing object when the dialog is opened
   useEffect(() => {
     if (props.dialogState.isOpen && props.dialogState.state) {
       const editTopology = {
@@ -121,11 +121,11 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           );
         }
       } else {
-        notificationStore.success('Topology has been edited successfully.');
+        notificationStore.success('Topology has been updated successfully.');
         props.dialogState.close();
       }
     } else if (props.dialogState.state.action === DialogAction.Add) {
-      const newTopology = {
+      const newTopology: TopologyIn = {
         collectionId: editingTopology.collectionId,
         definition: YAML.stringify({
           name: editingTopology.name,
@@ -143,7 +143,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           } else {
             notificationStore.error(
               result.error.message,
-              'Failed to edit topology'
+              'Failed to update topology'
             );
           }
         } else {
@@ -197,7 +197,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
             ) as string) ?? ''
           }
           placeholder="e.g. OSPF Lab"
-          id="topology-add-name"
+          id="topology-edit-name"
           label="Topology Name"
         />
       </div>

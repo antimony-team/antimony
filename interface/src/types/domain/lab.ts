@@ -8,11 +8,25 @@ export type LabIn = {
   topologyId: uuid4;
 };
 
-export type Lab = LabIn & {
+export type LabOut = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
   instance?: Instance;
+};
+
+export type Lab = {
+  id: uuid4;
+  name: string;
+  startTime: Date;
+  endTime: Date;
+  creator: User;
+
+  topologyId: uuid4;
+  collectionId: uuid4;
+
+  instance?: Instance;
+  state: InstanceState;
 };
 
 export type Instance = {
@@ -34,12 +48,13 @@ export type InstanceNode = {
 };
 
 export enum InstanceState {
-  Scheduled = -1,
   Deploying,
-  Stopping,
   Running,
+  Stopping,
   Failed,
-  Inactive,
+
+  Inactive = -1,
+  Scheduled = -2,
 }
 
 export const InstanceStates = Object.values(InstanceState).filter(

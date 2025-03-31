@@ -1,6 +1,5 @@
-import {validate} from 'jsonschema';
 import {isEqual, cloneDeep} from 'lodash-es';
-import {parseDocument, Scalar, YAMLMap, YAMLSeq} from 'yaml';
+import {Scalar, YAMLMap, YAMLSeq} from 'yaml';
 
 import {Binding} from '@sb/lib/utils/binding';
 import {Position, YAMLDocument} from '@sb/types/types';
@@ -9,14 +8,11 @@ import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {
-  BindFile,
   NodeConnection,
   Topology,
   TopologyDefinition,
-  TopologyOut,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
-import {ClabSchema} from '@sb/types/domain/schema';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -315,23 +311,6 @@ export class TopologyManager {
     });
   }
 
-  public static parseTopology(
-    definitionString: string,
-    schema: ClabSchema
-  ): YAMLDocument<TopologyDefinition> | null {
-    const definition = parseDocument(definitionString, {
-      keepSourceTokens: true,
-    });
-    if (
-      definition.errors.length > 0 ||
-      validate(definition.toJS(), schema).errors.length > 0
-    ) {
-      return null;
-    }
-
-    return definition;
-  }
-
   public buildTopologyMetadata(topology: YAMLDocument<TopologyDefinition>) {
     const positions = new Map<string, Position>();
     const nodes = topology.getIn(['topology', 'nodes']) as YAMLMap;
@@ -445,45 +424,6 @@ export class TopologyManager {
     }
 
     return {positions, connections, connectionMap};
-  }
-
-  public parseTopologies(
-    input: TopologyOut[],
-    schema: ClabSchema
-  ): [Topology[], BindFile[]] {
-    const topologies: Topology[] = [];
-    const bindFiles: BindFile[] = [];
-    for (const topologyOut of input) {
-      const definition = TopologyManager.parseTopology(
-        topologyOut.definition,
-        schema
-      );
-
-      if (!definition) {
-        console.error('[NET] Failed to parse incoming topology: ', topologyOut);
-        continue;
-      }
-
-      const topology: Topology = {
-        ...topologyOut,
-        name: definition.get('name') as string,
-        definition: definition,
-        definitionString: topologyOut.definition,
-        ...this.buildTopologyMetadata(definition),
-      };
-
-      bindFiles.push(...topology.bindFiles);
-      topologies.push(topology);
-    }
-
-    return [
-      topologies.toSorted((a, b) =>
-        (a.definition.get('name') as string)?.localeCompare(
-          b.definition.get('name') as string
-        )
-      ),
-      bindFiles,
-    ];
   }
 
   /**

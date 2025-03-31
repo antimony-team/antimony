@@ -1,6 +1,9 @@
+import LabEditDialog, {
+  LabEditDialogState,
+} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import ReservationDialog from '@sb/components/dashboard-page/reservation-dialog/reservation-dialog';
 import {useCalendarLabStore} from '@sb/lib/stores/root-store';
+import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
@@ -22,8 +25,8 @@ interface CalendarDialogProps {
 const CalendarDialog = observer((props: CalendarDialogProps) => {
   const [currentView, setCurrentView] = useState<View>('month');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [selectedEvent, setSelectedEvent] = useState<Lab | null>(null);
-  const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false);
+
+  const labEditDialogState = useDialogState<LabEditDialogState>(null);
 
   const calendarLabStore = useCalendarLabStore();
 
@@ -89,15 +92,14 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
       const lab: Lab | undefined = calendarLabStore.data.find(
         lab => lab.id === event.id
       );
-      setSelectedEvent(lab!);
-      setIsReservationDialogOpen(true);
+      labEditDialogState.openWith({
+        editingLab: lab!,
+        topologyId: lab!.topologyId,
+        action: DialogAction.Edit,
+      });
     } else {
       return;
     }
-  }
-
-  function onClose(): void {
-    setIsReservationDialogOpen(false);
   }
 
   function eventStyleGenerator(event: CalendarEvent) {
@@ -150,9 +152,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
           }}
         />
       </div>
-      {isReservationDialogOpen && (
-        <ReservationDialog lab={selectedEvent!} onClose={onClose} />
-      )}
+      <LabEditDialog dialogState={labEditDialogState} />
     </SBDialog>
   );
 });
