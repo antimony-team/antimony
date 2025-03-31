@@ -129,7 +129,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
   }
 
   function onShow() {
-    // Don't focus input field if dialog was open to edit
+    // Don't focus input field if the dialog was open to edit
     if (props.editingNode) return;
 
     nameFieldRef.current?.input?.focus();

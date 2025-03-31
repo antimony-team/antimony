@@ -1,3 +1,4 @@
+import {QueryBuilder} from '@sb/lib/utils/query-builder';
 import {action, computed, observable, observe} from 'mobx';
 
 import {DataStore} from '@sb/lib/stores/data-store';
@@ -36,15 +37,15 @@ export class LabStore extends DataStore<Lab, LabIn, Lab> {
 
   @computed
   protected get getParams() {
-    return (
-      `?limit=${this.limit}` +
-      `&offset=${this.offset}` +
-      `&stateFilter=${JSON.stringify(this.stateFilter)}` +
-      `&searchQuery=${JSON.stringify(this.searchQuery)}` +
-      `&collectionFilter=${JSON.stringify(this.collectionFilter)}` +
-      `&startDate=${JSON.stringify(this.startDate)}` +
-      `&endDate=${JSON.stringify(this.endDate)}`
-    );
+    return new QueryBuilder()
+      .add('limit', this.limit)
+      .add('offset', this.offset)
+      .add('searchQuery', this.searchQuery)
+      .addList('stateFilter', this.stateFilter)
+      .addList('collectionFilter', this.collectionFilter)
+      .add('startDate', this.startDate)
+      .add('endDate', this.endDate)
+      .toString();
   }
 
   @action
@@ -55,13 +56,6 @@ export class LabStore extends DataStore<Lab, LabIn, Lab> {
     if (response.headers && response.headers.has('X-Total-Count')) {
       this.totalEntries = Number(response.headers!.get('X-Total-Count'));
     }
-
-    // this.metaLookup = new Map(
-    //   this.data.map(lab => [
-    //     lab.id,
-    //     new Map(lab.nodeMeta.map(meta => [meta.name, meta])),
-    //   ])
-    // );
   }
 
   @action
@@ -75,13 +69,31 @@ export class LabStore extends DataStore<Lab, LabIn, Lab> {
   }
 
   @action
-  public setStateFilter(stateFilter: InstanceState[]) {
-    this.stateFilter = stateFilter;
+  public setStateFilter(filter: InstanceState[]) {
+    this.stateFilter = filter;
   }
 
   @action
-  public setGroupFilter(groupFilter: string[]) {
-    this.collectionFilter = groupFilter;
+  public setCollectionFilter(filter: string[]) {
+    this.collectionFilter = filter;
+  }
+
+  public toggleState(state: InstanceState) {
+    if (this.stateFilter.includes(state)) {
+      this.setStateFilter(this.stateFilter.filter(s => s !== state));
+    } else {
+      this.setStateFilter([...this.stateFilter, state]);
+    }
+  }
+
+  public toggleCollection(collectionId: string) {
+    if (this.collectionFilter.includes(collectionId)) {
+      this.setCollectionFilter(
+        this.collectionFilter.filter(c => c !== collectionId)
+      );
+    } else {
+      this.setCollectionFilter([...this.collectionFilter, collectionId]);
+    }
   }
 
   @action
@@ -93,21 +105,5 @@ export class LabStore extends DataStore<Lab, LabIn, Lab> {
   public setDates(startDate: string, endDate: string) {
     this.startDate = startDate;
     this.endDate = endDate;
-  }
-
-  public toggleStateFilter(state: InstanceState) {
-    if (this.stateFilter.includes(state)) {
-      this.setStateFilter(this.stateFilter.filter(s => s !== state));
-    } else {
-      this.setStateFilter([...this.stateFilter, state]);
-    }
-  }
-
-  public toggleGroupFilter(group: string) {
-    if (this.collectionFilter.includes(group)) {
-      this.setGroupFilter(this.collectionFilter.filter(g => g !== group));
-    } else {
-      this.setGroupFilter([...this.collectionFilter, group]);
-    }
   }
 }

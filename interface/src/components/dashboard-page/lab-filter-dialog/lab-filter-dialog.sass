@@ -24,12 +24,28 @@
   flex-wrap: wrap
   gap: 8px
 
+@keyframes filter-chip-fade
+  0%
+    opacity: 1
+    transform: rotateX(90deg)
+  50%
+    opacity: 0.5
+    transform: rotateX(0deg)
+  100%
+    display: none
+    opacity: 0
+    transform: rotateX(90deg)
+
+
 .filter-chip
   cursor: pointer
   border-radius: 16px
   font-weight: 500
   color: #FFFFFF
   transition: background-color 0.3s ease, transform 0.2s ease
+
+  &.filter-chip-hidden
+    display: none
 
   &.running
     color: var(--success-color-text)

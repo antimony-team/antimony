@@ -10,15 +10,15 @@ export const LabStateStatusIcons: Record<InstanceState, string> = {
   [InstanceState.Deploying]: 'pi pi-sync pi-spin',
   [InstanceState.Stopping]: 'pi pi-sync pi-times',
   [InstanceState.Running]: 'pi pi-check',
-  [InstanceState.Failed]: 'pi pi-times',
-  [InstanceState.Done]: 'pi pi-check',
+  [InstanceState.Failed]: 'pi pi-exclamation-triangle',
+  [InstanceState.Inactive]: 'pi pi-times',
 };
 
 export const getLabStateIconClass = (lab: Lab) => ({
   scheduled: !lab.instance,
   running: lab.instance?.state === InstanceState.Running,
   deploying: lab.instance?.state === InstanceState.Deploying,
-  done: lab.instance?.state === InstanceState.Done,
+  done: lab.instance?.state === InstanceState.Inactive,
   failed: lab.instance?.state === InstanceState.Failed,
 });
 

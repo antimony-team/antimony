@@ -62,7 +62,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
     calendarLabStore.setLimit(1000);
     calendarLabStore.setStateFilter([
       InstanceState.Deploying,
-      InstanceState.Done,
+      InstanceState.Inactive,
       InstanceState.Failed,
       InstanceState.Running,
       InstanceState.Stopping,

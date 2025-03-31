@@ -18,24 +18,6 @@ const LabFilterDialog: React.FC<FilterDialogProps> = observer(
     const labStore = useLabStore();
     const collectionStore = useCollectionStore();
 
-    const toggleStateFilter = (state: InstanceState) => {
-      if (labStore.stateFilter.includes(state)) {
-        labStore.setStateFilter(labStore.stateFilter.filter(s => s !== state));
-      } else {
-        labStore.setStateFilter([...labStore.stateFilter, state]);
-      }
-    };
-
-    const toggleGroupFilter = (group: string) => {
-      if (labStore.collectionFilter.includes(group)) {
-        labStore.setGroupFilter(
-          labStore.collectionFilter.filter(g => g !== group)
-        );
-      } else {
-        labStore.setGroupFilter([...labStore.collectionFilter, group]);
-      }
-    };
-
     return (
       <OverlayPanel ref={props.popOverRef} className="filter-overlay-panel">
         <div className="filters-container">
@@ -47,7 +29,7 @@ const LabFilterDialog: React.FC<FilterDialogProps> = observer(
                 <Chip
                   key={option}
                   label={InstanceState[option]}
-                  onClick={() => toggleStateFilter(option as InstanceState)}
+                  onClick={() => labStore.toggleState(option as InstanceState)}
                   className={classNames('filter-chip', {
                     active: labStore.stateFilter.includes(
                       option as InstanceState
@@ -58,7 +40,7 @@ const LabFilterDialog: React.FC<FilterDialogProps> = observer(
                     running: option === InstanceState.Running,
                     scheduled: option === InstanceState.Scheduled,
                     deploying: option === InstanceState.Deploying,
-                    done: option === InstanceState.Done,
+                    done: option === InstanceState.Inactive,
                     failed: option === InstanceState.Failed,
                   })}
                 />
@@ -70,7 +52,7 @@ const LabFilterDialog: React.FC<FilterDialogProps> = observer(
               <Chip
                 key={group.id}
                 label={group.name}
-                onClick={() => toggleGroupFilter(group.id)}
+                onClick={() => labStore.toggleCollection(group.id)}
                 className={classNames('group-chip', {
                   active: labStore.collectionFilter.includes(group.id),
                   inactive: !labStore.collectionFilter.includes(group.id),

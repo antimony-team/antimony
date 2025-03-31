@@ -2,6 +2,7 @@ import React, {
   FocusEvent,
   forwardRef,
   KeyboardEvent,
+  RefObject,
   useId,
   useImperativeHandle,
   useRef,
@@ -128,7 +129,8 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
         className="sb-input-validation-tooltip"
       />
       <InputText
-        ref={inputFieldRef}
+        /* Not sure why we have to do this, but this works. */
+        ref={inputFieldRef as unknown as RefObject<InputText>}
         data-tooltip-id={inputId}
         onClick={onSingleClick}
         onDoubleClick={onEnterEditing}

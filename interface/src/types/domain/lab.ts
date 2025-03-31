@@ -39,8 +39,12 @@ export enum InstanceState {
   Stopping,
   Running,
   Failed,
-  Done,
+  Inactive,
 }
+
+export const InstanceStates = Object.values(InstanceState).filter(
+  instance => typeof instance === 'number'
+);
 
 export type NodeMeta = {
   name: string;

@@ -13,8 +13,9 @@ import {
 } from '@sb/lib/stores/root-store';
 import {useDialogState} from '@sb/lib/utils/hooks';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
+import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
 import {FetchState} from '@sb/types/types';
+import classNames from 'classnames';
 
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
@@ -69,12 +70,10 @@ const DashboardPage: React.FC = observer(() => {
   });
 
   useEffect(() => {
-    // If lab dialog is open during refresh, refresh lab too
-    if (labDialogState.state) {
-      if (labStore.lookup.get(labDialogState.state.id)) {
+    // If the lab dialog is open during refresh, refresh lab too
+    if (labDialogState.state && labDialogState.isOpen) {
+      if (labStore.lookup.has(labDialogState.state.id)) {
         labDialogState.openWith(labStore.lookup.get(labDialogState.state.id)!);
-      } else {
-        labDialogState.close();
       }
     }
   }, [labStore.data]);
@@ -120,7 +119,7 @@ const DashboardPage: React.FC = observer(() => {
           hour: '2-digit',
           minute: '2-digit',
         });
-      case InstanceState.Done:
+      case InstanceState.Inactive:
       case InstanceState.Stopping:
       case InstanceState.Failed:
         timeString = new Date(lab.endTime);
@@ -189,13 +188,18 @@ const DashboardPage: React.FC = observer(() => {
         <LabFilterDialog popOverRef={popOver} />
       </div>
       <div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>
-        {labStore.stateFilter.map((state, index) => (
+        {InstanceStates.map((state, index) => (
           <Chip
             key={index}
             label={InstanceState[state]}
             removable={true}
-            onRemove={() => labStore.toggleStateFilter(state)}
-            className="chip"
+            onRemove={() => {
+              labStore.toggleState(state);
+              return true;
+            }}
+            className={classNames('filter-chip', {
+              'filter-chip-hidden': labStore.stateFilter.includes(state),
+            })}
           />
         ))}
         {labStore.collectionFilter.map((groupId, index) => {
@@ -204,8 +208,11 @@ const DashboardPage: React.FC = observer(() => {
               key={index}
               label={collectionStore.lookup.get(groupId)?.name ?? 'unknown'}
               removable={true}
-              onRemove={() => labStore.toggleGroupFilter(groupId)}
-              className="chip"
+              onRemove={() => {
+                labStore.toggleCollection(groupId);
+                return true;
+              }}
+              className="filter-chip"
             />
           );
         })}
@@ -214,8 +221,11 @@ const DashboardPage: React.FC = observer(() => {
           <Chip
             label={`Query: ${labStore.searchQuery}`}
             removable={true}
-            onRemove={() => labStore.setSearchQuery('')}
-            className="chip"
+            onRemove={() => {
+              labStore.setSearchQuery('');
+              return true;
+            }}
+            className="filter-chip"
           />
         </If>
       </div>
