@@ -14,28 +14,28 @@ type StatusMessage struct {
 	Severity  types.Severity `json:"severity"`
 }
 
-func Success(source string, content string) StatusMessage {
+func Success(source string, content string) *StatusMessage {
 	return newStatusMessage(source, content, types.Success)
 }
 
-func Info(source string, content string) StatusMessage {
+func Info(source string, content string) *StatusMessage {
 	return newStatusMessage(source, content, types.Info)
 }
 
-func Warning(source string, content string) StatusMessage {
+func Warning(source string, content string) *StatusMessage {
 	return newStatusMessage(source, content, types.Warning)
 }
 
-func Error(source string, content string) StatusMessage {
+func Error(source string, content string) *StatusMessage {
 	return newStatusMessage(source, content, types.Error)
 }
 
-func Fatal(source string, content string) StatusMessage {
+func Fatal(source string, content string) *StatusMessage {
 	return newStatusMessage(source, content, types.Fatal)
 }
 
-func newStatusMessage(source string, content string, severity types.Severity) StatusMessage {
-	return StatusMessage{
+func newStatusMessage(source string, content string, severity types.Severity) *StatusMessage {
+	return &StatusMessage{
 		ID:        utils.GenerateUuid(),
 		Source:    source,
 		Content:   content,

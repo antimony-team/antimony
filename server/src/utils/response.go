@@ -43,3 +43,24 @@ func ErrorResponse(err error) (int, Response) {
 		return http.StatusInternalServerError, Response{Code: -1, Message: err.Error()}
 	}
 }
+
+func SocketErrorResponse(err error) Response {
+	switch {
+	case errors.Is(err, ErrorContainerlab):
+		return Response{Code: 5001, Message: err.Error()}
+	case errors.Is(err, ErrorInvalidSocketRequest):
+		return Response{Code: 5422, Message: err.Error()}
+	case errors.Is(err, ErrorUuidNotFound):
+		return Response{Code: 5404, Message: err.Error()}
+	// Permission / Access errors
+	case errors.Is(err, ErrorNoDeployAccessToCollection),
+		errors.Is(err, ErrorNoDestroyAccessToLab):
+		return Response{Code: 5403, Message: err.Error()}
+	default:
+		return Response{Code: -1, Message: err.Error()}
+	}
+}
+
+func SocketOkResponse(obj any) Response {
+	return Response{Payload: obj}
+}

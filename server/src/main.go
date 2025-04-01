@@ -48,7 +48,10 @@ func main() {
 
 	socketManager := socket.CreateSocketManager(authManager)
 
-	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](socketManager, false, false, "status-messages")
+	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](
+		socketManager, false, false, nil,
+		"status-messages",
+	)
 
 	var (
 		devicesService = device.CreateService(antimonyConfig)

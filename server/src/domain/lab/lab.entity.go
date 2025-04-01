@@ -4,7 +4,9 @@ import (
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/socket"
 	"gorm.io/gorm"
+	"sync"
 	"time"
 )
 
@@ -37,6 +39,7 @@ type LabOut struct {
 	CollectionId string       `json:"collectionId"`
 	Creator      user.UserOut `json:"creator"`
 	Instance     *Instance    `json:"instance,omitempty"`
+	InstanceName *string      `json:"instanceName,omitempty"`
 }
 
 type LabFilter struct {
@@ -55,6 +58,14 @@ type Instance struct {
 	State             InstanceState  `json:"state"`
 	LatestStateChange time.Time      `json:"latestStateChange"`
 	Nodes             []InstanceNode `json:"nodes"`
+
+	// Recovered Whether the instance has been recovered after an Antimony restart
+	Recovered bool `json:"recovered"`
+
+	// Server-only fields
+	TopologyFile string                          `json:"-"`
+	LogNamespace socket.NamespaceManager[string] `json:"-"`
+	Mutex        sync.Mutex                      `json:"-"`
 }
 
 type InstanceNode struct {
@@ -78,8 +89,8 @@ const (
 
 	// Pseudo-states that are defined by the absence of an Instance in a Lab.
 	//
-	// Lab has no Instance and the Lab.StartTime is in the past -> Inactive.
-	// Lab has no Instance and the Lab.StartTime is in the future -> Scheduled.
+	// Lab has no Instance and the Lab.StartTime is in the past -> inactive.
+	// Lab has no Instance and the Lab.StartTime is in the future -> scheduled.
 	inactive  InstanceState = -1
 	scheduled InstanceState = -2
 )
@@ -100,29 +111,47 @@ var InstanceStates = struct {
 	Inactive:  inactive,
 }
 
-type LabCommand string
+type LabCommandData struct {
+	LabId   string     `json:"labId"`
+	Command LabCommand `json:"command"`
+	Node    *string    `json:"node"`
+}
+
+type LabCommand int
 
 const (
-	deploy    LabCommand = "deploy"
-	destroy   LabCommand = "destroy"
-	redeploy  LabCommand = "redeploy"
-	startNode LabCommand = "start-node"
-	stopNode  LabCommand = "stop-node"
-	saveNode  LabCommand = "save-node"
+	deployCommand LabCommand = iota
+	destroyCommand
+	stopNodeCommand
+	startNodeCommand
 )
 
 var LabCommands = struct {
 	Deploy    LabCommand
 	Destroy   LabCommand
-	Redeploy  LabCommand
-	StartNode LabCommand
 	StopNode  LabCommand
-	SaveNode  LabCommand
+	StartNode LabCommand
 }{
-	Deploy:    deploy,
-	Destroy:   destroy,
-	Redeploy:  redeploy,
-	StartNode: startNode,
-	StopNode:  stopNode,
-	SaveNode:  saveNode,
+	Deploy:    deployCommand,
+	Destroy:   destroyCommand,
+	StopNode:  stopNodeCommand,
+	StartNode: startNodeCommand,
+}
+
+type LabAction int
+
+const (
+	deployAction LabAction = iota
+	destroyAction
+	redeployAction
+)
+
+var LabActions = struct {
+	Deploy   LabAction
+	Destroy  LabAction
+	Redeploy LabAction
+}{
+	Deploy:   deployAction,
+	Destroy:  destroyAction,
+	Redeploy: redeployAction,
 }

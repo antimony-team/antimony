@@ -3,13 +3,11 @@ package deployment
 import "context"
 
 type DeploymentProvider interface {
-	Deploy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
-	Destroy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
-	Inspect(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *InspectOutput, err error))
+	Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
+	Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
+	Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (output *InspectOutput, err error)
 	InspectAll(ctx context.Context) (*InspectOutput, error)
-
-	// Redeploy Destroys the lab and redeploys it
-	Redeploy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
+	Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
 
 	Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error))
 	ExecOnNode(ctx context.Context, topologyFile string, content string, nodeName string, onLog func(data string), onDone func(output *string, err error))
