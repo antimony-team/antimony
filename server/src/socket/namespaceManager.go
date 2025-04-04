@@ -2,6 +2,9 @@ package socket
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/utils"
+	"context"
+	"encoding/json"
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 	"github.com/zishang520/socket.io/socket"
@@ -24,6 +27,9 @@ type (
 
 		// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
 		SendToAdmins(msg T)
+
+		// ClearBacklog Clears all messages in the backlog
+		ClearBacklog()
 	}
 
 	namespaceManager[T any] struct {
@@ -39,10 +45,29 @@ type (
 		backlogLock *sync.Mutex
 		isAnonymous bool
 		useBacklog  bool
+		namespace   socket.NamespaceInterface
 	}
 )
 
-func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, useBacklog bool, namespacePath ...string) NamespaceManager[T] {
+// CreateNamespace Creates a new socket.io namespace for a given socket manager.
+// The namespace can be anonymous, meaning that users don't need to authenticate themselves when connecting.
+// In anonymous namespaces, NamespaceManager.SendTo and NamespaceManager.SendToAdmins aren't available.
+//
+// If a backlog is used, new clients will receive all previously sent messages via the 'backlog' event upon connecting.
+//
+// Optionally, one can provide a onData callback which is called whenever a client sends a 'data' event in the namespace.
+// The namespace path will be concatenated with slashes to form the namespace name (e.g. [foo, bar] -> /foo/bar).
+func CreateNamespace[T any](
+	socketManager SocketManager,
+	isAnonymous bool, useBacklog bool,
+	onData func(
+		ctx context.Context,
+		data *T, authUser *auth.AuthenticatedUser,
+		onResponse func(response utils.OkResponse[any]),
+		onError func(response utils.ErrorResponse),
+	),
+	namespacePath ...string,
+) NamespaceManager[T] {
 	backlog := make([]T, 0)
 	manager := &namespaceManager[T]{
 		connectedClients:     make([]*SocketConnectedUser, 0),
@@ -55,13 +80,13 @@ func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, useBa
 	}
 
 	namespaceName := "/" + strings.Join(namespacePath, "/")
-	namespace := socketManager.Server().Of(namespaceName, nil)
+	manager.namespace = socketManager.Server().Of(namespaceName, nil)
 
 	if !isAnonymous {
-		namespace.Use(socketManager.SocketAuthenticatorMiddleware)
+		manager.namespace.Use(socketManager.SocketAuthenticatorMiddleware)
 	}
 
-	_ = namespace.On("connection", func(clients ...any) {
+	_ = manager.namespace.On("connection", func(clients ...any) {
 		client := clients[0].(*socket.Socket)
 
 		if !isAnonymous {
@@ -82,6 +107,37 @@ func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, useBa
 			manager.connectedClients = append(manager.connectedClients, socketClient)
 			manager.connectedClientsMap[authUser.UserId] = socketClient
 			manager.connectedClientsLock.Unlock()
+
+			_ = client.On("data", func(raw ...any) {
+				var ack func([]any, error)
+				if len(raw) > 1 {
+					ack = raw[1].(func([]any, error))
+				}
+
+				var data T
+				if err := json.Unmarshal([]byte(raw[0].(string)), &data); err != nil {
+					log.Error("[SOCK] Recieved invalid socket request.", "ns", namespaceName, "err", err.Error())
+					if ack != nil {
+						errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
+						ack([]any{errorResponse}, nil)
+					}
+				} else {
+					ctx := context.Background()
+
+					if ack != nil {
+						onData(ctx, &data, authUser,
+							func(response utils.OkResponse[any]) {
+								ack([]any{response}, nil)
+							},
+							func(errorResponse utils.ErrorResponse) {
+								ack([]any{errorResponse}, nil)
+							},
+						)
+					} else {
+						onData(ctx, &data, authUser, nil, nil)
+					}
+				}
+			})
 
 			_ = client.On("disconnect", func(clients ...any) {
 				log.Info("User disconnected from socket namespace", "namespace", namespaceName, "user", authUser.UserId)
@@ -124,6 +180,12 @@ func CreateNamespace[T any](socketManager SocketManager, isAnonymous bool, useBa
 	})
 
 	return manager
+}
+
+func (m *namespaceManager[T]) ClearBacklog() {
+	m.backlogLock.Lock()
+	m.backlog = make([]T, 0)
+	m.backlogLock.Unlock()
 }
 
 func (m *namespaceManager[T]) Send(msg T) {

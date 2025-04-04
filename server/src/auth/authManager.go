@@ -116,13 +116,13 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		accessToken, err := ctx.Cookie("accessToken")
 		if err != nil {
-			ctx.JSON(utils.ErrorResponse(utils.ErrorUnauthorized))
+			ctx.JSON(utils.CreateErrorResponse(utils.ErrorUnauthorized))
 			ctx.Abort()
 			return
 		}
 
 		if user, err := m.AuthenticateUser(accessToken); err != nil {
-			ctx.JSON(utils.ErrorResponse(utils.ErrorTokenInvalid))
+			ctx.JSON(utils.CreateErrorResponse(utils.ErrorTokenInvalid))
 			ctx.Abort()
 			return
 		} else {

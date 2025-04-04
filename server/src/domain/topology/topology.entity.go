@@ -15,6 +15,12 @@ type Topology struct {
 	CollectionID uint `gorm:"not null"`
 	Creator      user.User
 	CreatorID    uint `gorm:"not null"`
+
+	// LastDeployFailed Indicating if the last deployment of this topology was successful or not.
+	//
+	// This field is set to true whenever a lab referencing this topology fails to deploy and set to false whenever
+	// the deployment succeeds.
+	LastDeployFailed bool `gorm:"default:false;not null"`
 }
 
 type TopologyIn struct {
@@ -25,13 +31,14 @@ type TopologyIn struct {
 }
 
 type TopologyOut struct {
-	ID           string        `json:"id"`
-	Definition   string        `json:"definition"`
-	Metadata     string        `json:"metadata"`
-	GitSourceUrl string        `json:"gitSourceUrl"`
-	CollectionId string        `json:"collectionId"`
-	Creator      user.UserOut  `json:"creator"`
-	BindFiles    []BindFileOut `json:"bindFiles"`
+	ID               string        `json:"id"`
+	Definition       string        `json:"definition"`
+	Metadata         string        `json:"metadata"`
+	GitSourceUrl     string        `json:"gitSourceUrl"`
+	CollectionId     string        `json:"collectionId"`
+	Creator          user.UserOut  `json:"creator"`
+	BindFiles        []BindFileOut `json:"bindFiles"`
+	LastDeployFailed bool          `json:"lastDeployFailed"`
 }
 
 type BindFile struct {

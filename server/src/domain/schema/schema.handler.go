@@ -21,6 +21,11 @@ func CreateHandler(schemaService Service) Handler {
 	}
 }
 
+// @Summary Returns the JSON schema to validate topology definitions
+// @Produce json
+// @Tags schema
+// @Success 200 {object} utils.OkResponse[any] "The schema as JSON string"
+// @Router /schema [get]
 func (h *schemaHandler) Get(ctx *gin.Context) {
-	ctx.JSON(utils.OkResponse(h.schemaService.Get()))
+	ctx.JSON(utils.CreateOkResponse(h.schemaService.Get()))
 }

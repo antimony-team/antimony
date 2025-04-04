@@ -21,7 +21,9 @@ type (
 		WriteBindFile(topologyId string, filePath string, content string) error
 		DeleteBindFile(topologyId string, filePath string) error
 
+		GetRunTopologyFile(labId string) string
 		CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error
+		DeleteRunEnvironment(labId string) error
 	}
 
 	storageManager struct {
@@ -69,6 +71,11 @@ func (s *storageManager) CreateRunEnvironment(topologyId string, labId string, t
 	return nil
 }
 
+func (s *storageManager) GetRunTopologyFile(labId string) string {
+	runDefinitionPath := getRunDefinitionFilePath(labId)
+	return filepath.Join(s.runPath, runDefinitionPath)
+}
+
 func (s *storageManager) ReadTopology(topologyId string, content *string) error {
 	return s.readStorage(getDefinitionFilePath(topologyId), content)
 }
@@ -95,6 +102,10 @@ func (s *storageManager) WriteBindFile(topologyId string, filePath string, conte
 
 func (s *storageManager) DeleteBindFile(topologyId string, filePath string) error {
 	return s.deleteStorage(getBindFilePath(topologyId, filePath))
+}
+
+func (s *storageManager) DeleteRunEnvironment(labId string) error {
+	return s.deleteRun(labId)
 }
 
 func (s *storageManager) setupDirectories() {

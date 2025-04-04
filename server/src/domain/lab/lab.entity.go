@@ -4,7 +4,9 @@ import (
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/socket"
 	"gorm.io/gorm"
+	"sync"
 	"time"
 )
 
@@ -36,7 +38,8 @@ type LabOut struct {
 	TopologyId   string       `json:"topologyId"`
 	CollectionId string       `json:"collectionId"`
 	Creator      user.UserOut `json:"creator"`
-	Instance     *Instance    `json:"instance,omitempty"`
+	Instance     *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
+	InstanceName *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
 }
 
 type LabFilter struct {
@@ -50,22 +53,42 @@ type LabFilter struct {
 }
 
 type Instance struct {
+	Deployed          time.Time
+	EdgesharkLink     string
+	State             InstanceState
+	LatestStateChange time.Time
+	Nodes             []InstanceNode
+
+	// Recovered Whether the instance has been recovered after an Antimony restart
+	Recovered bool
+
+	TopologyFile string
+	LogNamespace socket.NamespaceManager[string]
+
+	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
+	Mutex sync.Mutex
+}
+
+type InstanceOut struct {
+	Name              string         `json:"name"`
 	Deployed          time.Time      `json:"deployed"`
 	EdgesharkLink     string         `json:"edgesharkLink"`
 	State             InstanceState  `json:"state"`
 	LatestStateChange time.Time      `json:"latestStateChange"`
 	Nodes             []InstanceNode `json:"nodes"`
+	Recovered         bool           `json:"recovered"`
 }
 
 type InstanceNode struct {
-	Name        string               `json:"name"`
-	IPv4        string               `json:"ipv4"`
-	IPv6        string               `json:"ipv6"`
-	Port        int                  `json:"port"`
-	User        string               `json:"user"`
-	WebSSH      string               `json:"webSSH"`
-	ContainerId string               `json:"containerId"`
-	State       deployment.NodeState `json:"state"`
+	Name          string               `json:"name"`
+	IPv4          string               `json:"ipv4"`
+	IPv6          string               `json:"ipv6"`
+	Port          int                  `json:"port"`
+	User          string               `json:"user"`
+	WebSSH        string               `json:"webSSH"`
+	State         deployment.NodeState `json:"state"`
+	ContainerId   string               `json:"containerId"`
+	ContainerName string               `json:"containerName"`
 }
 
 type InstanceState int
@@ -78,8 +101,8 @@ const (
 
 	// Pseudo-states that are defined by the absence of an Instance in a Lab.
 	//
-	// Lab has no Instance and the Lab.StartTime is in the past -> Inactive.
-	// Lab has no Instance and the Lab.StartTime is in the future -> Scheduled.
+	// Lab has no Instance and the Lab.StartTime is in the past -> inactive.
+	// Lab has no Instance and the Lab.StartTime is in the future -> scheduled.
 	inactive  InstanceState = -1
 	scheduled InstanceState = -2
 )
@@ -100,29 +123,47 @@ var InstanceStates = struct {
 	Inactive:  inactive,
 }
 
-type LabCommand string
+type LabCommandData struct {
+	LabId   string     `json:"labId"`
+	Command LabCommand `json:"command"`
+	Node    *string    `json:"node"`
+}
+
+type LabCommand int
 
 const (
-	deploy    LabCommand = "deploy"
-	destroy   LabCommand = "destroy"
-	redeploy  LabCommand = "redeploy"
-	startNode LabCommand = "start-node"
-	stopNode  LabCommand = "stop-node"
-	saveNode  LabCommand = "save-node"
+	deployCommand LabCommand = iota
+	destroyCommand
+	stopNodeCommand
+	startNodeCommand
 )
 
 var LabCommands = struct {
 	Deploy    LabCommand
 	Destroy   LabCommand
-	Redeploy  LabCommand
-	StartNode LabCommand
 	StopNode  LabCommand
-	SaveNode  LabCommand
+	StartNode LabCommand
 }{
-	Deploy:    deploy,
-	Destroy:   destroy,
-	Redeploy:  redeploy,
-	StartNode: startNode,
-	StopNode:  stopNode,
-	SaveNode:  saveNode,
+	Deploy:    deployCommand,
+	Destroy:   destroyCommand,
+	StopNode:  stopNodeCommand,
+	StartNode: startNodeCommand,
+}
+
+type LabAction int
+
+const (
+	deployAction LabAction = iota
+	destroyAction
+	redeployAction
+)
+
+var LabActions = struct {
+	Deploy   LabAction
+	Destroy  LabAction
+	Redeploy LabAction
+}{
+	Deploy:   deployAction,
+	Destroy:  destroyAction,
+	Redeploy: redeployAction,
 }
