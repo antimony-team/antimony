@@ -45,6 +45,6 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
-      - ./test/keycloak:/opt/keycloak/data/h2:ro
+      - ./test/keycloak:/opt/keycloak/data/h2
     ports:
       - "4022:4022"

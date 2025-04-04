@@ -1,6 +1,8 @@
 package deployment
 
-import "context"
+import (
+	"context"
+)
 
 type DeploymentProvider interface {
 	Deploy(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
@@ -15,7 +17,7 @@ type DeploymentProvider interface {
 	ExecOnNode(ctx context.Context, topologyFile string, content string, nodeName string, onLog func(data string), onDone func(output *string, err error))
 	Save(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
 	SaveOnNode(ctx context.Context, topologyFile string, nodeName string, onLog func(data string), onDone func(output *string, err error))
-	StreamContainerLogs(ctx context.Context, containerID string, onLog func(data string)) error
+	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
 }
 
 type InspectOutput struct {
