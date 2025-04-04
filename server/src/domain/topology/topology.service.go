@@ -86,13 +86,14 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 		}
 
 		result = append(result, TopologyOut{
-			ID:           topology.UUID,
-			Definition:   definition,
-			Metadata:     metadata,
-			GitSourceUrl: topology.GitSourceUrl,
-			CollectionId: topology.Collection.UUID,
-			Creator:      s.userRepo.UserToOut(topology.Creator),
-			BindFiles:    bindFilesOut,
+			ID:               topology.UUID,
+			Definition:       definition,
+			Metadata:         metadata,
+			GitSourceUrl:     topology.GitSourceUrl,
+			CollectionId:     topology.Collection.UUID,
+			Creator:          s.userRepo.UserToOut(topology.Creator),
+			BindFiles:        bindFilesOut,
+			LastDeployFailed: topology.LastDeployFailed,
 		})
 	}
 
@@ -136,11 +137,12 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	}
 
 	err = s.topologyRepo.Create(ctx, &Topology{
-		UUID:         newUuid,
-		Name:         topologyName,
-		GitSourceUrl: req.GitSourceUrl,
-		Collection:   *topologyCollection,
-		Creator:      *creatorUser,
+		UUID:             newUuid,
+		Name:             topologyName,
+		GitSourceUrl:     req.GitSourceUrl,
+		Collection:       *topologyCollection,
+		Creator:          *creatorUser,
+		LastDeployFailed: false,
 	})
 
 	return newUuid, err

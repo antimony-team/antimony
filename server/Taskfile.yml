@@ -7,10 +7,9 @@ vars:
 
 tasks:
   clean:
-    dir: './build'
+    dir: '.'
     cmds:
-      - sudo rm -rf ./run/
-      - sudo rm -rf ./storage/
+      - sudo rm -rf ./build/
 
   build:
     dir: './src'
@@ -29,3 +28,8 @@ tasks:
       SB_DATABASE_PASSWORD: password123
       SB_NATIVE_USERNAME: admin
       SB_NATIVE_PASSWORD: admin
+
+  swagger-docs:
+    dir: './src'
+    cmds:
+      - swag init -o ../docs/

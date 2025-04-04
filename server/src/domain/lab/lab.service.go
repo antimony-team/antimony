@@ -92,6 +92,7 @@ func CreateService(
 	)
 
 	labService.initSchedule()
+	labService.labUpdatesNamespace.Send("")
 
 	return labService
 }
@@ -114,13 +115,15 @@ func (s *labService) RunScheduler() {
 }
 
 func (s *labService) initSchedule() {
+	ctx := context.Background()
+
 	labs, err := s.labRepo.GetAll(nil)
 	if err != nil {
 		log.Fatal("Failed to load labs from database. Exiting.")
 		return
 	}
 
-	result, err := s.deploymentProvider.InspectAll(context.Background())
+	result, err := s.deploymentProvider.InspectAll(ctx)
 	if err != nil {
 		log.Fatal("Failed to retrieve containers from clab inspect. Exiting.", "err", err.Error())
 		return
@@ -140,10 +143,21 @@ func (s *labService) initSchedule() {
 					"logs", lab.UUID,
 				)
 
+				// Create log namespaces for each container in the lab
+				for _, container := range containers {
+					containerLogNamespace := socket.CreateNamespace[string](
+						s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
+					)
+					err := s.deploymentProvider.StreamContainerLogs(ctx, container.ContainerId, containerLogNamespace.Send)
+					if err != nil {
+						log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
+					}
+				}
+
 				s.instancesMutex.Lock()
 				s.instances[lab.UUID] = &Instance{
 					State:             InstanceStates.Running,
-					Nodes:             lo.Map(containers, s.containerToNode),
+					Nodes:             lo.Map(containers, s.containerToInstanceNode),
 					Deployed:          time.Now(),
 					LatestStateChange: time.Now(),
 					Recovered:         true,
@@ -204,7 +218,7 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 			TopologyId:   lab.Topology.UUID,
 			CollectionId: lab.Topology.Collection.UUID,
 			Creator:      s.userRepo.UserToOut(lab.Creator),
-			Instance:     instance,
+			Instance:     s.instanceToOut(instance),
 			InstanceName: lab.InstanceName,
 		})
 	}
@@ -336,7 +350,7 @@ func (s *labService) renameTopology(topologyId string, topologyName string, runT
 	}
 }
 
-func (s *labService) createLabEnvironment(ctx context.Context, lab Lab) (string, error) {
+func (s *labService) createLabEnvironment(ctx context.Context, lab *Lab) (string, error) {
 	var (
 		runTopologyName       string
 		runTopologyDefinition string
@@ -353,7 +367,7 @@ func (s *labService) createLabEnvironment(ctx context.Context, lab Lab) (string,
 	}
 
 	lab.InstanceName = &runTopologyName
-	if err := s.labRepo.Update(ctx, &lab); err != nil {
+	if err := s.labRepo.Update(ctx, lab); err != nil {
 		return "", err
 	}
 
@@ -370,15 +384,26 @@ func (s *labService) destroyLab(lab Lab, instance *Instance) {
 	ctx := context.Background()
 
 	s.updateStateAndNotify(lab, InstanceStates.Stopping, statusMessage.Info(
-		"Lab Manager", fmt.Sprintf("Destroying lab %s (%s)", lab.Name, lab.Topology.Name),
-	))
+		"Lab Manager",
+		fmt.Sprintf("Destroying lab %s (%s)", lab.Name, lab.Topology.Name),
+		"Destroying lab", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+	), &instance.LogNamespace)
 
 	output, err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, instance.LogNamespace.Send)
 	streamClabOutput(instance.LogNamespace, output)
 
+	if err != nil {
+		s.statusMessageNamespace.Send(*statusMessage.Error(
+			"Lab Manager", fmt.Sprintf("Failed to destroy lab %s: %s", lab.Name, err.Error()),
+			"Failed to destroy lab", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		))
+		return
+	}
+
 	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {
 		s.statusMessageNamespace.Send(*statusMessage.Warning(
 			"Lab Manager", fmt.Sprintf("Failed to remove run environment for %s: %s", lab.Name, err.Error()),
+			"Failed to remove run environment", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		))
 	}
 
@@ -391,15 +416,10 @@ func (s *labService) destroyLab(lab Lab, instance *Instance) {
 	s.instancesMutex.Unlock()
 	s.labUpdatesNamespace.Send(lab.UUID)
 
-	if err != nil {
-		s.statusMessageNamespace.Send(*statusMessage.Warning(
-			"Lab Manager", fmt.Sprintf("Lab %s destroyed with errors %s", lab.Name, err.Error()),
-		))
-	} else {
-		s.statusMessageNamespace.Send(*statusMessage.Success(
-			"Lab Manager", fmt.Sprintf("Successfully destroyed lab %s", lab.Name),
-		))
-	}
+	s.statusMessageNamespace.Send(*statusMessage.Success(
+		"Lab Manager", fmt.Sprintf("Successfully destroyed lab %s", lab.Name),
+		"Lab has been destroyed successfully", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+	))
 }
 
 func (s *labService) redeployLab(lab Lab, instance *Instance) bool {
@@ -415,24 +435,40 @@ func (s *labService) redeployLab(lab Lab, instance *Instance) bool {
 	ctx := context.Background()
 
 	s.updateStateAndNotify(lab, InstanceStates.Deploying, statusMessage.Info(
-		"Lab Manager", fmt.Sprintf("Redeploying lab %s (%s)", lab.Name, lab.Topology.Name),
-	))
+		"Lab Manager",
+		fmt.Sprintf("Redeploying lab %s (%s)", lab.Name, lab.Topology.Name),
+		"Starting redeployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+	), &instance.LogNamespace)
+
+	log.Infof("Redeploying: %s", instance.TopologyFile)
 
 	output, err := s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, instance.LogNamespace.Send)
 
 	streamClabOutput(instance.LogNamespace, output)
 
 	if err != nil {
-		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Error(
-			"Lab Manager", fmt.Sprintf("Failed to redeploy lab %s (%s)", lab.Name, lab.Topology.Name),
-		))
+		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Info(
+			"Lab Manager",
+			fmt.Sprintf("Failed to redeploy lab %s (%s)", lab.Name, lab.Topology.Name),
+			"Failed to redeploy lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
 	} else {
-		s.updateStateAndNotify(lab, InstanceStates.Running, statusMessage.Success(
-			"Lab Manager", fmt.Sprintf("Successfully redeployed lab %s (%s)", lab.Name, lab.Topology.Name),
-		))
+		s.updateStateAndNotify(lab, InstanceStates.Running, statusMessage.Info(
+			"Lab Manager",
+			fmt.Sprintf("Successfully redeployed lab %s (%s)", lab.Name, lab.Topology.Name),
+			"Successfully redeployed lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
 	}
 
 	return true
+}
+
+// setTopologyDeployStatus Sets the LastDeployFailed flag in the lab's topology
+func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
+	lab.Topology.LastDeployFailed = !wasSuccessful
+	if err := s.topologyRepo.Update(context.Background(), &lab.Topology); err != nil {
+		log.Error("Failed to set last deployment failed on topology", "topo", lab.Topology.UUID)
+	}
 }
 
 func (s *labService) deployLab(lab Lab) bool {
@@ -452,18 +488,24 @@ func (s *labService) deployLab(lab Lab) bool {
 	ctx := context.Background()
 	log.Infof("[SCHEDULER] Deploying topology %s (%s)", lab.Name, lab.Topology.Name)
 
-	runTopologyFile, err := s.createLabEnvironment(ctx, lab)
+	runTopologyFile, err := s.createLabEnvironment(ctx, &lab)
 	if err != nil {
 		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Error(
-			"Lab Manager", fmt.Sprintf("Failed to create environment for %s: %s", lab.Name, err.Error()),
-		))
+			"Lab Manager",
+			fmt.Sprintf("Failed to create environment for %s (%s)", lab.Name, lab.Topology.Name),
+			"Failed to create environment for lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
+		s.setTopologyDeployStatus(lab, false)
 		return true
 	}
+	instance.TopologyFile = runTopologyFile
 	instance.LogNamespace = socket.CreateNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
 
 	s.updateStateAndNotify(lab, InstanceStates.Deploying, statusMessage.Info(
-		"Lab Manager", fmt.Sprintf("Deploying topology %s (%s)", lab.Name, lab.Topology.Name),
-	))
+		"Lab Manager",
+		fmt.Sprintf("Deploying lab %s (%s)", lab.Name, lab.Topology.Name),
+		"Starting deployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+	), &instance.LogNamespace)
 
 	output, err := s.deploymentProvider.Deploy(ctx, runTopologyFile, instance.LogNamespace.Send)
 
@@ -471,8 +513,11 @@ func (s *labService) deployLab(lab Lab) bool {
 
 	if err != nil {
 		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Error(
-			"Lab Manager", fmt.Sprintf("Failed to deploy lab %s: %s", lab.Name, err.Error()),
-		))
+			"Lab Manager",
+			fmt.Sprintf("Failed to deploy lab %s (%s)", lab.Name, lab.Topology.Name),
+			"Deployment of lab failed", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
+		s.setTopologyDeployStatus(lab, false)
 		return true
 	}
 
@@ -480,12 +525,15 @@ func (s *labService) deployLab(lab Lab) bool {
 	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, instance.LogNamespace.Send)
 	if err != nil {
 		log.Infof("[SCHEDULER] Failed to inspect lab %s: %s", lab.Name, err.Error())
-		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Error(
-			"Lab Manager", fmt.Sprintf("Failed to inspect lab %s", lab.Name),
-		))
+		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Warning(
+			"Lab Manager",
+			fmt.Sprintf("Failed to get info of lab %s (%s)", lab.Name, lab.Topology.Name),
+			"Inspection of lab failed", "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
+		s.setTopologyDeployStatus(lab, false)
 	} else {
 		log.Infof("[SCHEDULER] Successfully deployed lab %s!", lab.Name)
-		s.instances[lab.UUID].Nodes = lo.Map(inspectOutput.Containers, s.containerToNode)
+		s.instances[lab.UUID].Nodes = lo.Map(inspectOutput.Containers, s.containerToInstanceNode)
 		for _, container := range inspectOutput.Containers {
 			containerLogNamespace := socket.CreateNamespace[string](
 				s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
@@ -497,8 +545,11 @@ func (s *labService) deployLab(lab Lab) bool {
 		}
 
 		s.updateStateAndNotify(lab, InstanceStates.Running, statusMessage.Success(
-			"Lab Manager", fmt.Sprintf("Successfully deployed lab %s", lab.Name),
-		))
+			"Lab Manager",
+			fmt.Sprintf("Successfully deployed %s (%s)", lab.Name, lab.Topology.Name),
+			"Deployment of lab was successful", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
+		s.setTopologyDeployStatus(lab, true)
 	}
 
 	return true
@@ -514,15 +565,33 @@ func (s *labService) createInstance() *Instance {
 	}
 }
 
-func (s *labService) containerToNode(container deployment.InspectContainer, _ int) InstanceNode {
+func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
+	if instance == nil {
+		return nil
+	}
+
+	return &InstanceOut{
+		Deployed:          instance.Deployed,
+		EdgesharkLink:     instance.EdgesharkLink,
+		State:             instance.State,
+		LatestStateChange: instance.LatestStateChange,
+		Nodes:             instance.Nodes,
+		Recovered:         instance.Recovered,
+	}
+}
+
+func (s *labService) containerToInstanceNode(container deployment.InspectContainer, _ int) InstanceNode {
+	nodeNameParts := strings.Split(container.Name, "-")
+
 	return InstanceNode{
-		Name:        container.Name,
-		User:        "ins",
-		Port:        50005,
-		IPv4:        container.IPv4Address,
-		IPv6:        container.IPv6Address,
-		State:       container.State,
-		ContainerId: container.ContainerId,
+		Name:          nodeNameParts[len(nodeNameParts)-1],
+		User:          "ins",
+		Port:          50005,
+		IPv4:          container.IPv4Address,
+		IPv6:          container.IPv6Address,
+		State:         container.State,
+		ContainerName: container.Name,
+		ContainerId:   container.ContainerId,
 	}
 }
 
@@ -534,13 +603,20 @@ func (s *labService) notifyUpdate(lab Lab, message *statusMessage.StatusMessage)
 	}
 }
 
-func (s *labService) updateStateAndNotify(lab Lab, state InstanceState, message *statusMessage.StatusMessage) {
+// updateStateAndNotify Updates the state of a lab and sends various notification updates.
+// If the status message is set, all users will receive the status message.
+// If the log namespace is set, the log content of the status message is also sent to the provided namespace.
+func (s *labService) updateStateAndNotify(lab Lab, state InstanceState, statusMessage *statusMessage.StatusMessage, logNamespace *socket.NamespaceManager[string]) {
 	s.instances[lab.UUID].State = state
 	s.instances[lab.UUID].LatestStateChange = time.Now()
 	s.labUpdatesNamespace.Send(lab.UUID)
 
-	if message != nil {
-		s.statusMessageNamespace.Send(*message)
+	if statusMessage != nil {
+		s.statusMessageNamespace.Send(*statusMessage)
+
+		if logNamespace != nil {
+			(*logNamespace).Send(statusMessage.LogContent)
+		}
 	}
 }
 
@@ -548,39 +624,40 @@ func (s *labService) handleLabCommand(
 	ctx context.Context,
 	data *LabCommandData,
 	authUser *auth.AuthenticatedUser,
-	onResponse func(response utils.Response),
+	onResponse func(response utils.OkResponse[any]),
+	onError func(response utils.ErrorResponse),
 ) {
 	switch data.Command {
 	case deployCommand:
 		if err := s.deployLabCommand(ctx, data.LabId, authUser); err != nil {
-			onResponse(utils.SocketErrorResponse(err))
+			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
-		onResponse(utils.SocketOkResponse(nil))
+		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
 	case destroyCommand:
 		if err := s.destroyLabCommand(ctx, data.LabId, authUser); err != nil {
-			onResponse(utils.SocketErrorResponse(err))
+			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
-		onResponse(utils.SocketOkResponse(nil))
+		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
 	case stopNodeCommand:
 		if err := s.stopNodeCommand(ctx, data.LabId, data.Node, authUser); err != nil {
-			onResponse(utils.SocketErrorResponse(err))
+			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
-		onResponse(utils.SocketOkResponse(nil))
+		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
 	case startNodeCommand:
 		if err := s.startNodeCommand(ctx, data.LabId, data.Node, authUser); err != nil {
-			onResponse(utils.SocketErrorResponse(err))
+			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
-		onResponse(utils.SocketOkResponse(nil))
+		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
 	default:
-		onResponse(utils.SocketErrorResponse(utils.ErrorInvalidLabCommand))
+		onError(utils.CreateSocketErrorResponse(utils.ErrorInvalidLabCommand))
 		break
 	}
 }
@@ -656,6 +733,7 @@ func (s *labService) startNodeCommand(ctx context.Context, labId string, node *s
 	return nil
 }
 
+// streamClabOutput Streams the output of a containerlab command to a given socket namespace.
 func streamClabOutput(logNamespace socket.NamespaceManager[string], output *string) {
 	re := regexp.MustCompile(`\[\dm`)
 	if output == nil {
@@ -663,6 +741,9 @@ func streamClabOutput(logNamespace socket.NamespaceManager[string], output *stri
 	}
 
 	for _, line := range strings.Split(*output, "\n") {
+		if line == "" {
+			continue
+		}
 		logNamespace.Send(string(re.ReplaceAll([]byte(line), []byte(""))))
 	}
 }

@@ -19,7 +19,7 @@ type (
 )
 
 func CreateService(config *config.AntimonyConfig) Service {
-	var deviceConfig []DeviceConfig
+	deviceConfig := make([]DeviceConfig, 0)
 
 	if deviceConfigFile, err := os.Open(config.Containerlab.DeviceConfig); err != nil {
 		log.Error("Failed to open device config file", "file", config.Containerlab.DeviceConfig)

@@ -2,7 +2,6 @@ package test
 
 import (
 	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/storage"
@@ -12,32 +11,7 @@ import (
 )
 
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
-	db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
-
-	err := db.AutoMigrate(&user.User{})
-	if err != nil {
-		panic("Failed to migrate users")
-	}
-
-	err = db.AutoMigrate(&collection.Collection{})
-	if err != nil {
-		panic("Failed to migrate collections")
-	}
-
-	err = db.AutoMigrate(&topology.BindFile{})
-	if err != nil {
-		panic("Failed to migrate bind files")
-	}
-
-	err = db.AutoMigrate(&topology.Topology{})
-	if err != nil {
-		panic("Failed to migrate topologies")
-	}
-
-	err = db.AutoMigrate(&lab.Lab{})
-	if err != nil {
-		panic("Failed to migrate labs")
-	}
+	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
 	user1 := user.User{
 		UUID: utils.GenerateUuid(),

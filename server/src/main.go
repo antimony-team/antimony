@@ -26,6 +26,17 @@ import (
 	"time"
 )
 
+// @Title          Antimony API
+// @Version        1.0
+// @Desciption     The Antimony API that connects to containerlab.
+
+// @Contact.name   Institute for Networking at OST
+// @Contact.url    https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security
+// @Contact.email  antimony@network.garden
+
+// @BasePath       /api/v1
+
+// @securityDefinitions.basic  BasicAuth
 func main() {
 	// Load environment variables from .env file if present
 	_ = godotenv.Load()
@@ -92,10 +103,10 @@ func main() {
 	// Public endpoints
 	user.RegisterRoutes(webServer, userHandler)
 	schema.RegisterRoutes(webServer, schemaHandler)
-	device.RegisterRoutes(webServer, devicesHandler)
 
 	// Authenticated endpoints
 	lab.RegisterRoutes(webServer, labHandler, authManager)
+	device.RegisterRoutes(webServer, devicesHandler, authManager)
 	topology.RegisterRoutes(webServer, topologyHandler, authManager)
 	collection.RegisterRoutes(webServer, collectionHandler, authManager)
 
@@ -143,6 +154,17 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %s", err.Error())
+		os.Exit(1)
+	}
+
+	err = db.AutoMigrate(&lab.Lab{})
+	err = db.AutoMigrate(&user.User{})
+	err = db.AutoMigrate(&topology.BindFile{})
+	err = db.AutoMigrate(&topology.Topology{})
+	err = db.AutoMigrate(&collection.Collection{})
+
+	if err != nil {
+		log.Fatalf("Failed to migrate table to database: %s", err.Error())
 		os.Exit(1)
 	}
 

@@ -2,6 +2,7 @@ package user
 
 import (
 	"antimonyBackend/utils"
+	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -34,29 +35,30 @@ func (h *userHandler) RefreshToken(ctx *gin.Context) {
 	)
 
 	if authToken, err = ctx.Cookie("authToken"); err != nil {
-		ctx.JSON(utils.ErrorResponse(utils.ErrorUnauthorized))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrorUnauthorized))
 		return
 	}
 
 	if accessToken, err = h.userService.RefreshAccessToken(authToken); err != nil {
-		ctx.JSON(utils.ErrorResponse(utils.ErrorForbidden))
+		log.Error("Failed: %s, auth: %s", err.Error(), authToken)
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrorForbidden))
 		return
 	}
 
 	ctx.SetCookie("accessToken", accessToken, 0, "/", "", false, false)
 
-	ctx.JSON(utils.OkResponse(accessToken))
+	ctx.JSON(utils.CreateOkResponse(accessToken))
 }
 
 func (h *userHandler) Login(ctx *gin.Context) {
 	payload := CredentialsIn{}
 	if err := ctx.Bind(&payload); err != nil {
-		ctx.JSON(utils.ErrorResponse(utils.ErrorInvalidCredentials))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrorInvalidCredentials))
 		return
 	}
 
 	if refreshToken, accessToken, err := h.userService.LoginNative(payload); err != nil {
-		ctx.JSON(utils.ErrorResponse(err))
+		ctx.JSON(utils.CreateErrorResponse(err))
 	} else {
 		ctx.SetCookie("authToken", refreshToken, 0, "/", "", false, true)
 		ctx.SetCookie("accessToken", accessToken, 0, "/", "", false, false)
@@ -90,7 +92,7 @@ func (h *userHandler) LoginOIDC(ctx *gin.Context) {
 func (h *userHandler) LoginSuccess(ctx *gin.Context) {
 	authToken, accessToken, err := h.userService.AuthenticateWithCode(ctx, ctx.Query("code"))
 	if err != nil {
-		ctx.JSON(utils.ErrorResponse(err))
+		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 

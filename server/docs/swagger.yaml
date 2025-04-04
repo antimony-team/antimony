@@ -1,0 +1,745 @@
+basePath: /api/v1
+definitions:
+  collection.CollectionIn:
+    properties:
+      name:
+        type: string
+      publicDeploy:
+        type: boolean
+      publicWrite:
+        type: boolean
+    type: object
+  collection.CollectionOut:
+    properties:
+      creator:
+        $ref: '#/definitions/user.UserOut'
+      id:
+        type: string
+      name:
+        type: string
+      publicDeploy:
+        type: boolean
+      publicWrite:
+        type: boolean
+    type: object
+  deployment.NodeState:
+    enum:
+    - running
+    type: string
+    x-enum-varnames:
+    - running
+  device.DeviceConfig:
+    properties:
+      interfacePattern:
+        type: string
+      interfaceStart:
+        type: integer
+      kind:
+        type: string
+      name:
+        type: string
+    type: object
+  lab.InstanceNode:
+    properties:
+      containerId:
+        type: string
+      containerName:
+        type: string
+      ipv4:
+        type: string
+      ipv6:
+        type: string
+      name:
+        type: string
+      port:
+        type: integer
+      state:
+        $ref: '#/definitions/deployment.NodeState'
+      user:
+        type: string
+      webSSH:
+        type: string
+    type: object
+  lab.InstanceOut:
+    properties:
+      deployed:
+        type: string
+      edgesharkLink:
+        type: string
+      latestStateChange:
+        type: string
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/lab.InstanceNode'
+        type: array
+      recovered:
+        type: boolean
+      state:
+        $ref: '#/definitions/lab.InstanceState'
+    type: object
+  lab.InstanceState:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - -1
+    - -2
+    type: integer
+    x-enum-varnames:
+    - deploying
+    - running
+    - stopping
+    - failed
+    - inactive
+    - scheduled
+  lab.LabIn:
+    properties:
+      endTime:
+        type: string
+      name:
+        type: string
+      startTime:
+        type: string
+      topologyId:
+        type: string
+    type: object
+  lab.LabOut:
+    properties:
+      collectionId:
+        type: string
+      creator:
+        $ref: '#/definitions/user.UserOut'
+      endTime:
+        type: string
+      id:
+        type: string
+      instance:
+        allOf:
+        - $ref: '#/definitions/lab.InstanceOut'
+        x-nullable: true
+      instanceName:
+        type: string
+        x-nullable: true
+      name:
+        type: string
+      startTime:
+        type: string
+      topologyId:
+        type: string
+    type: object
+  topology.BindFileIn:
+    properties:
+      content:
+        type: string
+      filePath:
+        type: string
+    required:
+    - filePath
+    type: object
+  topology.BindFileOut:
+    properties:
+      content:
+        type: string
+      filePath:
+        type: string
+      id:
+        type: string
+      topologyId:
+        type: string
+    type: object
+  topology.TopologyIn:
+    properties:
+      collectionId:
+        type: string
+      definition:
+        type: string
+      gitSourceUrl:
+        type: string
+      metadata:
+        type: string
+    required:
+    - collectionId
+    type: object
+  topology.TopologyOut:
+    properties:
+      bindFiles:
+        items:
+          $ref: '#/definitions/topology.BindFileOut'
+        type: array
+      collectionId:
+        type: string
+      creator:
+        $ref: '#/definitions/user.UserOut'
+      definition:
+        type: string
+      gitSourceUrl:
+        type: string
+      id:
+        type: string
+      lastDeployFailed:
+        type: boolean
+      metadata:
+        type: string
+    type: object
+  user.UserOut:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  utils.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  utils.OkResponse-any:
+    properties:
+      payload: {}
+    type: object
+  utils.OkResponse-array_collection_CollectionOut:
+    properties:
+      payload:
+        items:
+          $ref: '#/definitions/collection.CollectionOut'
+        type: array
+    type: object
+  utils.OkResponse-array_device_DeviceConfig:
+    properties:
+      payload:
+        items:
+          $ref: '#/definitions/device.DeviceConfig'
+        type: array
+    type: object
+  utils.OkResponse-array_lab_LabOut:
+    properties:
+      payload:
+        items:
+          $ref: '#/definitions/lab.LabOut'
+        type: array
+    type: object
+  utils.OkResponse-array_topology_TopologyOut:
+    properties:
+      payload:
+        items:
+          $ref: '#/definitions/topology.TopologyOut'
+        type: array
+    type: object
+  utils.OkResponse-string:
+    properties:
+      payload:
+        type: string
+    type: object
+info:
+  contact:
+    email: antimony@network.garden
+    name: Institute for Networking at OST
+    url: https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security
+  title: Antimony API
+  version: "1.0"
+paths:
+  /collections:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-array_collection_CollectionOut'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Retrieve all collections the user has access to
+      tags:
+      - collections
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The collection
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/collection.CollectionIn'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The ID of the newly created collection
+          schema:
+            $ref: '#/definitions/utils.OkResponse-string'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Create a new collection
+      tags:
+      - collections
+  /collections/{id}:
+    delete:
+      parameters:
+      - description: The ID of the collection to edit
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Delete an existing collection
+      tags:
+      - collections
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: The collection with updated values
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/collection.CollectionIn'
+      - description: The ID of the collection to edit
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Update an existing collection
+      tags:
+      - collections
+  /devices:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-array_device_DeviceConfig'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: The user doesn't have access to the resource
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Get all device configurations
+      tags:
+      - devices
+  /labs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-array_lab_LabOut'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Get all labs
+      tags:
+      - labs
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The lab
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/lab.LabIn'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The ID of the newly created lab
+          schema:
+            $ref: '#/definitions/utils.OkResponse-string'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Create a new lab
+      tags:
+      - labs
+  /labs/{id}:
+    delete:
+      parameters:
+      - description: The ID of the lab to delete
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Delete an existing lab
+      tags:
+      - labs
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: The lab with updated values
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/lab.LabIn'
+      - description: The ID of the lab to edit
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Update an existing lab
+      tags:
+      - labs
+  /schema:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The schema as JSON string
+          schema:
+            $ref: '#/definitions/utils.OkResponse-any'
+      summary: Returns the JSON schema to validate topology definitions
+      tags:
+      - schema
+  /topologies:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-array_topology_TopologyOut'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Get all topologies
+      tags:
+      - topologies
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The topology
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/topology.TopologyIn'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The ID of the newly created collection
+          schema:
+            $ref: '#/definitions/utils.OkResponse-string'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Create a new topology
+      tags:
+      - topologies
+  /topologies/{id}:
+    delete:
+      parameters:
+      - description: The ID of the topology to delete
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Delete an existing topology
+      tags:
+      - topologies
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: The topology with updated values
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/topology.TopologyIn'
+      - description: The ID of the topology to edit
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Update an existing topology
+      tags:
+      - topologies
+  /topologies/{topologyId}/files:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The bind file
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/topology.BindFileIn'
+      - description: The ID of the topology the bind file should belong to
+        in: path
+        name: topologyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The ID of the newly created file
+          schema:
+            $ref: '#/definitions/utils.OkResponse-string'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Create a new bind file for a topology
+      tags:
+      - bindFiles
+  /topologies/{topologyId}/files/{bindFileId}:
+    delete:
+      parameters:
+      - description: The ID of the topology the bind file belongs to
+        in: path
+        name: topologyId
+        required: true
+        type: string
+      - description: The ID of the bind file to delete
+        in: path
+        name: bindFileId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Delete an existing bind file of a topology
+      tags:
+      - bindFiles
+    put:
+      parameters:
+      - description: The ID of the topology the bind file belongs to
+        in: path
+        name: topologyId
+        required: true
+        type: string
+      - description: The ID of the bind file to edit
+        in: path
+        name: bindFileId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "422":
+          description: The request was invalid. Details in the response body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Update an existing bind file of a topology
+      tags:
+      - bindFiles
+securityDefinitions:
+  BasicAuth:
+    type: basic
+swagger: "2.0"

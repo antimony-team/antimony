@@ -38,8 +38,8 @@ type LabOut struct {
 	TopologyId   string       `json:"topologyId"`
 	CollectionId string       `json:"collectionId"`
 	Creator      user.UserOut `json:"creator"`
-	Instance     *Instance    `json:"instance,omitempty"`
-	InstanceName *string      `json:"instanceName,omitempty"`
+	Instance     *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
+	InstanceName *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
 }
 
 type LabFilter struct {
@@ -53,30 +53,42 @@ type LabFilter struct {
 }
 
 type Instance struct {
+	Deployed          time.Time
+	EdgesharkLink     string
+	State             InstanceState
+	LatestStateChange time.Time
+	Nodes             []InstanceNode
+
+	// Recovered Whether the instance has been recovered after an Antimony restart
+	Recovered bool
+
+	TopologyFile string
+	LogNamespace socket.NamespaceManager[string]
+
+	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
+	Mutex sync.Mutex
+}
+
+type InstanceOut struct {
+	Name              string         `json:"name"`
 	Deployed          time.Time      `json:"deployed"`
 	EdgesharkLink     string         `json:"edgesharkLink"`
 	State             InstanceState  `json:"state"`
 	LatestStateChange time.Time      `json:"latestStateChange"`
 	Nodes             []InstanceNode `json:"nodes"`
-
-	// Recovered Whether the instance has been recovered after an Antimony restart
-	Recovered bool `json:"recovered"`
-
-	// Server-only fields
-	TopologyFile string                          `json:"-"`
-	LogNamespace socket.NamespaceManager[string] `json:"-"`
-	Mutex        sync.Mutex                      `json:"-"`
+	Recovered         bool           `json:"recovered"`
 }
 
 type InstanceNode struct {
-	Name        string               `json:"name"`
-	IPv4        string               `json:"ipv4"`
-	IPv6        string               `json:"ipv6"`
-	Port        int                  `json:"port"`
-	User        string               `json:"user"`
-	WebSSH      string               `json:"webSSH"`
-	ContainerId string               `json:"containerId"`
-	State       deployment.NodeState `json:"state"`
+	Name          string               `json:"name"`
+	IPv4          string               `json:"ipv4"`
+	IPv6          string               `json:"ipv6"`
+	Port          int                  `json:"port"`
+	User          string               `json:"user"`
+	WebSSH        string               `json:"webSSH"`
+	State         deployment.NodeState `json:"state"`
+	ContainerId   string               `json:"containerId"`
+	ContainerName string               `json:"containerName"`
 }
 
 type InstanceState int
