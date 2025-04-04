@@ -47,6 +47,9 @@ export class StatusMessageStore {
     this.data.push(message);
     this.data = [...this.data];
     this.send(message.content, message.source, message.severity);
+    console.log(
+      `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`
+    );
   }
 
   @computed

@@ -34,8 +34,7 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
         <div className="flex align-items-center gap-1">
           <span className="property-title">ID:</span>
           <span
-            id="property-lab-id"
-            className="property-value property-id"
+            className="property-value property-id lab-dialog-tooltip-target"
             data-pr-tooltip="Copy to clipboard"
             data-pr-position="right"
             data-pr-my="left+10 center"
@@ -46,6 +45,12 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
             {props.lab.id}
           </span>
         </div>
+        <If condition={props.lab.instanceName}>
+          <div className="flex align-items-center gap-1">
+            <span className="property-title">Instance:</span>
+            <span className="property-value">{props.lab.instanceName}</span>
+          </div>
+        </If>
         <div className="flex align-items-center gap-1">
           <span className="property-title">Name:</span>
           <span className="property-value">{props.lab.name}</span>
@@ -64,6 +69,16 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
             <span className="property-value">
               {dayjs(props.lab.instance!.deployed).format('DD/MM/YYYY HH:mm')}
             </span>
+            <If condition={props.lab.instance!.recovered}>
+              <span
+                data-pr-tooltip="This instance has been recovered after Antimony was restarted"
+                data-pr-position="right"
+                data-pr-my="left+5data-bind center"
+                className="property-value lab-dialog-tooltip-target"
+              >
+                (Recovered)
+              </span>
+            </If>
           </div>
         </If>
         <div className="flex align-items-center gap-1">
@@ -83,7 +98,7 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
           />
         </div>
       </div>
-      <Tooltip target="#property-lab-id" />
+      <Tooltip target=".lab-dialog-tooltip-target" />
     </>
   );
 };

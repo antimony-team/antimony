@@ -1,11 +1,10 @@
-import {AuthenticatedUser, EMPTY_AUTH_USER} from '@sb/types/domain/user';
-import Cookies from 'js-cookie';
-import {io, Socket} from 'socket.io-client';
-import {action, autorun, computed, observable, runInAction} from 'mobx';
-
 import {fetchResource} from '@sb/lib/utils/utils';
-import {UserCredentials} from '@sb/types/types';
+import {AuthenticatedUser, EMPTY_AUTH_USER} from '@sb/types/domain/user';
 import {Result} from '@sb/types/result';
+import {UserCredentials} from '@sb/types/types';
+import Cookies from 'js-cookie';
+import {action, autorun, computed, observable, runInAction} from 'mobx';
+import {io, Socket} from 'socket.io-client';
 
 type AuthResponse = {
   token: string;
@@ -17,11 +16,14 @@ export type DataResponse<T> = {
   headers?: Headers;
 };
 
-type Subscription = {
+export type SubscriptionCallback = (data: unknown) => void;
+
+export type Subscription = {
   socket?: Socket;
   namespace: string;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  callbacks: Set<(data: unknown) => void>;
+  onDataCallbacks: Set<SubscriptionCallback>;
+  onConnectCallbacks: Set<() => void>;
+  onDisconnectCallbacks: Set<() => void>;
   isAnonymous: boolean;
 };
 
@@ -94,21 +96,35 @@ export class DataBinder {
    */
   private connectSubscription(subscription: Subscription) {
     if (subscription.isAnonymous) {
-      subscription.socket = io(`/${subscription.namespace}`);
+      try {
+        subscription.socket = io(`/${subscription.namespace}`);
+      } catch (_) {
+        subscription.socket?.close();
+        return;
+      }
     } else {
-      subscription.socket = io(`/${subscription.namespace}`, {
-        auth: {
-          token: this.accessToken,
-        },
-      });
+      try {
+        subscription.socket = io(`/${subscription.namespace}`, {
+          auth: {
+            token: this.accessToken,
+          },
+        });
+      } catch (_) {
+        subscription.socket?.close();
+        return;
+      }
     }
 
     subscription.socket.on('connect', () => {
       console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
+
+      subscription.onConnectCallbacks.forEach(callback => callback());
     });
 
     subscription.socket.on('disconnect', () => {
       console.log(`[SOCK] Disconnected from ns ${subscription.namespace}`);
+
+      subscription.onDisconnectCallbacks.forEach(callback => callback());
     });
 
     subscription.socket.on('connect_error', e => {
@@ -122,12 +138,15 @@ export class DataBinder {
           if (result.isOk()) {
             // Retry socket subscription if token was refreshed successfully
             this.connectSubscription(subscription);
+          } else {
+            // TODO(kian): Maybe add proper dialog to ask to refresh
+            window.location.replace(this.apiUrl + '/users/login/openid');
           }
         });
       }
     });
 
-    subscription.callbacks.forEach(callback => {
+    subscription.onDataCallbacks.forEach(callback => {
       subscription.socket!.on('backlog', data => {
         for (const msg of data) callback(msg);
       });
@@ -136,32 +155,58 @@ export class DataBinder {
   }
 
   /**
-   * Subscribes a callback to a socket.io namespace.
+   * Subscribes to a socket.io namespace and optionally registers a callback.
    *
    * Directly connects to the namespace if subscription is anonymous or the user
    * is already logged in.
    * @param namespace The name of the namespace.
-   * @param onData The callback that is called when data is received from the namespace.
+   * @param onData Optional callback that is called when data is received from the namespace.
+   * @param onConnect  Optional callback that is called when the connection is established.
+   * @param onDisconnect  Optional callback that is called when the connection is closed.
    * @param isAnonymous Whether to connect to the socket regardless of authentication state.
+   * @return The created subscription.
    */
   public subscribeNamespace<T>(
     namespace: string,
-    onData: (data: T) => void,
+    onData?: (data: T) => void,
+    onConnect?: () => void,
+    onDisconnect?: () => void,
     isAnonymous = false
-  ) {
-    const onDataGeneric = onData as (data: unknown) => void;
+  ): Subscription {
+    const onDataGeneric = onData as (data: unknown) => void | unknown;
 
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
 
       // Add callback to subscription only if it's not already registered
-      if (!subscription.callbacks.has(onDataGeneric)) {
-        subscription.callbacks.add(onDataGeneric);
+      if (onDataGeneric && !subscription.onDataCallbacks.has(onDataGeneric)) {
+        subscription.onDataCallbacks.add(onDataGeneric);
       }
+
+      if (onConnect && !subscription.onConnectCallbacks.has(onConnect)) {
+        subscription.onConnectCallbacks.add(onConnect);
+      }
+
+      if (
+        onDisconnect &&
+        !subscription.onDisconnectCallbacks.has(onDisconnect)
+      ) {
+        subscription.onDisconnectCallbacks.add(onDisconnect);
+      }
+
+      return subscription;
     } else {
-      const subscription = {
+      const subscription: Subscription = {
         namespace: namespace,
-        callbacks: new Set([onData as (data: unknown) => void]),
+        onDataCallbacks: onDataGeneric
+          ? new Set([onDataGeneric])
+          : new Set<SubscriptionCallback>(),
+        onConnectCallbacks: onConnect
+          ? new Set([onConnect])
+          : new Set<() => void>(),
+        onDisconnectCallbacks: onDisconnect
+          ? new Set([onDisconnect])
+          : new Set<() => void>(),
         isAnonymous: isAnonymous,
       };
       this.subscriptions.set(namespace, subscription);
@@ -169,6 +214,8 @@ export class DataBinder {
       if (this.isLoggedIn || isAnonymous) {
         this.connectSubscription(subscription);
       }
+
+      return subscription;
     }
   }
 
@@ -177,13 +224,22 @@ export class DataBinder {
    *
    * @param namespace The name of the namespace.
    * @param onData The callback that is called when data is received from the namespace.
+   * @param onConnect  Optional callback that is called when the connection is established.
+   * @param onDisconnect  Optional callback that is called when the connection is closed.
    */
-  public unsubscribeNamespace<T>(namespace: string, onData: (data: T) => void) {
+  public unsubscribeNamespace<T>(
+    namespace: string,
+    onData: (data: T) => void,
+    onConnect?: () => void,
+    onDisconnect?: () => void
+  ) {
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
-      subscription.callbacks.delete(onData as (data: unknown) => void);
+      subscription.onDataCallbacks.delete(onData as (data: unknown) => void);
+      if (onConnect) subscription.onConnectCallbacks.delete(onConnect);
+      if (onDisconnect) subscription.onDisconnectCallbacks.delete(onDisconnect);
 
-      if (subscription.callbacks.size === 0) {
+      if (subscription.onDataCallbacks.size === 0) {
         subscription.socket?.close();
         this.subscriptions.delete(namespace);
       }
@@ -375,11 +431,11 @@ export class DataBinder {
     return this.fetch<R, T>(path, 'POST', body, skipAuthentication);
   }
 
-  public async patch<R, T>(
+  public async put<R, T>(
     path: string,
     body: R,
     authenticated = false
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(path, 'PATCH', body, authenticated);
+    return this.fetch<R, T>(path, 'PUT', body, authenticated);
   }
 }

@@ -8,7 +8,7 @@ import './state-indicator.sass';
 export const LabStateStatusIcons: Record<InstanceState, string> = {
   [InstanceState.Deploying]: 'pi pi-sync pi-spin',
   [InstanceState.Running]: 'pi pi-check',
-  [InstanceState.Stopping]: 'pi pi-sync pi-times',
+  [InstanceState.Stopping]: 'pi pi-sync pi-spin',
   [InstanceState.Failed]: 'pi pi-exclamation-triangle',
   [InstanceState.Inactive]: 'pi pi-times',
   [InstanceState.Scheduled]: 'pi pi-calendar',

@@ -64,8 +64,6 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       };
       setOriginalBindFile(editBindFile);
 
-      console.log('OWN:', props.dialogState.state.owningTopologyId);
-
       editingBindFile.filePath = editBindFile.filePath;
       editingBindFile.topologyId = editBindFile.topologyId;
     }

@@ -12,7 +12,7 @@ export type LabOut = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
-  instance?: Instance;
+  instance?: InstanceOut;
 };
 
 export type Lab = {
@@ -26,15 +26,21 @@ export type Lab = {
   collectionId: uuid4;
 
   instance?: Instance;
+  instanceName?: string;
   state: InstanceState;
 };
 
-export type Instance = {
+export type InstanceOut = {
   deployed: Date;
   edgesharkLink: string;
   state: InstanceState;
   latestStateChange: Date;
   nodes: InstanceNode[];
+  recovered: boolean;
+};
+
+export type Instance = InstanceOut & {
+  nodeMap: Map<string, InstanceNode>;
 };
 
 export type InstanceNode = {
@@ -45,6 +51,7 @@ export type InstanceNode = {
   user: string;
   webSSH: string;
   containerId: string;
+  containerName: string;
 };
 
 export enum InstanceState {
@@ -61,10 +68,15 @@ export const InstanceStates = Object.values(InstanceState).filter(
   instance => typeof instance === 'number'
 );
 
-export type NodeMeta = {
-  name: string;
-  user: string;
-  host: string;
-  port: number;
-  webSsh: string;
+export type LabCommandData = {
+  labId: string;
+  command: LabCommand;
+  node?: string;
 };
+
+export enum LabCommand {
+  Deploy,
+  Destroy,
+  StopNode,
+  StartNode,
+}

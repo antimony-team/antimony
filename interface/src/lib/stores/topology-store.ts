@@ -71,8 +71,7 @@ export class TopologyStore extends DataStore<
     findFileId: string,
     bindFile: BindFileIn
   ) {
-    console.log('UPDATE:', bindFile);
-    const result = await this.rootStore._dataBinder.patch<BindFileIn, void>(
+    const result = await this.rootStore._dataBinder.put<BindFileIn, void>(
       `${this.resourcePath}/${topologyId}/files/${findFileId}`,
       bindFile
     );

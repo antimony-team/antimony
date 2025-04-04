@@ -1,12 +1,13 @@
+import {useLabStore} from '@sb/lib/stores/root-store';
 import {Choose, Otherwise, When} from '@sb/types/control';
-import {Checkbox} from 'primereact/checkbox';
-import {Divider} from 'primereact/divider';
-import React from 'react';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import {Button} from 'primereact/button';
 
 import './lab-dialog-panel-admin.sass';
-import {Lab} from '@sb/types/domain/lab';
+import {Checkbox} from 'primereact/checkbox';
+import {Divider} from 'primereact/divider';
+import React from 'react';
 
 interface LabDialogPanelProps {
   lab: Lab;
@@ -15,9 +16,12 @@ interface LabDialogPanelProps {
   setHostsHidden: (visible: boolean) => void;
 
   onShowLogs: () => void;
+  onDestroyLabRequest: () => void;
 }
 
 const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
+  const labStore = useLabStore();
+
   return (
     <div className="sb-lab-dialog-panel sb-lab-dialog-panel-admin">
       <span className="sb-lab-dialog-panel-title">Control</span>
@@ -54,14 +58,29 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
             icon="pi pi-play"
             label="Deploy Now"
             aria-label="Deploy Now"
+            onClick={() => labStore.deployLab(props.lab)}
           />
         </When>
         <Otherwise>
           <Button
             outlined
-            icon="pi pi-sync"
+            icon={
+              props.lab.state === InstanceState.Deploying
+                ? 'pi pi-sync pi-spin'
+                : 'pi pi-sync'
+            }
             label="Redeploy Lab"
             aria-label="Redeploy Lab"
+            onClick={() => labStore.deployLab(props.lab)}
+            disabled={props.lab.state === InstanceState.Deploying}
+            tooltip={
+              props.lab.state === InstanceState.Deploying
+                ? 'Lab is already being deployed.'
+                : ''
+            }
+            tooltipOptions={{
+              showOnDisabled: true,
+            }}
           />
         </Otherwise>
       </Choose>
@@ -74,9 +93,22 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
       <Button
         outlined
         icon="pi pi-power-off"
-        label="Destroy Lab"
-        aria-label="Destroy Lab"
+        label={
+          props.lab.state === InstanceState.Scheduled
+            ? 'Delete Lab'
+            : 'Destroy Lab'
+        }
+        aria-label={
+          props.lab.state === InstanceState.Scheduled
+            ? 'Delete Lab'
+            : 'Destroy Lab'
+        }
         severity="danger"
+        onClick={props.onDestroyLabRequest}
+        disabled={
+          props.lab.state === InstanceState.Inactive ||
+          props.lab.state === InstanceState.Deploying
+        }
       />
     </div>
   );

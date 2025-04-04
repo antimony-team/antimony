@@ -5,6 +5,7 @@ export interface StatusMessageOut {
   timestamp: string;
   source: string;
   content: string;
+  logContent: string;
   severity: Severity;
 }
 
@@ -14,6 +15,7 @@ export type StatusMessage = {
   timestamp: Date;
   source: string;
   content: string;
+  logContent: string;
   severity: Severity;
 };
 

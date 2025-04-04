@@ -1,6 +1,6 @@
 .sb-log-dialog
-  width: 1200px
-  height: 630px
+  width: max(1300px, 70vw)
+  height: max(630px, 70vh)
 
   .sb-dialog-content
     padding: 0
@@ -28,6 +28,18 @@
       overflow: auto
       position: relative
 
+      .sb-log-dialog-empty
+        margin: auto
+        height: 100%
+        display: flex
+        align-items: center
+        justify-content: center
+
+        span
+          font-style: italic
+          font-size: 20px
+          font-weight: 600
+
       .sb-log-dialog-lines-background
         position: absolute
         height: 100%
@@ -37,11 +49,9 @@
         z-index: 1
 
       pre
-        position: absolute
-        top: 0
+        position: relative
         margin: 0
         padding: 0 24px 0 0
-        bottom: 50px
         font-size: 18px
         z-index: 2
         font-family: Iosevka, monospace !important
@@ -58,6 +68,16 @@
 .hljs-timestamp
   color: var(--primary-color-text-darker)
   font-style: italic
+
+.hljs-antimony
+  font-weight: 800
+  color: var(--primary-color-border)
+  display: inline-block
+  //border: 2px solid var(--primary-color-border)
+  //margin-bottom: 4px
+  //margin-top: 4px
+  //padding: 2px 8px
+
 
 .hljs-error
   font-weight: 800

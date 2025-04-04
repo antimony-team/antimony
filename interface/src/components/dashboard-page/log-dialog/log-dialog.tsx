@@ -8,7 +8,7 @@ import {Choose, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
 import {observer} from 'mobx-react-lite';
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import containerLogLanguage from '@sb/lib/utils/container-log.language';
 import charmbraceletLogLanguage from '@sb/lib/utils/charmbracelet-log.language';
 
@@ -17,6 +17,8 @@ import {Skeleton} from 'primereact/skeleton';
 
 export interface LogDialogState {
   lab: Lab;
+
+  // Container ID of the docker container or -1 for containerlab logs.
   source?: string;
 }
 
@@ -28,32 +30,34 @@ hljs.registerLanguage('container-log', containerLogLanguage);
 hljs.registerLanguage('charmbracelet-log', charmbraceletLogLanguage);
 
 const LogDialog = observer((props: LogDialogProps) => {
-  const [lines, setLines] = useState<string[]>([]);
-  /*
-   * The source of the currently displayed log. Setting this to -1 indicates
-   * that the containerlab should be used.
-   */
+  const [lines, setLines] = useState<string[] | null>(null);
+
   const [logSource, setLogSource] = useState<string | number>(
     props.dialogState.state?.source ?? -1
   );
 
-  // The name of the currently used log source. Used in the dialog header.
-  const [logSourceName, setLogSourceName] = useState<string>('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const dataBinder = useDataBinder();
 
   const formatted = useMemo(() => {
+    if (lines === null) return null;
+
     /*
      * We prefix every line with a line number and a random character to
      * separate the line number from the rest of the line.
      * This character will later get a CSS class with display: none
-     * from highlight.js so it's not visible.
+     * from highlight.js, so it's not visible.
      */
-    const content = lines
-      .map((line, i) => {
-        return `${i + 1}ඞ${line}`;
-      })
-      .join('\n');
+    let content = '';
+
+    if (lines.length > 0) {
+      content = [...lines, '', '', '']
+        .map((line, i) => {
+          return `${i + 1}ඞ${line}`;
+        })
+        .join('\n');
+    }
     if (logSource === -1) {
       return hljs.highlight(content, {language: 'charmbracelet-log'}).value;
     } else {
@@ -61,32 +65,59 @@ const LogDialog = observer((props: LogDialogProps) => {
     }
   }, [lines]);
 
+  const skeleton = useMemo(() => {
+    const generateWidth = () => Math.random() * (60 - 15) + 15;
+    return Array.from({length: 24}, generateWidth).map((width, i) => (
+      <div className="sb-log-dialog-loading-line" key={i}>
+        <Skeleton width="50px"></Skeleton>
+        <Skeleton width={`${width}rem`}></Skeleton>
+      </div>
+    ));
+  }, [formatted]);
+
+  const logSourceName = useMemo(() => {
+    if (!props.dialogState.state) return '';
+
+    if (logSource === -1) {
+      return 'Containerlab';
+    } else {
+      return props.dialogState.state.lab.instance!.nodes.find(
+        node => node.containerId === logSource
+      )!.name;
+    }
+  }, [props.dialogState.state, logSource]);
+
+  useEffect(() => {
+    if (!props.dialogState.state || !props.dialogState.isOpen) return;
+
+    setLogSource(props.dialogState.state.source ?? -1);
+  }, [props.dialogState.state?.source, props.dialogState.isOpen]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    containerRef.current.scrollTo(0, containerRef.current.scrollHeight);
+  }, [formatted]);
+
   useEffect(() => {
     if (!props.dialogState.state) return;
-
-    // Set logSource name for dialog header
-    if (logSource === -1) {
-      setLogSourceName('Containerlab');
-    } else {
-      setLogSourceName(
-        props.dialogState.state.lab.instance!.nodes.find(
-          node => node.containerId === logSource
-        )!.name
-      );
-    }
 
     const namespace =
       logSource === -1
         ? `logs/${props.dialogState.state.lab.id}`
         : `logs/${props.dialogState.state.lab.id}/${logSource}`;
 
-    setLines([]);
-    dataBinder.subscribeNamespace(namespace, onLogs);
+    setLines(null);
+    dataBinder.subscribeNamespace(namespace, onLogs, onSocketConnect);
 
     return () => {
       dataBinder.unsubscribeNamespace(namespace, onLogs);
     };
-  }, [props.dialogState.state, logSource]);
+  }, [props.dialogState.state, props.dialogState.isOpen, logSource]);
+
+  function onSocketConnect() {
+    setLines([]);
+  }
 
   function onClose() {
     if (!props.dialogState.state) return;
@@ -102,7 +133,7 @@ const LogDialog = observer((props: LogDialogProps) => {
   }
 
   function onLogs(data: string) {
-    setLines(lines => [...lines, data]);
+    setLines(lines => [...(lines ?? []), data]);
   }
 
   const logSources = useMemo(() => {
@@ -116,21 +147,11 @@ const LogDialog = observer((props: LogDialogProps) => {
         value: -1,
       },
       ...nodes.map(node => ({
-        label: node.name,
+        label: node.containerName,
         value: node.containerId,
       })),
     ];
   }, [props.dialogState.state]);
-
-  function generateSkeleton() {
-    const generateWidth = () => Math.random() * (60 - 15) + 15;
-    return Array.from({length: 24}, generateWidth).map((width, i) => (
-      <div className="sb-log-dialog-loading-line" key={i}>
-        <Skeleton width="50px"></Skeleton>
-        <Skeleton width={`${width}rem`}></Skeleton>
-      </div>
-    ));
-  }
 
   return (
     <SBDialog
@@ -147,13 +168,33 @@ const LogDialog = observer((props: LogDialogProps) => {
       }
     >
       <Choose>
-        <When condition={formatted.length === 0}>
-          <div className="sb-log-dialog-loading">{generateSkeleton()}</div>
+        <When condition={formatted === null}>
+          <div className="sb-log-dialog-loading">{skeleton}</div>
+        </When>
+        <When condition={formatted === ''}>
+          <div ref={containerRef} className="sb-log-dialog-content">
+            <div className="sb-log-dialog-lines-background" />
+            <div className="sb-log-dialog-empty">
+              <Choose>
+                <When
+                  condition={
+                    logSource === -1 &&
+                    props.dialogState.state!.lab.instance!.recovered
+                  }
+                >
+                  <span>No logs found (Recovered Instance)</span>
+                </When>
+                <Otherwise>
+                  <span>No logs found</span>
+                </Otherwise>
+              </Choose>
+            </div>
+          </div>
         </When>
         <Otherwise>
-          <div className="sb-log-dialog-content">
+          <div ref={containerRef} className="sb-log-dialog-content">
             <div className="sb-log-dialog-lines-background" />
-            <pre dangerouslySetInnerHTML={{__html: formatted}} />
+            <pre dangerouslySetInnerHTML={{__html: formatted!}} />
           </div>
         </Otherwise>
       </Choose>
@@ -162,7 +203,7 @@ const LogDialog = observer((props: LogDialogProps) => {
         id="log-selector"
         icon={option => {
           if (option.value === -1) {
-            return <span className="material-symbols-outlined">lan</span>;
+            return <span className="material-symbols-outlined">terminal</span>;
           } else {
             return (
               <span className="material-symbols-outlined">deployed_code</span>

@@ -59,6 +59,7 @@ export interface MonacoWrapperRef {
 const MonacoWrapper = observer(
   forwardRef<MonacoWrapperRef, MonacoWrapperProps>((props, ref) => {
     const [isReadOnly, setReadOnly] = useState(false);
+    const [hasLastDeployFailed, setLastDeployFailed] = useState(false);
 
     const textModelRef = useRef<editor.ITextModel | null>(null);
     const editorRef = useRef<editor.ICodeEditor | null>(null);
@@ -71,8 +72,8 @@ const MonacoWrapper = observer(
 
     const onTopologyOpen = useCallback((topology: Topology) => {
       /*
-       * Don't replace the current model if the topology ID has not changed. This happens whenever
-       * a topology is saved a reloaded automatically.
+       * Don't replace the current model if the topology ID has not changed.
+       * This happens whenever a topology is saved and reloaded automatically.
        */
       if (currentlyOpenTopology.current === topology.id) {
         return;
@@ -81,6 +82,8 @@ const MonacoWrapper = observer(
       const readOnly = !authUser.isAdmin && authUser.id !== topology.creator.id;
       setReadOnly(readOnly);
       editorRef.current?.updateOptions({readOnly: readOnly});
+
+      setLastDeployFailed(topology.lastDeployFailed);
 
       if (textModelRef.current) {
         textModelRef.current.setValue(topology.definition.toString());
@@ -229,6 +232,13 @@ const MonacoWrapper = observer(
           <If condition={isReadOnly}>
             <div className="sb-monaco-wrapper-readonly">
               <span>The current file is opened in read-only mode.</span>
+            </div>
+          </If>
+          <If condition={hasLastDeployFailed}>
+            <div className="sb-monaco-wrapper-unsuccessful">
+              <span>
+                The latest deployment of this topology was unsuccessful.
+              </span>
             </div>
           </If>
           <div className="sb-monaco-wrapper">

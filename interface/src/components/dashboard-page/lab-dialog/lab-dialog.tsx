@@ -24,15 +24,17 @@ import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {ContextMenu} from 'primereact/contextmenu';
+import {MenuItem} from 'primereact/menuitem';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import Graph from 'react-graph-vis';
 
 import {DataSet} from 'vis-data/peer';
-import {IdType, Network} from 'vis-network';
+import {Network} from 'vis-network';
 import {Data} from 'vis-network/declarations/network/Network';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
+  onDestroyLabRequest: (lab: Lab) => void;
 }
 
 const LabDialog: React.FC<LabDialogProps> = observer(
@@ -41,7 +43,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const containerRef = useRef<HTMLDivElement>(null);
     const [hostsHidden, setHostsHidden] = useState(false);
     const nodeContextMenuRef = useRef<ContextMenu | null>(null);
-    const [selectedNode, setSelectedNode] = useState<IdType | null>(null);
+    const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isMenuVisible, setMenuVisible] = useState(false);
     const logDialogState = useDialogState<LogDialogState>();
 
@@ -76,7 +78,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       const targetNode = network?.getNodeAt(event.pointer.DOM);
       if (targetNode !== undefined) {
         network?.selectNodes([targetNode]);
-        setSelectedNode(targetNode as number);
+        setSelectedNode(targetNode as string);
         nodeContextMenuRef.current.show(event.event);
       }
 
@@ -89,7 +91,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       const targetNode = network?.getNodeAt(selectData.pointer.DOM);
 
       if (targetNode !== undefined) {
-        setSelectedNode(targetNode as number);
+        setSelectedNode(targetNode as string);
         setMenuVisible(true);
       } else {
         setMenuVisible(false);
@@ -125,34 +127,46 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       // if (nodeMeta) window.open(nodeMeta.webSsh);
     }
 
-    const networkContextMenuItems = useMemo(() => {
-      if (selectedNode !== null) {
-        return [
-          {
-            label: 'Stop Node',
-            icon: 'pi pi-power-off',
-          },
-          {
-            label: 'Restart Node',
-            icon: 'pi pi-sync',
-          },
-          {
-            separator: true,
-          },
-          {
-            label: 'Copy Host',
-            icon: 'pi pi-copy',
-          },
-          {
-            label: 'Web SSH',
-            icon: 'pi pi-external-link',
-          },
-          {
-            label: 'View Logs',
-            icon: 'pi pi-search',
-          },
-        ];
-      }
+    function onViewLogs() {
+      if (!selectedNode) return;
+
+      const instance = props.dialogState.state!.instance!;
+
+      logDialogState.openWith({
+        lab: props.dialogState.state!,
+        source: instance.nodeMap.get(selectedNode)!.containerId,
+      });
+    }
+
+    const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
+      if (selectedNode === null) return undefined;
+
+      return [
+        {
+          label: 'Stop Node',
+          icon: 'pi pi-power-off',
+        },
+        {
+          label: 'Restart Node',
+          icon: 'pi pi-sync',
+        },
+        {
+          separator: true,
+        },
+        {
+          label: 'Copy Host',
+          icon: 'pi pi-copy',
+        },
+        {
+          label: 'Web SSH',
+          icon: 'pi pi-external-link',
+        },
+        {
+          label: 'View Logs',
+          icon: 'pi pi-search',
+          command: onViewLogs,
+        },
+      ];
     }, [selectedNode]);
 
     useEffect(() => {
@@ -172,9 +186,15 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       if (!props.dialogState.state) return;
 
       if (logDialogState.isOpen) {
-        logDialogState.openWith({
-          lab: props.dialogState.state,
-        });
+        if (!props.dialogState.state.instance) {
+          // If the lab no longer has instance, close the log dialog
+          logDialogState.close();
+        } else {
+          // If the lab still has instance, refresh the log dialog
+          logDialogState.openWith({
+            lab: props.dialogState.state,
+          });
+        }
       }
     }, [props.dialogState.state]);
 
@@ -210,13 +230,16 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               <LabDialogPanelProperties lab={props.dialogState.state!} />
               <LabDialogPanelAdmin
                 lab={props.dialogState.state!}
-                onShowLogs={() =>
+                onShowLogs={() => {
                   logDialogState.openWith({
                     lab: props.dialogState.state!,
-                  })
-                }
+                  });
+                }}
                 hostsHidden={hostsHidden}
                 setHostsHidden={setHostsHidden}
+                onDestroyLabRequest={() =>
+                  props.onDestroyLabRequest(props.dialogState.state!)
+                }
               />
               <Graph
                 graph={{nodes: [], edges: []}}

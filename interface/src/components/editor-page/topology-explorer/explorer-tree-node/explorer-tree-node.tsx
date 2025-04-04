@@ -73,7 +73,7 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
       return authUser.isAdmin || (creator && creator.id === authUser.id);
     }
     return false;
-  }, [authUser, collectionStore.lookup, topologyStore.lookup]);
+  }, [authUser]);
 
   const isDeployable = useMemo(() => {
     if (

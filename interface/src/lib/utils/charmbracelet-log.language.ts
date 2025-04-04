@@ -1,5 +1,5 @@
 export default () => ({
-  case_insensitive: true,
+  case_insensitive: false,
   contains: [
     {
       className: 'linenumber',
@@ -11,11 +11,15 @@ export default () => ({
     },
     {
       className: 'timestamp',
-      begin: /\d{2}:\d{2}:\d{2}/,
+      begin: /\d{2}:\d{2}:\d{2}\s/,
+    },
+    {
+      className: 'antimony',
+      begin: /\bANTIMONY\b/,
     },
     {
       className: 'error',
-      begin: /\bERROR\b/,
+      begin: /\bERROR|Error\b/,
     },
     {
       className: 'warning',

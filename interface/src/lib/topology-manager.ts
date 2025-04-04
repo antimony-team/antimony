@@ -523,6 +523,7 @@ export class TopologyManager {
       definitionString: topology.definitionString,
       gitSourceUrl: topology.gitSourceUrl,
       bindFiles: cloneDeep(topology.bindFiles),
+      lastDeployFailed: topology.lastDeployFailed,
     };
   }
 }

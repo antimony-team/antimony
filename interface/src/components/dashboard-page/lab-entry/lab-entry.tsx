@@ -1,9 +1,11 @@
 import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
-import {useCollectionStore} from '@sb/lib/stores/root-store';
+import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
 import {Choose, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 import {Button, ButtonProps} from 'primereact/button';
 import React from 'react';
+
+import './lab-entry.sass';
 
 interface LabEntryProps {
   lab: Lab;
@@ -11,8 +13,7 @@ interface LabEntryProps {
   onOpenLab: () => void;
   onRescheduleLab: () => void;
 
-  onDestroyLab: () => void;
-  onDeployLab: () => void;
+  onDestroyLabRequest: () => void;
 }
 
 const defaultLabButtonProps: ButtonProps = {
@@ -26,6 +27,7 @@ const defaultLabButtonProps: ButtonProps = {
 };
 
 const LabEntry = (props: LabEntryProps) => {
+  const labStore = useLabStore();
   const collectionStore = useCollectionStore();
 
   function generateDisplayDate(lab: Lab): string {
@@ -59,14 +61,14 @@ const LabEntry = (props: LabEntryProps) => {
   }
 
   return (
-    <div className="lab-item-card" onClick={() => props.onOpenLab()}>
+    <div className="lab-item-card">
       <div className="lab-group sb-corner-tab" onClick={props.onOpenLab}>
         <span>
           {collectionStore.lookup.get(props.lab.collectionId)?.name ??
             'unknown'}
         </span>
       </div>
-      <div className="lab-name">
+      <div className="lab-name" onClick={() => props.onOpenLab()}>
         <span>{props.lab.name}</span>
       </div>
       <div className="lab-state">
@@ -86,7 +88,7 @@ const LabEntry = (props: LabEntryProps) => {
                 severity="danger"
                 tooltip="Destroy"
                 aria-label="Destroy"
-                onClick={() => props.onDestroyLab()}
+                onClick={() => props.onDestroyLabRequest()}
                 {...defaultLabButtonProps}
               />
             </When>
@@ -96,7 +98,7 @@ const LabEntry = (props: LabEntryProps) => {
                 severity="success"
                 tooltip="Deploy Now"
                 aria-label="Deploy Now"
-                onClick={() => props.onDeployLab()}
+                onClick={() => labStore.deployLab(props.lab)}
                 {...defaultLabButtonProps}
               />
             </When>
@@ -106,7 +108,7 @@ const LabEntry = (props: LabEntryProps) => {
                 severity="danger"
                 tooltip="Destroy"
                 aria-label="Destroy"
-                onClick={() => props.onDestroyLab()}
+                onClick={() => props.onDestroyLabRequest()}
                 {...defaultLabButtonProps}
               />
             </When>
@@ -116,7 +118,7 @@ const LabEntry = (props: LabEntryProps) => {
                 severity="warning"
                 tooltip="Redeploy"
                 aria-label="Redeploy"
-                onClick={() => props.onDeployLab()}
+                onClick={() => labStore.deployLab(props.lab)}
                 {...defaultLabButtonProps}
               />
             </When>
@@ -126,7 +128,7 @@ const LabEntry = (props: LabEntryProps) => {
                 severity="warning"
                 tooltip="Redeploy"
                 aria-label="Redeploy"
-                onClick={() => props.onDeployLab()}
+                onClick={() => labStore.deployLab(props.lab)}
                 {...defaultLabButtonProps}
               />
               <Button
@@ -134,7 +136,7 @@ const LabEntry = (props: LabEntryProps) => {
                 severity="danger"
                 tooltip="Destroy"
                 aria-label="Destroy"
-                onClick={() => props.onDestroyLab()}
+                onClick={() => props.onDestroyLabRequest()}
                 {...defaultLabButtonProps}
               />
             </When>

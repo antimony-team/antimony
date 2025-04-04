@@ -23,6 +23,7 @@ export type TopologyOut = TopologyIn & {
   id: uuid4;
   creator: User;
   bindFiles: BindFile[];
+  lastDeployFailed: boolean;
 };
 
 export type Topology = TopologyMeta & {
@@ -34,6 +35,7 @@ export type Topology = TopologyMeta & {
   creator: User;
   gitSourceUrl: string;
   bindFiles: BindFile[];
+  lastDeployFailed: boolean;
 };
 
 export interface TopologyDefinition {

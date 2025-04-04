@@ -129,6 +129,16 @@ const DashboardPage: React.FC = observer(() => {
     setSearchParams({l: lab.id});
   }
 
+  function onDestroyLabRequest(lab: Lab) {
+    notificationStore.confirm({
+      message: 'This action cannot be undone.',
+      header: `Destroy Lab '${lab.name}'?`,
+      icon: 'pi pi-stop',
+      severity: 'danger',
+      onAccept: () => labStore.destroyLab(lab),
+    });
+  }
+
   if (labStore.fetchReport.state !== FetchState.Done) {
     return <></>;
   }
@@ -201,8 +211,9 @@ const DashboardPage: React.FC = observer(() => {
         <div className="sb-dashboard-content" ref={containerRef}>
           <Choose>
             <When condition={labStore.data!.length > 0}>
-              {labStore.data!.map(lab => (
+              {labStore.data!.map((lab, i) => (
                 <LabEntry
+                  key={i}
                   lab={lab}
                   onOpenLab={() => labDialogState.openWith(lab)}
                   onRescheduleLab={() =>
@@ -212,8 +223,7 @@ const DashboardPage: React.FC = observer(() => {
                       action: DialogAction.Edit,
                     })
                   }
-                  onDestroyLab={() => onDestroyLab(lab)}
-                  onDeployLab={() => labStore.deployLab(lab)}
+                  onDestroyLabRequest={() => onDestroyLabRequest(lab)}
                 />
               ))}
             </When>
@@ -235,7 +245,10 @@ const DashboardPage: React.FC = observer(() => {
         </div>
       </div>
       <LabFilterOverlay popOverRef={popOver} />
-      <LabDialog dialogState={labDialogState} />
+      <LabDialog
+        dialogState={labDialogState}
+        onDestroyLabRequest={onDestroyLabRequest}
+      />
       <LabEditDialog dialogState={labEditDialogState} />
     </>
   );
