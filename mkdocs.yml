@@ -1,21 +1,20 @@
-site_name: Antimony
+site_name: Antimony Docs
 site_author: Kian Gribi
 site_url: https://antimony-team.github.io/
 
 repo_name: antimony-team/antimony-backend
-repo_url: https://github.com/squidfunk/mkdocs-material
+repo_url: https://github.com/antimony-team/antimony-backend
+
+nav:
+ - Home: 'index.md'
+ - Quick Start: 'quick-start.md'
+ - User Manual: 'manual/index.md'
+ - API Definition: 'api/index.md'
+ - Issues: 'https://github.com/antimony-team/antimony-backend/issues/'
 
 theme:
   name: material
   custom_dir: docs/overrides
-
-  # 404 page
-  static_templates:
-    - 404.html
-
-  # Don't include MkDocs' JavaScript
-  include_search_page: false
-  search_index_only: true
 
   features:
     - navigation.top
@@ -31,7 +30,6 @@ theme:
 
   language: en
   palette:
-    # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: white
@@ -39,7 +37,6 @@ theme:
       toggle:
         icon: material/toggle-switch-off-outline
         name: Switch to dark mode
-    # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: black
@@ -51,7 +48,7 @@ theme:
     logo: logo
     repo: fontawesome/brands/github
     edit: material/file-edit-outline
-  favicon: images/favicon.svg
+  favicon: images/favicon-light.png
 
 plugins:
   - offline
