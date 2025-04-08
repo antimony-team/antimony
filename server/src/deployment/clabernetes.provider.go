@@ -117,7 +117,7 @@ func (p *ClabernetesProvider) Inspect(
 func (p *ClabernetesProvider) InspectAll( //not tested
 	ctx context.Context,
 ) (*InspectOutput, error) {
-	cmd := exec.CommandContext(ctx, "kubectl", "get", "topology", "--all-namespaces", "-o", "json")
+	/*cmd := exec.CommandContext(ctx, "kubectl", "get", "topology", "--all-namespaces", "-o", "json")
 	if output, err := runClabCommandSync(cmd); err != nil {
 		return nil, err
 	} else {
@@ -130,9 +130,9 @@ func (p *ClabernetesProvider) InspectAll( //not tested
 			return nil, err
 		}
 
-		// You could extract data from raw["items"] here into InspectOutput, or leave empty.
 		return &InspectOutput{Containers: []InspectContainer{}}, nil
-	}
+	}*/
+	return nil, nil
 }
 func (p *ClabernetesProvider) Exec(ctx context.Context,
 	topologyFile string,

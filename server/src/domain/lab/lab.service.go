@@ -148,7 +148,7 @@ func (s *labService) initSchedule() {
 					containerLogNamespace := socket.CreateNamespace[string](
 						s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
 					)
-					err := s.deploymentProvider.StreamContainerLogs(ctx, container.ContainerId, containerLogNamespace.Send)
+					err := s.deploymentProvider.StreamContainerLogs(ctx, "", container.ContainerId, containerLogNamespace.Send)
 					if err != nil {
 						log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
 					}
@@ -538,7 +538,7 @@ func (s *labService) deployLab(lab Lab) bool {
 			containerLogNamespace := socket.CreateNamespace[string](
 				s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
 			)
-			err := s.deploymentProvider.StreamContainerLogs(ctx, container.ContainerId, containerLogNamespace.Send)
+			err := s.deploymentProvider.StreamContainerLogs(ctx, "", container.ContainerId, containerLogNamespace.Send)
 			if err != nil {
 				log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
 			}

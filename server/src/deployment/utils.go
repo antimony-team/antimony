@@ -35,7 +35,9 @@ func runClabCommand(cmd *exec.Cmd, onLog func(data string), onDone func(output *
 func streamOutput(pipe io.Reader, onLog func(data string)) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
-		onLog(scanner.Text())
+		if onLog != nil {
+			onLog(scanner.Text())
+		}
 	}
 	if err := scanner.Err(); err != nil {
 	}

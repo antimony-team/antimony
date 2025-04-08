@@ -33,3 +33,5 @@ antimony.db
 /storage/
 
 build/
+#run directory
+run
