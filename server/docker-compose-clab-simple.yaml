@@ -1,0 +1,20 @@
+name: antimonyBackend
+
+services:
+  backend:
+    container_name: antimony-backend
+    build:
+      context: .
+      dockerfile: Dockerfile.clab
+    environment:
+      - SB_OIDC_SECRET=MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
+      - SB_NATIVE_USERNAME=admin
+      - SB_NATIVE_PASSWORD=admin
+    network_mode: "host"
+    pid: "host"
+    privileged: true
+    command: -sqlite true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/netns:/var/run/netns
+      - /var/lib/docker/containers:/var/lib/docker/containers

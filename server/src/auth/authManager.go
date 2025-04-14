@@ -5,14 +5,15 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"crypto/rand"
+	"os"
+	"slices"
+	"time"
+
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
-	"os"
-	"slices"
-	"time"
 )
 
 type (
@@ -78,21 +79,6 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 }
 
 func (m *authManager) Init(config *config.AntimonyConfig) {
-	provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
-	if err != nil {
-		log.Fatalf("Failed to connect to OpenID provider: %s", err.Error())
-		os.Exit(1)
-	}
-
-	m.provider = *provider
-	m.oauth2Config = oauth2.Config{
-		ClientID:     config.Auth.OpenIdClientId,
-		ClientSecret: m.oidcSecret,
-		RedirectURL:  "http://localhost:3000/users/login/success",
-		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID},
-	}
-
 	if m.isNativeEnabled {
 		m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
 			UserId:      NativeUserID,
@@ -100,6 +86,22 @@ func (m *authManager) Init(config *config.AntimonyConfig) {
 			Collections: make([]string, 0),
 		}
 	}
+
+	provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
+	if err != nil {
+		log.Errorf("Failed to connect to OpenID provider: %s", err.Error())
+	} else {
+		m.provider = *provider
+		m.oauth2Config = oauth2.Config{
+			ClientID:     config.Auth.OpenIdClientId,
+			ClientSecret: m.oidcSecret,
+			RedirectURL:  "http://localhost:3000/users/login/success",
+			Endpoint:     provider.Endpoint(),
+			Scopes:       []string{oidc.ScopeOpenID},
+		}
+
+	}
+
 }
 
 func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
