@@ -6,19 +6,14 @@ import React, {
   useRef,
   useState,
 } from 'react';
-
-import {Node, Position} from 'vis';
-import Graph from 'react-graph-vis';
-import {DataSet} from 'vis-data/peer';
+import cytoscape from 'cytoscape';
 import {observer} from 'mobx-react-lite';
-import {IdType, Network} from 'vis-network';
 import {MenuItem} from 'primereact/menuitem';
+import type {EventObject} from 'cytoscape';
 import {SpeedDial} from 'primereact/speeddial';
+import CytoscapeComponent from 'react-cytoscapejs';
 import {ContextMenu} from 'primereact/contextmenu';
-import useResizeObserver from '@react-hook/resize-observer';
-import {Data} from 'vis-network/declarations/network/Network';
 
-import {NetworkOptions} from './network.conf';
 import NodeToolbar from './toolbar/node-toolbar';
 import {Topology} from '@sb/types/domain/topology';
 import {drawGrid, generateGraph} from '@sb/lib/utils/utils';
@@ -28,7 +23,6 @@ import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import 'vis-network/styles/vis-network.css';
 import './node-editor.sass';
-import {GraphNodeClickEvent} from '@sb/types/graph';
 
 interface NodeEditorProps {
   openTopology: Topology | null;
@@ -39,46 +33,67 @@ interface NodeEditorProps {
 
 const NodeEditor: React.FC<NodeEditorProps> = observer(
   (props: NodeEditorProps) => {
-    const [network, setNetwork] = useState<Network | null>(null);
+    const cyRef = useRef<cytoscape.Core | null>(null);
     const [contextMenuModel, setContextMenuModel] = useState<MenuItem[] | null>(
       null
     );
-    const [radialMenuTarget, setRadialMenuTarget] = useState<IdType | null>(
+    const [radialMenuTarget, setRadialMenuTarget] = useState<string | null>(
       null
     );
-
+    const ghostNodeId = 'ghost-target';
+    const ghostEdgeId = 'ghost-edge';
     const deviceStore = useDeviceStore();
     const topologyStore = useTopologyStore();
     const simulationConfig = useSimulationConfig();
-
-    const containerRef = useRef(null);
+    const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
-    const networkCanvasContext = useRef<CanvasRenderingContext2D | null>(null);
+    const menuTargetRef = useRef<string | null>(null);
 
-    // Reference to the currently targeted node for the radial and context menu
-    const menuTargetRef = useRef<IdType | null>(null);
-
-    const [nodeConnectTarget, setNodeConnectTarget] = useState<IdType | null>(
+    const [nodeConnectTarget, setNodeConnectTarget] = useState<string | null>(
       null
     );
-    const [nodeConnectTargetPosition, setNodeConnectTargetPosition] =
-      useState<Position | null>(null);
+    const [nodeConnectTargetPosition, setNodeConnectTargetPosition] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
 
-    const [nodeConnectDestination, setNodeConnectDestination] =
-      useState<Position | null>(null);
+    const [nodeConnectDestination, setNodeConnectDestination] = useState<
+      string | null
+    >(null);
 
-    useResizeObserver(containerRef, () => {
-      if (network) {
-        network.redraw();
-      }
-    });
+    function drawGridOverlay(cy: cytoscape.Core) {
+      const canvas = gridCanvasRef.current;
+      if (!canvas || !containerRef.current) return;
 
-    const graphData: Data = useMemo(() => {
-      if (!props.openTopology) {
-        return {nodes: new DataSet(), edges: new DataSet()};
-      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
+      const resizeCanvas = () => {
+        canvas.width = containerRef.current!.clientWidth;
+        canvas.height = containerRef.current!.clientHeight;
+      };
+
+      const draw = () => {
+        resizeCanvas();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGrid(ctx, cy.zoom(), cy.pan());
+      };
+
+      cy.on('render zoom pan', draw);
+      window.addEventListener('resize', draw);
+
+      draw();
+
+      return () => {
+        cy.off('render zoom pan', draw);
+        window.removeEventListener('resize', draw);
+      };
+    }
+
+    const elements = useMemo(() => {
+      if (props.openTopology === null) return [];
       return generateGraph(
         props.openTopology,
         deviceStore,
@@ -92,125 +107,132 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
     }, []);
 
-    const drawConnectionLine = useCallback(
-      (ctx: CanvasRenderingContext2D) => {
-        if (
-          !network ||
-          !nodeConnectTargetPosition ||
-          !nodeConnectDestination ||
-          !containerRef.current
-        ) {
-          return;
-        }
+    function onMouseMove(event: MouseEvent<HTMLDivElement>) {
+      if (!cyRef.current || !nodeConnectTarget) return;
 
-        const target = nodeConnectTargetPosition;
-        const canvasRect = ctx.canvas.getBoundingClientRect();
-        const destination = network.DOMtoCanvas({
-          x: nodeConnectDestination.x - canvasRect.x,
-          y: nodeConnectDestination.y - canvasRect.y,
-        });
+      const cy = cyRef.current as cytoscape.Core & {
+        renderer: () => {
+          projectIntoViewport: (x: number, y: number) => [number, number];
+        };
+      };
 
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgb(66 181 172)';
-        ctx.moveTo(target.x, target.y);
-        ctx.lineTo(destination.x, destination.y);
-        ctx.stroke();
+      const [x, y] = cy
+        .renderer()
+        .projectIntoViewport(event.clientX, event.clientY);
 
-        ctx.beginPath();
-        ctx.arc(destination.x, destination.y, 4, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
-      },
-      [network, nodeConnectDestination, nodeConnectTargetPosition]
-    );
+      drawConnectionLine(nodeConnectTarget, x, y);
+    }
+
+    function drawConnectionLine(
+      sourceId: string,
+      mouseX: number,
+      mouseY: number
+    ) {
+      if (!cyRef.current) return;
+
+      const cy = cyRef.current;
+
+      const ghostNode = cy.getElementById(ghostNodeId);
+
+      // Add ghost node and edge
+      if (!ghostNode.nonempty()) {
+        cy.add([
+          {
+            group: 'nodes',
+            data: {id: ghostNodeId},
+            position: {x: mouseX, y: mouseY},
+            selectable: false,
+            grabbable: false,
+            classes: 'ghost-node',
+          },
+          {
+            group: 'edges',
+            data: {
+              id: ghostEdgeId,
+              source: sourceId,
+              target: ghostNodeId,
+              temp: true,
+            },
+            classes: 'ghost-edge',
+          },
+        ]);
+      } else {
+        ghostNode.position({x: mouseX, y: mouseY});
+      }
+    }
 
     /**
      * Wraps a network modifying function into a smooth move transition.
      *
      * @param callback The function that is called which modifies the network
      */
-    const withSmoothTrasition = useCallback(
-      (callback: () => void) => {
-        if (!network) {
-          callback();
-          return;
-        }
-
-        const positionBefore = network.getViewPosition();
-        const scaleBefore = network.getScale();
-
+    const withSmoothTransition = useCallback((callback: () => void) => {
+      const cy = cyRef.current;
+      if (!cy) {
         callback();
+        return;
+      }
 
-        const positionAfter = network.getViewPosition();
-        const scaleAfter = network.getScale();
+      const zoomBefore = cy.zoom();
+      const panBefore = cy.pan();
 
-        network.moveTo({position: positionBefore, scale: scaleBefore});
-        network.moveTo({
-          position: positionAfter,
-          scale: scaleAfter,
-          animation: {
-            duration: 200,
-            easingFunction: 'easeOutQuad',
-          },
-        });
-      },
-      [network]
-    );
+      callback(); // modify elements or trigger re-layout
 
-    const onBeforeDrawing = useCallback(
-      (ctx: CanvasRenderingContext2D) => {
-        networkCanvasContext.current = ctx;
+      const zoomAfter = cy.zoom();
+      const panAfter = cy.pan();
 
-        drawGrid(ctx);
-        drawConnectionLine(ctx);
-      },
-      [drawConnectionLine]
-    );
+      cy.zoom(zoomBefore).pan(panBefore);
+
+      cy.animate(
+        {
+          zoom: zoomAfter,
+          pan: panAfter,
+        },
+        {
+          duration: 200,
+          easing: 'ease-in-out',
+        }
+      );
+    }, []);
 
     const onNodeConnect = useCallback(() => {
-      if (!network || menuTargetRef.current === null) return;
+      const cy = cyRef.current;
+      if (!cy || menuTargetRef.current === null) return;
 
-      setNodeConnectTarget(menuTargetRef.current);
-      setNodeConnectTargetPosition(
-        network?.getPosition(menuTargetRef.current) ?? null
-      );
-    }, [network]);
+      const nodeId = menuTargetRef.current;
+      const node = cy.getElementById(nodeId);
+
+      if (!node) return;
+
+      setNodeConnectTarget(nodeId);
+      setNodeConnectTargetPosition(node.position());
+    }, []);
 
     const onNodeEdit = useCallback(() => {
-      if (!network || menuTargetRef.current === null) return;
+      if (!cyRef.current || menuTargetRef.current === null) return;
 
       closeRadialMenu();
-      props.onEditNode(menuTargetRef.current as string);
-    }, [network, props]);
+      props.onEditNode(menuTargetRef.current);
+    }, [props]);
 
     const onNodeDelete = useCallback(() => {
-      if (!network || menuTargetRef.current === null) return;
+      if (!cyRef || menuTargetRef.current === null) return;
 
       topologyStore.manager.deleteNode(menuTargetRef.current as string);
-    }, [network, topologyStore.manager]);
-
-    const setNodesFixed = useCallback(
-      (isFixed: boolean) => {
-        const nodes = graphData.nodes as DataSet<Node>;
-        nodes.forEach(node =>
-          nodes.update({
-            id: node.id,
-            fixed: {x: isFixed, y: isFixed},
-          })
-        );
-      },
-      [graphData.nodes]
-    );
+    }, [cyRef, topologyStore.manager]);
 
     useEffect(() => {
-      if (!network) return;
+      const cy = cyRef.current;
+      if (!cy) return;
 
-      const position = network.getViewPosition();
-      const scale = network.getScale();
+      const zoomBefore = cy.zoom();
+      const panBefore = cy.pan();
+
       closeRadialMenu();
-      network.setData(graphData);
-      network.moveTo({position, scale});
-    }, [network, graphData, withSmoothTrasition]);
+
+      cy.zoom(zoomBefore);
+      cy.pan(panBefore);
+    }, [elements]);
 
     useEffect(() => {
       window.addEventListener('keydown', onKeyDown);
@@ -220,211 +242,172 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       };
     }, [onKeyDown]);
 
-    useEffect(() => {
-      if (!network || !simulationConfig.liveSimulation) return;
-
-      network.setOptions({
-        ...NetworkOptions,
-        ...simulationConfig.config,
-      });
-    }, [network, simulationConfig.config, simulationConfig.liveSimulation]);
-
-    useEffect(() => {
-      if (!network) return;
-
-      setNodesFixed(!simulationConfig.liveSimulation);
-    }, [network, setNodesFixed, simulationConfig.liveSimulation]);
-
-    useEffect(() => {
-      network?.redraw();
-    }, [network, nodeConnectTarget, nodeConnectDestination]);
-
-    function onMouseMove(event: MouseEvent<HTMLDivElement>) {
-      if (!nodeConnectTarget || !network) return;
-
-      setNodeConnectDestination({x: event.clientX, y: event.clientY});
-      network?.redraw();
-    }
-
-    function onClick(selectData: GraphNodeClickEvent) {
-      if (!network) return;
-
-      const targetNode = network?.getNodeAt(selectData.pointer.DOM);
-
-      if (targetNode === undefined) {
-        exitConnectionMode();
-      }
-
-      if (targetNode === undefined || targetNode === radialMenuTarget) {
-        closeRadialMenu();
-        network.unselectAll();
-      } else if (targetNode !== undefined) {
-        if (nodeConnectTarget !== null && nodeConnectDestination !== null) {
-          topologyStore.manager.connectNodes(
-            nodeConnectTarget as string,
-            targetNode as string
-          );
+    const onNodeClick = useCallback(
+      (event: cytoscape.EventObject) => {
+        const nodeId = event.target.id();
+        if (nodeConnectTarget && nodeConnectTarget !== nodeId) {
+          topologyStore.manager.connectNodes(nodeConnectTarget, nodeId);
           exitConnectionMode();
           return;
         }
 
-        if (radialMenuTarget !== null) {
+        if (radialMenuTarget !== null && radialMenuTarget !== nodeId) {
           closeRadialMenu();
-          setTimeout(() => {
-            openRadialMenu(targetNode);
-          }, 200);
+          setTimeout(() => openRadialMenu(nodeId), 200);
         } else {
-          openRadialMenu(targetNode);
+          openRadialMenu(nodeId);
         }
-        setRadialMenuTarget(targetNode);
+
+        setRadialMenuTarget(nodeId);
+      },
+      [nodeConnectTarget, radialMenuTarget]
+    );
+
+    const onBackgroundClick = useCallback((event: cytoscape.EventObject) => {
+      if (event.target === cyRef.current) {
+        exitConnectionMode();
+        closeRadialMenu();
+        cyRef.current?.elements().unselect();
       }
-    }
+    }, []);
 
     function closeRadialMenu() {
       setRadialMenuTarget(null);
       radialMenuRef.current?.hide();
     }
 
-    function openRadialMenu(targetNode: IdType) {
-      if (!network || !radialMenuRef.current) return;
+    function openRadialMenu(targetNodeId: string) {
+      if (!cyRef.current || !radialMenuRef.current || !containerRef.current)
+        return;
 
-      menuTargetRef.current = targetNode;
+      menuTargetRef.current = targetNodeId;
 
-      const targetPosition = network.getPosition(targetNode);
-      const element = radialMenuRef.current?.getElement();
+      const cy = cyRef.current;
+      //const domRect = containerRef.current.getBoundingClientRect(); radial menu problems
 
-      element.style.top = `${network?.canvasToDOM(targetPosition).y - 32}px`;
-      element.style.left = `${network?.canvasToDOM(targetPosition).x - 32}px`;
-      radialMenuRef.current?.show();
+      const pos = cy.getElementById(targetNodeId).renderedPosition();
+
+      const element = radialMenuRef.current.getElement();
+      element.style.position = 'absolute';
+      element.style.top = `${pos.y - 32}px`;
+      element.style.left = `${pos.x - 32}px`;
+      radialMenuRef.current.show();
     }
 
-    function onDoubleClick(selectData: GraphNodeClickEvent) {
-      if (!contextMenuRef.current) return;
+    const onDoubleClick = useCallback(
+      (event: cytoscape.EventObject) => {
+        const nodeId = event.target.id();
+        if (!nodeId || !contextMenuRef.current) return;
 
-      const targetNode = network?.getNodeAt(selectData.pointer.DOM);
-      if (targetNode !== undefined) {
-        network?.selectNodes([targetNode]);
+        event.target.select(); // show selected maybe remove
         closeRadialMenu();
-        onNodeEdit();
-      }
-    }
+        props.onEditNode(nodeId);
+      },
+      [props]
+    );
 
-    function onContext(selectData: GraphNodeClickEvent) {
-      if (!contextMenuRef.current) return;
+    const onContext = useCallback(
+      (event: cytoscape.EventObject) => {
+        if (!contextMenuRef.current) return;
 
-      // If connection mode is currently active, exit and don't show menu
-      if (nodeConnectDestination !== null) {
-        exitConnectionMode();
-        selectData.event.preventDefault();
-        return;
-      }
+        const mouseEvent = event.originalEvent as unknown as MouseEvent;
+        if (!mouseEvent) return;
 
-      const targetNode = network?.getNodeAt(selectData.pointer.DOM);
+        mouseEvent.preventDefault();
+        mouseEvent.stopPropagation();
 
-      if (targetNode !== undefined) {
-        setContextMenuModel(nodeContextMenuModel);
-        menuTargetRef.current = targetNode;
-      } else {
-        setContextMenuModel(networkContextMenuModel);
-        menuTargetRef.current = null;
-      }
+        const isNode = event.target.isNode?.();
+        const nodeId = isNode ? event.target.id() : null;
 
-      contextMenuRef.current.show(selectData.event);
-    }
+        if (isNode && nodeId) {
+          setContextMenuModel(nodeContextMenuModel);
+          menuTargetRef.current = nodeId;
+        } else {
+          setContextMenuModel(networkContextMenuModel);
+          menuTargetRef.current = null;
+        }
 
-    function onDragging(event: GraphNodeClickEvent) {
+        contextMenuRef.current.show(mouseEvent);
+      },
+      [nodeConnectDestination]
+    );
+
+    const onDragging = useCallback(() => {
       closeRadialMenu();
+      exitConnectionMode();
+    }, []);
 
-      if (event.nodes.length > 0) {
-        exitConnectionMode();
-      }
-    }
+    const onDragStart = useCallback((event: cytoscape.EventObject) => {
+      const node = event.target;
+      if (!node || !node.isNode()) return;
+    }, []);
 
-    function onDragStart(event: GraphNodeClickEvent) {
-      if (!event || !network || !graphData.nodes || event.nodes.length === 0)
-        return;
+    const onDragEnd = useCallback(
+      (event: cytoscape.EventObject) => {
+        const node = event.target;
+        if (!node || !node.isNode()) return;
 
-      (graphData.nodes as DataSet<Node>).update({
-        id: event.nodes[0],
-        fixed: {x: false, y: false},
-      });
-    }
+        const nodeId = node.id();
+        const position = node.position();
 
-    function onDragEnd(event: GraphNodeClickEvent) {
-      if (
-        !network ||
-        !topologyStore.manager.topology ||
-        event.nodes.length === 0
-      ) {
-        return;
-      }
-
-      if (!simulationConfig.liveSimulation) {
-        (graphData.nodes as DataSet<Node>).update({
-          id: event.nodes[0],
-          fixed: {
-            x: true,
-            y: true,
-          },
-        });
-      }
-    }
+        if (topologyStore.manager.topology) {
+          topologyStore.manager.topology.positions.set(nodeId, {
+            x: position.x,
+            y: position.y,
+          });
+        }
+      },
+      [simulationConfig.liveSimulation, topologyStore.manager]
+    );
 
     function onStabilizeGraph() {
-      if (!network) return;
+      const cy = cyRef.current;
+      if (!cy) return;
 
-      network.setOptions({
-        ...NetworkOptions,
-        ...simulationConfig.config,
-        interaction: {
-          dragNodes: false,
-        },
+      cy.nodes().forEach(node => {
+        node.unlock();
       });
 
-      const nodes = graphData.nodes as DataSet<Node>;
-      nodes.forEach(node =>
-        nodes.update({id: node.id, fixed: {x: false, y: false}})
-      );
+      // TODO Phyisics (is only basic repulsion right now)
+      const layout = cy.layout({
+        name: 'cose',
+        animate: true,
+        animationDuration: 800,
+      });
 
       simulationConfig.setIsStabilizing(true);
 
+      layout.run();
+
       setTimeout(() => {
-        nodes.forEach(node =>
-          nodes.update({
-            id: node.id,
-            fixed: {
-              x: !simulationConfig.liveSimulation,
-              y: !simulationConfig.liveSimulation,
-            },
-          })
-        );
-        simulationConfig.setIsStabilizing(false);
-        network.setOptions({
-          interaction: {
-            dragNodes: true,
-          },
+        cy.nodes().forEach(node => {
+          if (!simulationConfig.liveSimulation) {
+            node.lock();
+          }
         });
+
+        simulationConfig.setIsStabilizing(false);
       }, 800);
     }
 
     function onFitGraph() {
-      if (!network) return;
-
-      withSmoothTrasition(() => network.fit());
+      if (!cyRef.current) return;
+      withSmoothTransition(() => cyRef.current!.fit());
     }
 
     function onSaveGraph() {
-      if (!network) return;
+      const cy = cyRef.current;
+      if (!cy || !topologyStore.manager.topology) return;
 
-      (graphData.nodes as DataSet<Node>).forEach(node => {
-        if (!node.id) return;
+      cy.nodes().forEach(node => {
+        const id = node.id();
+        const position = node.position();
 
-        topologyStore.manager.topology?.positions.set(
-          node.id as string,
-          network.getPosition(node.id)
-        );
+        topologyStore.manager.topology?.positions.set(id, {
+          x: Number(position.x.toFixed(2)),
+          y: Number(position.y.toFixed(2)),
+        });
       });
-
       topologyStore.manager.writePositions();
     }
 
@@ -432,6 +415,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       setNodeConnectTarget(null);
       setNodeConnectDestination(null);
       setNodeConnectTargetPosition(null);
+      if (cyRef.current) {
+        cyRef.current.remove('.ghost-node');
+        cyRef.current.remove('.ghost-edge');
+      }
     }
 
     const nodeContextMenuModel = [
@@ -470,26 +457,90 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       },
     ];
 
+    const topologyStyle = [
+      {
+        selector: 'node',
+        style: {
+          'background-fit': 'cover',
+          'background-image': 'data(image)',
+          'background-color': '#1f1f1f',
+          label: 'data(label)',
+          color: '#fff',
+          'text-valign': 'bottom',
+          'text-halign': 'center',
+          'font-size': 7,
+          'text-margin-y': 5,
+        },
+      },
+      {
+        selector: '.ghost-node',
+        style: {
+          width: 1,
+          height: 1,
+          'background-opacity': 0,
+          'border-opacity': 0,
+          label: '',
+          opacity: 0,
+          events: 'no',
+        },
+      },
+      {
+        selector: '.ghost-edge',
+        style: {
+          'line-style': 'dashed',
+          'line-color': '#aaa',
+          width: 2,
+        },
+      },
+      {
+        selector: 'edge',
+        style: {
+          'line-color': '#888',
+          'target-arrow-color': '#888',
+          width: 2,
+          'curve-style': 'bezier',
+        },
+      },
+    ];
+
     return (
       <div
         className="sb-node-editor"
         ref={containerRef}
         onMouseMove={onMouseMove}
       >
-        <Graph
-          graph={{nodes: [], edges: []}}
-          options={NetworkOptions}
-          events={{
-            beforeDrawing: onBeforeDrawing,
-            click: onClick,
-            doubleClick: onDoubleClick,
-            oncontext: onContext,
-            dragStart: onDragStart,
-            dragging: onDragging,
-            dragEnd: onDragEnd,
-          }}
-          getNetwork={setNetwork}
-        />
+        <div className="graph-container">
+          <canvas ref={gridCanvasRef} className="grid-canvas" />
+          <CytoscapeComponent
+            className="cytoscape-container"
+            elements={elements}
+            style={{width: '100%', height: '100%'}}
+            layout={{name: 'preset'}}
+            cy={(cy: cytoscape.Core) => {
+              cyRef.current = cy;
+              drawGridOverlay(cy);
+              cy.off('tap', 'node');
+              cy.off('dbltap', 'node');
+              cy.off('cxttap', 'node');
+              cy.off('grab', 'node');
+              cy.off('drag', 'node');
+              cy.off('free', 'node');
+              cy.off('tap');
+              cy.on('tap', 'node', onNodeClick);
+              cy.on('dbltap', 'node', onDoubleClick);
+              cy.on('cxttap', 'node', onContext);
+              cy.on('grab', 'node', onDragStart);
+              cy.on('drag', 'node', onDragging);
+              cy.on('free', 'node', onDragEnd);
+              cy.on('tap', (event: EventObject) => {
+                if (event.target === cyRef.current) {
+                  onBackgroundClick(event);
+                }
+              });
+              cy.style().fromJson(topologyStyle).update();
+            }}
+          />
+        </div>
         <NodeToolbar
           onAddNode={props.onAddNode}
           onFitGraph={onFitGraph}

@@ -24,3 +24,19 @@ export interface GraphNodeHoverEvent extends GraphBaseEvent {
 export interface GraphEdgeHoverEvent extends GraphBaseEvent {
   edgeId: IdType;
 }
+
+export type CytoscapeElement = {
+  data: {
+    id: string;
+    label?: string;
+    title?: string;
+    kind?: string;
+    image?: string;
+    source?: string;
+    target?: string;
+  };
+  position?: {
+    x: number | undefined;
+    y: number | undefined;
+  };
+}
