@@ -65,7 +65,7 @@ export function drawGrid(
   const width = canvas.width;
   const height = canvas.height;
 
-  const gridSpacing = 25;
+  const gridSpacing = 40;
   const gridColor = 'rgb(38,55,55)';
   const largeGridColor = 'rgb(40,68,71)';
 
@@ -121,17 +121,14 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
 function hydratePositionsFromYaml(topology: Topology) {
   const yamlNodes = topology.definition.getIn(['topology', 'nodes']) as YAMLMap;
 
-  // Check for a misplaced commentBefore on the whole map (first node's comment often ends up here)
   const mapLevelComment = yamlNodes.commentBefore || '';
 
   yamlNodes.items.forEach(item => {
     const key = item.key as Scalar;
-    const nodeId = key.value as string;
 
-    // 1. Try to find the position in the node's own comments
+    const nodeId = key.value as string;
     let comment = key.commentBefore || key.comment;
 
-    // 2. Fallback: if this is the first item and no comment is found, use map-level comment
     if (!comment && yamlNodes.items[0] === item && mapLevelComment) {
       comment = mapLevelComment;
     }
@@ -143,7 +140,7 @@ function hydratePositionsFromYaml(topology: Topology) {
       const x = parseFloat(match[1]);
       const y = parseFloat(match[2]);
 
-      topology.positions.set(nodeId, { x, y });
+      topology.positions.set(nodeId, {x, y});
     }
   });
 }

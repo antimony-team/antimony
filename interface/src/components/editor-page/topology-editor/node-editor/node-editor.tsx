@@ -283,14 +283,24 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       menuTargetRef.current = targetNodeId;
 
       const cy = cyRef.current;
-      //const domRect = containerRef.current.getBoundingClientRect(); radial menu problems
-
-      const pos = cy.getElementById(targetNodeId).renderedPosition();
-
+      const node = cy.getElementById(targetNodeId);
       const element = radialMenuRef.current.getElement();
-      element.style.position = 'absolute';
-      element.style.top = `${pos.y - 32}px`;
-      element.style.left = `${pos.x - 32}px`;
+      const updatePosition = () => {
+        const zoom = cy.zoom();
+        const pos = node.renderedPosition();
+        element.style.position = 'absolute';
+        element.style.left = `${pos.x}px`;
+        element.style.top = `${pos.y}px`;
+
+        element.style.transform = `translate(-50%, -50%) scale(${zoom})`;
+        element.style.transformOrigin = 'center';
+      };
+      updatePosition();
+
+      cy.on('pan zoom position', updatePosition);
+
+      element.dataset.popperAttachedTo = targetNodeId;
+
       radialMenuRef.current.show();
     }
 
@@ -461,15 +471,19 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       {
         selector: 'node',
         style: {
+          height: 60,
+          width: 64,
+          shape: 'hexagon',
           'background-fit': 'cover',
+          'background-opacity': 1,
           'background-image': 'data(image)',
-          'background-color': '#1f1f1f',
+          'background-color': 'transparent',
           label: 'data(label)',
           color: '#fff',
           'text-valign': 'bottom',
           'text-halign': 'center',
-          'font-size': 7,
-          'text-margin-y': 5,
+          'font-size': 12,
+          'text-margin-y': 10,
         },
       },
       {
@@ -497,7 +511,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         style: {
           'line-color': '#888',
           'target-arrow-color': '#888',
-          width: 2,
+          width: 3,
           'curve-style': 'bezier',
         },
       },
