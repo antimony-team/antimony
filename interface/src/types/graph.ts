@@ -39,4 +39,5 @@ export type CytoscapeElement = {
     x: number | undefined;
     y: number | undefined;
   };
-}
+  classes?: string;
+};

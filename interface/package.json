@@ -14,6 +14,7 @@
     "@tsparticles/react": "^3.0.0",
     "classnames": "^2.5.1",
     "cytoscape": "^3.31.2",
+    "cytoscape-cose-bilkent": "^4.1.0",
     "dayjs": "^1.11.13",
     "file-saver": "^2.0.5",
     "highlight.js": "^11.11.1",

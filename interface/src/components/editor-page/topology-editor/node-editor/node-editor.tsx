@@ -6,11 +6,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import cytoscape from 'cytoscape';
+import cytoscape, {NodeSingular} from 'cytoscape';
 import {observer} from 'mobx-react-lite';
 import {MenuItem} from 'primereact/menuitem';
 import type {EventObject} from 'cytoscape';
 import {SpeedDial} from 'primereact/speeddial';
+import coseBilkent from 'cytoscape-cose-bilkent';
 import CytoscapeComponent from 'react-cytoscapejs';
 import {ContextMenu} from 'primereact/contextmenu';
 
@@ -21,9 +22,9 @@ import {useSimulationConfig} from './state/simulation-config';
 import SimulationPanel from './simulation-panel/simulation-panel';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
-import 'vis-network/styles/vis-network.css';
 import './node-editor.sass';
 
+cytoscape.use(coseBilkent);
 interface NodeEditorProps {
   openTopology: Topology | null;
 
@@ -50,10 +51,18 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
     const menuTargetRef = useRef<string | null>(null);
-
+    const [drawStartPos, setDrawStartPos] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
+    const [drawEndPos, setDrawEndPos] = useState<{x: number; y: number} | null>(
+      null
+    );
+    const [isDrawingShape, setIsDrawingShape] = useState(false);
     const [nodeConnectTarget, setNodeConnectTarget] = useState<string | null>(
       null
     );
+
     const [nodeConnectTargetPosition, setNodeConnectTargetPosition] = useState<{
       x: number;
       y: number;
@@ -122,7 +131,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       drawConnectionLine(nodeConnectTarget, x, y);
     }
-
     function drawConnectionLine(
       sourceId: string,
       mouseX: number,
@@ -160,40 +168,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         ghostNode.position({x: mouseX, y: mouseY});
       }
     }
-
-    /**
-     * Wraps a network modifying function into a smooth move transition.
-     *
-     * @param callback The function that is called which modifies the network
-     */
-    const withSmoothTransition = useCallback((callback: () => void) => {
-      const cy = cyRef.current;
-      if (!cy) {
-        callback();
-        return;
-      }
-
-      const zoomBefore = cy.zoom();
-      const panBefore = cy.pan();
-
-      callback(); // modify elements or trigger re-layout
-
-      const zoomAfter = cy.zoom();
-      const panAfter = cy.pan();
-
-      cy.zoom(zoomBefore).pan(panBefore);
-
-      cy.animate(
-        {
-          zoom: zoomAfter,
-          pan: panAfter,
-        },
-        {
-          duration: 200,
-          easing: 'ease-in-out',
-        }
-      );
-    }, []);
 
     const onNodeConnect = useCallback(() => {
       const cy = cyRef.current;
@@ -242,9 +216,35 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       };
     }, [onKeyDown]);
 
+    function ungroupCompound(compoundId: string) {
+      const cy = cyRef.current!;
+      const compound = cy.getElementById(compoundId);
+
+      if (!compound.nonempty() || !compound.isParent()) {
+        return;
+      }
+
+      const parentCol = compound.parent();
+      const parentId = parentCol.nonempty()
+        ? (parentCol.first() as NodeSingular).id()
+        : null;
+
+      compound.children().forEach(child => {
+        (child as NodeSingular).move({parent: parentId});
+      });
+
+      compound.remove();
+    }
+
     const onNodeClick = useCallback(
       (event: cytoscape.EventObject) => {
         const nodeId = event.target.id();
+        if (event.target.hasClass('drawn-shape')) {
+          if (window.confirm('Delete this group?')) {
+            ungroupCompound(event.target.id());
+          }
+          return;
+        }
         if (nodeConnectTarget && nodeConnectTarget !== nodeId) {
           topologyStore.manager.connectNodes(nodeConnectTarget, nodeId);
           exitConnectionMode();
@@ -283,19 +283,30 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       menuTargetRef.current = targetNodeId;
 
       const cy = cyRef.current;
-      //const domRect = containerRef.current.getBoundingClientRect(); radial menu problems
-
-      const pos = cy.getElementById(targetNodeId).renderedPosition();
-
+      const node = cy.getElementById(targetNodeId);
       const element = radialMenuRef.current.getElement();
-      element.style.position = 'absolute';
-      element.style.top = `${pos.y - 32}px`;
-      element.style.left = `${pos.x - 32}px`;
+      const updatePosition = () => {
+        const zoom = cy.zoom();
+        const pos = node.renderedPosition();
+        element.style.position = 'absolute';
+        element.style.left = `${pos.x}px`;
+        element.style.top = `${pos.y}px`;
+
+        element.style.transform = `translate(-50%, -50%) scale(${zoom})`;
+        element.style.transformOrigin = 'center';
+      };
+      updatePosition();
+
+      cy.on('pan zoom position', updatePosition);
+
+      element.dataset.popperAttachedTo = targetNodeId;
+
       radialMenuRef.current.show();
     }
 
     const onDoubleClick = useCallback(
       (event: cytoscape.EventObject) => {
+        if (event.target.hasClass('drawn-shape')) return;
         const nodeId = event.target.id();
         if (!nodeId || !contextMenuRef.current) return;
 
@@ -308,6 +319,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     const onContext = useCallback(
       (event: cytoscape.EventObject) => {
+        if (event.target.hasClass('drawn-shape')) return;
         if (!contextMenuRef.current) return;
 
         const mouseEvent = event.originalEvent as unknown as MouseEvent;
@@ -370,35 +382,40 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       // TODO Phyisics (is only basic repulsion right now)
       const layout = cy.layout({
-        name: 'cose',
+        name: 'cose-bilkent',
         animate: true,
         animationDuration: 800,
-      });
-
-      simulationConfig.setIsStabilizing(true);
-
+        idealEdgeLength: 100,
+        edgeElasticity: 0.08,
+        gravity: 0.01,
+        fit: true,
+        padding: 30,
+        randomize: true,
+      } as cytoscape.LayoutOptions);
       layout.run();
-
-      setTimeout(() => {
-        cy.nodes().forEach(node => {
-          if (!simulationConfig.liveSimulation) {
-            node.lock();
-          }
-        });
-
-        simulationConfig.setIsStabilizing(false);
-      }, 800);
     }
 
     function onFitGraph() {
-      if (!cyRef.current) return;
-      withSmoothTransition(() => cyRef.current!.fit());
+      const cy = cyRef.current;
+      if (!cy) return;
+
+      cy.animate(
+        {
+          fit: {
+            eles: cy.elements(),
+            padding: 60,
+          },
+        },
+        {
+          duration: 200,
+          easing: 'ease-in-out',
+        }
+      );
     }
 
     function onSaveGraph() {
       const cy = cyRef.current;
       if (!cy || !topologyStore.manager.topology) return;
-
       cy.nodes().forEach(node => {
         const id = node.id();
         const position = node.position();
@@ -410,7 +427,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       });
       topologyStore.manager.writePositions();
     }
-
     function exitConnectionMode() {
       setNodeConnectTarget(null);
       setNodeConnectDestination(null);
@@ -419,6 +435,126 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         cyRef.current.remove('.ghost-node');
         cyRef.current.remove('.ghost-edge');
       }
+    }
+
+    useEffect(() => {
+      const cy = cyRef.current;
+      if (!cy) return;
+
+      const handleMouseDown = (e: EventObject) => {
+        if (!isDrawingShape || e.target !== cy) return;
+        setDrawStartPos(e.position);
+        setDrawEndPos(e.position);
+      };
+
+      const handleMouseMove = (e: EventObject) => {
+        if (!isDrawingShape || !drawStartPos) return;
+        setDrawEndPos(e.position);
+      };
+
+      const handleMouseUp = () => {
+        const cy = cyRef.current;
+        if (!cy || !isDrawingShape || !drawStartPos || !drawEndPos) return;
+
+        const x = Math.min(drawStartPos.x, drawEndPos.x);
+        const y = Math.min(drawStartPos.y, drawEndPos.y);
+        const w = Math.abs(drawEndPos.x - drawStartPos.x);
+        const h = Math.abs(drawEndPos.y - drawStartPos.y);
+
+        const hitsArray = cy
+          .nodes()
+          .filter(n => {
+            const {x: nx, y: ny} = n.position();
+            return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
+          })
+          .toArray() as NodeSingular[];
+
+        const hitsSet = new Set(hitsArray.map(n => n.id()));
+
+        const compoundFullyHit = hitsArray
+          .filter(n => n.isParent())
+          .filter((compound: NodeSingular) => {
+            return compound
+              .descendants()
+              .toArray()
+              .every(desc => hitsSet.has(desc.id()));
+          })
+          .map(c => c.id());
+
+        const partialCompounds = hitsArray
+          .filter(n => n.isParent())
+          .filter((compound: NodeSingular) => {
+            const descs = compound.descendants().toArray();
+            const hitCount = descs.filter(d => hitsSet.has(d.id())).length;
+            return hitCount > 0 && hitCount < descs.length;
+          });
+
+        const newGroupParent = partialCompounds.length
+          ? partialCompounds[0].id()
+          : undefined;
+        const groupableIds = hitsArray
+          .map(n => n.id())
+          .filter(id => {
+            if (compoundFullyHit.includes(id)) {
+              return true;
+            }
+            const node = cy.getElementById(id) as NodeSingular;
+            return node
+              .ancestors()
+              .toArray()
+              .every(anc => !compoundFullyHit.includes(anc.id()));
+          });
+
+        if (groupableIds.length) {
+          const groupId = `group-${Date.now()}`;
+          cy.batch(() => {
+            cy.add({
+              group: 'nodes',
+              data: {
+                id: groupId,
+              },
+              classes: 'drawn-shape',
+            });
+            groupableIds.forEach(id =>
+              cy.getElementById(id).move({parent: groupId})
+            );
+          });
+          if (newGroupParent) {
+            cy.getElementById(groupId).move({parent: newGroupParent});
+          }
+        }
+
+        cy.nodes().unlock().grabify();
+        cy.nodes('.drawn-shape').forEach(n => {
+          n.style('events', 'yes');
+        });
+
+        setDrawStartPos(null);
+        setDrawEndPos(null);
+        setIsDrawingShape(false);
+        cy.userPanningEnabled(true);
+      };
+
+      cy.on('mousedown', handleMouseDown);
+      cy.on('mousemove', handleMouseMove);
+      cy.on('mouseup', handleMouseUp);
+
+      return () => {
+        cy.off('mousedown', handleMouseDown);
+        cy.off('mousemove', handleMouseMove);
+        cy.off('mouseup', handleMouseUp);
+      };
+    }, [isDrawingShape, drawStartPos, drawEndPos]);
+
+    function onDrawShape() {
+      const cy = cyRef.current;
+      if (!cy) return;
+
+      cy.nodes('.drawn-shape').forEach(n => {
+        n.style('events', 'no');
+      });
+      setIsDrawingShape(true);
+      cy.userPanningEnabled(false);
     }
 
     const nodeContextMenuModel = [
@@ -459,17 +595,22 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     const topologyStyle = [
       {
-        selector: 'node',
+        selector: '.topology-node',
         style: {
+          height: 60,
+          width: 64,
+          shape: 'hexagon',
           'background-fit': 'cover',
+          'background-opacity': 1,
           'background-image': 'data(image)',
-          'background-color': '#1f1f1f',
+          'background-color': 'transparent',
           label: 'data(label)',
-          color: '#fff',
+          font: 'Figtree',
+          color: '#42b5ac',
           'text-valign': 'bottom',
           'text-halign': 'center',
-          'font-size': 7,
-          'text-margin-y': 5,
+          'font-size': 12,
+          'text-margin-y': 10,
         },
       },
       {
@@ -497,8 +638,19 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         style: {
           'line-color': '#888',
           'target-arrow-color': '#888',
-          width: 2,
+          width: 3,
           'curve-style': 'bezier',
+        },
+      },
+      {
+        selector: '.drawn-shape',
+        style: {
+          shape: 'roundrectangle',
+          'background-opacity': 0,
+          'border-color': '#00bcd4',
+          'border-width': 2,
+          'border-opacity': 1,
+          padding: 20,
         },
       },
     ];
@@ -545,6 +697,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           onAddNode={props.onAddNode}
           onFitGraph={onFitGraph}
           onSaveGraph={onSaveGraph}
+          onDrawShape={onDrawShape}
           onToggleStabilization={simulationConfig.togglePanel}
         />
         <SimulationPanel onStabilizeGraph={onStabilizeGraph} />

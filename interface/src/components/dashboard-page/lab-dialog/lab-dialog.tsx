@@ -23,9 +23,10 @@ import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
-import type {ElementDefinition, EventObject} from 'cytoscape';
+import type {EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape from 'cytoscape';
+import {CytoscapeElement} from '@sb/types/graph';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -56,7 +57,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       ? topologyStore.lookup.get(props.dialogState.state.topologyId)
       : null;
 
-    const graphData: ElementDefinition[] = useMemo(() => {
+    const graphData: CytoscapeElement[] = useMemo(() => {
       if (!openTopology) return [];
 
       return generateGraph(openTopology, deviceStore, topologyStore.manager);
@@ -224,30 +225,36 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       }
     }
 
-    function centerGraph(cy: cytoscape.Core){
+    function centerGraph(cy: cytoscape.Core) {
       if (containerRef.current) {
-        cy.pan({
-          x: containerRef.current.clientWidth / 2,
-          y:
-            containerRef.current.clientHeight -
-            containerRef.current.clientHeight / 3,
-        });
+        cy.resize();
+        cy.fit(cy.elements(), 120);
+        const viewW = containerRef.current!.clientWidth;
+        const viewH = containerRef.current!.clientHeight;
+        const offsetX = viewW * 0.1;
+        const offsetY = viewH * 0.1;
+        cy.panBy({x: offsetX, y: offsetY});
       }
     }
 
     const topologyStyle = [
       {
-        selector: 'node',
+        selector: '.topology-node',
         style: {
+          height: 60,
+          width: 64,
+          shape: 'hexagon',
           'background-fit': 'cover',
+          'background-opacity': 1,
           'background-image': 'data(image)',
-          'background-color': '#1f1f1f',
+          'background-color': 'transparent',
           label: 'data(label)',
-          color: '#fff',
+          font: 'Figtree',
+          color: '#42b5ac',
           'text-valign': 'bottom',
           'text-halign': 'center',
-          'font-size': 7,
-          'text-margin-y': 5,
+          'font-size': 12,
+          'text-margin-y': 10,
         },
       },
       {
@@ -255,8 +262,19 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         style: {
           'line-color': '#888',
           'target-arrow-color': '#888',
-          width: 2,
+          width: 3,
           'curve-style': 'bezier',
+        },
+      },
+      {
+        selector: '.drawn-shape',
+        style: {
+          shape: 'roundrectangle',
+          'background-opacity': 0,
+          'border-color': '#00bcd4',
+          'border-width': 2,
+          'border-opacity': 1,
+          padding: 20,
         },
       },
     ];

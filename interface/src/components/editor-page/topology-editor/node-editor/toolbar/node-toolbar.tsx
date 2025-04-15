@@ -15,6 +15,7 @@ interface NodeToolbarProps {
   onAddNode: () => void;
   onFitGraph: () => void;
   onSaveGraph: () => void;
+  onDrawShape: () => void;
   onToggleStabilization: () => void;
 }
 
@@ -37,6 +38,13 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         onClick={topologyStore.manager.clear}
         tooltip="Clear Network"
         aria-label="Clear Network"
+      />
+      <Button
+        icon="pi pi-stop"
+        text
+        onClick={props.onDrawShape}
+        tooltip="Draw Shape"
+        aria-label="Draw Shape"
       />
       <Button
         icon="pi pi-save"
