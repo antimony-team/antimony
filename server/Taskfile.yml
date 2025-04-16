@@ -32,4 +32,4 @@ tasks:
   swagger-docs:
     dir: './src'
     cmds:
-      - go tool swag init -o ../docs/
+      - swag init -o ../docs/
