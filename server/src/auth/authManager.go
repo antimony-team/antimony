@@ -235,7 +235,7 @@ func (m *authManager) CreateAccessToken(authUser AuthenticatedUser) (string, err
 		"id":      authUser.UserId,
 		"isAdmin": authUser.IsAdmin,
 		"nbf":     time.Now().Unix(),
-		"exp":     time.Now().Add(time.Second * 20).Unix(),
+		"exp":     time.Now().Add(time.Hour * 20).Unix(),
 	})
 
 	return sbToken.SignedString(m.jwtSecret)
