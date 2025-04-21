@@ -34,6 +34,8 @@ export type CytoscapeElement = {
     image?: string;
     source?: string;
     target?: string;
+    sourceLabel?: string;
+    targetLabel?: string;
   };
   position?: {
     x: number | undefined;

@@ -56,4 +56,3 @@ export const NetworkOptions = {
     minVelocity: 0.5,
   },
 };
-

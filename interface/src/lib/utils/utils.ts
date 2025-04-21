@@ -181,6 +181,8 @@ export function generateGraph(
         source: connection.hostNode,
         target: connection.targetNode,
         title: topologyManager.getEdgeTooltip(connection),
+        sourceLabel: connection.hostInterface,
+        targetLabel: connection.targetInterface,
         image: undefined,
       },
     });
