@@ -60,4 +60,23 @@ export const topologyStyle = [
       padding: 20,
     },
   },
+  {
+    selector: 'node.compound-close-btn',
+    style: {
+      shape: 'ellipse',
+      width: 20,
+      height: 20,
+      label: '×',
+      'font-size': 14,
+      'text-valign': 'center',
+      'text-halign': 'center',
+      'background-color': '#d9534f',
+      color: '#fff',
+      'overlay-padding': 0,
+      visibility: 'hidden',
+      grabbable: false,
+      selectable: false,
+      zIndex: 9999,
+    },
+  },
 ];

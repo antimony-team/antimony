@@ -218,7 +218,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }, [onKeyDown]);
 
     function ungroupCompound(compoundId: string) {
-      const cy = cyRef.current!;
+      if (!cyRef.current) return;
+      const cy = cyRef.current;
       const compound = cy.getElementById(compoundId);
 
       if (!compound.nonempty() || !compound.isParent()) {
@@ -233,19 +234,52 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       compound.children().forEach(child => {
         (child as NodeSingular).move({parent: parentId});
       });
-
+      cy.getElementById(CLOSE_ID(compoundId));
       compound.remove();
+    }
+
+    const handleCloseButtonTap = useCallback(
+      (e: EventObject) => {
+        const btnNode = e.target as NodeSingular;
+        const closeId = btnNode.id();
+        const compoundId = closeId.replace(/^close-/, '');
+
+        ungroupCompound(compoundId);
+        btnNode.remove();
+      },
+      [ungroupCompound]
+    );
+
+    const CLOSE_ID = (compoundId: string) => `close-${compoundId}`;
+
+    function closeGroupDeleteBtn() {
+      cyRef.current?.nodes('.compound-close-btn').style('visibility', 'hidden');
     }
 
     const onNodeClick = useCallback(
       (event: cytoscape.EventObject) => {
-        const nodeId = event.target.id();
-        if (event.target.hasClass('drawn-shape')) {
-          if (window.confirm('Delete this group?')) {
-            ungroupCompound(event.target.id());
-          }
+        if (!cyRef.current) return;
+        const cy = cyRef.current;
+        const node = event.target;
+        const nodeId = node.id();
+        node.select();
+        closeGroupDeleteBtn();
+        if (node.hasClass('compound-close-btn')) return;
+
+        if (node.hasClass('drawn-shape')) {
+          const closeBtnId = CLOSE_ID(nodeId);
+          const closeBtn = cy.getElementById(closeBtnId);
+
+          if (!node.nonempty() || !closeBtn.nonempty()) return;
+          const bb = node.boundingBox();
+          closeBtn.position({
+            x: bb.x2 + 10,
+            y: bb.y1 - 10,
+          });
+          cy.getElementById(closeBtnId).style('visibility', 'visible');
           return;
         }
+
         if (nodeConnectTarget && nodeConnectTarget !== nodeId) {
           topologyStore.manager.connectNodes(nodeConnectTarget, nodeId);
           exitConnectionMode();
@@ -269,6 +303,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         exitConnectionMode();
         closeRadialMenu();
         cyRef.current?.elements().unselect();
+        closeGroupDeleteBtn();
       }
     }, []);
 
@@ -311,7 +346,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         const nodeId = event.target.id();
         if (!nodeId || !contextMenuRef.current) return;
 
-        event.target.select(); // show selected maybe remove
         closeRadialMenu();
         props.onEditNode(nodeId);
       },
@@ -348,6 +382,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const onDragging = useCallback(() => {
       closeRadialMenu();
       exitConnectionMode();
+      closeGroupDeleteBtn();
     }, []);
 
     const onDragStart = useCallback((event: cytoscape.EventObject) => {
@@ -505,9 +540,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               .toArray()
               .every(anc => !compoundFullyHit.includes(anc.id()));
           });
-
+        const groupId = `group-${Date.now()}`;
         if (groupableIds.length) {
-          const groupId = `group-${Date.now()}`;
           cy.batch(() => {
             cy.add({
               group: 'nodes',
@@ -519,11 +553,18 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             groupableIds.forEach(id =>
               cy.getElementById(id).move({parent: groupId})
             );
+
+            if (newGroupParent) {
+              cy.getElementById(groupId).move({parent: newGroupParent});
+            }
           });
-          if (newGroupParent) {
-            cy.getElementById(groupId).move({parent: newGroupParent});
-          }
         }
+        cy.add({
+          group: 'nodes',
+          data: {id: CLOSE_ID(groupId)},
+          position: {x: 0, y: 0},
+          classes: 'compound-close-btn',
+        });
 
         cy.nodes().unlock().grabify();
         cy.nodes('.drawn-shape').forEach(n => {
@@ -617,6 +658,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               cy.off('drag', 'node');
               cy.off('free', 'node');
               cy.off('tap');
+              cy.on('tap', 'node.compound-close-btn', handleCloseButtonTap);
               cy.on('tap', 'node', onNodeClick);
               cy.on('dbltap', 'node', onDoubleClick);
               cy.on('cxttap', 'node', onContext);
