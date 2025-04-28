@@ -27,7 +27,10 @@ import type {EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape from 'cytoscape';
 import {CytoscapeElement} from '@sb/types/graph';
-import {topologyStyle as baseStyle} from '@sb/lib/cytoscape-styles';
+import {
+  topologyStyle,
+  topologyStyle as baseStyle
+} from '@sb/lib/cytoscape-styles';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -59,8 +62,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       : null;
 
     const graphData: CytoscapeElement[] = useMemo(() => {
+      console.log(openTopology);
       if (!openTopology) return [];
-
       return generateGraph(openTopology, deviceStore, topologyStore.manager);
     }, [deviceStore, openTopology, topologyStore.manager]);
 
@@ -237,35 +240,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         cy.panBy({x: offsetX, y: offsetY});
       }
     }
-
-    const labStyle = useMemo(
-      () => [
-        ...baseStyle,
-        {
-          selector: 'edge',
-          style: {
-            'source-label': 'data(sourceLabel)',
-            'target-label': 'data(targetLabel)',
-            'source-text-rotation': 'autorotate',
-            'target-text-rotation': 'autorotate',
-
-            'source-text-offset': 12,
-            'target-text-offset': 12,
-            'font-family': 'Figtree',
-            'font-size': 10,
-            color: '#42b5ac',
-            'text-outline-width': 1,
-
-            'text-background-color': '#888',
-            'text-background-opacity': 0.8,
-            'text-background-shape': 'roundrectangle',
-            'text-background-padding': 2,
-          },
-        },
-      ],
-      []
-    );
-
     return (
       <>
         <SBDialog
@@ -315,7 +289,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                       onBackgroundClick(event);
                     }
                   });
-                  cy.style().fromJson(labStyle).update();
+                  cy.style().fromJson(topologyStyle).update();
                   centerGraph(cy);
                 }}
               />

@@ -152,27 +152,26 @@ export function generateGraph(
 ): CytoscapeElement[] {
   const elements: CytoscapeElement[] = [];
   hydratePositionsFromYaml(topology);
+  const nodeDataMap = topology.metaData?.nodeData ?? new Map();
   // Nodes
   for (const [, [nodeName, node]] of Object.entries(
     topology.definition.toJS().topology.nodes
   ).entries()) {
     const kind = node?.kind ?? 'default';
+    const meta = nodeDataMap.get(nodeName);
     elements.push({
       data: {
         id: nodeName,
+        parent: meta?.parent,
         label: nodeName,
         title: topologyManager.getNodeTooltip(nodeName),
         kind: kind,
         image: deviceStore.getNodeIcon(node?.kind),
       },
-      position: {
-        x: topology.positions.get(nodeName)?.x ?? 0,
-        y: topology.positions.get(nodeName)?.y ?? 0,
-      },
+      position: meta?.position ?? {x: 0, y: 0},
       classes: 'topology-node',
     });
   }
-  console.log(elements);
   // Edges
   for (const connection of topology.connections) {
     elements.push({
@@ -185,9 +184,20 @@ export function generateGraph(
         targetLabel: connection.targetInterface,
         image: undefined,
       },
+      classes: 'edge',
     });
   }
-
+  for (const utilityNodes of topology.metaData.utilityNodes) {
+    elements.push({
+      data: {
+        id: utilityNodes.id,
+        parent: utilityNodes.parent,
+        label: utilityNodes.label,
+      },
+      position: utilityNodes.position,
+      classes: utilityNodes.class,
+    });
+  }
   return elements;
 }
 

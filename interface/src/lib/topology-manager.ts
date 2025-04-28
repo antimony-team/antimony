@@ -8,7 +8,7 @@ import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {
-  NodeConnection,
+  NodeConnection, nodeData,
   Topology,
   TopologyDefinition,
 } from '@sb/types/domain/topology';
@@ -78,7 +78,10 @@ export class TopologyManager {
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition
       ),
-      metadata: '',
+      metadata: JSON.stringify({
+        nodeData: Object.fromEntries(this.editingTopology.metaData.nodeData), // ← Fix here
+        utilityNodes: this.editingTopology.metaData.utilityNodes,
+      }),
       gitSourceUrl: this.editingTopology.gitSourceUrl,
     });
 
@@ -160,7 +163,10 @@ export class TopologyManager {
    */
   public clear() {
     if (!this.editingTopology) return;
-
+    this.editingTopology.metaData = {
+      nodeData: new Map<string, nodeData>(),
+      utilityNodes: [],
+    };
     const updatedTopology = {
       name: this.editingTopology.definition.toJS().name,
       topology: {
@@ -516,6 +522,7 @@ export class TopologyManager {
         id: topology.creator.id,
         name: topology.creator.name,
       },
+      metaData: cloneDeep(topology.metaData),
       positions: cloneDeep(topology.positions),
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),

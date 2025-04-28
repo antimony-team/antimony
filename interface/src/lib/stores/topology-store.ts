@@ -8,7 +8,7 @@ import {DataStore} from '@sb/lib/stores/data-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {
   BindFile,
-  BindFileIn,
+  BindFileIn, metaData,
   Topology,
   TopologyDefinition,
   TopologyIn,
@@ -91,6 +91,18 @@ export class TopologyStore extends DataStore<
     return result;
   }
 
+  private parseMetadata(json: string): metaData {
+    try {
+      const raw = JSON.parse(json);
+      return {
+        nodeData: new Map(Object.entries(raw.nodeData ?? {})),
+        utilityNodes: raw.utilityNodes ?? [],
+      };
+    } catch {
+      return {nodeData: new Map(), utilityNodes: []};
+    }
+  }
+
   private parseTopologies(
     input: TopologyOut[],
     schema: ClabSchema
@@ -109,6 +121,7 @@ export class TopologyStore extends DataStore<
         ...topologyOut,
         name: definition.get('name') as string,
         definition: definition,
+        metaData: this.parseMetadata(topologyOut.metadata),
         definitionString: topologyOut.definition,
         ...this.manager.buildTopologyMetadata(definition),
       };

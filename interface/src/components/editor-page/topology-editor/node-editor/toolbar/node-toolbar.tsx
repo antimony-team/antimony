@@ -15,7 +15,7 @@ interface NodeToolbarProps {
   onAddNode: () => void;
   onFitGraph: () => void;
   onSaveGraph: () => void;
-  onDrawShape: () => void;
+  onDrawGroup: () => void;
   onToggleStabilization: () => void;
 }
 
@@ -40,9 +40,9 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         aria-label="Clear Network"
       />
       <Button
-        icon="pi pi-stop"
+        icon={<span className="material-symbols-outlined">Ink_Selection</span>}
         text
-        onClick={props.onDrawShape}
+        onClick={props.onDrawGroup}
         tooltip="Draw Shape"
         aria-label="Draw Shape"
       />

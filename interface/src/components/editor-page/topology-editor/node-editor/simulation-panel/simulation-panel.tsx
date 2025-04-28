@@ -33,40 +33,31 @@ const SimulationPanel = observer((props: SimulationPanelProps) => {
       <span className="simulation-panel-title">Graph Stabilization</span>
       <ConfigSlider
         header="Link Stiffness"
-        minValue={0}
-        maxValue={1}
+        minValue={0.01}
+        maxValue={0.2}
         multiplier={0.01}
         value={simulationConfig.springConstant}
         onChange={simulationConfig.setSpringConstant}
-        defaultValue={SimulationConfig.DefaultSpringConstant}
+        defaultValue={SimulationConfig.DefaultPhysics.edgeElasticity}
       />
       <ConfigSlider
         header="Link Length"
-        minValue={0}
-        maxValue={200}
+        minValue={10}
+        maxValue={300}
         value={simulationConfig.springLength}
         onChange={simulationConfig.setSpringLength}
-        defaultValue={SimulationConfig.DefaultSpringLength}
+        defaultValue={SimulationConfig.DefaultPhysics.idealEdgeLength}
       />
       <ConfigSlider
         header="Central Gravity"
         minValue={0}
-        maxValue={0.05}
+        maxValue={0.2}
         multiplier={0.001}
         value={simulationConfig.centralGravity}
         onChange={simulationConfig.setCentralGravity}
-        defaultValue={SimulationConfig.DefaultCentralGravity}
+        defaultValue={SimulationConfig.DefaultPhysics.gravity}
       />
       <Divider />
-      <div className="flex align-items-center gap-2 mt-2 mb-2">
-        <Checkbox
-          inputId="simulation-panel-simulation"
-          disabled={simulationConfig.isStabilizing}
-          checked={simulationConfig.liveSimulation}
-          onChange={e => simulationConfig.setLiveSimulation(e.checked ?? false)}
-        />
-        <label htmlFor="simulation-panel-simulation">Live Updates</label>
-      </div>
       <Button
         className="simulation-panel-stabilize"
         outlined

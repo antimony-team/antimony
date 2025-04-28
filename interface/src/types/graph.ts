@@ -28,6 +28,7 @@ export interface GraphEdgeHoverEvent extends GraphBaseEvent {
 export type CytoscapeElement = {
   data: {
     id: string;
+    parent?: string;
     label?: string;
     title?: string;
     kind?: string;
@@ -41,5 +42,5 @@ export type CytoscapeElement = {
     x: number | undefined;
     y: number | undefined;
   };
-  classes?: string;
+  classes: string;
 };

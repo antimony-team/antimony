@@ -17,13 +17,14 @@ import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {ContextMenu} from 'primereact/contextmenu';
 
 import NodeToolbar from './toolbar/node-toolbar';
-import {Topology} from '@sb/types/domain/topology';
+import {nodeData, Topology} from '@sb/types/domain/topology';
 import {drawGrid, generateGraph} from '@sb/lib/utils/utils';
 import {useSimulationConfig} from './state/simulation-config';
 import SimulationPanel from './simulation-panel/simulation-panel';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-editor.sass';
+import SBDialog from "@sb/components/common/sb-dialog/sb-dialog";
 
 cytoscape.use(coseBilkent);
 interface NodeEditorProps {
@@ -52,6 +53,11 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
     const menuTargetRef = useRef<string | null>(null);
+    const [newCompoundGroup, setNewCompoundGroup] = useState<string | null>(
+      null
+    );
+    const [cyReady, setCyReady] = useState<boolean>(false);
+    const [newGroupLabel, setNewGroupLabel] = useState<string>('');
     const [drawStartPos, setDrawStartPos] = useState<{
       x: number;
       y: number;
@@ -63,12 +69,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const [nodeConnectTarget, setNodeConnectTarget] = useState<string | null>(
       null
     );
-
-    const [nodeConnectTargetPosition, setNodeConnectTargetPosition] = useState<{
-      x: number;
-      y: number;
-    } | null>(null);
-
     const [nodeConnectDestination, setNodeConnectDestination] = useState<
       string | null
     >(null);
@@ -180,7 +180,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (!node) return;
 
       setNodeConnectTarget(nodeId);
-      setNodeConnectTargetPosition(node.position());
     }, []);
 
     const onNodeEdit = useCallback(() => {
@@ -191,7 +190,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }, [props]);
 
     const onNodeDelete = useCallback(() => {
-      if (!cyRef || menuTargetRef.current === null) return;
+      if (!menuTargetRef.current) return;
 
       topologyStore.manager.deleteNode(menuTargetRef.current as string);
     }, [cyRef, topologyStore.manager]);
@@ -262,7 +261,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         const cy = cyRef.current;
         const node = event.target;
         const nodeId = node.id();
-        node.select();
         closeGroupDeleteBtn();
         if (node.hasClass('compound-close-btn')) return;
 
@@ -408,28 +406,20 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       [simulationConfig.liveSimulation, topologyStore.manager]
     );
 
-    function onStabilizeGraph() {
+    const onStabilizeGraph = () => {
       const cy = cyRef.current;
       if (!cy) return;
 
-      cy.nodes().forEach(node => {
-        node.unlock();
+      const layout = cy.layout({
+        ...simulationConfig.config,
       });
 
-      // TODO Phyisics (is only basic repulsion right now)
-      const layout = cy.layout({
-        name: 'cose-bilkent',
-        animate: true,
-        animationDuration: 800,
-        idealEdgeLength: 100,
-        edgeElasticity: 0.08,
-        gravity: 0.01,
-        fit: true,
-        padding: 30,
-        randomize: true,
-      } as cytoscape.LayoutOptions);
+      simulationConfig.setIsStabilizing(true);
       layout.run();
-    }
+      layout.promiseOn('layoutstop')?.then(() => {
+        simulationConfig.setIsStabilizing(false);
+      });
+    };
 
     function onFitGraph() {
       const cy = cyRef.current;
@@ -439,7 +429,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         {
           fit: {
             eles: cy.elements(),
-            padding: 60,
+            padding: 100,
           },
         },
         {
@@ -451,22 +441,52 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     function onSaveGraph() {
       const cy = cyRef.current;
-      if (!cy || !topologyStore.manager.topology) return;
+      const topology = topologyStore.manager.topology;
+
+      if (!cy || !topology) return;
+
+      // Initialize metadata if needed
+      if (!topology.metaData) {
+        topology.metaData = {
+          nodeData: new Map<string, nodeData>(),
+          utilityNodes: [],
+        };
+      }
+
+      topology.metaData.nodeData = new Map<string, nodeData>();
+      topology.metaData.utilityNodes = [];
+
       cy.nodes().forEach(node => {
         const id = node.id();
-        const position = node.position();
+        const pos = node.position();
+        const position = {
+          x: Number(pos.x.toFixed(2)),
+          y: Number(pos.y.toFixed(2)),
+        };
+        const label = node.data('label') || undefined;
 
-        topologyStore.manager.topology?.positions.set(id, {
-          x: Number(position.x.toFixed(2)),
-          y: Number(position.y.toFixed(2)),
-        });
+        const nodeInfo: nodeData = {
+          id,
+          position,
+          label: label,
+          class: node.classes().join(' '),
+          parent: node.data('parent') ?? undefined,
+        };
+
+        if (node.hasClass('topology-node')) {
+          topology.metaData.nodeData.set(id, nodeInfo);
+        } else if (
+          node.hasClass('drawn-shape') ||
+          node.hasClass('compound-close-btn')
+        ) {
+          topology.metaData.utilityNodes.push(nodeInfo);
+        }
       });
-      topologyStore.manager.writePositions();
     }
+
     function exitConnectionMode() {
       setNodeConnectTarget(null);
       setNodeConnectDestination(null);
-      setNodeConnectTargetPosition(null);
       if (cyRef.current) {
         cyRef.current.remove('.ghost-node');
         cyRef.current.remove('.ghost-edge');
@@ -500,6 +520,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         const hitsArray = cy
           .nodes()
           .filter(n => {
+            if (n.hasClass('compound-close-btn')) return false;
             const {x: nx, y: ny} = n.position();
             return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
           })
@@ -574,6 +595,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         setDrawStartPos(null);
         setDrawEndPos(null);
         setIsDrawingShape(false);
+        setNewCompoundGroup(groupId);
         cy.userPanningEnabled(true);
       };
 
@@ -588,7 +610,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       };
     }, [isDrawingShape, drawStartPos, drawEndPos]);
 
-    function onDrawShape() {
+    function onDrawGroup() {
       const cy = cyRef.current;
       if (!cy) return;
 
@@ -598,6 +620,22 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       setIsDrawingShape(true);
       cy.userPanningEnabled(false);
     }
+
+    function applyNewGroupLabel() {
+      if (!cyRef.current || !newCompoundGroup) return;
+      const cy = cyRef.current;
+      const groupNode = cy.getElementById(newCompoundGroup);
+      if (groupNode && groupNode.nonempty()) {
+        groupNode.data('label', newGroupLabel);
+      }
+      setNewCompoundGroup(null);
+    }
+
+    useEffect(() => {
+      if (cyReady) {
+        cyRef.current?.fit(undefined, 100);
+      }
+    }, [cyReady]);
 
     const nodeContextMenuModel = [
       {
@@ -635,6 +673,29 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       },
     ];
 
+    function cytoscapeEventCalls(cy: cytoscape.Core) {
+      cy.off('tap', 'node');
+      cy.off('dbltap', 'node');
+      cy.off('cxttap', 'node');
+      cy.off('grab', 'node');
+      cy.off('drag', 'node');
+      cy.off('free', 'node');
+      cy.off('tap');
+
+      cy.on('tap', 'node.compound-close-btn', handleCloseButtonTap);
+      cy.on('tap', 'node', onNodeClick);
+      cy.on('dbltap', 'node', onDoubleClick);
+      cy.on('cxttap', 'node', onContext);
+      cy.on('grab', 'node', onDragStart);
+      cy.on('drag', 'node', onDragging);
+      cy.on('free', 'node', onDragEnd);
+      cy.on('tap', (event: EventObject) => {
+        if (event.target === cyRef.current) {
+          onBackgroundClick(event);
+        }
+      });
+    }
+
     return (
       <div
         className="sb-node-editor"
@@ -646,31 +707,13 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           <CytoscapeComponent
             className="cytoscape-container"
             elements={elements}
-            style={{width: '100%', height: '100%'}}
             layout={{name: 'preset'}}
             cy={(cy: cytoscape.Core) => {
               cyRef.current = cy;
               drawGridOverlay(cy);
-              cy.off('tap', 'node');
-              cy.off('dbltap', 'node');
-              cy.off('cxttap', 'node');
-              cy.off('grab', 'node');
-              cy.off('drag', 'node');
-              cy.off('free', 'node');
-              cy.off('tap');
-              cy.on('tap', 'node.compound-close-btn', handleCloseButtonTap);
-              cy.on('tap', 'node', onNodeClick);
-              cy.on('dbltap', 'node', onDoubleClick);
-              cy.on('cxttap', 'node', onContext);
-              cy.on('grab', 'node', onDragStart);
-              cy.on('drag', 'node', onDragging);
-              cy.on('free', 'node', onDragEnd);
-              cy.on('tap', (event: EventObject) => {
-                if (event.target === cyRef.current) {
-                  onBackgroundClick(event);
-                }
-              });
+              cytoscapeEventCalls(cy);
               cy.style().fromJson(topologyStyle).update();
+              setCyReady(true);
             }}
           />
         </div>
@@ -678,7 +721,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           onAddNode={props.onAddNode}
           onFitGraph={onFitGraph}
           onSaveGraph={onSaveGraph}
-          onDrawShape={onDrawShape}
+          onDrawGroup={onDrawGroup}
           onToggleStabilization={simulationConfig.togglePanel}
         />
         <SimulationPanel onStabilizeGraph={onStabilizeGraph} />
@@ -696,6 +739,24 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           model={contextMenuModel ?? undefined}
           ref={contextMenuRef}
         />
+        <SBDialog
+          isOpen={newCompoundGroup !== null}
+          onClose={() => setNewCompoundGroup(null)}
+          onSubmit={applyNewGroupLabel}
+          headerTitle="Set Group Label"
+        >
+          <div className="p-fluid">
+            <div className="p-field">
+              <label htmlFor="groupLabel">Group Label</label>
+              <input
+                id="groupLabel"
+                value={newGroupLabel}
+                onChange={e => setNewGroupLabel(e.target.value)}
+                className="p-inputtext p-component"
+              />
+            </div>
+          </div>
+        </SBDialog>
       </div>
     );
   }
