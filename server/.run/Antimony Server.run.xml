@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Antimony Server" type="GoApplicationRunConfiguration" factoryName="Go Application">
-    <module name="antimonyBackend" />
+    <module name="antimony-backend" />
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="-config=./test/config.test.yml -dev" />
     <sudo value="true" />

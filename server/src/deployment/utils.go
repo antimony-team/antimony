@@ -8,13 +8,33 @@ import (
 	"os/exec"
 )
 
-func runClabCommand(cmd *exec.Cmd, onLog func(data string), onDone func(output *string, err error)) {
+func runClabCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
 	var outputBuffer bytes.Buffer
 	cmd.Stdout = &outputBuffer
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Errorf("Failed to read stderr from clab subprocess: %s", err.Error())
+		log.Errorf("stderr pipe error: %v", err)
+		return nil, err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	go streamOutput(stderr, onLog)
+
+	err = cmd.Wait()
+	output := outputBuffer.String()
+	return &output, err
+}
+
+func runClabCommand(cmd *exec.Cmd, onLog func(string), onDone func(*string, error)) {
+	var outputBuffer bytes.Buffer
+	cmd.Stdout = &outputBuffer
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
 		onDone(nil, err)
 		return
 	}
@@ -27,9 +47,8 @@ func runClabCommand(cmd *exec.Cmd, onLog func(data string), onDone func(output *
 	go streamOutput(stderr, onLog)
 
 	err = cmd.Wait()
-	outputData := outputBuffer.String()
-
-	onDone(&outputData, err)
+	output := outputBuffer.String()
+	onDone(&output, err)
 }
 
 func streamOutput(pipe io.Reader, onLog func(data string)) {

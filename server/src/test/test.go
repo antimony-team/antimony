@@ -1,24 +1,41 @@
 package test
 
 import (
+	"antimonyBackend/auth"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log"
+	"testing"
 )
 
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
 	user1 := user.User{
-		UUID: utils.GenerateUuid(),
+		UUID: "test-user-id1",
 		Sub:  "doesntmatter",
-		Name: "kian.gribi@ost.ch",
+		Name: "Hans Hülsensack",
 	}
 	db.Create(&user1)
+	user2 := user.User{
+		UUID: "test-user-id2",
+		Sub:  "doesntmatter",
+		Name: "Max Muster",
+	}
+	db.Create(&user2)
+	user3 := user.User{
+		UUID: "test-user-id3",
+		Sub:  "irrelevant",
+		Name: "Not Admin",
+	}
+	db.Create(&user3)
 
 	db.Create(&collection.Collection{
 		UUID:         utils.GenerateUuid(),
@@ -135,7 +152,7 @@ topology:
       binds:
         - leaf02/interfaces:/etc/network/interfaces
         - leaf02/daemons:/etc/frr/daemons
-        - leaf02/frr.conf:/etc/frr/frr.conf
+        - leaf02/frr.conf:/etc/frr/frr.conf	
 
     spine01:
       kind: cvx
@@ -184,4 +201,63 @@ func writeBindFile(topologyId string, filePath string, content string, storage s
 	if err := storage.WriteBindFile(topologyId, filePath, content); err != nil {
 		log.Fatalf("Failed to write test topology bind file: %s", err.Error())
 	}
+}
+
+func SetupTestServer(t *testing.T) (*gin.Engine, *gorm.DB) {
+	authUser := auth.AuthenticatedUser{
+		IsAdmin:     true,
+		UserId:      "test-user-id1",
+		Collections: []string{"fs25-cldinf, fs25-nisec, hs25-cn1, hs25-cn2"},
+	}
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	err = db.AutoMigrate(
+		&user.User{},
+		&collection.Collection{},
+		&topology.Topology{},
+		&topology.BindFile{},
+	)
+	assert.NoError(t, err)
+
+	storageManager := CreateMockStorageManager()
+	GenerateTestData(db, storageManager)
+
+	userRepo := user.CreateRepository(db)
+	collectionRepo := collection.CreateRepository(db)
+	collectionService := collection.CreateService(collectionRepo, userRepo)
+	collectionHandler := collection.CreateHandler(collectionService)
+
+	router := gin.Default()
+	authManager := MockAuthManager{User: authUser}
+
+	collection.RegisterRoutes(router, collectionHandler, authManager)
+	return router, db
+}
+
+func SetupTestServerWithUser(t *testing.T, testUser auth.AuthenticatedUser) (*gin.Engine, *gorm.DB) {
+
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	err = db.AutoMigrate(&user.User{}, &collection.Collection{}, &topology.Topology{}, &topology.BindFile{})
+	assert.NoError(t, err)
+
+	storageManager := CreateMockStorageManager()
+	GenerateTestData(db, storageManager)
+
+	userRepo := user.CreateRepository(db)
+	collectionRepo := collection.CreateRepository(db)
+	collectionService := collection.CreateService(collectionRepo, userRepo)
+	collectionHandler := collection.CreateHandler(collectionService)
+
+	router := gin.Default()
+	authManager := MockAuthManager{User: testUser}
+	collection.RegisterRoutes(router, collectionHandler, authManager)
+
+	return router, db
 }
