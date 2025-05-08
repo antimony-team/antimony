@@ -548,9 +548,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             return hitCount > 0 && hitCount < descs.length;
           });
 
-        const newGroupParent = partialCompounds.length
-          ? partialCompounds[0].id()
-          : undefined;
         const groupableIds = hitsArray
           .map(n => n.id())
           .filter(id => {
@@ -563,6 +560,19 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               .toArray()
               .every(anc => !compoundFullyHit.includes(anc.id()));
           });
+
+        const selectedParents = new Set<string>();
+        hitsArray.forEach(n => {
+          const parent = n.parent();
+          if (parent && parent.nonempty()) {
+            selectedParents.add(parent[0].id());
+          }
+        });
+
+        let newGroupParent: string | undefined;
+        if (selectedParents.size === 1) {
+          newGroupParent = [...selectedParents][0];
+        }
         const groupId = `group-${Date.now()}`;
         if (groupableIds.length) {
           cy.batch(() => {
