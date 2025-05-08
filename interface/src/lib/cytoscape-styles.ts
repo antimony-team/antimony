@@ -39,6 +39,7 @@ export const topologyStyle = [
     selector: '.drawn-shape[label]',
     style: {
       label: 'data(label)',
+      'z-index': 9999,
     },
   },
   {

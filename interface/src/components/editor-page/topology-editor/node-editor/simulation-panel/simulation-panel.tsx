@@ -5,7 +5,6 @@ import {Button} from 'primereact/button';
 import {Slider} from 'primereact/slider';
 import {observer} from 'mobx-react-lite';
 import {Divider} from 'primereact/divider';
-import {Checkbox} from 'primereact/checkbox';
 
 import {
   SimulationConfig,
@@ -32,30 +31,30 @@ const SimulationPanel = observer((props: SimulationPanelProps) => {
     >
       <span className="simulation-panel-title">Graph Stabilization</span>
       <ConfigSlider
-        header="Link Stiffness"
+        header="Edge Elasticity"
         minValue={0.01}
         maxValue={0.2}
-        multiplier={0.01}
-        value={simulationConfig.springConstant}
+        step={0.01}
+        value={simulationConfig.edgeElasticity}
         onChange={simulationConfig.setSpringConstant}
         defaultValue={SimulationConfig.DefaultPhysics.edgeElasticity}
       />
       <ConfigSlider
-        header="Link Length"
+        header="Edge Length"
         minValue={10}
         maxValue={300}
-        value={simulationConfig.springLength}
+        value={simulationConfig.idealEdgeLength}
         onChange={simulationConfig.setSpringLength}
         defaultValue={SimulationConfig.DefaultPhysics.idealEdgeLength}
       />
       <ConfigSlider
-        header="Central Gravity"
-        minValue={0}
-        maxValue={0.2}
-        multiplier={0.001}
-        value={simulationConfig.centralGravity}
-        onChange={simulationConfig.setCentralGravity}
-        defaultValue={SimulationConfig.DefaultPhysics.gravity}
+        header="Node Repulsion"
+        minValue={1}
+        maxValue={100}
+        multiplier={1000}
+        value={simulationConfig.nodeRepulsion}
+        onChange={simulationConfig.setNodeRepulsion}
+        defaultValue={SimulationConfig.DefaultPhysics.nodeRepulsion}
       />
       <Divider />
       <Button
@@ -97,13 +96,14 @@ const ConfigSlider = (props: ConfigSliderProps) => (
     <div className="flex simulation-panel-group">
       <span className="simulation-panel-value">{props.minValue}</span>
       <Slider
-        min={props.minValue / (props.multiplier ?? 1)}
-        max={props.maxValue / (props.multiplier ?? 1)}
-        value={props.value / (props.multiplier ?? 1)}
+        min={props.minValue}
+        max={props.maxValue}
+        value={props.value / (props.multiplier ?? 1)} // normalize for slider
         step={props.step}
-        onChange={e =>
-          props.onChange((e.value as number) * (props.multiplier ?? 1))
-        }
+        onChange={e => {
+          const scaled = (e.value as number) * (props.multiplier ?? 1);
+          props.onChange(scaled);
+        }}
       />
       <span className="simulation-panel-value">{props.maxValue}</span>
       <Button

@@ -27,10 +27,7 @@ import type {EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape from 'cytoscape';
 import {CytoscapeElement} from '@sb/types/graph';
-import {
-  topologyStyle,
-  topologyStyle as baseStyle
-} from '@sb/lib/cytoscape-styles';
+import {topologyStyle} from '@sb/lib/cytoscape-styles';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -47,7 +44,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isMenuVisible, setMenuVisible] = useState(false);
     const logDialogState = useDialogState<LogDialogState>();
-
+    const [cyReady, setCyReady] = useState<boolean>(false);
     const collectionStore = useCollectionStore();
     const deviceStore = useDeviceStore();
     const topologyStore = useTopologyStore();
@@ -200,9 +197,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         event.target === cyRef.current &&
         nodeContextMenuRef.current !== null
       ) {
-        nodeContextMenuRef?.current.hide(
-          event.originalEvent as unknown as React.MouseEvent
-        );
+        setMenuVisible(false);
       }
     }, []);
 
@@ -228,11 +223,21 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         props.dialogState.close();
       }
     }
+    //Helper useEffect to center Graph evertime Dialog gets opend
+    useEffect(() => {
+      setCyReady(false);
+    }, [props.dialogState.isOpen]);
+
+    useEffect(() => {
+      if (cyRef.current) {
+        centerGraph(cyRef.current);
+      }
+    }, [cyReady]);
 
     function centerGraph(cy: cytoscape.Core) {
       if (containerRef.current) {
         cy.resize();
-        cy.fit(cy.elements(), 120);
+        cy.fit(cy.elements(), 60);
         const viewW = containerRef.current!.clientWidth;
         const viewH = containerRef.current!.clientHeight;
         const offsetX = viewW * 0.1;
@@ -290,7 +295,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                     }
                   });
                   cy.style().fromJson(topologyStyle).update();
-                  centerGraph(cy);
+                  setCyReady(true);
                 }}
               />
             </div>

@@ -4,9 +4,9 @@ import {action, autorun, computed, observable} from 'mobx';
 
 export class SimulationConfig {
   @observable accessor liveSimulation: boolean = false;
-  @observable accessor centralGravity: number;
-  @observable accessor springLength: number;
-  @observable accessor springConstant: number;
+  @observable accessor nodeRepulsion: number;
+  @observable accessor idealEdgeLength: number;
+  @observable accessor edgeElasticity: number;
 
   @observable accessor panelOpen: boolean;
   @observable accessor isStabilizing: boolean = false;
@@ -17,6 +17,7 @@ export class SimulationConfig {
     animationDuration: 800,
     idealEdgeLength: 100,
     edgeElasticity: 0.08,
+    nodeRepulsion: 5000,
     gravity: 0.01,
     fit: true,
     padding: 30,
@@ -25,22 +26,22 @@ export class SimulationConfig {
 
   constructor() {
     this.panelOpen = this.readBool('simPanelOpen') ?? false;
-    this.centralGravity =
-      this.readFloat('simCentralGravity') ??
-      SimulationConfig.DefaultPhysics.gravity;
-    this.springLength =
-      this.readInt('simSpringLength') ??
+    this.nodeRepulsion =
+      this.readFloat('simNodeRepulsion') ??
+      SimulationConfig.DefaultPhysics.nodeRepulsion;
+    this.idealEdgeLength =
+      this.readInt('simIdealEdgeLength') ??
       SimulationConfig.DefaultPhysics.idealEdgeLength;
-    this.springConstant =
-      this.readFloat('simSpringConstant') ?? SimulationConfig.DefaultPhysics.edgeElasticity;
+    this.edgeElasticity =
+      this.readFloat('simEdgeElasticity') ??
+      SimulationConfig.DefaultPhysics.edgeElasticity;
 
     autorun(() => this.writeBool('simPanelOpen', this.panelOpen));
-    autorun(() => this.writeFloat('simCentralGravity', this.centralGravity));
-    autorun(() => this.writeInt('simSpringLength', this.springLength));
-    autorun(() => this.writeFloat('simSpringConstant', this.springConstant));
+    autorun(() => this.writeFloat('simNodeRepulsion', this.nodeRepulsion));
+    autorun(() => this.writeInt('simIdealEdgeLength', this.idealEdgeLength));
+    autorun(() => this.writeFloat('simEdgeElasticity', this.edgeElasticity));
 
-    this.setLiveSimulation = this.setLiveSimulation.bind(this);
-    this.setCentralGravity = this.setCentralGravity.bind(this);
+    this.setNodeRepulsion = this.setNodeRepulsion.bind(this);
     this.setSpringLength = this.setSpringLength.bind(this);
     this.setSpringConstant = this.setSpringConstant.bind(this);
     this.setIsStabilizing = this.setIsStabilizing.bind(this);
@@ -80,9 +81,10 @@ export class SimulationConfig {
       name: 'cose-bilkent',
       animate: true,
       animationDuration: 800,
-      idealEdgeLength: this.springLength,
-      edgeElasticity: this.springConstant,
-      gravity: this.centralGravity,
+      idealEdgeLength: this.idealEdgeLength,
+      edgeElasticity: this.edgeElasticity,
+      nodeRepulsion: this.nodeRepulsion,
+      gravity: 0.01,
       fit: true,
       padding: 30,
       randomize: true,
@@ -90,23 +92,18 @@ export class SimulationConfig {
   }
 
   @action
-  public setLiveSimulation(liveSimulation: boolean) {
-    this.liveSimulation = liveSimulation;
+  public setNodeRepulsion(nodeRepulsion: number) {
+    this.nodeRepulsion = nodeRepulsion;
   }
 
   @action
-  public setCentralGravity(centralGravity: number) {
-    this.centralGravity = centralGravity;
-  }
-
-  @action
-  public setSpringLength(springLength: number) {
-    this.springLength = springLength;
+  public setSpringLength(idealEdgeLength: number) {
+    this.idealEdgeLength = idealEdgeLength;
   }
 
   @action
   public setSpringConstant(springConstant: number) {
-    this.springConstant = springConstant;
+    this.edgeElasticity = springConstant;
   }
 
   @action

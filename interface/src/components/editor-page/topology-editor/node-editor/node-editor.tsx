@@ -24,7 +24,7 @@ import SimulationPanel from './simulation-panel/simulation-panel';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-editor.sass';
-import SBDialog from "@sb/components/common/sb-dialog/sb-dialog";
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
 cytoscape.use(coseBilkent);
 interface NodeEditorProps {
@@ -102,8 +102,25 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       };
     }
 
+    const onStabilizeGraph = () => {
+      const cy = cyRef.current;
+      if (!cy) return;
+      if (cy.elements().empty()) return;
+
+      const layout = cy.layout({
+        ...simulationConfig.config,
+      });
+
+      simulationConfig.setIsStabilizing(true);
+      layout.run();
+      layout.promiseOn('layoutstop')?.then(() => {
+        simulationConfig.setIsStabilizing(false);
+      });
+    };
+
     const elements = useMemo(() => {
       if (props.openTopology === null) return [];
+
       return generateGraph(
         props.openTopology,
         deviceStore,
@@ -405,21 +422,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       },
       [simulationConfig.liveSimulation, topologyStore.manager]
     );
-
-    const onStabilizeGraph = () => {
-      const cy = cyRef.current;
-      if (!cy) return;
-
-      const layout = cy.layout({
-        ...simulationConfig.config,
-      });
-
-      simulationConfig.setIsStabilizing(true);
-      layout.run();
-      layout.promiseOn('layoutstop')?.then(() => {
-        simulationConfig.setIsStabilizing(false);
-      });
-    };
 
     function onFitGraph() {
       const cy = cyRef.current;
