@@ -12,6 +12,7 @@
     "@tsparticles/engine": "^3.5.0",
     "@tsparticles/preset-links": "^3.1.0",
     "@tsparticles/react": "^3.0.0",
+    "@xterm/xterm": "^5.5.0",
     "classnames": "^2.5.1",
     "cytoscape": "^3.31.2",
     "cytoscape-cose-bilkent": "^4.1.0",
@@ -50,6 +51,7 @@
     "vis": "^4.21.0-EOL",
     "vis-data": "^7.1.9",
     "vis-network": "^9.1.9",
+    "xterm-for-react": "^1.0.4",
     "yaml": "^2.6.0"
   },
   "scripts": {
