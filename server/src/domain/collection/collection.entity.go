@@ -16,7 +16,7 @@ type Collection struct {
 }
 
 type CollectionIn struct {
-	Name         string `json:"name"`
+	Name         string `json:"name" binding:"required"`
 	PublicWrite  bool   `json:"publicWrite"`
 	PublicDeploy bool   `json:"publicDeploy"`
 }

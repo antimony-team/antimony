@@ -176,7 +176,7 @@ func (h *topologyHandler) UpdateBindFile(ctx *gin.Context) {
 	}
 
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	if err := h.topologyService.UpdateBindFile(ctx, payload, ctx.Param("bindFileId"), authUser); err != nil {
+	if err := h.topologyService.UpdateBindFile(ctx, payload, ctx.Param("fileId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -198,7 +198,7 @@ func (h *topologyHandler) UpdateBindFile(ctx *gin.Context) {
 // @Router /topologies/{topologyId}/files/{bindFileId} [delete]
 func (h *topologyHandler) DeleteBindFile(ctx *gin.Context) {
 	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
-	if err := h.topologyService.DeleteBindFile(ctx, ctx.Param("bindFileId"), authUser); err != nil {
+	if err := h.topologyService.DeleteBindFile(ctx, ctx.Param("fileId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

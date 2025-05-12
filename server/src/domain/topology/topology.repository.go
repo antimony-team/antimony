@@ -23,7 +23,7 @@ type (
 		CreateBindFile(ctx context.Context, bindFile *BindFile) error
 		UpdateBindFile(ctx context.Context, bindFile *BindFile) error
 		DeleteBindFile(ctx context.Context, bindFile *BindFile) error
-		DoesBindFilePathExist(ctx context.Context, bindFilePath string, topologyId string) (bool, error)
+		DoesBindFilePathExist(ctx context.Context, bindFilePath string, topologyId string, excludeString string) (bool, error)
 		BindFileToOut(bindFile BindFile, content string) BindFileOut
 	}
 
@@ -140,11 +140,11 @@ func (r *topologyRepository) BindFileToOut(bindFile BindFile, content string) Bi
 	}
 }
 
-func (r *topologyRepository) DoesBindFilePathExist(ctx context.Context, bindFilePath string, topologyId string) (bool, error) {
+func (r *topologyRepository) DoesBindFilePathExist(ctx context.Context, bindFilePath, topologyId, excludeUUID string) (bool, error) {
 	var bindFile BindFile
 	result := r.db.WithContext(ctx).
 		Joins("JOIN topologies ON topologies.id = bind_files.topology_id").
-		Where("bind_files.file_path = ? AND topologies.uuid = ?", bindFilePath, topologyId).
+		Where("bind_files.file_path = ? AND topologies.uuid = ? AND bind_files.uuid != ?", bindFilePath, topologyId, excludeUUID).
 		Limit(1).
 		Find(&bindFile)
 

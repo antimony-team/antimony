@@ -78,7 +78,7 @@ func CreateService(
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
 		storageManager:         storageManager,
-		deploymentProvider:     &deployment.ContainerlabProvider{},
+		deploymentProvider:     deployment.GetProvider(),
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}

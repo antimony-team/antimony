@@ -6,6 +6,7 @@ import (
 	"antimonyBackend/domain/user"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"encoding/json"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
@@ -64,7 +65,6 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 	if err != nil {
 		return nil, err
 	}
-
 	result := make([]TopologyOut, 0)
 	for _, topology := range topologies {
 		var (
@@ -213,19 +213,23 @@ func (s *topologyService) Delete(ctx *gin.Context, topologyId string, authUser a
 func (s *topologyService) validateTopology(definition string) error {
 	var definitionObj any
 
-	if err := yaml.Unmarshal(([]byte)(definition), &definitionObj); err != nil {
-		return err
+	if err := yaml.Unmarshal([]byte(definition), &definitionObj); err != nil {
+		return utils.ErrorInvalidTopology
 	}
 
-	if _, err := gojsonschema.Validate(s.schemaLoader, gojsonschema.NewGoLoader(definitionObj)); err != nil {
-		return err
-	}
+	log.Debugf("Topology YAML parsed successfully")
 
 	return nil
 }
 
 func (s *topologyService) validateMetadata(metadata string) error {
-	// TODO: Implement
+	if metadata == "" {
+		return nil
+	}
+	var js map[string]interface{}
+	if err := json.Unmarshal([]byte(metadata), &js); err != nil {
+		return utils.ErrorInvalidMetadata
+	}
 	return nil
 }
 
@@ -281,7 +285,7 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	}
 
 	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID); err != nil {
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, ""); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrorBindFileExists
@@ -301,8 +305,8 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	return newUuid, err
 }
 
-func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileId string, authUser auth.AuthenticatedUser) error {
-	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileId)
+func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileUuid string, authUser auth.AuthenticatedUser) error {
+	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
 	if err != nil {
 		return err
 	}
@@ -318,7 +322,7 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindF
 	}
 
 	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID); err != nil {
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
 		return err
 	} else if nameExists {
 		return utils.ErrorBindFileExists

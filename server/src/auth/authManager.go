@@ -26,6 +26,7 @@ type (
 		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
 		RefreshAccessToken(authToken string) (string, error)
+		RegisterTestUser(authUser AuthenticatedUser) (string, error)
 	}
 
 	authManager struct {
@@ -78,6 +79,10 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 }
 
 func (m *authManager) Init(config *config.AntimonyConfig) {
+	if config.Auth.EnableNativeAdmin && config.Auth.OpenIdIssuer == "" {
+		// Only use native, skip OIDC setup
+		return
+	}
 	provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
 	if err != nil {
 		log.Fatalf("Failed to connect to OpenID provider: %s", err.Error())
@@ -200,7 +205,6 @@ func (m *authManager) LoginNative(username string, password string) (string, str
 			return authToken, accessToken, nil
 		}
 	}
-
 	return "", "", utils.ErrorInvalidCredentials
 }
 
@@ -245,4 +249,9 @@ func (m *authManager) tokenParser(token *jwt.Token) (interface{}, error) {
 	}
 
 	return m.jwtSecret, nil
+}
+
+func (m *authManager) RegisterTestUser(user AuthenticatedUser) (string, error) {
+	m.authenticatedUsers[user.UserId] = &user
+	return user.UserId, nil
 }
