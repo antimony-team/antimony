@@ -3,7 +3,7 @@ FROM node:22-alpine AS build
 WORKDIR /
 
 # We copy all of the needed local files into the docker container and run commands to install dependencies and build
-COPY .babelrc .prettierrc.cjs eslint.config.js package.json tsconfig.json workbox-config.cjs yarn.lock .env start.js ./
+COPY .babelrc .prettierrc.cjs eslint.config.js package.json tsconfig.json workbox-config.cjs yarn.lock .env ./
 COPY webpack.common.cjs webpack.prod.cjs ./
 COPY src/ ./src/
 COPY public/ ./public/
@@ -16,11 +16,13 @@ RUN yarn run build:prod
 # Production Stage
 FROM node:22-alpine
 
-WORKDIR /
+WORKDIR /app
 COPY --from=build /build ./build
-COPY --from=build /start.js ./start.js
+COPY run/start.js ./start.js
+COPY run/package.json ./package.json
 
-RUN yarn add express
-RUN yarn add http-proxy-middleware
+RUN yarn install
 
-CMD ["node", "start.js"]
+EXPOSE 8100
+
+CMD ["yarn", "start"]

@@ -1,5 +1,5 @@
 {
-  "name": "antimony",
+  "name": "antimony-frontend",
   "packageManager": "yarn@1.22.22",
   "author": "Antimony Dev Team",
   "license": "MIT",
