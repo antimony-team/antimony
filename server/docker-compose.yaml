@@ -1,0 +1,49 @@
+name: antimonyBackend
+
+services:
+  backend:
+    container_name: antimony-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SB_NATIVE_USERNAME=admin
+      - SB_NATIVE_PASSWORD=admin
+    privileged: true
+    command: -sqlite true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/netns:/var/run/netns
+      - /var/lib/docker/containers:/var/lib/docker/containers
+    ports:
+      - "3000:3000"
+  database:
+    container_name: database
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD_SB=antimony
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - ./.db:/var/lib/postgresql/data
+      - ./test/postgres:/docker-entrypoint-initdb.d/
+    ports:
+      - "5432:5432"
+  keycloak-server:
+    container_name: keycloak-server
+    image: quay.io/keycloak/keycloak:latest
+    command: start-dev --http-port 4022
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./test/keycloak:/opt/keycloak/data/h2
+    ports:
+      - "4022:4022"
