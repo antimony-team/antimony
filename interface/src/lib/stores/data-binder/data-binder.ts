@@ -42,6 +42,7 @@ export class DataBinder {
 
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
+  @observable accessor hasOidcEnabled = false;
 
   private refreshTokenPromise: Promise<Result<null>> | null = null;
   private accessToken: string = '';
@@ -49,6 +50,14 @@ export class DataBinder {
   private subscriptions: Map<string, Subscription> = new Map();
 
   constructor() {
+    void this.initAuth();
+  }
+
+  @action
+  private async initAuth() {
+    const hasOidc = await this.get<void>('/users/login/openid', false);
+    this.hasOidcEnabled = hasOidc.isOk();
+
     const accessToken = Cookies.get('accessToken');
     if (accessToken !== undefined) {
       this.refreshToken().then(result => {
@@ -56,7 +65,7 @@ export class DataBinder {
           this.processAccessToken(accessToken);
           this.isLoggedIn = true;
           this.isReady = true;
-        } else if (Cookies.get('authOidc') === 'true') {
+        } else if (Cookies.get('authOidc') === 'true' && this.hasOidcEnabled) {
           window.location.replace(this.apiUrl + '/users/login/openid');
           return Result.createErr({code: -1, message: 'Unauthorized'});
         } else {
@@ -263,9 +272,7 @@ export class DataBinder {
       return false;
     }
 
-    if (saveCookie) {
-      // Cookies.set('isAdmin', String(this.isAdmin));
-    }
+    this.isLoggedIn = true;
 
     return true;
   }

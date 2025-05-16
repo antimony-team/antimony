@@ -57,7 +57,10 @@ export abstract class DataStore<T, I, O> {
       body
     );
 
-    if (result.isOk()) await this.fetch();
+    if (result.isOk()) {
+      console.log('fetching new collection');
+      await this.fetch();
+    }
 
     return result;
   }

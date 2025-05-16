@@ -1,11 +1,11 @@
+import {ElementDefinition} from 'cytoscape';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {FetchState} from '@sb/types/types';
 import {Topology} from '@sb/types/domain/topology';
-import {CytoscapeElement} from '@sb/types/graph';
-import {Scalar, YAMLMap} from "yaml";
+import {Scalar, YAMLMap} from 'yaml';
 
 export async function fetchResource<T>(
   path: string,
@@ -61,53 +61,95 @@ export function drawGrid(
   zoom: number,
   pan: {x: number; y: number}
 ) {
-  const canvas = ctx.canvas;
-  const width = canvas.width;
-  const height = canvas.height;
+  // const canvas = ctx.canvas;
+  // const width = canvas.width;
+  // const height = canvas.height;
+  //
+  // const gridSpacing = 40;
+  // const gridColor = 'rgb(38,55,55)';
+  // const largeGridColor = 'rgb(40,68,71)';
+  //
+  // ctx.clearRect(0, 0, width, height);
+  // ctx.save();
 
-  const gridSpacing = 40;
+  const width = window.outerWidth;
+  const height = window.outerHeight;
+  const gridSpacing = 50;
+  const gridExtent = 4;
   const gridColor = 'rgb(38,55,55)';
   const largeGridColor = 'rgb(40,68,71)';
 
-  ctx.clearRect(0, 0, width, height);
-  ctx.save();
+  ctx.strokeStyle = 'rgba(34, 51, 56, 1)';
+  ctx.beginPath();
 
-  // apply pan & zoom to align grid
   ctx.translate(pan.x, pan.y);
   ctx.scale(zoom, zoom);
 
-  const startX = -pan.x / zoom;
-  const startY = -pan.y / zoom;
-  const endX = startX + width / zoom;
-  const endY = startY + height / zoom;
-
-  for (
-    let x = Math.floor(startX / gridSpacing) * gridSpacing;
-    x < endX;
-    x += gridSpacing
-  ) {
+  for (let x = -width * gridExtent; x <= width * gridExtent; x += gridSpacing) {
     ctx.beginPath();
-    ctx.lineWidth = x % (gridSpacing * 8) === 0 ? 2 : 1;
-    ctx.strokeStyle = x % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
-    ctx.moveTo(x, startY);
-    ctx.lineTo(x, endY);
+    if (x % 8 === 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = largeGridColor;
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = gridColor;
+    }
+    ctx.moveTo(x, height * gridExtent);
+    ctx.lineTo(x, -height * gridExtent);
     ctx.stroke();
   }
-
   for (
-    let y = Math.floor(startY / gridSpacing) * gridSpacing;
-    y < endY;
+    let y = -height * gridExtent;
+    y <= height * gridExtent;
     y += gridSpacing
   ) {
     ctx.beginPath();
-    ctx.lineWidth = y % (gridSpacing * 8) === 0 ? 2 : 1;
-    ctx.strokeStyle = y % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
-    ctx.moveTo(startX, y);
-    ctx.lineTo(endX, y);
+    if (y % 8 === 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = largeGridColor;
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = gridColor;
+    }
+    ctx.moveTo(width * gridExtent, y);
+    ctx.lineTo(-width * gridExtent, y);
     ctx.stroke();
   }
 
-  ctx.restore();
+  // apply pan & zoom to align grid
+
+  // const startX = -pan.x / zoom;
+  // const startY = -pan.y / zoom;
+  // const endX = startX + width / zoom;
+  // const endY = startY + height / zoom;
+  //
+  // for (
+  //   let x = Math.floor(startX / gridSpacing) * gridSpacing;
+  //   x < endX;
+  //   x += gridSpacing
+  // ) {
+  //   ctx.beginPath();
+  //   ctx.lineWidth = x % (gridSpacing * 8) === 0 ? 2 : 1;
+  //   ctx.strokeStyle = x % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
+  //   ctx.moveTo(x, startY);
+  //   ctx.lineTo(x, endY);
+  //   ctx.stroke();
+  // }
+  //
+  // for (
+  //   let y = Math.floor(startY / gridSpacing) * gridSpacing;
+  //   y < endY;
+  //   y += gridSpacing
+  // ) {
+  //   ctx.beginPath();
+  //   ctx.lineWidth = y % (gridSpacing * 8) === 0 ? 2 : 1;
+  //   ctx.strokeStyle = y % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
+  //   ctx.moveTo(startX, y);
+  //   ctx.lineTo(endX, y);
+  //   ctx.stroke();
+  // }
+
+  // ctx.restore();
 }
 
 export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
@@ -149,8 +191,8 @@ export function generateGraph(
   topology: Topology,
   deviceStore: DeviceStore,
   topologyManager: TopologyManager
-): CytoscapeElement[] {
-  const elements: CytoscapeElement[] = [];
+): ElementDefinition[] {
+  const elements: ElementDefinition[] = [];
   hydratePositionsFromYaml(topology);
   const nodeDataMap = topology.metaData?.nodeData ?? new Map();
   // Nodes

@@ -18,7 +18,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 
 import YAML from 'yaml';
 
-import './topology-add-dialog.sass';
+import './topology-edit-dialog.sass';
 
 export interface TopologyEditDialogState {
   // Set to null if the dialog is meant to add a new topology
@@ -162,7 +162,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         label: collection.name,
         value: collection.id,
       }));
-  }, [topologyStore.data]);
+  }, [topologyStore.data, collectionStore.data]);
 
   function getDialogHeader(): string {
     if (!props.dialogState.state) return '';

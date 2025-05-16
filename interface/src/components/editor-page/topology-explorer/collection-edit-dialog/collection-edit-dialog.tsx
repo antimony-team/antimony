@@ -45,7 +45,7 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
       props.dialogState.state?.editingCollection?.publicDeploy ?? false,
   });
 
-  // Reset editing object when dialog is opened
+  // Reset editing object when the dialog is opened
   useEffect(() => {
     if (props.dialogState.isOpen && props.dialogState.state) {
       const editCollection = {

@@ -1,3 +1,19 @@
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import {topologyStyle} from '@sb/lib/cytoscape-styles';
+import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
+
+import './node-editor.sass';
+import {drawGrid, generateGraph} from '@sb/lib/utils/utils';
+import {nodeData, Topology} from '@sb/types/domain/topology';
+import type {EventObject} from 'cytoscape';
+import cytoscape, {NodeSingular} from 'cytoscape';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error This library does not have a type declaration
+import coseBilkent from 'cytoscape-cose-bilkent';
+import {observer} from 'mobx-react-lite';
+import {ContextMenu} from 'primereact/contextmenu';
+import {MenuItem} from 'primereact/menuitem';
+import {SpeedDial} from 'primereact/speeddial';
 import React, {
   MouseEvent,
   useCallback,
@@ -6,27 +22,14 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import cytoscape, {NodeSingular} from 'cytoscape';
-import {observer} from 'mobx-react-lite';
-import {MenuItem} from 'primereact/menuitem';
-import type {EventObject} from 'cytoscape';
-import {SpeedDial} from 'primereact/speeddial';
-import coseBilkent from 'cytoscape-cose-bilkent';
 import CytoscapeComponent from 'react-cytoscapejs';
-import {topologyStyle} from '@sb/lib/cytoscape-styles';
-import {ContextMenu} from 'primereact/contextmenu';
+import SimulationPanel from './simulation-panel/simulation-panel';
+import {useSimulationConfig} from './state/simulation-config';
 
 import NodeToolbar from './toolbar/node-toolbar';
-import {nodeData, Topology} from '@sb/types/domain/topology';
-import {drawGrid, generateGraph} from '@sb/lib/utils/utils';
-import {useSimulationConfig} from './state/simulation-config';
-import SimulationPanel from './simulation-panel/simulation-panel';
-import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
-
-import './node-editor.sass';
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
 cytoscape.use(coseBilkent);
+
 interface NodeEditorProps {
   openTopology: Topology | null;
 
@@ -62,9 +65,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       x: number;
       y: number;
     } | null>(null);
-    const [drawEndPos, setDrawEndPos] = useState<{x: number; y: number} | null>(
-      null
-    );
+    const [drawEndPos, setDrawEndPos] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
     const [isDrawingShape, setIsDrawingShape] = useState(false);
     const [nodeConnectTarget, setNodeConnectTarget] = useState<string | null>(
       null
@@ -91,13 +95,13 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         drawGrid(ctx, cy.zoom(), cy.pan());
       };
 
-      cy.on('render zoom pan', draw);
+      cy.on('render', draw);
       window.addEventListener('resize', draw);
 
       draw();
 
       return () => {
-        cy.off('render zoom pan', draw);
+        cy.off('render', draw);
         window.removeEventListener('resize', draw);
       };
     }
@@ -120,6 +124,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     const elements = useMemo(() => {
       if (props.openTopology === null) return [];
+
+      console.log('generate graph');
 
       return generateGraph(
         props.openTopology,
@@ -149,6 +155,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       drawConnectionLine(nodeConnectTarget, x, y);
     }
+
     function drawConnectionLine(
       sourceId: string,
       mouseX: number,
@@ -272,12 +279,31 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cyRef.current?.nodes('.compound-close-btn').style('visibility', 'hidden');
     }
 
+    const onEdgeClick = useCallback((event: cytoscape.EventObject) => {
+      if (event.target.hasClass('ghost-edge')) {
+        exitConnectionMode();
+        closeRadialMenu();
+        cyRef.current?.elements().unselect();
+        closeGroupDeleteBtn();
+      }
+    }, []);
+
     const onNodeClick = useCallback(
       (event: cytoscape.EventObject) => {
         if (!cyRef.current) return;
+
         const cy = cyRef.current;
         const node = event.target;
         const nodeId = node.id();
+
+        if (node.hasClass('ghost-node')) {
+          exitConnectionMode();
+          closeRadialMenu();
+          cyRef.current?.elements().unselect();
+          closeGroupDeleteBtn();
+          return;
+        }
+
         closeGroupDeleteBtn();
         if (node.hasClass('compound-close-btn')) return;
 
@@ -313,13 +339,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       [nodeConnectTarget, radialMenuTarget]
     );
 
-    const onBackgroundClick = useCallback((event: cytoscape.EventObject) => {
-      if (event.target === cyRef.current) {
-        exitConnectionMode();
-        closeRadialMenu();
-        cyRef.current?.elements().unselect();
-        closeGroupDeleteBtn();
-      }
+    const onBackgroundClick = useCallback(() => {
+      closeRadialMenu();
+      cyRef.current?.elements().unselect();
+      closeGroupDeleteBtn();
     }, []);
 
     function closeRadialMenu() {
@@ -367,8 +390,16 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       [props]
     );
 
-    const onContext = useCallback(
+    const onEdgeContext = useCallback((event: cytoscape.EventObject) => {
+      if (event.target.hasClass('ghost-edge')) {
+        exitConnectionMode();
+      }
+    }, []);
+
+    const onNodeContext = useCallback(
       (event: cytoscape.EventObject) => {
+        exitConnectionMode();
+
         if (event.target.hasClass('drawn-shape')) return;
         if (!contextMenuRef.current) return;
 
@@ -489,7 +520,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     function exitConnectionMode() {
       setNodeConnectTarget(null);
       setNodeConnectDestination(null);
+      console.log('exit connection mode');
+
       if (cyRef.current) {
+        console.log('remove ghost node');
         cyRef.current.remove('.ghost-node');
         cyRef.current.remove('.ghost-edge');
       }
@@ -540,14 +574,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           })
           .map(c => c.id());
 
-        const partialCompounds = hitsArray
-          .filter(n => n.isParent())
-          .filter((compound: NodeSingular) => {
-            const descs = compound.descendants().toArray();
-            const hitCount = descs.filter(d => hitsSet.has(d.id())).length;
-            return hitCount > 0 && hitCount < descs.length;
-          });
-
         const groupableIds = hitsArray
           .map(n => n.id())
           .filter(id => {
@@ -569,7 +595,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           }
         });
 
-        let newGroupParent: string | undefined;
+        let newGroupParent: string | undefined = undefined;
         if (selectedParents.size === 1) {
           newGroupParent = [...selectedParents][0];
         }
@@ -685,25 +711,46 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       },
     ];
 
+    const panBounds = {
+      x: [-500, 500], // minX, maxX
+      y: [-300, 300], // minY, maxY
+    };
+
     function cytoscapeEventCalls(cy: cytoscape.Core) {
-      cy.off('tap', 'node');
+      cy.off('click', 'node');
       cy.off('dbltap', 'node');
       cy.off('cxttap', 'node');
+      cy.off('cxttap', 'edge');
       cy.off('grab', 'node');
       cy.off('drag', 'node');
       cy.off('free', 'node');
-      cy.off('tap');
+      cy.off('click');
+      cy.off('pan');
 
-      cy.on('tap', 'node.compound-close-btn', handleCloseButtonTap);
-      cy.on('tap', 'node', onNodeClick);
+      cy.on('pan', (event: cytoscape.EventObject) => {
+        const pan = cy.pan();
+        const clampedPan = {
+          x: Math.max(panBounds.x[0], Math.min(panBounds.x[1], pan.x)),
+          y: Math.max(panBounds.y[0], Math.min(panBounds.y[1], pan.y)),
+        };
+
+        if (clampedPan.x !== pan.x || clampedPan.y !== pan.y) {
+          cy.pan(clampedPan);
+        }
+      });
+
+      cy.on('click', 'node.compound-close-btn', handleCloseButtonTap);
+      cy.on('click', 'node', onNodeClick);
       cy.on('dbltap', 'node', onDoubleClick);
-      cy.on('cxttap', 'node', onContext);
+      cy.on('cxttap', 'node', onNodeContext);
+      cy.on('cxttap', 'edge', onEdgeContext);
       cy.on('grab', 'node', onDragStart);
       cy.on('drag', 'node', onDragging);
       cy.on('free', 'node', onDragEnd);
-      cy.on('tap', (event: EventObject) => {
+      cy.on('click', 'edge', onEdgeClick);
+      cy.on('click', (event: EventObject) => {
         if (event.target === cyRef.current) {
-          onBackgroundClick(event);
+          onBackgroundClick();
         }
       });
     }
@@ -722,10 +769,13 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             layout={{name: 'preset'}}
             cy={(cy: cytoscape.Core) => {
               cyRef.current = cy;
+              cy.minZoom(0.3);
+              cy.maxZoom(10);
               drawGridOverlay(cy);
               cytoscapeEventCalls(cy);
               cy.style().fromJson(topologyStyle).update();
               setCyReady(true);
+              console.log('cytoscape method');
             }}
           />
         </div>

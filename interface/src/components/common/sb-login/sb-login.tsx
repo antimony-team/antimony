@@ -139,11 +139,14 @@ const SBLogin = observer(() => {
         </div>
 
         <Button label="LOGIN" type="submit" />
-        <Button
-          label="Login with OpenID Connect"
-          type="button"
-          onClick={loginWithOIDC}
-        />
+
+        <If condition={dataBinder.hasOidcEnabled}>
+          <Button
+            label="Login with OpenID Connect"
+            type="button"
+            onClick={loginWithOIDC}
+          />
+        </If>
 
         <div className="sb-login-content-header">
           <span>SIGN IN</span>
