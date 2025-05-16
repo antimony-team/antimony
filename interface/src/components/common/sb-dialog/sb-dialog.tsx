@@ -13,7 +13,11 @@ interface SBDialogProps {
   onClose: () => void;
 
   headerTitle: string | React.ReactNode;
-  headerIcon?: string;
+  headerIcon?: string | React.ReactNode;
+
+  draggable?: boolean;
+  resizeable?: boolean;
+  disableModal?: boolean;
 
   children: React.ReactNode;
   className?: string;
@@ -31,37 +35,44 @@ interface SBDialogProps {
 const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
   return (
     <Dialog
-      resizable={false}
-      showHeader={false}
       visible={props.isOpen}
       dismissableMask={true}
       className={props.className}
       onHide={props.onClose}
       onShow={props.onShow}
+      draggable={props.draggable}
+      resizable={props.resizeable}
+      modal={!props.disableModal}
+      header={
+        <div className="sb-dialog-header">
+          <div className="sb-dialog-header-title">
+            <If condition={props.headerIcon}>
+              <Choose>
+                <When condition={typeof props.headerIcon === 'string'}>
+                  <Image src={props.headerIcon as string} width="45px" />
+                </When>
+                <Otherwise>{props.headerIcon}</Otherwise>
+              </Choose>
+            </If>
+            <Choose>
+              <When condition={typeof props.headerTitle === 'string'}>
+                <span>{props.headerTitle}</span>
+              </When>
+              <Otherwise>{props.headerTitle}</Otherwise>
+            </Choose>
+          </div>
+          <div className="sb-dialog-header-close">
+            <Button
+              outlined
+              icon="pi pi-times"
+              size="large"
+              onClick={props.onClose}
+              aria-label="Close"
+            />
+          </div>
+        </div>
+      }
     >
-      <div className="sb-dialog-header">
-        <div className="sb-dialog-header-title">
-          <If condition={props.headerIcon}>
-            <Image src={props.headerIcon} width="45px" />
-          </If>
-          <Choose>
-            <When condition={typeof props.headerTitle === 'string'}>
-              <span>{props.headerTitle}</span>
-            </When>
-            <Otherwise>{props.headerTitle}</Otherwise>
-          </Choose>
-        </div>
-        <div className="sb-dialog-header-close">
-          <Button
-            outlined
-            icon="pi pi-times"
-            size="large"
-            onClick={props.onClose}
-            aria-label="Close"
-          />
-        </div>
-      </div>
-
       <div className="sb-dialog-content">{props.children}</div>
       <If condition={!props.hideButtons}>
         <div className="sb-dialog-footer w-full">
@@ -69,7 +80,9 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
             icon="pi pi-times"
             label={props.cancelLabel ?? 'Cancel'}
             outlined
-            onClick={() => props.onCancel?.call(null)}
+            onClick={() =>
+              props.onCancel?.call(null) ?? props.onClose?.call(null)
+            }
             className="w-8rem"
             aria-label="Cancel"
           />

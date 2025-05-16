@@ -4,23 +4,30 @@ import React, {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
 } from 'react';
 
 import {toJS} from 'mobx';
 import {isEqual} from 'lodash-es';
-import {editor} from 'monaco-editor';
+import MonacoEditor, {editor, Uri} from 'monaco-editor';
 import {observer} from 'mobx-react-lite';
 import {Tooltip} from 'primereact/tooltip';
-import {monaco} from 'react-monaco-editor';
-import {Monaco} from '@monaco-editor/react';
 import {configureMonacoYaml} from 'monaco-yaml';
-import MonacoEditor from 'react-monaco-editor/lib/editor';
+import MonacoEditorElement from 'react-monaco-editor/lib/editor';
 import {AntimonyTheme, MonacoOptions} from './monaco.conf';
 
 import {Topology} from '@sb/types/domain/topology';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {useSchemaStore, useTopologyStore} from '@sb/lib/stores/root-store';
-import {TopologyEditReport, TopologyEditSource} from '@sb/lib/topology-manager';
+import {
+  useAuthUser,
+  useSchemaStore,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {
+  TopologyEditReport,
+  TopologyEditSource,
+  TopologyManager,
+} from '@sb/lib/topology-manager';
 import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
 
 import './monaco-wrapper.sass';
@@ -51,21 +58,32 @@ export interface MonacoWrapperRef {
 
 const MonacoWrapper = observer(
   forwardRef<MonacoWrapperRef, MonacoWrapperProps>((props, ref) => {
+    const [isReadOnly, setReadOnly] = useState(false);
+    const [hasLastDeployFailed, setLastDeployFailed] = useState(false);
+
     const textModelRef = useRef<editor.ITextModel | null>(null);
-    const monacoEditorRef = useRef<Monaco | null>(null);
+    const editorRef = useRef<editor.ICodeEditor | null>(null);
+
     const currentlyOpenTopology = useRef<string | null>(null);
 
+    const authUser = useAuthUser();
     const schemaStore = useSchemaStore();
     const topologyStore = useTopologyStore();
 
     const onTopologyOpen = useCallback((topology: Topology) => {
       /*
-       * Don't replace the current model if the topology ID has not changed. This happens whenever
-       * a topology is saved a reloaded automatically.
+       * Don't replace the current model if the topology ID has not changed.
+       * This happens whenever a topology is saved and reloaded automatically.
        */
       if (currentlyOpenTopology.current === topology.id) {
         return;
       }
+
+      const readOnly = !authUser.isAdmin && authUser.id !== topology.creator.id;
+      setReadOnly(readOnly);
+      editorRef.current?.updateOptions({readOnly: readOnly});
+
+      setLastDeployFailed(topology.lastDeployFailed);
 
       if (textModelRef.current) {
         textModelRef.current.setValue(topology.definition.toString());
@@ -81,9 +99,9 @@ const MonacoWrapper = observer(
         return;
       }
 
-      const updatedContent = editReport.updatedTopology.definition.toString({
-        collectionStyle: 'block',
-      });
+      const updatedContent = TopologyManager.serializeTopology(
+        editReport.updatedTopology.definition
+      );
       const existingContent = textModelRef.current.getValue();
 
       const updatedContentStripped = updatedContent.replaceAll(' ', '');
@@ -116,17 +134,23 @@ const MonacoWrapper = observer(
       topologyStore.manager.onEdit.register(onTopologyEdit);
       topologyStore.manager.onOpen.register(onTopologyOpen);
 
-      if (textModelRef.current) {
+      if (textModelRef.current && topologyStore.manager.topology) {
         textModelRef.current.setValue(
-          topologyStore.manager.topology?.definition.toString() ?? ''
+          topologyStore.manager.topology.definition.toString()
         );
+
+        const readOnly =
+          !authUser.isAdmin &&
+          authUser.id !== topologyStore.manager.topology.creator.id;
+        setReadOnly(readOnly);
+        editorRef.current?.updateOptions({readOnly: readOnly});
       }
 
       return () => {
         topologyStore.manager.onEdit.unregister(onTopologyEdit);
         topologyStore.manager.onOpen.unregister(onTopologyOpen);
       };
-    }, [onTopologyOpen, onTopologyEdit, topologyStore.manager]);
+    }, [onTopologyOpen, onTopologyEdit]);
 
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
@@ -162,22 +186,20 @@ const MonacoWrapper = observer(
     }, [onGlobalKeyPress]);
 
     function onTriggerUndo() {
-      monacoEditorRef.current?.editor.getEditors()[0].trigger('', 'undo', '');
+      editorRef.current?.trigger('', 'undo', '');
     }
 
     function onTriggerRedo() {
-      monacoEditorRef.current?.editor.getEditors()[0].trigger('', 'redo', '');
+      editorRef.current?.trigger('', 'redo', '');
     }
 
-    function onEditorMount(_editor: unknown, monaco: Monaco) {
+    function onEditorMount(codeEditor: editor.ICodeEditor) {
       if (!schemaStore.clabSchema) return;
 
-      monacoEditorRef.current = monaco;
-      textModelRef.current = monaco.editor.getModel(
-        monaco.Uri.parse(schemaModelUri)
-      )!;
+      editorRef.current = codeEditor;
+      textModelRef.current = editor.getModel(Uri.parse(schemaModelUri))!;
 
-      monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
+      editor.defineTheme('antimonyTheme', AntimonyTheme);
 
       editor.onDidChangeMarkers(() => {
         const markers = editor.getModelMarkers({});
@@ -186,7 +208,7 @@ const MonacoWrapper = observer(
         }
       });
 
-      configureMonacoYaml(monaco, {
+      configureMonacoYaml(MonacoEditor, {
         enableSchemaRequest: false,
         schemas: [
           {
@@ -206,44 +228,60 @@ const MonacoWrapper = observer(
 
     return (
       <If condition={schemaStore.clabSchema}>
-        <div className="w-full h-full sb-monaco-wrapper">
-          <div
-            className="sb-monaco-wrapper-error"
-            data-pr-tooltip={props.validationError ?? 'Schema Valid'}
-            data-pr-position="right"
-          >
-            <Choose>
-              <When condition={props.validationState === ValidationState.Error}>
-                <i
-                  className="pi pi-times"
-                  style={{color: 'var(--danger-color-text)'}}
-                ></i>
-              </When>
-              <When
-                condition={props.validationState === ValidationState.Working}
-              >
-                <span>Validating...</span>
-              </When>
-              <Otherwise>
-                <i
-                  className="pi pi-check"
-                  style={{color: 'var(--success-color-text)'}}
-                ></i>
-              </Otherwise>
-            </Choose>
-            <Tooltip
-              className="sb-monaco-wrapper-error-tooltip"
-              target=".sb-monaco-wrapper-error"
+        <div className="h-full flex flex-column">
+          <If condition={isReadOnly}>
+            <div className="sb-monaco-wrapper-readonly">
+              <span>The current file is opened in read-only mode.</span>
+            </div>
+          </If>
+          <If condition={hasLastDeployFailed}>
+            <div className="sb-monaco-wrapper-unsuccessful">
+              <span>
+                The latest deployment of this topology was unsuccessful.
+              </span>
+            </div>
+          </If>
+          <div className="sb-monaco-wrapper">
+            <div
+              className="sb-monaco-wrapper-error"
+              data-pr-tooltip={props.validationError ?? 'Schema Valid'}
+              data-pr-position="right"
+            >
+              <Choose>
+                <When
+                  condition={props.validationState === ValidationState.Error}
+                >
+                  <i
+                    className="pi pi-times"
+                    style={{color: 'var(--danger-color-text)'}}
+                  ></i>
+                </When>
+                <When
+                  condition={props.validationState === ValidationState.Working}
+                >
+                  <span>Validating...</span>
+                </When>
+                <Otherwise>
+                  <i
+                    className="pi pi-check"
+                    style={{color: 'var(--success-color-text)'}}
+                  ></i>
+                </Otherwise>
+              </Choose>
+              <Tooltip
+                className="sb-monaco-wrapper-error-tooltip"
+                target=".sb-monaco-wrapper-error"
+              />
+            </div>
+            <MonacoEditorElement
+              language="yaml"
+              theme="antimonyTheme"
+              options={MonacoOptions}
+              onChange={onContentChange}
+              editorDidMount={onEditorMount}
+              uri={() => Uri.parse(schemaModelUri)}
             />
           </div>
-          <MonacoEditor
-            language="yaml"
-            theme="antimonyTheme"
-            options={MonacoOptions}
-            onChange={onContentChange}
-            editorDidMount={onEditorMount}
-            uri={() => monaco.Uri.parse(schemaModelUri)}
-          />
         </div>
       </If>
     );

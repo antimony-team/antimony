@@ -1,21 +1,55 @@
+import {User} from '@sb/types/domain/user';
 import {Position, uuid4, YAMLDocument} from '@sb/types/types';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
+
+export type BindFileIn = {
+  filePath: string;
+  content: string;
+};
+
+export type BindFile = BindFileIn & {
+  id: uuid4;
+  topologyId: uuid4;
+};
 
 export type TopologyIn = {
   collectionId: uuid4;
   definition: string;
+  metadata: string;
+  gitSourceUrl: string;
 };
 
 export type TopologyOut = TopologyIn & {
   id: uuid4;
-  creatorId: uuid4;
+  creator: User;
+  bindFiles: BindFile[];
+  lastDeployFailed: boolean;
+};
+
+export type nodeData = {
+  id: string;
+  parent?: string;
+  label?: string;
+  class: string;
+  position: Position;
+};
+
+export type metaData = {
+  nodeData: Map<string, nodeData>;
+  utilityNodes: nodeData[];
 };
 
 export type Topology = TopologyMeta & {
   id: uuid4;
+  name: string;
   definition: YAMLDocument<TopologyDefinition>;
+  metaData: metaData;
+  definitionString: string;
   collectionId: uuid4;
-  creatorId: uuid4;
+  creator: User;
+  gitSourceUrl: string;
+  bindFiles: BindFile[];
+  lastDeployFailed: boolean;
 };
 
 export interface TopologyDefinition {

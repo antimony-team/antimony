@@ -1,29 +1,93 @@
-import React, {MouseEvent} from 'react';
+import {
+  useAuthUser,
+  useCollectionStore,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {SBTooltipOptions} from '@sb/lib/utils/utils';
+import {Choose, If, When} from '@sb/types/control';
+
+import {uuid4} from '@sb/types/types';
 
 import {Button} from 'primereact/button';
 import {TreeNode} from 'primereact/treenode';
-
-import {uuid4} from '@sb/types/types';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import React, {MouseEvent, useMemo} from 'react';
 
 interface ExplorerTreeNodeProps {
-  node: TreeNode;
+  node: ExplorerTreeNodeData;
 
+  // Collection functions
   onEditCollection: (id: uuid4) => void;
   onDeleteCollection: (id: uuid4) => void;
-
   onAddTopology: (collectionId: uuid4) => void;
+
+  // Topology functions
+  onEditTopology: (id: uuid4) => void;
   onDeployTopology: (id: uuid4) => void;
   onDeleteTopology: (id: uuid4) => void;
+  onAddBindFile: (topologyId: uuid4) => void;
+
+  // Bind file functions
+  onEditBindFile: (bindFileId: uuid4) => void;
+  onDeleteBindFile: (bindFileId: uuid4) => void;
 }
+
+export interface ExplorerTreeNodeData extends TreeNode {
+  type: ExplorerTreeNodeType;
+}
+
+export enum ExplorerTreeNodeType {
+  Collection,
+  Topology,
+  BindFile,
+}
+
+const NodeButtonProps = {
+  text: true,
+  rounded: true,
+  tooltipOptions: SBTooltipOptions,
+};
 
 const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   props: ExplorerTreeNodeProps
 ) => {
-  function onAddTopology(event: MouseEvent<HTMLButtonElement>) {
-    props.onAddTopology(props.node.key as uuid4);
-    event.stopPropagation();
-  }
+  const authUser = useAuthUser();
+  const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
+
+  const isWritable = useMemo(() => {
+    if (props.node.type === ExplorerTreeNodeType.Collection) {
+      const publicWrite = collectionStore.lookup.get(
+        props.node.key as string
+      )?.publicWrite;
+      return authUser.isAdmin || publicWrite;
+    } else if (props.node.type === ExplorerTreeNodeType.Topology) {
+      const creator = topologyStore.lookup.get(
+        props.node.key as string
+      )!.creator;
+      return authUser.isAdmin || creator.id === authUser.id;
+    } else if (props.node.type === ExplorerTreeNodeType.BindFile) {
+      const topologyId = topologyStore.bindFileLookup.get(
+        props.node.key as string
+      )!.topologyId;
+      const creator = topologyStore.lookup.get(topologyId)?.creator;
+      return authUser.isAdmin || (creator && creator.id === authUser.id);
+    }
+    return false;
+  }, [authUser]);
+
+  const isDeployable = useMemo(() => {
+    if (
+      props.node.type !== ExplorerTreeNodeType.Topology ||
+      process.env.IS_OFFLINE
+    ) {
+      return false;
+    }
+
+    const publicDeploy = collectionStore.lookup.get(
+      props.node.key as string
+    )?.publicDeploy;
+    return authUser.isAdmin || publicDeploy;
+  }, [authUser, collectionStore.lookup]);
 
   function onEditCollection(event: MouseEvent<HTMLButtonElement>) {
     props.onEditCollection(props.node.key as uuid4);
@@ -32,6 +96,16 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
 
   function onDeleteCollection(event: MouseEvent<HTMLButtonElement>) {
     props.onDeleteCollection(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onAddTopology(event: MouseEvent<HTMLButtonElement>) {
+    props.onAddTopology(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onEditTopology(event: MouseEvent<HTMLButtonElement>) {
+    props.onEditTopology(props.node.key as uuid4);
     event.stopPropagation();
   }
 
@@ -45,95 +119,152 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
     event.stopPropagation();
   }
 
+  function onAddBindFile(event: MouseEvent<HTMLButtonElement>) {
+    props.onAddBindFile(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onEditBindFile(event: MouseEvent<HTMLButtonElement>) {
+    props.onEditBindFile(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onDeleteBindFile(event: MouseEvent<HTMLButtonElement>) {
+    props.onDeleteBindFile(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
   return (
     <div className="flex align-self-stretch w-full align-items-center justify-content-between">
-      <Choose>
-        <When condition={props.node.leaf}>
-          <span
-            className="tree-node p-treenode-label"
-            data-pr-position="right"
-            data-pr-my="left+10 center"
-            data-pr-showdelay={500}
-            data-pr-tooltip={props.node.label}
-          >
-            {props.node.label}
-          </span>
-          <div className="sb-explorer-node-buttons">
+      <span
+        className="tree-node p-treenode-label"
+        data-pr-position="right"
+        data-pr-my="left+10 center"
+        data-pr-showdelay={500}
+        data-pr-tooltip={props.node.label}
+      >
+        {props.node.label}
+      </span>
+      <div className="sb-explorer-node-buttons">
+        <Choose>
+          {/* Collection */}
+          <When condition={props.node.type === ExplorerTreeNodeType.Collection}>
+            <If condition={authUser.isAdmin}>
+              <Button
+                icon="pi pi-pen-to-square"
+                severity="secondary"
+                tooltip="Edit Collection"
+                onClick={onEditCollection}
+                aria-label="Edit Collection"
+                {...NodeButtonProps}
+              />
+              <Button
+                icon="pi pi-trash"
+                severity="danger"
+                tooltip="Delete Collection"
+                onClick={onDeleteCollection}
+                aria-label="Delete Collection"
+                {...NodeButtonProps}
+              />
+            </If>
+            <Button
+              icon="pi pi-plus"
+              severity="success"
+              tooltip={
+                !isWritable
+                  ? 'No permission to add topology to collection'
+                  : 'Add Topology'
+              }
+              onClick={onAddTopology}
+              aria-label="Add Topology"
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+          </When>
+          {/* Topology */}
+          <When condition={props.node.type === ExplorerTreeNodeType.Topology}>
+            <Button
+              icon="pi pi-plus"
+              severity="success"
+              tooltip={
+                !isWritable
+                  ? 'No permission to add file to topology'
+                  : 'Add File'
+              }
+              onClick={onAddBindFile}
+              aria-label="Add File"
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+            <Button
+              icon="pi pi-pen-to-square"
+              severity="secondary"
+              tooltip={
+                !isWritable
+                  ? 'No permissions to edit topology'
+                  : 'Edit Topology'
+              }
+              onClick={onEditTopology}
+              aria-label="Edit Topology"
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
             <Button
               icon="pi pi-trash"
               severity="danger"
-              rounded
-              text
-              tooltip="Delete Topology"
               onClick={onDeleteTopology}
-              tooltipOptions={{showDelay: 500}}
+              tooltip={
+                !isWritable
+                  ? 'No permissions to delete topology'
+                  : 'Delete Topology'
+              }
               aria-label="Delete Topology"
+              disabled={!isWritable}
+              {...NodeButtonProps}
             />
             <Button
               icon="pi pi-play"
               severity="success"
-              rounded
-              text
-              disabled={!!process.env.IS_OFFLINE}
               tooltip={
                 process.env.IS_OFFLINE
                   ? 'Deploying not available in offline build.'
-                  : 'Deploy Topology'
+                  : !isDeployable
+                    ? 'No permissions to deploy topology'
+                    : 'Deploy Topology'
               }
-              tooltipOptions={{
-                position: 'bottom',
-                showDelay: 500,
-                showOnDisabled: true,
-              }}
               onClick={onDeployTopology}
               aria-label="Deploy Topology"
+              disabled={!isDeployable}
+              {...NodeButtonProps}
             />
-          </div>
-        </When>
-        <Otherwise>
-          <span
-            className="tree-node p-treenode-label"
-            data-pr-position="right"
-            data-pr-my="left+10 center"
-            data-pr-showdelay={500}
-            data-pr-tooltip={props.node.label}
-          >
-            {props.node.label}
-          </span>
-          <div className="sb-explorer-node-buttons">
+          </When>
+          {/* Bind File */}
+          <When condition={props.node.type === ExplorerTreeNodeType.BindFile}>
             <Button
               icon="pi pi-pen-to-square"
               severity="secondary"
-              rounded
-              text
-              tooltip="Edit Collection"
-              onClick={onEditCollection}
-              tooltipOptions={{showDelay: 500}}
-              aria-label="Edit Collection"
+              tooltip={
+                !isWritable ? 'No permissions to edit file' : 'Edit File'
+              }
+              onClick={onEditBindFile}
+              aria-label="Edit File"
+              // disabled={!isWritable}
+              {...NodeButtonProps}
             />
             <Button
               icon="pi pi-trash"
               severity="danger"
-              rounded
-              text
-              tooltip="Delete Collection"
-              onClick={onDeleteCollection}
-              aria-label="Delete Collection"
-              tooltipOptions={{showDelay: 500}}
+              tooltip={
+                !isWritable ? 'No permissions to delete file' : 'Delete File'
+              }
+              onClick={onDeleteBindFile}
+              aria-label="Delete File"
+              // disabled={!isWritable}
+              {...NodeButtonProps}
             />
-            <Button
-              icon="pi pi-plus"
-              severity="success"
-              rounded
-              text
-              tooltip="Add Topology"
-              onClick={onAddTopology}
-              tooltipOptions={{showDelay: 500}}
-              aria-label="Add Topology"
-            />
-          </div>
-        </Otherwise>
-      </Choose>
+          </When>
+        </Choose>
+      </div>
     </div>
   );
 };

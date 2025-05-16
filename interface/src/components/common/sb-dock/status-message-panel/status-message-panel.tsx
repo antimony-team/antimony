@@ -63,10 +63,10 @@ const StatusMessagePanel = observer(
             </If>
             <div className="sb-dock-status-messages-text">
               <div className="sb-dock-status-messages-summary">
-                {message.summary}
+                {message.source}
               </div>
               <div className="sb-dock-status-messages-detail">
-                {message.detail}
+                {message.content}
               </div>
             </div>
           </div>
@@ -124,7 +124,7 @@ const StatusMessagePanel = observer(
           options={filteredStatusMessages}
           optionLabel="name"
           itemTemplate={messageTemplate}
-          emptyMessage="No messages found"
+          emptyMessage="No status messages"
         />
       </OverlayPanel>
     );

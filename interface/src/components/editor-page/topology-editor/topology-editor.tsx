@@ -7,17 +7,14 @@ import {Button} from 'primereact/button';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
 import {uuid4} from '@sb/types/types';
-import {
-  TopologyEditReport,
-  TopologyEditSource,
-  TopologyManager,
-} from '@sb/lib/topology-manager';
+import {TopologyEditReport, TopologyEditSource} from '@sb/lib/topology-manager';
 import {
   useCollectionStore,
   useStatusMessages,
   useSchemaStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
+import {useBeforeUnload} from 'react-router';
 import {
   SimulationConfig,
   SimulationConfigContext,
@@ -51,7 +48,9 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     ValidationState.Done
   );
 
+  // Set to true if topology has pending changes and validation succeeded
   const [hasPendingEdits, setPendingEdits] = useState(false);
+
   const [isNodeEditDialogOpen, setNodeEditDialogOpen] = useState(false);
   const [openTopology, setOpenTopology] = useState<Topology | null>(null);
   const [currentlyEditedNode, setCurrentlyEditedNode] = useState<string | null>(
@@ -75,14 +74,23 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
   }, []);
 
   const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
-    if (editReport.isEdited) {
+    setPendingEdits(editReport.isEdited);
+    setOpenTopology(editReport.updatedTopology);
+  }, []);
+
+  useEffect(() => {
+    if (hasPendingEdits || validationState !== ValidationState.Done) {
       document.title = 'Antimony*';
     } else {
       document.title = 'Antimony';
     }
-    setPendingEdits(editReport.isEdited);
-    setOpenTopology(editReport.updatedTopology);
-  }, []);
+  }, [hasPendingEdits, validationState]);
+
+  useBeforeUnload(ev => {
+    if (hasPendingEdits || validationState !== ValidationState.Done) {
+      ev.preventDefault();
+    }
+  });
 
   useEffect(() => {
     topologyStore.manager.onEdit.register(onTopologyEdit);
@@ -108,8 +116,8 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
 
     try {
       /*
-       * If the topology is empty, instantly return an error as it can't be empty
-       * We need to have this special case because the monaco YAML validator won't recognize
+       * If the topology is empty, instantly return an error as it's not allowed to be empty.
+       * We need to have this special case because the monaco YAML validator won't classify
        * an empty file as invalid.
        */
       if (!content) {
@@ -117,7 +125,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         return;
       }
 
-      const definition = TopologyManager.parseTopology(
+      const definition = topologyStore.parseTopology(
         content,
         schemaStore.clabSchema
       );
@@ -166,7 +174,9 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     }
 
     const result = await topologyStore.manager.save();
-    if (result.isErr()) {
+    if (result === null) {
+      return;
+    } else if (result.isErr()) {
       notificatioStore.error(result.error.message, 'Failed to save topology.');
     } else {
       notificatioStore.success('Topology has been saved!');
@@ -302,11 +312,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
             </div>
             <div className="flex-grow-1 min-h-0">
               <Splitter className="h-full">
-                <SplitterPanel
-                  className="flex align-items-center justify-content-center"
-                  minSize={10}
-                  size={30}
-                >
+                <SplitterPanel minSize={10} size={30}>
                   <MonacoWrapper
                     ref={monacoWrapperRef}
                     validationError={validationError}
@@ -317,10 +323,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
                     setValidationError={onSetValidationError}
                   />
                 </SplitterPanel>
-                <SplitterPanel
-                  className="flex align-items-center justify-content-center"
-                  minSize={10}
-                >
+                <SplitterPanel minSize={10}>
                   <SimulationConfigContext.Provider
                     value={new SimulationConfig()}
                   >

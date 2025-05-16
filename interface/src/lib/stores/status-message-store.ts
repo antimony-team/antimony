@@ -4,60 +4,52 @@ import {Toast} from 'primereact/toast';
 import {action, computed, observable} from 'mobx';
 
 import {RootStore} from '@sb/lib/stores/root-store';
-import {DataStore} from '@sb/lib/stores/data-store';
 import {
   SBConfirmOpenProps,
   SBConfirmRef,
 } from '@sb/components/common/sb-confirm/sb-confirm';
-import {RemoteDataBinder} from '@sb/lib/stores/data-binder/remote-data-binder';
 import {
   Severity,
   SeverityMapping,
   StatusMessage,
   StatusMessageOut,
 } from '@sb/types/domain/status-message';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 
-export class StatusMessageStore extends DataStore<
-  StatusMessage,
-  void,
-  StatusMessageOut
-> {
+export class StatusMessageStore {
+  protected rootStore: RootStore;
+
+  private data: StatusMessage[] = observable<StatusMessage>([]);
+  private lookup: Map<string, StatusMessage> = new Map();
+
   private toastRef: React.RefObject<Toast> | null = null;
   private confirmRef: React.RefObject<SBConfirmRef> | null = null;
 
   @observable accessor countBySeverity: Map<Severity, number> = new Map();
 
   constructor(rootStore: RootStore) {
-    super(rootStore);
+    this.rootStore = rootStore;
 
-    if (!process.env.IS_OFFLINE) {
-      (this.rootStore._dataBinder as RemoteDataBinder).socket.on(
-        'status-message',
-        data => {
-          this.handleMessage(StatusMessageStore.parseMessage(data, false));
-        }
-      );
-    }
-  }
-
-  protected get resourcePath(): string {
-    return '/status-messages';
-  }
-  protected handleUpdate(response: DataResponse<StatusMessageOut[]>): void {
-    this.data = response.payload
-      .map(msg => StatusMessageStore.parseMessage(msg, true))
-      .toSorted((a, b) => a.timestamp.valueOf() - b.timestamp.valueOf());
-    this.countBySeverity = new Map(
-      Object.entries(
-        Object.groupBy(this.data, message => message.severity)
-      ).map(([severity, list]) => [Number(severity), list.length])
+    this.rootStore._dataBinder.subscribeNamespace(
+      'status-messages',
+      this.handleMessage.bind(this)
     );
   }
 
-  @computed
-  public get lookup(): Map<string, StatusMessage> {
-    return new Map(this.data.map(message => [message.id, message]));
+  @action
+  private handleMessage(messageOut: StatusMessageOut) {
+    const message = StatusMessageStore.parseMessage(messageOut, false);
+    this.lookup.set(message.id, message);
+
+    this.countBySeverity.set(
+      message.severity,
+      (this.countBySeverity.get(message.severity) ?? 0) + 1
+    );
+    this.data.push(message);
+    this.data = [...this.data];
+    this.send(message.content, message.source, message.severity);
+    console.log(
+      `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`
+    );
   }
 
   @computed
@@ -123,18 +115,6 @@ export class StatusMessageStore extends DataStore<
       severity: SeverityMapping[severity],
     };
     this.toastRef.current.show(msg);
-  }
-
-  @action
-  private handleMessage(message: StatusMessage) {
-    this.lookup.set(message.id, message);
-    this.countBySeverity.set(
-      message.severity,
-      (this.countBySeverity.get(message.severity) ?? 0) + 1
-    );
-    this.data.push(message);
-    this.data = [...this.data];
-    this.send(message.detail, message.summary, message.severity);
   }
 
   public static parseMessage(

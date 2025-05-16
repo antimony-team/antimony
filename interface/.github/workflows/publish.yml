@@ -1,0 +1,50 @@
+name: Build and publish Docker container
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-lint:
+    uses: ./.github/workflows/build.yml
+
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: build-and-lint
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Run GTS linters
+        run: yarn run lint
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image name
+        id: meta
+        run: echo "IMAGE_NAME=ghcr.io/${{ github.repository }}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ steps.meta.outputs.IMAGE_NAME }} .
+
+      - name: Push Docker image
+        run: docker push ${{ steps.meta.outputs.IMAGE_NAME }}

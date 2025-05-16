@@ -5,7 +5,6 @@ import {Button} from 'primereact/button';
 import {Slider} from 'primereact/slider';
 import {observer} from 'mobx-react-lite';
 import {Divider} from 'primereact/divider';
-import {Checkbox} from 'primereact/checkbox';
 
 import {
   SimulationConfig,
@@ -32,41 +31,32 @@ const SimulationPanel = observer((props: SimulationPanelProps) => {
     >
       <span className="simulation-panel-title">Graph Stabilization</span>
       <ConfigSlider
-        header="Link Stiffness"
-        minValue={0}
-        maxValue={1}
-        multiplier={0.01}
-        value={simulationConfig.springConstant}
+        header="Edge Elasticity"
+        minValue={0.01}
+        maxValue={0.2}
+        step={0.01}
+        value={simulationConfig.edgeElasticity}
         onChange={simulationConfig.setSpringConstant}
-        defaultValue={SimulationConfig.DefaultSpringConstant}
+        defaultValue={SimulationConfig.DefaultPhysics.edgeElasticity}
       />
       <ConfigSlider
-        header="Link Length"
-        minValue={0}
-        maxValue={200}
-        value={simulationConfig.springLength}
+        header="Edge Length"
+        minValue={10}
+        maxValue={300}
+        value={simulationConfig.idealEdgeLength}
         onChange={simulationConfig.setSpringLength}
-        defaultValue={SimulationConfig.DefaultSpringLength}
+        defaultValue={SimulationConfig.DefaultPhysics.idealEdgeLength}
       />
       <ConfigSlider
-        header="Central Gravity"
-        minValue={0}
-        maxValue={0.05}
-        multiplier={0.001}
-        value={simulationConfig.centralGravity}
-        onChange={simulationConfig.setCentralGravity}
-        defaultValue={SimulationConfig.DefaultCentralGravity}
+        header="Node Repulsion"
+        minValue={1}
+        maxValue={100}
+        multiplier={1000}
+        value={simulationConfig.nodeRepulsion}
+        onChange={simulationConfig.setNodeRepulsion}
+        defaultValue={SimulationConfig.DefaultPhysics.nodeRepulsion}
       />
       <Divider />
-      <div className="flex align-items-center gap-2 mt-2 mb-2">
-        <Checkbox
-          inputId="simulation-panel-simulation"
-          disabled={simulationConfig.isStabilizing}
-          checked={simulationConfig.liveSimulation}
-          onChange={e => simulationConfig.setLiveSimulation(e.checked ?? false)}
-        />
-        <label htmlFor="simulation-panel-simulation">Live Updates</label>
-      </div>
       <Button
         className="simulation-panel-stabilize"
         outlined
@@ -106,13 +96,14 @@ const ConfigSlider = (props: ConfigSliderProps) => (
     <div className="flex simulation-panel-group">
       <span className="simulation-panel-value">{props.minValue}</span>
       <Slider
-        min={props.minValue / (props.multiplier ?? 1)}
-        max={props.maxValue / (props.multiplier ?? 1)}
-        value={props.value / (props.multiplier ?? 1)}
+        min={props.minValue}
+        max={props.maxValue}
+        value={props.value / (props.multiplier ?? 1)} // normalize for slider
         step={props.step}
-        onChange={e =>
-          props.onChange((e.value as number) * (props.multiplier ?? 1))
-        }
+        onChange={e => {
+          const scaled = (e.value as number) * (props.multiplier ?? 1);
+          props.onChange(scaled);
+        }}
       />
       <span className="simulation-panel-value">{props.maxValue}</span>
       <Button

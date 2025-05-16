@@ -9,12 +9,8 @@ export class SchemaStore extends DataStore<ClabSchema, void, ClabSchema> {
   @observable accessor fetchReport: FetchReport = DefaultFetchReport;
   @observable accessor clabSchema: ClabSchema | null = null;
 
-  protected get isExternal(): boolean {
-    return true;
-  }
-
   protected get resourcePath(): string {
-    return process.env.SB_CLAB_SCHEMA_URL!;
+    return '/clab-schema';
   }
 
   @action

@@ -2,6 +2,18 @@
   transition: all 0.1s ease-in
   border-color: transparent
 
+  span
+    font-weight: 600 !important
+
+  &.p-button-outlined
+    color: var(--primary-color-border)
+    border-color: var(--primary-color-border)
+    background-color: transparent
+
+    &.p-button-danger
+      color: var(--danger-color-text)
+      border-color: var(--danger-color-text)
+
   &:not(.p-button-danger,.p-button-outlined,.p-button-icon-only)
     color: var(--primary-color)
     background-color: var(--primary-color-border)
@@ -13,11 +25,6 @@
     &.p-disabled
       filter: brightness(0.5)
       cursor: pointer !important
-
-  &.p-button-outlined
-    color: var(--primary-color-border)
-    border-color: var(--primary-color-border)
-    background-color: transparent
 
   // We compensate for the iconoir icons being slightly smaller by giving it less padding
   &.sb-iconoir-button
@@ -100,6 +107,12 @@
     flex-direction: column
     align-items: stretch
     overflow: hidden
+
+  .p-dialog-header
+    padding: 0
+
+    .p-dialog-header-icon
+      display: none
 
 .p-confirm-dialog
   background-color: var(--overlay-color)

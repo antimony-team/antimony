@@ -4,6 +4,7 @@ import {createProxyMiddleware} from 'http-proxy-middleware';
 
 const app = express();
 
+// Optional proxy to redirect to backend for local deployment
 if (process.argv.length > 2 && process.argv[2] === '--with-proxy') {
   const httpProxy = createProxyMiddleware({
     target: process.env.PROXY_URL ?? 'http://localhost:3000',

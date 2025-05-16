@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react';
+import React, {useMemo, useRef, useState} from 'react';
 
 import {Image} from 'primereact/image';
 import {Badge} from 'primereact/badge';
@@ -7,11 +7,16 @@ import {observer} from 'mobx-react-lite';
 import {useNavigate} from 'react-router';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
-import {If} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import StatusMessagePanel from '@sb/components/common/sb-dock/status-message-panel/status-message-panel';
 import CreditsDialog from '@sb/components/credits-dialog/credits-dialog';
-import {useDataBinder, useStatusMessages} from '@sb/lib/stores/root-store';
-import CalendarDialog from '@sb/components/calendar-dialog/calender-dialog';
+import {
+  useAuthUser,
+  useCollectionStore,
+  useDataBinder,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
+import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
 
 import './sb-dock.sass';
 
@@ -19,11 +24,17 @@ const SBDock: React.FC = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
   const [isCalendarOpen, setCalendarOpen] = useState<boolean>(false);
 
+  const authUser = useAuthUser();
   const dataBinder = useDataBinder();
+  const collectionStore = useCollectionStore();
   const navigate = useNavigate();
   const notificationStore = useStatusMessages();
 
   const overlayRef = useRef<OverlayPanel>(null);
+
+  const hasEditorAccess = useMemo(() => {
+    return authUser.isAdmin || collectionStore.hasWritableCollections;
+  }, [authUser.isAdmin, collectionStore.hasWritableCollections]);
 
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
@@ -38,31 +49,36 @@ const SBDock: React.FC = observer(() => {
             alt="Antimony Logo"
           />
         </div>
-        <If condition={process.env.IS_OFFLINE}>
-          <span className="sb-dock-title">Antimony</span>
-        </If>
-        <If condition={!process.env.IS_OFFLINE}>
-          <Button
-            icon={
-              <span className="material-symbols-outlined">space_dashboard</span>
-            }
-            className="sb-dock-page-button"
-            label="Dashboard"
-            outlined
-            onClick={() => navigate('/')}
-            aria-label="Dashboard Page"
-          />
-          <Button
-            icon={
-              <span className="material-symbols-outlined">border_color</span>
-            }
-            className="sb-dock-page-button"
-            label="Topology Editor"
-            outlined
-            onClick={() => navigate('/editor')}
-            aria-label="Topology Editor Page"
-          />
-        </If>
+        <Choose>
+          {/* Only show buttons in online mode and if user has access to editor */}
+          <When condition={!process.env.IS_OFFLINE && hasEditorAccess}>
+            <Button
+              icon={
+                <span className="material-symbols-outlined">
+                  space_dashboard
+                </span>
+              }
+              className="sb-dock-page-button"
+              label="Dashboard"
+              outlined
+              onClick={() => navigate('/')}
+              aria-label="Dashboard Page"
+            />
+            <Button
+              icon={
+                <span className="material-symbols-outlined">border_color</span>
+              }
+              className="sb-dock-page-button"
+              label="Topology Editor"
+              outlined
+              onClick={() => navigate('/editor')}
+              aria-label="Topology Editor Page"
+            />
+          </When>
+          <Otherwise>
+            <span className="sb-dock-title">Antimony</span>
+          </Otherwise>
+        </Choose>
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
         <If condition={!process.env.IS_OFFLINE}>

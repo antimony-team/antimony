@@ -19,9 +19,6 @@ export abstract class DataStore<T, I, O> {
 
   protected abstract get resourcePath(): string;
   protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
-  protected get isExternal(): boolean {
-    return false;
-  }
 
   constructor(rootStore: RootStore) {
     this.rootStore = rootStore;
@@ -39,8 +36,7 @@ export abstract class DataStore<T, I, O> {
 
     this.handleData(
       await this.rootStore._dataBinder.get<O[]>(
-        this.resourcePath + this.getParams,
-        this.isExternal
+        this.resourcePath + this.getParams
       )
     );
   }
@@ -61,13 +57,16 @@ export abstract class DataStore<T, I, O> {
       body
     );
 
-    if (result.isOk()) await this.fetch();
+    if (result.isOk()) {
+      console.log('fetching new collection');
+      await this.fetch();
+    }
 
     return result;
   }
 
   public async update(id: uuid4, body: I): Promise<Result<DataResponse<void>>> {
-    const result = await this.rootStore._dataBinder.patch<I, void>(
+    const result = await this.rootStore._dataBinder.put<I, void>(
       `${this.resourcePath}/${id}` + this.patchParams,
       body
     );

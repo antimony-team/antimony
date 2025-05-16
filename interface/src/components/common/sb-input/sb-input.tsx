@@ -1,4 +1,15 @@
-import React, {FocusEvent, forwardRef, KeyboardEvent, useState} from 'react';
+import React, {
+  FocusEvent,
+  forwardRef,
+  KeyboardEvent,
+  RefObject,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
+
+import {Tooltip, TooltipRefProps} from 'react-tooltip';
 
 import classNames from 'classnames';
 import {InputText} from 'primereact/inputtext';
@@ -7,6 +18,11 @@ import {KeyFilterType} from 'primereact/keyfilter';
 import {If} from '@sb/types/control';
 
 import './sb-input.sass';
+
+export interface SBInputRef {
+  setValidationError: (msg: string) => void;
+  input: HTMLInputElement | null;
+}
 
 interface SBInputProps {
   id?: string;
@@ -22,16 +38,36 @@ interface SBInputProps {
   autoFocus?: boolean;
 
   doubleClick?: boolean;
-  explicitSubmit?: boolean;
+  ignoreBlurSubmit?: boolean;
 
-  validationError?: string | null;
-  onValueSubmit?: (value: string, isImplicit: boolean) => string | null | void;
+  onValueSubmit?: (
+    value: string,
+    isImplicit: boolean
+  ) => Promise<string | null | void> | string | null | void;
 }
 
-const SBInput = forwardRef<HTMLInputElement, SBInputProps>((props, ref) => {
+const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
+  const inputFieldRef = useRef<HTMLInputElement>(null);
+
   const [isEditing, setEditing] = useState(false);
   const [content, setContent] = useState(props.defaultValue);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const inputId = useId();
+
+  const tooltipRef = useRef<TooltipRefProps>(null);
+
+  useImperativeHandle(
+    ref,
+    () => {
+      return {
+        setValidationError(msg: string) {
+          setValidationError(msg);
+        },
+        input: inputFieldRef.current,
+      };
+    },
+    []
+  );
 
   function onValueSubmit(value: string, isImplicit: boolean) {
     if (!props.onValueSubmit || (isImplicit && value === props.defaultValue)) {
@@ -39,14 +75,17 @@ const SBInput = forwardRef<HTMLInputElement, SBInputProps>((props, ref) => {
       return;
     }
 
-    const error = props.onValueSubmit(value, isImplicit);
-    if (error) setValidationError(error);
-
-    if (!error) setEditing(false);
+    Promise.resolve(props.onValueSubmit(value, isImplicit)).then(error => {
+      if (error) {
+        setValidationError(error);
+      } else {
+        setEditing(false);
+      }
+    });
   }
 
   function onBlur(event: FocusEvent<HTMLInputElement>) {
-    if (props.explicitSubmit) {
+    if (props.ignoreBlurSubmit) {
       setEditing(false);
       setContent(props.defaultValue);
       return;
@@ -58,6 +97,8 @@ const SBInput = forwardRef<HTMLInputElement, SBInputProps>((props, ref) => {
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       onValueSubmit((event.target as HTMLInputElement).value, false);
+    } else {
+      setValidationError(null);
     }
   }
 
@@ -79,27 +120,35 @@ const SBInput = forwardRef<HTMLInputElement, SBInputProps>((props, ref) => {
           {props.label}
         </label>
       </If>
+      <Tooltip
+        id={inputId}
+        ref={tooltipRef}
+        isOpen={!!validationError}
+        content={validationError ?? undefined}
+        place="right"
+        className="sb-input-validation-tooltip"
+      />
       <InputText
-        ref={ref}
+        /* Not sure why we have to do this, but this works. */
+        ref={inputFieldRef as unknown as RefObject<InputText>}
+        data-tooltip-id={inputId}
         onClick={onSingleClick}
-        capture={false}
         onDoubleClick={onEnterEditing}
         onChange={e => setContent(e.target.value)}
+        capture={false}
         disabled={false}
         value={content}
         autoFocus={props.autoFocus}
         className={classNames('sb-input', {
           'sb-input-disabled': !isEditing && props.isHidden,
-          'sb-input-error': !!validationError || !!props.validationError,
+          'sb-input-error': !!validationError,
           'sb-input-hidden': props.isHidden,
         })}
         keyfilter={props.keyfilter}
         placeholder={props.placeholder}
         readOnly={!isEditing && props.isHidden}
-        tooltip={
-          validationError ?? props.validationError ?? props.tooltip ?? undefined
-        }
         onBlur={onBlur}
+        tooltip={props.tooltip}
         onKeyDown={onKeyDown}
       />
     </div>

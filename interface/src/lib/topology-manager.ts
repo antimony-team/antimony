@@ -1,21 +1,19 @@
-import {validate} from 'jsonschema';
-import {isEqual, cloneDeep} from 'lodash-es';
-import {parseDocument, Scalar, YAMLMap, YAMLSeq} from 'yaml';
-
-import {Binding} from '@sb/lib/utils/binding';
-import {Position, YAMLDocument} from '@sb/types/types';
-import {pushOrCreateList} from '@sb/lib/utils/utils';
+import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
+
+import {Binding} from '@sb/lib/utils/binding';
+import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {
   NodeConnection,
+  nodeData,
   Topology,
   TopologyDefinition,
-  TopologyOut,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
-import {ClabSchema} from '@sb/types/domain/schema';
+import {Position, YAMLDocument} from '@sb/types/types';
+import {cloneDeep, isEqual} from 'lodash-es';
+import {Scalar, YAMLMap, YAMLSeq} from 'yaml';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -73,14 +71,19 @@ export class TopologyManager {
    * Submits the current topology to the API and resets the referenced saved
    * topology to the current topology if the upload was successful.
    */
-  public async save(): Promise<Result<null>> {
-    if (!this.editingTopology) return Result.createOk(null);
+  public async save(): Promise<Result<DataResponse<void>> | null> {
+    if (!this.editingTopology) return null;
 
     const result = await this.topologyStore.update(this.editingTopology.id, {
       collectionId: this.editingTopology.collectionId,
-      definition: this.editingTopology.definition.toString({
-        collectionStyle: 'block',
+      definition: TopologyManager.serializeTopology(
+        this.editingTopology.definition
+      ),
+      metadata: JSON.stringify({
+        nodeData: Object.fromEntries(this.editingTopology.metaData.nodeData), // ← Fix here
+        utilityNodes: this.editingTopology.metaData.utilityNodes,
       }),
+      gitSourceUrl: this.editingTopology.gitSourceUrl,
     });
 
     if (result.isOk()) {
@@ -96,7 +99,7 @@ export class TopologyManager {
       });
     }
 
-    return Result.createOk(null);
+    return result;
   }
 
   /**
@@ -161,7 +164,10 @@ export class TopologyManager {
    */
   public clear() {
     if (!this.editingTopology) return;
-
+    this.editingTopology.metaData = {
+      nodeData: new Map<string, nodeData>(),
+      utilityNodes: [],
+    };
     const updatedTopology = {
       name: this.editingTopology.definition.toJS().name,
       topology: {
@@ -304,21 +310,12 @@ export class TopologyManager {
     );
   }
 
-  public static parseTopology(
-    definitionString: string,
-    schema: ClabSchema
-  ): YAMLDocument<TopologyDefinition> | null {
-    const definition = parseDocument(definitionString, {
-      keepSourceTokens: true,
+  public static serializeTopology(
+    definition: YAMLDocument<TopologyDefinition>
+  ) {
+    return definition.toString({
+      collectionStyle: 'block',
     });
-    if (
-      definition.errors.length > 0 ||
-      validate(definition.toJS(), schema).errors.length > 0
-    ) {
-      return null;
-    }
-
-    return definition;
   }
 
   public buildTopologyMetadata(topology: YAMLDocument<TopologyDefinition>) {
@@ -436,33 +433,6 @@ export class TopologyManager {
     return {positions, connections, connectionMap};
   }
 
-  public parseTopologies(input: TopologyOut[], schema: ClabSchema) {
-    const topologies: Topology[] = [];
-    for (const topology of input) {
-      const definition = TopologyManager.parseTopology(
-        topology.definition,
-        schema
-      );
-
-      if (!definition) {
-        console.error('[NET] Failed to parse incoming topology: ', topology);
-        continue;
-      }
-
-      topologies.push({
-        ...topology,
-        definition: definition,
-        ...this.buildTopologyMetadata(definition),
-      });
-    }
-
-    return topologies.toSorted((a, b) =>
-      (a.definition.get('name') as string)?.localeCompare(
-        b.definition.get('name') as string
-      )
-    );
-  }
-
   /**
    * Generates a valid interface ID for a given node.
    */
@@ -547,12 +517,21 @@ export class TopologyManager {
   private static cloneTopology(topology: Topology): Topology {
     return {
       id: topology.id,
+      name: topology.name,
       collectionId: topology.collectionId,
-      creatorId: topology.creatorId,
+      creator: {
+        id: topology.creator.id,
+        name: topology.creator.name,
+      },
+      metaData: cloneDeep(topology.metaData),
       positions: cloneDeep(topology.positions),
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),
+      definitionString: topology.definitionString,
+      gitSourceUrl: topology.gitSourceUrl,
+      bindFiles: cloneDeep(topology.bindFiles),
+      lastDeployFailed: topology.lastDeployFailed,
     };
   }
 }

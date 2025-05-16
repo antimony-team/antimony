@@ -15,11 +15,29 @@ import {useDataBinder} from '@sb/lib/stores/root-store';
 import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
 
 import './sb-login.sass';
+import {useSearchParams} from 'react-router';
 
 const SBLogin = observer(() => {
   const [particlesReady, setParticlesReady] = useState(false);
 
   const dataBinder = useDataBinder();
+  const [searchParams] = useSearchParams();
+
+  // useEffect(() => {
+  //   if (searchParams.has('authToken')) {
+  //     const token = searchParams.get('authToken');
+  //     console.log('RECEIVED TOKEN: ', token);
+  //
+  //     if ('setupConnection' in dataBinder) {
+  //       (dataBinder as unknown as DataBinder).setupConnection(
+  //         token!,
+  //         true
+  //       );
+  //
+  //       Cookies.set('authToken', token!);
+  //     }
+  //   }
+  // }, [searchParams]);
 
   useEffect(() => {
     void initParticlesEngine(async engine => {
@@ -54,6 +72,10 @@ const SBLogin = observer(() => {
             setLoginError('Invalid username or password');
           }
         });
+    }
+
+    function loginWithOIDC() {
+      window.location.replace('http://localhost:8080/api/users/login/openid');
     }
 
     function onUsernameChange(event: ChangeEvent<HTMLInputElement>) {
@@ -116,7 +138,15 @@ const SBLogin = observer(() => {
           </div>
         </div>
 
-        <Button label="LOGIN" type="submit" aria-label="Login" />
+        <Button label="LOGIN" type="submit" />
+
+        <If condition={dataBinder.hasOidcEnabled}>
+          <Button
+            label="Login with OpenID Connect"
+            type="button"
+            onClick={loginWithOIDC}
+          />
+        </If>
 
         <div className="sb-login-content-header">
           <span>SIGN IN</span>
@@ -134,7 +164,10 @@ const SBLogin = observer(() => {
     <If condition={particlesReady}>
       <div
         className={classNames('sb-login-container', 'sb-animated-overlay', {
-          visible: !dataBinder.isLoggedIn && !dataBinder.hasConnectionError,
+          visible:
+            !dataBinder.isLoggedIn &&
+            !dataBinder.hasConnectionError &&
+            dataBinder.isReady,
         })}
       >
         <If condition={!dataBinder.isLoggedIn}>
