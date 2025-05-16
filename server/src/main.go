@@ -14,16 +14,17 @@ import (
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"fmt"
-	"github.com/charmbracelet/log"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
-	socketio "github.com/zishang520/socket.io/socket"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/joho/godotenv"
+	socketio "github.com/zishang520/socket.io/socket"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 // @Title          Antimony API
@@ -165,7 +166,6 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 
 	if err != nil {
 		log.Fatalf("Failed to migrate table to database: %s", err.Error())
-		os.Exit(1)
 	}
 
 	return db

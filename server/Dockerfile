@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.24
+FROM golang:1.24 AS build
 WORKDIR /app
 
 RUN go env -w GOCACHE=/go-cache
@@ -10,11 +10,14 @@ COPY src/go.mod src/go.sum ./
 RUN --mount=type=cache,target=/gomod-cache go mod download
 
 COPY src .
-COPY .env .
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache go build -v -o /antimony-server
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache CGO_ENABLED=0 go build -v -o /antimony-server
 
-COPY test/config.test.yml ./config.yml
+FROM ghcr.io/srl-labs/clab:0.67.0
+
+COPY config.default.yml /config.default.yml
+COPY data /data
+COPY --from=build /antimony-server .
 
 EXPOSE 3000
 
-CMD ["/antimony-server"]
+ENTRYPOINT ["/antimony-server"]

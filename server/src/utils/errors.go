@@ -5,6 +5,7 @@ import "errors"
 var ErrorRunningLab = errors.New("modifications to running lab are not allowed")
 var ErrorContainerlab = errors.New("containerlab subprocess failed")
 var ErrorOpenIDError = errors.New("failed to authenticate via openid connect")
+var ErrorOpenIDDisabledError = errors.New("authentication via openid is disabled")
 var ErrorFileStorage = errors.New("filesystem read or write error")
 var ErrorUuidNotFound = errors.New("the specified uuid was not found")
 var ErrorNodeNotFound = errors.New("the specified node was not found")

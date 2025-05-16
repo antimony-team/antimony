@@ -4,13 +4,15 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/utils"
 	"context"
+	"errors"
+	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 )
 
 type (
 	Service interface {
 		GetByUuid(ctx context.Context, userId string) (*User, error)
-		GetAuthCodeURL(stateToken string) string
+		GetAuthCodeURL(stateToken string) (string, error)
 		LoginNative(req CredentialsIn) (string, string, error)
 		IsTokenValid(accessToken string) bool
 		RefreshAccessToken(authToken string) (string, error)
@@ -27,6 +29,17 @@ func CreateService(userRepo Repository, authManager auth.AuthManager) Service {
 	userService := &userService{
 		userRepo:    userRepo,
 		authManager: authManager,
+	}
+
+	if _, err := userRepo.GetByUuid(context.Background(), auth.NativeUserID); errors.Is(err, utils.ErrorUuidNotFound) {
+		nativeUser := &User{
+			UUID: auth.NativeUserID,
+			Sub:  "Admin",
+			Name: "Admin",
+		}
+		if err := userRepo.Create(context.Background(), nativeUser); err != nil {
+			log.Fatal("Failed to register native user in database")
+		}
 	}
 
 	return userService
@@ -49,7 +62,7 @@ func (s *userService) LoginNative(req CredentialsIn) (string, string, error) {
 	return s.authManager.LoginNative(req.Username, req.Password)
 }
 
-func (s *userService) GetAuthCodeURL(stateToken string) string {
+func (s *userService) GetAuthCodeURL(stateToken string) (string, error) {
 	return s.authManager.GetAuthCodeURL(stateToken)
 }
 
