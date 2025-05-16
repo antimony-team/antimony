@@ -84,7 +84,11 @@ func (h *userHandler) Logout(ctx *gin.Context) {
 }
 
 func (h *userHandler) LoginOIDC(ctx *gin.Context) {
-	url := h.userService.GetAuthCodeURL(ctx.Request.Referer())
+	url, err := h.userService.GetAuthCodeURL(ctx.Request.Referer())
+	if err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+		return
+	}
 
 	http.Redirect(ctx.Writer, ctx.Request, url, http.StatusFound)
 }

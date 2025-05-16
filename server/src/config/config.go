@@ -32,7 +32,8 @@ type (
 	}
 
 	authConfig struct {
-		EnableNativeAdmin bool     `yaml:"enableNativeAdmin"`
+		EnableNative      bool     `yaml:"enableNative"`
+		EnableOpenId      bool     `yaml:"EnableOpenId"`
 		OpenIdIssuer      string   `yaml:"openIdIssuer"`
 		OpenIdClientId    string   `yaml:"openIdClientId"`
 		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
@@ -87,7 +88,8 @@ func defaultConfig() *AntimonyConfig {
 			DeviceConfig:   "./data/device-config.json",
 		},
 		Auth: authConfig{
-			EnableNativeAdmin: true,
+			EnableNative:      true,
+			EnableOpenId:      false,
 			OpenIdIssuer:      "",
 			OpenIdClientId:    "",
 			OpenIdAdminGroups: make([]string, 0),
