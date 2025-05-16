@@ -1,20 +1,24 @@
----
-hide:
-  - navigation
----
+# Antimony
+Antimony is a platform and graphical interface to design and manage <a href="https://containerlab.dev">containerlab</a> networks.
 
-# Home
+![Antimony](https://antimony-team.github.io/antimony/images/antimony-title.png)
 
-<p align=center><a href="https://containerlab.dev"><img src=images/antimony-title.png?sanitize=true/></a></p>
+## 🚀 How to Run
+To run Antimony locally, simply clone this repository and deploy the docker containers with docker compose.
+```bash
+git clone https://github.com/antimony-team/antimony
 
-![stars](https://img.shields.io/github/stars/antimony-team/antimony-backend?style=for-the-badge&color=609e9f)
-![planets](https://img.shields.io/badge/planets-420-purple?style=for-the-badge&color=609e9f)
-![planets](https://img.shields.io/badge/moons-69k-purple?style=for-the-badge&color=609e9f)
----
+docker compose up --build
+```
 
-Antimony is a platform to design and manage <a href="https://containerlab.dev">containerlab</a> networks.
+For more information about the deployment please refer to Antimony's [documentation](https://antimony-team.github.io/antimony).
 
-## Features
+## ⚙️ Configuration
+The config file `config.yml` is mounted into the docker container and can be used to configure the Antimony server.
+
+By default, the server uses an SQLite database. This can be changed in the CLI arguments in the docker compose file.
+
+## ✨ Features
 
 * **Designing Networks Easily**  
     Antimony offers a user friendly drag-and-drop interface to quickly and efficiently design containerlab networks. 
@@ -31,9 +35,21 @@ Antimony is a platform to design and manage <a href="https://containerlab.dev">c
 * **Log Streaming**  
     The interface allows you to view containerlab and Docker logs in real-time. 
 
-## Use cases
+## 💼 Use cases
 
 * **Educational Environment**  
     Antimony was developed with the main goal of being a platform for teachers to teach students about networking technology. The scalable architecture and external authentication make it easy to deploy Antimony in an educational environment.
 * **Personal Use and Local Deployment**  
     The interface of Antimony aims to make designing and deploying containerlab networks easy and accesible for everyone. Deploying and using Antimony locally requires little to no experience with networks or the containerlab framework.
+
+## 🖥️ Repository Setup
+Antimony is separated into three main repositories.
+
+* **[antimony-team/antimony](https://github.com/antimony-team/antimony)**  
+    Contains the documentation as well as all the deployment files.
+* **[antimony-team/antimony-backend](https://github.com/antimony-team/antimony-backend)**  
+    Contains the code base for the Antimony server.
+* **[antimony-team/antimony-interface](https://github.com/antimony-team/antimony-interface)**  
+    Contains the code base for Antimony's frontend interface.
+
+If you encounter any issues or would like to suggest a new feature, please submit an issue to the corresponding repository.

@@ -1,0 +1,45 @@
+server:
+  # Default: 127.0.0.1
+  host: 0.0.0.0
+  # Default: 3000
+  port: 4000
+auth:
+  # Whether to enable the native admin login. Username and password have to be set via env variables.
+  # Default: true
+  enableNative: true
+  # Whether to enable authentication via OpenID connect.
+  # Default: false
+  enableOpenId: false
+  # Default: ""
+  openIdIssuer: ""
+  # Default: ""
+  openIdClientId: ""
+  # Users in these OpenID groups are granted admin privileges.
+  # Default: []
+  openIdAdminGroups: []
+database:
+  # Default: 127.0.0.1
+  host: 127.0.0.1
+  # Default: 5432
+  port: 5432
+  # Default: antimony
+  database: antimony
+  # Default: antimony
+  user: antimony
+  # The DB file that is used if the local database flag is set.
+  # Default: ./antimony.db
+  localFile: ./antimony.db
+filesystem:
+  # Topology definition and metadata files will be stored in this directory.
+  # Default: ./storage/
+  storage: ./storage/
+  # Runtime lab files will be stored in this directory.
+  # Default: ./run/
+  run: ./run/
+containerlab:
+  # Default: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
+  schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
+  # Default: ./data/clab.schema.json
+  schemaFallback: ./data/clab.schema.json
+  # Default: ./data/device-config.json
+  deviceConfig: ./data/device-config.json

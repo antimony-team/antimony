@@ -1,6 +1,7 @@
 site_name: Antimony Docs
 site_author: Kian Gribi
 site_url: https://antimony-team.github.io/
+site_description: The documentation of the Antimonty platform. A visual approach to designing and managing Containerlab networks. 
 
 repo_name: antimony-team/antimony-backend
 repo_url: https://github.com/antimony-team/antimony-backend

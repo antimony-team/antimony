@@ -1,0 +1,35 @@
+name: antimony
+
+services:
+  router:
+    image: nginx:alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+  frontend:
+    container_name: frontend
+    image: ghcr.io/antimony-team/antimony-interface:latest
+    ports:
+      - "8100:8100"
+
+  backend:
+    container_name: backend
+    image: ghcr.io/antimony-team/antimony-backend:latest
+    environment:
+      - SB_NATIVE_USERNAME=admin
+      - SB_NATIVE_PASSWORD=admin
+    privileged: true
+    command: -sqlite=true -config=./config.yml
+    volumes:
+      - ./config.yml:/config.yml
+      - ./storage:/storage/
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/netns:/var/run/netns
+      - /var/lib/docker/containers:/var/lib/docker/containers
+    ports:
+      - "4000:4000"
