@@ -275,12 +275,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
                   icon="pi pi-play"
                   size="large"
                   onClick={onDeployTopoplogy}
-                  disabled={!!process.env.IS_OFFLINE}
-                  tooltip={
-                    process.env.IS_OFFLINE
-                      ? 'Deploying not available in offline build.'
-                      : 'Deploy Topology'
-                  }
+                  tooltip="Deploy Topology"
                   tooltipOptions={{
                     position: 'bottom',
                     showDelay: 500,

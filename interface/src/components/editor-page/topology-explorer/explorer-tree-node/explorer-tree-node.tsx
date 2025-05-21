@@ -76,10 +76,7 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   }, [authUser]);
 
   const isDeployable = useMemo(() => {
-    if (
-      props.node.type !== ExplorerTreeNodeType.Topology ||
-      process.env.IS_OFFLINE
-    ) {
+    if (props.node.type !== ExplorerTreeNodeType.Topology) {
       return false;
     }
 
@@ -226,11 +223,9 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
               icon="pi pi-play"
               severity="success"
               tooltip={
-                process.env.IS_OFFLINE
-                  ? 'Deploying not available in offline build.'
-                  : !isDeployable
-                    ? 'No permissions to deploy topology'
-                    : 'Deploy Topology'
+                !isDeployable
+                  ? 'No permissions to deploy topology'
+                  : 'Deploy Topology'
               }
               onClick={onDeployTopology}
               aria-label="Deploy Topology"
