@@ -54,11 +54,8 @@
   },
   "scripts": {
     "start": "webpack serve --config webpack.dev.cjs",
-    "start-offline": "IS_OFFLINE=true webpack serve --config webpack.dev.cjs",
     "build:dev": "webpack --progress --config webpack.dev.cjs",
-    "build-offline:dev": "IS_OFFLINE=true webpack --progress --config webpack.dev.cjs ",
     "build:prod": "webpack --progress --config webpack.prod.cjs",
-    "build-offline:prod": "IS_OFFLINE=true webpack --progress --config webpack.prod.cjs",
     "lint": "gts lint '**/*.ts'",
     "compile": "tsc",
     "server": "cd server && yarn run start"

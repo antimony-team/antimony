@@ -69,12 +69,6 @@ const App: React.FC = observer(() => {
             <div className="flex flex-grow-1 gap-2 min-h-0">
               <Routes>
                 <Choose>
-                  {/* Redirect editor and dashboard to editor in offline mode */}
-                  <When condition={process.env.IS_OFFLINE}>
-                    <Route path="/" element={<EditorPage />} />
-                    <Route path="/editor" element={<EditorPage />} />
-                  </When>
-
                   {/* Allow access to dashboard but not editor if user doesn't have access to editor */}
                   <When condition={!hasEditorAccess}>
                     <Route path="/" element={<DashboardPage />} />

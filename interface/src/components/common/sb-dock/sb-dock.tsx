@@ -51,7 +51,7 @@ const SBDock: React.FC = observer(() => {
         </div>
         <Choose>
           {/* Only show buttons in online mode and if user has access to editor */}
-          <When condition={!process.env.IS_OFFLINE && hasEditorAccess}>
+          <When condition={hasEditorAccess}>
             <Button
               icon={
                 <span className="material-symbols-outlined">
@@ -81,36 +81,34 @@ const SBDock: React.FC = observer(() => {
         </Choose>
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
-        <If condition={!process.env.IS_OFFLINE}>
-          <Button
-            outlined
-            icon="pi pi-bell"
-            size="large"
-            onClick={e => overlayRef.current?.toggle(e)}
-            pt={{
-              icon: {
-                className: 'p-overlay-badge',
-                children: (
-                  <If condition={notificationStore.unreadMessages > 0}>
-                    <Badge severity="danger" />
-                  </If>
-                ),
-              },
-            }}
-            tooltip="Messages"
-            tooltipOptions={{position: 'bottom'}}
-            aria-label="Messages"
-          />
-          <Button
-            outlined
-            icon="pi pi-calendar"
-            size="large"
-            tooltip="Lab Schedule"
-            tooltipOptions={{position: 'bottom'}}
-            onClick={() => setCalendarOpen(true)}
-            aria-label="Calendar"
-          />
-        </If>
+        <Button
+          outlined
+          icon="pi pi-bell"
+          size="large"
+          onClick={e => overlayRef.current?.toggle(e)}
+          pt={{
+            icon: {
+              className: 'p-overlay-badge',
+              children: (
+                <If condition={notificationStore.unreadMessages > 0}>
+                  <Badge severity="danger" />
+                </If>
+              ),
+            },
+          }}
+          tooltip="Messages"
+          tooltipOptions={{position: 'bottom'}}
+          aria-label="Messages"
+        />
+        <Button
+          outlined
+          icon="pi pi-calendar"
+          size="large"
+          tooltip="Lab Schedule"
+          tooltipOptions={{position: 'bottom'}}
+          onClick={() => setCalendarOpen(true)}
+          aria-label="Calendar"
+        />
         <Button
           outlined
           icon="pi pi-info-circle"
@@ -120,18 +118,16 @@ const SBDock: React.FC = observer(() => {
           onClick={() => setCreditsOpen(true)}
           aria-label="Credits"
         />
-        <If condition={!process.env.IS_OFFLINE}>
-          <Button
-            outlined
-            size="large"
-            icon="pi pi-sign-out"
-            onClick={() => dataBinder.logout()}
-            tooltip="Log Out"
-            tooltipOptions={{position: 'bottom'}}
-            aria-label="Log Out"
-            className="ml-2"
-          />
-        </If>
+        <Button
+          outlined
+          size="large"
+          icon="pi pi-sign-out"
+          onClick={() => dataBinder.logout()}
+          tooltip="Log Out"
+          tooltipOptions={{position: 'bottom'}}
+          aria-label="Log Out"
+          className="ml-2"
+        />
       </div>
 
       <CreditsDialog
@@ -139,14 +135,12 @@ const SBDock: React.FC = observer(() => {
         onClose={() => setCreditsOpen(false)}
       />
 
-      <If condition={!process.env.IS_OFFLINE}>
-        <CalendarDialog
-          isOpen={isCalendarOpen}
-          onClose={() => setCalendarOpen(false)}
-        />
+      <CalendarDialog
+        isOpen={isCalendarOpen}
+        onClose={() => setCalendarOpen(false)}
+      />
 
-        <StatusMessagePanel ref={overlayRef} />
-      </If>
+      <StatusMessagePanel ref={overlayRef} />
     </div>
   );
 });
