@@ -10,8 +10,8 @@ type (
 	AntimonyConfig struct {
 		Containerlab ClabConfig       `yaml:"containerlab"`
 		FileSystem   FilesystemConfig `yaml:"fileSystem"`
-		Server       serverConfig     `yaml:"server"`
-		Database     databaseConfig   `yaml:"database"`
+		Server       ServerConfig     `yaml:"server"`
+		Database     DatabaseConfig   `yaml:"database"`
 		Auth         AuthConfig       `yaml:"auth"`
 	}
 
@@ -26,7 +26,7 @@ type (
 		Run     string `yaml:"run"`
 	}
 
-	serverConfig struct {
+	ServerConfig struct {
 		Host string `yaml:"host"`
 		Port uint   `yaml:"port"`
 	}
@@ -38,7 +38,7 @@ type (
 		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
 	}
 
-	databaseConfig struct {
+	DatabaseConfig struct {
 		Host      string `yaml:"host"`
 		User      string `yaml:"user"`
 		Database  string `yaml:"database"`
@@ -70,11 +70,11 @@ func defaultConfig() *AntimonyConfig {
 			Storage: "./storage/",
 			Run:     "./run/",
 		},
-		Server: serverConfig{
+		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,
 		},
-		Database: databaseConfig{
+		Database: DatabaseConfig{
 			Host:      "127.0.0.1",
 			User:      "antimony",
 			Database:  "antimony",

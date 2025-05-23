@@ -331,7 +331,7 @@ func (s *labService) scheduleLab(lab Lab) {
 func (s *labService) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
 	var (
 		topologyRaw        string
-		topologyDefinition map[interface{}]interface{}
+		topologyDefinition = make(map[interface{}]interface{})
 	)
 	if err := s.storageManager.ReadTopology(topologyId, &topologyRaw); err != nil {
 		return err
@@ -433,17 +433,12 @@ func (s *labService) redeployLab(lab Lab, instance *Instance) bool {
 	defer instance.Mutex.Unlock()
 
 	ctx := context.Background()
-
 	s.updateStateAndNotify(lab, InstanceStates.Deploying, statusMessage.Info(
 		"Lab Manager",
 		fmt.Sprintf("Redeploying lab %s (%s)", lab.Name, lab.Topology.Name),
 		"Starting redeployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
-
-	log.Infof("Redeploying: %s", instance.TopologyFile)
-
 	output, err := s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, instance.LogNamespace.Send)
-
 	streamClabOutput(instance.LogNamespace, output)
 
 	if err != nil {
@@ -459,7 +454,6 @@ func (s *labService) redeployLab(lab Lab, instance *Instance) bool {
 			"Successfully redeployed lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 	}
-
 	return true
 }
 
@@ -479,17 +473,18 @@ func (s *labService) deployLab(lab Lab) bool {
 	}
 	s.instances[lab.UUID] = s.createInstance()
 	s.instancesMutex.Unlock()
-
 	instance := s.instances[lab.UUID]
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
 	ctx := context.Background()
-	log.Infof("[SCHEDULER] Deploying topology %s (%s)", lab.Name, lab.Topology.Name)
-
 	runTopologyFile, err := s.createLabEnvironment(ctx, &lab)
 	if err != nil {
+		// for testing
+		if instance.LogNamespace == nil {
+			instance.LogNamespace = socket.CreateNamespace[string](s.socketManager, true, false, nil, "logs", lab.UUID)
+		}
 		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
 			fmt.Sprintf("Failed to create environment for %s (%s)", lab.Name, lab.Topology.Name),
@@ -613,7 +608,6 @@ func (s *labService) updateStateAndNotify(lab Lab, state InstanceState, statusMe
 
 	if statusMessage != nil {
 		s.statusMessageNamespace.Send(*statusMessage)
-
 		if logNamespace != nil {
 			(*logNamespace).Send(statusMessage.LogContent)
 		}
@@ -667,20 +661,16 @@ func (s *labService) destroyLabCommand(ctx context.Context, labId string, authUs
 	if err != nil {
 		return err
 	}
-
 	// Deny request if user is not the owner of the requested lab or an admin
 	if !authUser.IsAdmin && authUser.UserId != lab.Creator.UUID {
 		return utils.ErrorNoDestroyAccessToLab
 	}
-
 	// Don't allow to destroy non-running lab
 	instance, hasInstance := s.instances[lab.UUID]
 	if !hasInstance {
 		return utils.ErrorLabNotRunning
 	}
-
 	s.destroyLab(*lab, instance)
-
 	return nil
 }
 
@@ -694,15 +684,12 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 	if !authUser.IsAdmin && authUser.UserId != lab.Creator.UUID {
 		return utils.ErrorNoDeployAccessToLab
 	}
-
 	instance, hasInstance := s.instances[lab.UUID]
 	if hasInstance {
-		log.Infof("lab has instance")
 		if !s.redeployLab(*lab, instance) {
 			return utils.ErrorLabActionInProgress
 		}
 	} else {
-		log.Infof("lab doesn't has instance")
 		// Manually remove lab from lab schedule
 		if _, isScheduled := s.scheduledLabs[lab.UUID]; isScheduled {
 			s.labScheduleMutex.Lock()
@@ -711,7 +698,6 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 			s.labSchedule = append(s.labSchedule[:labIndex], s.labSchedule[labIndex+1:]...)
 			s.labScheduleMutex.Unlock()
 		}
-		log.Infof("deploying lab")
 		result := s.deployLab(*lab)
 		log.Infof("result: %v", result)
 	}
