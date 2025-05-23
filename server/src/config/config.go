@@ -12,7 +12,7 @@ type (
 		FileSystem   FilesystemConfig `yaml:"fileSystem"`
 		Server       serverConfig     `yaml:"server"`
 		Database     databaseConfig   `yaml:"database"`
-		Auth         AuthConfig       `yaml:"auth"`
+		Auth         authConfig       `yaml:"auth"`
 	}
 
 	ClabConfig struct {
@@ -31,8 +31,9 @@ type (
 		Port uint   `yaml:"port"`
 	}
 
-	AuthConfig struct {
-		EnableNativeAdmin bool     `yaml:"enableNativeAdmin"`
+	authConfig struct {
+		EnableNative      bool     `yaml:"enableNative"`
+		EnableOpenId      bool     `yaml:"EnableOpenId"`
 		OpenIdIssuer      string   `yaml:"openIdIssuer"`
 		OpenIdClientId    string   `yaml:"openIdClientId"`
 		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
@@ -86,8 +87,9 @@ func defaultConfig() *AntimonyConfig {
 			SchemaFallback: "./data/clab.schema.json",
 			DeviceConfig:   "./data/device-config.json",
 		},
-		Auth: AuthConfig{
-			EnableNativeAdmin: true,
+		Auth: authConfig{
+			EnableNative:      true,
+			EnableOpenId:      false,
 			OpenIdIssuer:      "",
 			OpenIdClientId:    "",
 			OpenIdAdminGroups: make([]string, 0),

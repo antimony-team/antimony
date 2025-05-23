@@ -4,9 +4,12 @@ server:
   # Default: 3000
   port: 3000
 auth:
-  # Whether to enable the native admin account. Username and password have to be set via env variables.
+  # Whether to enable the native admin login. Username and password have to be set via env variables.
   # Default: true
-  enableNativeAdmin: true
+  enableNative: true
+  # Whether to enable authentication via OpenID connect.
+  # Default: false
+  enableOpenId: false
   # Default: ""
   openIdIssuer: "http://localhost:4022/realms/antimony"
   # Default: ""

@@ -5,15 +5,18 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"crypto/rand"
+	"os"
+	"slices"
+	"time"
+
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
-	"os"
-	"slices"
-	"time"
 )
+
+const NativeUserID = "00000000-0000-0000-0000-00000000000"
 
 type (
 	AuthManager interface {
@@ -22,7 +25,7 @@ type (
 		CreateAccessToken(authUser AuthenticatedUser) (string, error)
 		AuthenticateUser(tokenString string) (*AuthenticatedUser, error)
 		LoginNative(username string, password string) (string, string, error)
-		GetAuthCodeURL(stateToken string) string
+		GetAuthCodeURL(stateToken string) (string, error)
 		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
 		RefreshAccessToken(authToken string) (string, error)
@@ -38,6 +41,7 @@ type (
 		jwtSecret          []byte
 		adminGroups        []string
 		isNativeEnabled    bool
+		isOpenIdEnabled    bool
 		nativeUsername     string
 		nativePassword     string
 	}
@@ -51,10 +55,9 @@ type (
 	}
 )
 
-const NativeUserID = "00000000-0000-0000-0000-00000000000"
-
 func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
-	isNativeEnabled := config.Auth.EnableNativeAdmin
+	isOpenIdEnabled := config.Auth.EnableOpenId
+	isNativeEnabled := config.Auth.EnableNative
 	nativeUsername := os.Getenv("SB_NATIVE_USERNAME")
 	nativePassword := os.Getenv("SB_NATIVE_PASSWORD")
 
@@ -68,6 +71,7 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 		adminGroups:        config.Auth.OpenIdAdminGroups,
 		jwtSecret:          ([]byte)(rand.Text()),
 		oidcSecret:         os.Getenv("SB_OIDC_SECRET"),
+		isOpenIdEnabled:    isOpenIdEnabled,
 		isNativeEnabled:    isNativeEnabled,
 		nativeUsername:     nativeUsername,
 		nativePassword:     nativePassword,
@@ -79,30 +83,27 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 }
 
 func (m *authManager) Init(config *config.AntimonyConfig) {
-	if config.Auth.EnableNativeAdmin && config.Auth.OpenIdIssuer == "" {
-		// Only use native, skip OIDC setup
-		return
-	}
-	provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
-	if err != nil {
-		log.Fatalf("Failed to connect to OpenID provider: %s", err.Error())
-		os.Exit(1)
-	}
-
-	m.provider = *provider
-	m.oauth2Config = oauth2.Config{
-		ClientID:     config.Auth.OpenIdClientId,
-		ClientSecret: m.oidcSecret,
-		RedirectURL:  "http://localhost:3000/users/login/success",
-		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID},
-	}
-
 	if m.isNativeEnabled {
 		m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
 			UserId:      NativeUserID,
 			IsAdmin:     true,
 			Collections: make([]string, 0),
+		}
+	}
+
+	if m.isOpenIdEnabled {
+		provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
+		if err != nil {
+			log.Errorf("Failed to connect to OpenID provider: %s", err.Error())
+		} else {
+			m.provider = *provider
+			m.oauth2Config = oauth2.Config{
+				ClientID:     config.Auth.OpenIdClientId,
+				ClientSecret: m.oidcSecret,
+				RedirectURL:  "http://localhost:3000/users/login/success",
+				Endpoint:     provider.Endpoint(),
+				Scopes:       []string{oidc.ScopeOpenID},
+			}
 		}
 	}
 }
@@ -138,6 +139,10 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 }
 
 func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error) {
+	if !m.isOpenIdEnabled {
+		return nil, utils.ErrorOpenIDDisabledError
+	}
+
 	ctx := context.TODO()
 	token, err := m.oauth2Config.Exchange(ctx, authCode)
 	if err != nil {
@@ -190,8 +195,12 @@ func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper fu
 
 	return authenticatedUser, nil
 }
-func (m *authManager) GetAuthCodeURL(stateToken string) string {
-	return m.oauth2Config.AuthCodeURL(stateToken)
+func (m *authManager) GetAuthCodeURL(stateToken string) (string, error) {
+	if !m.isOpenIdEnabled {
+		return "", utils.ErrorOpenIDDisabledError
+	}
+
+	return m.oauth2Config.AuthCodeURL(stateToken), nil
 }
 
 func (m *authManager) LoginNative(username string, password string) (string, string, error) {
@@ -237,7 +246,7 @@ func (m *authManager) CreateAccessToken(authUser AuthenticatedUser) (string, err
 		"id":      authUser.UserId,
 		"isAdmin": authUser.IsAdmin,
 		"nbf":     time.Now().Unix(),
-		"exp":     time.Now().Add(time.Second * 20).Unix(),
+		"exp":     time.Now().Add(time.Hour * 20).Unix(),
 	})
 
 	return sbToken.SignedString(m.jwtSecret)

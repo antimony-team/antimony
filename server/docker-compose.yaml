@@ -5,16 +5,16 @@ services:
     container_name: antimony-backend
     build:
       context: .
-    depends_on:
-      keycloak-server:
-        condition: service_started
-      database:
-        condition: service_healthy
+      dockerfile: Dockerfile
     environment:
-      - SB_OIDC_SECRET=MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
-      - SB_DATABASE_PASSWORD=antimony
       - SB_NATIVE_USERNAME=admin
       - SB_NATIVE_PASSWORD=admin
+    privileged: true
+    command: -sqlite true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/netns:/var/run/netns
+      - /var/lib/docker/containers:/var/lib/docker/containers
     ports:
       - "3000:3000"
   database:
