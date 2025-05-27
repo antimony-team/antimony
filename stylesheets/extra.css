@@ -1,0 +1,15 @@
+@font-face {
+  font-family: Figtree;
+  src: local('Figtree'), url("../fonts/Figtree-VariableFont_wght.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: Iosevka;
+    src: local('Iosevka'), url("../fonts/Iosevka-Regular.ttf") format("truetype");
+}
+
+:root {
+    --md-text-font: "Figtree", Roboto;
+    --md-code-font: "Iosevka", monospace; 
+}
+  
