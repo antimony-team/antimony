@@ -10,9 +10,9 @@ type (
 	AntimonyConfig struct {
 		Containerlab ClabConfig       `yaml:"containerlab"`
 		FileSystem   FilesystemConfig `yaml:"fileSystem"`
-		Server       serverConfig     `yaml:"server"`
-		Database     databaseConfig   `yaml:"database"`
-		Auth         authConfig       `yaml:"auth"`
+		Server       ServerConfig     `yaml:"server"`
+		Database     DatabaseConfig   `yaml:"database"`
+		Auth         AuthConfig       `yaml:"auth"`
 	}
 
 	ClabConfig struct {
@@ -26,12 +26,12 @@ type (
 		Run     string `yaml:"run"`
 	}
 
-	serverConfig struct {
+	ServerConfig struct {
 		Host string `yaml:"host"`
 		Port uint   `yaml:"port"`
 	}
 
-	authConfig struct {
+	AuthConfig struct {
 		EnableNative      bool     `yaml:"enableNative"`
 		EnableOpenId      bool     `yaml:"EnableOpenId"`
 		OpenIdIssuer      string   `yaml:"openIdIssuer"`
@@ -39,7 +39,7 @@ type (
 		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
 	}
 
-	databaseConfig struct {
+	DatabaseConfig struct {
 		Host      string `yaml:"host"`
 		User      string `yaml:"user"`
 		Database  string `yaml:"database"`
@@ -71,11 +71,11 @@ func defaultConfig() *AntimonyConfig {
 			Storage: "./storage/",
 			Run:     "./run/",
 		},
-		Server: serverConfig{
+		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,
 		},
-		Database: databaseConfig{
+		Database: DatabaseConfig{
 			Host:      "127.0.0.1",
 			User:      "antimony",
 			Database:  "antimony",
@@ -87,7 +87,7 @@ func defaultConfig() *AntimonyConfig {
 			SchemaFallback: "./data/clab.schema.json",
 			DeviceConfig:   "./data/device-config.json",
 		},
-		Auth: authConfig{
+		Auth: AuthConfig{
 			EnableNative:      true,
 			EnableOpenId:      false,
 			OpenIdIssuer:      "",

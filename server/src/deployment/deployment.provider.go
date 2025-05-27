@@ -43,9 +43,9 @@ const (
 )
 
 var NodeStates = struct {
-	running NodeState
+	Running NodeState
 	exited  NodeState
 }{
-	running: running,
+	Running: running,
 	exited:  exited,
 }

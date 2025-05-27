@@ -284,13 +284,13 @@ func addAuthenticatedUsers(authManager auth.AuthManager) {
 func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	gin.SetMode(gin.TestMode)
 
-	// Step 1: Set environment variables BEFORE creating auth manager
+	// Set environment variables
 	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
 	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
 
 	storageDir := t.TempDir()
 	runDir := t.TempDir()
-	// Step 2: Load config manually
+	// Load config manually
 	cfg := &config.AntimonyConfig{
 		FileSystem: config.FilesystemConfig{
 			Storage: storageDir,
@@ -302,7 +302,8 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 			DeviceConfig:   "../../data/device-config.json",
 		},
 		Auth: config.AuthConfig{
-			EnableNativeAdmin: true,
+			EnableNative:      true,
+			EnableOpenId:      false,
 			OpenIdIssuer:      "",
 			OpenIdClientId:    "",
 			OpenIdAdminGroups: []string{},
@@ -326,10 +327,10 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	)
 	assert.NoError(t, err)
 
-	// Step 5: Seed test data
+	// Seed test data
 	GenerateTestData(db, storageManager)
 
-	// Step 6: Init repos, services, handlers
+	// Init repos, services, handlers
 	socketManager := socket.CreateSocketManager(authManager)
 
 	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](
@@ -371,7 +372,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
 
-	// Step 7: Setup Gin + register routes with real middleware
+	// Setup Gin + register routes with real middleware
 	router := gin.Default()
 	collection.RegisterRoutes(router, collectionHandler, authManager)
 	device.RegisterRoutes(router, devicesHandler, authManager)
@@ -379,5 +380,57 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	schema.RegisterRoutes(router, schemaHandler)
 	user.RegisterRoutes(router, userHandler)
 	lab.RegisterRoutes(router, labHandler, authManager)
+	return router, authManager, db
+}
+
+func SetupTestServerWithOIDC(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
+	gin.SetMode(gin.TestMode)
+	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
+	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
+
+	storageDir := t.TempDir()
+	runDir := t.TempDir()
+	cfg := &config.AntimonyConfig{
+		FileSystem: config.FilesystemConfig{
+			Storage: storageDir,
+			Run:     runDir,
+		},
+		Auth: config.AuthConfig{
+			EnableNative:      false,
+			EnableOpenId:      true,
+			OpenIdIssuer:      "",
+			OpenIdClientId:    "",
+			OpenIdAdminGroups: []string{},
+		},
+	}
+	authManager := auth.CreateAuthManager(cfg)
+	storageManager := storage.CreateStorageManager(cfg)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	err = db.AutoMigrate(
+		&user.User{},
+		&collection.Collection{},
+		&topology.Topology{},
+		&topology.BindFile{},
+		&lab.Lab{},
+	)
+	assert.NoError(t, err)
+	GenerateTestData(db, storageManager)
+	userRepo := user.CreateRepository(db)
+	userService := user.CreateService(userRepo, authManager)
+	userHandler := user.CreateHandler(userService)
+
+	addAuthenticatedUsers(authManager)
+
+	authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      auth.NativeUserID,
+		IsAdmin:     true,
+		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
+	})
+
+	router := gin.Default()
+	user.RegisterRoutes(router, userHandler)
 	return router, authManager, db
 }

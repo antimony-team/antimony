@@ -172,7 +172,7 @@ func TestLoginCheck_MissingToken(t *testing.T) {
 
 // === GET === login/openid
 func TestLoginOIDC_Redirect(t *testing.T) {
-	router, _, _ := SetupTestServer(t)
+	router, _, _ := SetupTestServerWithOIDC(t)
 
 	req := httptest.NewRequest("GET", "/users/login/openid", nil)
 	resp := httptest.NewRecorder()
