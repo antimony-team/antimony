@@ -15,6 +15,7 @@ import (
 	"antimonyBackend/utils"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -135,8 +136,9 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 
 	if useLocalDatabase {
 		log.Info("Connecting to local SQLite database", "path", config.Database.LocalFile)
-
-		err = os.Remove(config.Database.LocalFile)
+		if err := os.MkdirAll(filepath.Dir(config.Database.LocalFile), 0755); err != nil {
+			log.Fatal("Failed to create database file", "path", config.Database.Database)
+		}
 		db, err = gorm.Open(sqlite.Open(config.Database.LocalFile), &gorm.Config{})
 	} else {
 		connection := fmt.Sprintf("%s@%s:%d/%s", config.Database.User, config.Database.Host, config.Database.Port, config.Database.Database)
