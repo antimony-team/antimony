@@ -2,7 +2,7 @@ server:
   # Default: 127.0.0.1
   host: 0.0.0.0
   # Default: 3000
-  port: 4000
+  port: 3000
 auth:
   # Whether to enable the native admin login. Username and password have to be set via env variables.
   # Default: true
@@ -28,7 +28,7 @@ database:
   user: antimony
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
-  localFile: ./antimony.db
+  localFile: ./db/antimony.db
 filesystem:
   # Topology definition and metadata files will be stored in this directory.
   # Default: ./storage/

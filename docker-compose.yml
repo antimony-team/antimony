@@ -26,10 +26,10 @@ services:
     privileged: true
     command: -sqlite=true -config=./config.yml
     volumes:
-      - ./config.yml:/config.yml
-      - ./storage:/storage/
+      - ./config.yml:/app/config.yml
+      - ./mnt/db:/app/db
+      - ./mnt/storage:/app/storage/
+      - ./mnt/run:/app/run/
       - /var/run/docker.sock:/var/run/docker.sock
-      - /var/run/netns:/var/run/netns
-      - /var/lib/docker/containers:/var/lib/docker/containers
     ports:
-      - "4000:4000"
+      - "3000:3000"
