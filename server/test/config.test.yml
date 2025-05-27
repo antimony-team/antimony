@@ -9,7 +9,7 @@ auth:
   enableNative: true
   # Whether to enable authentication via OpenID connect.
   # Default: false
-  enableOpenId: false
+  enableOpenId: true
   # Default: ""
   openIdIssuer: "http://localhost:4022/realms/antimony"
   # Default: ""
