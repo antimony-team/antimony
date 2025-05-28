@@ -35,3 +35,4 @@ antimony.db
 build/
 #run directory
 run
+docker/

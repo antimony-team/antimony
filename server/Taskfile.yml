@@ -2,32 +2,52 @@
 
 version: '3'
 
-vars:
-  GREETING: Hello, World!
-
 tasks:
   clean:
     dir: '.'
     cmds:
       - sudo rm -rf ./build/
+      - sudo rm -rf ./docker/
 
   build:
     dir: './src'
     cmds:
       - go build -o ../build/antimonyServer ./main.go
       - cp -r ../data/ ../build/
-      - cp ../test/config.test.yml ../build/config.yml
+      - cp -r ../test/config.test.yml ../build/config.yml
 
   run:
     dir: './build'
     cmds:
       - task: build
-      - sudo -E ./antimonyServer -config=./config.yml
+      - sudo -E ./antimonyServer -config=../config.yml
     env:
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
       SB_NATIVE_USERNAME: admin
       SB_NATIVE_PASSWORD: admin
+
+  build-docker:
+    cmds:
+      - cp -r ./data/ ./docker/
+      - cp -r ./test/config.docker.yml ./docker/config.yml
+      - sudo DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend .
+
+  run-docker:
+    dir: './docker'
+    cmds:
+      - task: build-docker
+      - sudo DOCKER_HOST=unix:///var/run/docker.sock docker run
+          -e SB_NATIVE_USERNAME=admin
+          -e SB_NATIVE_PASSWORD=admin
+          -v ./db:/app/db
+          -v ./storage:/app/storage/
+          -v ./run:/app/run/
+          -v ./data:/app/data
+          -v ./config.yml:/app/config.yml
+          -v /var/run/docker.sock:/var/run/docker.sock
+          -p 3000:3000
+          antimony-backend -sqlite=true -config=./config.yml
 
   swagger-docs:
     dir: './src'

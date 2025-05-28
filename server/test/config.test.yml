@@ -9,7 +9,7 @@ auth:
   enableNative: true
   # Whether to enable authentication via OpenID connect.
   # Default: false
-  enableOpenId: false
+  enableOpenId: true
   # Default: ""
   openIdIssuer: "http://localhost:4022/realms/antimony"
   # Default: ""
@@ -29,7 +29,7 @@ database:
   user: antimony
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
-  localFile: ./antimony.db
+  localFile: ./db/antimony.db
 filesystem:
   # Topology definition and metadata files will be stored in this directory.
   # Default: ./storage/

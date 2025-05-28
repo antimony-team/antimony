@@ -379,8 +379,6 @@ func (s *labService) destroyLab(lab Lab, instance *Instance) {
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
-	log.Errorf("destroying instance: %v", instance)
-
 	ctx := context.Background()
 
 	s.updateStateAndNotify(lab, InstanceStates.Stopping, statusMessage.Info(
