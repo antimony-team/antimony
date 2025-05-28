@@ -333,9 +333,11 @@ export class DataBinder {
 
     runInAction(() => (this.hasAPIError = false));
 
-    if ('code' in responseBody) {
+    if (!('payload' in responseBody)) {
       return Result.createErr(responseBody);
     }
+
+    console.log('Ok data: ', responseBody);
 
     return Result.createOk({
       payload: responseBody.payload,
