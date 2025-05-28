@@ -13,7 +13,7 @@ import {
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
 import {cloneDeep, isEqual} from 'lodash-es';
-import {Scalar, YAMLMap, YAMLSeq} from 'yaml';
+import {isMap, Scalar, YAMLMap, YAMLSeq} from 'yaml';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -100,6 +100,36 @@ export class TopologyManager {
     }
 
     return result;
+  }
+
+  public updateNodeLabels(
+    labelMap: Map<string, Record<string, string | number>>
+  ) {
+    if (!this.editingTopology) return;
+
+    const updatedTopology = this.editingTopology.definition.clone();
+    const nodeMap = updatedTopology.getIn(['topology', 'nodes']) as YAMLMap;
+
+    for (const [nodeId, newLabels] of labelMap.entries()) {
+      const yamlNode = nodeMap.get(nodeId);
+      if (!isMap(yamlNode)) continue;
+
+      const existing = yamlNode.get('labels');
+      const existingLabels = (
+        isMap(existing) ? existing.toJS(updatedTopology) : existing || {}
+      ) as Record<string, string | number>;
+
+      if (
+        existingLabels['graph-icon'] !== undefined &&
+        newLabels['graph-icon'] === undefined
+      ) {
+        newLabels['graph-icon'] = existingLabels['graph-icon'];
+      }
+
+      yamlNode.set('labels', newLabels);
+    }
+
+    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   /**

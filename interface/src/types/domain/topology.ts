@@ -94,4 +94,15 @@ export interface NodeConnection {
 
 export interface TopologyNode {
   kind?: string;
+  image?: string;
+  labels?: nodeLabel;
+}
+
+export interface nodeLabel {
+  'graph-icon'?: string;
+  'graph-group'?: string;
+  'graph-level'?: number;
+  'graph-geoCoordinateLat'?: string;
+  'graph-geoCoordinateLng'?: string;
+  [key: string]: string | number | undefined;
 }

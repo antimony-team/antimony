@@ -138,11 +138,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
   return (
     <SBDialog
       isOpen={props.isOpen}
-      headerIcon={
-        nodeEditor
-          ? deviceStore.getNodeIcon(nodeEditor.getNode()?.kind)
-          : undefined
-      }
+      headerIcon={deviceStore.getNodeIcon(nodeEditor?.getNode())}
       headerTitle={!props.editingNode ? 'Add Node' : 'Edit Node'}
       className="sb-node-edit-dialog"
       submitLabel="Save"

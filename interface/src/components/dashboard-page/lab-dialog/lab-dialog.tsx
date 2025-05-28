@@ -25,8 +25,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import type {EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
-import cytoscape from 'cytoscape';
-import {CytoscapeElement} from '@sb/types/graph';
+import cytoscape, {ElementDefinition} from 'cytoscape';
 import {topologyStyle} from '@sb/lib/cytoscape-styles';
 
 interface LabDialogProps {
@@ -58,7 +57,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       ? topologyStore.lookup.get(props.dialogState.state.topologyId)
       : null;
 
-    const graphData: CytoscapeElement[] = useMemo(() => {
+    const graphData: ElementDefinition[] = useMemo(() => {
       console.log(openTopology);
       if (!openTopology) return [];
       return generateGraph(openTopology, deviceStore, topologyStore.manager);
