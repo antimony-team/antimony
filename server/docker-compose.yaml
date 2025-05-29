@@ -1,22 +1,6 @@
 name: antimonyBackend
 
 services:
-  backend:
-    container_name: antimony-backend
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      - SB_NATIVE_USERNAME=admin
-      - SB_NATIVE_PASSWORD=admin
-    privileged: true
-    command: -sqlite true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/run/netns:/var/run/netns
-      - /var/lib/docker/containers:/var/lib/docker/containers
-    ports:
-      - "3000:3000"
   database:
     container_name: database
     image: postgres
