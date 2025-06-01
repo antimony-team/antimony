@@ -9,6 +9,7 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
 
 import './lab-filter-overlay.sass';
+import {If} from '@sb/types/control';
 
 interface FilterDialogProps {
   popOverRef: React.RefObject<OverlayPanel>;
@@ -41,22 +42,30 @@ const LabFilterOverlay: React.FC<FilterDialogProps> = observer(
               />
             ))}
           </div>
-          <div className="filters-title">Collections</div>
-          <div className="filters-chips-container">
-            {collectionStore.data.map((collection, i) => (
-              <Chip
-                key={i}
-                label={collection.name}
-                onClick={() => labStore.toggleCollection(collection.id)}
-                className={classNames('filter-chip', 'collection-filter-chip', {
-                  selected: labStore.collectionFilter.includes(collection.id),
-                  unselected: !labStore.collectionFilter.includes(
-                    collection.id
-                  ),
-                })}
-              />
-            ))}
-          </div>
+          <If condition={collectionStore.data.length > 0}>
+            <div className="filters-title">Collections</div>
+            <div className="filters-chips-container">
+              {collectionStore.data.map((collection, i) => (
+                <Chip
+                  key={i}
+                  label={collection.name}
+                  onClick={() => labStore.toggleCollection(collection.id)}
+                  className={classNames(
+                    'filter-chip',
+                    'collection-filter-chip',
+                    {
+                      selected: labStore.collectionFilter.includes(
+                        collection.id
+                      ),
+                      unselected: !labStore.collectionFilter.includes(
+                        collection.id
+                      ),
+                    }
+                  )}
+                />
+              ))}
+            </div>
+          </If>
         </div>
       </OverlayPanel>
     );

@@ -102,6 +102,12 @@ export class TopologyManager {
     return result;
   }
 
+  public updateSyncUrl(url: string) {
+    if (!this.editingTopology) return;
+
+    this.editingTopology.gitSourceUrl = url;
+  }
+
   public updateNodeLabels(
     labelMap: Map<string, Record<string, string | number>>
   ) {

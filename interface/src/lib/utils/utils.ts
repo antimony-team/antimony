@@ -3,9 +3,8 @@ import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {FetchState, IconMap} from '@sb/types/types';
+import {FetchState} from '@sb/types/types';
 import {Topology} from '@sb/types/domain/topology';
-import {Scalar, YAMLMap} from 'yaml';
 
 export async function fetchResource<T>(
   path: string,
@@ -283,6 +282,16 @@ export function convertLatLngToXY(
   const x = (lng - DEFAULT_AVERAGE_LNG) * (CANVAS_WIDTH / LONGITUDE_RANGE);
   return {x: Number(x.toFixed(2)), y: Number(y.toFixed(2))};
 }
+
 export function conditional<T>(condition: boolean, onTrue: T, onFalse: T) {
   return condition ? onTrue : onFalse;
+}
+
+export function isValidURL(url: string) {
+  try {
+    new URL(url);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
