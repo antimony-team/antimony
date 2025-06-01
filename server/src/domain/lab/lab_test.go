@@ -286,19 +286,19 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 		labUpdatesNamespace:    &fakeNamespace[string]{},
 		scheduledLabs:          map[string]struct{}{"lab123": {}},
-		labSchedule:            []Lab{mockLab},
+		labDeploySchedule:      []Lab{mockLab},
 		instances:              map[string]*Instance{},
-		labScheduleMutex:       sync.Mutex{},
+		labDeployScheduleMutex: sync.Mutex{},
 	}
 
 	go svc.RunScheduler()
 
 	time.Sleep(6 * time.Second)
 
-	svc.labScheduleMutex.Lock()
-	assert.Len(t, svc.labSchedule, 0)
+	svc.labDeployScheduleMutex.Lock()
+	assert.Len(t, svc.labDeploySchedule, 0)
 	_, stillScheduled := svc.scheduledLabs["lab123"]
-	svc.labScheduleMutex.Unlock()
+	svc.labDeployScheduleMutex.Unlock()
 
 	assert.False(t, stillScheduled, "Lab should have been removed from scheduled list")
 
@@ -409,26 +409,26 @@ func TestInitSchedule(t *testing.T) {
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[string]{},
 				scheduledLabs:          make(map[string]struct{}),
-				labSchedule:            []Lab{},
+				labDeploySchedule:      []Lab{},
 				instances:              make(map[string]*Instance),
-				labScheduleMutex:       sync.Mutex{},
-				instancesMutex:         sync.Mutex{},
+				labDeployScheduleMutex: sync.Mutex{},
+				deploymentMutex:        sync.Mutex{},
 			}
 
-			svc.initSchedule()
+			svc.reviveLabs()
 
 			if tt.wantScheduled {
-				assert.Len(t, svc.labSchedule, 1)
+				assert.Len(t, svc.labDeploySchedule, 1)
 				assert.Contains(t, svc.scheduledLabs, tt.mockLabs[0].UUID)
 			} else {
-				assert.Len(t, svc.labSchedule, 0)
+				assert.Len(t, svc.labDeploySchedule, 0)
 				assert.NotContains(t, svc.scheduledLabs, tt.mockLabs[0].UUID)
 			}
 
 			if tt.wantInstances {
-				svc.instancesMutex.Lock()
+				svc.deploymentMutex.Lock()
 				_, ok := svc.instances[tt.mockLabs[0].UUID]
-				svc.instancesMutex.Unlock()
+				svc.deploymentMutex.Unlock()
 				assert.True(t, ok)
 			} else {
 				assert.Empty(t, svc.instances)

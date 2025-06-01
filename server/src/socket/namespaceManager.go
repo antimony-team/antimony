@@ -116,7 +116,7 @@ func CreateNamespace[T any](
 
 				var data T
 				if err := json.Unmarshal([]byte(raw[0].(string)), &data); err != nil {
-					log.Error("[SOCK] Recieved invalid socket request.", "ns", namespaceName, "err", err.Error())
+					log.Error("[SOCK] Received an invalid socket request.", "ns", namespaceName, "err", err.Error())
 					if ack != nil {
 						errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
 						ack([]any{errorResponse}, nil)

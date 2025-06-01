@@ -33,7 +33,7 @@ type (
 
 	AuthConfig struct {
 		EnableNative      bool     `yaml:"enableNative"`
-		EnableOpenId      bool     `yaml:"EnableOpenId"`
+		EnableOpenId      bool     `yaml:"enableOpenId"`
 		OpenIdIssuer      string   `yaml:"openIdIssuer"`
 		OpenIdClientId    string   `yaml:"openIdClientId"`
 		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`

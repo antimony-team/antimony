@@ -36,3 +36,5 @@ build/
 #run directory
 run
 docker/
+
+config.yml

@@ -56,6 +56,8 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 	switch {
 	case errors.Is(err, ErrorContainerlab):
 		return ErrorResponse{Code: 5001, Message: err.Error()}
+	case errors.Is(err, ErrorLabActionInProgress):
+		return ErrorResponse{Code: 5002, Message: err.Error()}
 	case errors.Is(err, ErrorInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
 	case errors.Is(err, ErrorUuidNotFound):
