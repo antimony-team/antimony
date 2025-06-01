@@ -12,4 +12,19 @@
     --md-text-font: "Figtree", Roboto;
     --md-code-font: "Iosevka", monospace; 
 }
-  
+
+.puml-container {
+  margin: 8px;
+}
+
+.puml .diagram {
+  height: unset !important;
+}
+
+table th {
+  padding: 8px !important;
+}
+
+table td {
+  padding: 8px !important;
+}

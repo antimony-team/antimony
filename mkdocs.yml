@@ -3,15 +3,29 @@ site_author: Kian Gribi
 site_url: https://antimony-team.github.io/
 site_description: The documentation of the Antimonty platform. A visual approach to designing and managing Containerlab networks. 
 
-repo_name: antimony-team/antimony-backend
-repo_url: https://github.com/antimony-team/antimony-backend
+repo_name: antimony-team/antimony
+repo_url: https://github.com/antimony-team/antimony
 
 nav:
- - Home: 'index.md'
- - Quick Start: 'quick-start.md'
- - User Manual: 'manual/index.md'
- - API Definition: 'api/index.md'
- - Issues: 'https://github.com/antimony-team/antimony-backend/issues/'
+  - Home: 'index.md'
+  - Quick Start: 'quick-start.md'
+  - User Manual:
+    - 'manual/index.md'
+    - Configuration: 'manual/configuration.md'
+    - Glossary: 'manual/glossary.md'
+    - Developer Guide:
+      - Setup: 'manual/development-setup.md'
+  - Implementation:
+    - 'implementation/index.md'
+    - Authentication: 'implementation/authentication.md'
+    - Topologies: 'implementation/topologies.md'
+    - Lab Management: 'implementation/labs.md'
+  - API Definition:
+    - 'api/index.md'
+    - Socket.IO Api: 'api/sockets.md'
+    - Restful API:
+      - 'api/restful.md'
+  - Issues: 'https://github.com/antimony-team/antimony-backend/issues/'
 
 theme:
   name: material
@@ -53,6 +67,14 @@ theme:
 
 plugins:
   - offline
+  - plantuml:
+      puml_url: https://www.plantuml.com/plantuml/
+      num_workers: 8
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
 
 extra_css:
   - stylesheets/extra.css

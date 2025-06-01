@@ -7,7 +7,7 @@ hide:
 
 <p align=center><a href="https://containerlab.dev"><img src=images/antimony-title.png?sanitize=true/></a></p>
 
-![stars](https://img.shields.io/github/stars/antimony-team/antimony-backend?style=for-the-badge&color=609e9f)
+![stars](https://img.shields.io/github/stars/antimony-team/antimony?style=for-the-badge&color=609e9f)
 ![planets](https://img.shields.io/badge/planets-420-purple?style=for-the-badge&color=609e9f)
 ![planets](https://img.shields.io/badge/moons-69k-purple?style=for-the-badge&color=609e9f)
 ---
