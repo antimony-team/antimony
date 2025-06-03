@@ -1,13 +1,4 @@
-import React, {useMemo, useRef, useState} from 'react';
-
-import {Image} from 'primereact/image';
-import {Badge} from 'primereact/badge';
-import {Button} from 'primereact/button';
-import {observer} from 'mobx-react-lite';
-import {useNavigate} from 'react-router';
-import {OverlayPanel} from 'primereact/overlaypanel';
-
-import {Choose, If, Otherwise, When} from '@sb/types/control';
+import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
 import StatusMessagePanel from '@sb/components/common/sb-dock/status-message-panel/status-message-panel';
 import CreditsDialog from '@sb/components/credits-dialog/credits-dialog';
 import {
@@ -16,7 +7,16 @@ import {
   useDataBinder,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
-import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
+
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {observer} from 'mobx-react-lite';
+import {Badge} from 'primereact/badge';
+import {Button} from 'primereact/button';
+
+import {Image} from 'primereact/image';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import React, {useMemo, useRef, useState} from 'react';
+import {useNavigate} from 'react-router';
 
 import './sb-dock.sass';
 
@@ -34,7 +34,7 @@ const SBDock: React.FC = observer(() => {
 
   const hasEditorAccess = useMemo(() => {
     return authUser.isAdmin || collectionStore.hasWritableCollections;
-  }, [authUser.isAdmin, collectionStore.hasWritableCollections]);
+  }, [authUser, collectionStore.hasWritableCollections]);
 
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
@@ -118,16 +118,22 @@ const SBDock: React.FC = observer(() => {
           onClick={() => setCreditsOpen(true)}
           aria-label="Credits"
         />
-        <Button
-          outlined
-          size="large"
-          icon="pi pi-sign-out"
-          onClick={() => dataBinder.logout()}
-          tooltip="Log Out"
-          tooltipOptions={{position: 'bottom'}}
-          aria-label="Log Out"
-          className="ml-2"
-        />
+        <If
+          condition={
+            !dataBinder.nativeAutologin || dataBinder.isAuthenticatedWithOidc()
+          }
+        >
+          <Button
+            outlined
+            size="large"
+            icon="pi pi-sign-out"
+            onClick={() => dataBinder.logout()}
+            tooltip="Log Out"
+            tooltipOptions={{position: 'bottom'}}
+            aria-label="Log Out"
+            className="ml-2"
+          />
+        </If>
       </div>
 
       <CreditsDialog

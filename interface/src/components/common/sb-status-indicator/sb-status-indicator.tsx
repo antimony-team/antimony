@@ -2,16 +2,15 @@ import React, {useEffect, useState} from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
-import {DNA} from 'react-loader-spinner';
 import {ProgressSpinner} from 'primereact/progressspinner';
 
 import {FetchState} from '@sb/types/types';
 import {Choose, Otherwise, When} from '@sb/types/control';
 import ErrorPage from '@sb/components/error-page/error-page';
 import {useDataBinder, useRootStore} from '@sb/lib/stores/root-store';
-import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 
 import './sb-status-indicator.sass';
+import {DNA} from 'react-loader-spinner';
 
 interface SBStatusIndicatorProps {
   setDoneLoading: () => void;
@@ -30,13 +29,16 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
 
   useEffect(() => {
     const isDone = rootStore.fetchState === FetchState.Done;
-    if (!isDone && !loaderVisible) {
+    if (
+      !isDone &&
+      !loaderVisible &&
+      dataBinder.isLoggedIn &&
+      !dataBinder.hasConnectionError
+    ) {
       setLoaderVisible(true);
     } else if (isDone && loaderVisible) {
-      setTimeout(() => {
-        setLoaderVisible(false);
-        props.setDoneLoading();
-      }, 0);
+      setLoaderVisible(false);
+      props.setDoneLoading();
     }
   }, [
     dataBinder.hasConnectionError,
@@ -49,7 +51,7 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
     <>
       <ErrorPage
         code="Network Error"
-        message="Antimony was unable to reach some network resources."
+        message="Unable to connect to the Antimony server."
         isVisible={errorOverlayVisible}
       />
       <div
@@ -79,7 +81,7 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
             <div className="sb-indicator-error-entry">
               <span>Antimony API</span>
               <Choose>
-                <When condition={(dataBinder as DataBinder).hasAPIError}>
+                <When condition={dataBinder.hasAPIError}>
                   <ProgressSpinner strokeWidth="5" />
                 </When>
                 <Otherwise>
@@ -90,7 +92,10 @@ const SBStatusIndicator = observer((props: SBStatusIndicatorProps) => {
             <div className="sb-indicator-error-entry">
               <span>Antimony Socket</span>
               <Choose>
-                <When condition={(dataBinder as DataBinder).hasSocketError}>
+                <When condition={!dataBinder.isLoggedIn}>
+                  <i className="pi pi-question" />
+                </When>
+                <When condition={dataBinder.hasSocketError}>
                   <ProgressSpinner strokeWidth="5" />
                 </When>
                 <Otherwise>
