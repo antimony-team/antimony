@@ -9,11 +9,11 @@ import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {isValidURL} from '@sb/lib/utils/utils';
 import {useTopologyStore} from '@sb/lib/stores/root-store';
 
-interface GitSyncOverlayProps {
+interface SyncOverlayProps {
   popOverRef: React.RefObject<OverlayPanel>;
 }
 
-const GitSyncOverlay = observer((props: GitSyncOverlayProps) => {
+const SyncOverlay = observer((props: SyncOverlayProps) => {
   const [isUrlValid, setUrlValid] = useState(false);
   const urlFieldRef = useRef<SBInputRef>(null);
 
@@ -62,4 +62,4 @@ const GitSyncOverlay = observer((props: GitSyncOverlayProps) => {
   );
 });
 
-export default GitSyncOverlay;
+export default SyncOverlay;

@@ -15,7 +15,6 @@ export type BindFile = BindFileIn & {
 export type TopologyIn = {
   collectionId: uuid4;
   definition: string;
-  metadata: string;
   gitSourceUrl: string;
 };
 
@@ -34,16 +33,10 @@ export type nodeData = {
   position: Position;
 };
 
-export type metaData = {
-  nodeData: Map<string, nodeData>;
-  utilityNodes: nodeData[];
-};
-
 export type Topology = TopologyMeta & {
   id: uuid4;
   name: string;
   definition: YAMLDocument<TopologyDefinition>;
-  metaData: metaData;
   definitionString: string;
   collectionId: uuid4;
   creator: User;
@@ -68,7 +61,6 @@ export interface TopologyDefinition {
  * This object is generated from the definition object and is not persisted.
  */
 export type TopologyMeta = {
-  positions: Map<string, Position>;
   connections: NodeConnection[];
   connectionMap: Map<string, NodeConnection[]>;
 };
@@ -95,14 +87,17 @@ export interface NodeConnection {
 export interface TopologyNode {
   kind?: string;
   image?: string;
-  labels?: nodeLabel;
+  labels?: NodeLabels;
 }
 
-export interface nodeLabel {
+export interface NodeLabels {
   'graph-icon'?: string;
   'graph-group'?: string;
   'graph-level'?: number;
+  'graph-posX'?: string;
+  'graph-posY'?: string;
   'graph-geoCoordinateLat'?: string;
   'graph-geoCoordinateLng'?: string;
+
   [key: string]: string | number | undefined;
 }

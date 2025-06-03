@@ -159,12 +159,7 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
   }
 }
 
-function addedGroup(
-  groupName: string,
-  graphLevel: number
-): ElementDefinition[] {
-  const groupId = groupName + graphLevel.toString();
-
+function addedGroup(groupId: string, groupName: string): ElementDefinition[] {
   return [
     {
       group: 'nodes',
@@ -203,16 +198,17 @@ export function generateGraph(
       isNaN(lat) || isNaN(lng) ? {x: 0, y: 0} : convertLatLngToXY(lat, lng);
     let parentId: string | undefined = undefined;
 
-    if (group && level !== undefined) {
-      const groupId = group + level.toString();
+    if (group !== undefined) {
+      const groupId = level !== undefined ? `${group}:${level}` : group;
 
       if (!addedGroups.has(groupId)) {
-        elements.push(...addedGroup(group, Number(level)));
+        elements.push(...addedGroup(groupId, group));
         addedGroups.add(groupId);
       }
 
       parentId = groupId;
     }
+
     elements.push({
       data: {
         id: nodeName,

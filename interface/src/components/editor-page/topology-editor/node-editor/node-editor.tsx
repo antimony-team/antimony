@@ -12,7 +12,6 @@ import cytoscape, {NodeSingular} from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
-import {nodeLabel } from '@sb/types/domain/topology';
 import {MenuItem} from 'primereact/menuitem';
 import {SpeedDial} from 'primereact/speeddial';
 import React, {
@@ -24,6 +23,7 @@ import React, {
   useState,
 } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
+import {isMap} from 'yaml';
 import SimulationPanel from './simulation-panel/simulation-panel';
 import {useSimulationConfig} from './state/simulation-config';
 
@@ -57,9 +57,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
     const menuTargetRef = useRef<string | null>(null);
-    const [newCompoundGroup, setNewCompoundGroup] = useState<boolean>(
-      false
-    );
+    const [newCompoundGroup, setNewCompoundGroup] = useState<boolean>(false);
     const [cyReady, setCyReady] = useState<boolean>(false);
     const [newGroupLabel, setNewGroupLabel] = useState<string>('');
     const [drawStartPos, setDrawStartPos] = useState<{
@@ -435,24 +433,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (!node || !node.isNode()) return;
     }, []);
 
-    const onDragEnd = useCallback(
-      (event: cytoscape.EventObject) => {
-        const node = event.target;
-        if (!node || !node.isNode()) return;
-
-        const nodeId = node.id();
-        const position = node.position();
-
-        if (topologyStore.manager.topology) {
-          topologyStore.manager.topology.positions.set(nodeId, {
-            x: position.x,
-            y: position.y,
-          });
-        }
-      },
-      [simulationConfig.liveSimulation, topologyStore.manager]
-    );
-
     function onFitGraph() {
       const cy = cyRef.current;
       if (!cy) return;
@@ -487,11 +467,14 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       const cy = cyRef.current;
       const topology = topologyStore.manager.topology;
 
-      if (!cy || !topology) return;
+      if (!cy || !topology?.definition) return;
 
-      // save in topolgoy
-      const labelMap = new Map<string, Record<string, string | number>>();
-      cy.nodes('.topology-node').forEach(node => {
+      const updatedLabelMap = new Map<
+        string,
+        Record<string, string | number>
+      >();
+
+      for (const node of cy.nodes('.topology-node')) {
         const id = node.id();
         const pos = node.position();
         const position = {
@@ -499,17 +482,35 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           y: Number(pos.y.toFixed(2)),
         };
         const geo = convertXYToLatLng(position.x, position.y);
-        const label: nodeLabel = {
-          'graph-group': node.parent().data('label') ?? undefined,
-          'graph-level': 1,
-          'graph-geoCoordinateLat': geo.lat.toString(),
-          'graph-geoCoordinateLng': geo.lng.toString(),
-        };
 
-        labelMap.set(id, removeUndefined(label));
-      });
+        const existingLabels = topology.definition.getIn([
+          'topology',
+          'nodes',
+          id,
+          'labels',
+        ]);
 
-      topologyStore.manager.updateNodeLabels(labelMap);
+        const useGeoCoords =
+          isMap(existingLabels) &&
+          (existingLabels.get('graph-geoCoordinateLat') ||
+            existingLabels.get('graph-geoCoordinateLng'));
+
+        const updatedLabels: Record<string, string | number> = {};
+
+        updatedLabels['graph-group'] = node.parent().data('label') ?? null;
+
+        if (useGeoCoords) {
+          updatedLabels['graph-geoCoordinateLat'] = geo.lat.toString();
+          updatedLabels['graph-geoCoordinateLng'] = geo.lng.toString();
+        } else {
+          updatedLabels['graph-posX'] = position.x;
+          updatedLabels['graph-posY'] = position.y;
+        }
+
+        updatedLabelMap.set(id, updatedLabels);
+      }
+
+      topologyStore.manager.updateNodeLabels(updatedLabelMap);
     }
 
     function exitConnectionMode() {
@@ -716,7 +717,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.off('click');
       cy.off('pan');
 
-      cy.on('pan', (event: cytoscape.EventObject) => {
+      cy.on('pan', () => {
         const pan = cy.pan();
         const clampedPan = {
           x: Math.max(panBounds.x[0], Math.min(panBounds.x[1], pan.x)),
@@ -735,7 +736,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.on('cxttap', 'edge', onEdgeContext);
       cy.on('grab', 'node', onDragStart);
       cy.on('drag', 'node', onDragging);
-      cy.on('free', 'node', onDragEnd);
       cy.on('click', 'edge', onEdgeClick);
       cy.on('click', (event: EventObject) => {
         if (event.target === cyRef.current) {
