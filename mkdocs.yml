@@ -67,6 +67,9 @@ theme:
 
 plugins:
   - offline
+  - swagger-ui-tag:
+      tryItOutEnabled: false
+      supportedSubmitMethods: []
   - plantuml:
       puml_url: https://www.plantuml.com/plantuml/
       num_workers: 8
