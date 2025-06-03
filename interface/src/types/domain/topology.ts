@@ -15,7 +15,7 @@ export type BindFile = BindFileIn & {
 export type TopologyIn = {
   collectionId: uuid4;
   definition: string;
-  gitSourceUrl: string;
+  syncUrl: string;
 };
 
 export type TopologyOut = TopologyIn & {
@@ -40,7 +40,7 @@ export type Topology = TopologyMeta & {
   definitionString: string;
   collectionId: uuid4;
   creator: User;
-  gitSourceUrl: string;
+  syncUrl: string;
   bindFiles: BindFile[];
   lastDeployFailed: boolean;
 };

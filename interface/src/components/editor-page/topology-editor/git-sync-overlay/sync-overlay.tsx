@@ -3,7 +3,7 @@ import React, {useRef, useState} from 'react';
 import {observer} from 'mobx-react-lite';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
-import './git-sync-overlay.sass';
+import './sync-overlay.sass';
 import {Button} from 'primereact/button';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {isValidURL} from '@sb/lib/utils/utils';
@@ -37,26 +37,37 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
   }
 
   function onSync() {}
+  function onSave() {}
 
   return (
-    <OverlayPanel ref={props.popOverRef} className="filter-overlay-panel">
-      <div className="filters-container">
+    <OverlayPanel ref={props.popOverRef} className="sync-overlay-panel">
+      <div className="flex flex-column gap-2">
         <SBInput
           id="sb-node-name"
           ref={urlFieldRef}
-          label="Name"
-          defaultValue={topologyStore.gitSourceUrl}
+          label="Sync URL"
+          // defaultValue={topologyStore.gitSourceUrl}
           onValueSubmit={onUrlSubmit}
         />
-        <Button
-          icon="pi pi-sync"
-          className="sb-dock-page-button"
-          label="Sync with Repo"
-          outlined
-          onClick={onSync}
-          disabled={!isUrlValid}
-          aria-label="Topology Editor Page"
-        />
+        <div className="flex flex-col justify-content-between">
+          <Button
+            icon="pi pi-save"
+            className="sb-dock-page-button"
+            label="Save"
+            outlined
+            onClick={onSave}
+            disabled={!isUrlValid}
+            aria-label="Save"
+          />
+          <Button
+            icon="pi pi-sync"
+            className="sb-dock-page-button"
+            outlined
+            onClick={onSync}
+            disabled={!isUrlValid}
+            aria-label="Sync Now"
+          />
+        </div>
       </div>
     </OverlayPanel>
   );

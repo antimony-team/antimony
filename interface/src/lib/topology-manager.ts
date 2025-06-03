@@ -77,7 +77,7 @@ export class TopologyManager {
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition
       ),
-      gitSourceUrl: this.editingTopology.gitSourceUrl,
+      syncUrl: this.editingTopology.syncUrl,
     });
 
     if (result.isOk()) {
@@ -99,7 +99,7 @@ export class TopologyManager {
   public updateSyncUrl(url: string) {
     if (!this.editingTopology) return;
 
-    this.editingTopology.gitSourceUrl = url;
+    this.editingTopology.syncUrl = url;
   }
 
   public updateNodeLabels(
@@ -484,7 +484,7 @@ export class TopologyManager {
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),
       definitionString: topology.definitionString,
-      gitSourceUrl: topology.gitSourceUrl,
+      syncUrl: topology.syncUrl,
       bindFiles: cloneDeep(topology.bindFiles),
       lastDeployFailed: topology.lastDeployFailed,
     };
