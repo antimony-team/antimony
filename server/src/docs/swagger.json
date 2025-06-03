@@ -1202,9 +1202,6 @@
                 "definition": {
                     "type": "string"
                 },
-                "metadata": {
-                    "type": "string"
-                },
                 "syncUrl": {
                     "type": "string"
                 }
@@ -1233,9 +1230,6 @@
                 },
                 "lastDeployFailed": {
                     "type": "boolean"
-                },
-                "metadata": {
-                    "type": "string"
                 },
                 "syncUrl": {
                     "type": "string"

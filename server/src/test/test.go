@@ -102,11 +102,11 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 
 	topology1Uuid := "TopologyTestUUID1"
 	topology1 := topology.Topology{
-		UUID:         topology1Uuid,
-		Name:         "ctd",
-		GitSourceUrl: "",
-		Collection:   collection1,
-		Creator:      user1,
+		UUID:       topology1Uuid,
+		Name:       "ctd",
+		SyncUrl:    "",
+		Collection: collection1,
+		Creator:    user1,
 	}
 	if err := db.Create(&topology1).Error; err != nil {
 		log.Fatalf("Create topology failed: %v", err)
@@ -138,11 +138,11 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 
 	topology2Uuid := utils.GenerateUuid()
 	topology2 := topology.Topology{
-		UUID:         topology2Uuid,
-		Name:         "test1",
-		GitSourceUrl: "",
-		Collection:   collection1,
-		Creator:      user1,
+		UUID:       topology2Uuid,
+		Name:       "test1",
+		SyncUrl:    "",
+		Collection: collection1,
+		Creator:    user1,
 	}
 	db.Create(&topology2)
 	writeTopologyFile(topology2Uuid, test1, storage)
@@ -240,10 +240,6 @@ topology:
 func writeTopologyFile(topologyId string, content string, storage storage.StorageManager) {
 	if err := storage.WriteTopology(topologyId, content); err != nil {
 		log.Fatalf("Failed to write test topology: %s", err.Error())
-	}
-
-	if err := storage.WriteMetadata(topologyId, content); err != nil {
-		log.Fatalf("Failed to write test top ology: %s", err.Error())
 	}
 }
 

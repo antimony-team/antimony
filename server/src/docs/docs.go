@@ -1210,9 +1210,6 @@ const docTemplate = `{
                 "definition": {
                     "type": "string"
                 },
-                "metadata": {
-                    "type": "string"
-                },
                 "syncUrl": {
                     "type": "string"
                 }
@@ -1241,9 +1238,6 @@ const docTemplate = `{
                 },
                 "lastDeployFailed": {
                     "type": "boolean"
-                },
-                "metadata": {
-                    "type": "string"
                 },
                 "syncUrl": {
                     "type": "string"

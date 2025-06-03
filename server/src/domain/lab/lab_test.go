@@ -50,12 +50,6 @@ type mockStorageManager struct {
 func (m *mockStorageManager) WriteTopology(topologyId string, content string) error {
 	panic("implement me")
 }
-func (m *mockStorageManager) ReadMetadata(topologyId string, content *string) error {
-	panic("implement me")
-}
-func (m *mockStorageManager) WriteMetadata(topologyId string, content string) error {
-	panic("implement me")
-}
 func (m *mockStorageManager) ReadBindFile(topologyId string, filePath string, content *string) error {
 	panic("implement me")
 }

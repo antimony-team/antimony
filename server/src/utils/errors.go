@@ -15,7 +15,6 @@ var ErrorTopologyExists = errors.New("a topology with that name already exists i
 var ErrorBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrorCollectionExists = errors.New("a collection with that name already exists")
 var ErrorInvalidCredentials = errors.New("the credentials provided were invalid")
-var ErrorInvalidMetadata = errors.New("the metadata provided were invalid")
 var ErrorInvalidTopology = errors.New("the topology provided were invalid")
 
 var ErrorUnauthorized = errors.New("the request was unauthorized")

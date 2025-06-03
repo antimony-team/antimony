@@ -190,8 +190,6 @@ definitions:
         type: string
       definition:
         type: string
-      metadata:
-        type: string
       syncUrl:
         type: string
     required:
@@ -213,8 +211,6 @@ definitions:
         type: string
       lastDeployFailed:
         type: boolean
-      metadata:
-        type: string
       syncUrl:
         type: string
     type: object
