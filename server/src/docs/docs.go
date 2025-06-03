@@ -808,11 +808,66 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/login/config": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get the server's authentication config",
+                "responses": {
+                    "200": {
+                        "description": "The authentication config of the server",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "auth.AuthConfig": {
+            "type": "object",
+            "properties": {
+                "native": {
+                    "$ref": "#/definitions/auth.NativeAuthConfig"
+                },
+                "openId": {
+                    "$ref": "#/definitions/auth.OpenIdAuthConfig"
+                }
+            }
+        },
+        "auth.NativeAuthConfig": {
+            "type": "object",
+            "properties": {
+                "allowEmpty": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "auth.OpenIdAuthConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "collection.CollectionIn": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "name": {
                     "type": "string"
@@ -953,6 +1008,9 @@ const docTemplate = `{
         },
         "lab.LabIn": {
             "type": "object",
+            "required": [
+                "topologyId"
+            ],
             "properties": {
                 "endTime": {
                     "type": "string"
@@ -1158,6 +1216,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/topology.TopologyOut"
                     }
+                }
+            }
+        },
+        "utils.OkResponse-auth_AuthConfig": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/auth.AuthConfig"
                 }
             }
         },

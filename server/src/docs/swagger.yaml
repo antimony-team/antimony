@@ -1,5 +1,24 @@
 basePath: /api/v1
 definitions:
+  auth.AuthConfig:
+    properties:
+      native:
+        $ref: '#/definitions/auth.NativeAuthConfig'
+      openId:
+        $ref: '#/definitions/auth.OpenIdAuthConfig'
+    type: object
+  auth.NativeAuthConfig:
+    properties:
+      allowEmpty:
+        type: boolean
+      enabled:
+        type: boolean
+    type: object
+  auth.OpenIdAuthConfig:
+    properties:
+      enabled:
+        type: boolean
+    type: object
   collection.CollectionIn:
     properties:
       name:
@@ -8,6 +27,8 @@ definitions:
         type: boolean
       publicWrite:
         type: boolean
+    required:
+    - name
     type: object
   collection.CollectionOut:
     properties:
@@ -105,6 +126,8 @@ definitions:
         type: string
       topologyId:
         type: string
+    required:
+    - topologyId
     type: object
   lab.LabOut:
     properties:
@@ -230,6 +253,11 @@ definitions:
           $ref: '#/definitions/topology.TopologyOut'
         type: array
     type: object
+  utils.OkResponse-auth_AuthConfig:
+    properties:
+      payload:
+        $ref: '#/definitions/auth.AuthConfig'
+    type: object
   utils.OkResponse-string:
     properties:
       payload:
@@ -243,13 +271,6 @@ info:
   title: Antimony API
   version: "1.0"
 paths:
-  /users/login:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
   /collections:
     get:
       produces:
@@ -746,6 +767,20 @@ paths:
       summary: Update an existing bind file of a topology
       tags:
       - bindFiles
+  /users/login/config:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The authentication config of the server
+          schema:
+            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+      summary: Get the server's authentication config
+      tags:
+      - users
 securityDefinitions:
   BasicAuth:
     type: basic
