@@ -23,11 +23,11 @@ services:
   keycloak-server:
     container_name: keycloak-server
     image: quay.io/keycloak/keycloak:latest
-    command: start-dev --http-port 4022
+    command: start-dev --http-port 4022  --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
-      - ./test/keycloak:/opt/keycloak/data/h2
+      - ./test/keycloak:/opt/keycloak/data/import
     ports:
       - "4022:4022"
