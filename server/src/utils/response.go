@@ -38,9 +38,9 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 	case errors.Is(err, ErrorUnauthorized):
 	case errors.Is(err, ErrorOpenIDAuthDisabledError):
 	case errors.Is(err, ErrorNativeAuthDisabledError):
-		return http.StatusUnauthorized, ErrorResponse{Code: -1, Message: err.Error()}
+		return http.StatusUnauthorized, ErrorResponse{Code: 401, Message: err.Error()}
 	case errors.Is(err, ErrorTokenInvalid):
-		return 498, ErrorResponse{}
+		return 498, ErrorResponse{Code: 498, Message: err.Error()}
 	case errors.Is(err, ErrorForbidden),
 		errors.Is(err, ErrorNoWriteAccessToLab),
 		errors.Is(err, ErrorNoWriteAccessToBindFile),
@@ -48,9 +48,13 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		errors.Is(err, ErrorNoWriteAccessToCollection),
 		errors.Is(err, ErrorNoDeployAccessToCollection),
 		errors.Is(err, ErrorNoPermissionToCreateCollections):
-		return http.StatusForbidden, ErrorResponse{Code: -1, Message: err.Error()}
+		return http.StatusForbidden, ErrorResponse{Code: 403, Message: err.Error()}
 	}
-	return http.StatusInternalServerError, ErrorResponse{Code: -1, Message: err.Error()}
+	return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
+}
+
+func CreateValidationError(err error) (int, ErrorResponse) {
+	return http.StatusUnprocessableEntity, ErrorResponse{Code: 422, Message: err.Error()}
 }
 
 func CreateSocketErrorResponse(err error) ErrorResponse {

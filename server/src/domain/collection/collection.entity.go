@@ -16,9 +16,15 @@ type Collection struct {
 }
 
 type CollectionIn struct {
-	Name         string `json:"name" binding:"required"`
-	PublicWrite  bool   `json:"publicWrite"`
-	PublicDeploy bool   `json:"publicDeploy"`
+	Name         *string `json:"name" binding:"required"`
+	PublicWrite  *bool   `json:"publicWrite" binding:"required"`
+	PublicDeploy *bool   `json:"publicDeploy" binding:"required"`
+}
+
+type CollectionInPartial struct {
+	Name         *string `json:"name"`
+	PublicWrite  *bool   `json:"publicWrite"`
+	PublicDeploy *bool   `json:"publicDeploy"`
 }
 
 type CollectionOut struct {

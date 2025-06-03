@@ -11,7 +11,7 @@ type (
 	Service interface {
 		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]CollectionOut, error)
 		Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error)
-		Update(ctx *gin.Context, req CollectionIn, collectionId string, authUser auth.AuthenticatedUser) error
+		Update(ctx *gin.Context, req CollectionInPartial, collectionId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error
 	}
 
@@ -64,7 +64,7 @@ func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser 
 	}
 
 	// Don't allow duplicate collection names
-	if nameExists, err := u.collectionRepo.DoesNameExist(ctx, req.Name); err != nil {
+	if nameExists, err := u.collectionRepo.DoesNameExist(ctx, *req.Name); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrorCollectionExists
@@ -79,14 +79,14 @@ func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser 
 
 	return newUuid, u.collectionRepo.Create(ctx, &Collection{
 		UUID:         newUuid,
-		Name:         req.Name,
-		PublicWrite:  req.PublicWrite,
-		PublicDeploy: req.PublicDeploy,
+		Name:         *req.Name,
+		PublicWrite:  *req.PublicWrite,
+		PublicDeploy: *req.PublicDeploy,
 		Creator:      *creator,
 	})
 }
 
-func (u *collectionService) Update(ctx *gin.Context, req CollectionIn, collectionId string, authUser auth.AuthenticatedUser) error {
+func (u *collectionService) Update(ctx *gin.Context, req CollectionInPartial, collectionId string, authUser auth.AuthenticatedUser) error {
 	collection, err := u.collectionRepo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
@@ -97,18 +97,26 @@ func (u *collectionService) Update(ctx *gin.Context, req CollectionIn, collectio
 		return utils.ErrorNoWriteAccessToCollection
 	}
 
-	// Don't allow duplicate collection names
-	if collection.Name != req.Name {
-		if nameExists, err := u.collectionRepo.DoesNameExist(ctx, req.Name); err != nil {
-			return err
-		} else if nameExists {
-			return utils.ErrorCollectionExists
+	if req.Name != nil {
+		// Don't allow duplicate collection names
+		if collection.Name != *req.Name {
+			if nameExists, err := u.collectionRepo.DoesNameExist(ctx, *req.Name); err != nil {
+				return err
+			} else if nameExists {
+				return utils.ErrorCollectionExists
+			}
 		}
+
+		collection.Name = *req.Name
 	}
 
-	collection.Name = req.Name
-	collection.PublicWrite = req.PublicWrite
-	collection.PublicDeploy = req.PublicDeploy
+	if req.PublicWrite != nil {
+		collection.PublicWrite = *req.PublicWrite
+	}
+
+	if req.PublicDeploy != nil {
+		collection.PublicDeploy = *req.PublicDeploy
+	}
 
 	return u.collectionRepo.Update(ctx, collection)
 }

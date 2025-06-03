@@ -122,12 +122,12 @@ const docTemplate = `{
                 "summary": "Update an existing collection",
                 "parameters": [
                     {
-                        "description": "The collection with updated values",
+                        "description": "A partial collection with updated values",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/collection.CollectionIn"
+                            "$ref": "#/definitions/collection.CollectionInPartial"
                         }
                     },
                     {
@@ -953,8 +953,24 @@ const docTemplate = `{
         "collection.CollectionIn": {
             "type": "object",
             "required": [
-                "name"
+                "name",
+                "publicDeploy",
+                "publicWrite"
             ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "publicDeploy": {
+                    "type": "boolean"
+                },
+                "publicWrite": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "collection.CollectionInPartial": {
+            "type": "object",
             "properties": {
                 "name": {
                     "type": "string"
@@ -1194,10 +1210,10 @@ const docTemplate = `{
                 "definition": {
                     "type": "string"
                 },
-                "gitSourceUrl": {
+                "metadata": {
                     "type": "string"
                 },
-                "metadata": {
+                "syncUrl": {
                     "type": "string"
                 }
             }
@@ -1220,9 +1236,6 @@ const docTemplate = `{
                 "definition": {
                     "type": "string"
                 },
-                "gitSourceUrl": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
@@ -1230,6 +1243,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "metadata": {
+                    "type": "string"
+                },
+                "syncUrl": {
                     "type": "string"
                 }
             }

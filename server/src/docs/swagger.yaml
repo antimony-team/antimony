@@ -29,6 +29,17 @@ definitions:
         type: boolean
     required:
     - name
+    - publicDeploy
+    - publicWrite
+    type: object
+  collection.CollectionInPartial:
+    properties:
+      name:
+        type: string
+      publicDeploy:
+        type: boolean
+      publicWrite:
+        type: boolean
     type: object
   collection.CollectionOut:
     properties:
@@ -179,9 +190,9 @@ definitions:
         type: string
       definition:
         type: string
-      gitSourceUrl:
-        type: string
       metadata:
+        type: string
+      syncUrl:
         type: string
     required:
     - collectionId
@@ -198,13 +209,13 @@ definitions:
         $ref: '#/definitions/user.UserOut'
       definition:
         type: string
-      gitSourceUrl:
-        type: string
       id:
         type: string
       lastDeployFailed:
         type: boolean
       metadata:
+        type: string
+      syncUrl:
         type: string
     type: object
   user.CredentialsIn:
@@ -364,12 +375,12 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: The collection with updated values
+      - description: A partial collection with updated values
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/collection.CollectionIn'
+          $ref: '#/definitions/collection.CollectionInPartial'
       - description: The ID of the collection to edit
         in: path
         name: id
