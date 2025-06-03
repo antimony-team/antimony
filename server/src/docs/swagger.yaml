@@ -207,6 +207,13 @@ definitions:
       metadata:
         type: string
     type: object
+  user.CredentialsIn:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
   user.UserOut:
     properties:
       id:
@@ -768,7 +775,7 @@ paths:
       tags:
       - bindFiles
   /users/login/config:
-    post:
+    get:
       consumes:
       - application/json
       produces:
@@ -779,6 +786,62 @@ paths:
           schema:
             $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
       summary: Get the server's authentication config
+      tags:
+      - users
+  /users/login/native:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: The native credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.CredentialsIn'
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: The provided credentials were invalid
+        "401":
+          description: Authentication via native login is disabled
+      summary: Authenticate via native login
+      tags:
+      - users
+  /users/login/openid:
+    get:
+      consumes:
+      - application/json
+      responses:
+        "302":
+          description: Found
+        "401":
+          description: Authentication via OpenID is disabled
+      summary: Authenticate via OpenID provider. Redirects the client to the OpenID
+        provider page.
+      tags:
+      - users
+  /users/login/refresh:
+    get:
+      responses:
+        "200":
+          description: The authentication config of the server
+          schema:
+            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+        "401":
+          description: The auth token cookie is not set
+        "403":
+          description: The provided auth token was invalid
+      summary: Refresh the access token
+      tags:
+      - users
+  /users/logout:
+    post:
+      responses:
+        "200":
+          description: OK
+      summary: Logout and clear all authentication cookies
       tags:
       - users
 securityDefinitions:

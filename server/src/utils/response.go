@@ -36,7 +36,9 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
 	// Permission / Access errors
 	case errors.Is(err, ErrorUnauthorized):
-		return http.StatusUnauthorized, ErrorResponse{}
+	case errors.Is(err, ErrorOpenIDAuthDisabledError):
+	case errors.Is(err, ErrorNativeAuthDisabledError):
+		return http.StatusUnauthorized, ErrorResponse{Code: -1, Message: err.Error()}
 	case errors.Is(err, ErrorTokenInvalid):
 		return 498, ErrorResponse{}
 	case errors.Is(err, ErrorForbidden),
@@ -47,9 +49,8 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		errors.Is(err, ErrorNoDeployAccessToCollection),
 		errors.Is(err, ErrorNoPermissionToCreateCollections):
 		return http.StatusForbidden, ErrorResponse{Code: -1, Message: err.Error()}
-	default:
-		return http.StatusInternalServerError, ErrorResponse{Code: -1, Message: err.Error()}
 	}
+	return http.StatusInternalServerError, ErrorResponse{Code: -1, Message: err.Error()}
 }
 
 func CreateSocketErrorResponse(err error) ErrorResponse {

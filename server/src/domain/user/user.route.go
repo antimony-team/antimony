@@ -7,11 +7,11 @@ import (
 func RegisterRoutes(route *gin.Engine, handler Handler) {
 	routes := route.Group("/users")
 	{
-		routes.POST("/login", handler.Login)
-		routes.GET("/logout", handler.Logout)
-		routes.GET("/login/check", handler.LoginCheck)
-		routes.GET("/login/openid", handler.LoginOIDC)
-		routes.GET("/login/success", handler.LoginSuccess)
+		routes.POST("/logout", handler.Logout)
+		routes.POST("/login/native", handler.LoginNative)
+		routes.GET("/login/openid", handler.LoginOpenId)
+		routes.GET("/login/config", handler.AuthConfig)
+		routes.GET("/login/success", handler.LoginOpenIdSuccess)
 		routes.GET("/login/refresh", handler.RefreshToken)
 	}
 }

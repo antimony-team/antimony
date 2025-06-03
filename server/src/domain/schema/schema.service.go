@@ -33,10 +33,8 @@ func (u *schemaService) Get() any {
 func loadSchema(config *config.AntimonyConfig) any {
 	var schema any
 
-	log.Info("Fetching Containerlab schema from remote source.")
-
 	if resp, err := http.Get(config.Containerlab.SchemaUrl); err != nil {
-		log.Error("Failed to download clab schema. Falling back to local schema.")
+		log.Warn("Failed to download clab schema from remote resource. Falling back to local schema.")
 
 		// Try to use local fallback schema instead
 		if schemaData, err := os.ReadFile(config.Containerlab.SchemaFallback); err != nil {
@@ -52,7 +50,7 @@ func loadSchema(config *config.AntimonyConfig) any {
 		}
 	}
 
-	log.Info("Successfully fetched Containerlab schema.")
+	log.Info("Successfully loaded Containerlab schema.")
 
 	return schema
 }

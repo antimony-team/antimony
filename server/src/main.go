@@ -3,6 +3,7 @@ package main
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/config"
+	_ "antimonyBackend/docs"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
@@ -23,22 +24,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/joho/godotenv"
+	"github.com/swaggo/files"
+	"github.com/swaggo/gin-swagger"
 	socketio "github.com/zishang520/socket.io/socket"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// @Title          Antimony API
-// @Version        1.0
-// @Desciption     The Antimony API that connects to containerlab.
+//	@Title		Antimony API
+//	@Version	1.0
+//	@Desciption	The Antimony API that connects to containerlab.
 
-// @Contact.name   Institute for Networking at OST
-// @Contact.url    https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security
-// @Contact.email  antimony@network.garden
+//	@Contact.name	Institute for Networking at OST
+//	@Contact.url	https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security
+//	@Contact.email	antimony@network.garden
 
-// @BasePath       /api/v1
+//	@BasePath	/api/v1
 
-// @securityDefinitions.basic  BasicAuth
+// @securityDefinitions.basic	BasicAuth
 func main() {
 	// Load environment variables from .env file if present
 	_ = godotenv.Load()
@@ -116,6 +119,8 @@ func main() {
 	c := socketio.DefaultServerOptions()
 	webServer.GET("/socket.io/*any", gin.WrapH(socketManager.Server().ServeHandler(c)))
 	webServer.POST("/socket.io/*any", gin.WrapH(socketManager.Server().ServeHandler(c)))
+
+	webServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	var serverWaitGroup sync.WaitGroup
 	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)

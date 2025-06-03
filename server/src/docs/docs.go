@@ -810,7 +810,7 @@ const docTemplate = `{
             }
         },
         "/users/login/config": {
-            "post": {
+            "get": {
                 "consumes": [
                     "application/json"
                 ],
@@ -827,6 +827,93 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
                         }
+                    }
+                }
+            }
+        },
+        "/users/login/native": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Authenticate via native login",
+                "parameters": [
+                    {
+                        "description": "The native credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.CredentialsIn"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "The provided credentials were invalid"
+                    },
+                    "401": {
+                        "description": "Authentication via native login is disabled"
+                    }
+                }
+            }
+        },
+        "/users/login/openid": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Authenticate via OpenID provider. Redirects the client to the OpenID provider page.",
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    },
+                    "401": {
+                        "description": "Authentication via OpenID is disabled"
+                    }
+                }
+            }
+        },
+        "/users/login/refresh": {
+            "get": {
+                "tags": [
+                    "users"
+                ],
+                "summary": "Refresh the access token",
+                "responses": {
+                    "200": {
+                        "description": "The authentication config of the server",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                        }
+                    },
+                    "401": {
+                        "description": "The auth token cookie is not set"
+                    },
+                    "403": {
+                        "description": "The provided auth token was invalid"
+                    }
+                }
+            }
+        },
+        "/users/logout": {
+            "post": {
+                "tags": [
+                    "users"
+                ],
+                "summary": "Logout and clear all authentication cookies",
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -1143,6 +1230,17 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "metadata": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.CredentialsIn": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

@@ -17,6 +17,7 @@ type (
 		IsTokenValid(accessToken string) bool
 		RefreshAccessToken(authToken string) (string, error)
 		AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error)
+		GetAuthConfig() auth.AuthConfig
 	}
 
 	userService struct {
@@ -105,4 +106,8 @@ func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (s
 	} else {
 		return authToken, accessToken, nil
 	}
+}
+
+func (s *userService) GetAuthConfig() auth.AuthConfig {
+	return s.authManager.GetAuthConfig()
 }
