@@ -85,7 +85,7 @@ func (h *collectionHandler) Create(ctx *gin.Context) {
 // @Failure	422		{object}	utils.ErrorResponse		"The request was invalid. Details in the response body."
 // @Param		request	body		collection.CollectionInPartial	true	"A partial collection with updated values"
 // @Param		id		path		string					true	"The ID of the collection to edit"
-// @Router		/collections/{id} [put]
+// @Router		/collections/{id} [patch]
 func (h *collectionHandler) Update(ctx *gin.Context) {
 	payload := CollectionInPartial{}
 	if err := ctx.Bind(&payload); err != nil {

@@ -24,9 +24,15 @@ type Topology struct {
 }
 
 type TopologyIn struct {
-	Definition   string `json:"definition"`
-	SyncUrl      string `json:"syncUrl"`
-	CollectionId string `json:"collectionId" binding:"required"`
+	Definition   *string `json:"definition" binding:"required"`
+	SyncUrl      *string `json:"syncUrl" binding:"required"`
+	CollectionId *string `json:"collectionId" binding:"required"`
+}
+
+type TopologyInPartial struct {
+	Definition   *string `json:"definition"`
+	SyncUrl      *string `json:"syncUrl"`
+	CollectionId *string `json:"collectionId"`
 }
 
 type TopologyOut struct {

@@ -194,6 +194,8 @@ definitions:
         type: string
     required:
     - collectionId
+    - definition
+    - syncUrl
     type: object
   topology.TopologyOut:
     properties:
@@ -367,7 +369,7 @@ paths:
       summary: Delete an existing collection
       tags:
       - collections
-    put:
+    patch:
       consumes:
       - application/json
       parameters:
@@ -639,7 +641,7 @@ paths:
       summary: Delete an existing topology
       tags:
       - topologies
-    put:
+    patch:
       consumes:
       - application/json
       parameters:

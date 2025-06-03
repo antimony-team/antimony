@@ -4,17 +4,19 @@ import (
 	"antimonyBackend/config"
 	"encoding/json"
 	"github.com/charmbracelet/log"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type (
 	Service interface {
-		Get() any
+		Get() string
 	}
 
 	schemaService struct {
-		clabSchema any
+		clabSchema string
 	}
 )
 
@@ -26,11 +28,11 @@ func CreateService(config *config.AntimonyConfig) Service {
 	}
 }
 
-func (u *schemaService) Get() any {
+func (u *schemaService) Get() string {
 	return u.clabSchema
 }
 
-func loadSchema(config *config.AntimonyConfig) any {
+func loadSchema(config *config.AntimonyConfig) string {
 	var schema any
 
 	if resp, err := http.Get(config.Containerlab.SchemaUrl); err != nil {
@@ -43,14 +45,27 @@ func loadSchema(config *config.AntimonyConfig) any {
 			if err := json.Unmarshal(schemaData, &schema); err != nil {
 				log.Fatal("Failed to parse fallback clab schema. Exiting.")
 			}
+
+			return string(schemaData)
 		}
 	} else {
-		if err := json.NewDecoder(resp.Body).Decode(&schema); err != nil {
+		buf := new(strings.Builder)
+		if _, err := io.Copy(buf, resp.Body); err != nil {
 			log.Fatal("Failed to parse remote clab schema. Exiting.")
 		}
+
+		return buf.String()
+		//if err := json.NewDecoder(resp.Body).Decode(&schema); err != nil {
+		//	log.Fatal("Failed to parse remote clab schema. Exiting.")
+		//} else {
+		//	buf := new(strings.Builder)
+		//	if _, err := io.Copy(buf, resp.Body); err != nil {
+		//		log.Fatal("Failed to parse remote clab schema. Exiting.")
+		//	}
+		//
+		//	return buf.String()
+		//}
 	}
 
-	log.Info("Successfully loaded Containerlab schema.")
-
-	return schema
+	return ""
 }

@@ -10,7 +10,7 @@ func RegisterRoutes(route *gin.Engine, handler Handler, authManager auth.AuthMan
 	{
 		routes.GET("", handler.Get)
 		routes.POST("", handler.Create)
-		routes.PUT("/:topologyId", handler.Update)
+		routes.PATCH("/:topologyId", handler.Update)
 		routes.DELETE("/:topologyId", handler.Delete)
 
 		routes.POST("/:topologyId/files", handler.CreateBindFile)

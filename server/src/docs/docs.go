@@ -104,14 +104,11 @@ const docTemplate = `{
             }
         },
         "/collections/{id}": {
-            "put": {
+            "delete": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -119,17 +116,8 @@ const docTemplate = `{
                 "tags": [
                     "collections"
                 ],
-                "summary": "Update an existing collection",
+                "summary": "Delete an existing collection",
                 "parameters": [
-                    {
-                        "description": "A partial collection with updated values",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/collection.CollectionInPartial"
-                        }
-                    },
                     {
                         "type": "string",
                         "description": "The ID of the collection to edit",
@@ -162,11 +150,14 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -174,8 +165,17 @@ const docTemplate = `{
                 "tags": [
                     "collections"
                 ],
-                "summary": "Delete an existing collection",
+                "summary": "Update an existing collection",
                 "parameters": [
+                    {
+                        "description": "A partial collection with updated values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/collection.CollectionInPartial"
+                        }
+                    },
                     {
                         "type": "string",
                         "description": "The ID of the collection to edit",
@@ -539,14 +539,11 @@ const docTemplate = `{
             }
         },
         "/topologies/{id}": {
-            "put": {
+            "delete": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -554,20 +551,11 @@ const docTemplate = `{
                 "tags": [
                     "topologies"
                 ],
-                "summary": "Update an existing topology",
+                "summary": "Delete an existing topology",
                 "parameters": [
                     {
-                        "description": "The topology with updated values",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/topology.TopologyIn"
-                        }
-                    },
-                    {
                         "type": "string",
-                        "description": "The ID of the topology to edit",
+                        "description": "The ID of the topology to delete",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -597,11 +585,14 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -609,11 +600,20 @@ const docTemplate = `{
                 "tags": [
                     "topologies"
                 ],
-                "summary": "Delete an existing topology",
+                "summary": "Update an existing topology",
                 "parameters": [
                     {
+                        "description": "The topology with updated values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/topology.TopologyIn"
+                        }
+                    },
+                    {
                         "type": "string",
-                        "description": "The ID of the topology to delete",
+                        "description": "The ID of the topology to edit",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1201,7 +1201,9 @@ const docTemplate = `{
         "topology.TopologyIn": {
             "type": "object",
             "required": [
-                "collectionId"
+                "collectionId",
+                "definition",
+                "syncUrl"
             ],
             "properties": {
                 "collectionId": {
