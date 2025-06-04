@@ -48,7 +48,7 @@ const DashboardPage: React.FC = observer(() => {
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const popOver = useRef<OverlayPanel>(null);
+  const labFilterOverlay = useRef<OverlayPanel>(null);
   const typingTimeoutRef = useRef<number | undefined>(undefined);
   const searchQueryFieldRef = useRef<HTMLInputElement>(null);
 
@@ -161,7 +161,7 @@ const DashboardPage: React.FC = observer(() => {
           </IconField>
           <span
             className="search-bar-icon"
-            onClick={e => popOver.current?.toggle(e)}
+            onClick={e => labFilterOverlay.current?.toggle(e)}
           >
             <i className="pi pi-filter" />
           </span>
@@ -244,7 +244,7 @@ const DashboardPage: React.FC = observer(() => {
           </div>
         </div>
       </div>
-      <LabFilterOverlay popOverRef={popOver} />
+      <LabFilterOverlay popOverRef={labFilterOverlay} />
       <LabDialog
         dialogState={labDialogState}
         onDestroyLabRequest={onDestroyLabRequest}

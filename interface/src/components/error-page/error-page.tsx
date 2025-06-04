@@ -7,7 +7,6 @@ import {ProgressSpinner} from 'primereact/progressspinner';
 
 import {useDataBinder} from '@sb/lib/stores/root-store';
 import {Choose, Otherwise, When} from '@sb/types/control';
-import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 
 import './error-page.sass';
 
@@ -48,7 +47,7 @@ const ErrorPage = (props: ErrorPageProps) => {
             <div className="sb-error-network-entry">
               <span>Antimony API</span>
               <Choose>
-                <When condition={(dataBinder as DataBinder).hasAPIError}>
+                <When condition={dataBinder.hasAPIError}>
                   <ProgressSpinner strokeWidth="5" />
                 </When>
                 <Otherwise>
@@ -59,7 +58,10 @@ const ErrorPage = (props: ErrorPageProps) => {
             <div className="sb-error-network-entry">
               <span>Antimony Socket</span>
               <Choose>
-                <When condition={(dataBinder as DataBinder).hasSocketError}>
+                <When condition={!dataBinder.isLoggedIn}>
+                  <i className="pi pi-question" />
+                </When>
+                <When condition={dataBinder.hasSocketError}>
                   <ProgressSpinner strokeWidth="5" />
                 </When>
                 <Otherwise>
@@ -71,9 +73,9 @@ const ErrorPage = (props: ErrorPageProps) => {
         </When>
         <When condition={error}>
           <div className="sb-error-stack-content">{error!.stack}</div>
+          <Button label="Take me back!" onClick={() => navigate('/')} />
         </When>
       </Choose>
-      <Button label="Take me back!" onClick={() => navigate('/')} />
     </div>
   );
 };

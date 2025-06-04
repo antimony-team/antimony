@@ -1,3 +1,5 @@
+import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
+import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
@@ -64,6 +66,8 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
 
   const amogusRef = useRef(new Audio('/assets/amogus.wav'));
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
+
+  const syncOverlayRef = useRef<OverlayPanel>(null);
 
   const onTopologyOpen = useCallback((topology: Topology) => {
     setOpenTopology(topology);
@@ -205,6 +209,8 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     );
   }
 
+  function onOpenSyncOverlay() {}
+
   function onAmogus() {
     if (!amogusRef.current?.paused) return;
     amogusRef.current.volume = 0.1;
@@ -237,6 +243,15 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
                 />
               </div>
               <div className="flex gap-2">
+                <Button
+                  outlined
+                  icon="pi pi-sync"
+                  size="large"
+                  onClick={e => syncOverlayRef.current?.toggle(e)}
+                  tooltip="Sync Options"
+                  tooltipOptions={{position: 'bottom', showDelay: 500}}
+                  aria-label="Sync Options"
+                />
                 <Button
                   outlined
                   size="large"
@@ -344,6 +359,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
         </Otherwise>
       </Choose>
+      <SyncOverlay popOverRef={syncOverlayRef} />
       <NodeEditDialog
         key={currentlyEditedNode}
         isOpen={isNodeEditDialogOpen}

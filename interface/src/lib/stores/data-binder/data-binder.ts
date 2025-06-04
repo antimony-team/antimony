@@ -1,5 +1,9 @@
 import {fetchResource} from '@sb/lib/utils/utils';
-import {AuthenticatedUser, EMPTY_AUTH_USER} from '@sb/types/domain/user';
+import {
+  AuthConfig,
+  AuthenticatedUser,
+  EMPTY_AUTH_USER,
+} from '@sb/types/domain/user';
 import {Result} from '@sb/types/result';
 import {UserCredentials} from '@sb/types/types';
 import Cookies from 'js-cookie';
@@ -42,7 +46,12 @@ export class DataBinder {
 
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
+
   @observable accessor hasOidcEnabled = false;
+  @observable accessor isAuthOidc = false;
+
+  @observable accessor hasNativeEnabled = false;
+  @observable accessor nativeAutologin = false;
 
   private refreshTokenPromise: Promise<Result<null>> | null = null;
   private accessToken: string = '';
@@ -55,24 +64,43 @@ export class DataBinder {
 
   @action
   private async initAuth() {
-    const hasOidc = await this.get<void>('/users/login/openid', false);
-    this.hasOidcEnabled = hasOidc.isOk();
+    const authConfigResponse = await this.get<AuthConfig>(
+      '/users/login/config',
+      false
+    );
+    if (authConfigResponse.isErr()) return;
 
-    const accessToken = Cookies.get('accessToken');
-    if (accessToken !== undefined) {
+    const authConfig = authConfigResponse.data.payload;
+    this.hasOidcEnabled = authConfig.openId.enabled;
+    this.hasNativeEnabled = authConfig.native.enabled;
+    this.nativeAutologin = authConfig.native.allowEmpty;
+
+    if (Cookies.get('accessToken') !== undefined) {
       this.refreshToken().then(result => {
         if (result.isOk()) {
-          this.processAccessToken(accessToken);
           this.isLoggedIn = true;
           this.isReady = true;
         } else if (Cookies.get('authOidc') === 'true' && this.hasOidcEnabled) {
+          // If auth token is invalid and OIDC auth was enabled, redirect
           window.location.replace(this.apiUrl + '/users/login/openid');
           return Result.createErr({code: -1, message: 'Unauthorized'});
         } else {
+          // Display login page for user
           this.isReady = true;
         }
       });
     } else {
+      if (
+        this.hasNativeEnabled &&
+        authConfig.native.allowEmpty &&
+        !authConfig.openId.enabled
+      ) {
+        await this.loginNative({
+          username: '',
+          password: '',
+        });
+      }
+
       this.isReady = true;
     }
 
@@ -84,6 +112,10 @@ export class DataBinder {
         this.disconnectSubscriptions();
       }
     });
+  }
+
+  public isAuthenticatedWithOidc(): boolean {
+    return Cookies.get('authOidc') === 'true';
   }
 
   private connectSubscriptions() {
@@ -126,6 +158,7 @@ export class DataBinder {
 
     subscription.socket.on('connect', () => {
       console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
+      runInAction(() => (this.hasSocketError = false));
 
       subscription.onConnectCallbacks.forEach(callback => callback());
     });
@@ -137,21 +170,29 @@ export class DataBinder {
     });
 
     subscription.socket.on('connect_error', e => {
-      if (e.message === 'Invalid namespace') {
-        subscription.socket?.disconnect();
-        setTimeout(() => {
-          subscription.socket?.connect();
-        }, 2000);
-      } else if (e.message === 'Invalid Token') {
+      if (e.message === 'Invalid Token') {
         this.refreshToken().then(result => {
           if (result.isOk()) {
             // Retry socket subscription if token was refreshed successfully
             this.connectSubscription(subscription);
           } else {
             // TODO(kian): Maybe add proper dialog to ask to refresh
-            window.location.replace(this.apiUrl + '/users/login/openid');
+            if (this.hasOidcEnabled) {
+              window.location.replace(this.apiUrl + '/users/login/openid');
+            }
           }
         });
+
+        return;
+      }
+
+      runInAction(() => (this.hasSocketError = true));
+
+      if (e.message === 'Invalid namespace') {
+        subscription.socket?.disconnect();
+        setTimeout(() => {
+          subscription.socket?.connect();
+        }, 2000);
       }
     });
 
@@ -255,9 +296,9 @@ export class DataBinder {
     }
   }
 
-  public async login(credentials: UserCredentials): Promise<boolean> {
+  public async loginNative(credentials: UserCredentials): Promise<boolean> {
     const tokenResponse = await this.post<UserCredentials, AuthResponse>(
-      '/users/login',
+      '/users/login/native',
       credentials,
       false
     );
@@ -296,10 +337,7 @@ export class DataBinder {
       return this.fetch(path, method, body, authenticated);
     }
 
-    // Server error, logout and return generic error
     if (response.status >= 500) {
-      // runInAction(() => (this.hasAPIError = true));
-      // this.logout();
       return Result.createErr({code: -1, message: 'Server Error'});
     }
 
@@ -307,9 +345,16 @@ export class DataBinder {
     if (response.status === 498) {
       const refreshResponse = await this.refreshToken();
       if (refreshResponse.isErr()) {
-        if (Cookies.get('authOidc') === 'true') {
+        if (this.hasOidcEnabled) {
           window.location.replace(this.apiUrl + '/users/login/openid');
           return refreshResponse;
+        } else if (this.hasNativeEnabled && this.nativeAutologin) {
+          await this.loginNative({
+            username: '',
+            password: '',
+          });
+        } else {
+          this.logout();
         }
         return refreshResponse;
       } else {
@@ -333,7 +378,7 @@ export class DataBinder {
 
     runInAction(() => (this.hasAPIError = false));
 
-    if ('code' in responseBody) {
+    if (!('payload' in responseBody)) {
       return Result.createErr(responseBody);
     }
 
@@ -389,13 +434,16 @@ export class DataBinder {
     return this.refreshTokenPromise;
   }
 
+  @action
   public logout() {
     // Make sure logout is only executed once
     if (!this.isLoggedIn) return;
 
     this.isLoggedIn = false;
+    this.hasSocketError = false;
+    this.hasAPIError = false;
 
-    void fetchResource(this.apiUrl + '/users/logout', 'GET');
+    void fetchResource(this.apiUrl + '/users/logout', 'POST');
     this.authUser = EMPTY_AUTH_USER;
   }
 

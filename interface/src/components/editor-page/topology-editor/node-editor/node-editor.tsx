@@ -3,8 +3,8 @@ import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-editor.sass';
-import {drawGrid, generateGraph} from '@sb/lib/utils/utils';
-import {nodeData, Topology} from '@sb/types/domain/topology';
+import {convertXYToLatLng, drawGrid, generateGraph} from '@sb/lib/utils/utils';
+import {Topology} from '@sb/types/domain/topology';
 import type {EventObject} from 'cytoscape';
 import cytoscape, {NodeSingular} from 'cytoscape';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -23,6 +23,7 @@ import React, {
   useState,
 } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
+import {isMap} from 'yaml';
 import SimulationPanel from './simulation-panel/simulation-panel';
 import {useSimulationConfig} from './state/simulation-config';
 
@@ -56,9 +57,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
     const menuTargetRef = useRef<string | null>(null);
-    const [newCompoundGroup, setNewCompoundGroup] = useState<string | null>(
-      null
-    );
+    const [newCompoundGroup, setNewCompoundGroup] = useState<boolean>(false);
     const [cyReady, setCyReady] = useState<boolean>(false);
     const [newGroupLabel, setNewGroupLabel] = useState<string>('');
     const [drawStartPos, setDrawStartPos] = useState<{
@@ -124,8 +123,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     const elements = useMemo(() => {
       if (props.openTopology === null) return [];
-
-      console.log('generate graph');
 
       return generateGraph(
         props.openTopology,
@@ -436,24 +433,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (!node || !node.isNode()) return;
     }, []);
 
-    const onDragEnd = useCallback(
-      (event: cytoscape.EventObject) => {
-        const node = event.target;
-        if (!node || !node.isNode()) return;
-
-        const nodeId = node.id();
-        const position = node.position();
-
-        if (topologyStore.manager.topology) {
-          topologyStore.manager.topology.positions.set(nodeId, {
-            x: position.x,
-            y: position.y,
-          });
-        }
-      },
-      [simulationConfig.liveSimulation, topologyStore.manager]
-    );
-
     function onFitGraph() {
       const cy = cyRef.current;
       if (!cy) return;
@@ -472,58 +451,73 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       );
     }
 
+    function isDefined(value: unknown): value is string | number {
+      return typeof value === 'string' || typeof value === 'number';
+    }
+
+    function removeUndefined<T extends Record<string, unknown>>(
+      obj: T
+    ): Record<string, string | number> {
+      return Object.fromEntries(
+        Object.entries(obj).filter(([, value]) => isDefined(value))
+      ) as Record<string, string | number>;
+    }
+
     function onSaveGraph() {
       const cy = cyRef.current;
       const topology = topologyStore.manager.topology;
 
-      if (!cy || !topology) return;
+      if (!cy || !topology?.definition) return;
 
-      // Initialize metadata if needed
-      if (!topology.metaData) {
-        topology.metaData = {
-          nodeData: new Map<string, nodeData>(),
-          utilityNodes: [],
-        };
-      }
+      const updatedLabelMap = new Map<
+        string,
+        Record<string, string | number>
+      >();
 
-      topology.metaData.nodeData = new Map<string, nodeData>();
-      topology.metaData.utilityNodes = [];
-
-      cy.nodes().forEach(node => {
+      for (const node of cy.nodes('.topology-node')) {
         const id = node.id();
         const pos = node.position();
         const position = {
           x: Number(pos.x.toFixed(2)),
           y: Number(pos.y.toFixed(2)),
         };
-        const label = node.data('label') || undefined;
+        const geo = convertXYToLatLng(position.x, position.y);
 
-        const nodeInfo: nodeData = {
+        const existingLabels = topology.definition.getIn([
+          'topology',
+          'nodes',
           id,
-          position,
-          label: label,
-          class: node.classes().join(' '),
-          parent: node.data('parent') ?? undefined,
-        };
+          'labels',
+        ]);
 
-        if (node.hasClass('topology-node')) {
-          topology.metaData.nodeData.set(id, nodeInfo);
-        } else if (
-          node.hasClass('drawn-shape') ||
-          node.hasClass('compound-close-btn')
-        ) {
-          topology.metaData.utilityNodes.push(nodeInfo);
+        const useGeoCoords =
+          isMap(existingLabels) &&
+          (existingLabels.get('graph-geoCoordinateLat') ||
+            existingLabels.get('graph-geoCoordinateLng'));
+
+        const updatedLabels: Record<string, string | number> = {};
+
+        updatedLabels['graph-group'] = node.parent().data('label') ?? null;
+
+        if (useGeoCoords) {
+          updatedLabels['graph-geoCoordinateLat'] = geo.lat.toString();
+          updatedLabels['graph-geoCoordinateLng'] = geo.lng.toString();
+        } else {
+          updatedLabels['graph-posX'] = position.x;
+          updatedLabels['graph-posY'] = position.y;
         }
-      });
+
+        updatedLabelMap.set(id, updatedLabels);
+      }
+
+      topologyStore.manager.updateNodeLabels(updatedLabelMap);
     }
 
     function exitConnectionMode() {
       setNodeConnectTarget(null);
       setNodeConnectDestination(null);
-      console.log('exit connection mode');
 
       if (cyRef.current) {
-        console.log('remove ghost node');
         cyRef.current.remove('.ghost-node');
         cyRef.current.remove('.ghost-edge');
       }
@@ -599,13 +593,14 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         if (selectedParents.size === 1) {
           newGroupParent = [...selectedParents][0];
         }
-        const groupId = `group-${Date.now()}`;
+        const groupId = `${newGroupLabel}1`;
         if (groupableIds.length) {
           cy.batch(() => {
             cy.add({
               group: 'nodes',
               data: {
                 id: groupId,
+                label: newGroupLabel,
               },
               classes: 'drawn-shape',
             });
@@ -633,7 +628,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         setDrawStartPos(null);
         setDrawEndPos(null);
         setIsDrawingShape(false);
-        setNewCompoundGroup(groupId);
         cy.userPanningEnabled(true);
       };
 
@@ -649,6 +643,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }, [isDrawingShape, drawStartPos, drawEndPos]);
 
     function onDrawGroup() {
+      setNewCompoundGroup(true);
       const cy = cyRef.current;
       if (!cy) return;
 
@@ -661,12 +656,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     function applyNewGroupLabel() {
       if (!cyRef.current || !newCompoundGroup) return;
-      const cy = cyRef.current;
-      const groupNode = cy.getElementById(newCompoundGroup);
-      if (groupNode && groupNode.nonempty()) {
-        groupNode.data('label', newGroupLabel);
-      }
-      setNewCompoundGroup(null);
+      setNewCompoundGroup(false);
     }
 
     useEffect(() => {
@@ -727,7 +717,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.off('click');
       cy.off('pan');
 
-      cy.on('pan', (event: cytoscape.EventObject) => {
+      cy.on('pan', () => {
         const pan = cy.pan();
         const clampedPan = {
           x: Math.max(panBounds.x[0], Math.min(panBounds.x[1], pan.x)),
@@ -746,7 +736,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.on('cxttap', 'edge', onEdgeContext);
       cy.on('grab', 'node', onDragStart);
       cy.on('drag', 'node', onDragging);
-      cy.on('free', 'node', onDragEnd);
       cy.on('click', 'edge', onEdgeClick);
       cy.on('click', (event: EventObject) => {
         if (event.target === cyRef.current) {
@@ -775,7 +764,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               cytoscapeEventCalls(cy);
               cy.style().fromJson(topologyStyle).update();
               setCyReady(true);
-              console.log('cytoscape method');
             }}
           />
         </div>
@@ -802,8 +790,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           ref={contextMenuRef}
         />
         <SBDialog
-          isOpen={newCompoundGroup !== null}
-          onClose={() => setNewCompoundGroup(null)}
+          isOpen={newCompoundGroup}
+          onClose={() => setNewCompoundGroup(false)}
           onSubmit={applyNewGroupLabel}
           headerTitle="Set Group Label"
         >

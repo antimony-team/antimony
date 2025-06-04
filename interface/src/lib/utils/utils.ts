@@ -5,7 +5,6 @@ import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {FetchState} from '@sb/types/types';
 import {Topology} from '@sb/types/domain/topology';
-import {Scalar, YAMLMap} from 'yaml';
 
 export async function fetchResource<T>(
   path: string,
@@ -160,31 +159,25 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
   }
 }
 
-function hydratePositionsFromYaml(topology: Topology) {
-  const yamlNodes = topology.definition.getIn(['topology', 'nodes']) as YAMLMap;
-
-  const mapLevelComment = yamlNodes.commentBefore || '';
-
-  yamlNodes.items.forEach(item => {
-    const key = item.key as Scalar;
-
-    const nodeId = key.value as string;
-    let comment = key.commentBefore || key.comment;
-
-    if (!comment && yamlNodes.items[0] === item && mapLevelComment) {
-      comment = mapLevelComment;
-    }
-
-    if (!comment) return;
-
-    const match = comment.match(/pos=\[([\d.-]+),([\d.-]+)\]/);
-    if (match) {
-      const x = parseFloat(match[1]);
-      const y = parseFloat(match[2]);
-
-      topology.positions.set(nodeId, {x, y});
-    }
-  });
+function addedGroup(groupId: string, groupName: string): ElementDefinition[] {
+  return [
+    {
+      group: 'nodes',
+      data: {
+        id: groupId,
+        label: groupName,
+      },
+      classes: 'drawn-shape',
+    },
+    {
+      group: 'nodes',
+      data: {
+        id: `close-${groupId}`,
+      },
+      position: {x: 0, y: 0},
+      classes: 'compound-close-btn',
+    },
+  ];
 }
 
 export function generateGraph(
@@ -193,24 +186,39 @@ export function generateGraph(
   topologyManager: TopologyManager
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
-  hydratePositionsFromYaml(topology);
-  const nodeDataMap = topology.metaData?.nodeData ?? new Map();
-  // Nodes
+  const addedGroups = new Set<string>();
   for (const [, [nodeName, node]] of Object.entries(
     topology.definition.toJS().topology.nodes
   ).entries()) {
-    const kind = node?.kind ?? 'default';
-    const meta = nodeDataMap.get(nodeName);
+    const lat = parseFloat(node.labels?.['graph-geoCoordinateLat'] ?? '');
+    const lng = parseFloat(node.labels?.['graph-geoCoordinateLng'] ?? '');
+    const group = node.labels?.['graph-group'];
+    const level = node.labels?.['graph-level'];
+    const position =
+      isNaN(lat) || isNaN(lng) ? {x: 0, y: 0} : convertLatLngToXY(lat, lng);
+    let parentId: string | undefined = undefined;
+
+    if (group !== undefined) {
+      const groupId = level !== undefined ? `${group}:${level}` : group;
+
+      if (!addedGroups.has(groupId)) {
+        elements.push(...addedGroup(groupId, group));
+        addedGroups.add(groupId);
+      }
+
+      parentId = groupId;
+    }
+
     elements.push({
       data: {
         id: nodeName,
-        parent: meta?.parent,
+        parent: parentId,
         label: nodeName,
         title: topologyManager.getNodeTooltip(nodeName),
-        kind: kind,
-        image: deviceStore.getNodeIcon(node?.kind),
+        kind: node.kind,
+        image: deviceStore.getNodeIcon(node),
       },
-      position: meta?.position ?? {x: 0, y: 0},
+      position: position,
       classes: 'topology-node',
     });
   }
@@ -226,17 +234,6 @@ export function generateGraph(
         targetLabel: connection.targetInterface,
       },
       classes: 'edge',
-    });
-  }
-  for (const utilityNodes of topology.metaData.utilityNodes) {
-    elements.push({
-      data: {
-        id: utilityNodes.id,
-        parent: utilityNodes.parent,
-        label: utilityNodes.label,
-      },
-      position: utilityNodes.position,
-      classes: utilityNodes.class,
     });
   }
   return elements;
@@ -257,6 +254,40 @@ export const SBTooltipOptions: TooltipOptions = {
   showOnDisabled: true,
 };
 
+const CANVAS_WIDTH = 5000;
+const CANVAS_HEIGHT = 3000;
+const LATITUDE_RANGE = 1.0;
+const LONGITUDE_RANGE = 1.0;
+const DEFAULT_AVERAGE_LAT = 48.6848;
+const DEFAULT_AVERAGE_LNG = 9.0078;
+
+export function convertXYToLatLng(
+  x: number,
+  y: number
+): {lat: number; lng: number} {
+  const lat = DEFAULT_AVERAGE_LAT - (y / CANVAS_HEIGHT) * LATITUDE_RANGE;
+  const lng = DEFAULT_AVERAGE_LNG + (x / CANVAS_WIDTH) * LONGITUDE_RANGE;
+  return {lat: Number(lat.toFixed(15)), lng: Number(lng.toFixed(15))};
+}
+
+export function convertLatLngToXY(
+  lat: number,
+  lng: number
+): {x: number; y: number} {
+  const y = (DEFAULT_AVERAGE_LAT - lat) * (CANVAS_HEIGHT / LATITUDE_RANGE);
+  const x = (lng - DEFAULT_AVERAGE_LNG) * (CANVAS_WIDTH / LONGITUDE_RANGE);
+  return {x: Number(x.toFixed(2)), y: Number(y.toFixed(2))};
+}
+
 export function conditional<T>(condition: boolean, onTrue: T, onFalse: T) {
   return condition ? onTrue : onFalse;
+}
+
+export function isValidURL(url: string) {
+  try {
+    new URL(url);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
