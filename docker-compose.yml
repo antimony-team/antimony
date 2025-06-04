@@ -1,6 +1,25 @@
 name: antimony
 
 services:
+  database:
+    container_name: database
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD_SB=antimony
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - ./.db:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d/
+    ports:
+      - "5432:5432"
   router:
     image: nginx:alpine
     ports:
@@ -23,6 +42,7 @@ services:
     environment:
       - SB_NATIVE_USERNAME=admin
       - SB_NATIVE_PASSWORD=admin
+      - SB_DATABASE_PASSWORD=password123
     privileged: true
     command: -sqlite=true -config=./config.yml
     volumes:
