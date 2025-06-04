@@ -101,11 +101,10 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       const result = await topologyStore.update(
         props.dialogState.state.editingTopology!.id,
         {
-          metadata: '',
           definition: TopologyManager.serializeTopology(
             props.dialogState.state.editingTopology!.definition
           ),
-          gitSourceUrl: props.dialogState.state.editingTopology!.gitSourceUrl,
+          syncUrl: props.dialogState.state.editingTopology!.syncUrl,
           collectionId: editingTopology.collectionId,
         }
       );
@@ -131,8 +130,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           name: editingTopology.name,
           topology: {nodes: {}},
         }),
-        metadata: '',
-        gitSourceUrl: '',
+        syncUrl: '',
       };
       topologyStore.add<string>(newTopology).then(result => {
         if (result.isErr()) {

@@ -5,7 +5,6 @@ import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {Message} from 'primereact/message';
 import {Password} from 'primereact/password';
-import {Checkbox} from 'primereact/checkbox';
 import {InputText} from 'primereact/inputtext';
 import {loadLinksPreset} from '@tsparticles/preset-links';
 import Particles, {initParticlesEngine} from '@tsparticles/react';
@@ -15,29 +14,11 @@ import {useDataBinder} from '@sb/lib/stores/root-store';
 import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
 
 import './sb-login.sass';
-import {useSearchParams} from 'react-router';
 
 const SBLogin = observer(() => {
   const [particlesReady, setParticlesReady] = useState(false);
 
   const dataBinder = useDataBinder();
-  const [searchParams] = useSearchParams();
-
-  // useEffect(() => {
-  //   if (searchParams.has('authToken')) {
-  //     const token = searchParams.get('authToken');
-  //     console.log('RECEIVED TOKEN: ', token);
-  //
-  //     if ('setupConnection' in dataBinder) {
-  //       (dataBinder as unknown as DataBinder).setupConnection(
-  //         token!,
-  //         true
-  //       );
-  //
-  //       Cookies.set('authToken', token!);
-  //     }
-  //   }
-  // }, [searchParams]);
 
   useEffect(() => {
     void initParticlesEngine(async engine => {
@@ -47,7 +28,6 @@ const SBLogin = observer(() => {
 
   const LoginForm = () => {
     const [loginError, setLoginError] = useState<string | null>(null);
-    const [checkedRemember, setCheckedRemember] = useState(false);
 
     const [usernameValue, setUsernameValue] = useState<string>('');
     const [passwordValue, setPasswordValue] = useState<string>('');
@@ -60,13 +40,10 @@ const SBLogin = observer(() => {
       };
 
       dataBinder
-        .login(
-          {
-            username: target.username.value,
-            password: target.password.value,
-          },
-          checkedRemember
-        )
+        .loginNative({
+          username: target.username.value,
+          password: target.password.value,
+        })
         .then(response => {
           if (!response) {
             setLoginError('Invalid username or password');
@@ -98,51 +75,42 @@ const SBLogin = observer(() => {
         <If condition={loginError}>
           <Message severity="error" text={loginError} />
         </If>
-        <div className="p-inputgroup">
-          <span className="p-inputgroup-addon">
-            <i className="pi pi-user"></i>
-          </span>
-          <InputText
-            autoComplete="username"
-            invalid={loginError !== null}
-            value={usernameValue}
-            onChange={onUsernameChange}
-            name="username"
-            placeholder="Username"
-          />
-        </div>
-        <div className="p-inputgroup">
-          <span className="p-inputgroup-addon">
-            <i className="pi pi-lock"></i>
-          </span>
-          <Password
-            autoComplete="current-password"
-            invalid={loginError !== null}
-            value={passwordValue}
-            onChange={onPasswordChange}
-            feedback={false}
-            name="password"
-            placeholder="Password"
-          />
-        </div>
-        <div className="sb-login-remember">
-          <div className="flex align-items-center">
-            <Checkbox
-              inputId="login-remember-me"
-              checked={checkedRemember}
-              onChange={e => setCheckedRemember(e.checked ?? false)}
-            />
-            <label htmlFor="login-remember-me" className="ml-2">
-              Remember me
-            </label>
-          </div>
-        </div>
 
-        <Button label="LOGIN" type="submit" />
+        <If condition={dataBinder.hasNativeEnabled}>
+          <div className="p-inputgroup">
+            <span className="p-inputgroup-addon">
+              <i className="pi pi-user"></i>
+            </span>
+            <InputText
+              autoComplete="username"
+              invalid={loginError !== null}
+              value={usernameValue}
+              onChange={onUsernameChange}
+              name="username"
+              placeholder="Username"
+            />
+          </div>
+          <div className="p-inputgroup">
+            <span className="p-inputgroup-addon">
+              <i className="pi pi-lock"></i>
+            </span>
+            <Password
+              autoComplete="current-password"
+              invalid={loginError !== null}
+              value={passwordValue}
+              onChange={onPasswordChange}
+              feedback={false}
+              name="password"
+              placeholder="Password"
+            />
+          </div>
+          <Button className="login-button" label="LOGIN" type="submit" />
+        </If>
 
         <If condition={dataBinder.hasOidcEnabled}>
           <Button
             label="Login with OpenID Connect"
+            icon="pi pi-external-link"
             type="button"
             onClick={loginWithOIDC}
           />
@@ -156,7 +124,7 @@ const SBLogin = observer(() => {
   };
 
   /*
-   * Unfortunately we need to separate the login form from the particles to
+   * Unfortunately, we need to separate the login form from the particles to
    * prevent restarting the simulation every time.
    * https://github.com/Wufe/react-particles-js/issues/43
    */

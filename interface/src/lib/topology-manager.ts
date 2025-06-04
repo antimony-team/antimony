@@ -6,14 +6,13 @@ import {Binding} from '@sb/lib/utils/binding';
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {
   NodeConnection,
-  nodeData,
   Topology,
   TopologyDefinition,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
 import {cloneDeep, isEqual} from 'lodash-es';
-import {isMap, Scalar, YAMLMap, YAMLSeq} from 'yaml';
+import {isMap, YAMLMap, YAMLSeq} from 'yaml';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -60,7 +59,6 @@ export class TopologyManager {
     // Bind these functions to the class so they can be called from the view directly
     this.clear = this.clear.bind(this);
     this.save = this.save.bind(this);
-    this.writePositions = this.writePositions.bind(this);
   }
 
   public get editingTopologyId(): string | null {
@@ -79,11 +77,7 @@ export class TopologyManager {
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition
       ),
-      metadata: JSON.stringify({
-        nodeData: Object.fromEntries(this.editingTopology.metaData.nodeData), // ← Fix here
-        utilityNodes: this.editingTopology.metaData.utilityNodes,
-      }),
-      gitSourceUrl: this.editingTopology.gitSourceUrl,
+      syncUrl: this.editingTopology.syncUrl,
     });
 
     if (result.isOk()) {
@@ -102,6 +96,12 @@ export class TopologyManager {
     return result;
   }
 
+  public updateSyncUrl(url: string) {
+    if (!this.editingTopology) return;
+
+    this.editingTopology.syncUrl = url;
+  }
+
   public updateNodeLabels(
     labelMap: Map<string, Record<string, string | number>>
   ) {
@@ -110,23 +110,17 @@ export class TopologyManager {
     const updatedTopology = this.editingTopology.definition.clone();
     const nodeMap = updatedTopology.getIn(['topology', 'nodes']) as YAMLMap;
 
-    for (const [nodeId, newLabels] of labelMap.entries()) {
+    for (const [nodeId, nodeLabels] of labelMap.entries()) {
       const yamlNode = nodeMap.get(nodeId);
       if (!isMap(yamlNode)) continue;
 
-      const existing = yamlNode.get('labels');
-      const existingLabels = (
-        isMap(existing) ? existing.toJS(updatedTopology) : existing || {}
-      ) as Record<string, string | number>;
-
-      if (
-        existingLabels['graph-icon'] !== undefined &&
-        newLabels['graph-icon'] === undefined
-      ) {
-        newLabels['graph-icon'] = existingLabels['graph-icon'];
+      for (const [labelKey, labelValue] of Object.entries(nodeLabels)) {
+        if (labelValue === null) {
+          yamlNode.deleteIn(['labels', labelKey]);
+        } else {
+          yamlNode.setIn(['labels', labelKey], labelValue);
+        }
       }
-
-      yamlNode.set('labels', newLabels);
     }
 
     this.apply(updatedTopology, TopologyEditSource.NodeEditor);
@@ -194,10 +188,6 @@ export class TopologyManager {
    */
   public clear() {
     if (!this.editingTopology) return;
-    this.editingTopology.metaData = {
-      nodeData: new Map<string, nodeData>(),
-      utilityNodes: [],
-    };
     const updatedTopology = {
       name: this.editingTopology.definition.toJS().name,
       topology: {
@@ -270,44 +260,6 @@ export class TopologyManager {
     );
   }
 
-  /**
-   * Writes the positions from the position map to the topology definition.
-   */
-  public writePositions() {
-    if (!this.editingTopology) return;
-
-    const yamlNodes = this.editingTopology.definition.getIn([
-      'topology',
-      'nodes',
-    ]) as YAMLMap;
-
-    const nodeKeys = Object.keys(
-      yamlNodes.toJS(this.editingTopology.definition)
-    );
-    if (nodeKeys.length === 0) return;
-
-    /*
-     * We need to write the first comment differently as it belongs to the node
-     * list and not to the actual node.
-     */
-    if (this.editingTopology.positions.has(nodeKeys[0])) {
-      yamlNodes.commentBefore = TopologyManager.writePosition(
-        this.editingTopology.positions.get(nodeKeys[0])!
-      );
-    }
-
-    for (let i = 1; i < yamlNodes.items.length; i++) {
-      if (!this.editingTopology.positions.has(nodeKeys[i])) continue;
-
-      const key = yamlNodes.items[i].key as Scalar;
-      key.commentBefore = TopologyManager.writePosition(
-        this.editingTopology.positions.get(nodeKeys[i])!
-      );
-    }
-
-    this.apply(this.editingTopology.definition, TopologyEditSource.System);
-  }
-
   public get topology() {
     return this.editingTopology;
   }
@@ -349,33 +301,8 @@ export class TopologyManager {
   }
 
   public buildTopologyMetadata(topology: YAMLDocument<TopologyDefinition>) {
-    const positions = new Map<string, Position>();
-    const nodes = topology.getIn(['topology', 'nodes']) as YAMLMap;
-    if (!nodes) {
-      topology.setIn(['topology', 'nodes'], {});
-    } else if (nodes.items.length > 0) {
-      /*
-       * We need to parse the first comment differently as it belongs to the
-       * node list and not to the actual node.
-       */
-      if (nodes.commentBefore) {
-        const parsed = TopologyManager.readPosition(nodes.commentBefore);
-        if (parsed) {
-          positions.set((nodes.items[0].key as Scalar).value as string, parsed);
-        }
-      }
-      for (let i = 1; i < nodes.items.length; i++) {
-        const key = nodes.items[i].key as Scalar;
-        const parsed = TopologyManager.readPosition(key.commentBefore);
-        if (parsed) {
-          positions.set(key.value as string, parsed);
-        }
-      }
-    }
-
     if (!topology.hasIn(['topology', 'links'])) {
       return {
-        positions,
         connections: [],
         connectionMap: new Map<string, NodeConnection[]>(),
       };
@@ -460,7 +387,7 @@ export class TopologyManager {
       index++;
     }
 
-    return {positions, connections, connectionMap};
+    return {connections, connectionMap};
   }
 
   /**
@@ -553,13 +480,11 @@ export class TopologyManager {
         id: topology.creator.id,
         name: topology.creator.name,
       },
-      metaData: cloneDeep(topology.metaData),
-      positions: cloneDeep(topology.positions),
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),
       definitionString: topology.definitionString,
-      gitSourceUrl: topology.gitSourceUrl,
+      syncUrl: topology.syncUrl,
       bindFiles: cloneDeep(topology.bindFiles),
       lastDeployFailed: topology.lastDeployFailed,
     };

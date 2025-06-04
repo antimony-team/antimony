@@ -3,9 +3,8 @@ import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {FetchState, IconMap} from '@sb/types/types';
+import {FetchState} from '@sb/types/types';
 import {Topology} from '@sb/types/domain/topology';
-import {Scalar, YAMLMap} from 'yaml';
 
 export async function fetchResource<T>(
   path: string,
@@ -160,12 +159,7 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
   }
 }
 
-function addedGroup(
-  groupName: string,
-  graphLevel: number
-): ElementDefinition[] {
-  const groupId = groupName + graphLevel.toString();
-
+function addedGroup(groupId: string, groupName: string): ElementDefinition[] {
   return [
     {
       group: 'nodes',
@@ -204,16 +198,17 @@ export function generateGraph(
       isNaN(lat) || isNaN(lng) ? {x: 0, y: 0} : convertLatLngToXY(lat, lng);
     let parentId: string | undefined = undefined;
 
-    if (group && level !== undefined) {
-      const groupId = group + level.toString();
+    if (group !== undefined) {
+      const groupId = level !== undefined ? `${group}:${level}` : group;
 
       if (!addedGroups.has(groupId)) {
-        elements.push(...addedGroup(group, Number(level)));
+        elements.push(...addedGroup(groupId, group));
         addedGroups.add(groupId);
       }
 
       parentId = groupId;
     }
+
     elements.push({
       data: {
         id: nodeName,
@@ -283,6 +278,16 @@ export function convertLatLngToXY(
   const x = (lng - DEFAULT_AVERAGE_LNG) * (CANVAS_WIDTH / LONGITUDE_RANGE);
   return {x: Number(x.toFixed(2)), y: Number(y.toFixed(2))};
 }
+
 export function conditional<T>(condition: boolean, onTrue: T, onFalse: T) {
   return condition ? onTrue : onFalse;
+}
+
+export function isValidURL(url: string) {
+  try {
+    new URL(url);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }

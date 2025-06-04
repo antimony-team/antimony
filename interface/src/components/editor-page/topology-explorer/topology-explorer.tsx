@@ -421,7 +421,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     const topology = topologyStore.lookup.get(topologyId)!;
     const result = await topologyStore.update(topology.id, {
       ...topology,
-      metadata: '',
       collectionId: collectionId,
       definition: TopologyManager.serializeTopology(topology.definition),
     });
