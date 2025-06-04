@@ -51,10 +51,6 @@ const SBLogin = observer(() => {
         });
     }
 
-    function loginWithOIDC() {
-      window.location.replace('http://localhost:8080/api/users/login/openid');
-    }
-
     function onUsernameChange(event: ChangeEvent<HTMLInputElement>) {
       setLoginError(null);
       setUsernameValue(event.target.value);
@@ -112,7 +108,7 @@ const SBLogin = observer(() => {
             label="Login with OpenID Connect"
             icon="pi pi-external-link"
             type="button"
-            onClick={loginWithOIDC}
+            onClick={() => dataBinder.loginWithOpenId()}
           />
         </If>
 

@@ -296,6 +296,10 @@ export class DataBinder {
     }
   }
 
+  public loginWithOpenId() {
+    window.location.replace(this.apiUrl + '/users/login/openid');
+  }
+
   public async loginNative(credentials: UserCredentials): Promise<boolean> {
     const tokenResponse = await this.post<UserCredentials, AuthResponse>(
       '/users/login/native',
