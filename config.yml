@@ -19,7 +19,7 @@ auth:
   openIdAdminGroups: []
 database:
   # Default: 127.0.0.1
-  host: 127.0.0.1
+  host: database
   # Default: 5432
   port: 5432
   # Default: antimony

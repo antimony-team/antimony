@@ -25,8 +25,6 @@ services:
       # Self-signed fallback
       - "--entrypoints.websecure.forwardedHeaders.insecure=true"
       - "--serversTransport.insecureSkipVerify=true"
-
-
     ports:
       - "80:80"
       - "443:443"
@@ -48,7 +46,7 @@ services:
     shm_size: 128mb
     environment:
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_PASSWORD_SB=antimony
+      - SB_DATABASE_PASSWORD=antimony
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
@@ -70,7 +68,7 @@ services:
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.routers.frontend.service=frontend"
-      # - "traefik.http.routers.frontend.tls.domains[0].main=example.com"
+      # - "traefik.http.routers.frontend.tls.domains[0].main=example.com
       - "traefik.http.services.frontend.loadbalancer.server.port=8100"
 
   backend:
@@ -79,15 +77,17 @@ services:
     environment:
       - SB_NATIVE_USERNAME=admin
       - SB_NATIVE_PASSWORD=admin
-      - SB_DATABASE_PASSWORD=password123
+      - SB_DATABASE_PASSWORD=antimony
     privileged: true
-    command: -sqlite=true -config=./config.yml
+    command: -config=./config.yml
     volumes:
       - ./config.yml:/app/config.yml
       - ./mnt/db:/app/db
       - ./mnt/storage:/app/storage/
       - ./mnt/run:/app/run/
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+     - database
     labels:
       # Backend /socket.io route
       - "traefik.enable=true"
