@@ -149,6 +149,7 @@ export class DataBinder {
           auth: {
             token: this.accessToken,
           },
+          transports: ['websocket'],
         });
       } catch (_) {
         subscription.socket?.close();
@@ -170,6 +171,7 @@ export class DataBinder {
     });
 
     subscription.socket.on('connect_error', e => {
+      console.log('Socket Error:', e);
       if (e.message === 'Invalid Token') {
         this.refreshToken().then(result => {
           if (result.isOk()) {

@@ -18,11 +18,11 @@ FROM node:22-alpine
 
 WORKDIR /app
 COPY --from=build /build ./build
-COPY run/start.js ./start.js
-COPY run/package.json ./package.json
+#COPY run/start.js ./start.js
+#COPY run/package.json ./package.json
 
-RUN yarn install
+RUN npm -g install serve
 
 EXPOSE 8100
 
-CMD ["yarn", "start"]
+CMD ["serve", "./build"]
