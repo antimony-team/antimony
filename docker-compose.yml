@@ -33,7 +33,6 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
-      - "./certs:/certs"
 
     depends_on:
      - backend
@@ -70,6 +69,7 @@ services:
       - "traefik.http.routers.frontend.service=frontend"
       # - "traefik.http.routers.frontend.tls.domains[0].main=example.com
       - "traefik.http.services.frontend.loadbalancer.server.port=8100"
+      - "traefik.http.services.backend-socket.loadbalancer.server.scheme=http"
 
   backend:
     container_name: backend
