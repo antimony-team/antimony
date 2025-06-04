@@ -2,6 +2,7 @@ package schema
 
 import (
 	"antimonyBackend/utils"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,11 +22,17 @@ func CreateHandler(schemaService Service) Handler {
 	}
 }
 
-//	@Summary	Returns the JSON schema to validate topology definitions
-//	@Produce	json
-//	@Tags		schema
-//	@Success	200	{object}	utils.OkResponse[any]	"The schema as JSON string"
-//	@Router		/schema [get]
+// @Summary	Returns the JSON schema to validate topology definitions
+// @Produce	json
+// @Tags		schema
+// @Success	200	{object}	utils.OkResponse[any]	"The schema as JSON object"
+// @Router		/schema [get]
 func (h *schemaHandler) Get(ctx *gin.Context) {
-	ctx.JSON(utils.CreateOkResponse(h.schemaService.Get()))
+	var schemaObj any
+	if err := json.Unmarshal([]byte(h.schemaService.Get()), &schemaObj); err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.CreateOkResponse(schemaObj))
 }

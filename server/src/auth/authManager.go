@@ -121,7 +121,7 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 	if isOpenIdEnabled {
 		provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
 		if err != nil {
-			log.Errorf("Failed to connect to OpenID provider: %s", err.Error())
+			log.Fatalf("Failed to connect to OpenID provider: %s", err.Error())
 		} else {
 			authManager.provider = *provider
 			authManager.oauth2Config = oauth2.Config{
