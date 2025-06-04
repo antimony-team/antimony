@@ -32,11 +32,12 @@ type (
 	}
 
 	AuthConfig struct {
-		EnableNative      bool     `yaml:"enableNative"`
-		EnableOpenId      bool     `yaml:"enableOpenId"`
-		OpenIdIssuer      string   `yaml:"openIdIssuer"`
-		OpenIdClientId    string   `yaml:"openIdClientId"`
-		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
+		EnableNative       bool     `yaml:"enableNative"`
+		EnableOpenId       bool     `yaml:"enableOpenId"`
+		OpenIdIssuer       string   `yaml:"openIdIssuer"`
+		OpenIdClientId     string   `yaml:"openIdClientId"`
+		OpenIdRedirectHost string   `yaml:"openIdRedirectHost"`
+		OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
 	}
 
 	DatabaseConfig struct {
@@ -88,11 +89,12 @@ func defaultConfig() *AntimonyConfig {
 			DeviceConfig:   "./data/device-config.json",
 		},
 		Auth: AuthConfig{
-			EnableNative:      true,
-			EnableOpenId:      false,
-			OpenIdIssuer:      "",
-			OpenIdClientId:    "",
-			OpenIdAdminGroups: make([]string, 0),
+			EnableNative:       true,
+			EnableOpenId:       false,
+			OpenIdIssuer:       "",
+			OpenIdClientId:     "",
+			OpenIdRedirectHost: "",
+			OpenIdAdminGroups:  make([]string, 0),
 		},
 	}
 }

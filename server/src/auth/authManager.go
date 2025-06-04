@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"os"
 	"slices"
 	"time"
@@ -126,7 +127,7 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 			authManager.oauth2Config = oauth2.Config{
 				ClientID:     config.Auth.OpenIdClientId,
 				ClientSecret: authManager.oidcSecret,
-				RedirectURL:  "http://localhost:3000/users/login/success",
+				RedirectURL:  fmt.Sprintf("%s/users/login/success", config.Auth.OpenIdRedirectHost),
 				Endpoint:     provider.Endpoint(),
 				Scopes:       []string{oidc.ScopeOpenID},
 			}
