@@ -42,8 +42,6 @@ func CreateService(
 	storageManager storage.StorageManager,
 	clabSchema string,
 ) Service {
-	log.Infof("schema: %s", clabSchema)
-
 	compiler := jsonschema.NewCompiler()
 	if err := compiler.AddResource("clab-schema.json", strings.NewReader(clabSchema)); err != nil {
 		panic(err)

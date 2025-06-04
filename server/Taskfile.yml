@@ -12,7 +12,7 @@ tasks:
   build:
     dir: './src'
     cmds:
-      - swag init
+      - go tool swag init
       - go build -o ../build/antimony-server ./main.go
       - cp -r ../data/ ../build/
       - cp -r ../test/config.test.yml ../build/config.yml
@@ -53,4 +53,4 @@ tasks:
   swagger-docs:
     dir: './src'
     cmds:
-      - swag fmt
+      - go tool swag fmt
