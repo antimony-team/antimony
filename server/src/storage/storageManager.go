@@ -15,8 +15,6 @@ type (
 	StorageManager interface {
 		ReadTopology(topologyId string, content *string) error
 		WriteTopology(topologyId string, content string) error
-		ReadMetadata(topologyId string, content *string) error
-		WriteMetadata(topologyId string, content string) error
 		ReadBindFile(topologyId string, filePath string, content *string) error
 		WriteBindFile(topologyId string, filePath string, content string) error
 		DeleteBindFile(topologyId string, filePath string) error
@@ -82,14 +80,6 @@ func (s *storageManager) ReadTopology(topologyId string, content *string) error 
 
 func (s *storageManager) WriteTopology(topologyId string, content string) error {
 	return s.writeStorage(getDefinitionFilePath(topologyId), content)
-}
-
-func (s *storageManager) ReadMetadata(topologyId string, content *string) error {
-	return s.readStorage(getMetadataFilePath(topologyId), content)
-}
-
-func (s *storageManager) WriteMetadata(topologyId string, content string) error {
-	return s.writeStorage(getMetadataFilePath(topologyId), content)
 }
 
 func (s *storageManager) ReadBindFile(topologyId string, filePath string, content *string) error {
@@ -211,10 +201,6 @@ func getDefinitionFilePath(topologyId string) string {
 
 func getRunDefinitionFilePath(labId string) string {
 	return filepath.Join(labId, "topology.clab.yaml")
-}
-
-func getMetadataFilePath(topologyId string) string {
-	return fmt.Sprintf("%s/topology.meta", topologyId)
 }
 
 func getBindFilePath(topologyId string, filePath string) string {

@@ -8,38 +8,38 @@ import (
 
 type (
 	AntimonyConfig struct {
-		Containerlab clabConfig       `yaml:"containerlab"`
-		FileSystem   filesystemConfig `yaml:"fileSystem"`
-		Server       serverConfig     `yaml:"server"`
-		Database     databaseConfig   `yaml:"database"`
-		Auth         authConfig       `yaml:"auth"`
+		Containerlab ClabConfig       `yaml:"containerlab"`
+		FileSystem   FilesystemConfig `yaml:"fileSystem"`
+		Server       ServerConfig     `yaml:"server"`
+		Database     DatabaseConfig   `yaml:"database"`
+		Auth         AuthConfig       `yaml:"auth"`
 	}
 
-	clabConfig struct {
+	ClabConfig struct {
 		SchemaUrl      string `yaml:"schemaUrl"`
 		SchemaFallback string `yaml:"schemaFallback"`
 		DeviceConfig   string `yaml:"deviceConfig"`
 	}
 
-	filesystemConfig struct {
+	FilesystemConfig struct {
 		Storage string `yaml:"storage"`
 		Run     string `yaml:"run"`
 	}
 
-	serverConfig struct {
+	ServerConfig struct {
 		Host string `yaml:"host"`
 		Port uint   `yaml:"port"`
 	}
 
-	authConfig struct {
+	AuthConfig struct {
 		EnableNative      bool     `yaml:"enableNative"`
-		EnableOpenId      bool     `yaml:"EnableOpenId"`
+		EnableOpenId      bool     `yaml:"enableOpenId"`
 		OpenIdIssuer      string   `yaml:"openIdIssuer"`
 		OpenIdClientId    string   `yaml:"openIdClientId"`
 		OpenIdAdminGroups []string `yaml:"openIdAdminGroups"`
 	}
 
-	databaseConfig struct {
+	DatabaseConfig struct {
 		Host      string `yaml:"host"`
 		User      string `yaml:"user"`
 		Database  string `yaml:"database"`
@@ -67,27 +67,27 @@ func Load(fileName string) *AntimonyConfig {
 
 func defaultConfig() *AntimonyConfig {
 	return &AntimonyConfig{
-		FileSystem: filesystemConfig{
+		FileSystem: FilesystemConfig{
 			Storage: "./storage/",
 			Run:     "./run/",
 		},
-		Server: serverConfig{
+		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,
 		},
-		Database: databaseConfig{
+		Database: DatabaseConfig{
 			Host:      "127.0.0.1",
 			User:      "antimony",
 			Database:  "antimony",
 			Port:      5432,
 			LocalFile: "./test.db",
 		},
-		Containerlab: clabConfig{
+		Containerlab: ClabConfig{
 			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
 			SchemaFallback: "./data/clab.schema.json",
 			DeviceConfig:   "./data/device-config.json",
 		},
-		Auth: authConfig{
+		Auth: AuthConfig{
 			EnableNative:      true,
 			EnableOpenId:      false,
 			OpenIdIssuer:      "",

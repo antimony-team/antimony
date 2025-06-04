@@ -8,16 +8,17 @@ import (
 	"antimonyBackend/utils"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
-	"github.com/xeipuuv/gojsonschema"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
 	"slices"
+	"strings"
 )
 
 type (
 	Service interface {
 		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error)
 		Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error)
-		Update(ctx *gin.Context, req TopologyIn, topologyId string, authUser auth.AuthenticatedUser) error
+		Update(ctx *gin.Context, req TopologyInPartial, topologyId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
 
 		CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error)
@@ -30,7 +31,7 @@ type (
 		userRepo       user.Repository
 		collectionRepo collection.Repository
 		storageManager storage.StorageManager
-		schemaLoader   gojsonschema.JSONLoader
+		schemaLoader   *jsonschema.Schema
 	}
 )
 
@@ -39,14 +40,23 @@ func CreateService(
 	userRepo user.Repository,
 	collectionRepo collection.Repository,
 	storageManager storage.StorageManager,
-	clabSchema any,
+	clabSchema string,
 ) Service {
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("clab-schema.json", strings.NewReader(clabSchema)); err != nil {
+		panic(err)
+	}
+	schema, err := compiler.Compile("clab-schema.json")
+	if err != nil {
+		panic(err)
+	}
+
 	return &topologyService{
 		topologyRepo:   topologyRepo,
 		userRepo:       userRepo,
 		collectionRepo: collectionRepo,
 		storageManager: storageManager,
-		schemaLoader:   gojsonschema.NewGoLoader(clabSchema),
+		schemaLoader:   schema,
 	}
 }
 
@@ -64,12 +74,10 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 	if err != nil {
 		return nil, err
 	}
-
 	result := make([]TopologyOut, 0)
 	for _, topology := range topologies {
 		var (
 			definition   string
-			metadata     string
 			bindFilesOut []BindFileOut
 			err          error
 		)
@@ -80,7 +88,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			continue
 		}
 
-		if definition, metadata, bindFilesOut, err = s.loadTopology(topology.UUID, *bindFiles); err != nil {
+		if definition, bindFilesOut, err = s.loadTopology(topology.UUID, *bindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}
@@ -88,8 +96,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 		result = append(result, TopologyOut{
 			ID:               topology.UUID,
 			Definition:       definition,
-			Metadata:         metadata,
-			GitSourceUrl:     topology.GitSourceUrl,
+			SyncUrl:          topology.SyncUrl,
 			CollectionId:     topology.Collection.UUID,
 			Creator:          s.userRepo.UserToOut(topology.Creator),
 			BindFiles:        bindFilesOut,
@@ -101,7 +108,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 }
 
 func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error) {
-	topologyCollection, err := s.collectionRepo.GetByUuid(ctx, req.CollectionId)
+	topologyCollection, err := s.collectionRepo.GetByUuid(ctx, *req.CollectionId)
 	if err != nil {
 		return "", err
 	}
@@ -111,23 +118,20 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 		return "", utils.ErrorNoWriteAccessToCollection
 	}
 
-	if err := s.validateTopology(req.Definition); err != nil {
-		return "", err
-	}
-	if err := s.validateMetadata(req.Metadata); err != nil {
+	if err := s.validateTopology(*req.Definition); err != nil {
 		return "", err
 	}
 
 	// Don't allow duplicate topology names within the same collection
-	topologyName := s.getNameFromDefinition(req.Definition)
-	if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, req.CollectionId); err != nil {
+	topologyName := s.getNameFromDefinition(*req.Definition)
+	if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, *req.CollectionId); err != nil {
 		return "", err
 	} else if len(topologies) > 0 {
 		return "", utils.ErrorTopologyExists
 	}
 
 	newUuid := utils.GenerateUuid()
-	if err := s.saveTopology(newUuid, req.Definition, req.Metadata); err != nil {
+	if err := s.saveTopology(newUuid, *req.Definition); err != nil {
 		return "", err
 	}
 
@@ -139,7 +143,7 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	err = s.topologyRepo.Create(ctx, &Topology{
 		UUID:             newUuid,
 		Name:             topologyName,
-		GitSourceUrl:     req.GitSourceUrl,
+		SyncUrl:          *req.SyncUrl,
 		Collection:       *topologyCollection,
 		Creator:          *creatorUser,
 		LastDeployFailed: false,
@@ -148,7 +152,7 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	return newUuid, err
 }
 
-func (s *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId string, authUser auth.AuthenticatedUser) error {
+func (s *topologyService) Update(ctx *gin.Context, req TopologyInPartial, topologyId string, authUser auth.AuthenticatedUser) error {
 	topology, err := s.topologyRepo.GetByUuid(ctx, topologyId)
 	if err != nil {
 		return err
@@ -159,39 +163,57 @@ func (s *topologyService) Update(ctx *gin.Context, req TopologyIn, topologyId st
 		return utils.ErrorNoWriteAccessToTopology
 	}
 
-	topologyCollection, err := s.collectionRepo.GetByUuid(ctx, req.CollectionId)
-	if err != nil {
-		return err
-	}
-
-	// Deny request if user does not have access to target collection
-	if !authUser.IsAdmin && (!topologyCollection.PublicWrite && !slices.Contains(authUser.Collections, req.CollectionId)) {
+	// Deny request if user does not have access to topology's collection
+	if !authUser.IsAdmin && (!topology.Collection.PublicWrite && !slices.Contains(authUser.Collections, topology.Collection.UUID)) {
 		return utils.ErrorNoWriteAccessToCollection
 	}
 
-	if err := s.validateTopology(req.Definition); err != nil {
-		return err
+	topologyCollection := topology.Collection
+	topologyName := topology.Name
+
+	if req.CollectionId != nil {
+		newCollection, err := s.collectionRepo.GetByUuid(ctx, *req.CollectionId)
+		if err != nil {
+			return err
+		}
+
+		// Deny change of collection if user does not have access to the new collection
+		if !authUser.IsAdmin && (!newCollection.PublicWrite && !slices.Contains(authUser.Collections, *req.CollectionId)) {
+			return utils.ErrorNoWriteAccessToCollection
+		}
+
+		topologyCollection = *newCollection
 	}
-	if err := s.validateMetadata(req.Metadata); err != nil {
-		return err
+
+	if req.Definition != nil {
+		if err := s.validateTopology(*req.Definition); err != nil {
+			return err
+		}
+
+		topologyName = s.getNameFromDefinition(*req.Definition)
 	}
 
 	// Don't allow duplicate topology names within the same collection
-	if topologyName := s.getNameFromDefinition(req.Definition); topologyName != topology.Name {
-		if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, req.CollectionId); err != nil {
+	if topologyName != topology.Name {
+		if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, topologyCollection.UUID); err != nil {
 			return err
 		} else if len(topologies) > 0 {
 			return utils.ErrorTopologyExists
 		}
 	}
 
-	if err := s.saveTopology(topology.UUID, req.Definition, req.Metadata); err != nil {
-		return err
+	if req.Definition != nil {
+		if err := s.saveTopology(topology.UUID, *req.Definition); err != nil {
+			return err
+		}
 	}
 
-	topology.Name = s.getNameFromDefinition(req.Definition)
-	topology.GitSourceUrl = req.GitSourceUrl
-	topology.Collection = *topologyCollection
+	topology.Name = topologyName
+	topology.Collection = topologyCollection
+
+	if req.SyncUrl != nil {
+		topology.SyncUrl = *req.SyncUrl
+	}
 
 	return s.topologyRepo.Update(ctx, topology)
 }
@@ -213,47 +235,32 @@ func (s *topologyService) Delete(ctx *gin.Context, topologyId string, authUser a
 func (s *topologyService) validateTopology(definition string) error {
 	var definitionObj any
 
-	if err := yaml.Unmarshal(([]byte)(definition), &definitionObj); err != nil {
-		return err
+	if err := yaml.Unmarshal([]byte(definition), &definitionObj); err != nil {
+		return utils.ErrorInvalidTopology
 	}
 
-	if _, err := gojsonschema.Validate(s.schemaLoader, gojsonschema.NewGoLoader(definitionObj)); err != nil {
+	if err := s.schemaLoader.Validate(definitionObj); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *topologyService) validateMetadata(metadata string) error {
-	// TODO: Implement
-	return nil
-}
-
-func (s *topologyService) saveTopology(topologyId string, definition string, metadata string) error {
+func (s *topologyService) saveTopology(topologyId string, definition string) error {
 	if err := s.storageManager.WriteTopology(topologyId, definition); err != nil {
 		log.Errorf("Failed to write topology definition for %s: %s", topologyId, err.Error())
 		return err
 	}
 
-	if err := s.storageManager.WriteMetadata(topologyId, metadata); err != nil {
-		log.Errorf("Failed to write typology metadata for %s: %s", topologyId, err.Error())
-		return err
-	}
-
 	return nil
 }
 
-func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) (string, string, []BindFileOut, error) {
-	var definition, metadata string
+func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error) {
+	var definition string
 
 	if err := s.storageManager.ReadTopology(topologyId, &definition); err != nil {
 		log.Errorf("Failed to read topology definition for %s: %s", topologyId, err.Error())
-		return "", "", nil, err
-	}
-
-	if err := s.storageManager.ReadMetadata(topologyId, &metadata); err != nil {
-		log.Errorf("Failed to read typology metadata for %s: %s", topologyId, err.Error())
-		return "", "", nil, err
+		return "", nil, err
 	}
 
 	bindFilesOut := make([]BindFileOut, 0)
@@ -261,12 +268,12 @@ func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) 
 		var fileContent string
 		if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
 			log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFile.FilePath, topologyId, err.Error())
-			return "", "", nil, err
+			return "", nil, err
 		}
 		bindFilesOut = append(bindFilesOut, s.topologyRepo.BindFileToOut(bindFile, fileContent))
 	}
 
-	return definition, metadata, bindFilesOut, nil
+	return definition, bindFilesOut, nil
 }
 
 func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error) {
@@ -281,7 +288,7 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	}
 
 	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID); err != nil {
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, ""); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrorBindFileExists
@@ -301,8 +308,8 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	return newUuid, err
 }
 
-func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileId string, authUser auth.AuthenticatedUser) error {
-	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileId)
+func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileUuid string, authUser auth.AuthenticatedUser) error {
+	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
 	if err != nil {
 		return err
 	}
@@ -318,7 +325,7 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindF
 	}
 
 	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID); err != nil {
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
 		return err
 	} else if nameExists {
 		return utils.ErrorBindFileExists

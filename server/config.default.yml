@@ -30,7 +30,7 @@ database:
   # Default: ./antimony.db
   localFile: ./db/antimony.db
 filesystem:
-  # Topology definition and metadata files will be stored in this directory.
+  # Topology definition files will be stored in this directory.
   # Default: ./storage/
   storage: ./storage/
   # Runtime lab files will be stored in this directory.

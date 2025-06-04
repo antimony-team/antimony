@@ -12,7 +12,8 @@ tasks:
   build:
     dir: './src'
     cmds:
-      - go build -o ../build/antimonyServer ./main.go
+      - go tool swag init
+      - go build -o ../build/antimony-server ./main.go
       - cp -r ../data/ ../build/
       - cp -r ../test/config.test.yml ../build/config.yml
 
@@ -20,7 +21,7 @@ tasks:
     dir: './build'
     cmds:
       - task: build
-      - sudo -E ./antimonyServer -config=../config.yml
+      - sudo -E ./antimony-server -config=./config.yml
     env:
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
@@ -52,4 +53,4 @@ tasks:
   swagger-docs:
     dir: './src'
     cmds:
-      - swag init -o ../docs/
+      - go tool swag fmt

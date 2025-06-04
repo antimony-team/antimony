@@ -104,14 +104,11 @@ const docTemplate = `{
             }
         },
         "/collections/{id}": {
-            "put": {
+            "delete": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -119,17 +116,8 @@ const docTemplate = `{
                 "tags": [
                     "collections"
                 ],
-                "summary": "Update an existing collection",
+                "summary": "Delete an existing collection",
                 "parameters": [
-                    {
-                        "description": "The collection with updated values",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/collection.CollectionIn"
-                        }
-                    },
                     {
                         "type": "string",
                         "description": "The ID of the collection to edit",
@@ -162,11 +150,14 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -174,8 +165,17 @@ const docTemplate = `{
                 "tags": [
                     "collections"
                 ],
-                "summary": "Delete an existing collection",
+                "summary": "Update an existing collection",
                 "parameters": [
+                    {
+                        "description": "A partial collection with updated values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/collection.CollectionInPartial"
+                        }
+                    },
                     {
                         "type": "string",
                         "description": "The ID of the collection to edit",
@@ -539,14 +539,11 @@ const docTemplate = `{
             }
         },
         "/topologies/{id}": {
-            "put": {
+            "delete": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -554,20 +551,11 @@ const docTemplate = `{
                 "tags": [
                     "topologies"
                 ],
-                "summary": "Update an existing topology",
+                "summary": "Delete an existing topology",
                 "parameters": [
                     {
-                        "description": "The topology with updated values",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/topology.TopologyIn"
-                        }
-                    },
-                    {
                         "type": "string",
-                        "description": "The ID of the topology to edit",
+                        "description": "The ID of the topology to delete",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -597,11 +585,14 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
                         "BasicAuth": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -609,11 +600,20 @@ const docTemplate = `{
                 "tags": [
                     "topologies"
                 ],
-                "summary": "Delete an existing topology",
+                "summary": "Update an existing topology",
                 "parameters": [
                     {
+                        "description": "The topology with updated values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/topology.TopologyIn"
+                        }
+                    },
+                    {
                         "type": "string",
-                        "description": "The ID of the topology to delete",
+                        "description": "The ID of the topology to edit",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -808,10 +808,168 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/login/config": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get the server's authentication config",
+                "responses": {
+                    "200": {
+                        "description": "The authentication config of the server",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/login/native": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Authenticate via native login",
+                "parameters": [
+                    {
+                        "description": "The native credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.CredentialsIn"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "The provided credentials were invalid"
+                    },
+                    "401": {
+                        "description": "Authentication via native login is disabled"
+                    }
+                }
+            }
+        },
+        "/users/login/openid": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Authenticate via OpenID provider. Redirects the client to the OpenID provider page.",
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    },
+                    "401": {
+                        "description": "Authentication via OpenID is disabled"
+                    }
+                }
+            }
+        },
+        "/users/login/refresh": {
+            "get": {
+                "tags": [
+                    "users"
+                ],
+                "summary": "Refresh the access token",
+                "responses": {
+                    "200": {
+                        "description": "The authentication config of the server",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                        }
+                    },
+                    "401": {
+                        "description": "The auth token cookie is not set"
+                    },
+                    "403": {
+                        "description": "The provided auth token was invalid"
+                    }
+                }
+            }
+        },
+        "/users/logout": {
+            "post": {
+                "tags": [
+                    "users"
+                ],
+                "summary": "Logout and clear all authentication cookies",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "auth.AuthConfig": {
+            "type": "object",
+            "properties": {
+                "native": {
+                    "$ref": "#/definitions/auth.NativeAuthConfig"
+                },
+                "openId": {
+                    "$ref": "#/definitions/auth.OpenIdAuthConfig"
+                }
+            }
+        },
+        "auth.NativeAuthConfig": {
+            "type": "object",
+            "properties": {
+                "allowEmpty": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "auth.OpenIdAuthConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "collection.CollectionIn": {
+            "type": "object",
+            "required": [
+                "name",
+                "publicDeploy",
+                "publicWrite"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "publicDeploy": {
+                    "type": "boolean"
+                },
+                "publicWrite": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "collection.CollectionInPartial": {
             "type": "object",
             "properties": {
                 "name": {
@@ -953,6 +1111,9 @@ const docTemplate = `{
         },
         "lab.LabIn": {
             "type": "object",
+            "required": [
+                "topologyId"
+            ],
             "properties": {
                 "endTime": {
                     "type": "string"
@@ -1040,7 +1201,9 @@ const docTemplate = `{
         "topology.TopologyIn": {
             "type": "object",
             "required": [
-                "collectionId"
+                "collectionId",
+                "definition",
+                "syncUrl"
             ],
             "properties": {
                 "collectionId": {
@@ -1049,10 +1212,7 @@ const docTemplate = `{
                 "definition": {
                     "type": "string"
                 },
-                "gitSourceUrl": {
-                    "type": "string"
-                },
-                "metadata": {
+                "syncUrl": {
                     "type": "string"
                 }
             }
@@ -1075,16 +1235,24 @@ const docTemplate = `{
                 "definition": {
                     "type": "string"
                 },
-                "gitSourceUrl": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
                 "lastDeployFailed": {
                     "type": "boolean"
                 },
-                "metadata": {
+                "syncUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.CredentialsIn": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }
@@ -1158,6 +1326,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/topology.TopologyOut"
                     }
+                }
+            }
+        },
+        "utils.OkResponse-auth_AuthConfig": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/auth.AuthConfig"
                 }
             }
         },

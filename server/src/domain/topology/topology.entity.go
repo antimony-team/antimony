@@ -10,7 +10,7 @@ type Topology struct {
 	gorm.Model
 	UUID         string `gorm:"uniqueIndex;not null"`
 	Name         string `gorm:"index;not null"`
-	GitSourceUrl string
+	SyncUrl      string
 	Collection   collection.Collection
 	CollectionID uint `gorm:"not null"`
 	Creator      user.User
@@ -24,17 +24,21 @@ type Topology struct {
 }
 
 type TopologyIn struct {
-	Definition   string `json:"definition"`
-	Metadata     string `json:"metadata"`
-	GitSourceUrl string `json:"gitSourceUrl"`
-	CollectionId string `json:"collectionId" binding:"required"`
+	Definition   *string `json:"definition" binding:"required"`
+	SyncUrl      *string `json:"syncUrl" binding:"required"`
+	CollectionId *string `json:"collectionId" binding:"required"`
+}
+
+type TopologyInPartial struct {
+	Definition   *string `json:"definition"`
+	SyncUrl      *string `json:"syncUrl"`
+	CollectionId *string `json:"collectionId"`
 }
 
 type TopologyOut struct {
 	ID               string        `json:"id"`
 	Definition       string        `json:"definition"`
-	Metadata         string        `json:"metadata"`
-	GitSourceUrl     string        `json:"gitSourceUrl"`
+	SyncUrl          string        `json:"syncUrl"`
 	CollectionId     string        `json:"collectionId"`
 	Creator          user.UserOut  `json:"creator"`
 	BindFiles        []BindFileOut `json:"bindFiles"`

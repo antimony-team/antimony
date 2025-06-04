@@ -1,22 +1,6 @@
 name: antimonyBackend
 
 services:
-  backend:
-    container_name: antimony-backend
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      - SB_NATIVE_USERNAME=admin
-      - SB_NATIVE_PASSWORD=admin
-    privileged: true
-    command: -sqlite true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/run/netns:/var/run/netns
-      - /var/lib/docker/containers:/var/lib/docker/containers
-    ports:
-      - "3000:3000"
   database:
     container_name: database
     image: postgres
@@ -39,11 +23,11 @@ services:
   keycloak-server:
     container_name: keycloak-server
     image: quay.io/keycloak/keycloak:latest
-    command: start-dev --http-port 4022
+    command: start-dev --http-port 4022  --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
-      - ./test/keycloak:/opt/keycloak/data/h2
+      - ./test/keycloak:/opt/keycloak/data/import
     ports:
       - "4022:4022"

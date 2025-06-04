@@ -1,24 +1,63 @@
 package test
 
 import (
+	"antimonyBackend/auth"
+	"antimonyBackend/config"
 	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/device"
+	"antimonyBackend/domain/lab"
+	"antimonyBackend/domain/schema"
+	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log"
+	"os"
+	"testing"
+	"time"
 )
 
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
 	user1 := user.User{
-		UUID: utils.GenerateUuid(),
+		UUID: "test-user-id1",
 		Sub:  "doesntmatter",
-		Name: "kian.gribi@ost.ch",
+		Name: "Hans Hülsensack",
 	}
-	db.Create(&user1)
+	if err := db.Create(&user1).Error; err != nil {
+		log.Fatalf("Create user1 failed: %v", err)
+	}
+	user2 := user.User{
+		UUID: "test-user-id2",
+		Sub:  "doesntmatter",
+		Name: "Max Muster",
+	}
+	db.Create(&user2)
+	user3 := user.User{
+		UUID: "test-user-id3",
+		Sub:  "irrelevant",
+		Name: "Lu",
+	}
+	db.Create(&user3)
+	user4 := user.User{
+		UUID: "test-user-id4",
+		Sub:  "irrelevant",
+		Name: "Emergency Döner",
+	}
+	db.Create(&user4)
+	user5 := user.User{
+		UUID: "test-user-id5",
+		Sub:  "irrelevant",
+		Name: "Not Authenticated",
+	}
+	db.Create(&user5)
 
 	db.Create(&collection.Collection{
 		UUID:         utils.GenerateUuid(),
@@ -53,7 +92,7 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	})
 
 	collection1 := collection.Collection{
-		UUID:         utils.GenerateUuid(),
+		UUID:         "CollectionTestUUID1",
 		Name:         "hs25-cn2",
 		PublicWrite:  true,
 		PublicDeploy: true,
@@ -61,30 +100,35 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	}
 	db.Create(&collection1)
 
-	topology1Uuid := utils.GenerateUuid()
+	topology1Uuid := "TopologyTestUUID1"
 	topology1 := topology.Topology{
-		UUID:         topology1Uuid,
-		Name:         "ctd",
-		GitSourceUrl: "",
-		Collection:   collection1,
-		Creator:      user1,
+		UUID:       topology1Uuid,
+		Name:       "ctd",
+		SyncUrl:    "",
+		Collection: collection1,
+		Creator:    user1,
 	}
-	db.Create(&topology1)
+	if err := db.Create(&topology1).Error; err != nil {
+		log.Fatalf("Create topology failed: %v", err)
+	}
 
 	db.Create(&topology.BindFile{
-		UUID:     utils.GenerateUuid(),
-		FilePath: "leaf01/interfaces",
-		Topology: topology1,
+		UUID:       "BindFileTestUUID1",
+		FilePath:   "leaf01/interfaces",
+		Topology:   topology1,
+		TopologyID: topology1.ID,
 	})
 	db.Create(&topology.BindFile{
-		UUID:     utils.GenerateUuid(),
-		FilePath: "leaf01/daemons",
-		Topology: topology1,
+		UUID:       utils.GenerateUuid(),
+		FilePath:   "leaf01/daemons",
+		Topology:   topology1,
+		TopologyID: topology1.ID,
 	})
 	db.Create(&topology.BindFile{
-		UUID:     utils.GenerateUuid(),
-		FilePath: "leaf01/frr.conf",
-		Topology: topology1,
+		UUID:       utils.GenerateUuid(),
+		FilePath:   "leaf01/frr.conf",
+		Topology:   topology1,
+		TopologyID: topology1.ID,
 	})
 
 	writeTopologyFile(topology1Uuid, cvx03, storage)
@@ -94,14 +138,37 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 
 	topology2Uuid := utils.GenerateUuid()
 	topology2 := topology.Topology{
-		UUID:         topology2Uuid,
-		Name:         "test1",
-		GitSourceUrl: "",
-		Collection:   collection1,
-		Creator:      user1,
+		UUID:       topology2Uuid,
+		Name:       "test1",
+		SyncUrl:    "",
+		Collection: collection1,
+		Creator:    user1,
 	}
 	db.Create(&topology2)
 	writeTopologyFile(topology2Uuid, test1, storage)
+
+	lab1 := lab.Lab{
+		UUID:       "TestLabUUID1",
+		Name:       "Test Lab",
+		StartTime:  time.Now().Add(-1 * time.Hour),
+		EndTime:    time.Now().Add(1 * time.Hour),
+		TopologyID: topology1.ID,
+		Topology:   topology1,
+		CreatorID:  user1.ID,
+		Creator:    user1,
+	}
+	db.Create(&lab1)
+	lab2 := lab.Lab{
+		UUID:       "TestLabUUID2",
+		Name:       "Test Lab2",
+		StartTime:  time.Now().Add(-1 * time.Hour),
+		EndTime:    time.Now().Add(1 * time.Hour),
+		TopologyID: topology1.ID,
+		Topology:   topology1,
+		CreatorID:  user1.ID,
+		Creator:    user1,
+	}
+	db.Create(&lab2)
 }
 
 const test1 = `name: test1
@@ -135,7 +202,7 @@ topology:
       binds:
         - leaf02/interfaces:/etc/network/interfaces
         - leaf02/daemons:/etc/frr/daemons
-        - leaf02/frr.conf:/etc/frr/frr.conf
+        - leaf02/frr.conf:/etc/frr/frr.conf	
 
     spine01:
       kind: cvx
@@ -174,14 +241,192 @@ func writeTopologyFile(topologyId string, content string, storage storage.Storag
 	if err := storage.WriteTopology(topologyId, content); err != nil {
 		log.Fatalf("Failed to write test topology: %s", err.Error())
 	}
-
-	if err := storage.WriteMetadata(topologyId, content); err != nil {
-		log.Fatalf("Failed to write test topology: %s", err.Error())
-	}
 }
 
 func writeBindFile(topologyId string, filePath string, content string, storage storage.StorageManager) {
 	if err := storage.WriteBindFile(topologyId, filePath, content); err != nil {
 		log.Fatalf("Failed to write test topology bind file: %s", err.Error())
 	}
+}
+
+func addAuthenticatedUsers(authManager auth.AuthManager) {
+	var err error
+
+	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      "test-user-id1",
+		IsAdmin:     true,
+		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
+	})
+	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      "test-user-id2",
+		IsAdmin:     true,
+		Collections: []string{},
+	})
+	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      "test-user-id3",
+		IsAdmin:     false,
+		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
+	})
+	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      "test-user-id4",
+		IsAdmin:     false,
+		Collections: []string{},
+	})
+	if err != nil {
+		return
+	}
+}
+
+func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
+	gin.SetMode(gin.TestMode)
+
+	// Set environment variables
+	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
+	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
+
+	storageDir := t.TempDir()
+	runDir := t.TempDir()
+	// Load config manually
+	cfg := &config.AntimonyConfig{
+		FileSystem: config.FilesystemConfig{
+			Storage: storageDir,
+			Run:     runDir,
+		},
+		Containerlab: config.ClabConfig{
+			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
+			SchemaFallback: "../../data/clab.schema.json",
+			DeviceConfig:   "../../data/device-config.json",
+		},
+		Auth: config.AuthConfig{
+			EnableNative:      true,
+			EnableOpenId:      false,
+			OpenIdIssuer:      "",
+			OpenIdClientId:    "",
+			OpenIdAdminGroups: []string{},
+		},
+	}
+	authManager := auth.CreateAuthManager(cfg)
+	devicesService := device.CreateService(cfg)
+	storageManager := storage.CreateStorageManager(cfg)
+	schemaService := schema.CreateService(cfg)
+
+	// Step 4: Setup in-memory DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	err = db.AutoMigrate(
+		&user.User{},
+		&collection.Collection{},
+		&topology.Topology{},
+		&topology.BindFile{},
+		&lab.Lab{},
+	)
+	assert.NoError(t, err)
+
+	// Seed test data
+	GenerateTestData(db, storageManager)
+
+	// Init repos, services, handlers
+	socketManager := socket.CreateSocketManager(authManager)
+
+	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](
+		socketManager, false, false, nil,
+		"status-messages",
+	)
+
+	userRepo := user.CreateRepository(db)
+	userService := user.CreateService(userRepo, authManager)
+	userHandler := user.CreateHandler(userService)
+
+	devicesHandler := device.CreateHandler(devicesService)
+
+	schemaHandler := schema.CreateHandler(schemaService)
+
+	collectionRepo := collection.CreateRepository(db)
+	collectionService := collection.CreateService(collectionRepo, userRepo)
+	collectionHandler := collection.CreateHandler(collectionService)
+
+	topologyRepository := topology.CreateRepository(db)
+	topologyService := topology.CreateService(
+		topologyRepository, userRepo, collectionRepo,
+		storageManager, schemaService.Get(),
+	)
+	topologyHandler := topology.CreateHandler(topologyService)
+
+	labRepository := lab.CreateRepository(db)
+	labService := lab.CreateService(
+		labRepository, userRepo, topologyRepository,
+		storageManager, socketManager, statusMessageNamespace,
+	)
+	labHandler := lab.CreateHandler(labService)
+
+	addAuthenticatedUsers(authManager)
+
+	authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      auth.NativeUserID,
+		IsAdmin:     true,
+		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
+	})
+
+	// Setup Gin + register routes with real middleware
+	router := gin.Default()
+	collection.RegisterRoutes(router, collectionHandler, authManager)
+	device.RegisterRoutes(router, devicesHandler, authManager)
+	topology.RegisterRoutes(router, topologyHandler, authManager)
+	schema.RegisterRoutes(router, schemaHandler)
+	user.RegisterRoutes(router, userHandler)
+	lab.RegisterRoutes(router, labHandler, authManager)
+	return router, authManager, db
+}
+
+func SetupTestServerWithOIDC(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
+	gin.SetMode(gin.TestMode)
+	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
+	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
+
+	storageDir := t.TempDir()
+	runDir := t.TempDir()
+	cfg := &config.AntimonyConfig{
+		FileSystem: config.FilesystemConfig{
+			Storage: storageDir,
+			Run:     runDir,
+		},
+		Auth: config.AuthConfig{
+			EnableNative:      false,
+			EnableOpenId:      true,
+			OpenIdIssuer:      "",
+			OpenIdClientId:    "",
+			OpenIdAdminGroups: []string{},
+		},
+	}
+	authManager := auth.CreateAuthManager(cfg)
+	storageManager := storage.CreateStorageManager(cfg)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	err = db.AutoMigrate(
+		&user.User{},
+		&collection.Collection{},
+		&topology.Topology{},
+		&topology.BindFile{},
+		&lab.Lab{},
+	)
+	assert.NoError(t, err)
+	GenerateTestData(db, storageManager)
+	userRepo := user.CreateRepository(db)
+	userService := user.CreateService(userRepo, authManager)
+	userHandler := user.CreateHandler(userService)
+
+	addAuthenticatedUsers(authManager)
+
+	authManager.RegisterTestUser(auth.AuthenticatedUser{
+		UserId:      auth.NativeUserID,
+		IsAdmin:     true,
+		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
+	})
+
+	router := gin.Default()
+	user.RegisterRoutes(router, userHandler)
+	return router, authManager, db
 }

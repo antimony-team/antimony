@@ -21,6 +21,10 @@ func IsDirectoryWritable(path string) bool {
 	return err == nil && info.IsDir() && info.Mode().Perm()&(1<<(uint(7))) != 0
 }
 
+func StringPtr(s string) *string {
+	return &s
+}
+
 func NounCounter(noun string, count int) string {
 	if count == 1 {
 		return noun

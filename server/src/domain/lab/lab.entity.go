@@ -27,7 +27,7 @@ type LabIn struct {
 	Name       string    `json:"name"`
 	StartTime  time.Time `json:"startTime"`
 	EndTime    time.Time `json:"endTime"`
-	TopologyId string    `json:"topologyId"`
+	TopologyId string    `json:"topologyId" binding:"required"`
 }
 
 type LabOut struct {

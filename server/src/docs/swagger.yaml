@@ -1,6 +1,38 @@
 basePath: /api/v1
 definitions:
+  auth.AuthConfig:
+    properties:
+      native:
+        $ref: '#/definitions/auth.NativeAuthConfig'
+      openId:
+        $ref: '#/definitions/auth.OpenIdAuthConfig'
+    type: object
+  auth.NativeAuthConfig:
+    properties:
+      allowEmpty:
+        type: boolean
+      enabled:
+        type: boolean
+    type: object
+  auth.OpenIdAuthConfig:
+    properties:
+      enabled:
+        type: boolean
+    type: object
   collection.CollectionIn:
+    properties:
+      name:
+        type: string
+      publicDeploy:
+        type: boolean
+      publicWrite:
+        type: boolean
+    required:
+    - name
+    - publicDeploy
+    - publicWrite
+    type: object
+  collection.CollectionInPartial:
     properties:
       name:
         type: string
@@ -105,6 +137,8 @@ definitions:
         type: string
       topologyId:
         type: string
+    required:
+    - topologyId
     type: object
   lab.LabOut:
     properties:
@@ -156,12 +190,12 @@ definitions:
         type: string
       definition:
         type: string
-      gitSourceUrl:
-        type: string
-      metadata:
+      syncUrl:
         type: string
     required:
     - collectionId
+    - definition
+    - syncUrl
     type: object
   topology.TopologyOut:
     properties:
@@ -175,13 +209,18 @@ definitions:
         $ref: '#/definitions/user.UserOut'
       definition:
         type: string
-      gitSourceUrl:
-        type: string
       id:
         type: string
       lastDeployFailed:
         type: boolean
-      metadata:
+      syncUrl:
+        type: string
+    type: object
+  user.CredentialsIn:
+    properties:
+      password:
+        type: string
+      username:
         type: string
     type: object
   user.UserOut:
@@ -230,6 +269,11 @@ definitions:
           $ref: '#/definitions/topology.TopologyOut'
         type: array
     type: object
+  utils.OkResponse-auth_AuthConfig:
+    properties:
+      payload:
+        $ref: '#/definitions/auth.AuthConfig'
+    type: object
   utils.OkResponse-string:
     properties:
       payload:
@@ -243,13 +287,6 @@ info:
   title: Antimony API
   version: "1.0"
 paths:
-  /users/login:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
   /collections:
     get:
       produces:
@@ -332,16 +369,16 @@ paths:
       summary: Delete an existing collection
       tags:
       - collections
-    put:
+    patch:
       consumes:
       - application/json
       parameters:
-      - description: The collection with updated values
+      - description: A partial collection with updated values
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/collection.CollectionIn'
+          $ref: '#/definitions/collection.CollectionInPartial'
       - description: The ID of the collection to edit
         in: path
         name: id
@@ -604,7 +641,7 @@ paths:
       summary: Delete an existing topology
       tags:
       - topologies
-    put:
+    patch:
       consumes:
       - application/json
       parameters:
@@ -746,6 +783,76 @@ paths:
       summary: Update an existing bind file of a topology
       tags:
       - bindFiles
+  /users/login/config:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The authentication config of the server
+          schema:
+            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+      summary: Get the server's authentication config
+      tags:
+      - users
+  /users/login/native:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: The native credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.CredentialsIn'
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: The provided credentials were invalid
+        "401":
+          description: Authentication via native login is disabled
+      summary: Authenticate via native login
+      tags:
+      - users
+  /users/login/openid:
+    get:
+      consumes:
+      - application/json
+      responses:
+        "302":
+          description: Found
+        "401":
+          description: Authentication via OpenID is disabled
+      summary: Authenticate via OpenID provider. Redirects the client to the OpenID
+        provider page.
+      tags:
+      - users
+  /users/login/refresh:
+    get:
+      responses:
+        "200":
+          description: The authentication config of the server
+          schema:
+            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+        "401":
+          description: The auth token cookie is not set
+        "403":
+          description: The provided auth token was invalid
+      summary: Refresh the access token
+      tags:
+      - users
+  /users/logout:
+    post:
+      responses:
+        "200":
+          description: OK
+      summary: Logout and clear all authentication cookies
+      tags:
+      - users
 securityDefinitions:
   BasicAuth:
     type: basic

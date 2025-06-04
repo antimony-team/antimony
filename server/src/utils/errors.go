@@ -5,7 +5,8 @@ import "errors"
 var ErrorRunningLab = errors.New("modifications to running lab are not allowed")
 var ErrorContainerlab = errors.New("containerlab subprocess failed")
 var ErrorOpenIDError = errors.New("failed to authenticate via openid connect")
-var ErrorOpenIDDisabledError = errors.New("authentication via openid is disabled")
+var ErrorOpenIDAuthDisabledError = errors.New("authentication via openid is disabled")
+var ErrorNativeAuthDisabledError = errors.New("native authentication disabled")
 var ErrorFileStorage = errors.New("filesystem read or write error")
 var ErrorUuidNotFound = errors.New("the specified uuid was not found")
 var ErrorNodeNotFound = errors.New("the specified node was not found")
@@ -14,6 +15,7 @@ var ErrorTopologyExists = errors.New("a topology with that name already exists i
 var ErrorBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrorCollectionExists = errors.New("a collection with that name already exists")
 var ErrorInvalidCredentials = errors.New("the credentials provided were invalid")
+var ErrorInvalidTopology = errors.New("the topology provided were invalid")
 
 var ErrorUnauthorized = errors.New("the request was unauthorized")
 var ErrorForbidden = errors.New("access to the requested action is forbidden")

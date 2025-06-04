@@ -20,7 +20,6 @@ const NativeUserID = "00000000-0000-0000-0000-00000000000"
 
 type (
 	AuthManager interface {
-		Init(config *config.AntimonyConfig)
 		CreateAuthToken(userId string) (string, error)
 		CreateAccessToken(authUser AuthenticatedUser) (string, error)
 		AuthenticateUser(tokenString string) (*AuthenticatedUser, error)
@@ -29,6 +28,9 @@ type (
 		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
 		RefreshAccessToken(authToken string) (string, error)
+		RegisterTestUser(authUser AuthenticatedUser) (string, error)
+
+		GetAuthConfig() AuthConfig
 	}
 
 	authManager struct {
@@ -39,8 +41,7 @@ type (
 		oidcSecret         string
 		jwtSecret          []byte
 		adminGroups        []string
-		isNativeEnabled    bool
-		isOpenIdEnabled    bool
+		authConfig         AuthConfig
 		nativeUsername     string
 		nativePassword     string
 	}
@@ -52,16 +53,49 @@ type (
 		Collections []string
 		IsAdmin     bool
 	}
+
+	AuthConfig struct {
+		OpenId OpenIdAuthConfig `json:"openId"`
+		Native NativeAuthConfig `json:"native"`
+	}
+
+	OpenIdAuthConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+
+	NativeAuthConfig struct {
+		Enabled    bool `json:"enabled"`
+		AllowEmpty bool `json:"allowEmpty"`
+	}
 )
 
 func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 	isOpenIdEnabled := config.Auth.EnableOpenId
 	isNativeEnabled := config.Auth.EnableNative
+
+	if !isNativeEnabled && !isOpenIdEnabled {
+		log.Fatal("Please enable at least one authentication method.", "native", isNativeEnabled, "openid", isOpenIdEnabled)
+	}
+
 	nativeUsername := os.Getenv("SB_NATIVE_USERNAME")
 	nativePassword := os.Getenv("SB_NATIVE_PASSWORD")
+	emptyCredentials := false
 
 	if isNativeEnabled && (nativeUsername == "" || nativePassword == "") {
-		log.Warn("Native admin is enabled but username or password is empty!")
+		emptyCredentials = true
+		log.Warn("Native authentication is enabled but username or password are empty!")
+	} else {
+		log.Info("Native authentication is enabled.", "username", nativeUsername)
+	}
+
+	authConfig := AuthConfig{
+		OpenId: OpenIdAuthConfig{
+			Enabled: isOpenIdEnabled,
+		},
+		Native: NativeAuthConfig{
+			Enabled:    isNativeEnabled,
+			AllowEmpty: emptyCredentials,
+		},
 	}
 
 	authManager := &authManager{
@@ -70,41 +104,36 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 		adminGroups:        config.Auth.OpenIdAdminGroups,
 		jwtSecret:          ([]byte)(rand.Text()),
 		oidcSecret:         os.Getenv("SB_OIDC_SECRET"),
-		isOpenIdEnabled:    isOpenIdEnabled,
-		isNativeEnabled:    isNativeEnabled,
+		authConfig:         authConfig,
 		nativeUsername:     nativeUsername,
 		nativePassword:     nativePassword,
 	}
 
-	authManager.Init(config)
-
-	return authManager
-}
-
-func (m *authManager) Init(config *config.AntimonyConfig) {
-	if m.isNativeEnabled {
-		m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
+	if isNativeEnabled {
+		authManager.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
 			UserId:      NativeUserID,
 			IsAdmin:     true,
 			Collections: make([]string, 0),
 		}
 	}
 
-	if m.isOpenIdEnabled {
+	if isOpenIdEnabled {
 		provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
 		if err != nil {
 			log.Errorf("Failed to connect to OpenID provider: %s", err.Error())
 		} else {
-			m.provider = *provider
-			m.oauth2Config = oauth2.Config{
+			authManager.provider = *provider
+			authManager.oauth2Config = oauth2.Config{
 				ClientID:     config.Auth.OpenIdClientId,
-				ClientSecret: m.oidcSecret,
+				ClientSecret: authManager.oidcSecret,
 				RedirectURL:  "http://localhost:3000/users/login/success",
 				Endpoint:     provider.Endpoint(),
 				Scopes:       []string{oidc.ScopeOpenID},
 			}
 		}
 	}
+
+	return authManager
 }
 
 func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
@@ -138,8 +167,8 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 }
 
 func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error) {
-	if !m.isOpenIdEnabled {
-		return nil, utils.ErrorOpenIDDisabledError
+	if !m.authConfig.OpenId.Enabled {
+		return nil, utils.ErrorOpenIDAuthDisabledError
 	}
 
 	ctx := context.TODO()
@@ -195,15 +224,19 @@ func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper fu
 	return authenticatedUser, nil
 }
 func (m *authManager) GetAuthCodeURL(stateToken string) (string, error) {
-	if !m.isOpenIdEnabled {
-		return "", utils.ErrorOpenIDDisabledError
+	if !m.authConfig.OpenId.Enabled {
+		return "", utils.ErrorOpenIDAuthDisabledError
 	}
 
 	return m.oauth2Config.AuthCodeURL(stateToken), nil
 }
 
 func (m *authManager) LoginNative(username string, password string) (string, string, error) {
-	if m.isNativeEnabled && username == m.nativeUsername && password == m.nativePassword {
+	if !m.authConfig.Native.Enabled {
+		return "", "", utils.ErrorNativeAuthDisabledError
+	}
+
+	if username == m.nativeUsername && password == m.nativePassword {
 		authUser := m.authenticatedUsers[NativeUserID]
 		if authToken, err := m.CreateAuthToken(NativeUserID); err != nil {
 			return "", "", err
@@ -213,7 +246,6 @@ func (m *authManager) LoginNative(username string, password string) (string, str
 			return authToken, accessToken, nil
 		}
 	}
-
 	return "", "", utils.ErrorInvalidCredentials
 }
 
@@ -246,7 +278,7 @@ func (m *authManager) CreateAccessToken(authUser AuthenticatedUser) (string, err
 		"id":      authUser.UserId,
 		"isAdmin": authUser.IsAdmin,
 		"nbf":     time.Now().Unix(),
-		"exp":     time.Now().Add(time.Hour * 20).Unix(),
+		"exp":     time.Now().Add(time.Minute * 30).Unix(),
 	})
 
 	return sbToken.SignedString(m.jwtSecret)
@@ -258,4 +290,13 @@ func (m *authManager) tokenParser(token *jwt.Token) (interface{}, error) {
 	}
 
 	return m.jwtSecret, nil
+}
+
+func (m *authManager) RegisterTestUser(user AuthenticatedUser) (string, error) {
+	m.authenticatedUsers[user.UserId] = &user
+	return user.UserId, nil
+}
+
+func (m *authManager) GetAuthConfig() AuthConfig {
+	return m.authConfig
 }
