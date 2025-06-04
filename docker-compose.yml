@@ -1,6 +1,46 @@
 name: antimony
 
 services:
+  traefik:
+    image: traefik:v2.10
+    restart: unless-stopped
+    container_name: traefik
+    command:
+      - "--log.level=INFO"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+
+      # HTTP -> HTTPS redirect
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+
+      # ACME / Let's Encrypt config
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=antimony@ost.ch"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+
+      # Self-signed fallback
+      - "--entrypoints.websecure.forwardedHeaders.insecure=true"
+      - "--serversTransport.insecureSkipVerify=true"
+
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8000:8080"
+
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+      - "./certs:/certs"
+
+    depends_on:
+     - backend
+     - frontend
+
   database:
     container_name: database
     image: postgres
@@ -24,8 +64,14 @@ services:
   frontend:
     container_name: frontend
     image: ghcr.io/antimony-team/antimony-interface:latest
-    ports:
-      - "8100:8100"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.service=frontend"
+      # - "traefik.http.routers.frontend.tls.domains[0].main=example.com"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8100"
 
   backend:
     container_name: backend
@@ -42,18 +88,25 @@ services:
       - ./mnt/storage:/app/storage/
       - ./mnt/run:/app/run/
       - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "3000:3000"
+    labels:
+      # Backend /socket.io route
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-socket.rule=PathPrefix(`/socket.io`)"
+      - "traefik.http.routers.backend-socket.entrypoints=websecure"
+      - "traefik.http.routers.backend-socket.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend-socket.service=backend-socket"
+      # - traefik.http.routers.backend-socket.tls.domains[0].main=example.com
+      - "traefik.http.services.backend-socket.loadbalancer.server.port=3000"
+      - "traefik.http.services.backend-socket.loadbalancer.server.scheme=http"
 
-  router:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
-    depends_on:
-      - backend
-      - frontend
+      # Backend /api route
+      - "traefik.http.routers.backend-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-api.entrypoints=websecure"
+      - "traefik.http.routers.backend-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend-api.service=backend-api"
+      - "traefik.http.routers.backend-api.middlewares=api-strip-prefix"
+      # - traefik.http.routers.backend-api.tls.domains[0].main=example.com
+      - "traefik.http.services.backend-api.loadbalancer.server.port=3000"
+      - "traefik.http.services.backend-api.loadbalancer.server.scheme=http"
+
+      - "traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api"
