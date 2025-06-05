@@ -1,10 +1,9 @@
-import {ElementDefinition} from 'cytoscape';
-import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
-
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {FetchState} from '@sb/types/types';
 import {Topology} from '@sb/types/domain/topology';
+import {FetchState, Position} from '@sb/types/types';
+import {ElementDefinition} from 'cytoscape';
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 export async function fetchResource<T>(
   path: string,
@@ -159,27 +158,6 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
   }
 }
 
-function addedGroup(groupId: string, groupName: string): ElementDefinition[] {
-  return [
-    {
-      group: 'nodes',
-      data: {
-        id: groupId,
-        label: groupName,
-      },
-      classes: 'drawn-shape',
-    },
-    {
-      group: 'nodes',
-      data: {
-        id: `close-${groupId}`,
-      },
-      position: {x: 0, y: 0},
-      classes: 'compound-close-btn',
-    },
-  ];
-}
-
 export function generateGraph(
   topology: Topology,
   deviceStore: DeviceStore,
@@ -218,7 +196,24 @@ export function generateGraph(
       const groupId = level !== undefined ? `${group}:${level}` : group;
 
       if (!addedGroups.has(groupId)) {
-        elements.push(...addedGroup(groupId, group));
+        elements.push(
+          {
+            group: 'nodes',
+            data: {
+              id: groupId,
+              label: group,
+            },
+            classes: 'drawn-shape',
+          },
+          {
+            group: 'nodes',
+            data: {
+              id: `close-${groupId}`,
+            },
+            position: {x: 0, y: 0},
+            classes: 'compound-close-btn',
+          }
+        );
         addedGroups.add(groupId);
       }
 
@@ -254,6 +249,12 @@ export function generateGraph(
   }
 
   return elements;
+}
+
+export function getDistance(a: Position, b: Position): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 export const SBTooltipOptions: TooltipOptions = {

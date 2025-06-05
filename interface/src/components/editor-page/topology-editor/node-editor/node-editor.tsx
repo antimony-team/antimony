@@ -5,7 +5,12 @@ import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-editor.sass';
 import {useDialogState} from '@sb/lib/utils/hooks';
-import {convertXYToLatLng, drawGrid, generateGraph} from '@sb/lib/utils/utils';
+import {
+  convertXYToLatLng,
+  drawGrid,
+  generateGraph,
+  getDistance,
+} from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 import type {EventObject} from 'cytoscape';
@@ -17,14 +22,7 @@ import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import {SpeedDial} from 'primereact/speeddial';
-import React, {
-  MouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import {isMap} from 'yaml';
 import SimulationPanel from './simulation-panel/simulation-panel';
@@ -49,24 +47,13 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const [contextMenuModel, setContextMenuModel] = useState<MenuItem[] | null>(
       null
     );
+    const [isCyReady, setIsCyReady] = useState<boolean>(false);
 
     const groupNameDialogState = useDialogState();
 
-    const [isCyReady, setIsCyReady] = useState<boolean>(false);
-
     const drawStartPos = useRef<Position | null>(null);
     const drawEndPos = useRef<Position | null>(null);
-    const isDrawingShape = useRef<boolean>(false);
-
-    // const [drawStartPos, setDrawStartPos] = useState<{
-    //   x: number;
-    //   y: number;
-    // } | null>(null);
-    // const [drawEndPos, setDrawEndPos] = useState<{
-    //   x: number;
-    //   y: number;
-    // } | null>(null);
-    // const [isDrawingShape, setIsDrawingShape] = useState(false);
+    const isDrawModeOn = useRef<boolean>(false);
 
     const deviceStore = useDeviceStore();
     const topologyStore = useTopologyStore();
@@ -80,6 +67,57 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
     const menuTargetRef = useRef<string | null>(null);
+    const groupRenameInput = useRef<SBInputRef>(null);
+
+    useEffect(() => {
+      if (props.openTopology === null || !cyRef.current) return;
+
+      cyRef.current?.elements().remove();
+
+      const elements = generateGraph(
+        props.openTopology,
+        deviceStore,
+        topologyStore.manager
+      );
+
+      for (const element of elements) {
+        cyRef.current.add(element);
+      }
+    }, [deviceStore, props.openTopology, topologyStore.manager]);
+
+    const elements = useMemo(() => {
+      if (props.openTopology === null) return [];
+
+      return;
+    }, []);
+
+    useEffect(() => {
+      window.addEventListener('keydown', onKeyDown);
+
+      return () => {
+        window.removeEventListener('keydown', onKeyDown);
+      };
+    }, [onKeyDown]);
+
+    useEffect(() => {
+      if (!cyRef.current) return;
+
+      const cy = cyRef.current;
+
+      const zoomBefore = cy.zoom();
+      const panBefore = cy.pan();
+
+      closeRadialMenu();
+
+      cy.zoom(zoomBefore);
+      cy.pan(panBefore);
+    }, [elements]);
+
+    useEffect(() => {
+      if (isCyReady && cyRef.current) {
+        initCytoscape(cyRef.current);
+      }
+    }, [isCyReady]);
 
     function drawGridOverlay(event: cytoscape.EventObject) {
       const canvas = gridCanvasRef.current;
@@ -96,7 +134,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       drawGrid(ctx, event.cy.zoom(), event.cy.pan());
     }
 
-    const onStabilizeGraph = () => {
+    function onStabilizeGraph() {
       const cy = cyRef.current;
       if (!cy) return;
       if (cy.elements().empty()) return;
@@ -110,38 +148,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       layout.promiseOn('layoutstop')?.then(() => {
         simulationConfig.setIsStabilizing(false);
       });
-    };
 
-    const elements = useMemo(() => {
-      if (props.openTopology === null) return [];
-
-      return generateGraph(
-        props.openTopology,
-        deviceStore,
-        topologyStore.manager
-      );
-    }, [deviceStore, props.openTopology, topologyStore.manager]);
-
-    const onKeyDown = useCallback((event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        exitConnectionMode();
-      }
-    }, []);
-
-    function onMouseMove(event: MouseEvent<HTMLDivElement>) {
-      if (!cyRef.current || !nodeConnectTarget.current) return;
-
-      const cy = cyRef.current as cytoscape.Core & {
-        renderer: () => {
-          projectIntoViewport: (x: number, y: number) => [number, number];
-        };
-      };
-
-      const [x, y] = cy
-        .renderer()
-        .projectIntoViewport(event.clientX, event.clientY);
-
-      drawConnectionLine(nodeConnectTarget.current, x, y);
+      onSaveGraph();
     }
 
     function drawConnectionLine(
@@ -182,57 +190,52 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
     }
 
-    const onNodeConnect = useCallback(() => {
-      console.log('node connect 1');
-
+    function onNodeConnect() {
       const cy = cyRef.current;
       if (!cy || menuTargetRef.current === null) return;
 
       const nodeId = menuTargetRef.current;
       const node = cy.getElementById(nodeId);
 
-      console.log('node connect 2, node:', node);
-
       if (!node) return;
 
       nodeConnectTarget.current = nodeId;
+    }
 
-      // setNodeConnectTarget(nodeId);
-    }, []);
-
-    const onNodeEdit = useCallback(() => {
+    function onNodeEdit() {
       if (!cyRef.current || menuTargetRef.current === null) return;
 
       closeRadialMenu();
       props.onEditNode(menuTargetRef.current);
-    }, [props]);
+    }
 
-    const onNodeDelete = useCallback(() => {
+    function onNodeDelete() {
       if (!menuTargetRef.current) return;
 
       topologyStore.manager.deleteNode(menuTargetRef.current as string);
-    }, [cyRef, topologyStore.manager]);
+    }
 
-    useEffect(() => {
-      const cy = cyRef.current;
-      if (!cy) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        exitConnectionMode();
+      }
+    }
 
-      const zoomBefore = cy.zoom();
-      const panBefore = cy.pan();
+    function onMouseMove(event: MouseEvent<HTMLDivElement>) {
+      if (!cyRef.current || !nodeConnectTarget.current) return;
 
-      closeRadialMenu();
-
-      cy.zoom(zoomBefore);
-      cy.pan(panBefore);
-    }, [elements]);
-
-    useEffect(() => {
-      window.addEventListener('keydown', onKeyDown);
-
-      return () => {
-        window.removeEventListener('keydown', onKeyDown);
+      const cy = cyRef.current as cytoscape.Core & {
+        renderer: () => {
+          projectIntoViewport: (x: number, y: number) => [number, number];
+        };
       };
-    }, [onKeyDown]);
+
+      const [x, y] = cy
+        .renderer()
+        .projectIntoViewport(event.clientX, event.clientY);
+
+      drawConnectionLine(nodeConnectTarget.current, x, y);
+    }
 
     function ungroupCompound(compoundId: string) {
       if (!cyRef.current) return;
@@ -313,9 +316,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         return;
       }
 
-      console.log('connect target, node connect', nodeConnectTarget);
       if (nodeConnectTarget.current && nodeConnectTarget !== nodeId) {
-        console.log('connect target');
         topologyStore.manager.connectNodes(nodeConnectTarget.current, nodeId);
         exitConnectionMode();
         return;
@@ -387,7 +388,11 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
     }
 
-    const onNodeContext = useCallback((event: cytoscape.EventObject) => {
+    function onGraphContext() {
+      exitDrawMode();
+    }
+
+    function onNodeContext(event: cytoscape.EventObject) {
       exitConnectionMode();
 
       if (event.target.hasClass('drawn-shape')) return;
@@ -411,13 +416,14 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
 
       contextMenuRef.current.show(mouseEvent);
-    }, []);
+    }
 
-    const onDragging = useCallback(() => {
+    function onDrag() {
       closeRadialMenu();
       exitConnectionMode();
       closeGroupDeleteBtn();
-    }, []);
+      exitDrawMode();
+    }
 
     function onDragStart(event: cytoscape.EventObject) {
       const node = event.target;
@@ -506,40 +512,68 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
     }
 
-    useEffect(() => {
-      const cy = cyRef.current;
-      if (!cy) return;
+    function handleMouseDown(e: EventObject) {
+      if (!isDrawModeOn.current || e.target !== cyRef.current) return;
+      drawStartPos.current = e.position;
+      drawEndPos.current = e.position;
+    }
 
-      const handleMouseDown = (e: EventObject) => {
-        if (!isDrawingShape.current || e.target !== cy) return;
-        drawStartPos.current = e.position;
-        drawEndPos.current = e.position;
-        // setDrawStartPos(e.position);
-        // setDrawEndPos(e.position);
-      };
+    function handleMouseMove(e: EventObject) {
+      if (!isDrawModeOn.current || !drawStartPos) return;
+      drawEndPos.current = e.position;
+    }
 
-      const handleMouseMove = (e: EventObject) => {
-        if (!isDrawingShape.current || !drawStartPos) return;
-        // setDrawEndPos(e.position);
-        drawEndPos.current = e.position;
-      };
+    function handleMouseUp() {
+      if (isDrawModeOn.current) {
+        onDrawEnd();
+      }
+    }
 
-      const handleMouseUp = () => {
-        if (isDrawingShape.current) {
-          onDrawEnd();
-        }
-      };
+    function initCytoscape(cy: cytoscape.Core) {
+      cy.minZoom(0.3);
+      cy.maxZoom(10);
+      cy.style().fromJson(topologyStyle).update();
 
+      cy.on('click', onGraphClick);
+      cy.on('click', 'node.compound-close-btn', onGroupDelete);
+      cy.on('click', 'node', onNodeClick);
+      cy.on('dbltap', 'node', onDoubleClick);
+      cy.on('cxttap', onGraphContext);
+      cy.on('cxttap', 'node', onNodeContext);
+      cy.on('cxttap', 'edge', onEdgeContext);
+      cy.on('grab', 'node', onDragStart);
+      cy.on('free', 'node', onDragEnd);
+      cy.on('drag', 'node', onDrag);
+      cy.on('click', 'edge', onEdgeClick);
+      cy.on('render', drawGridOverlay);
       cy.on('mousedown', handleMouseDown);
       cy.on('mousemove', handleMouseMove);
       cy.on('mouseup', handleMouseUp);
 
-      return () => {
-        cy.off('mousedown', handleMouseDown);
-        cy.off('mousemove', handleMouseMove);
-        cy.off('mouseup', handleMouseUp);
-      };
-    }, []);
+      onFitGraph();
+    }
+
+    function onGroupNameSubmit(
+      groupName: string | undefined,
+      isImplicit: boolean = false
+    ) {
+      if (!cyRef.current) return;
+
+      if (!groupName || groupName === '') {
+        if (!isImplicit) {
+          groupRenameInput.current?.setValidationError(
+            "Group name can't be empty"
+          );
+        }
+      } else if (cyRef.current && cyRef.current.hasElementWithId(groupName)) {
+        groupRenameInput.current?.setValidationError(
+          'A group with this name already exists'
+        );
+      } else {
+        createDrawnGroup(groupName);
+        groupNameDialogState.close();
+      }
+    }
 
     function createDrawnGroup(groupName: string) {
       if (!cyRef.current || !drawStartPos.current || !drawEndPos.current) {
@@ -556,52 +590,15 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       const hitsArray = cy
         .nodes()
         .filter(n => {
-          if (n.hasClass('compound-close-btn')) return false;
+          if (n.hasClass('compound-close-btn') || !n.parent()) return false;
           const {x: nx, y: ny} = n.position();
           return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
         })
-        .toArray() as NodeSingular[];
+        .toArray();
 
-      const hitsSet = new Set(hitsArray.map(n => n.id()));
-
-      const compoundFullyHit = hitsArray
-        .filter(n => n.isParent())
-        .filter((compound: NodeSingular) => {
-          return compound
-            .descendants()
-            .toArray()
-            .every(desc => hitsSet.has(desc.id()));
-        })
-        .map(c => c.id());
-
-      const groupableIds = hitsArray
-        .map(n => n.id())
-        .filter(id => {
-          if (compoundFullyHit.includes(id)) {
-            return true;
-          }
-          const node = cy.getElementById(id) as NodeSingular;
-          return node
-            .ancestors()
-            .toArray()
-            .every(anc => !compoundFullyHit.includes(anc.id()));
-        });
-
-      const selectedParents = new Set<string>();
-      hitsArray.forEach(n => {
-        const parent = n.parent();
-        if (parent && parent.nonempty()) {
-          selectedParents.add(parent[0].id());
-        }
-      });
-
-      let newGroupParent: string | undefined = undefined;
-      if (selectedParents.size === 1) {
-        newGroupParent = [...selectedParents][0];
-      }
-
-      if (groupableIds.length) {
+      if (hitsArray.length > 0) {
         cy.batch(() => {
+          // Add group node to graph
           cy.add({
             group: 'nodes',
             data: {
@@ -610,15 +607,13 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             },
             classes: 'drawn-shape',
           });
-          groupableIds.forEach(id =>
-            cy.getElementById(id).move({parent: groupName})
+          hitsArray.forEach(node =>
+            cy.getElementById(node.id()).move({parent: groupName})
           );
-
-          if (newGroupParent) {
-            cy.getElementById(groupName).move({parent: newGroupParent});
-          }
         });
       }
+
+      // Add group close button to graph
       cy.add({
         group: 'nodes',
         data: {id: getGroupCloseId(groupName)},
@@ -636,6 +631,11 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         return;
       }
 
+      if (getDistance(drawStartPos.current, drawEndPos.current) < 20) {
+        exitDrawMode();
+        return;
+      }
+
       const cy = cyRef.current;
 
       cy.nodes().unlock().grabify();
@@ -643,11 +643,31 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         n.style('events', 'yes');
       });
 
-      isDrawingShape.current = false;
-
-      cy.userPanningEnabled(true);
+      exitDrawMode();
 
       groupNameDialogState.openWith();
+    }
+
+    function enterDrawMode() {
+      if (!cyRef.current) return;
+
+      isDrawModeOn.current = true;
+      cyRef.current.userPanningEnabled(false);
+
+      (
+        document.querySelector('.cytoscape-container') as HTMLElement
+      ).style.cursor = 'crosshair';
+    }
+
+    function exitDrawMode() {
+      if (!cyRef.current) return;
+
+      isDrawModeOn.current = false;
+      cyRef.current.userPanningEnabled(true);
+
+      (
+        document.querySelector('.cytoscape-container') as HTMLElement
+      ).style.cursor = '';
     }
 
     function onDrawStart() {
@@ -657,8 +677,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         n.style('events', 'no');
       });
 
-      isDrawingShape.current = true;
-      cyRef.current.userPanningEnabled(false);
+      enterDrawMode();
     }
 
     const nodeContextMenuModel = [
@@ -697,56 +716,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       },
     ];
 
-    useEffect(() => {
-      if (isCyReady && cyRef.current) {
-        initCytoscape(cyRef.current);
-      }
-    }, [isCyReady]);
-
-    function initCytoscape(cy: cytoscape.Core) {
-      cy.minZoom(0.3);
-      cy.maxZoom(10);
-      cy.style().fromJson(topologyStyle).update();
-
-      cy.on('click', onGraphClick);
-      cy.on('click', 'node.compound-close-btn', onGroupDelete);
-      cy.on('click', 'node', onNodeClick);
-      cy.on('dbltap', 'node', onDoubleClick);
-      cy.on('cxttap', 'node', onNodeContext);
-      cy.on('cxttap', 'edge', onEdgeContext);
-      cy.on('grab', 'node', onDragStart);
-      cy.on('free', 'node', onDragEnd);
-      cy.on('drag', 'node', onDragging);
-      cy.on('click', 'edge', onEdgeClick);
-      cy.on('render', drawGridOverlay);
-
-      onFitGraph();
-    }
-
-    const groupRenameInput = useRef<SBInputRef>(null);
-
-    function onGroupNameSubmit(
-      groupName: string | undefined,
-      isImplicit: boolean = false
-    ) {
-      if (!cyRef.current) return;
-
-      if (!groupName || groupName === '') {
-        if (!isImplicit) {
-          groupRenameInput.current?.setValidationError(
-            "Group name can't be empty"
-          );
-        }
-      } else if (cyRef.current && cyRef.current.hasElementWithId(groupName)) {
-        groupRenameInput.current?.setValidationError(
-          'A group with this name already exists'
-        );
-      } else {
-        createDrawnGroup(groupName);
-        groupNameDialogState.close();
-      }
-    }
-
     return (
       <div
         className="sb-node-editor"
@@ -757,7 +726,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           <canvas ref={gridCanvasRef} className="grid-canvas" />
           <CytoscapeComponent
             className="cytoscape-container"
-            elements={elements}
+            elements={[]}
             layout={{name: 'preset'}}
             cy={(cy: cytoscape.Core) => {
               cyRef.current = cy;
@@ -768,7 +737,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         <NodeToolbar
           onAddNode={props.onAddNode}
           onFitGraph={onFitGraph}
-          onSaveGraph={onSaveGraph}
           onDrawGroup={onDrawStart}
           onToggleStabilization={simulationConfig.togglePanel}
         />

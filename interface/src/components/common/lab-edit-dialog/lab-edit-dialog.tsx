@@ -160,13 +160,18 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
     }
   }
 
+  const submitButtonLabel =
+    props.dialogState.dialogState?.action === DialogAction.Add
+      ? 'Deploy'
+      : 'Submit';
+
   return (
     <SBDialog
       onClose={props.dialogState.close}
       isOpen={props.dialogState.isOpen}
       headerTitle={getDialogHeader()}
       className="sb-lab-edit-dialog"
-      submitLabel="Deploy"
+      submitLabel={submitButtonLabel}
       onSubmit={onSubmit}
       onShow={() => labNameRef.current?.input.current?.focus()}
     >

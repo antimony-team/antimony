@@ -86,12 +86,6 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
       </Choose>
       <Button
         outlined
-        icon="pi pi-save"
-        label="Save Lab"
-        aria-label="Save Lab"
-      />
-      <Button
-        outlined
         icon="pi pi-power-off"
         label={
           props.lab.state === InstanceState.Scheduled

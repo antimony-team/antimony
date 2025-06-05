@@ -14,7 +14,6 @@ import './node-toolbar.sass';
 interface NodeToolbarProps {
   onAddNode: () => void;
   onFitGraph: () => void;
-  onSaveGraph: () => void;
   onDrawGroup: () => void;
   onToggleStabilization: () => void;
 }
@@ -45,13 +44,6 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         onClick={props.onDrawGroup}
         tooltip="Draw Shape"
         aria-label="Draw Shape"
-      />
-      <Button
-        icon="pi pi-save"
-        text
-        tooltip="Save Layout"
-        onClick={props.onSaveGraph}
-        aria-label="Save Layout"
       />
       <Button
         className="sb-iconoir-button"

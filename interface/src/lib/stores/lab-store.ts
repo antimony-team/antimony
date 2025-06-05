@@ -185,7 +185,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         endTime: endTime,
         state: lab.instance
           ? lab.instance.state
-          : startTime >= dayjs(new Date()).subtract(10, 'seconds').toDate()
+          : startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
             ? InstanceState.Scheduled
             : InstanceState.Inactive,
         instance: this.parseInstance(lab.instance),

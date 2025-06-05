@@ -107,7 +107,7 @@ const SBDock: React.FC = observer(() => {
           tooltip="Lab Schedule"
           tooltipOptions={{position: 'bottom'}}
           onClick={() => setCalendarOpen(true)}
-          aria-label="Calendar"
+          aria-label="Lab Schedule"
         />
         <Button
           outlined
