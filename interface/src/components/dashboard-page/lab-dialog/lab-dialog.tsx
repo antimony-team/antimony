@@ -58,7 +58,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       : null;
 
     const graphData: ElementDefinition[] = useMemo(() => {
-      console.log(openTopology);
       if (!openTopology) return [];
       return generateGraph(openTopology, deviceStore, topologyStore.manager);
     }, [deviceStore, openTopology, topologyStore.manager]);

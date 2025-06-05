@@ -72,7 +72,7 @@ const SBLogin = observer(() => {
           <Message severity="error" text={loginError} />
         </If>
 
-        <If condition={dataBinder.hasNativeEnabled}>
+        <If condition={dataBinder.isNativeAuthEnabled}>
           <div className="p-inputgroup">
             <span className="p-inputgroup-addon">
               <i className="pi pi-user"></i>
@@ -103,7 +103,7 @@ const SBLogin = observer(() => {
           <Button className="login-button" label="LOGIN" type="submit" />
         </If>
 
-        <If condition={dataBinder.hasOidcEnabled}>
+        <If condition={dataBinder.isOpenIdAuthEnabled}>
           <Button
             label="Login with OpenID Connect"
             icon="pi pi-external-link"

@@ -19,7 +19,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
 
   const topologyStore = useTopologyStore();
 
-  async function onUrlSubmit(value: string): string {
+  async function onUrlSubmit(value: string): Promise<string> {
     if (!isValidURL(value)) {
       return 'Specified URL is not valid';
     }

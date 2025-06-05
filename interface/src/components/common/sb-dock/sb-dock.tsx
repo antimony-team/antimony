@@ -120,7 +120,8 @@ const SBDock: React.FC = observer(() => {
         />
         <If
           condition={
-            !dataBinder.nativeAutologin || dataBinder.isAuthenticatedWithOidc()
+            !dataBinder.useNativeAutoLogin ||
+            dataBinder.isAuthenticatedWithOidc()
           }
         >
           <Button

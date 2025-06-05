@@ -3,12 +3,12 @@ import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useCollectionStore, useStatusMessages} from '@sb/lib/stores/root-store';
 
-import './collection-edit-dialog.sass';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {Collection, CollectionIn} from '@sb/types/domain/collection';
 import {ErrorCodes} from '@sb/types/error-codes';
 
 import {isEqual} from 'lodash';
+import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 import {Checkbox} from 'primereact/checkbox';
 import React, {useEffect, useRef, useState} from 'react';
@@ -57,9 +57,11 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
       };
       setOriginalCollection(editCollection);
 
-      editingCollection.name = editCollection.name;
-      editingCollection.publicWrite = editCollection.publicWrite;
-      editingCollection.publicDeploy = editCollection.publicDeploy;
+      runInAction(() => {
+        editingCollection.name = editCollection.name;
+        editingCollection.publicWrite = editCollection.publicWrite;
+        editingCollection.publicDeploy = editCollection.publicDeploy;
+      });
     }
   }, [props.dialogState.isOpen]);
 
@@ -139,10 +141,10 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
       onClose={props.dialogState.close}
       isOpen={props.dialogState.isOpen}
       headerTitle={getDialogHeader()}
-      className="sb-collection-edit-dialog"
+      className="sb-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onShow={() => collectionNameRef.current?.input?.focus()}
+      onShow={() => collectionNameRef.current?.input.current?.focus()}
     >
       <div className="flex gap-4 flex-column">
         <SBInput

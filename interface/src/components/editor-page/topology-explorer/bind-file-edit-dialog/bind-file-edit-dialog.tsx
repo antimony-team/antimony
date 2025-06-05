@@ -215,7 +215,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       className="sb-bind-file-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onShow={() => bindFileNameRef.current?.input?.focus()}
+      onShow={() => bindFileNameRef.current?.input.current?.focus()}
     >
       <div className="mb-3">
         <SBInput

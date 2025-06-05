@@ -31,6 +31,10 @@ export type Subscription = {
   isAnonymous: boolean;
 };
 
+const SOCKETIO_CONFIG = {
+  transports: ['websocket'],
+};
+
 export class DataBinder {
   private readonly apiUrl = process.env.SB_API_SERVER_URL ?? 'localhost';
 
@@ -47,11 +51,10 @@ export class DataBinder {
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
 
-  @observable accessor hasOidcEnabled = false;
-  @observable accessor isAuthOidc = false;
+  @observable accessor isOpenIdAuthEnabled = false;
 
-  @observable accessor hasNativeEnabled = false;
-  @observable accessor nativeAutologin = false;
+  @observable accessor isNativeAuthEnabled = false;
+  @observable accessor useNativeAutoLogin = false;
 
   private refreshTokenPromise: Promise<Result<null>> | null = null;
   private accessToken: string = '';
@@ -71,27 +74,27 @@ export class DataBinder {
     if (authConfigResponse.isErr()) return;
 
     const authConfig = authConfigResponse.data.payload;
-    this.hasOidcEnabled = authConfig.openId.enabled;
-    this.hasNativeEnabled = authConfig.native.enabled;
-    this.nativeAutologin = authConfig.native.allowEmpty;
+    this.isOpenIdAuthEnabled = authConfig.openId.enabled;
+    this.isNativeAuthEnabled = authConfig.native.enabled;
+    this.useNativeAutoLogin = authConfig.native.allowEmpty;
 
     if (Cookies.get('accessToken') !== undefined) {
-      this.refreshToken().then(result => {
-        if (result.isOk()) {
-          this.isLoggedIn = true;
-          this.isReady = true;
-        } else if (Cookies.get('authOidc') === 'true' && this.hasOidcEnabled) {
-          // If auth token is invalid and OIDC auth was enabled, redirect
-          window.location.replace(this.apiUrl + '/users/login/openid');
-          return Result.createErr({code: -1, message: 'Unauthorized'});
-        } else {
-          // Display login page for user
-          this.isReady = true;
-        }
-      });
+      // If access token has been set previously, attempt to refresh token
+      const refreshResult = await this.refreshToken();
+
+      if (refreshResult.isOk()) {
+        runInAction(() => (this.isLoggedIn = true));
+      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc()) {
+        /*
+         * Redirect to OpenID login if existing auth token is invalid, auth via
+         * OpenID is enabled, and the user has previously logged in via OpenID.
+         */
+        this.loginWithOpenId();
+        return;
+      }
     } else {
       if (
-        this.hasNativeEnabled &&
+        this.isNativeAuthEnabled &&
         authConfig.native.allowEmpty &&
         !authConfig.openId.enabled
       ) {
@@ -100,8 +103,6 @@ export class DataBinder {
           password: '',
         });
       }
-
-      this.isReady = true;
     }
 
     // Automatically connect / disconnect subscriptions when logged in
@@ -112,6 +113,8 @@ export class DataBinder {
         this.disconnectSubscriptions();
       }
     });
+
+    runInAction(() => (this.isReady = true));
   }
 
   public isAuthenticatedWithOidc(): boolean {
@@ -138,7 +141,7 @@ export class DataBinder {
   private connectSubscription(subscription: Subscription) {
     if (subscription.isAnonymous) {
       try {
-        subscription.socket = io(`/${subscription.namespace}`);
+        subscription.socket = io(`/${subscription.namespace}`, SOCKETIO_CONFIG);
       } catch (_) {
         subscription.socket?.close();
         return;
@@ -146,10 +149,10 @@ export class DataBinder {
     } else {
       try {
         subscription.socket = io(`/${subscription.namespace}`, {
+          ...SOCKETIO_CONFIG,
           auth: {
             token: this.accessToken,
           },
-          transports: ['websocket'],
         });
       } catch (_) {
         subscription.socket?.close();
@@ -179,8 +182,8 @@ export class DataBinder {
             this.connectSubscription(subscription);
           } else {
             // TODO(kian): Maybe add proper dialog to ask to refresh
-            if (this.hasOidcEnabled) {
-              window.location.replace(this.apiUrl + '/users/login/openid');
+            if (this.isOpenIdAuthEnabled) {
+              this.loginWithOpenId();
             }
           }
         });
@@ -299,7 +302,7 @@ export class DataBinder {
   }
 
   public loginWithOpenId() {
-    window.location.replace(this.apiUrl + '/users/login/openid');
+    window.location.href = this.apiUrl + '/users/login/openid';
   }
 
   public async loginNative(credentials: UserCredentials): Promise<boolean> {
@@ -316,18 +319,18 @@ export class DataBinder {
       return false;
     }
 
-    this.isLoggedIn = true;
+    runInAction(() => (this.isLoggedIn = true));
 
     return true;
   }
 
-  @action
   protected async fetch<R, T>(
     path: string,
     method: string,
     body?: R,
     authenticated = true
   ): Promise<Result<DataResponse<T>>> {
+    // If the request is authenticated, wait until the user is logged in
     if (authenticated && !this.isLoggedIn) {
       return Result.createErr({code: -1, message: 'Unauthorized'});
     }
@@ -351,10 +354,10 @@ export class DataBinder {
     if (response.status === 498) {
       const refreshResponse = await this.refreshToken();
       if (refreshResponse.isErr()) {
-        if (this.hasOidcEnabled) {
-          window.location.replace(this.apiUrl + '/users/login/openid');
+        if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc()) {
+          this.loginWithOpenId();
           return refreshResponse;
-        } else if (this.hasNativeEnabled && this.nativeAutologin) {
+        } else if (this.isNativeAuthEnabled && this.useNativeAutoLogin) {
           await this.loginNative({
             username: '',
             password: '',
@@ -469,14 +472,14 @@ export class DataBinder {
 
   public async get<T>(
     path: string,
-    authenticated = false
+    authenticated = true
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<void, T>(path, 'GET', undefined, authenticated);
   }
 
   public async delete<T>(
     path: string,
-    authenticated = false
+    authenticated = true
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<void, T>(path, 'DELETE', undefined, authenticated);
   }
@@ -484,16 +487,24 @@ export class DataBinder {
   public async post<R, T>(
     path: string,
     body: R,
-    skipAuthentication = false
+    authenticated = true
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(path, 'POST', body, skipAuthentication);
+    return this.fetch<R, T>(path, 'POST', body, authenticated);
   }
 
   public async put<R, T>(
     path: string,
     body: R,
-    authenticated = false
+    authenticated = true
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<R, T>(path, 'PUT', body, authenticated);
+  }
+
+  public async patch<R, T>(
+    path: string,
+    body: R,
+    authenticated = true
+  ): Promise<Result<DataResponse<T>>> {
+    return this.fetch<R, T>(path, 'PATCH', body, authenticated);
   }
 }

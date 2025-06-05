@@ -28,6 +28,7 @@ export abstract class DataStore<T, I, O> {
     void this.fetch();
   }
 
+  @action
   public async fetch() {
     if (!this.rootStore._dataBinder.isLoggedIn) {
       this.fetchReport = {state: FetchState.Pending};
@@ -66,7 +67,7 @@ export abstract class DataStore<T, I, O> {
   }
 
   public async update(id: uuid4, body: I): Promise<Result<DataResponse<void>>> {
-    const result = await this.rootStore._dataBinder.put<I, void>(
+    const result = await this.rootStore._dataBinder.patch<I, void>(
       `${this.resourcePath}/${id}` + this.patchParams,
       body
     );

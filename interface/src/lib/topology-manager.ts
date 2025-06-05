@@ -116,6 +116,8 @@ export class TopologyManager {
 
       for (const [labelKey, labelValue] of Object.entries(nodeLabels)) {
         if (labelValue === null) {
+          if (!yamlNode.get('labels')) continue;
+
           yamlNode.deleteIn(['labels', labelKey]);
         } else {
           yamlNode.setIn(['labels', labelKey], labelValue);
@@ -320,14 +322,22 @@ export class TopologyManager {
       const [hostNode, hostInterface] = link.endpoints[0].split(':');
       const [targetNode, targetInterface] = link.endpoints[1].split(':');
 
-      const hostNodeKind = this.editingTopology?.definition.getIn([
+      // Ignore the link if one of the nodes does not exist
+      if (
+        !topology.getIn(['topology', 'nodes', hostNode]) ||
+        !topology.getIn(['topology', 'nodes', targetNode])
+      ) {
+        continue;
+      }
+
+      const hostNodeKind = topology.getIn([
         'topology',
         'nodes',
         hostNode,
         'kind',
       ]) as string;
 
-      const targetNodeKind = this.editingTopology?.definition.getIn([
+      const targetNodeKind = topology.getIn([
         'topology',
         'nodes',
         targetNode,

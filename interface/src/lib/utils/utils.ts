@@ -187,15 +187,31 @@ export function generateGraph(
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
   const addedGroups = new Set<string>();
-  for (const [, [nodeName, node]] of Object.entries(
+
+  const topologyNodes = Object.entries(
     topology.definition.toJS().topology.nodes
-  ).entries()) {
-    const lat = parseFloat(node.labels?.['graph-geoCoordinateLat'] ?? '');
-    const lng = parseFloat(node.labels?.['graph-geoCoordinateLng'] ?? '');
-    const group = node.labels?.['graph-group'];
-    const level = node.labels?.['graph-level'];
-    const position =
-      isNaN(lat) || isNaN(lng) ? {x: 0, y: 0} : convertLatLngToXY(lat, lng);
+  );
+
+  for (const [nodeName, node] of topologyNodes) {
+    const posX = parseFloat(node?.labels?.['graph-posX'] ?? '');
+    const posY = parseFloat(node?.labels?.['graph-posY'] ?? '');
+
+    let position = {x: 0, y: 0};
+
+    if (!isNaN(posX) && !isNaN(posY)) {
+      position = {x: posX, y: posY};
+    } else {
+      const lat = parseFloat(node?.labels?.['graph-geoCoordinateLat'] ?? '');
+      const lng = parseFloat(node?.labels?.['graph-geoCoordinateLng'] ?? '');
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        position = convertLatLngToXY(lat, lng);
+      }
+    }
+
+    const group = node?.labels?.['graph-group'];
+    const level = node?.labels?.['graph-level'];
+
     let parentId: string | undefined = undefined;
 
     if (group !== undefined) {
@@ -215,14 +231,14 @@ export function generateGraph(
         parent: parentId,
         label: nodeName,
         title: topologyManager.getNodeTooltip(nodeName),
-        kind: node.kind,
+        kind: node?.kind ?? '',
         image: deviceStore.getNodeIcon(node),
       },
       position: position,
       classes: 'topology-node',
     });
   }
-  // Edges
+
   for (const connection of topology.connections) {
     elements.push({
       data: {
@@ -236,16 +252,8 @@ export function generateGraph(
       classes: 'edge',
     });
   }
-  return elements;
-}
 
-export function generateUuidv4() {
-  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
-    (
-      +c ^
-      (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
-    ).toString(16)
-  );
+  return elements;
 }
 
 export const SBTooltipOptions: TooltipOptions = {

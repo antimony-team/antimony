@@ -168,7 +168,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       className="sb-lab-edit-dialog"
       submitLabel="Deploy"
       onSubmit={onSubmit}
-      onShow={() => labNameRef.current?.input?.focus()}
+      onShow={() => labNameRef.current?.input.current?.focus()}
     >
       <div className="flex gap-2 flex-column">
         <div className="mb-3">

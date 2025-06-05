@@ -1,6 +1,7 @@
 import {DataStore} from '@sb/lib/stores/data-store';
 import {DeviceInfo, InterfaceConfig} from '@sb/types/domain/device-info';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {TopologyNode} from '@sb/types/domain/topology';
 
 export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
   protected get resourcePath(): string {
@@ -28,7 +29,7 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     return '/icons/' + iconName + '.svg';
   }*/
 
-  public getNodeIcon(node: TopologyNode | undefined) {
+  public getNodeIcon(node: TopologyNode | null) {
     let icon_path = '/icons/generic.svg';
     const icon = node?.labels?.['graph-icon'];
     if (icon !== undefined) {

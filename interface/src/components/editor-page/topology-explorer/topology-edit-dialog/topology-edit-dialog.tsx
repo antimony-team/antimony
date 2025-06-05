@@ -12,13 +12,12 @@ import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {Topology, TopologyIn} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
 import {isEqual} from 'lodash';
+import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 import {SelectItem} from 'primereact/selectitem';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 
 import YAML from 'yaml';
-
-import './topology-edit-dialog.sass';
 
 export interface TopologyEditDialogState {
   // Set to null if the dialog is meant to add a new topology
@@ -70,13 +69,15 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       };
       setOriginalTopology(editTopology);
 
-      editingTopology.name = editTopology.name;
-      editingTopology.collectionId = editTopology.collectionId;
+      runInAction(() => {
+        editingTopology.name = editTopology.name;
+        editingTopology.collectionId = editTopology.collectionId;
+      });
     }
   }, [props.dialogState.isOpen]);
 
   function onNameChange(name: string, isImplicit: boolean) {
-    editingTopology.name = name;
+    runInAction(() => (editingTopology.name = name));
     if (!isImplicit) void onSubmit();
   }
 
@@ -180,10 +181,10 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       onClose={props.dialogState.close}
       isOpen={props.dialogState.isOpen}
       headerTitle={getDialogHeader()}
-      className="sb-topology-add-dialog"
+      className="sb-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onShow={() => topologyNameRef.current?.input?.focus()}
+      onShow={() => topologyNameRef.current?.input.current?.focus()}
     >
       <div className="mb-3">
         <SBInput
