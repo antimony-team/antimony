@@ -553,7 +553,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: The schema as JSON string
+          description: The schema as JSON object
           schema:
             $ref: '#/definitions/utils.OkResponse-any'
       summary: Returns the JSON schema to validate topology definitions

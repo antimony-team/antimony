@@ -48,7 +48,7 @@ func (p *ClabernetesProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(string),
-) (*InspectOutput, error) {
+) (InspectOutput, error) {
 	namespace := getTopologyName(topologyFile, onLog)
 
 	cmd := exec.CommandContext(ctx, "kubectl", "get", "pods", "-n", namespace, "-o", "json")
@@ -58,7 +58,7 @@ func (p *ClabernetesProvider) Inspect(
 	}
 
 	if raw == nil || *raw == "" {
-		return &InspectOutput{Containers: []InspectContainer{}}, nil
+		return InspectOutput{}, nil
 	}
 
 	var result struct {
@@ -97,12 +97,12 @@ func (p *ClabernetesProvider) Inspect(
 			Owner:       namespace,
 		})
 	}
-	return &InspectOutput{Containers: containers}, nil
+	return InspectOutput{}, nil
 }
 
 func (p *ClabernetesProvider) InspectAll( //not tested
 	ctx context.Context,
-) (*InspectOutput, error) {
+) (InspectOutput, error) {
 	/*cmd := exec.CommandContext(ctx, "kubectl", "get", "topology", "--all-namespaces", "-o", "json")
 	if output, err := runClabCommandSync(cmd); err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (p *ClabernetesProvider) InspectAll( //not tested
 		return &InspectOutput{Containers: []InspectContainer{}}, nil
 	}*/
 
-	return nil, nil
+	return InspectOutput{}, nil
 }
 
 func (p *ClabernetesProvider) Exec(

@@ -446,7 +446,7 @@ const docTemplate = `{
                 "summary": "Returns the JSON schema to validate topology definitions",
                 "responses": {
                     "200": {
-                        "description": "The schema as JSON string",
+                        "description": "The schema as JSON object",
                         "schema": {
                             "$ref": "#/definitions/utils.OkResponse-any"
                         }

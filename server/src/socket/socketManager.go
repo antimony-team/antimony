@@ -3,6 +3,7 @@ package socket
 import (
 	"antimonyBackend/auth"
 	"github.com/zishang520/socket.io/socket"
+	"sync"
 )
 
 type (
@@ -22,6 +23,7 @@ type (
 	socketManager struct {
 		server      *socket.Server
 		users       map[string]auth.AuthenticatedUser
+		usersMutex  *sync.Mutex
 		authManager auth.AuthManager
 	}
 )
@@ -32,6 +34,7 @@ func CreateSocketManager(authManager auth.AuthManager) SocketManager {
 	manager := &socketManager{
 		server:      server,
 		users:       make(map[string]auth.AuthenticatedUser),
+		usersMutex:  &sync.Mutex{},
 		authManager: authManager,
 	}
 
@@ -62,6 +65,9 @@ func (m *socketManager) SocketAuthenticatorMiddleware(s *socket.Socket, next fun
 		return
 	}
 
+	m.usersMutex.Lock()
 	m.users[accessToken] = *authUser
+	m.usersMutex.Unlock()
+
 	next(nil)
 }

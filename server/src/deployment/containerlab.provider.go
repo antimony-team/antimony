@@ -41,7 +41,7 @@ func (p *ContainerlabProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) (output *InspectOutput, err error) {
+) (output InspectOutput, err error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
 	rawOutput, err := runClabCommandSync(cmd, onLog)
 
@@ -50,32 +50,29 @@ func (p *ContainerlabProvider) Inspect(
 	}
 
 	if *rawOutput == "" {
-		return &InspectOutput{
-			Containers: []InspectContainer{},
-		}, nil
+		return InspectOutput{}, nil
 	}
 
 	var inspectOutput InspectOutput
 	err = json.Unmarshal([]byte(*rawOutput), &inspectOutput)
-	return &inspectOutput, err
+	return inspectOutput, err
 }
 
 func (p *ContainerlabProvider) InspectAll(
 	ctx context.Context,
-) (*InspectOutput, error) {
+) (InspectOutput, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
 	if output, err := runClabCommandSync(cmd, nil); err != nil {
 		return nil, err
 	} else {
 		if *output == "" {
-			return &InspectOutput{
-				Containers: []InspectContainer{},
-			}, nil
+			return InspectOutput{}, nil
 		}
 
 		var inspectOutput InspectOutput
 		err = json.Unmarshal([]byte(*output), &inspectOutput)
-		return &inspectOutput, err
+
+		return inspectOutput, err
 	}
 }
 

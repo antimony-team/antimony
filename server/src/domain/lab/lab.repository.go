@@ -8,9 +8,9 @@ import (
 
 type (
 	Repository interface {
-		GetAll(labFilter *LabFilter) ([]Lab, error)
+		GetAll(labFilter *LabFilter) ([]*Lab, error)
 		GetByUuid(ctx context.Context, labId string) (*Lab, error)
-		GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]Lab, error)
+		GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]*Lab, error)
 		Create(ctx context.Context, lab *Lab) error
 		Update(ctx context.Context, lab *Lab) error
 		Delete(ctx context.Context, lab *Lab) error
@@ -27,8 +27,8 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *labRepository) GetAll(labFilter *LabFilter) ([]Lab, error) {
-	var labs []Lab
+func (r *labRepository) GetAll(labFilter *LabFilter) ([]*Lab, error) {
+	var labs []*Lab
 	query := r.db.
 		Preload("Topology.Collection").
 		Preload("Creator").
@@ -80,8 +80,8 @@ func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, erro
 	return &lab, result.Error
 }
 
-func (r *labRepository) GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]Lab, error) {
-	var labs []Lab
+func (r *labRepository) GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]*Lab, error) {
+	var labs []*Lab
 	result := r.db.WithContext(ctx).
 		Joins("JOIN topologies ON topologies.id = labs.topology_id").
 		Joins("JOIN collections ON collections.id = topologies.collection_id").

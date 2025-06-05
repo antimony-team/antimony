@@ -7,8 +7,8 @@ import (
 type DeploymentProvider interface {
 	Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
 	Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
-	Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (output *InspectOutput, err error)
-	InspectAll(ctx context.Context) (*InspectOutput, error)
+	Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (output InspectOutput, err error)
+	InspectAll(ctx context.Context) (InspectOutput, error)
 	Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
 
 	Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error))
@@ -18,9 +18,7 @@ type DeploymentProvider interface {
 	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
 }
 
-type InspectOutput struct {
-	Containers []InspectContainer
-}
+type InspectOutput = map[string][]InspectContainer
 
 type InspectContainer struct {
 	LabName     string    `json:"lab_name"`
