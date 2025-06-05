@@ -49,9 +49,9 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 10s
+      interval: 2s
       timeout: 3s
-      retries: 3
+      retries: 10
     volumes:
       - ./.db:/var/lib/postgresql/data
       - ./postgres:/docker-entrypoint-initdb.d/
@@ -61,6 +61,8 @@ services:
   frontend:
     container_name: frontend
     image: ghcr.io/antimony-team/antimony-interface:latest
+    depends_on:
+      - backend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
@@ -68,7 +70,7 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.routers.frontend.service=frontend"
       # - "traefik.http.routers.frontend.tls.domains[0].main=example.com
-      - "traefik.http.services.frontend.loadbalancer.server.port=8100"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "traefik.http.services.backend-socket.loadbalancer.server.scheme=http"
 
   backend:
@@ -87,7 +89,8 @@ services:
       - ./mnt/run:/app/run/
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-     - database
+      database:
+        condition: service_healthy
     labels:
       # Backend /socket.io route
       - "traefik.enable=true"
@@ -98,6 +101,13 @@ services:
       # - traefik.http.routers.backend-socket.tls.domains[0].main=example.com
       - "traefik.http.services.backend-socket.loadbalancer.server.port=3000"
       - "traefik.http.services.backend-socket.loadbalancer.server.scheme=http"
+
+      # WebSocket support
+      - "traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Connection=Upgrade"
+      - "traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Upgrade=websocket"
+
+      # Attach middleware
+      - "traefik.http.routers.backend-socket.middlewares=socketio-headers"
 
       # Backend /api route
       - "traefik.http.routers.backend-api.rule=PathPrefix(`/api`)"
