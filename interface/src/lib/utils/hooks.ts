@@ -34,7 +34,7 @@ export class DialogState<T> {
   }
 
   @action
-  public openWith(state: T | null) {
+  public openWith(state: T | null = null) {
     this.state = state;
     this.isOpen = true;
     if (this._onOpen) this._onOpen(state);

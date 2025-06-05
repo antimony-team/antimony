@@ -1,8 +1,10 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-editor.sass';
+import {useDialogState} from '@sb/lib/utils/hooks';
 import {convertXYToLatLng, drawGrid, generateGraph} from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
@@ -48,9 +50,9 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       null
     );
 
-    const [newCompoundGroup, setNewCompoundGroup] = useState<boolean>(false);
+    const groupNameDialogState = useDialogState();
+
     const [isCyReady, setIsCyReady] = useState<boolean>(false);
-    const [newGroupLabel, setNewGroupLabel] = useState<string>('');
 
     const drawStartPos = useRef<Position | null>(null);
     const drawEndPos = useRef<Position | null>(null);
@@ -249,38 +251,37 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       compound.children().forEach(child => {
         (child as NodeSingular).move({parent: parentId});
       });
-      cy.getElementById(CLOSE_ID(compoundId));
+      cy.getElementById(getGroupCloseId(compoundId));
       compound.remove();
     }
 
-    const handleCloseButtonTap = useCallback(
-      (e: EventObject) => {
-        const btnNode = e.target as NodeSingular;
-        const closeId = btnNode.id();
-        const compoundId = closeId.replace(/^close-/, '');
+    function onGroupDelete(e: EventObject) {
+      const btnNode = e.target as NodeSingular;
+      const closeId = btnNode.id();
+      const compoundId = closeId.replace(/^close-/, '');
 
-        ungroupCompound(compoundId);
-        btnNode.remove();
-      },
-      [ungroupCompound]
-    );
+      ungroupCompound(compoundId);
+      btnNode.remove();
+    }
 
-    const CLOSE_ID = (compoundId: string) => `close-${compoundId}`;
+    function getGroupCloseId(compoundId: string) {
+      return `close-${compoundId}`;
+    }
 
     function closeGroupDeleteBtn() {
       cyRef.current?.nodes('.compound-close-btn').style('visibility', 'hidden');
     }
 
-    const onEdgeClick = useCallback((event: cytoscape.EventObject) => {
-      if (event.target.hasClass('ghost-edge')) {
-        exitConnectionMode();
-        closeRadialMenu();
-        cyRef.current?.elements().unselect();
-        closeGroupDeleteBtn();
-      }
-    }, []);
+    function onEdgeClick(event: cytoscape.EventObject) {
+      if (!event.target.hasClass('ghost-edge')) return;
 
-    const onNodeClick = useCallback((event: cytoscape.EventObject) => {
+      exitConnectionMode();
+      closeRadialMenu();
+      cyRef.current?.elements().unselect();
+      closeGroupDeleteBtn();
+    }
+
+    function onNodeClick(event: cytoscape.EventObject) {
       if (!cyRef.current) return;
 
       const cy = cyRef.current;
@@ -299,7 +300,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (node.hasClass('compound-close-btn')) return;
 
       if (node.hasClass('drawn-shape')) {
-        const closeBtnId = CLOSE_ID(nodeId);
+        const closeBtnId = getGroupCloseId(nodeId);
         const closeBtn = cy.getElementById(closeBtnId);
 
         if (!node.nonempty() || !closeBtn.nonempty()) return;
@@ -328,18 +329,17 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
 
       radialMenuTarget.current = nodeId;
-      // setRadialMenuTarget(nodeId);
-    }, []);
+    }
 
-    const onBackgroundClick = useCallback(() => {
-      closeRadialMenu();
-      cyRef.current?.elements().unselect();
-      closeGroupDeleteBtn();
-    }, []);
+    function onGraphClick(event: EventObject) {
+      if (event.target === cyRef.current) {
+        closeRadialMenu();
+        cyRef.current?.elements().unselect();
+        closeGroupDeleteBtn();
+      }
+    }
 
     function closeRadialMenu() {
-      // radialMenuTarget = null;
-      // setRadialMenuTarget(null);
       radialMenuRef.current?.hide();
     }
 
@@ -371,23 +371,21 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       radialMenuRef.current.show();
     }
 
-    const onDoubleClick = useCallback(
-      (event: cytoscape.EventObject) => {
-        if (event.target.hasClass('drawn-shape')) return;
-        const nodeId = event.target.id();
-        if (!nodeId || !contextMenuRef.current) return;
+    function onDoubleClick(event: cytoscape.EventObject) {
+      if (event.target.hasClass('drawn-shape')) return;
 
-        closeRadialMenu();
-        props.onEditNode(nodeId);
-      },
-      [props]
-    );
+      const nodeId = event.target.id();
+      if (!nodeId || !contextMenuRef.current) return;
 
-    const onEdgeContext = useCallback((event: cytoscape.EventObject) => {
+      closeRadialMenu();
+      props.onEditNode(nodeId);
+    }
+
+    function onEdgeContext(event: cytoscape.EventObject) {
       if (event.target.hasClass('ghost-edge')) {
         exitConnectionMode();
       }
-    }, []);
+    }
 
     const onNodeContext = useCallback((event: cytoscape.EventObject) => {
       exitConnectionMode();
@@ -421,12 +419,15 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       closeGroupDeleteBtn();
     }, []);
 
-    const onDragStart = useCallback((event: cytoscape.EventObject) => {
-      console.log('drag start');
-
+    function onDragStart(event: cytoscape.EventObject) {
       const node = event.target;
       if (!node || !node.isNode()) return;
-    }, []);
+    }
+
+    function onDragEnd(event: cytoscape.EventObject) {
+      const node = event.target;
+      if (node?.isNode()) onSaveGraph();
+    }
 
     function onFitGraph() {
       const cy = cyRef.current;
@@ -524,118 +525,9 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       };
 
       const handleMouseUp = () => {
-        console.log('mouse up');
-
-        if (
-          !cyRef.current ||
-          !isDrawingShape.current ||
-          !drawStartPos.current ||
-          !drawEndPos.current
-        ) {
-          return;
+        if (isDrawingShape.current) {
+          onDrawEnd();
         }
-
-        const cy = cyRef.current;
-
-        const x = Math.min(drawStartPos.current.x, drawEndPos.current.x);
-        const y = Math.min(drawStartPos.current.y, drawEndPos.current.y);
-        const w = Math.abs(drawEndPos.current.x - drawStartPos.current.x);
-        const h = Math.abs(drawEndPos.current.y - drawStartPos.current.y);
-
-        const hitsArray = cy
-          .nodes()
-          .filter(n => {
-            if (n.hasClass('compound-close-btn')) return false;
-            const {x: nx, y: ny} = n.position();
-            return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
-          })
-          .toArray() as NodeSingular[];
-
-        const hitsSet = new Set(hitsArray.map(n => n.id()));
-
-        const compoundFullyHit = hitsArray
-          .filter(n => n.isParent())
-          .filter((compound: NodeSingular) => {
-            return compound
-              .descendants()
-              .toArray()
-              .every(desc => hitsSet.has(desc.id()));
-          })
-          .map(c => c.id());
-
-        const groupableIds = hitsArray
-          .map(n => n.id())
-          .filter(id => {
-            if (compoundFullyHit.includes(id)) {
-              return true;
-            }
-            const node = cy.getElementById(id) as NodeSingular;
-            return node
-              .ancestors()
-              .toArray()
-              .every(anc => !compoundFullyHit.includes(anc.id()));
-          });
-
-        const selectedParents = new Set<string>();
-        hitsArray.forEach(n => {
-          const parent = n.parent();
-          if (parent && parent.nonempty()) {
-            selectedParents.add(parent[0].id());
-          }
-        });
-
-        let newGroupParent: string | undefined = undefined;
-        if (selectedParents.size === 1) {
-          newGroupParent = [...selectedParents][0];
-        }
-        console.log(
-          'parebnt',
-          newGroupParent,
-          'selectedParent',
-          selectedParents,
-          'label',
-          newGroupLabel
-        );
-        const groupId = `${newGroupLabel}1`;
-        if (groupableIds.length) {
-          cy.batch(() => {
-            cy.add({
-              group: 'nodes',
-              data: {
-                id: groupId,
-                label: newGroupLabel,
-              },
-              classes: 'drawn-shape',
-            });
-            groupableIds.forEach(id =>
-              cy.getElementById(id).move({parent: groupId})
-            );
-
-            if (newGroupParent) {
-              cy.getElementById(groupId).move({parent: newGroupParent});
-            }
-          });
-        }
-        cy.add({
-          group: 'nodes',
-          data: {id: CLOSE_ID(groupId)},
-          position: {x: 0, y: 0},
-          classes: 'compound-close-btn',
-        });
-
-        cy.nodes().unlock().grabify();
-        cy.nodes('.drawn-shape').forEach(n => {
-          n.style('events', 'yes');
-        });
-
-        drawStartPos.current = null;
-        drawEndPos.current = null;
-        isDrawingShape.current = false;
-
-        // setDrawStartPos(null);
-        // setDrawEndPos(null);
-        // setIsDrawingShape(false);
-        cy.userPanningEnabled(true);
       };
 
       cy.on('mousedown', handleMouseDown);
@@ -649,22 +541,124 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       };
     }, []);
 
-    function onDrawGroup() {
-      setNewCompoundGroup(true);
-      const cy = cyRef.current;
-      if (!cy) return;
+    function createDrawnGroup(groupName: string) {
+      if (!cyRef.current || !drawStartPos.current || !drawEndPos.current) {
+        return;
+      }
 
-      cy.nodes('.drawn-shape').forEach(n => {
-        n.style('events', 'no');
+      const cy = cyRef.current;
+
+      const x = Math.min(drawStartPos.current.x, drawEndPos.current.x);
+      const y = Math.min(drawStartPos.current.y, drawEndPos.current.y);
+      const w = Math.abs(drawEndPos.current.x - drawStartPos.current.x);
+      const h = Math.abs(drawEndPos.current.y - drawStartPos.current.y);
+
+      const hitsArray = cy
+        .nodes()
+        .filter(n => {
+          if (n.hasClass('compound-close-btn')) return false;
+          const {x: nx, y: ny} = n.position();
+          return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
+        })
+        .toArray() as NodeSingular[];
+
+      const hitsSet = new Set(hitsArray.map(n => n.id()));
+
+      const compoundFullyHit = hitsArray
+        .filter(n => n.isParent())
+        .filter((compound: NodeSingular) => {
+          return compound
+            .descendants()
+            .toArray()
+            .every(desc => hitsSet.has(desc.id()));
+        })
+        .map(c => c.id());
+
+      const groupableIds = hitsArray
+        .map(n => n.id())
+        .filter(id => {
+          if (compoundFullyHit.includes(id)) {
+            return true;
+          }
+          const node = cy.getElementById(id) as NodeSingular;
+          return node
+            .ancestors()
+            .toArray()
+            .every(anc => !compoundFullyHit.includes(anc.id()));
+        });
+
+      const selectedParents = new Set<string>();
+      hitsArray.forEach(n => {
+        const parent = n.parent();
+        if (parent && parent.nonempty()) {
+          selectedParents.add(parent[0].id());
+        }
       });
-      isDrawingShape.current = true;
-      // setIsDrawingShape(true);
-      cy.userPanningEnabled(false);
+
+      let newGroupParent: string | undefined = undefined;
+      if (selectedParents.size === 1) {
+        newGroupParent = [...selectedParents][0];
+      }
+
+      if (groupableIds.length) {
+        cy.batch(() => {
+          cy.add({
+            group: 'nodes',
+            data: {
+              id: groupName,
+              label: groupName,
+            },
+            classes: 'drawn-shape',
+          });
+          groupableIds.forEach(id =>
+            cy.getElementById(id).move({parent: groupName})
+          );
+
+          if (newGroupParent) {
+            cy.getElementById(groupName).move({parent: newGroupParent});
+          }
+        });
+      }
+      cy.add({
+        group: 'nodes',
+        data: {id: getGroupCloseId(groupName)},
+        position: {x: 0, y: 0},
+        classes: 'compound-close-btn',
+      });
+
+      drawStartPos.current = null;
+      drawEndPos.current = null;
+      onSaveGraph();
     }
 
-    function applyNewGroupLabel() {
-      if (!cyRef.current || !newCompoundGroup) return;
-      setNewCompoundGroup(false);
+    function onDrawEnd() {
+      if (!cyRef.current || !drawStartPos.current || !drawEndPos.current) {
+        return;
+      }
+
+      const cy = cyRef.current;
+
+      cy.nodes().unlock().grabify();
+      cy.nodes('.drawn-shape').forEach(n => {
+        n.style('events', 'yes');
+      });
+
+      isDrawingShape.current = false;
+
+      cy.userPanningEnabled(true);
+
+      groupNameDialogState.openWith();
+    }
+
+    function onDrawStart() {
+      if (!cyRef.current) return;
+
+      cyRef.current.nodes('.drawn-shape').forEach(n => {
+        n.style('events', 'no');
+      });
+
+      isDrawingShape.current = true;
+      cyRef.current.userPanningEnabled(false);
     }
 
     const nodeContextMenuModel = [
@@ -714,23 +708,43 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.maxZoom(10);
       cy.style().fromJson(topologyStyle).update();
 
-      cy.on('click', (event: EventObject) => {
-        if (event.target === cyRef.current) {
-          onBackgroundClick();
-        }
-      });
-
-      cy.on('click', 'node.compound-close-btn', handleCloseButtonTap);
+      cy.on('click', onGraphClick);
+      cy.on('click', 'node.compound-close-btn', onGroupDelete);
       cy.on('click', 'node', onNodeClick);
       cy.on('dbltap', 'node', onDoubleClick);
       cy.on('cxttap', 'node', onNodeContext);
       cy.on('cxttap', 'edge', onEdgeContext);
       cy.on('grab', 'node', onDragStart);
+      cy.on('free', 'node', onDragEnd);
       cy.on('drag', 'node', onDragging);
       cy.on('click', 'edge', onEdgeClick);
       cy.on('render', drawGridOverlay);
 
       onFitGraph();
+    }
+
+    const groupRenameInput = useRef<SBInputRef>(null);
+
+    function onGroupNameSubmit(
+      groupName: string | undefined,
+      isImplicit: boolean = false
+    ) {
+      if (!cyRef.current) return;
+
+      if (!groupName || groupName === '') {
+        if (!isImplicit) {
+          groupRenameInput.current?.setValidationError(
+            "Group name can't be empty"
+          );
+        }
+      } else if (cyRef.current && cyRef.current.hasElementWithId(groupName)) {
+        groupRenameInput.current?.setValidationError(
+          'A group with this name already exists'
+        );
+      } else {
+        createDrawnGroup(groupName);
+        groupNameDialogState.close();
+      }
     }
 
     return (
@@ -755,7 +769,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           onAddNode={props.onAddNode}
           onFitGraph={onFitGraph}
           onSaveGraph={onSaveGraph}
-          onDrawGroup={onDrawGroup}
+          onDrawGroup={onDrawStart}
           onToggleStabilization={simulationConfig.togglePanel}
         />
         <SimulationPanel onStabilizeGraph={onStabilizeGraph} />
@@ -774,22 +788,22 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           ref={contextMenuRef}
         />
         <SBDialog
-          isOpen={newCompoundGroup}
-          onClose={() => setNewCompoundGroup(false)}
-          onSubmit={applyNewGroupLabel}
+          isOpen={groupNameDialogState.isOpen}
+          onClose={groupNameDialogState.close}
+          onSubmit={() => {
+            onGroupNameSubmit(groupRenameInput.current?.input.current?.value);
+          }}
           headerTitle="Set Group Label"
+          submitLabel="Ok"
+          onShow={() => groupRenameInput.current?.input.current?.focus()}
         >
-          <div className="p-fluid">
-            <div className="p-field">
-              <label htmlFor="groupLabel">Group Label</label>
-              <input
-                id="groupLabel"
-                value={newGroupLabel}
-                onChange={e => setNewGroupLabel(e.target.value)}
-                className="p-inputtext p-component"
-              />
-            </div>
-          </div>
+          <SBInput
+            ref={groupRenameInput}
+            onValueSubmit={onGroupNameSubmit}
+            placeholder="e.g. Backbone"
+            id="node-editor-group-name"
+            label="Group Name"
+          />
         </SBDialog>
       </div>
     );

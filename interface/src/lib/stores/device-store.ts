@@ -29,7 +29,7 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     return '/icons/' + iconName + '.svg';
   }*/
 
-  public getNodeIcon(node: TopologyNode | null) {
+  public getNodeIcon(node?: TopologyNode | null) {
     let icon_path = '/icons/generic.svg';
     const icon = node?.labels?.['graph-icon'];
     if (icon !== undefined) {
