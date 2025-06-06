@@ -3,14 +3,15 @@ package lab
 import (
 	"antimonyBackend/utils"
 	"context"
+	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 )
 
 type (
 	Repository interface {
-		GetAll(labFilter *LabFilter) ([]*Lab, error)
+		GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error)
 		GetByUuid(ctx context.Context, labId string) (*Lab, error)
-		GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]*Lab, error)
+
 		Create(ctx context.Context, lab *Lab) error
 		Update(ctx context.Context, lab *Lab) error
 		Delete(ctx context.Context, lab *Lab) error
@@ -27,9 +28,9 @@ func CreateRepository(db *gorm.DB) Repository {
 	}
 }
 
-func (r *labRepository) GetAll(labFilter *LabFilter) ([]*Lab, error) {
-	var labs []*Lab
-	query := r.db.
+func (r *labRepository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error) {
+	var labs []Lab
+	query := r.db.WithContext(ctx).
 		Preload("Topology.Collection").
 		Preload("Creator").
 		Order("labs.start_time")
@@ -61,7 +62,12 @@ func (r *labRepository) GetAll(labFilter *LabFilter) ([]*Lab, error) {
 	}
 	result := query.Find(&labs)
 
-	return labs, result.Error
+	if result.Error != nil {
+		log.Errorf("[DB] Failed to fetch all labs. Error: %s", result.Error.Error())
+		return nil, utils.ErrorDatabaseError
+	}
+
+	return labs, nil
 }
 
 func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
@@ -70,35 +76,43 @@ func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, erro
 		Preload("Creator").
 		Preload("Topology").
 		Where("uuid = ?", labId).
-		Limit(1).
 		Find(&lab)
 
 	if result.RowsAffected < 1 {
 		return nil, utils.ErrorUuidNotFound
 	}
 
-	return &lab, result.Error
-}
+	if result.Error != nil {
+		log.Errorf("[DB] Failed to fetch lab by UUID. Error: %s", result.Error.Error())
+		return nil, utils.ErrorDatabaseError
+	}
 
-func (r *labRepository) GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]*Lab, error) {
-	var labs []*Lab
-	result := r.db.WithContext(ctx).
-		Joins("JOIN topologies ON topologies.id = labs.topology_id").
-		Joins("JOIN collections ON collections.id = topologies.collection_id").
-		Where("collections.name IN ?", collectionNames).
-		Find(&labs)
-
-	return labs, result.Error
+	return &lab, nil
 }
 
 func (r *labRepository) Create(ctx context.Context, lab *Lab) error {
-	return r.db.WithContext(ctx).Create(lab).Error
+	if err := r.db.WithContext(ctx).Create(lab).Error; err != nil {
+		log.Errorf("[DB] Failed to create lab. Error: %s", err.Error())
+		return utils.ErrorDatabaseError
+	}
+
+	return nil
 }
 
 func (r *labRepository) Update(ctx context.Context, lab *Lab) error {
-	return r.db.WithContext(ctx).Save(lab).Error
+	if err := r.db.WithContext(ctx).Save(lab).Error; err != nil {
+		log.Errorf("[DB] Failed to update lab. Error: %s", err.Error())
+		return utils.ErrorDatabaseError
+	}
+
+	return nil
 }
 
 func (r *labRepository) Delete(ctx context.Context, lab *Lab) error {
-	return r.db.WithContext(ctx).Delete(lab).Error
+	if err := r.db.WithContext(ctx).Delete(lab).Error; err != nil {
+		log.Errorf("[DB] Failed to delete lab. Error: %s", err.Error())
+		return utils.ErrorDatabaseError
+	}
+
+	return nil
 }

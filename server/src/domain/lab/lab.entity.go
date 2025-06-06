@@ -20,7 +20,7 @@ type Lab struct {
 	TopologyID   uint `gorm:"not null"`
 	Creator      user.User
 	CreatorID    uint    `gorm:"not null"`
-	InstanceName *string `gotm:"uniqueIndex"`
+	InstanceName *string `gorm:"uniqueIndex"`
 }
 
 type LabIn struct {

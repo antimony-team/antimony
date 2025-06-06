@@ -279,8 +279,8 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		socketManager:          antimonySocket.CreateSocketManager(nil),
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 		labUpdatesNamespace:    &fakeNamespace[string]{},
-		scheduledLabs:          map[string]struct{}{"lab123": {}},
-		labDeploySchedule:      []Lab{mockLab},
+		labDeploymentMap:       map[string]struct{}{"lab123": {}},
+		labDeploymentSchedule:  []Lab{mockLab},
 		instances:              map[string]*Instance{},
 		labDeployScheduleMutex: sync.Mutex{},
 	}
@@ -290,8 +290,8 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 	time.Sleep(6 * time.Second)
 
 	svc.labDeployScheduleMutex.Lock()
-	assert.Len(t, svc.labDeploySchedule, 0)
-	_, stillScheduled := svc.scheduledLabs["lab123"]
+	assert.Len(t, svc.labDeploymentSchedule, 0)
+	_, stillScheduled := svc.labDeploymentMap["lab123"]
 	svc.labDeployScheduleMutex.Unlock()
 
 	assert.False(t, stillScheduled, "Lab should have been removed from scheduled list")
@@ -402,8 +402,8 @@ func TestInitSchedule(t *testing.T) {
 				socketManager:          antimonySocket.CreateSocketManager(nil),
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[string]{},
-				scheduledLabs:          make(map[string]struct{}),
-				labDeploySchedule:      []Lab{},
+				labDeploymentMap:       make(map[string]struct{}),
+				labDeploymentSchedule:  []Lab{},
 				instances:              make(map[string]*Instance),
 				labDeployScheduleMutex: sync.Mutex{},
 				deploymentMutex:        sync.Mutex{},
@@ -412,11 +412,11 @@ func TestInitSchedule(t *testing.T) {
 			svc.reviveLabs()
 
 			if tt.wantScheduled {
-				assert.Len(t, svc.labDeploySchedule, 1)
-				assert.Contains(t, svc.scheduledLabs, tt.mockLabs[0].UUID)
+				assert.Len(t, svc.labDeploymentSchedule, 1)
+				assert.Contains(t, svc.labDeploymentMap, tt.mockLabs[0].UUID)
 			} else {
-				assert.Len(t, svc.labDeploySchedule, 0)
-				assert.NotContains(t, svc.scheduledLabs, tt.mockLabs[0].UUID)
+				assert.Len(t, svc.labDeploymentSchedule, 0)
+				assert.NotContains(t, svc.labDeploymentMap, tt.mockLabs[0].UUID)
 			}
 
 			if tt.wantInstances {
@@ -1416,7 +1416,7 @@ func TestHandleLabCommand(t *testing.T) {
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[string]{},
 				socketManager:          f.socketManager,
-				scheduledLabs:          map[string]struct{}{},
+				labDeploymentMap:       map[string]struct{}{},
 				instances: map[string]*Instance{
 					"lab123": {
 						LogNamespace: &fakeNamespace[string]{},

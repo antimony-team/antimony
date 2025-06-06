@@ -32,6 +32,8 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}
 	case errors.Is(err, ErrorBindFileExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
+	case errors.Is(err, ErrorDatabaseError):
+		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
 	case errors.Is(err, ErrorUnauthorized):
 	case errors.Is(err, ErrorOpenIDAuthDisabledError):
@@ -48,6 +50,7 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		errors.Is(err, ErrorNoPermissionToCreateCollections):
 		return http.StatusForbidden, ErrorResponse{Code: 403, Message: err.Error()}
 	}
+
 	return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 }
 

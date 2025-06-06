@@ -88,7 +88,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			continue
 		}
 
-		if definition, bindFilesOut, err = s.loadTopology(topology.UUID, *bindFiles); err != nil {
+		if definition, bindFilesOut, err = s.loadTopology(topology.UUID, bindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}

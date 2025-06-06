@@ -16,6 +16,7 @@ var ErrorBindFileExists = errors.New("a file with that path already exists for t
 var ErrorCollectionExists = errors.New("a collection with that name already exists")
 var ErrorInvalidCredentials = errors.New("the credentials provided were invalid")
 var ErrorInvalidTopology = errors.New("the topology provided were invalid")
+var ErrorDatabaseError = errors.New("there has been an error with antimony's database. please check the logs")
 
 var ErrorUnauthorized = errors.New("the request was unauthorized")
 var ErrorForbidden = errors.New("access to the requested action is forbidden")
