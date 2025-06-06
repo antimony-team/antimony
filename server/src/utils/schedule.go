@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"github.com/charmbracelet/log"
 	"slices"
 	"sort"
 	"sync"
@@ -77,8 +76,6 @@ func (s *schedule[T]) TryPop() *T {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	log.Infof("trypop, schedule: %v", s.schedule)
-
 	if len(s.schedule) > 0 && s.timeGetter(*s.schedule[0]).Unix() <= time.Now().Unix() {
 		item := s.schedule[0]
 
@@ -111,9 +108,7 @@ func (s *schedule[T]) insert(key string, value *T) {
 	insertIndex := sort.Search(len(s.schedule), func(i int) bool {
 		return s.timeGetter(*s.schedule[i]).Unix() >= itemTime
 	})
-
-	log.Infof("inserting into schedule: %v, index: %d", key, insertIndex)
-
+	
 	if insertIndex == len(s.schedule) {
 		s.schedule = append(s.schedule, value)
 		s.scheduleMap[key] = value
@@ -123,6 +118,4 @@ func (s *schedule[T]) insert(key string, value *T) {
 	s.schedule = append(s.schedule[:insertIndex+1], s.schedule[insertIndex:]...)
 	s.schedule[insertIndex] = value
 	s.scheduleMap[key] = value
-
-	log.Infof("after insert %v", s.schedule)
 }
