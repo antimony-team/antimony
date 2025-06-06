@@ -42,6 +42,9 @@ func CreateSocketManager(authManager auth.AuthManager) SocketManager {
 }
 
 func (m *socketManager) GetAuthUser(accessToken string) *auth.AuthenticatedUser {
+	m.usersMutex.Lock()
+	defer m.usersMutex.Unlock()
+
 	if authUser, ok := m.users[accessToken]; ok {
 		return &authUser
 	}
