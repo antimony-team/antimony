@@ -4,6 +4,7 @@ import "errors"
 
 var ErrorRunningLab = errors.New("modifications to running lab are not allowed")
 var ErrorContainerlab = errors.New("containerlab subprocess failed")
+var ErrorGenericAntimony = errors.New("the antimony server encountered an error. please check the logs")
 var ErrorOpenIDError = errors.New("failed to authenticate via openid connect")
 var ErrorOpenIDAuthDisabledError = errors.New("authentication via openid is disabled")
 var ErrorNativeAuthDisabledError = errors.New("native authentication disabled")

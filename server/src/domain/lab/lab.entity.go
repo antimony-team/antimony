@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/socket"
+	"antimonyBackend/utils"
 	"gorm.io/gorm"
 	"sync"
 	"time"
@@ -12,10 +13,10 @@ import (
 
 type Lab struct {
 	gorm.Model
-	UUID         string    `gorm:"uniqueIndex;not null"`
-	Name         string    `gorm:"index;not null"`
-	StartTime    time.Time `gorm:"index;not null"`
-	EndTime      time.Time `gorm:"index;not null"`
+	UUID         string     `gorm:"uniqueIndex;not null"`
+	Name         string     `gorm:"index;not null"`
+	StartTime    time.Time  `gorm:"index;not null"`
+	EndTime      *time.Time `gorm:"index"`
 	Topology     topology.Topology
 	TopologyID   uint `gorm:"not null"`
 	Creator      user.User
@@ -24,17 +25,24 @@ type Lab struct {
 }
 
 type LabIn struct {
-	Name       string    `json:"name"`
-	StartTime  time.Time `json:"startTime"`
-	EndTime    time.Time `json:"endTime"`
-	TopologyId string    `json:"topologyId" binding:"required"`
+	Name       *string    `json:"name" binding:"required"`
+	StartTime  *time.Time `json:"startTime" binding:"required"`
+	EndTime    *time.Time `json:"endTime" binding:"required"`
+	TopologyId *string    `json:"topologyId" binding:"required"`
+}
+
+type LabInPartial struct {
+	Name       *string    `json:"name"`
+	StartTime  *time.Time `json:"startTime"`
+	EndTime    *time.Time `json:"endTime"`
+	Indefinite *bool      `json:"indefinite"`
 }
 
 type LabOut struct {
 	ID           string       `json:"id"`
 	Name         string       `json:"name"`
 	StartTime    time.Time    `json:"startTime"`
-	EndTime      time.Time    `json:"endTime"`
+	EndTime      *time.Time   `json:"endTime"`
 	TopologyId   string       `json:"topologyId"`
 	CollectionId string       `json:"collectionId"`
 	Creator      user.UserOut `json:"creator"`
@@ -67,6 +75,9 @@ type Instance struct {
 
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
+
+	// DeploymentWorker that holds the current deployment context of the lab
+	DeploymentWorker *utils.Worker
 }
 
 type InstanceOut struct {

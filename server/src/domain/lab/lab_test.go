@@ -406,7 +406,7 @@ func TestInitSchedule(t *testing.T) {
 				labDeploymentSchedule:  []Lab{},
 				instances:              make(map[string]*Instance),
 				labDeployScheduleMutex: sync.Mutex{},
-				deploymentMutex:        sync.Mutex{},
+				instancesMutex:         sync.Mutex{},
 			}
 
 			svc.reviveLabs()
@@ -420,9 +420,9 @@ func TestInitSchedule(t *testing.T) {
 			}
 
 			if tt.wantInstances {
-				svc.deploymentMutex.Lock()
+				svc.instancesMutex.Lock()
 				_, ok := svc.instances[tt.mockLabs[0].UUID]
-				svc.deploymentMutex.Unlock()
+				svc.instancesMutex.Unlock()
 				assert.True(t, ok)
 			} else {
 				assert.Empty(t, svc.instances)

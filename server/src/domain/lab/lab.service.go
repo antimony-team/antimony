@@ -26,7 +26,7 @@ type (
 	Service interface {
 		Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]LabOut, error)
 		Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error)
-		Update(ctx *gin.Context, req LabIn, labId string, authUser auth.AuthenticatedUser) error
+		Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error
 
 		// RunScheduler Starts looping through all scheduled labs and waits to deploy them
@@ -57,8 +57,8 @@ type (
 
 		// Map of currently active instances indexed by lab ID.
 		// The instances can be in any of the real states.
-		instances       map[string]*Instance
-		deploymentMutex sync.Mutex
+		instances      map[string]*Instance
+		instancesMutex sync.Mutex
 
 		labRepo                Repository
 		userRepo               user.Repository
@@ -84,8 +84,8 @@ func CreateService(
 		func(lab Lab) string {
 			return lab.UUID
 		},
-		func(lab Lab) time.Time {
-			return lab.StartTime
+		func(lab Lab) *time.Time {
+			return &lab.StartTime
 		},
 	)
 
@@ -93,7 +93,7 @@ func CreateService(
 		func(lab Lab) string {
 			return lab.UUID
 		},
-		func(lab Lab) time.Time {
+		func(lab Lab) *time.Time {
 			return lab.EndTime
 		},
 	)
@@ -110,7 +110,7 @@ func CreateService(
 		labDeploymentSchedule:  deploymentSchedule,
 		labDestructionSchedule: destructionSchedule,
 		instances:              make(map[string]*Instance),
-		deploymentMutex:        sync.Mutex{},
+		instancesMutex:         sync.Mutex{},
 		storageManager:         storageManager,
 		deploymentProvider:     deployment.GetProvider(),
 		socketManager:          socketManager,
@@ -134,49 +134,21 @@ func CreateService(
 func (s *labService) RunScheduler() {
 	for {
 		if lab := s.labDeploymentSchedule.TryPop(); lab != nil {
-			go s.deployLab(lab)
+			go func() {
+				_ = s.deployLab(lab)
+			}()
 
 			// Schedule the destruction of the lab
 			s.labDestructionSchedule.Schedule(lab)
 		}
 
 		if lab := s.labDestructionSchedule.TryPop(); lab != nil {
-			go s.destroyLab(lab, s.instances[lab.UUID])
+			go func() {
+				_ = s.destroyLab(lab, s.instances[lab.UUID])
+			}()
 		}
 
 		time.Sleep(5 * time.Second)
-
-		//s.labDeployScheduleMutex.Lock()
-		//if len(s.labDeploymentSchedule) > 0 && s.labDeploymentSchedule[0].StartTime.Unix() <= time.Now().Unix() {
-		//	lab := s.labDeploymentSchedule[0]
-		//
-		//	// Remove the lab from the schedule list
-		//
-		//	s.labDeploymentSchedule = s.labDeploymentSchedule[1:]
-		//	delete(s.labDeploymentMap, lab.UUID)
-		//
-		//	go s.deployLab(lab)
-		//
-		//	// Schedule the destroying of the lab
-		//	s.labDestroyScheduleMutex.Lock()
-		//	s.scheduleDestruction(lab)
-		//	s.labDestroyScheduleMutex.Unlock()
-		//}
-		//s.labDeployScheduleMutex.Unlock()
-		//
-		//s.labDestroyScheduleMutex.Lock()
-		//
-		//if len(s.labDestroySchedule) > 0 && s.labDestroySchedule[0].EndTime.Unix() <= time.Now().Unix() {
-		//	lab := s.labDestroySchedule[0]
-		//
-		//	// Remove the lab from the schedule list
-		//	s.labDestroySchedule = s.labDestroySchedule[1:]
-		//
-		//	go s.destroyLab(lab, s.instances[lab.UUID])
-		//}
-		//s.labDestroyScheduleMutex.Unlock()
-		//
-		//time.Sleep(5 * time.Second)
 	}
 }
 
@@ -216,7 +188,7 @@ func (s *labService) reviveLabs() {
 					}
 				}
 
-				s.deploymentMutex.Lock()
+				s.instancesMutex.Lock()
 				s.instances[lab.UUID] = &Instance{
 					State:             InstanceStates.Running,
 					Nodes:             lo.Map(containers, s.containerToInstanceNode),
@@ -226,24 +198,14 @@ func (s *labService) reviveLabs() {
 					TopologyFile:      s.storageManager.GetRunTopologyFile(lab.UUID),
 					LogNamespace:      logNamespace,
 				}
-				s.deploymentMutex.Unlock()
+				s.instancesMutex.Unlock()
 
 				s.labDestructionSchedule.Schedule(&lab)
-
-				// Schedule the destroying of the lab in the future
-				//s.labDestroyScheduleMutex.Lock()
-				//s.scheduleDestruction(lab)
-				//s.labDestroyScheduleMutex.Unlock()
 			}
 		} else {
 			// The lab has not been run before
 			if lab.StartTime.Unix() >= time.Now().Unix() {
 				s.labDeploymentSchedule.Schedule(&lab)
-
-				//// Schedule the deployment of the lab in the future
-				//s.labDeployScheduleMutex.Lock()
-				//s.scheduleDeployment(lab)
-				//s.labDeployScheduleMutex.Unlock()
 			}
 		}
 	}
@@ -301,7 +263,7 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 }
 
 func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error) {
-	labTopology, err := s.topologyRepo.GetByUuid(ctx, req.TopologyId)
+	labTopology, err := s.topologyRepo.GetByUuid(ctx, *req.TopologyId)
 	if err != nil {
 		return "", err
 	}
@@ -319,8 +281,8 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 	labUuid := utils.GenerateUuid()
 	lab := &Lab{
 		UUID:      labUuid,
-		Name:      req.Name,
-		StartTime: req.StartTime,
+		Name:      *req.Name,
+		StartTime: *req.StartTime,
 		EndTime:   req.EndTime,
 		Creator:   *creator,
 		Topology:  *labTopology,
@@ -328,9 +290,6 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 
 	if err := s.labRepo.Create(ctx, lab); err != nil {
 		return "", err
-		//s.labDeployScheduleMutex.Lock()
-		//s.scheduleDeployment(lab)
-		//s.labDeployScheduleMutex.Unlock()
 	}
 
 	// Add newly created lab to the deployment schedule
@@ -339,7 +298,7 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 	return labUuid, nil
 }
 
-func (s *labService) Update(ctx *gin.Context, req LabIn, labId string, authUser auth.AuthenticatedUser) error {
+func (s *labService) Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error {
 	lab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
@@ -355,75 +314,40 @@ func (s *labService) Update(ctx *gin.Context, req LabIn, labId string, authUser 
 		return utils.ErrorRunningLab
 	}
 
-	labTopology, err := s.topologyRepo.GetByUuid(ctx, req.TopologyId)
-	if err != nil {
+	updateDeploymentSchedule := false
+	updateDestructionSchedule := false
+
+	if req.Indefinite != nil && *req.Indefinite == true {
+		lab.EndTime = nil
+		updateDestructionSchedule = true
+	} else if req.EndTime != nil {
+		lab.EndTime = req.EndTime
+		updateDestructionSchedule = true
+	}
+
+	if req.StartTime != nil {
+		lab.StartTime = *req.StartTime
+		updateDeploymentSchedule = true
+	}
+
+	if req.Name != nil {
+		lab.Name = *req.Name
+	}
+
+	if err := s.labRepo.Update(ctx, lab); err != nil {
+		if updateDeploymentSchedule {
+			s.labDeploymentSchedule.Reschedule(lab.UUID)
+		}
+
+		if updateDestructionSchedule {
+			s.labDestructionSchedule.Reschedule(lab.UUID)
+		}
+
+		return nil
+	} else {
 		return err
 	}
-
-	if req.StartTime != lab.StartTime {
-		s.labDeploymentSchedule.Reschedule(lab.UUID)
-		//s.rescheduleDeployment(lab)
-	}
-
-	if req.EndTime != lab.EndTime {
-		s.labDestructionSchedule.Reschedule(lab.UUID)
-		//s.rescheduleDestruction(lab)
-	}
-
-	lab.Name = req.Name
-	lab.StartTime = req.StartTime
-	lab.EndTime = req.EndTime
-	lab.Topology = *labTopology
-
-	return s.labRepo.Update(ctx, lab)
 }
-
-/*func (s *labService) rescheduleDeployment(lab *Lab) {
-	s.labDeployScheduleMutex.Lock()
-	defer s.labDeployScheduleMutex.Unlock()
-
-	index := len(s.labDeploymentSchedule)
-	for i := range s.labDeploymentSchedule {
-		if s.labDeploymentSchedule[i].UUID == lab.UUID {
-			index = i
-			break
-		}
-	}
-
-	if index < 0 {
-		return
-	}
-
-	// Remove lab from deploy schedule
-	s.labDeploymentSchedule = append(s.labDeploymentSchedule[:index], s.labDeploymentSchedule[index+1:]...)
-	delete(s.labDeploymentMap, lab.UUID)
-
-	// Reschedule lab for deployment
-	s.scheduleDeployment(lab)
-}
-
-func (s *labService) rescheduleDestruction(lab *Lab) {
-	s.labDestroyScheduleMutex.Lock()
-	defer s.labDestroyScheduleMutex.Unlock()
-
-	index := len(s.labDestroySchedule)
-	for i := range s.labDestroySchedule {
-		if s.labDestroySchedule[i].UUID == lab.UUID {
-			index = i
-			break
-		}
-	}
-
-	if index < 0 {
-		return
-	}
-
-	// Remove lab from destroy schedule
-	s.labDestroySchedule = append(s.labDestroySchedule[:index], s.labDestroySchedule[index+1:]...)
-
-	// Reschedule lab for destruction
-	s.scheduleDestruction(lab)
-}*/
 
 func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error {
 	lab, err := s.labRepo.GetByUuid(ctx, labId)
@@ -437,42 +361,14 @@ func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.Authen
 	}
 
 	// Don't allow the deletion of running labs
-	if _, hasInstance := s.instances[lab.UUID]; hasInstance {
+	s.instancesMutex.Lock()
+	if instance, hasInstance := s.instances[lab.UUID]; hasInstance && instance.State != InstanceStates.Failed {
 		return utils.ErrorRunningLab
 	}
+	s.instancesMutex.Unlock()
 
 	return s.labRepo.Delete(ctx, lab)
 }
-
-//func (s *labService) scheduleDeployment(lab *Lab) {
-//	insertIndex := sort.Search(len(s.labDeploymentSchedule), func(i int) bool {
-//		return s.labDeploymentSchedule[i].StartTime.Unix() >= lab.StartTime.Unix()
-//	})
-//
-//	if insertIndex == len(s.labDeploymentSchedule) {
-//		s.labDeploymentSchedule = append(s.labDeploymentSchedule, lab)
-//		s.labDeploymentMap[lab.UUID] = struct{}{}
-//		return
-//	}
-//
-//	s.labDeploymentSchedule = append(s.labDeploymentSchedule[:insertIndex+1], s.labDeploymentSchedule[insertIndex:]...)
-//	s.labDeploymentSchedule[insertIndex] = lab
-//	s.labDeploymentMap[lab.UUID] = struct{}{}
-//}
-//
-//func (s *labService) scheduleDestruction(lab *Lab) {
-//	insertIndex := sort.Search(len(s.labDestroySchedule), func(i int) bool {
-//		return s.labDestroySchedule[i].EndTime.Unix() >= lab.EndTime.Unix()
-//	})
-//
-//	if insertIndex == len(s.labDestroySchedule) {
-//		s.labDestroySchedule = append(s.labDestroySchedule, lab)
-//		return
-//	}
-//
-//	s.labDestroySchedule = append(s.labDestroySchedule[:insertIndex+1], s.labDestroySchedule[insertIndex:]...)
-//	s.labDestroySchedule[insertIndex] = lab
-//}
 
 // renameTopology Read a topology, changes its name and returns the re-marshalled output
 func (s *labService) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
@@ -521,12 +417,20 @@ func (s *labService) createLabEnvironment(ctx context.Context, lab *Lab) (string
 	return runTopologyFile, nil
 }
 
-func (s *labService) destroyLab(lab *Lab, instance *Instance) {
-	s.notifyUpdate(*lab, statusMessage.Info(
-		"Lab Manager",
-		fmt.Sprintf("Destruction of lab %s has been scheduled", lab.Name),
-		"Destruction has been scheduled", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
-	))
+func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
+	// We have to ensure that we cancel any pending deployment operations before destroying
+	if instance.DeploymentWorker != nil && instance.DeploymentWorker.Context.Err() == nil {
+		log.Infof("Deployment still running, cancelling")
+		instance.DeploymentWorker.Cancel()
+
+		s.notifyUpdate(*lab,
+			statusMessage.Info(
+				"Lab Manager",
+				fmt.Sprintf("Cancelling deployment of lab '%s' (%s)", lab.Name, lab.Topology.Name),
+				"Cancelling deployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+			),
+		)
+	}
 
 	// We need to wait for previous operations to complete before destroying the lab
 	instance.Mutex.Lock()
@@ -548,7 +452,7 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) {
 			"Lab Manager", fmt.Sprintf("Failed to destroy lab %s: %s", lab.Name, err.Error()),
 			"Failed to destroy lab", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		))
-		return
+		return utils.ErrorContainerlab
 	}
 
 	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {
@@ -562,48 +466,67 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) {
 	instance.LogNamespace = nil
 
 	// Remove instance from lab and send update to clients
-	s.deploymentMutex.Lock()
+	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
-	s.deploymentMutex.Unlock()
+	s.instancesMutex.Unlock()
 	s.labUpdatesNamespace.Send(lab.UUID)
 
 	s.statusMessageNamespace.Send(*statusMessage.Success(
 		"Lab Manager", fmt.Sprintf("Successfully destroyed lab %s", lab.Name),
 		"Lab has been destroyed successfully", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	))
+
+	return nil
 }
 
-func (s *labService) redeployLab(lab Lab, instance *Instance) bool {
+func (s *labService) redeployLab(lab *Lab, instance *Instance) bool {
 	// We have to ensure that the instance isn't already being deployed
 	if instance.State == InstanceStates.Deploying {
+		s.notifyUpdate(*lab,
+			statusMessage.Error(
+				"Lab Manager",
+				fmt.Sprintf("Unable to redeploy lab '%s' (%s). The lab is already being deployed", lab.Name, lab.Topology.Name),
+				"Failed to deploy lab: The lab is already being deployed", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+			),
+		)
 		return false
 	}
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
-	ctx := context.Background()
-	s.updateStateAndNotify(lab, InstanceStates.Deploying, statusMessage.Info(
+	ctx, cancel := context.WithCancel(context.Background())
+	instance.DeploymentWorker = &utils.Worker{
+		Context: ctx,
+		Cancel:  cancel,
+	}
+	defer instance.DeploymentWorker.Cancel()
+
+	s.updateStateAndNotify(*lab, InstanceStates.Deploying, statusMessage.Info(
 		"Lab Manager",
-		fmt.Sprintf("Redeploying lab %s (%s)", lab.Name, lab.Topology.Name),
+		fmt.Sprintf("Redeploying lab '%s' (%s)", lab.Name, lab.Topology.Name),
 		"Starting redeployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
 	output, err := s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, instance.LogNamespace.Send)
 	streamClabOutput(instance.LogNamespace, output)
 
-	if err != nil {
-		s.updateStateAndNotify(lab, InstanceStates.Failed, statusMessage.Error(
+	// Only report errors if the worker has not been cancelled
+	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
+		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
-			fmt.Sprintf("Failed to redeploy lab %s (%s)", lab.Name, lab.Topology.Name),
+			fmt.Sprintf("Failed to redeploy lab '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Failed to redeploy lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 	} else {
-		s.updateStateAndNotify(lab, InstanceStates.Running, statusMessage.Success(
+		s.updateStateAndNotify(*lab, InstanceStates.Running, statusMessage.Success(
 			"Lab Manager",
-			fmt.Sprintf("Successfully redeployed lab %s (%s)", lab.Name, lab.Topology.Name),
+			fmt.Sprintf("Successfully redeployed lab '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Successfully redeployed lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 	}
+
+	instance.DeploymentWorker.Context.Done()
+
 	return true
 }
 
@@ -615,37 +538,52 @@ func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
 	}
 }
 
-func (s *labService) deployLab(lab *Lab) bool {
+func (s *labService) deployLab(lab *Lab) error {
 	// We have to ensure that the instance is only created once
-	s.deploymentMutex.Lock()
+	s.instancesMutex.Lock()
 	if _, hasInstance := s.instances[lab.UUID]; hasInstance {
-		return false
+		s.notifyUpdate(*lab,
+			statusMessage.Error(
+				"Lab Manager",
+				fmt.Sprintf("Unable to deploy lab '%s' (%s). The lab is already being deployed", lab.Name, lab.Topology.Name),
+				"Failed to deploy lab: The lab is already being deployed", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+			),
+		)
+		return utils.ErrorLabActionInProgress
 	}
 	s.instances[lab.UUID] = s.createInstance()
-	s.deploymentMutex.Unlock()
+	s.instancesMutex.Unlock()
 	instance := s.instances[lab.UUID]
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	instance.DeploymentWorker = &utils.Worker{
+		Context: ctx,
+		Cancel:  cancel,
+	}
+	defer instance.DeploymentWorker.Cancel()
+
 	instance.LogNamespace = socket.CreateNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
 
-	ctx := context.Background()
 	runTopologyFile, err := s.createLabEnvironment(ctx, lab)
 	if err != nil {
+		log.Errorf("Failed to create lab environment for lab '%s': %s", lab.Name, err.Error())
+
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
-			fmt.Sprintf("Failed to create environment for %s (%s)", lab.Name, lab.Topology.Name),
+			fmt.Sprintf("Failed to create environment for lab '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Failed to create environment for lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 		s.setTopologyDeployStatus(*lab, false)
-		return true
+		return utils.ErrorGenericAntimony
 	}
 	instance.TopologyFile = runTopologyFile
 
 	s.updateStateAndNotify(*lab, InstanceStates.Deploying, statusMessage.Info(
 		"Lab Manager",
-		fmt.Sprintf("Deploying lab %s (%s)", lab.Name, lab.Topology.Name),
+		fmt.Sprintf("Deploying lab '%s' (%s)", lab.Name, lab.Topology.Name),
 		"Starting deployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
 
@@ -653,31 +591,32 @@ func (s *labService) deployLab(lab *Lab) bool {
 
 	streamClabOutput(instance.LogNamespace, output)
 
-	if err != nil {
+	// Only report errors if the deployment worker has not been cancelled
+	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
-			fmt.Sprintf("Failed to deploy lab %s (%s)", lab.Name, lab.Topology.Name),
+			fmt.Sprintf("Failed to deploy lab '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Deployment of lab failed", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 		s.setTopologyDeployStatus(*lab, false)
-		return true
+		return utils.ErrorContainerlab
 	}
 
 	// Fetch and attach lab runtime info and change state to running if successful
 	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, instance.LogNamespace.Send)
 
-	if err != nil {
-		log.Infof("[SCHEDULER] Failed to inspect lab %s: %s", lab.Name, err.Error())
+	// Only report errors if the deployment worker has not been cancelled
+	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Warning(
 			"Lab Manager",
-			fmt.Sprintf("Failed to get info of lab %s (%s)", lab.Name, lab.Topology.Name),
+			fmt.Sprintf("Failed to get info of lab '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Inspection of lab failed", "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 		s.setTopologyDeployStatus(*lab, false)
 	} else {
 		containers := inspectOutput[*lab.InstanceName]
 
-		log.Infof("[SCHEDULER] Successfully deployed lab %s!", lab.Name)
+		log.Infof("[SCHEDULER] Successfully deployed lab '%s'!", lab.Name)
 		s.instances[lab.UUID].Nodes = lo.Map(containers, s.containerToInstanceNode)
 		for _, container := range containers {
 			containerLogNamespace := socket.CreateNamespace[string](
@@ -691,13 +630,15 @@ func (s *labService) deployLab(lab *Lab) bool {
 
 		s.updateStateAndNotify(*lab, InstanceStates.Running, statusMessage.Success(
 			"Lab Manager",
-			fmt.Sprintf("Successfully deployed %s (%s)", lab.Name, lab.Topology.Name),
+			fmt.Sprintf("Successfully deployed '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Deployment of lab was successful", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 		s.setTopologyDeployStatus(*lab, true)
 	}
 
-	return true
+	instance.DeploymentWorker.Context.Done()
+
+	return nil
 }
 
 func (s *labService) createInstance() *Instance {
@@ -707,6 +648,7 @@ func (s *labService) createInstance() *Instance {
 		State:             InstanceStates.Deploying,
 		Recovered:         false,
 		Mutex:             sync.Mutex{},
+		DeploymentWorker:  nil,
 	}
 }
 
@@ -824,26 +766,13 @@ func (s *labService) destroyLabCommand(ctx context.Context, labId string, authUs
 	}
 
 	s.labDestructionSchedule.Remove(lab.UUID)
-	s.destroyLab(lab, instance)
+
+	if err := s.destroyLab(lab, instance); err != nil {
+		return err
+	}
 
 	return nil
 }
-
-//func (s *labService) removeFromDeploymentSchedule(lab *Lab) {
-//	if _, isScheduled := s.labDeploymentMap[lab.UUID]; isScheduled {
-//		delete(s.labDeploymentMap, lab.UUID)
-//		labIndex := slices.Index(s.labDeploymentSchedule, lab)
-//		s.labDeploymentSchedule = append(s.labDeploymentSchedule[:labIndex], s.labDeploymentSchedule[labIndex+1:]...)
-//	}
-//}
-//
-//func (s *labService) removeFromDestructionSchedule(lab *Lab) {
-//	if _, isScheduled := s.labDeploymentMap[lab.UUID]; isScheduled {
-//		delete(s.labDeploymentMap, lab.UUID)
-//		labIndex := slices.Index(s.labDeploymentSchedule, lab)
-//		s.labDeploymentSchedule = append(s.labDeploymentSchedule[:labIndex], s.labDeploymentSchedule[labIndex+1:]...)
-//	}
-//}
 
 func (s *labService) deployLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
 	lab, err := s.labRepo.GetByUuid(ctx, labId)
@@ -857,24 +786,25 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 	}
 	instance, hasInstance := s.instances[lab.UUID]
 	if hasInstance {
-		if !s.redeployLab(*lab, instance) {
+		if !s.redeployLab(lab, instance) {
 			return utils.ErrorLabActionInProgress
 		}
 	} else {
 		// Manually remove the lab from the lab schedule and add it to the destruction schedule
 		s.labDeploymentSchedule.Remove(lab.UUID)
+
+		// When redeploying a lab that has already ended, set its end time to indefinite
+		if lab.EndTime != nil && lab.EndTime.Unix() <= time.Now().Unix() {
+			lab.EndTime = nil
+			if err := s.labRepo.Update(context.Background(), lab); err != nil {
+				log.Errorf("Failed to update lab end time: %s", err.Error())
+			}
+		}
+
 		s.labDestructionSchedule.Schedule(lab)
 
-		//if _, isScheduled := s.labDeploymentMap[lab.UUID]; isScheduled {
-		//	s.labDeployScheduleMutex.Lock()
-		//	delete(s.labDeploymentMap, lab.UUID)
-		//	labIndex := slices.Index(s.labDeploymentSchedule, lab)
-		//	s.labDeploymentSchedule = append(s.labDeploymentSchedule[:labIndex], s.labDeploymentSchedule[labIndex+1:]...)
-		//	s.labDeployScheduleMutex.Unlock()
-		//}
-
-		if hasDeployed := s.deployLab(lab); !hasDeployed {
-			return utils.ErrorLabActionInProgress
+		if err := s.deployLab(lab); err != nil {
+			return err
 		}
 	}
 

@@ -9,7 +9,7 @@ import (
 
 type (
 	Schedule[T any] interface {
-		Schedule(value *T)
+		Schedule(item *T)
 		Reschedule(key string)
 		IsScheduled(key string) bool
 
@@ -25,11 +25,11 @@ type (
 		mutex *sync.Mutex
 
 		keyGetter  func(T) string
-		timeGetter func(T) time.Time
+		timeGetter func(T) *time.Time
 	}
 )
 
-func CreateSchedule[T any](keyGetter func(T) string, timeGetter func(T) time.Time) Schedule[T] {
+func CreateSchedule[T any](keyGetter func(T) string, timeGetter func(T) *time.Time) Schedule[T] {
 	schedule := &schedule[T]{
 		schedule:    make([]*T, 0),
 		scheduleMap: make(map[string]*T),
@@ -41,11 +41,16 @@ func CreateSchedule[T any](keyGetter func(T) string, timeGetter func(T) time.Tim
 	return schedule
 }
 
-func (s *schedule[T]) Schedule(value *T) {
+func (s *schedule[T]) Schedule(item *T) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.insert(s.keyGetter(*value), value)
+	// Skip scheduling if the item's time is nil
+	if s.timeGetter(*item) == nil {
+		return
+	}
+
+	s.insert(s.keyGetter(*item), item)
 }
 
 func (s *schedule[T]) Reschedule(key string) {
@@ -103,19 +108,19 @@ func (s *schedule[T]) remove(key string) {
 	}
 }
 
-func (s *schedule[T]) insert(key string, value *T) {
-	itemTime := s.timeGetter(*value).Unix()
+func (s *schedule[T]) insert(key string, item *T) {
+	itemTime := s.timeGetter(*item).Unix()
 	insertIndex := sort.Search(len(s.schedule), func(i int) bool {
 		return s.timeGetter(*s.schedule[i]).Unix() >= itemTime
 	})
-	
+
 	if insertIndex == len(s.schedule) {
-		s.schedule = append(s.schedule, value)
-		s.scheduleMap[key] = value
+		s.schedule = append(s.schedule, item)
+		s.scheduleMap[key] = item
 		return
 	}
 
 	s.schedule = append(s.schedule[:insertIndex+1], s.schedule[insertIndex:]...)
-	s.schedule[insertIndex] = value
-	s.scheduleMap[key] = value
+	s.schedule[insertIndex] = item
+	s.scheduleMap[key] = item
 }

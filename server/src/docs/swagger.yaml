@@ -138,6 +138,9 @@ definitions:
       topologyId:
         type: string
     required:
+    - endTime
+    - name
+    - startTime
     - topologyId
     type: object
   lab.LabOut:

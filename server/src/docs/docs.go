@@ -1112,6 +1112,9 @@ const docTemplate = `{
         "lab.LabIn": {
             "type": "object",
             "required": [
+                "endTime",
+                "name",
+                "startTime",
                 "topologyId"
             ],
             "properties": {
