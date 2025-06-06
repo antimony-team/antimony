@@ -4,7 +4,7 @@ import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-editor.sass';
-import {useDialogState} from '@sb/lib/utils/hooks';
+import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {
   convertXYToLatLng,
   drawGrid,
@@ -42,6 +42,12 @@ interface NodeEditorProps {
 const GHOST_NODE_ID = 'ghost-target';
 const GHOST_EDGE_ID = 'ghost-edge';
 
+export interface GroupEditDialogState {
+  groupName?: string;
+
+  action: DialogAction;
+}
+
 const NodeEditor: React.FC<NodeEditorProps> = observer(
   (props: NodeEditorProps) => {
     const [contextMenuModel, setContextMenuModel] = useState<MenuItem[] | null>(
@@ -49,7 +55,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     );
     const [isCyReady, setIsCyReady] = useState<boolean>(false);
 
-    const groupNameDialogState = useDialogState();
+    const groupNameDialogState = useDialogState<GroupEditDialogState>();
 
     const drawStartPos = useRef<Position | null>(null);
     const drawEndPos = useRef<Position | null>(null);
@@ -82,6 +88,11 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       for (const element of elements) {
         cyRef.current.add(element);
+      }
+
+      if (lastOpenedTopology.current !== props.openTopology.id) {
+        lastOpenedTopology.current = props.openTopology.id;
+        onFitGraph();
       }
     }, [deviceStore, props.openTopology, topologyStore.manager]);
 
@@ -215,6 +226,20 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       topologyStore.manager.deleteNode(menuTargetRef.current as string);
     }
 
+    function onEdgeDelete() {
+      if (!menuTargetRef.current || !cyRef.current) return;
+
+      const node1 = cyRef.current
+        .getElementById(menuTargetRef.current)!
+        .data('source');
+
+      const node2 = cyRef.current
+        .getElementById(menuTargetRef.current)!
+        .data('target');
+
+      topologyStore.manager.disconnectNodes(node1, node2);
+    }
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         exitConnectionMode();
@@ -256,15 +281,26 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       });
       cy.getElementById(getGroupCloseId(compoundId));
       compound.remove();
+
+      onSaveGraph();
     }
 
-    function onGroupDelete(e: EventObject) {
+    function onGroupDeleteContext() {
+      if (!menuTargetRef.current || !cyRef.current) return;
+
+      onGroupDelete(menuTargetRef.current);
+    }
+
+    function onGroupClose(e: EventObject) {
       const btnNode = e.target as NodeSingular;
       const closeId = btnNode.id();
-      const compoundId = closeId.replace(/^close-/, '');
 
-      ungroupCompound(compoundId);
-      btnNode.remove();
+      const groupId = closeId.replace(/^close-/, '');
+      onGroupDelete(groupId);
+    }
+
+    function onGroupDelete(groupId: string) {
+      ungroupCompound(groupId);
     }
 
     function getGroupCloseId(compoundId: string) {
@@ -386,35 +422,47 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (event.target.hasClass('ghost-edge')) {
         exitConnectionMode();
       }
+
+      if (!contextMenuRef.current) return;
+
+      const mouseEvent = event.originalEvent as unknown as MouseEvent;
+      mouseEvent.preventDefault();
+      mouseEvent.stopPropagation();
+
+      setContextMenuModel(edgeContextMenuModel);
+      menuTargetRef.current = event.target.id();
+      contextMenuRef.current.show(mouseEvent);
     }
 
-    function onGraphContext() {
+    function onGraphContext(event: cytoscape.EventObject) {
       exitDrawMode();
+
+      if (!contextMenuRef.current) return;
+
+      const mouseEvent = event.originalEvent as unknown as MouseEvent;
+      mouseEvent.preventDefault();
+      mouseEvent.stopPropagation();
+
+      setContextMenuModel(graphContextMenuModel);
+      contextMenuRef.current.show(mouseEvent);
     }
 
     function onNodeContext(event: cytoscape.EventObject) {
       exitConnectionMode();
 
-      if (event.target.hasClass('drawn-shape')) return;
       if (!contextMenuRef.current) return;
 
       const mouseEvent = event.originalEvent as unknown as MouseEvent;
-      if (!mouseEvent) return;
-
       mouseEvent.preventDefault();
       mouseEvent.stopPropagation();
 
-      const isNode = event.target.isNode?.();
-      const nodeId = isNode ? event.target.id() : null;
-
-      if (isNode && nodeId) {
-        setContextMenuModel(nodeContextMenuModel);
-        menuTargetRef.current = nodeId;
+      if (event.target.hasClass('drawn-shape')) {
+        setContextMenuModel(groupContextMenuModel);
       } else {
-        setContextMenuModel(networkContextMenuModel);
-        menuTargetRef.current = null;
+        setContextMenuModel(nodeContextMenuModel);
       }
 
+      menuTargetRef.current = event.target.id();
       contextMenuRef.current.show(mouseEvent);
     }
 
@@ -435,14 +483,15 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (node?.isNode()) onSaveGraph();
     }
 
-    function onFitGraph() {
-      const cy = cyRef.current;
-      if (!cy) return;
+    const lastOpenedTopology = useRef<string | null>(null);
 
-      cy.animate(
+    function onFitGraph() {
+      if (!cyRef.current) return;
+
+      cyRef.current.animate(
         {
           fit: {
-            eles: cy.elements(),
+            eles: cyRef.current.elements(),
             padding: 100,
           },
         },
@@ -451,6 +500,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           easing: 'ease-in-out',
         }
       );
+    }
+
+    function onClearGraph() {
+      topologyStore.manager.clear();
     }
 
     function onSaveGraph() {
@@ -535,7 +588,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.style().fromJson(topologyStyle).update();
 
       cy.on('click', onGraphClick);
-      cy.on('click', 'node.compound-close-btn', onGroupDelete);
+      cy.on('click', 'node.compound-close-btn', onGroupClose);
       cy.on('click', 'node', onNodeClick);
       cy.on('dbltap', 'node', onDoubleClick);
       cy.on('cxttap', onGraphContext);
@@ -557,7 +610,20 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       groupName: string | undefined,
       isImplicit: boolean = false
     ) {
-      if (!cyRef.current) return;
+      if (!cyRef.current || !groupNameDialogState.state) return;
+
+      const cy = cyRef.current;
+
+      const dialogState = groupNameDialogState.state;
+
+      // Skip validation if group name didn't change
+      if (
+        dialogState.action === DialogAction.Edit &&
+        groupName === dialogState.groupName
+      ) {
+        groupNameDialogState.close();
+        return;
+      }
 
       if (!groupName || groupName === '') {
         if (!isImplicit) {
@@ -565,13 +631,37 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             "Group name can't be empty"
           );
         }
-      } else if (cyRef.current && cyRef.current.hasElementWithId(groupName)) {
+      } else if (cyRef.current.hasElementWithId(groupName)) {
         groupRenameInput.current?.setValidationError(
           'A group with this name already exists'
         );
-      } else {
+      } else if (dialogState.action === DialogAction.Add) {
         createDrawnGroup(groupName);
         groupNameDialogState.close();
+      } else {
+        const oldGroupName = dialogState.groupName;
+        cy.batch(() => {
+          cy.add({
+            group: 'nodes',
+            data: {
+              id: groupName,
+              label: groupName,
+            },
+            classes: 'drawn-shape',
+          });
+
+          cy.nodes().forEach(node => {
+            const parents = node.parent();
+            if (parents.length > 0 && parents[0].id() === oldGroupName) {
+              node.move({parent: groupName});
+            }
+          });
+
+          cy.getElementById(oldGroupName!).remove();
+        });
+
+        groupNameDialogState.close();
+        onSaveGraph();
       }
     }
 
@@ -616,7 +706,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       // Add group close button to graph
       cy.add({
         group: 'nodes',
-        data: {id: getGroupCloseId(groupName)},
+        data: {id: getGroupCloseId(groupName), parent: groupName},
         position: {x: 0, y: 0},
         classes: 'compound-close-btn',
       });
@@ -645,7 +735,16 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       exitDrawMode();
 
-      groupNameDialogState.openWith();
+      groupNameDialogState.openWith({action: DialogAction.Add});
+    }
+
+    function onGroupEdit() {
+      if (!menuTargetRef.current) return;
+
+      groupNameDialogState.openWith({
+        action: DialogAction.Edit,
+        groupName: menuTargetRef.current,
+      });
     }
 
     function enterDrawMode() {
@@ -680,6 +779,15 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       enterDrawMode();
     }
 
+    const groupContextMenuModel = [
+      {label: 'Edit', icon: 'pi pi-pen-to-square', command: onGroupEdit},
+      {label: 'Delete', icon: 'pi pi-trash', command: onGroupDeleteContext},
+    ];
+
+    const edgeContextMenuModel = [
+      {label: 'Delete', icon: 'pi pi-trash', command: onEdgeDelete},
+    ];
+
     const nodeContextMenuModel = [
       {
         label: 'Connect',
@@ -690,11 +798,21 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       {label: 'Delete', icon: 'pi pi-trash', command: onNodeDelete},
     ];
 
-    const networkContextMenuModel = [
+    const graphContextMenuModel = [
       {
         label: 'Add Node',
         icon: 'pi pi-plus',
         command: props.onAddNode,
+      },
+      {
+        label: 'Group Nodes',
+        icon: <span className="material-symbols-outlined">Ink_Selection</span>,
+        command: onDrawStart,
+      },
+      {
+        label: 'Clear Graph',
+        icon: 'pi pi-trash',
+        command: onClearGraph,
       },
     ];
 
@@ -759,7 +877,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           isOpen={groupNameDialogState.isOpen}
           onClose={groupNameDialogState.close}
           onSubmit={() => {
-            onGroupNameSubmit(groupRenameInput.current?.input.current?.value);
+            onGroupNameSubmit(
+              groupRenameInput.current?.input.current?.value,
+              false
+            );
           }}
           headerTitle="Set Group Label"
           submitLabel="Ok"
@@ -767,7 +888,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         >
           <SBInput
             ref={groupRenameInput}
-            onValueSubmit={onGroupNameSubmit}
+            defaultValue={groupNameDialogState.state?.groupName}
+            onValueSubmit={(value, isImplicit) =>
+              onGroupNameSubmit(value, isImplicit)
+            }
             placeholder="e.g. Backbone"
             id="node-editor-group-name"
             label="Group Name"

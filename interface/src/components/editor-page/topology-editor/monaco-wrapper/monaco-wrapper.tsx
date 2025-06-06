@@ -67,6 +67,7 @@ const MonacoWrapper = observer(
     const editorRef = useRef<editor.ICodeEditor | null>(null);
 
     const currentlyOpenTopology = useRef<string | null>(null);
+    // const didEditorMount = useRef(false);
 
     const authUser = useAuthUser();
     const schemaStore = useSchemaStore();
@@ -110,25 +111,7 @@ const MonacoWrapper = observer(
       const existingContentStripped = existingContent.replaceAll(' ', '');
 
       if (!isEqual(updatedContentStripped, existingContentStripped)) {
-        /*
-         * For some reason the react-monaco-editor library adds multiple unto stops
-         * to the history stack whenever the content is updated. This messes
-         * up consecutive undos and redos. Therefore, we update the content
-         * manually and don't use the library's built-in functionality.
-         *
-         * https://github.com/react-monaco-editor/react-monaco-editor/blob/e8c823fa5e0156687e6129502369f7e1521d061b/src/editor.tsx#L107
-         */
-        textModelRef.current.pushStackElement();
-        textModelRef.current.pushEditOperations(
-          [],
-          [
-            {
-              range: textModelRef.current.getFullModelRange(),
-              text: updatedContent,
-            },
-          ],
-          undefined as never
-        );
+        injectContentUpdate(updatedContent);
       }
     }, []);
 
@@ -157,8 +140,32 @@ const MonacoWrapper = observer(
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
       redo: onTriggerRedo,
-      setContent: onSetContentExternal,
+      setContent: injectContentUpdate,
     }));
+
+    /*
+     * For some reason, the react-monaco-editor library adds multiple unto stops
+     * to the history stack whenever the content is updated. This messes
+     * up consecutive undos and redos. Therefore, we update the content
+     * manually and don't use the library's built-in reactive functionality.
+     *
+     * https://github.com/react-monaco-editor/react-monaco-editor/blob/e8c823fa5e0156687e6129502369f7e1521d061b/src/editor.tsx#L107
+     */
+    function injectContentUpdate(content: string) {
+      if (!textModelRef.current) return;
+
+      textModelRef.current.pushStackElement();
+      textModelRef.current.pushEditOperations(
+        [],
+        [
+          {
+            range: textModelRef.current.getFullModelRange(),
+            text: content,
+          },
+        ],
+        undefined as never
+      );
+    }
 
     const onGlobalKeyPress = useCallback(
       (event: KeyboardEvent) => {
@@ -221,10 +228,6 @@ const MonacoWrapper = observer(
           },
         ],
       });
-    }
-
-    function onSetContentExternal(content: string) {
-      textModelRef.current?.setValue(content);
     }
 
     function onContentChange() {

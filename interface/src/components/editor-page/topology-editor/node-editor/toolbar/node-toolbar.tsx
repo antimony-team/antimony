@@ -42,8 +42,8 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         icon={<span className="material-symbols-outlined">Ink_Selection</span>}
         text
         onClick={props.onDrawGroup}
-        tooltip="Draw Shape"
-        aria-label="Draw Shape"
+        tooltip="Group Nodes"
+        aria-label="Group Nodes"
       />
       <Button
         className="sb-iconoir-button"

@@ -15,7 +15,7 @@ export class DialogState<T> {
   private readonly _onOpen?: (state: T | null) => void;
 
   constructor(
-    public dialogState: T | null,
+    dialogState: T | null,
     onClose?: () => void,
     onOpen?: (state: T | null) => void
   ) {

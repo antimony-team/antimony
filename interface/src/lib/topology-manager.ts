@@ -21,8 +21,8 @@ export type TopologyEditReport = {
   isEdited: boolean;
 
   /*
-   * This field makes it so components can identify if the update comes from
-   * them or some other source and update accordingly.
+   * This field makes it so components can identify if an update comes from
+   * themselves or some other source and update accordingly.
    */
   source: TopologyEditSource;
 };
@@ -162,7 +162,7 @@ export class TopologyManager {
   }
 
   /**
-   * Replaces the current topology with a one and notifies all subscribers.
+   * Replaces the current topology with a new one and notifies all subscribers.
    *
    * @param updatedTopology The updated topology.
    * @param source The source of the update.
@@ -251,6 +251,35 @@ export class TopologyManager {
         `${nodeName2}:${targetInterface}`,
       ],
     });
+
+    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
+  }
+
+  public disconnectNodes(nodeName1: string, nodeName2: string) {
+    if (!this.editingTopology || !this.deviceStore.data) return;
+
+    const updatedTopology = this.editingTopology.definition.clone();
+
+    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
+
+    for (const linksKey in links.items) {
+      const endpoints = (
+        updatedTopology.getIn([
+          'topology',
+          'links',
+          linksKey,
+          'endpoints',
+        ]) as YAMLSeq
+      ).toJS(updatedTopology);
+
+      const node1 = endpoints[0].split(':')[0];
+      const node2 = endpoints[1].split(':')[0];
+
+      if (node1 === nodeName1 && node2 === nodeName2) {
+        updatedTopology.deleteIn(['topology', 'links', linksKey]);
+        break;
+      }
+    }
 
     this.apply(updatedTopology, TopologyEditSource.NodeEditor);
   }
