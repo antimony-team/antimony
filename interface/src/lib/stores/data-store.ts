@@ -66,7 +66,10 @@ export abstract class DataStore<T, I, O> {
     return result;
   }
 
-  public async update(id: uuid4, body: I): Promise<Result<DataResponse<void>>> {
+  public async update(
+    id: uuid4,
+    body: Partial<I>
+  ): Promise<Result<DataResponse<void>>> {
     const result = await this.rootStore._dataBinder.patch<I, void>(
       `${this.resourcePath}/${id}` + this.patchParams,
       body

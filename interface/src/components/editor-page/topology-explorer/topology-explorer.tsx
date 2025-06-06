@@ -17,7 +17,6 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyManager} from '@sb/lib/topology-manager';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Topology} from '@sb/types/domain/topology';
@@ -122,7 +121,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }, [collectionStore.data, topologyStore.data]);
 
   useEffect(() => {
-    loadNodeExpandKeys();
+    saveNodeExpandKeys();
   }, [topologyTree]);
 
   function onNodeExpand(e: TreeEventNodeEvent) {
@@ -300,7 +299,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onTopologyAdded(topologyId: string) {
+    if (!topologyStore.lookup.has(topologyId)) return;
+
     props.onTopologySelect(topologyId);
+
+    // Expand the newly created topology's collection node
+    setNodeExpanded(topologyStore.lookup.get(topologyId)!.collectionId, true);
+    saveNodeExpandKeys();
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
@@ -310,7 +315,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     contextMenuRef!.current!.show(e);
   }
 
-  function loadNodeExpandKeys() {
+  function saveNodeExpandKeys() {
     const expandedNodes = (
       localStorage.getItem('explorerExpandedNodes') ?? ''
     ).split(';');
@@ -418,11 +423,30 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     topologyId: string,
     collectionId: string
   ) {
+    if (
+      topologyStore.manager.editingTopologyId === topologyId &&
+      topologyStore.manager.hasEdits()
+    ) {
+      notificationStore.confirm({
+        message: 'Discard unsaved changes?',
+        header: 'Unsaved Changes',
+        icon: 'pi pi-info-circle',
+        severity: 'warning',
+        onAccept: () =>
+          moveTopologyToCollectionConfirm(topologyId, collectionId),
+      });
+    } else {
+      void moveTopologyToCollectionConfirm(topologyId, collectionId);
+    }
+  }
+
+  async function moveTopologyToCollectionConfirm(
+    topologyId: string,
+    collectionId: string
+  ) {
     const topology = topologyStore.lookup.get(topologyId)!;
     const result = await topologyStore.update(topology.id, {
-      ...topology,
       collectionId: collectionId,
-      definition: TopologyManager.serializeTopology(topology.definition),
     });
 
     if (result.isErr()) {
@@ -430,7 +454,11 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     } else {
       // If the move was successful, expand the target collection node
       setNodeExpanded(collectionId, true);
-      loadNodeExpandKeys();
+      saveNodeExpandKeys();
+
+      if (topologyStore.manager.editingTopologyId === topologyId) {
+        topologyStore.manager.discardEdits();
+      }
     }
   }
 

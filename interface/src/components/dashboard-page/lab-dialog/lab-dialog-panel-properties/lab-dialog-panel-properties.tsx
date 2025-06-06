@@ -1,14 +1,14 @@
 import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {If} from '@sb/types/control';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
 import dayjs from 'dayjs';
-import React from 'react';
 
 import {Button} from 'primereact/button';
 
 import './lab-dialog-panel-properties.sass';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
-import {useNavigate} from 'react-router';
 import {Tooltip} from 'primereact/tooltip';
+import React from 'react';
+import {useNavigate} from 'react-router';
 
 interface LabDialogPanelProps {
   lab: Lab;
@@ -81,6 +81,15 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
             </If>
           </div>
         </If>
+        <If condition={props.lab.instance}>
+          <div className="flex align-items-center gap-1">
+            <span className="property-title">Running Until:</span>
+            <span className="property-value">
+              {dayjs(props.lab.endTime).format('DD/MM/YYYY HH:mm')}
+            </span>
+          </div>
+        </If>
+
         <div className="flex align-items-center gap-1">
           <span className="property-title">State:</span>
           <span className="property-value">

@@ -95,9 +95,9 @@ const EditorPage: React.FC = observer(() => {
   }
 
   function onSelectConfirm(id: string) {
-    if (topologyStore.lookup.has(id)) {
-      topologyStore.manager.open(topologyStore.lookup.get(id)!);
-    }
+    if (!topologyStore.lookup.has(id)) return;
+
+    topologyStore.manager.open(topologyStore.lookup.get(id)!);
   }
 
   return (

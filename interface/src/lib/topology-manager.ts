@@ -96,6 +96,16 @@ export class TopologyManager {
     return result;
   }
 
+  public discardEdits() {
+    if (!this.editingTopology) return;
+
+    this.onEdit.update({
+      updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
+      isEdited: false,
+      source: TopologyEditSource.System,
+    });
+  }
+
   public updateSyncUrl(url: string) {
     if (!this.editingTopology) return;
 

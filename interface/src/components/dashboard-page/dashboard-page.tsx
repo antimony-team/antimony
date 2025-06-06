@@ -131,9 +131,8 @@ const DashboardPage: React.FC = observer(() => {
 
   function onDestroyLabRequest(lab: Lab) {
     notificationStore.confirm({
-      message: 'This action cannot be undone.',
       header: `Destroy Lab '${lab.name}'?`,
-      icon: 'pi pi-stop',
+      icon: 'pi pi-power-off',
       severity: 'danger',
       onAccept: () => labStore.destroyLab(lab),
     });

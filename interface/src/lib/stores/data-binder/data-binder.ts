@@ -181,8 +181,7 @@ export class DataBinder {
             // Retry socket subscription if token was refreshed successfully
             this.connectSubscription(subscription);
           } else {
-            // TODO(kian): Maybe add proper dialog to ask to refresh
-            if (this.isOpenIdAuthEnabled) {
+            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc()) {
               this.loginWithOpenId();
             }
           }
@@ -502,9 +501,9 @@ export class DataBinder {
 
   public async patch<R, T>(
     path: string,
-    body: R,
+    body: Partial<R>,
     authenticated = true
   ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(path, 'PATCH', body, authenticated);
+    return this.fetch<Partial<R>, T>(path, 'PATCH', body, authenticated);
   }
 }

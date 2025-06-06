@@ -79,15 +79,15 @@ const LabEntry = (props: LabEntryProps) => {
                 icon="pi pi-pen"
                 severity="info"
                 tooltip="Edit"
+                aria-label="Edit Lab"
                 onClick={onEditLab}
-                aria-label="Edit"
                 {...defaultLabButtonProps}
               />
               <Button
                 icon="pi pi-power-off"
                 severity="danger"
                 tooltip="Destroy"
-                aria-label="Destroy"
+                aria-label="Destroy Lab"
                 onClick={() => props.onDestroyLabRequest()}
                 {...defaultLabButtonProps}
               />
@@ -97,8 +97,16 @@ const LabEntry = (props: LabEntryProps) => {
                 icon="pi pi-play"
                 severity="success"
                 tooltip="Deploy Now"
-                aria-label="Deploy Now"
+                aria-label="Deploy Lab Now"
                 onClick={() => labStore.deployLab(props.lab)}
+                {...defaultLabButtonProps}
+              />
+              <Button
+                icon="pi pi-trash"
+                severity="danger"
+                tooltip="Delete"
+                aria-label="Delete Lab"
+                onClick={() => labStore.delete(props.lab.id)}
                 {...defaultLabButtonProps}
               />
             </When>
@@ -107,7 +115,7 @@ const LabEntry = (props: LabEntryProps) => {
                 icon="pi pi-power-off"
                 severity="danger"
                 tooltip="Destroy"
-                aria-label="Destroy"
+                aria-label="Destroy Lab"
                 onClick={() => props.onDestroyLabRequest()}
                 {...defaultLabButtonProps}
               />
@@ -117,7 +125,7 @@ const LabEntry = (props: LabEntryProps) => {
                 icon="pi pi-sync"
                 severity="warning"
                 tooltip="Redeploy"
-                aria-label="Redeploy"
+                aria-label="Redeploy Lab"
                 onClick={() => labStore.deployLab(props.lab)}
                 {...defaultLabButtonProps}
               />
@@ -127,7 +135,7 @@ const LabEntry = (props: LabEntryProps) => {
                 icon="pi pi-sync"
                 severity="warning"
                 tooltip="Redeploy"
-                aria-label="Redeploy"
+                aria-label="Redeploy Lab"
                 onClick={() => labStore.deployLab(props.lab)}
                 {...defaultLabButtonProps}
               />
@@ -135,7 +143,7 @@ const LabEntry = (props: LabEntryProps) => {
                 icon="pi pi-power-off"
                 severity="danger"
                 tooltip="Destroy"
-                aria-label="Destroy"
+                aria-label="Destroy Lab"
                 onClick={() => props.onDestroyLabRequest()}
                 {...defaultLabButtonProps}
               />
