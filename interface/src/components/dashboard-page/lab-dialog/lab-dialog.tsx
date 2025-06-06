@@ -243,6 +243,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         cy.panBy({x: offsetX, y: offsetY});
       }
     }
+
     return (
       <>
         <SBDialog

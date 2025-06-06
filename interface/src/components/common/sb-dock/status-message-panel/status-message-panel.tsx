@@ -1,4 +1,4 @@
-import React, {forwardRef, useMemo, useState} from 'react';
+import React, {forwardRef} from 'react';
 
 import classNames from 'classnames';
 import {Chip} from 'primereact/chip';
@@ -10,22 +10,18 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 
 import {If} from '@sb/types/control';
 import {useStatusMessages} from '@sb/lib/stores/root-store';
-import {ToggleSet} from '@sb/lib/utils/toggle-set';
 
 import './status-message-panel.sass';
 import {
   StatusMessage,
   Severity,
   SeverityMapping,
+  SeverityIconMap,
 } from '@sb/types/domain/status-message';
 
 const StatusMessagePanel = observer(
   forwardRef<OverlayPanel>((_, overlayRef) => {
     const statusMessageStore = useStatusMessages();
-
-    const [severityFilter, setSeverityFilter] = useState<ToggleSet<Severity>>(
-      new ToggleSet()
-    );
 
     const messageTemplate = (message: StatusMessage) => {
       return (
@@ -41,7 +37,7 @@ const StatusMessagePanel = observer(
               SeverityMapping[message.severity]
             )}
           >
-            <i className={severityIconMapping[message.severity]}></i>
+            <i className={SeverityIconMap[message.severity]}></i>
             <div className="sb-dock-status-messages-date">
               <span>
                 {message.timestamp.toLocaleTimeString([], {
@@ -63,10 +59,10 @@ const StatusMessagePanel = observer(
             </If>
             <div className="sb-dock-status-messages-text">
               <div className="sb-dock-status-messages-summary">
-                {message.source}
+                {message.content}
               </div>
               <div className="sb-dock-status-messages-detail">
-                {message.content}
+                {message.source}
               </div>
             </div>
           </div>
@@ -74,15 +70,15 @@ const StatusMessagePanel = observer(
       );
     };
 
-    const filteredStatusMessages = useMemo(() => {
-      if (severityFilter.size < 1) return statusMessageStore.data.toReversed();
+    // const filteredStatusMessages = useMemo(() => {
+    //   if (severityFilter.size < 1) return statusMessageStore.data.toReversed();
+    //
+    //   return statusMessageStore.data
+    //     .filter(msg => severityFilter.has(msg.severity))
+    //     .toReversed();
+    // }, [statusMessageStore.data, severityFilter]);
 
-      return statusMessageStore.data
-        .filter(msg => severityFilter.has(msg.severity))
-        .toReversed();
-    }, [statusMessageStore.data, severityFilter]);
-
-    const FilterChip = ({severity}: {severity: Severity}) => {
+    const FilterChip = observer(({severity}: {severity: Severity}) => {
       const label = statusMessageStore.countBySeverity.has(severity)
         ? String(statusMessageStore.countBySeverity.get(severity))
         : '0';
@@ -90,16 +86,14 @@ const StatusMessagePanel = observer(
       return (
         <Chip
           label={label}
-          icon={severityIconMapping[severity]}
+          icon={SeverityIconMap[severity]}
           className={classNames(SeverityMapping[severity], {
-            selected: severityFilter.has(severity),
+            selected: statusMessageStore.severityFilter.has(severity),
           })}
-          onClick={() =>
-            setSeverityFilter(new ToggleSet(severityFilter.toggle(severity)))
-          }
+          onClick={() => statusMessageStore.toggleSeverity(severity)}
         />
       );
-    };
+    });
 
     return (
       <OverlayPanel ref={overlayRef} className="sb-dock-status-messages">
@@ -121,7 +115,7 @@ const StatusMessagePanel = observer(
           />
         </div>
         <ListBox
-          options={filteredStatusMessages}
+          options={statusMessageStore.filteredMessages}
           optionLabel="name"
           itemTemplate={messageTemplate}
           emptyMessage="No status messages"
@@ -130,12 +124,5 @@ const StatusMessagePanel = observer(
     );
   })
 );
-
-const severityIconMapping = {
-  0: 'pi pi-times-circle',
-  1: 'pi pi-exclamation-triangle',
-  2: 'pi pi-check-circle',
-  3: 'pi pi-info-circle',
-};
 
 export default StatusMessagePanel;

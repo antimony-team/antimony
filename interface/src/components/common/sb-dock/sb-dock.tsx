@@ -90,7 +90,7 @@ const SBDock: React.FC = observer(() => {
             icon: {
               className: 'p-overlay-badge',
               children: (
-                <If condition={notificationStore.unreadMessages > 0}>
+                <If condition={notificationStore.hasUnreadMessages}>
                   <Badge severity="danger" />
                 </If>
               ),

@@ -73,10 +73,16 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async sendLabCommand(command: LabCommandData): Promise<Result<null>> {
-    return await this.labCommandsSubscription.socket!.emitWithAck(
+    const response = await this.labCommandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify(command)
     );
+
+    if (!('payload' in response)) {
+      return Result.createErr(response);
+    }
+
+    return Result.createOk(response);
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {
@@ -87,7 +93,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async destroyLab(lab: Lab): Promise<Result<null>> {
-    return this.sendLabCommand({
+    return await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.Destroy,
     });

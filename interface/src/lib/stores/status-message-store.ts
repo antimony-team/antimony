@@ -1,7 +1,7 @@
 import React from 'react';
 
 import {Toast} from 'primereact/toast';
-import {action, computed, observable} from 'mobx';
+import {action, computed, observable, ObservableSet} from 'mobx';
 
 import {RootStore} from '@sb/lib/stores/root-store';
 import {
@@ -25,6 +25,9 @@ export class StatusMessageStore {
   private confirmRef: React.RefObject<SBConfirmRef> | null = null;
 
   @observable accessor countBySeverity: Map<Severity, number> = new Map();
+  @observable accessor filteredMessages: StatusMessage[] = [];
+  @observable accessor severityFilter: ObservableSet<Severity> =
+    new ObservableSet();
 
   constructor(rootStore: RootStore) {
     this.rootStore = rootStore;
@@ -45,16 +48,38 @@ export class StatusMessageStore {
       (this.countBySeverity.get(message.severity) ?? 0) + 1
     );
     this.data.push(message);
-    this.data = [...this.data];
     this.send(message.content, message.source, message.severity);
     console.log(
       `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`
     );
+
+    this.updateFilteredMessages();
+  }
+
+  @action
+  public toggleSeverity(severity: Severity) {
+    if (this.severityFilter.has(severity)) {
+      this.severityFilter.delete(severity);
+    } else {
+      this.severityFilter.add(severity);
+    }
+
+    this.updateFilteredMessages();
+  }
+
+  @action
+  private updateFilteredMessages() {
+    this.filteredMessages = this.data
+      .filter(
+        msg =>
+          this.severityFilter.size < 1 || this.severityFilter.has(msg.severity)
+      )
+      .toReversed();
   }
 
   @computed
-  public get unreadMessages(): number {
-    return this.data.filter(msg => !msg.isRead).length;
+  public get hasUnreadMessages(): boolean {
+    return this.data.filter(msg => !msg.isRead).length > 0;
   }
 
   @action
@@ -96,14 +121,16 @@ export class StatusMessageStore {
   public maskAsRead(id: string) {
     if (!this.lookup.has(id)) return;
 
-    this.lookup.get(id)!.isRead = true;
-    this.data = [...this.data];
+    this.data.find(msg => msg.id === id)!.isRead = true;
+
+    this.updateFilteredMessages();
   }
 
   @action
   public markAllAsRead() {
     this.data.forEach(msg => (msg.isRead = true));
-    this.data = [...this.data];
+
+    this.updateFilteredMessages();
   }
 
   @action
