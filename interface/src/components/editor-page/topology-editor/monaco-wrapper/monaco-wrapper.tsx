@@ -54,6 +54,8 @@ interface MonacoWrapperProps {
 export interface MonacoWrapperRef {
   undo: () => void;
   redo: () => void;
+
+  setContent: (content: string) => void;
 }
 
 const MonacoWrapper = observer(
@@ -155,6 +157,7 @@ const MonacoWrapper = observer(
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
       redo: onTriggerRedo,
+      setContent: onSetContentExternal,
     }));
 
     const onGlobalKeyPress = useCallback(
@@ -218,6 +221,10 @@ const MonacoWrapper = observer(
           },
         ],
       });
+    }
+
+    function onSetContentExternal(content: string) {
+      textModelRef.current?.setValue(content);
     }
 
     function onContentChange() {

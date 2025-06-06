@@ -106,12 +106,6 @@ export class TopologyManager {
     });
   }
 
-  public updateSyncUrl(url: string) {
-    if (!this.editingTopology) return;
-
-    this.editingTopology.syncUrl = url;
-  }
-
   public updateNodeLabels(
     labelMap: Map<string, Record<string, string | number>>
   ) {

@@ -6,13 +6,13 @@ import {ElementDefinition} from 'cytoscape';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 export async function fetchResource<T>(
-  path: string,
-  method: string,
+  url: string,
+  method: string = 'GET',
   body?: T,
   requestHeaders?: HeadersInit
 ): Promise<Response | null> {
   try {
-    return await fetch(path, {
+    return await fetch(url, {
       method: method,
       headers: requestHeaders,
       body: JSON.stringify(body),

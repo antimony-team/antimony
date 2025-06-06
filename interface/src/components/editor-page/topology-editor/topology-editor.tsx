@@ -359,7 +359,11 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
         </Otherwise>
       </Choose>
-      <SyncOverlay popOverRef={syncOverlayRef} />
+      <SyncOverlay
+        popOverRef={syncOverlayRef}
+        topology={openTopology}
+        onSetContent={content => monacoWrapperRef.current?.setContent(content)}
+      />
       <NodeEditDialog
         key={currentlyEditedNode}
         isOpen={isNodeEditDialogOpen}
