@@ -2,6 +2,8 @@ package socket
 
 import (
 	"antimonyBackend/auth"
+	"github.com/charmbracelet/log"
+	"github.com/samber/lo"
 	"github.com/zishang520/socket.io/socket"
 	"sync"
 )
@@ -17,7 +19,11 @@ type (
 		GetAuthUser(accessToken string) *auth.AuthenticatedUser
 
 		// SocketAuthenticatorMiddleware A middleware function that can be used for authenticated namespaces.
-		SocketAuthenticatorMiddleware(s *socket.Socket, next func(*socket.ExtendedError))
+		// Optionally, a group of users that have access to the namespace can be specified. If the list is nil,
+		// all authenticated users will have access to the namespace.
+		SocketAuthenticatorMiddleware(
+			accessGroup *[]*auth.AuthenticatedUser,
+		) func(s *socket.Socket, next func(*socket.ExtendedError))
 	}
 
 	socketManager struct {
@@ -55,22 +61,53 @@ func (m *socketManager) Server() *socket.Server {
 	return m.server
 }
 
-func (m *socketManager) SocketAuthenticatorMiddleware(s *socket.Socket, next func(*socket.ExtendedError)) {
-	accessToken, ok := s.Handshake().Auth.(map[string]any)["token"].(string)
+func (m *socketManager) SocketAuthenticatorMiddleware(
+	accessGroup *[]*auth.AuthenticatedUser,
+) func(s *socket.Socket, next func(*socket.ExtendedError)) {
+	return func(s *socket.Socket, next func(*socket.ExtendedError)) {
+		accessToken := m.parseHandshake(s.Handshake())
+
+		if accessToken == nil {
+			next(socket.NewExtendedError("Unauthorized", nil))
+			return
+		}
+
+		authUser, err := m.authManager.AuthenticateUser(*accessToken)
+		if err != nil {
+			next(socket.NewExtendedError("Invalid Token", nil))
+			return
+		}
+
+		if accessGroup != nil {
+			_, hasAccess := lo.Find(*accessGroup, func(accessUser *auth.AuthenticatedUser) bool {
+				return authUser.UserId == accessUser.UserId
+			})
+
+			if !hasAccess {
+				log.Infof("no access")
+				next(socket.NewExtendedError("No Access", nil))
+				return
+			}
+		}
+
+		m.usersMutex.Lock()
+		m.users[*accessToken] = *authUser
+		m.usersMutex.Unlock()
+
+		next(nil)
+	}
+}
+
+func (m *socketManager) parseHandshake(handshake *socket.Handshake) *string {
+	authMap, ok := handshake.Auth.(map[string]any)
 	if !ok {
-		next(socket.NewExtendedError("Unauthorized", nil))
-		return
+		return nil
 	}
 
-	authUser, err := m.authManager.AuthenticateUser(accessToken)
-	if err != nil {
-		next(socket.NewExtendedError("Invalid Token", nil))
-		return
+	accessToken, ok := authMap["token"].(string)
+	if !ok {
+		return nil
 	}
 
-	m.usersMutex.Lock()
-	m.users[accessToken] = *authUser
-	m.usersMutex.Unlock()
-
-	next(nil)
+	return &accessToken
 }

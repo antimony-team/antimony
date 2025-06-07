@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"io"
 	"os/exec"
 )
 
@@ -120,10 +121,40 @@ func (p *ContainerlabProvider) SaveOnNode(
 	runClabCommand(cmd, onLog, onDone)
 }
 
+func (p *ContainerlabProvider) OpenShell(
+	ctx context.Context,
+	containerId string,
+) (io.ReadWriteCloser, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return nil, err
+	}
+
+	execConfig := container.ExecOptions{
+		Cmd:          []string{"/bin/bash"},
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          true,
+	}
+
+	containerExec, err := cli.ContainerExecCreate(ctx, containerId, execConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	hr, err := cli.ContainerExecAttach(ctx, containerExec.ID, container.ExecAttachOptions{Tty: true})
+	if err != nil {
+		return nil, err
+	}
+
+	return hr.Conn, nil
+}
+
 func (p *ContainerlabProvider) StreamContainerLogs(
 	ctx context.Context,
 	_ string,
-	containerID string,
+	containerId string,
 	onLog func(data string),
 ) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -138,7 +169,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 		Tail:       "all",
 	}
 
-	out, err := cli.ContainerLogs(ctx, containerID, logOptions)
+	out, err := cli.ContainerLogs(ctx, containerId, logOptions)
 	if err != nil {
 		return err
 	}

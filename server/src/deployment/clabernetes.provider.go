@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -120,6 +121,13 @@ func (p *ClabernetesProvider) InspectAll( //not tested
 	}*/
 
 	return InspectOutput{}, nil
+}
+
+func (p *ClabernetesProvider) OpenShell(
+	ctx context.Context,
+	containerId string,
+) (io.ReadWriteCloser, error) {
+	return nil, nil
 }
 
 func (p *ClabernetesProvider) Exec(

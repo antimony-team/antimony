@@ -18,21 +18,26 @@ type (
 	//
 	// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
 	// to provide a valid access token which will be used to authenticate them via auth.AuthManager.
-	NamespaceManager[T any] interface {
+	IONamespace[I any, O any] interface {
 		// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
-		Send(msg T)
+		Send(msg O)
 
 		// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
-		SendTo(msg T, receivers []string)
+		SendTo(msg O, receivers []string)
 
 		// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
-		SendToAdmins(msg T)
+		SendToAdmins(msg O)
+
+		Use(middleware func(*socket.Socket, func(*socket.ExtendedError))) socket.NamespaceInterface
 
 		// ClearBacklog Clears all messages in the backlog
 		ClearBacklog()
 	}
 
-	namespaceManager[T any] struct {
+	InputNamespace[I any]  = IONamespace[I, any]
+	OutputNamespace[O any] = IONamespace[any, O]
+
+	namespaceManager[I any, O any] struct {
 		// A list of all connected clients, authenticated and anonymous clients
 		connectedClients []*SocketConnectedUser
 
@@ -40,8 +45,10 @@ type (
 		connectedClientsMap  map[string]*SocketConnectedUser
 		connectedClientsLock *sync.Mutex
 
+		useRawInput bool
+
 		// The backlog of previously sent messages
-		backlog     []T
+		backlog     []O
 		backlogLock *sync.Mutex
 		isAnonymous bool
 		useBacklog  bool
@@ -57,33 +64,45 @@ type (
 //
 // Optionally, one can provide a onData callback which is called whenever a client sends a 'data' event in the namespace.
 // The namespace path will be concatenated with slashes to form the namespace name (e.g. [foo, bar] -> /foo/bar).
-func CreateNamespace[T any](
+func CreateIONamespace[I any, O any](
 	socketManager SocketManager,
-	isAnonymous bool, useBacklog bool,
+	isAnonymous bool,
+	useBacklog bool,
 	onData func(
 		ctx context.Context,
-		data *T, authUser *auth.AuthenticatedUser,
+		data *I, authUser *auth.AuthenticatedUser,
 		onResponse func(response utils.OkResponse[any]),
 		onError func(response utils.ErrorResponse),
 	),
+	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
-) NamespaceManager[T] {
-	backlog := make([]T, 0)
-	manager := &namespaceManager[T]{
+) IONamespace[I, O] {
+	var useRawInput bool
+
+	var test any = *new(I)
+	switch test.(type) {
+	case string:
+		useRawInput = true
+	default:
+		useRawInput = false
+	}
+
+	manager := &namespaceManager[I, O]{
 		connectedClients:     make([]*SocketConnectedUser, 0),
 		connectedClientsMap:  make(map[string]*SocketConnectedUser),
 		connectedClientsLock: &sync.Mutex{},
-		backlog:              backlog,
+		backlog:              make([]O, 0),
 		backlogLock:          &sync.Mutex{},
 		isAnonymous:          isAnonymous,
 		useBacklog:           useBacklog,
+		useRawInput:          useRawInput,
 	}
 
 	namespaceName := "/" + strings.Join(namespacePath, "/")
 	manager.namespace = socketManager.Server().Of(namespaceName, nil)
 
 	if !isAnonymous {
-		manager.namespace.Use(socketManager.SocketAuthenticatorMiddleware)
+		manager.namespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
 	}
 
 	_ = manager.namespace.On("connection", func(clients ...any) {
@@ -114,28 +133,34 @@ func CreateNamespace[T any](
 					ack = raw[1].(func([]any, error))
 				}
 
-				var data T
-				if err := json.Unmarshal([]byte(raw[0].(string)), &data); err != nil {
-					log.Error("[SOCK] Received an invalid socket request.", "ns", namespaceName, "err", err.Error())
-					if ack != nil {
-						errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
-						ack([]any{errorResponse}, nil)
-					}
-				} else {
-					ctx := context.Background()
+				dataRaw := raw[0].(string)
+				var data I
 
-					if ack != nil {
-						onData(ctx, &data, authUser,
-							func(response utils.OkResponse[any]) {
-								ack([]any{response}, nil)
-							},
-							func(errorResponse utils.ErrorResponse) {
-								ack([]any{errorResponse}, nil)
-							},
-						)
-					} else {
-						onData(ctx, &data, authUser, nil, nil)
+				if manager.useRawInput {
+					data = any(dataRaw).(I)
+				} else {
+					if err := json.Unmarshal([]byte(dataRaw), &data); err != nil {
+						if ack != nil {
+							errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
+							ack([]any{errorResponse}, nil)
+						}
+						return
 					}
+				}
+
+				ctx := context.Background()
+
+				if ack != nil {
+					onData(ctx, &data, authUser,
+						func(response utils.OkResponse[any]) {
+							ack([]any{response}, nil)
+						},
+						func(errorResponse utils.ErrorResponse) {
+							ack([]any{errorResponse}, nil)
+						},
+					)
+				} else {
+					onData(ctx, &data, authUser, nil, nil)
 				}
 			})
 
@@ -182,17 +207,43 @@ func CreateNamespace[T any](
 	return manager
 }
 
-func (m *namespaceManager[T]) ClearBacklog() {
+func CreateInputNamespace[I any](
+	socketManager SocketManager,
+	isAnonymous bool,
+	useBacklog bool,
+	onData func(
+		ctx context.Context,
+		data *I, authUser *auth.AuthenticatedUser,
+		onResponse func(response utils.OkResponse[any]),
+		onError func(response utils.ErrorResponse),
+	),
+	accessGroup *[]*auth.AuthenticatedUser,
+	namespacePath ...string,
+) InputNamespace[I] {
+	return CreateIONamespace[I, any](socketManager, isAnonymous, useBacklog, onData, accessGroup, namespacePath...)
+}
+
+func CreateOutputNamespace[O any](
+	socketManager SocketManager,
+	isAnonymous bool,
+	useBacklog bool,
+	accessGroup *[]*auth.AuthenticatedUser,
+	namespacePath ...string,
+) OutputNamespace[O] {
+	return CreateIONamespace[any, O](socketManager, isAnonymous, useBacklog, nil, accessGroup, namespacePath...)
+}
+
+func (m *namespaceManager[I, O]) ClearBacklog() {
 	m.backlogLock.Lock()
-	m.backlog = make([]T, 0)
+	m.backlog = make([]O, 0)
 	m.backlogLock.Unlock()
 }
 
-func (m *namespaceManager[T]) Send(msg T) {
+func (m *namespaceManager[I, O]) Send(msg O) {
 	m.sendTo(msg, m.connectedClients)
 }
 
-func (m *namespaceManager[T]) SendTo(msg T, receivers []string) {
+func (m *namespaceManager[I, O]) SendTo(msg O, receivers []string) {
 	if m.isAnonymous {
 		log.Errorf("Server is trying to send an addressed socket message in an anonymous namespace. Aborting.")
 		return
@@ -206,7 +257,7 @@ func (m *namespaceManager[T]) SendTo(msg T, receivers []string) {
 	}))
 }
 
-func (m *namespaceManager[T]) SendToAdmins(msg T) {
+func (m *namespaceManager[I, O]) SendToAdmins(msg O) {
 	if m.isAnonymous {
 		log.Errorf("Server is trying to send an addressed socket message in an anonymous namespace. Aborting.")
 		return
@@ -217,7 +268,13 @@ func (m *namespaceManager[T]) SendToAdmins(msg T) {
 	}))
 }
 
-func (m *namespaceManager[T]) sendTo(msg T, receivers []*SocketConnectedUser) {
+func (m *namespaceManager[I, O]) Use(
+	middleware func(*socket.Socket, func(*socket.ExtendedError)),
+) socket.NamespaceInterface {
+	return m.namespace.Use(middleware)
+}
+
+func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*SocketConnectedUser) {
 	if m.useBacklog {
 		m.backlogLock.Lock()
 		m.backlog = append(m.backlog, msg)

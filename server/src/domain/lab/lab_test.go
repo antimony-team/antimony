@@ -1437,7 +1437,7 @@ func TestHandleLabCommand(t *testing.T) {
 			svc.handleLabCommand(context.Background(), &LabCommandData{
 				LabId:   a.labId,
 				Command: a.cmd,
-				Node:    a.Node,
+				NodeId:  a.Node,
 			}, a.authUser,
 				func(_ utils.OkResponse[any]) { okCalled = true },
 				func(err utils.ErrorResponse) {
@@ -1628,7 +1628,7 @@ func TestDeployLabCommand(t *testing.T) {
 						Creator: user.User{UUID: "user123"},
 					}, nil)
 			},
-			expectErr: utils.ErrorLabActionInProgress,
+			expectErr: utils.ErrorLabIsDeploying,
 			validate: func(t *testing.T, svc *labService, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 				assert.True(t, svc.instances["lab123"] != nil, "expected lab123 to exist in instances")

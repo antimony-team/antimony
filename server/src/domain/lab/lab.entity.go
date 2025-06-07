@@ -71,7 +71,7 @@ type Instance struct {
 	Recovered bool
 
 	TopologyFile string
-	LogNamespace socket.NamespaceManager[string]
+	LogNamespace socket.OutputNamespace[string]
 
 	// TopologyDefinition Copy of the lab's run topology
 	TopologyDefinition string
@@ -139,9 +139,10 @@ var InstanceStates = struct {
 }
 
 type LabCommandData struct {
-	LabId   string     `json:"labId"`
-	Command LabCommand `json:"command"`
-	Node    *string    `json:"node"`
+	LabId   *string     `json:"labId"`
+	Command *LabCommand `json:"command"`
+	NodeId  *string     `json:"nodeId"`
+	ShellId *string     `json:"shellId"`
 }
 
 type LabCommand int
@@ -151,34 +152,22 @@ const (
 	destroyCommand
 	stopNodeCommand
 	startNodeCommand
+	openShell
+	closeShell
 )
 
 var LabCommands = struct {
-	Deploy    LabCommand
-	Destroy   LabCommand
-	StopNode  LabCommand
-	StartNode LabCommand
+	Deploy     LabCommand
+	Destroy    LabCommand
+	StopNode   LabCommand
+	StartNode  LabCommand
+	OpenShell  LabCommand
+	CloseShell LabCommand
 }{
-	Deploy:    deployCommand,
-	Destroy:   destroyCommand,
-	StopNode:  stopNodeCommand,
-	StartNode: startNodeCommand,
-}
-
-type LabAction int
-
-const (
-	deployAction LabAction = iota
-	destroyAction
-	redeployAction
-)
-
-var LabActions = struct {
-	Deploy   LabAction
-	Destroy  LabAction
-	Redeploy LabAction
-}{
-	Deploy:   deployAction,
-	Destroy:  destroyAction,
-	Redeploy: redeployAction,
+	Deploy:     deployCommand,
+	Destroy:    destroyCommand,
+	StopNode:   stopNodeCommand,
+	StartNode:  startNodeCommand,
+	OpenShell:  openShell,
+	CloseShell: closeShell,
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
+	"io"
 	"regexp"
 	"slices"
 	"strings"
@@ -34,24 +35,6 @@ type (
 	}
 
 	labService struct {
-		//// Ordered list of all labs that are currently scheduled for deployment, ordered by start time.
-		//labDeploymentSchedule []*Lab
-		//
-		//// Set of all labs that are currently scheduled for deployment, indexed by lab ID
-		//labDeploymentMap map[string]struct{}
-		//
-		//// Ordered list of all labs that are currently scheduled for destruction, ordered by start time.
-		//labDestroySchedule []*Lab
-		//
-		//// Set of all labs that are currently scheduled for destruction, indexed by lab ID
-		//labDestructionMap []*Lab
-		//
-		//// Mutex for the labDeploymentSchedule and labDeploymentMap operations
-		//labDeployScheduleMutex sync.Mutex
-		//
-		//// Mutex for the labDestroySchedule
-		//labDestroyScheduleMutex sync.Mutex
-
 		labDeploymentSchedule  utils.Schedule[Lab]
 		labDestructionSchedule utils.Schedule[Lab]
 
@@ -60,15 +43,25 @@ type (
 		instances      map[string]*Instance
 		instancesMutex sync.Mutex
 
+		openShells      map[string]ShellConfig
+		openShellsMutex sync.Mutex
+
 		labRepo                Repository
 		userRepo               user.Repository
 		topologyRepo           topology.Repository
 		storageManager         storage.StorageManager
 		deploymentProvider     deployment.DeploymentProvider
 		socketManager          socket.SocketManager
-		labUpdatesNamespace    socket.NamespaceManager[string]
-		labCommandsNamespace   socket.NamespaceManager[LabCommandData]
-		statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage]
+		labUpdatesNamespace    socket.OutputNamespace[string]
+		labCommandsNamespace   socket.InputNamespace[LabCommandData]
+		statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage]
+	}
+
+	ShellConfig struct {
+		Owner         *auth.AuthenticatedUser
+		NodeId        string
+		Connection    io.ReadWriteCloser
+		DataNamespace socket.IONamespace[string, string]
 	}
 )
 
@@ -78,7 +71,7 @@ func CreateService(
 	topologyRepo topology.Repository,
 	storageManager storage.StorageManager,
 	socketManager socket.SocketManager,
-	statusMessageNamespace socket.NamespaceManager[statusMessage.StatusMessage],
+	statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage],
 ) Service {
 	deploymentSchedule := utils.CreateSchedule[Lab](
 		func(lab Lab) string {
@@ -99,16 +92,13 @@ func CreateService(
 	)
 
 	labService := &labService{
-		labRepo:      labRepo,
-		userRepo:     userRepo,
-		topologyRepo: topologyRepo,
-		//labDeployScheduleMutex:  sync.Mutex{},
-		//labDestroyScheduleMutex: sync.Mutex{},
-		//labDeploymentSchedule:   make([]*Lab, 0),
-		//labDestroySchedule:      make([]*Lab, 0),
-		//labDeploymentMap:        make(map[string]struct{}),
+		labRepo:                labRepo,
+		userRepo:               userRepo,
+		topologyRepo:           topologyRepo,
 		labDeploymentSchedule:  deploymentSchedule,
 		labDestructionSchedule: destructionSchedule,
+		openShells:             make(map[string]ShellConfig),
+		openShellsMutex:        sync.Mutex{},
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
 		storageManager:         storageManager,
@@ -116,13 +106,11 @@ func CreateService(
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}
-	labService.labUpdatesNamespace = socket.CreateNamespace[string](
-		socketManager, false, false, nil,
-		"lab-updates",
+	labService.labUpdatesNamespace = socket.CreateOutputNamespace[string](
+		socketManager, false, false, nil, "lab-updates",
 	)
-	labService.labCommandsNamespace = socket.CreateNamespace[LabCommandData](
-		socketManager, false, false, labService.handleLabCommand,
-		"lab-commands",
+	labService.labCommandsNamespace = socket.CreateInputNamespace[LabCommandData](
+		socketManager, false, false, labService.handleLabCommand, nil, "lab-commands",
 	)
 
 	labService.reviveLabs()
@@ -180,14 +168,13 @@ func (s *labService) reviveLabs() {
 		// The lab has been deployed before
 		if containers, ok := result[*lab.InstanceName]; ok {
 			// Lab is currently running
-			logNamespace := socket.CreateNamespace[string](
-				s.socketManager, false, true, nil,
-				"logs", lab.UUID,
+			logNamespace := socket.CreateOutputNamespace[string](
+				s.socketManager, false, true, nil, "logs", lab.UUID,
 			)
 
 			// Create log namespaces for each container in the lab
 			for _, container := range containers {
-				containerLogNamespace := socket.CreateNamespace[string](
+				containerLogNamespace := socket.CreateOutputNamespace[string](
 					s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
 				)
 				err := s.deploymentProvider.StreamContainerLogs(
@@ -325,9 +312,11 @@ func (s *labService) Update(ctx *gin.Context, req LabInPartial, labId string, au
 	}
 
 	// Don't allow modifications to running labs
+	s.instancesMutex.Lock()
 	if _, hasInstance := s.instances[lab.UUID]; hasInstance {
-		return utils.ErrorRunningLab
+		return utils.ErrorLabRunning
 	}
+	s.instancesMutex.Unlock()
 
 	updateDeploymentSchedule := false
 	updateDestructionSchedule := false
@@ -378,7 +367,7 @@ func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.Authen
 	// Don't allow the deletion of running labs
 	s.instancesMutex.Lock()
 	if instance, hasInstance := s.instances[lab.UUID]; hasInstance && instance.State != InstanceStates.Failed {
-		return utils.ErrorRunningLab
+		return utils.ErrorLabRunning
 	}
 	s.instancesMutex.Unlock()
 
@@ -565,10 +554,10 @@ func (s *labService) deployLab(lab *Lab) error {
 				"Failed to deploy lab: The lab is already being deployed", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 			),
 		)
-		return utils.ErrorLabActionInProgress
+		return utils.ErrorLabIsDeploying
 	}
 
-	logNamespace := socket.CreateNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
+	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
 
 	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
 	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
@@ -582,7 +571,7 @@ func (s *labService) deployLab(lab *Lab) error {
 			"Failed to create environment for lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &logNamespace)
 		s.setTopologyDeployStatus(*lab, false)
-		return utils.ErrorGenericAntimony
+		return utils.ErrorAntimony
 	}
 
 	s.instances[lab.UUID] = instance
@@ -604,7 +593,9 @@ func (s *labService) deployLab(lab *Lab) error {
 		"Starting deployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
 
-	output, err := s.deploymentProvider.Deploy(ctx, runTopologyFile, instance.LogNamespace.Send)
+	output, err := s.deploymentProvider.Deploy(ctx, runTopologyFile, func(data string) {
+		instance.LogNamespace.Send(data)
+	})
 
 	streamClabOutput(instance.LogNamespace, output)
 
@@ -620,7 +611,9 @@ func (s *labService) deployLab(lab *Lab) error {
 	}
 
 	// Fetch and attach lab runtime info and change state to running if successful
-	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, instance.LogNamespace.Send)
+	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, func(data string) {
+		instance.LogNamespace.Send(data)
+	})
 
 	// Only report errors if the deployment worker has not been cancelled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
@@ -636,10 +629,12 @@ func (s *labService) deployLab(lab *Lab) error {
 		log.Infof("[SCHEDULER] Successfully deployed lab '%s'!", lab.Name)
 		s.instances[lab.UUID].Nodes = lo.Map(containers, s.containerToInstanceNode)
 		for _, container := range containers {
-			containerLogNamespace := socket.CreateNamespace[string](
+			containerLogNamespace := socket.CreateOutputNamespace[string](
 				s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
 			)
-			err := s.deploymentProvider.StreamContainerLogs(ctx, "", container.ContainerId, containerLogNamespace.Send)
+			err := s.deploymentProvider.StreamContainerLogs(ctx, "", container.ContainerId, func(data string) {
+				containerLogNamespace.Send(data)
+			})
 			if err != nil {
 				log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
 			}
@@ -659,7 +654,7 @@ func (s *labService) deployLab(lab *Lab) error {
 }
 
 func (s *labService) createInstance(
-	logNamespace socket.NamespaceManager[string],
+	logNamespace socket.OutputNamespace[string],
 	runTopologyFile string,
 	topologyDefinition string,
 ) *Instance {
@@ -719,7 +714,7 @@ func (s *labService) notifyUpdate(lab Lab, message *statusMessage.StatusMessage)
 // updateStateAndNotify Updates the state of a lab and sends various notification updates.
 // If the status message is set, all users will receive the status message.
 // If the log namespace is set, the log content of the status message is also sent to the provided namespace.
-func (s *labService) updateStateAndNotify(lab Lab, state InstanceState, statusMessage *statusMessage.StatusMessage, logNamespace *socket.NamespaceManager[string]) {
+func (s *labService) updateStateAndNotify(lab Lab, state InstanceState, statusMessage *statusMessage.StatusMessage, logNamespace *socket.OutputNamespace[string]) {
 	s.instances[lab.UUID].State = state
 	s.instances[lab.UUID].LatestStateChange = time.Now()
 	s.labUpdatesNamespace.Send(lab.UUID)
@@ -739,35 +734,53 @@ func (s *labService) handleLabCommand(
 	onResponse func(response utils.OkResponse[any]),
 	onError func(response utils.ErrorResponse),
 ) {
-	switch data.Command {
-	case deployCommand:
-		if err := s.deployLabCommand(ctx, data.LabId, authUser); err != nil {
+	if data.LabId == nil || data.Command == nil {
+		onError(utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest))
+		return
+	}
+
+	switch *data.Command {
+	case LabCommands.Deploy:
+		if err := s.deployLabCommand(ctx, *data.LabId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
-	case destroyCommand:
-		if err := s.destroyLabCommand(ctx, data.LabId, authUser); err != nil {
+	case LabCommands.Destroy:
+		if err := s.destroyLabCommand(ctx, *data.LabId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
-	case stopNodeCommand:
-		if err := s.stopNodeCommand(ctx, data.LabId, data.Node, authUser); err != nil {
+	case LabCommands.StopNode:
+		if err := s.stopNodeCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
-	case startNodeCommand:
-		if err := s.startNodeCommand(ctx, data.LabId, data.Node, authUser); err != nil {
+	case LabCommands.StartNode:
+		if err := s.startNodeCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
+	case LabCommands.OpenShell:
+		if shellId, err := s.openShellCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
+			onError(utils.CreateSocketErrorResponse(err))
+			return
+		} else {
+			onResponse(utils.CreateSocketOkResponse[any](shellId))
+		}
+		break
+	case LabCommands.CloseShell:
+		if err := s.closeShellCommand(data.ShellId, authUser); err != nil {
+			onError(utils.CreateSocketErrorResponse(err))
+		}
+		onResponse(utils.CreateSocketOkResponse[any](nil))
 	default:
 		onError(utils.CreateSocketErrorResponse(utils.ErrorInvalidLabCommand))
 		break
@@ -811,9 +824,12 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 		return utils.ErrorNoDeployAccessToLab
 	}
 	instance, hasInstance := s.instances[lab.UUID]
+
 	if hasInstance {
-		if !s.redeployLab(lab, instance) {
-			return utils.ErrorLabActionInProgress
+		result := s.redeployLab(lab, instance)
+
+		if !result {
+			return utils.ErrorLabIsDeploying
 		}
 	} else {
 		// Manually remove the lab from the lab schedule and add it to the destruction schedule
@@ -837,22 +853,172 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 	return nil
 }
 
-func (s *labService) stopNodeCommand(ctx context.Context, labId string, node *string, authUser *auth.AuthenticatedUser) error {
-	if node == nil {
+func (s *labService) stopNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error {
+	if nodeId == nil {
 		return utils.ErrorNodeNotFound
 	}
 	return nil
 }
 
-func (s *labService) startNodeCommand(ctx context.Context, labId string, node *string, authUser *auth.AuthenticatedUser) error {
-	if node == nil {
+func (s *labService) startNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error {
+	if nodeId == nil {
 		return utils.ErrorNodeNotFound
 	}
 	return nil
+}
+
+func (s *labService) openShellCommand(
+	ctx context.Context,
+	labId string,
+	nodeId *string,
+	authUser *auth.AuthenticatedUser,
+) (string, error) {
+	if nodeId == nil {
+		return "", utils.ErrorInvalidSocketRequest
+	}
+
+	lab, err := s.labRepo.GetByUuid(ctx, labId)
+	if err != nil {
+		return "", err
+	}
+
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.UUID) {
+		return "", utils.ErrorNoAccessToShell
+	}
+
+	s.instancesMutex.Lock()
+	instance, hasInstance := s.instances[lab.UUID]
+	if !hasInstance {
+		return "", utils.ErrorLabNotRunning
+	}
+	s.instancesMutex.Unlock()
+
+	_, hasContainer := lo.Find(instance.Nodes, func(node InstanceNode) bool {
+		return node.ContainerId == *nodeId
+	})
+	if !hasContainer {
+		return "", utils.ErrorNodeNotFound
+	}
+
+	connection, err := s.deploymentProvider.OpenShell(ctx, *nodeId)
+	if err != nil {
+		log.Errorf("Failed to open shell: %s", err.Error())
+		return "", err
+	}
+
+	shellId := utils.GenerateUuid()
+
+	accessGroup := []*auth.AuthenticatedUser{authUser}
+
+	dataNamespace := socket.CreateIONamespace[string, any](
+		s.socketManager,
+		false,
+		true,
+		s.handleShellData(shellId),
+		&accessGroup,
+		"shells", shellId,
+	)
+
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := connection.Read(buf)
+			if err != nil {
+				dataNamespace.Send(utils.CreateSocketErrorResponse(err))
+				break
+			}
+
+			dataNamespace.Send(string(buf[:n]))
+		}
+	}()
+
+	shellConfig := ShellConfig{
+		Owner:      authUser,
+		NodeId:     *nodeId,
+		Connection: connection,
+	}
+
+	s.openShellsMutex.Lock()
+	s.openShells[shellId] = shellConfig
+	s.openShellsMutex.Unlock()
+
+	return shellId, nil
+}
+
+func (s *labService) closeShellCommand(shellId *string, authUser *auth.AuthenticatedUser) error {
+	if shellId == nil {
+		return utils.ErrorInvalidSocketRequest
+	}
+
+	s.openShellsMutex.Lock()
+	shell, hasShell := s.openShells[*shellId]
+	s.openShellsMutex.Unlock()
+
+	if !hasShell {
+		return utils.ErrorShellNotFound
+	}
+
+	if !authUser.IsAdmin && shell.Owner != authUser {
+		return utils.ErrorNoAccessToShell
+	}
+
+	err := shell.Connection.Close()
+	if err != nil {
+		log.Errorf("Failed to close shell: %s", err.Error())
+	}
+
+	s.openShellsMutex.Lock()
+	delete(s.openShells, *shellId)
+	s.openShellsMutex.Unlock()
+
+	return nil
+}
+
+func (s *labService) handleShellData(
+	shellId string,
+) func(
+	ctx context.Context,
+	data *string,
+	authUser *auth.AuthenticatedUser,
+	onResponse func(response utils.OkResponse[any]),
+	onError func(response utils.ErrorResponse),
+) {
+	return func(
+		ctx context.Context,
+		data *string,
+		authUser *auth.AuthenticatedUser,
+		onResponse func(response utils.OkResponse[any]),
+		onError func(response utils.ErrorResponse),
+	) {
+		if data == nil {
+			onError(utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest))
+			return
+		}
+
+		s.openShellsMutex.Lock()
+		shell, hasShell := s.openShells[shellId]
+		s.openShellsMutex.Unlock()
+
+		if !hasShell {
+			onError(utils.CreateSocketErrorResponse(utils.ErrorShellNotFound))
+			return
+		}
+
+		if shell.Owner.UserId != authUser.UserId {
+			onError(utils.CreateSocketErrorResponse(utils.ErrorNoAccessToShell))
+			return
+		}
+
+		_, err := shell.Connection.Write(([]byte)(*data))
+		if err != nil {
+			log.Errorf("Failed to write shell data: %s", err.Error())
+			onError(utils.CreateSocketErrorResponse(err))
+		}
+	}
 }
 
 // streamClabOutput Streams the output of a containerlab command to a given socket namespace.
-func streamClabOutput(logNamespace socket.NamespaceManager[string], output *string) {
+func streamClabOutput(logNamespace socket.OutputNamespace[string], output *string) {
 	re := regexp.MustCompile(`\[\dm`)
 	if output == nil {
 		return

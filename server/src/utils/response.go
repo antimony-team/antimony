@@ -47,11 +47,12 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		errors.Is(err, ErrorNoWriteAccessToTopology),
 		errors.Is(err, ErrorNoWriteAccessToCollection),
 		errors.Is(err, ErrorNoDeployAccessToCollection),
+		errors.Is(err, ErrorNoDeployAccessToLab),
 		errors.Is(err, ErrorNoPermissionToCreateCollections):
 		return http.StatusForbidden, ErrorResponse{Code: 403, Message: err.Error()}
 	}
 
-	return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
+	return http.StatusInternalServerError, ErrorResponse{Code: -1, Message: err.Error()}
 }
 
 func CreateValidationError(err error) (int, ErrorResponse) {
@@ -62,19 +63,29 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 	switch {
 	case errors.Is(err, ErrorContainerlab):
 		return ErrorResponse{Code: 5001, Message: err.Error()}
-	case errors.Is(err, ErrorLabActionInProgress):
+	case errors.Is(err, ErrorLabIsDeploying):
 		return ErrorResponse{Code: 5002, Message: err.Error()}
+	case errors.Is(err, ErrorLabNotRunning):
+		return ErrorResponse{Code: 5003, Message: err.Error()}
+	case errors.Is(err, ErrorNodeNotRunning):
+		return ErrorResponse{Code: 5004, Message: err.Error()}
+	case errors.Is(err, ErrorUuidNotFound):
+		return ErrorResponse{Code: 5005, Message: err.Error()}
+	case errors.Is(err, ErrorNodeNotFound):
+		return ErrorResponse{Code: 5006, Message: err.Error()}
+	case errors.Is(err, ErrorShellNotFound):
+		return ErrorResponse{Code: 5007, Message: err.Error()}
 	case errors.Is(err, ErrorInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
-	case errors.Is(err, ErrorUuidNotFound):
-		return ErrorResponse{Code: 5404, Message: err.Error()}
 	// Permission / Access errors
-	case errors.Is(err, ErrorNoDeployAccessToCollection),
-		errors.Is(err, ErrorNoDestroyAccessToLab):
+	case errors.Is(err, ErrorNoDeployAccessToCollection):
+	case errors.Is(err, ErrorNoDestroyAccessToLab):
+	case errors.Is(err, ErrorNoAccessToShell):
+	case errors.Is(err, ErrorNoAccessToLab):
 		return ErrorResponse{Code: 5403, Message: err.Error()}
-	default:
-		return ErrorResponse{Code: -1, Message: err.Error()}
 	}
+
+	return ErrorResponse{Code: -1, Message: err.Error()}
 }
 
 func CreateSocketOkResponse[T any](obj T) OkResponse[T] {
