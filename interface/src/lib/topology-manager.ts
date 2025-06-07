@@ -1,4 +1,4 @@
-import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 
@@ -8,6 +8,7 @@ import {
   NodeConnection,
   Topology,
   TopologyDefinition,
+  TopologyMeta,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
@@ -34,7 +35,6 @@ export enum TopologyEditSource {
 }
 
 export class TopologyManager {
-  private apiStore: DataBinder;
   private deviceStore: DeviceStore;
   private topologyStore: TopologyStore;
   private editingTopology: Topology | null = null;
@@ -44,12 +44,7 @@ export class TopologyManager {
   public readonly onClose: Binding<void> = new Binding();
   public readonly onEdit: Binding<TopologyEditReport> = new Binding();
 
-  constructor(
-    apiStore: DataBinder,
-    topologyStore: TopologyStore,
-    deviceStore: DeviceStore
-  ) {
-    this.apiStore = apiStore;
+  constructor(topologyStore: TopologyStore, deviceStore: DeviceStore) {
     this.deviceStore = deviceStore;
     this.topologyStore = topologyStore;
     this.onEdit.register(
@@ -335,7 +330,9 @@ export class TopologyManager {
     });
   }
 
-  public buildTopologyMetadata(topology: YAMLDocument<TopologyDefinition>) {
+  public buildTopologyMetadata(
+    topology: YAMLDocument<TopologyDefinition>
+  ): TopologyMeta {
     if (!topology.hasIn(['topology', 'links'])) {
       return {
         connections: [],
@@ -472,7 +469,7 @@ export class TopologyManager {
       .filter(index => index >= 0);
   }
 
-  private parseInterface(value: string, interfacePattern: string): number {
+  public parseInterface(value: string, interfacePattern: string): number {
     const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
     const match = value.match(pattern);
 

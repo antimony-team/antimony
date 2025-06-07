@@ -1,6 +1,6 @@
 import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {If} from '@sb/types/control';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
+import {Lab} from '@sb/types/domain/lab';
 import dayjs from 'dayjs';
 
 import {Button} from 'primereact/button';
@@ -89,13 +89,6 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
             </span>
           </div>
         </If>
-
-        <div className="flex align-items-center gap-1">
-          <span className="property-title">State:</span>
-          <span className="property-value">
-            {InstanceState[props.lab.instance?.state ?? -1]}
-          </span>
-        </div>
         <div className="flex align-items-center gap-1">
           <span className="property-title">Topology:</span>
           <span className="property-value">{topology?.name}</span>

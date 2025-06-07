@@ -58,9 +58,19 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       : null;
 
     const graphData: ElementDefinition[] = useMemo(() => {
-      if (!openTopology) return [];
-      return generateGraph(openTopology, deviceStore, topologyStore.manager);
-    }, [deviceStore, openTopology, topologyStore.manager]);
+      if (!props.dialogState.state || !openTopology) return [];
+
+      const topology = props.dialogState.state.instance
+        ? props.dialogState.state.instance.runTopology
+        : openTopology;
+
+      return generateGraph(topology, deviceStore, topologyStore.manager);
+    }, [
+      deviceStore,
+      openTopology,
+      topologyStore.manager,
+      props.dialogState.state,
+    ]);
 
     function onContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current) return;

@@ -1,10 +1,12 @@
 import {
+  DataBinder,
   DataResponse,
   Subscription,
 } from '@sb/lib/stores/data-binder/data-binder';
 
 import {DataStore} from '@sb/lib/stores/data-store';
 import {RootStore} from '@sb/lib/stores/root-store';
+import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {QueryBuilder} from '@sb/lib/utils/query-builder';
 import {
   Instance,
@@ -41,18 +43,28 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   private labCommandsSubscription: Subscription;
 
-  constructor(rootStore: RootStore) {
+  private dataBinder: DataBinder;
+  private topologyStore: TopologyStore;
+
+  constructor(
+    rootStore: RootStore,
+    dataBinder: DataBinder,
+    topologyStore: TopologyStore
+  ) {
     super(rootStore);
+
+    this.dataBinder = dataBinder;
+    this.topologyStore = topologyStore;
 
     observe(this, 'getParams' as keyof this, () => this.fetch());
 
-    this.rootStore._dataBinder.subscribeNamespace(
+    this.dataBinder.subscribeNamespace(
       'lab-updates',
       this.onLabUpdate.bind(this)
     );
 
     this.labCommandsSubscription =
-      this.rootStore._dataBinder.subscribeNamespace('lab-commands');
+      this.dataBinder.subscribeNamespace('lab-commands');
   }
 
   protected get resourcePath(): string {
@@ -181,31 +193,47 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private parseLabs(input: LabOut[]): Lab[] {
-    return input.map(lab => {
-      const startTime = new Date(lab.startTime);
-      const endTime = new Date(lab.endTime);
+    return input
+      .map(lab => {
+        const startTime = new Date(lab.startTime);
+        const endTime = lab.endTime ? new Date(lab.endTime) : null;
 
-      return {
-        ...lab,
-        startTime: startTime,
-        endTime: endTime,
-        state: lab.instance
-          ? lab.instance.state
-          : endTime >= dayjs(new Date()).toDate() &&
-              startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
-            ? InstanceState.Scheduled
-            : InstanceState.Inactive,
-        instance: this.parseInstance(lab.instance),
-      };
-    });
+        return {
+          ...lab,
+          startTime: startTime,
+          endTime: endTime,
+          state: lab.instance
+            ? lab.instance.state
+            : endTime &&
+                endTime >= dayjs(new Date()).toDate() &&
+                startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
+              ? InstanceState.Scheduled
+              : InstanceState.Inactive,
+          instance: this.parseInstance(lab.instance),
+        };
+      })
+      .filter(lab => lab !== null);
   }
 
   private parseInstance(input?: InstanceOut): Instance | undefined {
     if (input === undefined) return undefined;
 
+    const definition = this.topologyStore.parseTopology(
+      input.topologyDefinition
+    );
+
+    if (!definition) {
+      console.error('[NET] Failed to parse incoming run topology: ', input);
+      return;
+    }
+
     return {
       ...input,
       nodeMap: new Map(input.nodes?.map(node => [node.name, node])),
+      runTopology: {
+        ...this.topologyStore.manager.buildTopologyMetadata(definition),
+        definition,
+      },
     };
   }
 }

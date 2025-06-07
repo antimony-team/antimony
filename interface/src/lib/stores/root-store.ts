@@ -21,15 +21,27 @@ export class RootStore {
   _schemaStore: SchemaStore;
   _statusMessagesStore: StatusMessageStore;
 
+  /**
+   * Poor man's dependency injection ( ͡° ͜ʖ ͡°)
+   */
   constructor() {
     this._dataBinder = new DataBinder();
 
     this._schemaStore = new SchemaStore(this);
     this._deviceStore = new DeviceStore(this);
-    this._topologyStore = new TopologyStore(this);
-    this._labStore = new LabStore(this);
-    this._calendarLabStore = new LabStore(this);
     this._collectionStore = new CollectionStore(this);
+    this._topologyStore = new TopologyStore(
+      this,
+      this._dataBinder,
+      this._schemaStore,
+      this._deviceStore
+    );
+    this._labStore = new LabStore(this, this._dataBinder, this._topologyStore);
+    this._calendarLabStore = new LabStore(
+      this,
+      this._dataBinder,
+      this._topologyStore
+    );
     this._statusMessagesStore = new StatusMessageStore(this);
   }
 

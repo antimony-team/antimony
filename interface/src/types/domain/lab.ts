@@ -1,10 +1,11 @@
+import {RunTopology} from '@sb/types/domain/topology';
 import {User} from '@sb/types/domain/user';
 import {uuid4} from '@sb/types/types';
 
 export type LabIn = {
   name: string;
   startTime: string;
-  endTime: string;
+  endTime?: string;
   topologyId: uuid4;
 };
 
@@ -12,6 +13,9 @@ export type LabOut = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
+
+  topologyDefinition: string;
+
   instance?: InstanceOut;
 };
 
@@ -19,7 +23,7 @@ export type Lab = {
   id: uuid4;
   name: string;
   startTime: Date;
-  endTime: Date;
+  endTime: Date | null;
   creator: User;
 
   topologyId: uuid4;
@@ -37,10 +41,13 @@ export type InstanceOut = {
   latestStateChange: Date;
   nodes: InstanceNode[];
   recovered: boolean;
+
+  topologyDefinition: string;
 };
 
 export type Instance = InstanceOut & {
   nodeMap: Map<string, InstanceNode>;
+  runTopology: RunTopology;
 };
 
 export type InstanceNode = {

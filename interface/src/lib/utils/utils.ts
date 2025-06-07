@@ -1,6 +1,6 @@
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {Topology} from '@sb/types/domain/topology';
+import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
 import {ElementDefinition} from 'cytoscape';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
@@ -159,7 +159,7 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
 }
 
 export function generateGraph(
-  topology: Topology,
+  topology: Topology | RunTopology,
   deviceStore: DeviceStore,
   topologyManager: TopologyManager
 ): ElementDefinition[] {

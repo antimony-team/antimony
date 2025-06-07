@@ -129,10 +129,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         return;
       }
 
-      const definition = topologyStore.parseTopology(
-        content,
-        schemaStore.clabSchema
-      );
+      const definition = topologyStore.parseTopology(content);
 
       if (definition !== null) {
         setValidationState(ValidationState.Done);

@@ -1,5 +1,5 @@
 import {User} from '@sb/types/domain/user';
-import {Position, uuid4, YAMLDocument} from '@sb/types/types';
+import {uuid4, YAMLDocument} from '@sb/types/types';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 
 export type BindFileIn = {
@@ -25,14 +25,6 @@ export type TopologyOut = TopologyIn & {
   lastDeployFailed: boolean;
 };
 
-export type nodeData = {
-  id: string;
-  parent?: string;
-  label?: string;
-  class: string;
-  position: Position;
-};
-
 export type Topology = TopologyMeta & {
   id: uuid4;
   name: string;
@@ -43,6 +35,10 @@ export type Topology = TopologyMeta & {
   syncUrl: string;
   bindFiles: BindFile[];
   lastDeployFailed: boolean;
+};
+
+export type RunTopology = TopologyMeta & {
+  definition: YAMLDocument<TopologyDefinition>;
 };
 
 export interface TopologyDefinition {
