@@ -27,6 +27,9 @@ import type {EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, {ElementDefinition} from 'cytoscape';
 import {topologyStyle} from '@sb/lib/cytoscape-styles';
+import TerminalDialog, {
+  TerminalDialogState,
+} from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -43,6 +46,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isMenuVisible, setMenuVisible] = useState(false);
     const logDialogState = useDialogState<LogDialogState>();
+    const terminalDialogState = useDialogState<TerminalDialogState>();
+
     const [cyReady, setCyReady] = useState<boolean>(false);
     const collectionStore = useCollectionStore();
     const deviceStore = useDeviceStore();
@@ -140,6 +145,17 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       });
     }
 
+    function onOpenTerminal() {
+      if (!selectedNode) return;
+
+      const instance = props.dialogState.state!.instance!;
+
+      terminalDialogState.openWith({
+        lab: props.dialogState.state!,
+        containerId: instance.nodeMap.get(selectedNode)!.containerId,
+      });
+    }
+
     const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
       if (selectedNode === null) return undefined;
 
@@ -162,6 +178,11 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         {
           label: 'Web SSH',
           icon: 'pi pi-external-link',
+        },
+        {
+          label: 'Open Terminal',
+          icon: <span className="material-symbols-outlined">terminal</span>,
+          command: onOpenTerminal,
         },
         {
           label: 'View Logs',
@@ -336,6 +357,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         </SBDialog>
         <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
         <LogDialog dialogState={logDialogState} />
+        <TerminalDialog dialogState={terminalDialogState} />
       </>
     );
   }

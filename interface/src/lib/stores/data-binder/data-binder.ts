@@ -248,6 +248,8 @@ export class DataBinder {
         subscription.onDisconnectCallbacks.add(onDisconnect);
       }
 
+      console.log('subscriptions: ', this.subscriptions);
+
       return subscription;
     } else {
       const subscription: Subscription = {
@@ -269,6 +271,7 @@ export class DataBinder {
         this.connectSubscription(subscription);
       }
 
+      console.log('subscriptions: ', this.subscriptions);
       return subscription;
     }
   }
