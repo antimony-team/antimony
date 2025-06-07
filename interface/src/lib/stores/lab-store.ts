@@ -115,7 +115,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StopNode,
-      node: node,
+      nodeId: node,
     });
   }
 
@@ -123,7 +123,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StartNode,
-      node: node,
+      nodeId: node,
     });
   }
 

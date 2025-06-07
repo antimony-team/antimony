@@ -78,7 +78,8 @@ export const InstanceStates = Object.values(InstanceState).filter(
 export type LabCommandData = {
   labId: string;
   command: LabCommand;
-  node?: string;
+  nodeId?: string;
+  shellId?: string;
 };
 
 export enum LabCommand {
@@ -86,4 +87,6 @@ export enum LabCommand {
   Destroy,
   StopNode,
   StartNode,
+  OpenShell,
+  CloseShell,
 }
