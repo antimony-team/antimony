@@ -1087,6 +1087,9 @@ const docTemplate = `{
                 },
                 "state": {
                     "$ref": "#/definitions/lab.InstanceState"
+                },
+                "topologyDefinition": {
+                    "type": "string"
                 }
             }
         },

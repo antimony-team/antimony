@@ -73,6 +73,9 @@ type Instance struct {
 	TopologyFile string
 	LogNamespace socket.NamespaceManager[string]
 
+	// TopologyDefinition Copy of the lab's run topology
+	TopologyDefinition string
+
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
 
@@ -81,13 +84,14 @@ type Instance struct {
 }
 
 type InstanceOut struct {
-	Name              string         `json:"name"`
-	Deployed          time.Time      `json:"deployed"`
-	EdgesharkLink     string         `json:"edgesharkLink"`
-	State             InstanceState  `json:"state"`
-	LatestStateChange time.Time      `json:"latestStateChange"`
-	Nodes             []InstanceNode `json:"nodes"`
-	Recovered         bool           `json:"recovered"`
+	Name               string         `json:"name"`
+	Deployed           time.Time      `json:"deployed"`
+	EdgesharkLink      string         `json:"edgesharkLink"`
+	State              InstanceState  `json:"state"`
+	LatestStateChange  time.Time      `json:"latestStateChange"`
+	Nodes              []InstanceNode `json:"nodes"`
+	Recovered          bool           `json:"recovered"`
+	TopologyDefinition string         `json:"topologyDefinition"`
 }
 
 type InstanceNode struct {

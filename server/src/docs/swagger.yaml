@@ -110,6 +110,8 @@ definitions:
         type: boolean
       state:
         $ref: '#/definitions/lab.InstanceState'
+      topologyDefinition:
+        type: string
     type: object
   lab.InstanceState:
     enum:

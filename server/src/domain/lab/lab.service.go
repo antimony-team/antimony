@@ -168,45 +168,58 @@ func (s *labService) reviveLabs() {
 	}
 
 	for _, lab := range labs {
-		if lab.InstanceName != nil {
-			// The lab has been deployed before
-			if containers, ok := result[*lab.InstanceName]; ok {
-				// Lab is currently running
-				logNamespace := socket.CreateNamespace[string](
-					s.socketManager, false, true, nil,
-					"logs", lab.UUID,
-				)
-
-				// Create log namespaces for each container in the lab
-				for _, container := range containers {
-					containerLogNamespace := socket.CreateNamespace[string](
-						s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
-					)
-					err := s.deploymentProvider.StreamContainerLogs(ctx, "", container.ContainerId, containerLogNamespace.Send)
-					if err != nil {
-						log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
-					}
-				}
-
-				s.instancesMutex.Lock()
-				s.instances[lab.UUID] = &Instance{
-					State:             InstanceStates.Running,
-					Nodes:             lo.Map(containers, s.containerToInstanceNode),
-					Deployed:          time.Now(),
-					LatestStateChange: time.Now(),
-					Recovered:         true,
-					TopologyFile:      s.storageManager.GetRunTopologyFile(lab.UUID),
-					LogNamespace:      logNamespace,
-				}
-				s.instancesMutex.Unlock()
-
-				s.labDestructionSchedule.Schedule(&lab)
-			}
-		} else {
-			// The lab has not been run before
+		if lab.InstanceName == nil {
 			if lab.StartTime.Unix() >= time.Now().Unix() {
+				// The lab has not been run before
 				s.labDeploymentSchedule.Schedule(&lab)
 			}
+
+			continue
+		}
+
+		// The lab has been deployed before
+		if containers, ok := result[*lab.InstanceName]; ok {
+			// Lab is currently running
+			logNamespace := socket.CreateNamespace[string](
+				s.socketManager, false, true, nil,
+				"logs", lab.UUID,
+			)
+
+			// Create log namespaces for each container in the lab
+			for _, container := range containers {
+				containerLogNamespace := socket.CreateNamespace[string](
+					s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
+				)
+				err := s.deploymentProvider.StreamContainerLogs(
+					ctx, "", container.ContainerId, containerLogNamespace.Send,
+				)
+				if err != nil {
+					log.Errorf(
+						"Failed to setup container logs for container %s: %s", container.ContainerId, err.Error(),
+					)
+				}
+			}
+
+			var runTopologyDefinition string
+			if err := s.storageManager.ReadRunTopologyDefinition(lab.UUID, &runTopologyDefinition); err != nil {
+				log.Errorf("Failed to read run topology definition for %s: %s", lab.UUID, err.Error())
+				continue
+			}
+
+			s.instancesMutex.Lock()
+			s.instances[lab.UUID] = &Instance{
+				State:              InstanceStates.Running,
+				Nodes:              lo.Map(containers, s.containerToInstanceNode),
+				Deployed:           time.Now(),
+				LatestStateChange:  time.Now(),
+				Recovered:          true,
+				TopologyFile:       s.storageManager.GetRunTopologyFile(lab.UUID),
+				TopologyDefinition: runTopologyDefinition,
+				LogNamespace:       logNamespace,
+			}
+			s.instancesMutex.Unlock()
+
+			s.labDestructionSchedule.Schedule(&lab)
 		}
 	}
 }
@@ -230,7 +243,9 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 
 	result := make([]LabOut, 0)
 	for _, lab := range labs {
+		s.instancesMutex.Lock()
 		instance, hasInstance := s.instances[lab.UUID]
+		s.instancesMutex.Unlock()
 
 		if hasStateFilter {
 			instanceState := InstanceStates.Inactive
@@ -367,10 +382,17 @@ func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.Authen
 	}
 	s.instancesMutex.Unlock()
 
+	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {
+		s.statusMessageNamespace.Send(*statusMessage.Warning(
+			"Lab Manager", fmt.Sprintf("Failed to remove run environment for %s: %s", lab.Name, err.Error()),
+			"Failed to remove run environment", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		))
+	}
+
 	return s.labRepo.Delete(ctx, lab)
 }
 
-// renameTopology Read a topology, changes its name and returns the re-marshalled output
+// Read a topology, changes its name and returns the re-marshalled output.
 func (s *labService) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
 	var (
 		topologyRaw        string
@@ -393,7 +415,7 @@ func (s *labService) renameTopology(topologyId string, topologyName string, runT
 	}
 }
 
-func (s *labService) createLabEnvironment(ctx context.Context, lab *Lab) (string, error) {
+func (s *labService) createLabEnvironment(lab *Lab) (string, string, error) {
 	var (
 		runTopologyName       string
 		runTopologyDefinition string
@@ -402,19 +424,19 @@ func (s *labService) createLabEnvironment(ctx context.Context, lab *Lab) (string
 
 	runTopologyName = fmt.Sprintf("%s_%d", lab.Topology.Name, time.Now().UnixMilli())
 	if err := s.renameTopology(lab.Topology.UUID, runTopologyName, &runTopologyDefinition); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if err := s.storageManager.CreateRunEnvironment(lab.Topology.UUID, lab.UUID, runTopologyDefinition, &runTopologyFile); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	lab.InstanceName = &runTopologyName
-	if err := s.labRepo.Update(ctx, lab); err != nil {
-		return "", err
+	if err := s.labRepo.Update(context.Background(), lab); err != nil {
+		return "", "", err
 	}
 
-	return runTopologyFile, nil
+	return runTopologyFile, runTopologyDefinition, nil
 }
 
 func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
@@ -453,13 +475,6 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 			"Failed to destroy lab", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		))
 		return utils.ErrorContainerlab
-	}
-
-	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {
-		s.statusMessageNamespace.Send(*statusMessage.Warning(
-			"Lab Manager", fmt.Sprintf("Failed to remove run environment for %s: %s", lab.Name, err.Error()),
-			"Failed to remove run environment", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
-		))
 	}
 
 	instance.LogNamespace.ClearBacklog()
@@ -541,6 +556,7 @@ func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
 func (s *labService) deployLab(lab *Lab) error {
 	// We have to ensure that the instance is only created once
 	s.instancesMutex.Lock()
+
 	if _, hasInstance := s.instances[lab.UUID]; hasInstance {
 		s.notifyUpdate(*lab,
 			statusMessage.Error(
@@ -551,9 +567,26 @@ func (s *labService) deployLab(lab *Lab) error {
 		)
 		return utils.ErrorLabActionInProgress
 	}
-	s.instances[lab.UUID] = s.createInstance()
+
+	logNamespace := socket.CreateNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
+
+	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
+	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
+
+	if err != nil {
+		log.Errorf("Failed to create lab environment for lab '%s': %s", lab.Name, err)
+
+		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
+			"Lab Manager",
+			fmt.Sprintf("Failed to create environment for lab '%s' (%s)", lab.Name, lab.Topology.Name),
+			"Failed to create environment for lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &logNamespace)
+		s.setTopologyDeployStatus(*lab, false)
+		return utils.ErrorGenericAntimony
+	}
+
+	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
-	instance := s.instances[lab.UUID]
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
@@ -564,22 +597,6 @@ func (s *labService) deployLab(lab *Lab) error {
 		Cancel:  cancel,
 	}
 	defer instance.DeploymentWorker.Cancel()
-
-	instance.LogNamespace = socket.CreateNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
-
-	runTopologyFile, err := s.createLabEnvironment(ctx, lab)
-	if err != nil {
-		log.Errorf("Failed to create lab environment for lab '%s': %s", lab.Name, err.Error())
-
-		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
-			"Lab Manager",
-			fmt.Sprintf("Failed to create environment for lab '%s' (%s)", lab.Name, lab.Topology.Name),
-			"Failed to create environment for lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
-		), &instance.LogNamespace)
-		s.setTopologyDeployStatus(*lab, false)
-		return utils.ErrorGenericAntimony
-	}
-	instance.TopologyFile = runTopologyFile
 
 	s.updateStateAndNotify(*lab, InstanceStates.Deploying, statusMessage.Info(
 		"Lab Manager",
@@ -641,14 +658,21 @@ func (s *labService) deployLab(lab *Lab) error {
 	return nil
 }
 
-func (s *labService) createInstance() *Instance {
+func (s *labService) createInstance(
+	logNamespace socket.NamespaceManager[string],
+	runTopologyFile string,
+	topologyDefinition string,
+) *Instance {
 	return &Instance{
-		Deployed:          time.Now(),
-		LatestStateChange: time.Now(),
-		State:             InstanceStates.Deploying,
-		Recovered:         false,
-		Mutex:             sync.Mutex{},
-		DeploymentWorker:  nil,
+		Deployed:           time.Now(),
+		LatestStateChange:  time.Now(),
+		State:              InstanceStates.Deploying,
+		Recovered:          false,
+		Mutex:              sync.Mutex{},
+		DeploymentWorker:   nil,
+		LogNamespace:       logNamespace,
+		TopologyFile:       runTopologyFile,
+		TopologyDefinition: topologyDefinition,
 	}
 }
 
@@ -658,12 +682,13 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 	}
 
 	return &InstanceOut{
-		Deployed:          instance.Deployed,
-		EdgesharkLink:     instance.EdgesharkLink,
-		State:             instance.State,
-		LatestStateChange: instance.LatestStateChange,
-		Nodes:             instance.Nodes,
-		Recovered:         instance.Recovered,
+		Deployed:           instance.Deployed,
+		EdgesharkLink:      instance.EdgesharkLink,
+		State:              instance.State,
+		LatestStateChange:  instance.LatestStateChange,
+		Nodes:              instance.Nodes,
+		Recovered:          instance.Recovered,
+		TopologyDefinition: instance.TopologyDefinition,
 	}
 }
 
@@ -672,13 +697,14 @@ func (s *labService) containerToInstanceNode(container deployment.InspectContain
 
 	return InstanceNode{
 		Name:          nodeNameParts[len(nodeNameParts)-1],
-		User:          "ins",
-		Port:          50005,
 		IPv4:          container.IPv4Address,
 		IPv6:          container.IPv6Address,
+		Port:          50005,
+		User:          "ins",
+		WebSSH:        "",
 		State:         container.State,
-		ContainerName: container.Name,
 		ContainerId:   container.ContainerId,
+		ContainerName: container.Name,
 	}
 }
 
