@@ -34,7 +34,7 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
         <div className="flex align-items-center gap-1">
           <span className="property-title">ID:</span>
           <span
-            className="property-value property-id lab-dialog-tooltip-target"
+            className="property-value copyable lab-dialog-tooltip-target"
             data-pr-tooltip="Copy to clipboard"
             data-pr-position="right"
             data-pr-my="left+10 center"

@@ -67,7 +67,8 @@ export function generateGraph(
   topology: Topology | RunTopology,
   deviceStore: DeviceStore,
   topologyManager: TopologyManager,
-  instance?: Instance
+  instance?: Instance,
+  omitLabels: boolean = false
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
   const addedGroups = new Set<string>();
@@ -101,13 +102,15 @@ export function generateGraph(
     if (group !== undefined) {
       const groupId = level !== undefined ? `${group}:${level}` : group;
 
+      const groupLabel = omitLabels ? '' : group;
+
       if (!addedGroups.has(groupId)) {
         elements.push(
           {
             group: 'nodes',
             data: {
               id: groupId,
-              label: group,
+              label: groupLabel,
             },
             classes: 'drawn-shape',
           },
@@ -126,9 +129,9 @@ export function generateGraph(
       parentId = groupId;
     }
 
-    let label = nodeName;
+    let label = omitLabels ? '' : nodeName;
 
-    if (instance) {
+    if (!omitLabels && instance) {
       if (instance.nodeMap.get(nodeName)!.state === 'running') {
         label = `🟢 ${nodeName}`;
       } else {

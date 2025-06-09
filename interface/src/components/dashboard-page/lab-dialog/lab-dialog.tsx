@@ -1,4 +1,5 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
 import LabDialogPanelAdmin from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-admin/lab-dialog-panel-admin';
 import LabDialogPanelProperties from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-properties/lab-dialog-panel-properties';
 import LogDialog, {
@@ -21,11 +22,10 @@ import {DialogState, useDialogState} from '@sb/lib/utils/hooks';
 import {drawGraphGrid, generateGraph} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
-import classNames from 'classnames';
 
-import cytoscape, {type EventObject} from 'cytoscape';
+import cytoscape, {NodeSingular} from 'cytoscape';
+import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
-import {Button} from 'primereact/button';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import React, {
@@ -37,6 +37,7 @@ import React, {
   useState,
 } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
+import {TooltipRefProps} from 'react-tooltip';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -51,7 +52,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const [hostsHidden, setHostsHidden] = useState(false);
     const nodeContextMenuRef = useRef<ContextMenu | null>(null);
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
-    const [isMenuVisible, setMenuVisible] = useState(false);
     const logDialogState = useDialogState<LogDialogState>();
     const terminalDialogState = useDialogState<TerminalDialogState>();
 
@@ -60,6 +60,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const deviceStore = useDeviceStore();
     const labStore = useLabStore();
     const topologyStore = useTopologyStore();
+
+    const nodeDetailOverlay = useRef<TooltipRefProps>(null);
 
     const groupName = useMemo(() => {
       if (!props.dialogState.state) return;
@@ -93,6 +95,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const updateGraph = useCallback(() => {
       if (!cyRef.current || !openTopology) return;
 
+      console.log('hosts hidden: ', hostsHidden);
+
       cyRef.current.batch(() => {
         cyRef.current!.elements().remove();
 
@@ -100,7 +104,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           openTopology,
           deviceStore,
           topologyStore.manager,
-          props.dialogState.state?.instance
+          props.dialogState.state?.instance,
+          hostsHidden
         );
 
         for (const element of elements) {
@@ -114,7 +119,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
         cyRef.current!.nodes().lock();
       });
-    }, [props.dialogState.state]);
+    }, [props.dialogState.state, hostsHidden]);
 
     const onOpen = useCallback(() => {
       if (!cyRef.current) return;
@@ -125,10 +130,12 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
     useEffect(() => {
       updateGraph();
-    }, [props.dialogState.state]);
+    }, [props.dialogState.state, hostsHidden]);
 
     function onNodeContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
+
+      closeDetails();
 
       const mouseEvent = event.originalEvent as unknown as MouseEvent;
       mouseEvent.preventDefault();
@@ -152,32 +159,42 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       }
     }
 
-    function onClick(event: cytoscape.EventObject) {
+    function onNodeClick(event: cytoscape.EventObject) {
       const target = event.target;
 
       if (target.isNode && target.isNode()) {
         setSelectedNode(target.id());
-        setMenuVisible(true);
+
+        const node = props.dialogState.state?.instance?.nodeMap.get(
+          target.id()
+        );
+
+        if (node && nodeDetailOverlay.current) {
+          if (nodeDetailOverlay.current.isOpen) {
+            nodeDetailOverlay.current.close();
+          } else {
+            const position = (target as NodeSingular).renderedPosition();
+            const canvasPosition =
+              gridCanvasRef.current!.getBoundingClientRect();
+
+            const nodeWidth = 30;
+            const offset = nodeWidth * cyRef.current!.zoom();
+
+            nodeDetailOverlay.current!.open({
+              position: {
+                x: position.x + canvasPosition!.x + offset,
+                y: position.y + canvasPosition!.y,
+              },
+            });
+          }
+        }
       } else {
-        setMenuVisible(false);
+        closeDetails();
       }
     }
 
-    function onCopyActiveNode() {
-      if (!props.dialogState.state) return;
-
-      // TODO(): Reimplement
-      // const nodeMeta = labStore.metaLookup
-      //   .get(props.lab.id)!
-      //   .get(selectedNode as string);
-      //
-      // if (nodeMeta) {
-      //   const textToCopy = nodeMeta.webSsh + ':' + nodeMeta.port;
-      //
-      //   navigator.clipboard.writeText(textToCopy).catch(err => {
-      //     console.error('Failed to copy to clipboard:', err);
-      //   });
-      // }
+    function onZoom() {
+      closeDetails();
     }
 
     function onNodeStart() {
@@ -225,31 +242,23 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       void labStore.restartNode(props.dialogState.state, containerId);
     }
 
-    function onOpenActiveNode() {
-      if (!props.dialogState.state) return;
-
-      // TODO(): Reimplement
-
-      // const nodeMeta = labStore.metaLookup
-      //   .get(props.lab.id)!
-      //   .get(selectedNode as string);
-      //
-      // if (nodeMeta) window.open(nodeMeta.webSsh);
-    }
-
-    function onViewLogs() {
-      if (!selectedNode) return;
+    function onOpenLogs() {
+      closeDetails();
 
       const instance = props.dialogState.state!.instance!;
 
       logDialogState.openWith({
         lab: props.dialogState.state!,
-        source: instance.nodeMap.get(selectedNode)!.containerId,
+        source: selectedNode
+          ? instance.nodeMap.get(selectedNode)?.containerId
+          : undefined,
       });
     }
 
     function onOpenTerminal() {
       const instance = props.dialogState.state!.instance!;
+
+      closeDetails();
 
       const nodeId = selectedNode
         ? instance.nodeMap.get(selectedNode)!.containerId
@@ -261,10 +270,31 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       });
     }
 
+    function openWebSsh() {
+      if (
+        !selectedNode ||
+        !props.dialogState.state?.instance ||
+        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+      ) {
+        return;
+      }
+
+      const instance = props.dialogState.state.instance;
+      const webSshUrl = instance.nodeMap.get(selectedNode)!.webSSH;
+
+      window.open(webSshUrl, '_blank');
+    }
+
     const graphContextMenuModel = [
       {
         label: 'Center Graph',
-        icon: 'pi pi-plus',
+        icon: (
+          <ExpandLines
+            style={{transform: 'rotate(90deg)'}}
+            width={24}
+            height={24}
+          />
+        ),
         command: onFitGraph,
       },
     ];
@@ -288,7 +318,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       const node = nodeMap.get(selectedNode)!;
       const isNodeRunning = node.state === 'running';
 
-      const entries = [
+      const entries: MenuItem[] = [
         {
           label: 'Start Node',
           icon: 'pi pi-power-off',
@@ -311,19 +341,19 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           separator: true,
         },
         {
-          label: 'Copy Host',
-          icon: 'pi pi-copy',
-        },
-        {
           label: 'Open Terminal',
           icon: <span className="material-symbols-outlined">terminal</span>,
           command: onOpenTerminal,
           disabled: !isNodeRunning,
         },
         {
-          label: 'View Logs',
-          icon: <span className="material-symbols-outlined">find_in_page</span>,
-          command: onViewLogs,
+          label: 'Show Logs',
+          icon: (
+            <span className="material-symbols-outlined">
+              quick_reference_all
+            </span>
+          ),
+          command: onOpenLogs,
         },
       ];
 
@@ -331,21 +361,33 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         entries.push({
           label: 'Web SSH',
           icon: 'pi pi-external-link',
+          command: openWebSsh,
         });
       }
 
       return entries;
     }, [selectedNode, props.dialogState.state]);
 
+    function onGraphClick(event: cytoscape.EventObject) {
+      if (
+        event.target === cyRef.current &&
+        nodeContextMenuRef.current !== null
+      ) {
+        nodeDetailOverlay.current!.close();
+      }
+    }
+
+    function onMouseDown() {
+      closeDetails();
+    }
+
     function initCytoscape(cy: cytoscape.Core) {
-      cy.on('tap', 'node', onClick);
+      cy.on('tap', 'node', onNodeClick);
       cy.on('cxttap', onNodeContext);
       cy.on('render', drawGridOverlay);
-      cy.on('tap', (event: EventObject) => {
-        if (event.target === cyRef.current) {
-          onBackgroundClick(event);
-        }
-      });
+      cy.on('tap', onGraphClick);
+      cy.on('zoom', onZoom);
+      cy.on('mousedown', onMouseDown);
       cy.style().fromJson(topologyStyle).update();
     }
 
@@ -354,15 +396,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
       drawGraphGrid(containerRef.current, gridCanvasRef.current, event.cy);
     }
-
-    const onBackgroundClick = useCallback((event: cytoscape.EventObject) => {
-      if (
-        event.target === cyRef.current &&
-        nodeContextMenuRef.current !== null
-      ) {
-        setMenuVisible(false);
-      }
-    }, []);
 
     useEffect(() => {
       if (!props.dialogState.state) return;
@@ -391,7 +424,19 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function onFitGraph() {
       if (!cyRef.current) return;
 
-      cyRef.current.fit(cyRef.current.elements(), 280);
+      cyRef.current.fit(cyRef.current.elements(), 240);
+    }
+
+    function closeDetails() {
+      nodeDetailOverlay.current?.close();
+    }
+
+    function onDialogDragStart() {
+      closeDetails();
+    }
+
+    function onDialogDragEnd() {
+      cyRef.current?.invalidateDimensions();
     }
 
     return (
@@ -412,19 +457,17 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           hideButtons={true}
           className="sb-lab-dialog"
           draggable={true}
+          onDragStart={onDialogDragStart}
+          onDragEnd={onDialogDragEnd}
         >
           <If condition={props.dialogState.state}>
             <div className="topology-graph-container" ref={containerRef}>
               <LabDialogPanelProperties lab={props.dialogState.state!} />
               <LabDialogPanelAdmin
                 lab={props.dialogState.state!}
-                onShowLogs={() => {
-                  logDialogState.openWith({
-                    lab: props.dialogState.state!,
-                  });
-                }}
-                hostsHidden={hostsHidden}
-                setHostsHidden={setHostsHidden}
+                onOpenLogs={onOpenLogs}
+                labelsHidden={hostsHidden}
+                setLabelsHidden={setHostsHidden}
                 onOpenTerminal={onOpenTerminal}
                 onDestroyLabRequest={() =>
                   props.onDestroyLabRequest(props.dialogState.state!)
@@ -440,35 +483,21 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                 }}
               />
             </div>
-            <div
-              className={classNames(
-                'sb-lab-dialog-footer sb-animated-overlay',
-                {
-                  visible: isMenuVisible && selectedNode !== null,
-                }
-              )}
-            >
-              <span className="sb-lab-dialog-footer-name">{selectedNode}</span>
-              <Button
-                label="Copy Host"
-                icon="pi pi-copy"
-                outlined
-                onClick={onCopyActiveNode}
-                aria-label="Copy Host"
-              />
-              <Button
-                label="Web SSH"
-                icon="pi pi-external-link"
-                outlined
-                onClick={onOpenActiveNode}
-                aria-label="Web SSH"
-              />
-            </div>
           </If>
         </SBDialog>
         <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
         <LogDialog dialogState={logDialogState} />
         <TerminalDialog dialogState={terminalDialogState} />
+        <LabDetailsOverlay
+          overlayRef={nodeDetailOverlay}
+          lab={props.dialogState.state}
+          nodeId={selectedNode}
+          onOpenTerminal={onOpenTerminal}
+          onOpenLogs={onOpenLogs}
+          onNodeStart={onNodeStart}
+          onNodeStop={onNodeStop}
+          onNodeRestart={onNodeRestart}
+        />
       </>
     );
   }

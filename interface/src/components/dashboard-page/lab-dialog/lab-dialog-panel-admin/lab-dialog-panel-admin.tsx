@@ -12,10 +12,10 @@ import React from 'react';
 interface LabDialogPanelProps {
   lab: Lab;
 
-  hostsHidden: boolean;
-  setHostsHidden: (visible: boolean) => void;
+  labelsHidden: boolean;
+  setLabelsHidden: (visible: boolean) => void;
 
-  onShowLogs: () => void;
+  onOpenLogs: () => void;
   onOpenTerminal: () => void;
   onDestroyLabRequest: () => void;
 }
@@ -29,17 +29,19 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
       <div className="flex align-items-center gap-2 mt-2 mb-2">
         <Checkbox
           inputId="hostsVisibleCheckbox"
-          checked={props.hostsHidden}
-          onChange={e => props.setHostsHidden(e.checked!)}
+          checked={props.labelsHidden}
+          onChange={e => props.setLabelsHidden(e.checked!)}
         />
-        <label htmlFor="hostsVisibleCheckbox">Hide hosts</label>
+        <label htmlFor="hostsVisibleCheckbox">Hide Labels</label>
       </div>
       <Button
         outlined
-        icon={<span className="material-symbols-outlined">find_in_page</span>}
+        icon={
+          <span className="material-symbols-outlined">quick_reference_all</span>
+        }
         label="Show Logs"
         aria-label="Show Logs"
-        onClick={props.onShowLogs}
+        onClick={props.onOpenLogs}
         disabled={!props.lab.instance}
       />
       <If condition={props.lab.instance?.edgesharkLink}>

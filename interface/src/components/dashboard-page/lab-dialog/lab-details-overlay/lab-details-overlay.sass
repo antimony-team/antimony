@@ -1,0 +1,32 @@
+.lab-details
+  pointer-events: all !important
+  color: rgba(255, 255, 255, 0.87) !important
+  font-size: 1rem !important
+  border-radius: 4px !important
+
+  box-shadow: -1px 1px 25px -8px rgba(0,0,0,0.4)
+
+  .lab-details-title
+    font-weight: 800
+    font-size: 20px
+    margin-bottom: 8px
+
+  .property-title
+    user-select: none
+    font-weight: 600
+
+  .property-value
+    opacity: 0.6
+
+    &.copyable
+      user-select: none
+
+      &:hover
+        text-decoration: underline
+        cursor: copy
+
+  .button-container
+    display: flex
+    flex-direction: row
+    margin-top: 12px
+    gap: 8px

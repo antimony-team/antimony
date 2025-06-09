@@ -10,6 +10,9 @@ $material-symbols-font-path: '~material-symbols/'
 
 :root
   --font-family: 'Figtree', Roboto, sans-serif
+  --rt-transition-show-delay: 0.1s !important
+  --rt-transition-closing-delay: 0.1s !important
+  --rt-opacity: 1 !important
 
 html
   height: 100%
@@ -104,8 +107,8 @@ label
 
 .react-tooltip
   background-color: var(--primary-color) !important
-  opacity: 1 !important
   padding: 10px !important
+  z-index: 1200
 
 .sb-edit-dialog
   width: 400px
