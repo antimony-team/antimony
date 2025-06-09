@@ -1,4 +1,4 @@
-import {action, computed, observable, observe} from 'mobx';
+import {action, computed, observable, ObservableMap, observe} from 'mobx';
 
 import {
   DefaultFetchReport,
@@ -14,7 +14,7 @@ export abstract class DataStore<T, I, O> {
   protected rootStore: RootStore;
 
   @observable accessor data: T[] = [];
-  @observable accessor lookup: Map<string, T> = new Map();
+  @observable accessor lookup: Map<string, T> = new ObservableMap();
   @observable accessor fetchReport: FetchReport = DefaultFetchReport;
 
   protected abstract get resourcePath(): string;

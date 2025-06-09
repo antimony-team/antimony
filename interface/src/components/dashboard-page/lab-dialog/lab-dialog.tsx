@@ -7,29 +7,36 @@ import LogDialog, {
 import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 
 import './lab-dialog.sass';
+import TerminalDialog, {
+  TerminalDialogState,
+} from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
+import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {
   useCollectionStore,
   useDeviceStore,
+  useLabStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {DialogState, useDialogState} from '@sb/lib/utils/hooks';
-import {drawGrid, generateGraph} from '@sb/lib/utils/utils';
+import {drawGraphGrid, generateGraph} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 import classNames from 'classnames';
+
+import cytoscape, {type EventObject} from 'cytoscape';
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-
-import type {EventObject} from 'cytoscape';
+import React, {
+  MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import cytoscape, {ElementDefinition} from 'cytoscape';
-import {topologyStyle} from '@sb/lib/cytoscape-styles';
-import TerminalDialog, {
-  TerminalDialogState,
-} from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -48,50 +55,101 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const logDialogState = useDialogState<LogDialogState>();
     const terminalDialogState = useDialogState<TerminalDialogState>();
 
-    const [cyReady, setCyReady] = useState<boolean>(false);
+    const [isCyReady, setIsCyReady] = useState<boolean>(false);
     const collectionStore = useCollectionStore();
     const deviceStore = useDeviceStore();
+    const labStore = useLabStore();
     const topologyStore = useTopologyStore();
 
-    const groupName = props.dialogState.state
-      ? collectionStore.lookup.get(props.dialogState.state.collectionId)
-          ?.name ?? 'unknown'
-      : 'unknown';
+    const groupName = useMemo(() => {
+      if (!props.dialogState.state) return;
+
+      const collectionId = props.dialogState.state.collectionId;
+      if (!collectionStore.lookup.has(collectionId)) return;
+
+      return collectionStore.lookup.get(collectionId)!.name;
+    }, [props.dialogState.state, collectionStore.lookup]);
 
     const openTopology = props.dialogState.state
       ? topologyStore.lookup.get(props.dialogState.state.topologyId)
       : null;
 
-    const graphData: ElementDefinition[] = useMemo(() => {
-      if (!props.dialogState.state || !openTopology) return [];
+    useEffect(() => {
+      if (isCyReady && cyRef.current) {
+        initCytoscape(cyRef.current);
+      }
+    }, [isCyReady]);
 
-      const topology = props.dialogState.state.instance
-        ? props.dialogState.state.instance.runTopology
-        : openTopology;
+    const graphInitiallyFitted = useRef(false);
 
-      return generateGraph(topology, deviceStore, topologyStore.manager);
-    }, [
-      deviceStore,
-      openTopology,
-      topologyStore.manager,
-      props.dialogState.state,
-    ]);
+    /**
+     * We have update graph elements manually instead of using the reactive
+     * elements prop provided by the React Cytoscape library because the library
+     * dynamically adds and removes elements when the element prop is updated.
+     *
+     * This makes it so, if a parent is deleted in the graph, its children
+     * are also deleted. This is unwanted behavior.
+     */
+    const updateGraph = useCallback(() => {
+      if (!cyRef.current || !openTopology) return;
 
-    function onContext(event: cytoscape.EventObject) {
-      if (!nodeContextMenuRef.current) return;
+      cyRef.current.batch(() => {
+        cyRef.current!.elements().remove();
 
-      const target = event.target;
-
-      if (target.isNode && target.isNode()) {
-        const nodeId = target.id();
-        target.select(); // Optional: visually select the node
-        setSelectedNode(nodeId);
-        nodeContextMenuRef.current.show(
-          event.originalEvent as unknown as React.MouseEvent
+        const elements = generateGraph(
+          openTopology,
+          deviceStore,
+          topologyStore.manager,
+          props.dialogState.state?.instance
         );
+
+        for (const element of elements) {
+          cyRef.current!.add(element);
+        }
+
+        if (!graphInitiallyFitted.current) {
+          graphInitiallyFitted.current = true;
+          onFitGraph();
+        }
+
+        cyRef.current!.nodes().lock();
+      });
+    }, [props.dialogState.state]);
+
+    const onOpen = useCallback(() => {
+      if (!cyRef.current) return;
+
+      initCytoscape(cyRef.current);
+      updateGraph();
+    }, [updateGraph, props.dialogState.state]);
+
+    useEffect(() => {
+      updateGraph();
+    }, [props.dialogState.state]);
+
+    function onNodeContext(event: cytoscape.EventObject) {
+      if (!nodeContextMenuRef.current || !cyRef.current) return;
+
+      const mouseEvent = event.originalEvent as unknown as MouseEvent;
+      mouseEvent.preventDefault();
+      mouseEvent.stopPropagation();
+
+      if (event.target === cyRef.current) {
+        setSelectedNode(null);
+        nodeContextMenuRef.current.show(mouseEvent);
+        return;
       }
 
-      event.originalEvent?.preventDefault();
+      // Ignore context events on group nodes
+      if (event.target.hasClass('drawn-shape')) {
+        return;
+      }
+
+      if (event.target.isNode) {
+        const nodeId = event.target.id();
+        setSelectedNode(nodeId);
+        nodeContextMenuRef.current.show(mouseEvent);
+      }
     }
 
     function onClick(event: cytoscape.EventObject) {
@@ -122,6 +180,51 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       // }
     }
 
+    function onNodeStart() {
+      if (
+        !selectedNode ||
+        !props.dialogState.state?.instance ||
+        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+      ) {
+        return;
+      }
+
+      const instance = props.dialogState.state?.instance;
+      const containerId = instance.nodeMap.get(selectedNode)!.containerId;
+
+      void labStore.startNode(props.dialogState.state, containerId);
+    }
+
+    function onNodeStop() {
+      if (
+        !selectedNode ||
+        !props.dialogState.state?.instance ||
+        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+      ) {
+        return;
+      }
+
+      const instance = props.dialogState.state?.instance;
+      const containerId = instance.nodeMap.get(selectedNode)!.containerId;
+
+      void labStore.stopNode(props.dialogState.state, containerId);
+    }
+
+    function onNodeRestart() {
+      if (
+        !selectedNode ||
+        !props.dialogState.state?.instance ||
+        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+      ) {
+        return;
+      }
+
+      const instance = props.dialogState.state?.instance;
+      const containerId = instance.nodeMap.get(selectedNode)!.containerId;
+
+      void labStore.restartNode(props.dialogState.state, containerId);
+    }
+
     function onOpenActiveNode() {
       if (!props.dialogState.state) return;
 
@@ -146,27 +249,63 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function onOpenTerminal() {
-      if (!selectedNode) return;
-
       const instance = props.dialogState.state!.instance!;
+
+      const nodeId = selectedNode
+        ? instance.nodeMap.get(selectedNode)!.containerId
+        : null;
 
       terminalDialogState.openWith({
         lab: props.dialogState.state!,
-        containerId: instance.nodeMap.get(selectedNode)!.containerId,
+        nodeId: nodeId,
       });
     }
 
-    const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
-      if (selectedNode === null) return undefined;
+    const graphContextMenuModel = [
+      {
+        label: 'Center Graph',
+        icon: 'pi pi-plus',
+        command: onFitGraph,
+      },
+    ];
 
-      return [
+    const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
+      if (!cyRef.current || !props.dialogState.state?.instance?.nodeMap) {
+        return undefined;
+      }
+
+      // If the selected node is null, the graph itself is selected
+      if (selectedNode === null) {
+        return graphContextMenuModel;
+      }
+
+      // Return empty context menu if selected node is a group node
+      if (cyRef.current.getElementById(selectedNode).hasClass('drawn-shape')) {
+        return;
+      }
+
+      const nodeMap = props.dialogState.state.instance.nodeMap;
+      const node = nodeMap.get(selectedNode)!;
+      const isNodeRunning = node.state === 'running';
+
+      const entries = [
+        {
+          label: 'Start Node',
+          icon: 'pi pi-power-off',
+          command: onNodeStart,
+          disabled: isNodeRunning,
+        },
         {
           label: 'Stop Node',
           icon: 'pi pi-power-off',
+          command: onNodeStop,
+          disabled: !isNodeRunning,
         },
         {
           label: 'Restart Node',
           icon: 'pi pi-sync',
+          command: onNodeRestart,
+          disabled: !isNodeRunning,
         },
         {
           separator: true,
@@ -176,49 +315,44 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           icon: 'pi pi-copy',
         },
         {
-          label: 'Web SSH',
-          icon: 'pi pi-external-link',
-        },
-        {
           label: 'Open Terminal',
           icon: <span className="material-symbols-outlined">terminal</span>,
           command: onOpenTerminal,
+          disabled: !isNodeRunning,
         },
         {
           label: 'View Logs',
-          icon: 'pi pi-search',
+          icon: <span className="material-symbols-outlined">find_in_page</span>,
           command: onViewLogs,
         },
       ];
-    }, [selectedNode]);
 
-    function drawGridOverlay(cy: cytoscape.Core) {
-      const canvas = gridCanvasRef.current;
-      if (!canvas || !containerRef.current) return;
+      if (node.webSSH) {
+        entries.push({
+          label: 'Web SSH',
+          icon: 'pi pi-external-link',
+        });
+      }
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      return entries;
+    }, [selectedNode, props.dialogState.state]);
 
-      const resizeCanvas = () => {
-        canvas.width = containerRef.current!.clientWidth;
-        canvas.height = containerRef.current!.clientHeight;
-      };
+    function initCytoscape(cy: cytoscape.Core) {
+      cy.on('tap', 'node', onClick);
+      cy.on('cxttap', onNodeContext);
+      cy.on('render', drawGridOverlay);
+      cy.on('tap', (event: EventObject) => {
+        if (event.target === cyRef.current) {
+          onBackgroundClick(event);
+        }
+      });
+      cy.style().fromJson(topologyStyle).update();
+    }
 
-      const draw = () => {
-        resizeCanvas();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawGrid(ctx, cy.zoom(), cy.pan());
-      };
+    function drawGridOverlay(event: cytoscape.EventObject) {
+      if (!gridCanvasRef.current || !containerRef.current || !event.cy) return;
 
-      cy.on('render zoom pan', draw);
-      window.addEventListener('resize', draw);
-
-      draw();
-
-      return () => {
-        cy.off('render zoom pan', draw);
-        window.removeEventListener('resize', draw);
-      };
+      drawGraphGrid(containerRef.current, gridCanvasRef.current, event.cy);
     }
 
     const onBackgroundClick = useCallback((event: cytoscape.EventObject) => {
@@ -249,30 +383,15 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       if (logDialogState.isOpen) {
         logDialogState.close();
       } else {
+        graphInitiallyFitted.current = false;
         props.dialogState.close();
       }
     }
-    //Helper useEffect to center Graph evertime Dialog gets opend
-    useEffect(() => {
-      setCyReady(false);
-    }, [props.dialogState.isOpen]);
 
-    useEffect(() => {
-      if (cyRef.current) {
-        centerGraph(cyRef.current);
-      }
-    }, [cyReady]);
+    function onFitGraph() {
+      if (!cyRef.current) return;
 
-    function centerGraph(cy: cytoscape.Core) {
-      if (containerRef.current) {
-        cy.resize();
-        cy.fit(cy.elements(), 60);
-        const viewW = containerRef.current!.clientWidth;
-        const viewH = containerRef.current!.clientHeight;
-        const offsetX = viewW * 0.1;
-        const offsetY = viewH * 0.1;
-        cy.panBy({x: offsetX, y: offsetY});
-      }
+      cyRef.current.fit(cyRef.current.elements(), 280);
     }
 
     return (
@@ -280,6 +399,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         <SBDialog
           isOpen={props.dialogState.isOpen}
           onClose={onClose}
+          onShow={onOpen}
           headerTitle={
             <If condition={props.dialogState.state}>
               <StateIndicator lab={props.dialogState.state!} showText={false} />
@@ -305,6 +425,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                 }}
                 hostsHidden={hostsHidden}
                 setHostsHidden={setHostsHidden}
+                onOpenTerminal={onOpenTerminal}
                 onDestroyLabRequest={() =>
                   props.onDestroyLabRequest(props.dialogState.state!)
                 }
@@ -312,20 +433,10 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               <canvas ref={gridCanvasRef} className="grid-canvas" />
               <CytoscapeComponent
                 className="cytoscape-container"
-                elements={graphData}
+                elements={[]}
                 cy={(cy: cytoscape.Core) => {
                   cyRef.current = cy;
-                  cy.nodes().lock();
-                  drawGridOverlay(cy);
-                  cy.on('tap', 'node', onClick);
-                  cy.on('cxttap', 'node', onContext);
-                  cy.on('tap', (event: EventObject) => {
-                    if (event.target === cyRef.current) {
-                      onBackgroundClick(event);
-                    }
-                  });
-                  cy.style().fromJson(topologyStyle).update();
-                  setCyReady(true);
+                  setIsCyReady(true);
                 }}
               />
             </div>

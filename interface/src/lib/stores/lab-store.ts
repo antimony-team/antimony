@@ -20,7 +20,7 @@ import {
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
-import {action, computed, observable, observe} from 'mobx';
+import {action, computed, observable, observe, runInAction} from 'mobx';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -41,7 +41,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor startDate: string | null = null;
   @observable accessor endDate: string | null = null;
 
-  private labCommandsSubscription: Subscription;
+  private readonly labCommandsSubscription: Subscription;
 
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
@@ -69,6 +69,29 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   protected get resourcePath(): string {
     return '/labs';
+  }
+
+  @action
+  private async fetchSingle(labId: string) {
+    const response = await this.rootStore._dataBinder.get<LabOut>(
+      this.resourcePath + '/' + labId
+    );
+
+    if (response.isOk()) {
+      const updatedLab = this.parseLab(response.data.payload);
+
+      runInAction(() => {
+        this.data = [
+          ...this.data.map(lab => {
+            if (lab.id !== labId) return lab;
+
+            return updatedLab;
+          }),
+        ];
+
+        this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
+      });
+    }
   }
 
   @computed
@@ -111,19 +134,27 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     });
   }
 
-  public async stopNode(lab: Lab, node: string): Promise<Result<null>> {
+  public async stopNode(lab: Lab, nodeId: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StopNode,
-      nodeId: node,
+      nodeId: nodeId,
     });
   }
 
-  public async startNode(lab: Lab, node: string): Promise<Result<null>> {
+  public async startNode(lab: Lab, nodeId: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StartNode,
-      nodeId: node,
+      nodeId: nodeId,
+    });
+  }
+
+  public async restartNode(lab: Lab, nodeId: string): Promise<Result<null>> {
+    return this.sendLabCommand({
+      labId: lab.id,
+      command: LabCommand.RestartNode,
+      nodeId: nodeId,
     });
   }
 
@@ -138,7 +169,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private onLabUpdate(labId: string) {
-    if (labId === '' || this.lookup.has(labId)) {
+    if (labId && this.lookup.has(labId)) {
+      void this.fetchSingle(labId);
+    } else {
       void this.fetch();
     }
   }
@@ -193,26 +226,26 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private parseLabs(input: LabOut[]): Lab[] {
-    return input
-      .map(lab => {
-        const startTime = new Date(lab.startTime);
-        const endTime = lab.endTime ? new Date(lab.endTime) : null;
+    return input.map(lab => this.parseLab(lab)).filter(lab => lab !== null);
+  }
 
-        return {
-          ...lab,
-          startTime: startTime,
-          endTime: endTime,
-          state: lab.instance
-            ? lab.instance.state
-            : endTime &&
-                endTime >= dayjs(new Date()).toDate() &&
-                startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
-              ? InstanceState.Scheduled
-              : InstanceState.Inactive,
-          instance: this.parseInstance(lab.instance),
-        };
-      })
-      .filter(lab => lab !== null);
+  private parseLab(input: LabOut): Lab {
+    const startTime = new Date(input.startTime);
+    const endTime = input.endTime ? new Date(input.endTime) : null;
+
+    return {
+      ...input,
+      startTime: startTime,
+      endTime: endTime,
+      state: input.instance
+        ? input.instance.state
+        : endTime &&
+            endTime >= dayjs(new Date()).toDate() &&
+            startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
+          ? InstanceState.Scheduled
+          : InstanceState.Inactive,
+      instance: this.parseInstance(input.instance),
+    };
   }
 
   private parseInstance(input?: InstanceOut): Instance | undefined {

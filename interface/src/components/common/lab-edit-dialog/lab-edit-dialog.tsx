@@ -161,9 +161,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   }
 
   const submitButtonLabel =
-    props.dialogState.dialogState?.action === DialogAction.Add
-      ? 'Deploy'
-      : 'Submit';
+    props.dialogState.state?.action === DialogAction.Add ? 'Deploy' : 'Submit';
 
   return (
     <SBDialog

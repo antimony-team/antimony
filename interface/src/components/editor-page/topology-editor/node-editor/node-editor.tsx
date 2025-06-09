@@ -7,7 +7,7 @@ import './node-editor.sass';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {
   convertXYToLatLng,
-  drawGrid,
+  drawGraphGrid,
   generateGraph,
   getDistance,
 } from '@sb/lib/utils/utils';
@@ -39,8 +39,8 @@ interface NodeEditorProps {
   onAddNode: () => void;
 }
 
-const GHOST_NODE_ID = 'ghost-target';
 const GHOST_EDGE_ID = 'ghost-edge';
+const GHOST_NODE_ID = 'ghost-node';
 
 export interface GroupEditDialogState {
   groupName?: string;
@@ -57,24 +57,31 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     const groupNameDialogState = useDialogState<GroupEditDialogState>();
 
-    const drawStartPos = useRef<Position | null>(null);
-    const drawEndPos = useRef<Position | null>(null);
-    const isDrawModeOn = useRef<boolean>(false);
-
     const deviceStore = useDeviceStore();
     const topologyStore = useTopologyStore();
     const simulationConfig = useSimulationConfig();
 
+    const cyRef = useRef<cytoscape.Core | null>(null);
     const radialMenuTarget = useRef<string | null>(null);
     const nodeConnectTarget = useRef<string | null>(null);
-    const cyRef = useRef<cytoscape.Core | null>(null);
     const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const contextMenuRef = useRef<ContextMenu | null>(null);
     const radialMenuRef = useRef<SpeedDial>(null);
     const menuTargetRef = useRef<string | null>(null);
     const groupRenameInput = useRef<SBInputRef>(null);
+    const drawStartPos = useRef<Position | null>(null);
+    const drawEndPos = useRef<Position | null>(null);
+    const isDrawModeOn = useRef<boolean>(false);
 
+    /**
+     * We have update graph elements manually instead of using the reactive
+     * elements prop provided by the React Cytoscape library because the library
+     * dynamically adds and removes elements when the element prop is updated.
+     *
+     * This makes it so, if a parent is deleted in the graph, its children
+     * are also deleted. This is unwanted behavior.
+     */
     useEffect(() => {
       if (props.openTopology === null || !cyRef.current) return;
 
@@ -131,18 +138,9 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }, [isCyReady]);
 
     function drawGridOverlay(event: cytoscape.EventObject) {
-      const canvas = gridCanvasRef.current;
+      if (!gridCanvasRef.current || !containerRef.current || !event.cy) return;
 
-      if (!canvas || !containerRef.current || !event.cy) return;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      canvas.width = containerRef.current!.clientWidth;
-      canvas.height = containerRef.current!.clientHeight;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid(ctx, event.cy.zoom(), event.cy.pan());
+      drawGraphGrid(containerRef.current, gridCanvasRef.current, event.cy);
     }
 
     function onStabilizeGraph() {
@@ -183,7 +181,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             position: {x: mouseX, y: mouseY},
             selectable: false,
             grabbable: false,
-            classes: 'ghost-node',
+            classes: GHOST_NODE_ID,
           },
           {
             group: 'edges',
@@ -193,7 +191,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               target: GHOST_NODE_ID,
               temp: true,
             },
-            classes: 'ghost-edge',
+            classes: GHOST_EDGE_ID,
           },
         ]);
       } else {
@@ -262,10 +260,11 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       drawConnectionLine(nodeConnectTarget.current, x, y);
     }
 
-    function ungroupCompound(compoundId: string) {
+    function onGroupDelete(groupId: string) {
       if (!cyRef.current) return;
+
       const cy = cyRef.current;
-      const compound = cy.getElementById(compoundId);
+      const compound = cy.getElementById(groupId);
 
       if (!compound.nonempty() || !compound.isParent()) {
         return;
@@ -279,7 +278,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       compound.children().forEach(child => {
         (child as NodeSingular).move({parent: parentId});
       });
-      cy.getElementById(getGroupCloseId(compoundId));
+      cy.getElementById(getGroupCloseId(groupId));
       compound.remove();
 
       onSaveGraph();
@@ -299,12 +298,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       onGroupDelete(groupId);
     }
 
-    function onGroupDelete(groupId: string) {
-      ungroupCompound(groupId);
-    }
-
-    function getGroupCloseId(compoundId: string) {
-      return `close-${compoundId}`;
+    function getGroupCloseId(groupId: string) {
+      return `close-${groupId}`;
     }
 
     function closeGroupDeleteBtn() {
@@ -312,7 +307,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }
 
     function onEdgeClick(event: cytoscape.EventObject) {
-      if (!event.target.hasClass('ghost-edge')) return;
+      if (!event.target.hasClass(GHOST_EDGE_ID)) return;
 
       exitConnectionMode();
       closeRadialMenu();
@@ -327,7 +322,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       const node = event.target;
       const nodeId = node.id();
 
-      if (node.hasClass('ghost-node')) {
+      if (node.hasClass(GHOST_NODE_ID)) {
         exitConnectionMode();
         closeRadialMenu();
         cyRef.current?.elements().unselect();
@@ -419,7 +414,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }
 
     function onEdgeContext(event: cytoscape.EventObject) {
-      if (event.target.hasClass('ghost-edge')) {
+      if (event.target.hasClass(GHOST_EDGE_ID)) {
         exitConnectionMode();
       }
 
@@ -561,7 +556,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       if (cyRef.current) {
         cyRef.current.remove('.ghost-node');
-        cyRef.current.remove('.ghost-edge');
+        cyRef.current.remove(GHOST_EDGE_ID);
       }
     }
 

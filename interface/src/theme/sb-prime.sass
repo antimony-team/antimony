@@ -71,12 +71,17 @@
 .p-contextmenu
   background-color: var(--header-color)
   border-left: 3px solid var(--primary-color-border)
-  max-height: 300px
   overflow-y: auto
 
   // This makes it so context menus can expand if the content too wide
   min-width: 12.5rem
   width: auto
+
+  .material-symbols-outlined
+    margin-right: 6px
+    margin-left: -2px
+    font-size: 22px
+    color: rgba(255, 255, 255, 0.6)
 
 .p-splitter
   background-color: transparent
@@ -263,14 +268,3 @@
 .p-placeholder
   font-style: italic
   opacity: 0.7
-
-.p-contextmenu
-  .material-symbols-outlined
-    margin-right: 6px
-    margin-left: -2px
-    font-size: 22px
-    color: rgba(255, 255, 255, 0.6)
-
-.p-menuitem-content
-  .pi
-    user-select: all !important

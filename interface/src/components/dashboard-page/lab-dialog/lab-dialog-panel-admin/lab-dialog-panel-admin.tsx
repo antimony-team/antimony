@@ -1,5 +1,5 @@
 import {useLabStore} from '@sb/lib/stores/root-store';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import {Button} from 'primereact/button';
@@ -16,6 +16,7 @@ interface LabDialogPanelProps {
   setHostsHidden: (visible: boolean) => void;
 
   onShowLogs: () => void;
+  onOpenTerminal: () => void;
   onDestroyLabRequest: () => void;
 }
 
@@ -41,15 +42,24 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
         onClick={props.onShowLogs}
         disabled={!props.lab.instance}
       />
-      {/*<If condition={props.lab.instance?.edgesharkLink}>*/}
+      <If condition={props.lab.instance?.edgesharkLink}>
+        <Button
+          outlined
+          icon={<span className="material-symbols-outlined">sailing</span>}
+          label="Open EdgeShark"
+          onClick={() =>
+            window.open(props.lab.instance!.edgesharkLink, '_blank')
+          }
+          aria-label="Open EdgeShark"
+        />
+      </If>
       <Button
         outlined
-        icon={<span className="material-symbols-outlined">sailing</span>}
-        label="Open EdgeShark"
-        onClick={() => window.open(props.lab.instance!.edgesharkLink, '_blank')}
-        aria-label="Open EdgeShark"
+        icon={<span className="material-symbols-outlined">terminal</span>}
+        onClick={props.onOpenTerminal}
+        label="Open Terminal"
+        aria-label="Open Terminal"
       />
-      {/*</If>*/}
       <Divider />
       <Choose>
         <When condition={!props.lab.instance}>

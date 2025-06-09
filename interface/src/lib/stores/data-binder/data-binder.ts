@@ -248,8 +248,6 @@ export class DataBinder {
         subscription.onDisconnectCallbacks.add(onDisconnect);
       }
 
-      console.log('subscriptions: ', this.subscriptions);
-
       return subscription;
     } else {
       const subscription: Subscription = {
@@ -271,7 +269,6 @@ export class DataBinder {
         this.connectSubscription(subscription);
       }
 
-      console.log('subscriptions: ', this.subscriptions);
       return subscription;
     }
   }
@@ -292,6 +289,12 @@ export class DataBinder {
   ) {
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
+      console.log(
+        'namespave: ',
+        namespace,
+        'callbacks:',
+        subscription.onDataCallbacks
+      );
       subscription.onDataCallbacks.delete(onData as (data: unknown) => void);
       if (onConnect) subscription.onConnectCallbacks.delete(onConnect);
       if (onDisconnect) subscription.onDisconnectCallbacks.delete(onDisconnect);

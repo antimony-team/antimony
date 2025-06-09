@@ -1,8 +1,9 @@
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
+import {Instance} from '@sb/types/domain/lab';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
-import {ElementDefinition} from 'cytoscape';
+import cytoscape, {ElementDefinition} from 'cytoscape';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 export async function fetchResource<T>(
@@ -54,102 +55,6 @@ export function arrayOf(value: string, length: number) {
   return [...Array(length)].map(() => value);
 }
 
-export function drawGrid(
-  ctx: CanvasRenderingContext2D,
-  zoom: number,
-  pan: {x: number; y: number}
-) {
-  // const canvas = ctx.canvas;
-  // const width = canvas.width;
-  // const height = canvas.height;
-  //
-  // const gridSpacing = 40;
-  // const gridColor = 'rgb(38,55,55)';
-  // const largeGridColor = 'rgb(40,68,71)';
-  //
-  // ctx.clearRect(0, 0, width, height);
-  // ctx.save();
-
-  const width = window.outerWidth;
-  const height = window.outerHeight;
-  const gridSpacing = 50;
-  const gridExtent = 4;
-  const gridColor = 'rgb(38,55,55)';
-  const largeGridColor = 'rgb(40,68,71)';
-
-  ctx.strokeStyle = 'rgba(34, 51, 56, 1)';
-  ctx.beginPath();
-
-  ctx.translate(pan.x, pan.y);
-  ctx.scale(zoom, zoom);
-
-  for (let x = -width * gridExtent; x <= width * gridExtent; x += gridSpacing) {
-    ctx.beginPath();
-    if (x % 8 === 0) {
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = largeGridColor;
-    } else {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = gridColor;
-    }
-    ctx.moveTo(x, height * gridExtent);
-    ctx.lineTo(x, -height * gridExtent);
-    ctx.stroke();
-  }
-  for (
-    let y = -height * gridExtent;
-    y <= height * gridExtent;
-    y += gridSpacing
-  ) {
-    ctx.beginPath();
-    if (y % 8 === 0) {
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = largeGridColor;
-    } else {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = gridColor;
-    }
-    ctx.moveTo(width * gridExtent, y);
-    ctx.lineTo(-width * gridExtent, y);
-    ctx.stroke();
-  }
-
-  // apply pan & zoom to align grid
-
-  // const startX = -pan.x / zoom;
-  // const startY = -pan.y / zoom;
-  // const endX = startX + width / zoom;
-  // const endY = startY + height / zoom;
-  //
-  // for (
-  //   let x = Math.floor(startX / gridSpacing) * gridSpacing;
-  //   x < endX;
-  //   x += gridSpacing
-  // ) {
-  //   ctx.beginPath();
-  //   ctx.lineWidth = x % (gridSpacing * 8) === 0 ? 2 : 1;
-  //   ctx.strokeStyle = x % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
-  //   ctx.moveTo(x, startY);
-  //   ctx.lineTo(x, endY);
-  //   ctx.stroke();
-  // }
-  //
-  // for (
-  //   let y = Math.floor(startY / gridSpacing) * gridSpacing;
-  //   y < endY;
-  //   y += gridSpacing
-  // ) {
-  //   ctx.beginPath();
-  //   ctx.lineWidth = y % (gridSpacing * 8) === 0 ? 2 : 1;
-  //   ctx.strokeStyle = y % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
-  //   ctx.moveTo(startX, y);
-  //   ctx.lineTo(endX, y);
-  //   ctx.stroke();
-  // }
-
-  // ctx.restore();
-}
-
 export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
   if (map.has(key)) {
     map.get(key)!.push(value);
@@ -161,7 +66,8 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
 export function generateGraph(
   topology: Topology | RunTopology,
   deviceStore: DeviceStore,
-  topologyManager: TopologyManager
+  topologyManager: TopologyManager,
+  instance?: Instance
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
   const addedGroups = new Set<string>();
@@ -220,11 +126,21 @@ export function generateGraph(
       parentId = groupId;
     }
 
+    let label = nodeName;
+
+    if (instance) {
+      if (instance.nodeMap.get(nodeName)!.state === 'running') {
+        label = `🟢 ${nodeName}`;
+      } else {
+        label = `🔴 ${nodeName}`;
+      }
+    }
+
     elements.push({
       data: {
         id: nodeName,
         parent: parentId,
-        label: nodeName,
+        label: label,
         title: topologyManager.getNodeTooltip(nodeName),
         kind: node?.kind ?? '',
         image: deviceStore.getNodeIcon(node),
@@ -249,6 +165,71 @@ export function generateGraph(
   }
 
   return elements;
+}
+
+export function drawGraphGrid(
+  container: HTMLDivElement,
+  canvas: HTMLCanvasElement,
+  cy: cytoscape.Core
+) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid(ctx, cy.zoom(), cy.pan());
+}
+
+function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  zoom: number,
+  pan: {x: number; y: number}
+) {
+  const width = window.outerWidth;
+  const height = window.outerHeight;
+  const gridSpacing = 50;
+  const gridExtent = 4;
+  const gridColor = 'rgb(38,55,55)';
+  const largeGridColor = 'rgb(40,68,71)';
+
+  ctx.strokeStyle = 'rgba(34, 51, 56, 1)';
+  ctx.beginPath();
+
+  ctx.translate(pan.x, pan.y);
+  ctx.scale(zoom, zoom);
+
+  for (let x = -width * gridExtent; x <= width * gridExtent; x += gridSpacing) {
+    ctx.beginPath();
+    if (x % 8 === 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = largeGridColor;
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = gridColor;
+    }
+    ctx.moveTo(x, height * gridExtent);
+    ctx.lineTo(x, -height * gridExtent);
+    ctx.stroke();
+  }
+  for (
+    let y = -height * gridExtent;
+    y <= height * gridExtent;
+    y += gridSpacing
+  ) {
+    ctx.beginPath();
+    if (y % 8 === 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = largeGridColor;
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = gridColor;
+    }
+    ctx.moveTo(width * gridExtent, y);
+    ctx.lineTo(-width * gridExtent, y);
+    ctx.stroke();
+  }
 }
 
 export function getDistance(a: Position, b: Position): number {

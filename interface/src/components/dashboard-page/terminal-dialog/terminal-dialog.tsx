@@ -1,158 +1,243 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
 import './terminal-dialog.sass';
-import {useDataBinder} from '@sb/lib/stores/root-store';
+import {useShellStore} from '@sb/lib/stores/root-store';
 import {DialogState} from '@sb/lib/utils/hooks';
 import {Lab} from '@sb/types/domain/lab';
+import {uuid4} from '@sb/types/types';
+import {Terminal} from '@xterm/xterm';
+
+import '@xterm/xterm/css/xterm.css';
 
 import {observer} from 'mobx-react-lite';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Subscription} from '@sb/lib/stores/data-binder/data-binder';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
-import {Terminal} from '@xterm/xterm';
-import {toJS} from 'mobx';
-
-import 'xterm/css/xterm.css';
+import {TabPanel, TabView, TabViewTabChangeEvent} from 'primereact/tabview';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
 
 export interface TerminalDialogState {
   lab: Lab;
-  containerId: string;
+  nodeId: string | null;
 }
 
 interface TerminalDialogProps {
   dialogState: DialogState<TerminalDialogState>;
 }
 
-const TerminalDialog = observer((props: TerminalDialogProps) => {
-  const dataBinder = useDataBinder();
-  const [containerId, setContainerId] = useState<string | null>(
-    props.dialogState.state?.containerId ?? null
-  );
-  const [term, setTerm] = useState<Terminal>(
-    () =>
-      new Terminal({
-        fontFamily: 'Iosevka, monospace',
-      })
-  );
+interface TerminalTab {
+  shellId: uuid4;
+  label: string;
+}
 
-  const subscriptionRef = useRef<Subscription | null>(null);
+const TerminalDialog = observer((props: TerminalDialogProps) => {
+  const termRef = useRef<Terminal>();
   const terminalContainerRef = useRef<HTMLDivElement>(null);
 
-  const containerName = useMemo(() => {
-    if (!props.dialogState.state?.lab.instance?.nodes || !containerId)
-      return '';
+  const shellStore = useShellStore();
 
-    console.log('state: ', toJS(props.dialogState.state));
+  const [currentTabs, setCurrentTabs] = useState<TerminalTab[]>([]);
 
-    return props.dialogState.state.lab.instance!.nodes.find(
-      node => node.containerId === containerId
-    )!.name;
-  }, [props.dialogState.state, containerId]);
+  /*
+   * When changing tabs, instead of resetting immediately, we wait with the
+   * reset until data from the new tab arrives. This makes for a smoother
+   * experience when switching between tabs.
+   */
+  const resetBeforeNextUpdate = useRef(false);
 
-  useEffect(() => {
-    if (!props.dialogState.state || !props.dialogState.isOpen) return;
+  const onData = useCallback((data: string) => {
+    if (!termRef.current) return;
 
-    setContainerId(props.dialogState.state.containerId ?? null);
-  }, [props.dialogState.state?.containerId, props.dialogState.isOpen]);
+    if (resetBeforeNextUpdate.current) {
+      termRef.current.reset();
+      resetBeforeNextUpdate.current = false;
+    }
 
-  useEffect(() => {
-    if (!props.dialogState.state || !containerId) return;
-
-    const namespace = `term/${containerId}`;
-
-    console.log('subscribing trminal');
-    setTerm(
-      new Terminal({
-        fontFamily: 'Iosevka, monospace',
-      })
-    );
-    subscriptionRef.current = dataBinder.subscribeNamespace(
-      namespace,
-      onData,
-      onSocketConnect
-    );
-
-    return () => {
-      console.log('unsibscribing terminal');
-      dataBinder.unsubscribeNamespace(namespace, onData);
-    };
-  }, [props.dialogState.state, props.dialogState.isOpen, containerId]);
-
-  function onSocketConnect() {}
+    console.log('data:', data);
+    termRef.current.write(data);
+  }, []);
 
   function onClose() {
-    if (!props.dialogState.state || !containerId) return;
-
-    const namespace = `term/${containerId}`;
-
-    dataBinder.unsubscribeNamespace(namespace, onData);
-    term.dispose();
+    shellStore.onData.unregister(onData);
 
     props.dialogState.close();
   }
 
-  function onData(data: {data: string}) {
-    console.log('data:', data);
-    term.write(data.data);
-  }
+  async function onOpen() {
+    if (!props.dialogState.state) return;
 
-  useEffect(() => {
+    console.log('initializing trminal');
     console.log('container:', terminalContainerRef.current);
 
-    setTimeout(() => {
-      console.log('container:', terminalContainerRef.current);
-
-      if (!terminalContainerRef.current) return;
-
-      term.onData((data: string) => {
-        console.log('send data:', data);
-        if (!subscriptionRef.current) return;
-        console.log('send data2:', data);
-        subscriptionRef.current.socket?.emit(
-          'data',
-          JSON.stringify({data: data})
-        );
+    if (terminalContainerRef.current) {
+      if (termRef.current) {
+        termRef.current.dispose();
+      }
+      termRef.current = new Terminal({
+        fontFamily: 'Iosevka, monospace',
+        rows: 25,
       });
-      term.open(terminalContainerRef.current);
-    }, 1000);
-  }, [props.dialogState.isOpen]);
+      termRef.current.open(terminalContainerRef.current);
 
-  const containers = useMemo(() => {
-    if (!props.dialogState.state?.lab.instance) return;
+      termRef.current.onData((data: string) => {
+        shellStore.sendData(data);
+      });
 
-    const nodes = props.dialogState.state.lab.instance.nodes ?? [];
+      termRef.current.focus();
+    }
 
-    return nodes.map(node => ({
-      label: node.containerName,
-      value: node.containerId,
-    }));
-  }, [props.dialogState.state]);
+    shellStore.onData.register(onData);
+
+    const currentShells = shellStore.getShellsForLab(
+      props.dialogState.state.lab.id
+    );
+
+    setCurrentTabs(
+      shellStore
+        .getShellsForLab(props.dialogState.state.lab.id)
+        .values()
+        .map(shell => ({
+          shellId: shell.id,
+          label: `term-${currentTabs.length}`,
+        }))
+        .toArray()
+    );
+
+    if (props.dialogState.state.nodeId) {
+      const shellsForNode = currentShells.filter(
+        shell => shell.nodeId === props.dialogState.state!.nodeId
+      );
+
+      if (shellsForNode.length < 1) {
+        const shell = await shellStore.openShell(
+          props.dialogState.state.lab.id,
+          props.dialogState.state.nodeId
+        );
+        if (!shell) return;
+
+        setCurrentTabs([
+          ...currentTabs,
+          {
+            shellId: shell.id,
+            label: `term-${currentTabs.length}`,
+          },
+        ]);
+
+        shellStore.switchToShell(shell);
+        return;
+      }
+    }
+
+    if (currentShells.length > 0) {
+      shellStore.switchToShell(currentShells[0]);
+    }
+  }
+
+  // useEffect(() => {
+  //   console.log('container:', terminalContainerRef.current);
+  //
+  //   setTimeout(() => {
+  //     console.log('container:', terminalContainerRef.current);
+  //
+  //     if (!terminalContainerRef.current) return;
+  //
+  //     term.onData((data: string) => {
+  //       console.log('send data:', data);
+  //       if (!subscriptionRef.current) return;
+  //       console.log('send data2:', data);
+  //       subscriptionRef.current.socket?.emit(
+  //         'data',
+  //         JSON.stringify({data: data})
+  //       );
+  //     });
+  //     term.open(terminalContainerRef.current);
+  //   }, 1000);
+  // }, [props.dialogState.isOpen]);
+
+  const tabIndex = useMemo(() => {
+    if (!shellStore.currentShell || !props.dialogState.state) return 0;
+
+    const currentShells = shellStore.getShellsForLab(
+      props.dialogState.state.lab.id
+    );
+
+    for (const [index, shell] of currentShells.entries()) {
+      if (shell === shellStore.currentShell) {
+        console.log('tabindex:', index);
+        return index;
+      }
+    }
+
+    return 0;
+  }, [shellStore.currentShell]);
+
+  function onTabSwitch(event: TabViewTabChangeEvent) {
+    if (!props.dialogState.state || !termRef.current) return;
+
+    resetBeforeNextUpdate.current = true;
+
+    // We define a 200 ms timeout to reset the terminal even if no new data
+    setTimeout(() => {
+      if (resetBeforeNextUpdate.current) {
+        termRef.current?.reset();
+        resetBeforeNextUpdate.current = false;
+      }
+    }, 100);
+
+    const currentShells = shellStore.getShellsForLab(
+      props.dialogState.state.lab.id
+    );
+    shellStore.switchToShell(currentShells[event.index]);
+    termRef.current.focus();
+  }
 
   return (
     <SBDialog
       onClose={onClose}
       isOpen={props.dialogState.isOpen}
-      headerTitle={`Terminal of ${props.dialogState.state?.lab.name} (${containerName})`}
+      headerTitle={`Terminal for ${props.dialogState.state?.lab.name}`}
       className="sb-terminal-dialog"
       hideButtons={true}
       draggable={true}
       resizeable={true}
-      // disableModal={true}
-      headerIcon={
-        <span className="material-symbols-outlined">border_color</span>
-      }
+      onShow={onOpen}
+      headerIcon={<span className="material-symbols-outlined">terminal</span>}
     >
+      <TabView activeIndex={tabIndex} onTabChange={onTabSwitch} scrollable>
+        {currentTabs.map(tab => {
+          return (
+            <TabPanel
+              key={tab.shellId}
+              header={
+                <div className="sb-terminal-tab-header">
+                  <span>{tab.label}</span>
+                  <span onClick={() => {}}>
+                    <i className="pi pi-times" />
+                  </span>
+                </div>
+              }
+            />
+          );
+        })}
+        <TabPanel
+          key="add"
+          header={
+            <div className="sb-terminal-tab-header-add">
+              <span onClick={() => {}}>
+                <i className="pi pi-plus" />
+              </span>
+            </div>
+          }
+        />
+      </TabView>
       <div ref={terminalContainerRef}></div>
-      <SBDropdown
-        id="container-selector"
-        icon={<span className="material-symbols-outlined">deployed_code</span>}
-        hasFilter={(containers && containers.length > 10) ?? false}
-        useSelectTemplate={true}
-        useItemTemplate={true}
-        value={containerId}
-        options={containers}
-        onValueSubmit={setContainerId}
-      />
+      {/*<SBDropdown*/}
+      {/*  id="container-selector"*/}
+      {/*  icon={<span className="material-symbols-outlined">deployed_code</span>}*/}
+      {/*  hasFilter={(containers && containers.length > 10) ?? false}*/}
+      {/*  useSelectTemplate={true}*/}
+      {/*  useItemTemplate={true}*/}
+      {/*  value={containerId}*/}
+      {/*  options={containers}*/}
+      {/*  onValueSubmit={setContainerId}*/}
+      {/*/>*/}
     </SBDialog>
   );
 });

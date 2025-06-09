@@ -1,5 +1,5 @@
 import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
-import {If} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 import dayjs from 'dayjs';
 
@@ -85,7 +85,12 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
           <div className="flex align-items-center gap-1">
             <span className="property-title">Running Until:</span>
             <span className="property-value">
-              {dayjs(props.lab.endTime).format('DD/MM/YYYY HH:mm')}
+              <Choose>
+                <When condition={props.lab.endTime === null}>Indefinitely</When>
+                <Otherwise>
+                  {dayjs(props.lab.endTime).format('DD/MM/YYYY HH:mm')}
+                </Otherwise>
+              </Choose>
             </span>
           </div>
         </If>
