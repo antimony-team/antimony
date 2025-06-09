@@ -14,10 +14,12 @@ type DeploymentProvider interface {
 
 	OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error)
 
-	//Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error))
-	//ExecOnNode(ctx context.Context, topologyFile string, content string, nodeName string, onLog func(data string), onDone func(output *string, err error))
-	Save(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error))
-	//SaveOnNode(ctx context.Context, topologyFile string, nodeName string, onLog func(data string), onDone func(output *string, err error))
+	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
+
+	StartNode(ctx context.Context, containerId string) error
+	StopNode(ctx context.Context, containerId string) error
+	RestartNode(ctx context.Context, containerId string) error
+
 	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
 }
 

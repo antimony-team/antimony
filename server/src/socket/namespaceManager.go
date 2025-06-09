@@ -7,14 +7,14 @@ import (
 	"encoding/json"
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
-	"github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/socket"
 	"slices"
 	"strings"
 	"sync"
 )
 
 type (
-	// NamespaceManager Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
+	// Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
 	//
 	// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
 	// to provide a valid access token which will be used to authenticate them via auth.AuthManager.
@@ -28,9 +28,7 @@ type (
 		// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
 		SendToAdmins(msg O)
 
-		Use(middleware func(*socket.Socket, func(*socket.ExtendedError))) socket.NamespaceInterface
-
-		// ClearBacklog Clears all messages in the backlog
+		// ClearBacklog Removes all messages from the backlog
 		ClearBacklog()
 	}
 
@@ -42,18 +40,31 @@ type (
 		connectedClients []*SocketConnectedUser
 
 		// A map of all connected authenticated clients indexed by their user ID
-		connectedClientsMap  map[string]*SocketConnectedUser
-		connectedClientsLock *sync.Mutex
+		connectedClientsMap   map[string]*SocketConnectedUser
+		connectedClientsMutex sync.Mutex
 
-		useRawInput bool
+		useRawInput   bool
+		isAnonymous   bool
+		socketManager SocketManager
+
+		onData DataInputHandler[I]
 
 		// The backlog of previously sent messages
-		backlog     []O
-		backlogLock *sync.Mutex
-		isAnonymous bool
-		useBacklog  bool
-		namespace   socket.NamespaceInterface
+		backlog      []O
+		backlogMutex sync.Mutex
+		useBacklog   bool
+
+		namespaceName string
+		namespace     socketio.NamespaceInterface
 	}
+
+	DataInputHandler[I any] func(
+		ct context.Context,
+		data *I,
+		authUser *auth.AuthenticatedUser,
+		onResponse func(response utils.OkResponse[any]),
+		onError func(response utils.ErrorResponse),
+	)
 )
 
 // CreateNamespace Creates a new socket.io namespace for a given socket manager.
@@ -68,12 +79,7 @@ func CreateIONamespace[I any, O any](
 	socketManager SocketManager,
 	isAnonymous bool,
 	useBacklog bool,
-	onData func(
-		ctx context.Context,
-		data *I, authUser *auth.AuthenticatedUser,
-		onResponse func(response utils.OkResponse[any]),
-		onError func(response utils.ErrorResponse),
-	),
+	onData DataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
 ) IONamespace[I, O] {
@@ -88,121 +94,26 @@ func CreateIONamespace[I any, O any](
 	}
 
 	manager := &namespaceManager[I, O]{
-		connectedClients:     make([]*SocketConnectedUser, 0),
-		connectedClientsMap:  make(map[string]*SocketConnectedUser),
-		connectedClientsLock: &sync.Mutex{},
-		backlog:              make([]O, 0),
-		backlogLock:          &sync.Mutex{},
-		isAnonymous:          isAnonymous,
-		useBacklog:           useBacklog,
-		useRawInput:          useRawInput,
+		connectedClients:      make([]*SocketConnectedUser, 0),
+		connectedClientsMap:   make(map[string]*SocketConnectedUser),
+		connectedClientsMutex: sync.Mutex{},
+		socketManager:         socketManager,
+		backlog:               make([]O, 0),
+		backlogMutex:          sync.Mutex{},
+		onData:                onData,
+		isAnonymous:           isAnonymous,
+		useBacklog:            useBacklog,
+		useRawInput:           useRawInput,
 	}
 
-	namespaceName := "/" + strings.Join(namespacePath, "/")
-	manager.namespace = socketManager.Server().Of(namespaceName, nil)
+	manager.namespaceName = "/" + strings.Join(namespacePath, "/")
+	manager.namespace = socketManager.Server().Of(manager.namespaceName, nil)
 
 	if !isAnonymous {
 		manager.namespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
 	}
 
-	_ = manager.namespace.On("connection", func(clients ...any) {
-		client := clients[0].(*socket.Socket)
-
-		if !isAnonymous {
-			var authUser *auth.AuthenticatedUser
-			if accessToken, ok := client.Handshake().Auth.(map[string]any)["token"].(string); !ok {
-				return
-			} else if authUser = socketManager.GetAuthUser(accessToken); authUser == nil {
-				// This is just for consistency, as non-authenticated users should never make it past the middleware
-				return
-			}
-
-			socketClient := &SocketConnectedUser{
-				AuthenticatedUser: authUser,
-				socket:            client,
-			}
-
-			manager.connectedClientsLock.Lock()
-			manager.connectedClients = append(manager.connectedClients, socketClient)
-			manager.connectedClientsMap[authUser.UserId] = socketClient
-			manager.connectedClientsLock.Unlock()
-
-			_ = client.On("data", func(raw ...any) {
-				var ack func([]any, error)
-				if len(raw) > 1 {
-					ack = raw[1].(func([]any, error))
-				}
-
-				dataRaw := raw[0].(string)
-				var data I
-
-				if manager.useRawInput {
-					data = any(dataRaw).(I)
-				} else {
-					if err := json.Unmarshal([]byte(dataRaw), &data); err != nil {
-						if ack != nil {
-							errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
-							ack([]any{errorResponse}, nil)
-						}
-						return
-					}
-				}
-
-				ctx := context.Background()
-
-				if ack != nil {
-					onData(ctx, &data, authUser,
-						func(response utils.OkResponse[any]) {
-							ack([]any{response}, nil)
-						},
-						func(errorResponse utils.ErrorResponse) {
-							ack([]any{errorResponse}, nil)
-						},
-					)
-				} else {
-					onData(ctx, &data, authUser, nil, nil)
-				}
-			})
-
-			_ = client.On("disconnect", func(clients ...any) {
-				log.Info("User disconnected from socket namespace", "namespace", namespaceName, "user", authUser.UserId)
-
-				manager.connectedClientsLock.Lock()
-				if i := slices.Index(manager.connectedClients, socketClient); i > -1 {
-					manager.connectedClients = append(manager.connectedClients[:i], manager.connectedClients[i+1:]...)
-				}
-				delete(manager.connectedClientsMap, authUser.UserId)
-				manager.connectedClientsLock.Unlock()
-			})
-
-			log.Info("User connected to socket namespace", "namespace", namespaceName, "user", authUser.UserId)
-		} else {
-			socketClient := &SocketConnectedUser{
-				socket: client,
-			}
-
-			manager.connectedClientsLock.Lock()
-			manager.connectedClients = append(manager.connectedClients, socketClient)
-			manager.connectedClientsLock.Unlock()
-
-			_ = client.On("disconnect", func(clients ...any) {
-				log.Info("Anonymous user disconnected from socket namespace", "namespace", namespaceName)
-
-				if i := slices.Index(manager.connectedClients, socketClient); i > -1 {
-					manager.connectedClientsLock.Lock()
-					manager.connectedClients = append(manager.connectedClients[:i], manager.connectedClients[i+1:]...)
-					manager.connectedClientsLock.Unlock()
-				}
-			})
-
-			log.Info("Anonymous user connected to socket namespace", "namespace")
-		}
-
-		// Immediately send backlog to user if backlog is used in namespace
-		if useBacklog {
-			_ = client.Emit("backlog", manager.backlog)
-		}
-	})
+	_ = manager.namespace.On("connection", manager.handleConnection)
 
 	return manager
 }
@@ -211,12 +122,7 @@ func CreateInputNamespace[I any](
 	socketManager SocketManager,
 	isAnonymous bool,
 	useBacklog bool,
-	onData func(
-		ctx context.Context,
-		data *I, authUser *auth.AuthenticatedUser,
-		onResponse func(response utils.OkResponse[any]),
-		onError func(response utils.ErrorResponse),
-	),
+	onData DataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
 ) InputNamespace[I] {
@@ -234,9 +140,9 @@ func CreateOutputNamespace[O any](
 }
 
 func (m *namespaceManager[I, O]) ClearBacklog() {
-	m.backlogLock.Lock()
+	m.backlogMutex.Lock()
 	m.backlog = make([]O, 0)
-	m.backlogLock.Unlock()
+	m.backlogMutex.Unlock()
 }
 
 func (m *namespaceManager[I, O]) Send(msg O) {
@@ -268,22 +174,121 @@ func (m *namespaceManager[I, O]) SendToAdmins(msg O) {
 	}))
 }
 
-func (m *namespaceManager[I, O]) Use(
-	middleware func(*socket.Socket, func(*socket.ExtendedError)),
-) socket.NamespaceInterface {
-	return m.namespace.Use(middleware)
-}
-
 func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*SocketConnectedUser) {
 	if m.useBacklog {
-		m.backlogLock.Lock()
+		m.backlogMutex.Lock()
 		m.backlog = append(m.backlog, msg)
-		m.backlogLock.Unlock()
+		m.backlogMutex.Unlock()
 	}
 
 	for _, client := range receivers {
 		if err := client.socket.Emit("data", msg); err != nil {
 			log.Warnf("Failed to emit socket message to client : %s", err.Error())
 		}
+	}
+}
+
+func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
+	client := clients[0].(*socketio.Socket)
+
+	if m.isAnonymous {
+		socketClient := &SocketConnectedUser{
+			AuthenticatedUser: nil,
+			socket:            client,
+		}
+
+		m.connectedClientsMutex.Lock()
+		m.connectedClients = append(m.connectedClients, socketClient)
+		m.connectedClientsMutex.Unlock()
+
+		_ = client.On("disconnect", func(clients ...any) {
+			log.Info("Anonymous user disconnected from socket namespace", "namespace", m.namespaceName)
+
+			if i := slices.Index(m.connectedClients, socketClient); i > -1 {
+				m.connectedClientsMutex.Lock()
+				m.connectedClients = append(m.connectedClients[:i], m.connectedClients[i+1:]...)
+				m.connectedClientsMutex.Unlock()
+			}
+		})
+
+		log.Info("Anonymous user connected to socket namespace", "namespace", m.namespaceName)
+		return
+	}
+
+	var authUser *auth.AuthenticatedUser
+	if accessToken, ok := client.Handshake().Auth.(map[string]any)["token"].(string); !ok {
+		return
+	} else if authUser = m.socketManager.GetAuthUser(accessToken); authUser == nil {
+		// This is just for consistency, as non-authenticated users should never make it past the middleware
+		return
+	}
+
+	socketClient := &SocketConnectedUser{
+		AuthenticatedUser: authUser,
+		socket:            client,
+	}
+
+	m.connectedClientsMutex.Lock()
+	m.connectedClients = append(m.connectedClients, socketClient)
+	m.connectedClientsMap[authUser.UserId] = socketClient
+	m.connectedClientsMutex.Unlock()
+
+	_ = client.On("data", func(raw ...any) {
+		m.handleData(authUser, raw...)
+	})
+
+	_ = client.On("disconnect", func(clients ...any) {
+		log.Info("User disconnected from socket namespace", "namespace", m.namespaceName, "user", authUser.UserId)
+
+		m.connectedClientsMutex.Lock()
+		if i := slices.Index(m.connectedClients, socketClient); i > -1 {
+			m.connectedClients = append(m.connectedClients[:i], m.connectedClients[i+1:]...)
+		}
+		delete(m.connectedClientsMap, authUser.UserId)
+		m.connectedClientsMutex.Unlock()
+	})
+
+	log.Info("User connected to socket namespace", "namespace", m.namespaceName, "user", authUser.UserId)
+
+	// Immediately send backlog to user if backlog is used in namespace
+	if m.useBacklog {
+		_ = client.Emit("backlog", m.backlog)
+	}
+}
+
+func (m *namespaceManager[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...any) {
+	var ack func([]any, error)
+	if len(raw) > 1 {
+		ack = raw[1].(func([]any, error))
+	}
+
+	dataRaw := raw[0].(string)
+	var data I
+
+	if m.useRawInput {
+		data = any(dataRaw).(I)
+	} else {
+		if err := json.Unmarshal([]byte(dataRaw), &data); err != nil {
+			if ack != nil {
+				errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
+				ack([]any{errorResponse}, nil)
+			}
+			return
+		}
+	}
+
+	ctx := context.Background()
+
+	if ack != nil {
+		m.onData(ctx, &data, authUser,
+			func(response utils.OkResponse[any]) {
+				ack([]any{response}, nil)
+			},
+			func(errorResponse utils.ErrorResponse) {
+				ack([]any{errorResponse}, nil)
+			},
+		)
+	} else {
+		m.onData(ctx, &data, authUser, nil, nil)
 	}
 }

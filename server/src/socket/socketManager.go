@@ -4,7 +4,7 @@ import (
 	"antimonyBackend/auth"
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
-	"github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/socket"
 	"sync"
 )
 
@@ -12,7 +12,7 @@ type (
 	// SocketManager Represents a wrapper around the socket.io objects and also manages all authenticated users.
 	SocketManager interface {
 		// Server A reference to the underlying socket.io server.
-		Server() *socket.Server
+		Server() *socketio.Server
 
 		// GetAuthUser Returns an auth user by access token. This can be used by namespace managers to identify
 		// an authenticated user sending a message or connecting to a namespace for the first time.
@@ -23,11 +23,11 @@ type (
 		// all authenticated users will have access to the namespace.
 		SocketAuthenticatorMiddleware(
 			accessGroup *[]*auth.AuthenticatedUser,
-		) func(s *socket.Socket, next func(*socket.ExtendedError))
+		) func(s *socketio.Socket, next func(*socketio.ExtendedError))
 	}
 
 	socketManager struct {
-		server      *socket.Server
+		server      *socketio.Server
 		users       map[string]auth.AuthenticatedUser
 		usersMutex  *sync.Mutex
 		authManager auth.AuthManager
@@ -35,7 +35,7 @@ type (
 )
 
 func CreateSocketManager(authManager auth.AuthManager) SocketManager {
-	server := socket.NewServer(nil, nil)
+	server := socketio.NewServer(nil, nil)
 
 	manager := &socketManager{
 		server:      server,
@@ -57,24 +57,24 @@ func (m *socketManager) GetAuthUser(accessToken string) *auth.AuthenticatedUser 
 	return nil
 }
 
-func (m *socketManager) Server() *socket.Server {
+func (m *socketManager) Server() *socketio.Server {
 	return m.server
 }
 
 func (m *socketManager) SocketAuthenticatorMiddleware(
 	accessGroup *[]*auth.AuthenticatedUser,
-) func(s *socket.Socket, next func(*socket.ExtendedError)) {
-	return func(s *socket.Socket, next func(*socket.ExtendedError)) {
+) func(s *socketio.Socket, next func(*socketio.ExtendedError)) {
+	return func(s *socketio.Socket, next func(*socketio.ExtendedError)) {
 		accessToken := m.parseHandshake(s.Handshake())
 
 		if accessToken == nil {
-			next(socket.NewExtendedError("Unauthorized", nil))
+			next(socketio.NewExtendedError("Unauthorized", nil))
 			return
 		}
 
 		authUser, err := m.authManager.AuthenticateUser(*accessToken)
 		if err != nil {
-			next(socket.NewExtendedError("Invalid Token", nil))
+			next(socketio.NewExtendedError("Invalid Token", nil))
 			return
 		}
 
@@ -85,7 +85,7 @@ func (m *socketManager) SocketAuthenticatorMiddleware(
 
 			if !hasAccess {
 				log.Infof("no access")
-				next(socket.NewExtendedError("No Access", nil))
+				next(socketio.NewExtendedError("No Access", nil))
 				return
 			}
 		}
@@ -98,7 +98,7 @@ func (m *socketManager) SocketAuthenticatorMiddleware(
 	}
 }
 
-func (m *socketManager) parseHandshake(handshake *socket.Handshake) *string {
+func (m *socketManager) parseHandshake(handshake *socketio.Handshake) *string {
 	authMap, ok := handshake.Auth.(map[string]any)
 	if !ok {
 		return nil

@@ -9,6 +9,7 @@ import (
 type (
 	Handler interface {
 		Get(ctx *gin.Context)
+		GetByUuid(ctx *gin.Context)
 		Create(ctx *gin.Context)
 		Update(ctx *gin.Context)
 		Delete(ctx *gin.Context)
@@ -43,6 +44,28 @@ func (h *labHandler) Get(ctx *gin.Context) {
 	}
 
 	result, err := h.labService.Get(ctx, labFilter, authUser)
+	if err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.CreateOkResponse(result))
+}
+
+// @Summary	Get a specific lab by UUIDp
+// @Produce	json
+// @Tags		labs
+// @Security	BasicAuth
+// @Success	200	{object}	utils.OkResponse[LabOut]
+// @Failure	401	{object}	nil					"The user isn't authorized"
+// @Failure	498	{object}	nil					"The provided access token is not valid"
+// @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
+// @Failure	404	{object}	utils.ErrorResponse	"The requested lab was not found."
+// @Router		/labs/:labId [get]
+func (h *labHandler) GetByUuid(ctx *gin.Context) {
+	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+
+	result, err := h.labService.GetByUuid(ctx, ctx.Param("labId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return

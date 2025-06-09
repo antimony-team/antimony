@@ -154,19 +154,20 @@ func (p *ClabernetesProvider) ExecOnNode(
 	runClabCommand(cmd, onLog, onDone)
 }
 
-func (p *ClabernetesProvider) Save(ctx context.Context,
-	topologyFile string,
-	onLog func(string),
-	onDone func(*string, error)) {
-	onDone(nil, nil)
+func (p *ClabernetesProvider) StartNode(ctx context.Context, containerId string) error {
+	return nil
 }
 
-func (p *ClabernetesProvider) SaveOnNode(ctx context.Context,
-	topologyFile string,
-	nodeName string,
-	onLog func(string),
-	onDone func(*string, error)) {
-	onDone(nil, nil)
+func (p *ClabernetesProvider) StopNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *ClabernetesProvider) RestartNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *ClabernetesProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
+	return nil
 }
 
 func (p *ClabernetesProvider) StreamContainerLogs(

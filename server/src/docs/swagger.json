@@ -321,6 +321,48 @@
                 }
             }
         },
+        "/labs/:labId": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "labs"
+                ],
+                "summary": "Get a specific lab by UUIDp",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-lab_LabOut"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "Access to the resource was denied. Details in the request body.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "The requested lab was not found.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
         "/labs/{id}": {
             "put": {
                 "security": [
@@ -1332,6 +1374,14 @@
             "properties": {
                 "payload": {
                     "$ref": "#/definitions/auth.AuthConfig"
+                }
+            }
+        },
+        "utils.OkResponse-lab_LabOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/lab.LabOut"
                 }
             }
         },

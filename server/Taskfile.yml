@@ -9,6 +9,11 @@ tasks:
       - sudo rm -rf ./build/
       - sudo rm -rf ./docker/
 
+  lint:
+    dir: './src'
+    cmds:
+      - golangci-lint run -c ../.golangci.yml
+
   build:
     dir: './src'
     cmds:

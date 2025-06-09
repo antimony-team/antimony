@@ -42,6 +42,7 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 	case errors.Is(err, ErrorTokenInvalid):
 		return 498, ErrorResponse{Code: 498, Message: err.Error()}
 	case errors.Is(err, ErrorForbidden),
+		errors.Is(err, ErrorNoAccessToLab),
 		errors.Is(err, ErrorNoWriteAccessToLab),
 		errors.Is(err, ErrorNoWriteAccessToBindFile),
 		errors.Is(err, ErrorNoWriteAccessToTopology),

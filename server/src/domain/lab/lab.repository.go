@@ -73,8 +73,8 @@ func (r *labRepository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab
 func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
 	var lab Lab
 	result := r.db.WithContext(ctx).
+		Preload("Topology.Collection").
 		Preload("Creator").
-		Preload("Topology").
 		Where("uuid = ?", labId).
 		Find(&lab)
 

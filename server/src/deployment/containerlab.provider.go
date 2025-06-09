@@ -3,10 +3,14 @@ package deployment
 import (
 	"context"
 	"encoding/json"
+	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"io"
 	"os/exec"
+	"time"
 )
 
 type ContainerlabProvider struct{}
@@ -100,27 +104,6 @@ func (p *ContainerlabProvider) ExecOnNode(
 	runClabCommand(cmd, onLog, onDone)
 }
 
-func (p *ContainerlabProvider) Save(
-	ctx context.Context,
-	topologyFile string,
-	onLog func(data string),
-	onDone func(output *string, err error),
-) {
-	cmd := exec.CommandContext(ctx, "containerlab", "save", "-t", topologyFile)
-	runClabCommand(cmd, onLog, onDone)
-}
-
-func (p *ContainerlabProvider) SaveOnNode(
-	ctx context.Context,
-	topologyFile string,
-	nodeName string,
-	onLog func(data string),
-	onDone func(output *string, err error),
-) {
-	cmd := exec.CommandContext(ctx, "containerlab", "save", "-t", topologyFile, "--label", nodeName)
-	runClabCommand(cmd, onLog, onDone)
-}
-
 func (p *ContainerlabProvider) OpenShell(
 	ctx context.Context,
 	containerId string,
@@ -149,6 +132,73 @@ func (p *ContainerlabProvider) OpenShell(
 	}
 
 	return hr.Conn, nil
+}
+
+func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+
+	if err := cli.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *ContainerlabProvider) StopNode(ctx context.Context, containerId string) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+
+	timeout := int(10 * time.Second)
+	if err := cli.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *ContainerlabProvider) RestartNode(ctx context.Context, containerId string) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+
+	timeout := int(10 * time.Second)
+	if err := cli.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+
+	eventFilter := filters.NewArgs()
+	eventFilter.Add("type", "container")
+
+	channel, errs := cli.Events(ctx, events.ListOptions{
+		Filters: eventFilter,
+	})
+
+	for {
+		select {
+		case msg := <-channel:
+			onUpdate(msg.Actor.ID[:12])
+		case err := <-errs:
+			if err != nil {
+				log.Errorf("Failed to receive docker events: %s", err.Error())
+				return err
+			}
+		}
+	}
 }
 
 func (p *ContainerlabProvider) StreamContainerLogs(

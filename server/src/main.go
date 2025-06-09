@@ -101,6 +101,8 @@ func main() {
 	// Run lab scheduler in goroutine
 	go labService.RunScheduler()
 
+	go labService.ListenToProviderEvents()
+
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
 

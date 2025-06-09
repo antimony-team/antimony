@@ -26,12 +26,15 @@ import (
 type (
 	Service interface {
 		Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]LabOut, error)
+		GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*LabOut, error)
 		Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error)
 		Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error
 
 		// RunScheduler Starts looping through all scheduled labs and waits to deploy them
 		RunScheduler()
+
+		ListenToProviderEvents()
 	}
 
 	labService struct {
@@ -45,6 +48,9 @@ type (
 
 		openShells      map[string]ShellConfig
 		openShellsMutex sync.Mutex
+
+		nodeLabMap      map[string]*Lab
+		nodeLabMapMutex sync.Mutex
 
 		labRepo                Repository
 		userRepo               user.Repository
@@ -139,75 +145,32 @@ func (s *labService) RunScheduler() {
 		time.Sleep(5 * time.Second)
 	}
 }
-
-func (s *labService) reviveLabs() {
+func (s *labService) ListenToProviderEvents() {
 	ctx := context.Background()
 
-	labs, err := s.labRepo.GetAll(ctx, nil)
-	if err != nil {
-		log.Fatal("Failed to load labs from database. Exiting.")
-		return
-	}
+	err := s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
+		var targetLabId *string
+		
+		s.instancesMutex.Lock()
+		for labId, instance := range s.instances {
+			_, hasMatched := lo.Find(instance.Nodes, func(item InstanceNode) bool {
+				return item.ContainerId == containerId
+			})
 
-	result, err := s.deploymentProvider.InspectAll(ctx)
-	if err != nil {
-		log.Fatal("Failed to retrieve containers from clab inspect. Exiting.", "err", err.Error())
-		return
-	}
-
-	for _, lab := range labs {
-		if lab.InstanceName == nil {
-			if lab.StartTime.Unix() >= time.Now().Unix() {
-				// The lab has not been run before
-				s.labDeploymentSchedule.Schedule(&lab)
+			if hasMatched {
+				targetLabId = &labId
+				break
 			}
-
-			continue
 		}
+		s.instancesMutex.Unlock()
 
-		// The lab has been deployed before
-		if containers, ok := result[*lab.InstanceName]; ok {
-			// Lab is currently running
-			logNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager, false, true, nil, "logs", lab.UUID,
-			)
-
-			// Create log namespaces for each container in the lab
-			for _, container := range containers {
-				containerLogNamespace := socket.CreateOutputNamespace[string](
-					s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
-				)
-				err := s.deploymentProvider.StreamContainerLogs(
-					ctx, "", container.ContainerId, containerLogNamespace.Send,
-				)
-				if err != nil {
-					log.Errorf(
-						"Failed to setup container logs for container %s: %s", container.ContainerId, err.Error(),
-					)
-				}
-			}
-
-			var runTopologyDefinition string
-			if err := s.storageManager.ReadRunTopologyDefinition(lab.UUID, &runTopologyDefinition); err != nil {
-				log.Errorf("Failed to read run topology definition for %s: %s", lab.UUID, err.Error())
-				continue
-			}
-
-			s.instancesMutex.Lock()
-			s.instances[lab.UUID] = &Instance{
-				State:              InstanceStates.Running,
-				Nodes:              lo.Map(containers, s.containerToInstanceNode),
-				Deployed:           time.Now(),
-				LatestStateChange:  time.Now(),
-				Recovered:          true,
-				TopologyFile:       s.storageManager.GetRunTopologyFile(lab.UUID),
-				TopologyDefinition: runTopologyDefinition,
-				LogNamespace:       logNamespace,
-			}
-			s.instancesMutex.Unlock()
-
-			s.labDestructionSchedule.Schedule(&lab)
+		if targetLabId != nil {
+			s.labUpdatesNamespace.Send(*targetLabId)
 		}
+	})
+
+	if err != nil {
+		return
 	}
 }
 
@@ -259,6 +222,39 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 			Instance:     s.instanceToOut(instance),
 			InstanceName: lab.InstanceName,
 		})
+	}
+
+	return result, err
+}
+
+func (s *labService) GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*LabOut, error) {
+	var (
+		lab *Lab
+		err error
+	)
+	if lab, err = s.labRepo.GetByUuid(ctx, labId); err != nil {
+		return nil, err
+	}
+
+	// Deny request if user doesn't have access to the lab
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.UUID) {
+		return nil, utils.ErrorNoAccessToLab
+	}
+
+	s.instancesMutex.Lock()
+	instance, _ := s.instances[lab.UUID]
+	s.instancesMutex.Unlock()
+
+	result := &LabOut{
+		ID:           lab.UUID,
+		Name:         lab.Name,
+		StartTime:    lab.StartTime,
+		EndTime:      lab.EndTime,
+		TopologyId:   lab.Topology.UUID,
+		CollectionId: lab.Topology.Collection.UUID,
+		Creator:      s.userRepo.UserToOut(lab.Creator),
+		Instance:     s.instanceToOut(instance),
+		InstanceName: lab.InstanceName,
 	}
 
 	return result, err
@@ -455,7 +451,9 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 		"Destroying lab", "lab", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
 
-	output, err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, instance.LogNamespace.Send)
+	output, err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, func(data string) {
+		instance.LogNamespace.Send(data)
+	})
 	streamClabOutput(instance.LogNamespace, output)
 
 	if err != nil {
@@ -511,7 +509,9 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) bool {
 		fmt.Sprintf("Redeploying lab '%s' (%s)", lab.Name, lab.Topology.Name),
 		"Starting redeployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
-	output, err := s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, instance.LogNamespace.Send)
+	output, err := s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, func(data string) {
+		instance.LogNamespace.Send(data)
+	})
 	streamClabOutput(instance.LogNamespace, output)
 
 	// Only report errors if the worker has not been cancelled
@@ -610,8 +610,8 @@ func (s *labService) deployLab(lab *Lab) error {
 		return utils.ErrorContainerlab
 	}
 
-	// Fetch and attach lab runtime info and change state to running if successful
-	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, func(data string) {
+	// Fetch and attach lab inspect info and change state to running if successful
+	instanceNodes, err := s.getNodesFromInspect(ctx, runTopologyFile, *lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
 
@@ -624,19 +624,17 @@ func (s *labService) deployLab(lab *Lab) error {
 		), &instance.LogNamespace)
 		s.setTopologyDeployStatus(*lab, false)
 	} else {
-		containers := inspectOutput[*lab.InstanceName]
-
 		log.Infof("[SCHEDULER] Successfully deployed lab '%s'!", lab.Name)
-		s.instances[lab.UUID].Nodes = lo.Map(containers, s.containerToInstanceNode)
-		for _, container := range containers {
+		s.instances[lab.UUID].Nodes = instanceNodes
+		for _, node := range instanceNodes {
 			containerLogNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
+				s.socketManager, false, true, nil, "logs", lab.UUID, node.ContainerId,
 			)
-			err := s.deploymentProvider.StreamContainerLogs(ctx, "", container.ContainerId, func(data string) {
+			err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 				containerLogNamespace.Send(data)
 			})
 			if err != nil {
-				log.Errorf("Failed to setup container logs for container %s: %s", container.ContainerId, err.Error())
+				log.Errorf("Failed to setup container logs for container %s: %s", node.ContainerId, err.Error())
 			}
 		}
 
@@ -687,6 +685,50 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 	}
 }
 
+func (s *labService) updateInstanceNodes(
+	ctx context.Context,
+	instance *Instance,
+	instanceName string,
+	sendLogs bool,
+) error {
+	var onLog func(string)
+
+	if sendLogs && instance.LogNamespace != nil {
+		onLog = func(data string) {
+			instance.LogNamespace.Send(data)
+		}
+	}
+
+	updatedNodes, err := s.getNodesFromInspect(ctx, instance.TopologyFile, instanceName, onLog)
+
+	if err != nil {
+		return err
+	}
+
+	instance.Mutex.Lock()
+	instance.Nodes = updatedNodes
+	instance.Mutex.Unlock()
+
+	return nil
+}
+
+func (s *labService) getNodesFromInspect(
+	ctx context.Context,
+	runTopologyFile string,
+	instanceName string,
+	onLog func(data string),
+) ([]InstanceNode, error) {
+	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, onLog)
+
+	if err != nil {
+		return nil, err
+	}
+
+	containers := inspectOutput[instanceName]
+
+	return lo.Map(containers, s.containerToInstanceNode), nil
+}
+
 func (s *labService) containerToInstanceNode(container deployment.InspectContainer, _ int) InstanceNode {
 	nodeNameParts := strings.Split(container.Name, "-")
 
@@ -727,6 +769,79 @@ func (s *labService) updateStateAndNotify(lab Lab, state InstanceState, statusMe
 	}
 }
 
+func (s *labService) reviveLabs() {
+	ctx := context.Background()
+
+	labs, err := s.labRepo.GetAll(ctx, nil)
+	if err != nil {
+		log.Fatal("Failed to load labs from database. Exiting.")
+		return
+	}
+
+	result, err := s.deploymentProvider.InspectAll(ctx)
+	if err != nil {
+		log.Fatal("Failed to retrieve containers from clab inspect. Exiting.", "err", err.Error())
+		return
+	}
+
+	for _, lab := range labs {
+		if lab.InstanceName == nil {
+			if lab.StartTime.Unix() >= time.Now().Unix() {
+				// The lab has not been run before
+				s.labDeploymentSchedule.Schedule(&lab)
+			}
+
+			continue
+		}
+
+		// The lab has been deployed before
+		if containers, ok := result[*lab.InstanceName]; ok {
+			// Lab is currently running
+			logNamespace := socket.CreateOutputNamespace[string](
+				s.socketManager, false, true, nil, "logs", lab.UUID,
+			)
+
+			// Create log namespaces for each container in the lab
+			for _, container := range containers {
+				containerLogNamespace := socket.CreateOutputNamespace[string](
+					s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
+				)
+				err := s.deploymentProvider.StreamContainerLogs(
+					ctx, "", container.ContainerId, func(data string) {
+						containerLogNamespace.Send(data)
+					},
+				)
+				if err != nil {
+					log.Errorf(
+						"Failed to setup container logs for container %s: %s", container.ContainerId, err.Error(),
+					)
+				}
+			}
+
+			var runTopologyDefinition string
+			if err := s.storageManager.ReadRunTopologyDefinition(lab.UUID, &runTopologyDefinition); err != nil {
+				log.Errorf("Failed to read run topology definition for %s: %s", lab.UUID, err.Error())
+				continue
+			}
+
+			s.instancesMutex.Lock()
+			s.instances[lab.UUID] = &Instance{
+				State:              InstanceStates.Running,
+				Nodes:              lo.Map(containers, s.containerToInstanceNode),
+				Deployed:           time.Now(),
+				LatestStateChange:  time.Now(),
+				Recovered:          true,
+				TopologyFile:       s.storageManager.GetRunTopologyFile(lab.UUID),
+				TopologyDefinition: runTopologyDefinition,
+				LogNamespace:       logNamespace,
+			}
+			s.instancesMutex.Unlock()
+
+			s.labDestructionSchedule.Schedule(&lab)
+		}
+	}
+}
+
 func (s *labService) handleLabCommand(
 	ctx context.Context,
 	data *LabCommandData,
@@ -754,6 +869,13 @@ func (s *labService) handleLabCommand(
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
+	case LabCommands.StartNode:
+		if err := s.startNodeCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
+			onError(utils.CreateSocketErrorResponse(err))
+			return
+		}
+		onResponse(utils.CreateSocketOkResponse[any](nil))
+		break
 	case LabCommands.StopNode:
 		if err := s.stopNodeCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
@@ -761,8 +883,8 @@ func (s *labService) handleLabCommand(
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 		break
-	case LabCommands.StartNode:
-		if err := s.startNodeCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
+	case LabCommands.RestartNode:
+		if err := s.restartNodeCommand(ctx, *data.LabId, data.NodeId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
@@ -799,7 +921,10 @@ func (s *labService) destroyLabCommand(ctx context.Context, labId string, authUs
 	}
 
 	// Don't allow destroying non-running labs
+	s.instancesMutex.Lock()
 	instance, hasInstance := s.instances[lab.UUID]
+	s.instancesMutex.Unlock()
+
 	if !hasInstance {
 		return utils.ErrorLabNotRunning
 	}
@@ -823,7 +948,10 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 	if !authUser.IsAdmin && authUser.UserId != lab.Creator.UUID {
 		return utils.ErrorNoDeployAccessToLab
 	}
+
+	s.instancesMutex.Lock()
 	instance, hasInstance := s.instances[lab.UUID]
+	s.instancesMutex.Unlock()
 
 	if hasInstance {
 		result := s.redeployLab(lab, instance)
@@ -853,18 +981,128 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 	return nil
 }
 
-func (s *labService) stopNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error {
-	if nodeId == nil {
-		return utils.ErrorNodeNotFound
+func (s *labService) startNodeCommand(
+	ctx context.Context,
+	labId string,
+	nodeId *string,
+	authUser *auth.AuthenticatedUser,
+) error {
+	lab, instance, node, err := s.validateNodeCommand(ctx, labId, nodeId, authUser)
+	if err != nil {
+		return err
 	}
+
+	if err := s.deploymentProvider.StartNode(ctx, *nodeId); err != nil {
+		return err
+	}
+
+	if err := s.updateInstanceNodes(ctx, instance, *lab.InstanceName, true); err != nil {
+		return err
+	}
+
+	s.notifyUpdate(*lab, statusMessage.Success(
+		"Lab Manager",
+		fmt.Sprintf("Node %s is starting", node.Name),
+		"Starting of node has been issued", "nodeId", node.ContainerId, "labId", lab.UUID,
+	))
+
 	return nil
 }
 
-func (s *labService) startNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error {
-	if nodeId == nil {
-		return utils.ErrorNodeNotFound
+func (s *labService) stopNodeCommand(
+	ctx context.Context,
+	labId string,
+	nodeId *string,
+	authUser *auth.AuthenticatedUser,
+) error {
+	lab, instance, node, err := s.validateNodeCommand(ctx, labId, nodeId, authUser)
+	if err != nil {
+		return err
 	}
+
+	if err := s.deploymentProvider.StopNode(ctx, *nodeId); err != nil {
+		return err
+	}
+
+	if err := s.updateInstanceNodes(ctx, instance, *lab.InstanceName, true); err != nil {
+		return err
+	}
+
+	s.notifyUpdate(*lab, statusMessage.Success(
+		"Lab Manager",
+		fmt.Sprintf("Node %s is stopping", node.Name),
+		"Stopping of node has been issued", "nodeId", node.ContainerId, "labId", lab.UUID,
+	))
+
 	return nil
+}
+
+func (s *labService) restartNodeCommand(
+	ctx context.Context,
+	labId string,
+	nodeId *string,
+	authUser *auth.AuthenticatedUser,
+) error {
+	lab, instance, node, err := s.validateNodeCommand(ctx, labId, nodeId, authUser)
+	if err != nil {
+		return err
+	}
+
+	if err := s.deploymentProvider.RestartNode(ctx, *nodeId); err != nil {
+		return err
+	}
+
+	if err := s.updateInstanceNodes(ctx, instance, *lab.InstanceName, true); err != nil {
+		return err
+	}
+
+	s.notifyUpdate(*lab, statusMessage.Success(
+		"Lab Manager",
+		fmt.Sprintf("Node %s is restarting", node.Name),
+		"Restart of node has been issued", "nodeId", node.ContainerId, "labId", lab.UUID,
+	))
+
+	return nil
+}
+
+func (s *labService) validateNodeCommand(
+	ctx context.Context,
+	labId string,
+	nodeId *string,
+	authUser *auth.AuthenticatedUser,
+) (*Lab, *Instance, *InstanceNode, error) {
+	if nodeId == nil {
+		return nil, nil, nil, utils.ErrorNodeNotFound
+	}
+
+	lab, err := s.labRepo.GetByUuid(ctx, labId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Deny request if user is not the owner of the requested lab or an admin
+	if !authUser.IsAdmin && authUser.UserId != lab.Creator.UUID {
+		return nil, nil, nil, utils.ErrorNoDestroyAccessToLab
+	}
+
+	// Don't allow destroying non-running labs
+	s.instancesMutex.Lock()
+	instance, hasInstance := s.instances[lab.UUID]
+	s.instancesMutex.Unlock()
+
+	if !hasInstance {
+		return nil, nil, nil, utils.ErrorLabNotRunning
+	}
+
+	node, hasNode := lo.Find(instance.Nodes, func(node InstanceNode) bool {
+		return node.ContainerId == *nodeId
+	})
+
+	if !hasNode {
+		return nil, nil, nil, utils.ErrorNodeNotFound
+	}
+
+	return lab, instance, &node, nil
 }
 
 func (s *labService) openShellCommand(

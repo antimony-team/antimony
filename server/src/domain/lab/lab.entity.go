@@ -152,22 +152,25 @@ const (
 	destroyCommand
 	stopNodeCommand
 	startNodeCommand
+	restartNodeCommand
 	openShell
 	closeShell
 )
 
 var LabCommands = struct {
-	Deploy     LabCommand
-	Destroy    LabCommand
-	StopNode   LabCommand
-	StartNode  LabCommand
-	OpenShell  LabCommand
-	CloseShell LabCommand
+	Deploy      LabCommand
+	Destroy     LabCommand
+	StopNode    LabCommand
+	StartNode   LabCommand
+	RestartNode LabCommand
+	OpenShell   LabCommand
+	CloseShell  LabCommand
 }{
-	Deploy:     deployCommand,
-	Destroy:    destroyCommand,
-	StopNode:   stopNodeCommand,
-	StartNode:  startNodeCommand,
-	OpenShell:  openShell,
-	CloseShell: closeShell,
+	Deploy:      deployCommand,
+	Destroy:     destroyCommand,
+	StopNode:    stopNodeCommand,
+	StartNode:   startNodeCommand,
+	RestartNode: restartNodeCommand,
+	OpenShell:   openShell,
+	CloseShell:  closeShell,
 }
