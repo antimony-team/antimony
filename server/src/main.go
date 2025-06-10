@@ -92,15 +92,14 @@ func main() {
 
 		labRepository = lab.CreateRepository(db)
 		labService    = lab.CreateService(
-			labRepository, userRepository, topologyRepository,
+			antimonyConfig, labRepository, userRepository, topologyRepository,
 			storageManager, socketManager, statusMessageNamespace,
 		)
 		labHandler = lab.CreateHandler(labService)
 	)
 
-	// Run lab scheduler in goroutine
 	go labService.RunScheduler()
-
+	go labService.RunShellManager()
 	go labService.ListenToProviderEvents()
 
 	gin.SetMode(gin.ReleaseMode)

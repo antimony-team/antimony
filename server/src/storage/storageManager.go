@@ -81,8 +81,6 @@ func (s *storageManager) ReadRunTopologyDefinition(labId string, content *string
 }
 
 func (s *storageManager) ReadTopology(topologyId string, content *string) error {
-
-	log.Infof("topology file: %s", getDefinitionFilePath(topologyId))
 	return s.readStorage(getDefinitionFilePath(topologyId), content)
 }
 

@@ -50,6 +50,7 @@ var ErrorNoPermissionToCreateCollections = errors.New("permission to create coll
  * Socket-exclusive errors.
  */
 var ErrorLabNotRunning = errors.New("the specified lab is not running")
+var ErrorShellLimitReached = errors.New("user shell limit reached")
 var ErrorNodeNotRunning = errors.New("the specified node is not running")
 var ErrorLabIsDeploying = errors.New("the specified lab is already being deployed")
 var ErrorInvalidLabCommand = errors.New("the provided lab command was invalid")

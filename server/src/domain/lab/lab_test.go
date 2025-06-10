@@ -1437,7 +1437,7 @@ func TestHandleLabCommand(t *testing.T) {
 			svc.handleLabCommand(context.Background(), &LabCommandData{
 				LabId:   a.labId,
 				Command: a.cmd,
-				NodeId:  a.Node,
+				Node:    a.Node,
 			}, a.authUser,
 				func(_ utils.OkResponse[any]) { okCalled = true },
 				func(err utils.ErrorResponse) {

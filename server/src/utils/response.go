@@ -76,6 +76,8 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 		return ErrorResponse{Code: 5006, Message: err.Error()}
 	case errors.Is(err, ErrorShellNotFound):
 		return ErrorResponse{Code: 5007, Message: err.Error()}
+	case errors.Is(err, ErrorShellLimitReached):
+		return ErrorResponse{Code: 5008, Message: err.Error()}
 	case errors.Is(err, ErrorInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
 	// Permission / Access errors

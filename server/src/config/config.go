@@ -8,22 +8,12 @@ import (
 
 type (
 	AntimonyConfig struct {
-		Containerlab ClabConfig       `yaml:"containerlab"`
-		FileSystem   FilesystemConfig `yaml:"fileSystem"`
 		Server       ServerConfig     `yaml:"server"`
-		Database     DatabaseConfig   `yaml:"database"`
 		Auth         AuthConfig       `yaml:"auth"`
-	}
-
-	ClabConfig struct {
-		SchemaUrl      string `yaml:"schemaUrl"`
-		SchemaFallback string `yaml:"schemaFallback"`
-		DeviceConfig   string `yaml:"deviceConfig"`
-	}
-
-	FilesystemConfig struct {
-		Storage string `yaml:"storage"`
-		Run     string `yaml:"run"`
+		Shell        ShellConfig      `yaml:"shell"`
+		Database     DatabaseConfig   `yaml:"database"`
+		FileSystem   FilesystemConfig `yaml:"fileSystem"`
+		Containerlab ClabConfig       `yaml:"containerlab"`
 	}
 
 	ServerConfig struct {
@@ -40,12 +30,28 @@ type (
 		OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
 	}
 
+	ShellConfig struct {
+		UserLimit int   `yaml:"userLimit"`
+		Timeout   int64 `yaml:"timeout"`
+	}
+
 	DatabaseConfig struct {
 		Host      string `yaml:"host"`
 		User      string `yaml:"user"`
 		Database  string `yaml:"database"`
 		Port      uint   `yaml:"port"`
 		LocalFile string `yaml:"localFile"`
+	}
+
+	FilesystemConfig struct {
+		Storage string `yaml:"storage"`
+		Run     string `yaml:"run"`
+	}
+
+	ClabConfig struct {
+		SchemaUrl      string `yaml:"schemaUrl"`
+		SchemaFallback string `yaml:"schemaFallback"`
+		DeviceConfig   string `yaml:"deviceConfig"`
 	}
 )
 
@@ -68,25 +74,9 @@ func Load(fileName string) *AntimonyConfig {
 
 func defaultConfig() *AntimonyConfig {
 	return &AntimonyConfig{
-		FileSystem: FilesystemConfig{
-			Storage: "./storage/",
-			Run:     "./run/",
-		},
 		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,
-		},
-		Database: DatabaseConfig{
-			Host:      "127.0.0.1",
-			User:      "antimony",
-			Database:  "antimony",
-			Port:      5432,
-			LocalFile: "./test.db",
-		},
-		Containerlab: ClabConfig{
-			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
-			SchemaFallback: "./data/clab.schema.json",
-			DeviceConfig:   "./data/device-config.json",
 		},
 		Auth: AuthConfig{
 			EnableNative:       true,
@@ -95,6 +85,26 @@ func defaultConfig() *AntimonyConfig {
 			OpenIdClientId:     "",
 			OpenIdRedirectHost: "",
 			OpenIdAdminGroups:  make([]string, 0),
+		},
+		Shell: ShellConfig{
+			UserLimit: 20,
+			Timeout:   1800,
+		},
+		Database: DatabaseConfig{
+			Host:      "127.0.0.1",
+			User:      "antimony",
+			Database:  "antimony",
+			Port:      5432,
+			LocalFile: "./test.db",
+		},
+		FileSystem: FilesystemConfig{
+			Storage: "./storage/",
+			Run:     "./run/",
+		},
+		Containerlab: ClabConfig{
+			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
+			SchemaFallback: "./data/clab.schema.json",
+			DeviceConfig:   "./data/device-config.json",
 		},
 	}
 }

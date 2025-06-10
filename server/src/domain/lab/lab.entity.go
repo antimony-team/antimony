@@ -106,6 +106,11 @@ type InstanceNode struct {
 	ContainerName string               `json:"containerName"`
 }
 
+type ShellData struct {
+	Id   string `json:"id"`
+	Node string `json:"node"`
+}
+
 type InstanceState int
 
 const (
@@ -141,7 +146,7 @@ var InstanceStates = struct {
 type LabCommandData struct {
 	LabId   *string     `json:"labId"`
 	Command *LabCommand `json:"command"`
-	NodeId  *string     `json:"nodeId"`
+	Node    *string     `json:"node"`
 	ShellId *string     `json:"shellId"`
 }
 
@@ -153,8 +158,9 @@ const (
 	stopNodeCommand
 	startNodeCommand
 	restartNodeCommand
-	openShell
-	closeShell
+	fetchShellsCommand
+	openShellCommand
+	closeShellCommand
 )
 
 var LabCommands = struct {
@@ -163,6 +169,7 @@ var LabCommands = struct {
 	StopNode    LabCommand
 	StartNode   LabCommand
 	RestartNode LabCommand
+	FetchShells LabCommand
 	OpenShell   LabCommand
 	CloseShell  LabCommand
 }{
@@ -171,6 +178,30 @@ var LabCommands = struct {
 	StopNode:    stopNodeCommand,
 	StartNode:   startNodeCommand,
 	RestartNode: restartNodeCommand,
-	OpenShell:   openShell,
-	CloseShell:  closeShell,
+	FetchShells: fetchShellsCommand,
+	OpenShell:   openShellCommand,
+	CloseShell:  closeShellCommand,
+}
+
+type ShellCommandData struct {
+	LabId   string       `json:"labId"`
+	Command ShellCommand `json:"command"`
+	Node    string       `json:"node"`
+	ShellId string       `json:"shellId"`
+	Message string       `json:"message"`
+}
+
+type ShellCommand int
+
+const (
+	shellError ShellCommand = iota
+	shellClose
+)
+
+var ShellCommands = struct {
+	Error ShellCommand
+	Close ShellCommand
+}{
+	Error: shellError,
+	Close: shellClose,
 }
