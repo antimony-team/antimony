@@ -30,6 +30,7 @@ export enum ErrorCodes {
   ErrorUuidNotFound = 5005,
   ErrorNodeNotFound = 5006,
   ErrorShellNotFound = 5007,
+  ErrorShellLimitReached = 5008,
   ErrorSocketInvalidRequest = 5422,
   ErrorSocketForbidden = 5403,
 }

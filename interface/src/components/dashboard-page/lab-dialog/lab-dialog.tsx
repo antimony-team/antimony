@@ -95,30 +95,26 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const updateGraph = useCallback(() => {
       if (!cyRef.current || !openTopology) return;
 
-      console.log('hosts hidden: ', hostsHidden);
+      cyRef.current!.elements().remove();
 
-      cyRef.current.batch(() => {
-        cyRef.current!.elements().remove();
+      const elements = generateGraph(
+        openTopology,
+        deviceStore,
+        topologyStore.manager,
+        props.dialogState.state?.instance,
+        hostsHidden
+      );
 
-        const elements = generateGraph(
-          openTopology,
-          deviceStore,
-          topologyStore.manager,
-          props.dialogState.state?.instance,
-          hostsHidden
-        );
+      for (const element of elements) {
+        cyRef.current!.add(element);
+      }
 
-        for (const element of elements) {
-          cyRef.current!.add(element);
-        }
+      if (!graphInitiallyFitted.current) {
+        graphInitiallyFitted.current = true;
+        onFitGraph();
+      }
 
-        if (!graphInitiallyFitted.current) {
-          graphInitiallyFitted.current = true;
-          onFitGraph();
-        }
-
-        cyRef.current!.nodes().lock();
-      });
+      cyRef.current!.nodes().lock();
     }, [props.dialogState.state, hostsHidden]);
 
     const onOpen = useCallback(() => {
@@ -206,10 +202,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return;
       }
 
-      const instance = props.dialogState.state?.instance;
-      const containerId = instance.nodeMap.get(selectedNode)!.containerId;
-
-      void labStore.startNode(props.dialogState.state, containerId);
+      void labStore.startNode(props.dialogState.state, selectedNode);
     }
 
     function onNodeStop() {
@@ -221,10 +214,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return;
       }
 
-      const instance = props.dialogState.state?.instance;
-      const containerId = instance.nodeMap.get(selectedNode)!.containerId;
-
-      void labStore.stopNode(props.dialogState.state, containerId);
+      void labStore.stopNode(props.dialogState.state, selectedNode);
     }
 
     function onNodeRestart() {
@@ -236,10 +226,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return;
       }
 
-      const instance = props.dialogState.state?.instance;
-      const containerId = instance.nodeMap.get(selectedNode)!.containerId;
-
-      void labStore.restartNode(props.dialogState.state, containerId);
+      void labStore.restartNode(props.dialogState.state, selectedNode);
     }
 
     function onOpenLogs() {
@@ -256,17 +243,19 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function onOpenTerminal() {
-      const instance = props.dialogState.state!.instance!;
-
       closeDetails();
 
-      const nodeId = selectedNode
-        ? instance.nodeMap.get(selectedNode)!.containerId
-        : null;
+      if (
+        !selectedNode ||
+        !props.dialogState.state?.instance ||
+        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+      ) {
+        return;
+      }
 
       terminalDialogState.openWith({
         lab: props.dialogState.state!,
-        nodeId: nodeId,
+        node: selectedNode,
       });
     }
 
@@ -412,9 +401,11 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }, [props.dialogState.state]);
 
     function onClose() {
-      // Close log dialog first if open
+      // Close child dialogs before closing lab dialog itself
       if (logDialogState.isOpen) {
         logDialogState.close();
+      } else if (terminalDialogState.isOpen) {
+        terminalDialogState.close();
       } else {
         graphInitiallyFitted.current = false;
         props.dialogState.close();
@@ -424,7 +415,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function onFitGraph() {
       if (!cyRef.current) return;
 
-      cyRef.current.fit(cyRef.current.elements(), 240);
+      setTimeout(() => {
+        cyRef.current!.fit(cyRef.current!.elements(), 180);
+      }, 200);
     }
 
     function closeDetails() {
@@ -468,7 +461,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                 onOpenLogs={onOpenLogs}
                 labelsHidden={hostsHidden}
                 setLabelsHidden={setHostsHidden}
-                onOpenTerminal={onOpenTerminal}
                 onDestroyLabRequest={() =>
                   props.onDestroyLabRequest(props.dialogState.state!)
                 }

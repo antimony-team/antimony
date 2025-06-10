@@ -45,7 +45,10 @@ export class RootStore {
       this._topologyStore
     );
     this._statusMessagesStore = new StatusMessageStore(this);
-    this._shellStore = new ShellStore(this._dataBinder);
+    this._shellStore = new ShellStore(
+      this._dataBinder,
+      this._statusMessagesStore
+    );
   }
 
   @computed

@@ -113,7 +113,10 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       JSON.stringify(command)
     );
 
+    console.log('reso:', response);
+
     if (!('payload' in response)) {
+      console.error('Failed to execute lab command: ', response);
       return Result.createErr(response);
     }
 
@@ -134,27 +137,27 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     });
   }
 
-  public async stopNode(lab: Lab, nodeId: string): Promise<Result<null>> {
+  public async stopNode(lab: Lab, nodeName: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StopNode,
-      nodeId: nodeId,
+      node: nodeName,
     });
   }
 
-  public async startNode(lab: Lab, nodeId: string): Promise<Result<null>> {
+  public async startNode(lab: Lab, nodeName: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StartNode,
-      nodeId: nodeId,
+      node: nodeName,
     });
   }
 
-  public async restartNode(lab: Lab, nodeId: string): Promise<Result<null>> {
+  public async restartNode(lab: Lab, nodeName: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.RestartNode,
-      nodeId: nodeId,
+      node: nodeName,
     });
   }
 

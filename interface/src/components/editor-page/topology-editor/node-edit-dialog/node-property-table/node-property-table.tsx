@@ -188,7 +188,7 @@ const NodePropertyTable: React.FC<NodePropertyTableProps> = (
             }}
           >
             <IconField iconPosition="left">
-              <InputIcon className="pi pi-search"> </InputIcon>
+              <InputIcon className="pi pi-search"></InputIcon>
               <InputText
                 ref={newPropertyInputRef}
                 placeholder="Search"

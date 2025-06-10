@@ -555,8 +555,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       nodeConnectTarget.current = null;
 
       if (cyRef.current) {
-        cyRef.current.remove('.ghost-node');
-        cyRef.current.remove(GHOST_EDGE_ID);
+        cyRef.current.remove(`.${GHOST_NODE_ID}`);
+        cyRef.current.remove(`.${GHOST_EDGE_ID}`);
       }
     }
 
@@ -845,6 +845,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               cyRef.current = cy;
               setIsCyReady(true);
             }}
+            wheelSensitivity={0.3}
           />
         </div>
         <NodeToolbar

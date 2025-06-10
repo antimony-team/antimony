@@ -174,7 +174,7 @@ export class DataBinder {
     });
 
     subscription.socket.on('connect_error', e => {
-      console.log('Socket Error:', e);
+      console.log('Socket Error:', e, 'namespace:', subscription.namespace);
       if (e.message === 'Invalid Token') {
         this.refreshToken().then(result => {
           if (result.isOk()) {

@@ -16,7 +16,6 @@ interface LabDialogPanelProps {
   setLabelsHidden: (visible: boolean) => void;
 
   onOpenLogs: () => void;
-  onOpenTerminal: () => void;
   onDestroyLabRequest: () => void;
 }
 
@@ -55,13 +54,6 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
           aria-label="Open EdgeShark"
         />
       </If>
-      <Button
-        outlined
-        icon={<span className="material-symbols-outlined">terminal</span>}
-        onClick={props.onOpenTerminal}
-        label="Open Terminal"
-        aria-label="Open Terminal"
-      />
       <Divider />
       <Choose>
         <When condition={!props.lab.instance}>

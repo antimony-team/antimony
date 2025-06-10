@@ -73,26 +73,30 @@ const MonacoWrapper = observer(
     const schemaStore = useSchemaStore();
     const topologyStore = useTopologyStore();
 
-    const onTopologyOpen = useCallback((topology: Topology) => {
-      /*
-       * Don't replace the current model if the topology ID has not changed.
-       * This happens whenever a topology is saved and reloaded automatically.
-       */
-      if (currentlyOpenTopology.current === topology.id) {
-        return;
-      }
+    const onTopologyOpen = useCallback(
+      (topology: Topology) => {
+        setLastDeployFailed(topology.lastDeployFailed);
 
-      const readOnly = !authUser.isAdmin && authUser.id !== topology.creator.id;
-      setReadOnly(readOnly);
-      editorRef.current?.updateOptions({readOnly: readOnly});
+        /*
+         * Don't replace the current model if the topology ID has not changed.
+         * This happens whenever a topology is saved and reloaded automatically.
+         */
+        if (currentlyOpenTopology.current === topology.id) {
+          return;
+        }
 
-      setLastDeployFailed(topology.lastDeployFailed);
+        const readOnly =
+          !authUser.isAdmin && authUser.id !== topology.creator.id;
+        setReadOnly(readOnly);
+        editorRef.current?.updateOptions({readOnly: readOnly});
 
-      if (textModelRef.current) {
-        textModelRef.current.setValue(topology.definition.toString());
-        currentlyOpenTopology.current = topology.id;
-      }
-    }, []);
+        if (textModelRef.current) {
+          textModelRef.current.setValue(topology.definition.toString());
+          currentlyOpenTopology.current = topology.id;
+        }
+      },
+      [hasLastDeployFailed]
+    );
 
     const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
       if (
@@ -247,7 +251,7 @@ const MonacoWrapper = observer(
           <If condition={hasLastDeployFailed}>
             <div className="sb-monaco-wrapper-unsuccessful">
               <span>
-                The latest deployment of this topology was unsuccessful.
+                The last deployment of this topology was unsuccessful.
               </span>
             </div>
           </If>

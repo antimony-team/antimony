@@ -131,7 +131,7 @@ export function generateGraph(
 
     let label = omitLabels ? '' : nodeName;
 
-    if (!omitLabels && instance) {
+    if (!omitLabels && instance && instance.nodeMap.has(nodeName)) {
       if (instance.nodeMap.get(nodeName)!.state === 'running') {
         label = `🟢 ${nodeName}`;
       } else {
