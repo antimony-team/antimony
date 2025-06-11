@@ -17,6 +17,13 @@ auth:
   # Users in these OpenID groups are granted admin privileges.
   # Default: []
   openIdAdminGroups: []
+shell:
+  # How many shells a user can have open at the same time.
+  # Default: 20
+  userLimit: 20
+  # How long the server will wait before closing inactive shells (in seconds).
+  # Default: 1800
+  timeout: 1800
 database:
   # Default: 127.0.0.1
   host: database
@@ -37,9 +44,12 @@ filesystem:
   # Default: ./run/
   run: ./run/
 containerlab:
+  # The URL where the server is trying to fetch the containerlab schema from.
   # Default: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
   schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
+  # The path to a local schema that will be used if the remote schema is not available.
   # Default: ./data/clab.schema.json
   schemaFallback: ./data/clab.schema.json
+  # The path to the device config file.
   # Default: ./data/device-config.json
   deviceConfig: ./data/device-config.json
