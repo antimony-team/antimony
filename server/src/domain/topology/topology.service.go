@@ -264,7 +264,7 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	return newUuid, err
 }
 
-func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileUuid string, authUser auth.AuthenticatedUser) error {
+func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileUuid string, authUser auth.AuthenticatedUser) error {
 	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
 	if err != nil {
 		return err
