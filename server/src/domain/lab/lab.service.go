@@ -340,6 +340,9 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 	// Add newly created lab to the deployment schedule
 	s.labDeploymentSchedule.Schedule(lab)
 
+	// Send update to clients
+	s.notifyUpdate(*lab, nil)
+
 	return labUuid, nil
 }
 
@@ -382,18 +385,18 @@ func (s *labService) Update(ctx *gin.Context, req LabInPartial, labId string, au
 	}
 
 	if err := s.labRepo.Update(ctx, lab); err != nil {
-		if updateDeploymentSchedule {
-			s.labDeploymentSchedule.Reschedule(lab.UUID)
-		}
-
-		if updateDestructionSchedule {
-			s.labDestructionSchedule.Reschedule(lab.UUID)
-		}
-
-		return nil
-	} else {
 		return err
 	}
+
+	if updateDeploymentSchedule {
+		s.labDeploymentSchedule.Reschedule(lab)
+	}
+
+	if updateDestructionSchedule {
+		s.labDestructionSchedule.Reschedule(lab)
+	}
+
+	return nil
 }
 
 func (s *labService) Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error {

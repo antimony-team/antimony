@@ -10,7 +10,7 @@ import (
 type (
 	Schedule[T any] interface {
 		Schedule(item *T)
-		Reschedule(key string)
+		Reschedule(item *T)
 		IsScheduled(key string) bool
 
 		Remove(key string)
@@ -53,14 +53,15 @@ func (s *schedule[T]) Schedule(item *T) {
 	s.insert(s.keyGetter(*item), item)
 }
 
-func (s *schedule[T]) Reschedule(key string) {
+func (s *schedule[T]) Reschedule(item *T) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if item, isScheduled := s.scheduleMap[key]; isScheduled {
-		s.remove(key)
-		s.insert(key, item)
+	if _, isScheduled := s.scheduleMap[s.keyGetter(*item)]; isScheduled {
+		s.remove(s.keyGetter(*item))
 	}
+
+	s.insert(s.keyGetter(*item), item)
 }
 
 func (s *schedule[T]) IsScheduled(key string) bool {
