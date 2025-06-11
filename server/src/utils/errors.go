@@ -26,6 +26,7 @@ var ErrorTopologyExists = errors.New("a topology with that name already exists i
 var ErrorBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrorCollectionExists = errors.New("a collection with that name already exists")
 var ErrorInvalidTopology = errors.New("the topology provided were invalid")
+var ErrorInvalidBindFilePath = errors.New("the provided bind file path was invalid")
 
 /*
  * Permission / Access errors.

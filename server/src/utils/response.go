@@ -32,6 +32,8 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}
 	case errors.Is(err, ErrorBindFileExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
+	case errors.Is(err, ErrorInvalidBindFilePath):
+		return http.StatusBadRequest, ErrorResponse{Code: 4002, Message: err.Error()}
 	case errors.Is(err, ErrorDatabaseError):
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors

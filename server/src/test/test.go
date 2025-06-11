@@ -134,9 +134,9 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	})
 
 	writeTopologyFile(topology1Uuid, cvx03, storage)
-	writeBindFile(topology1Uuid, "leaf01/interfaces", "", storage)
-	writeBindFile(topology1Uuid, "leaf01/daemons", "", storage)
-	writeBindFile(topology1Uuid, "leaf01/frr.conf", "", storage)
+	writeBindFile(topology1Uuid, "leaf01/interfaces", "1", storage)
+	writeBindFile(topology1Uuid, "leaf01/daemons", "2", storage)
+	writeBindFile(topology1Uuid, "leaf01/frr.conf", "3", storage)
 
 	topology2Uuid := utils.GenerateUuid()
 	topology2 := topology.Topology{
@@ -171,21 +171,8 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		Creator:    user1,
 	}
 	db.Create(&lab2)
+
 }
-
-const test1 = `name: test1
-topology:
-  nodes:
-    node1:
-      kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux
-
-    node2:
-      kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux
-
-  links:
-    - endpoints: ["node1:e1-1", "node2:e1-1"]`
 
 const cvx03 = `name: ctd
 topology:
@@ -201,30 +188,18 @@ topology:
     leaf02:
       kind: nokia_srlinux
       image: networkop/cx:4.3.0
-      binds:
-        - leaf02/interfaces:/etc/network/interfaces
-        - leaf02/daemons:/etc/frr/daemons
-        - leaf02/frr.conf:/etc/frr/frr.conf	
 
     spine01:
       kind: nokia_srlinux
       image: networkop/cx:4.3.0
-      binds:
-        - spine01/interfaces:/etc/network/interfaces
-        - spine01/daemons:/etc/frr/daemons
-        - spine01/frr.conf:/etc/frr/frr.conf
 
     server01:
       kind: linux
       image: networkop/host:ifreload
-      binds:
-        - server01/interfaces:/etc/network/interfaces
 
     server02:
       kind: linux
       image: networkop/host:ifreload
-      binds:
-        - server02/interfaces:/etc/network/interfaces
 
 
   links:
@@ -238,6 +213,20 @@ topology:
 
     - endpoints: ["spine01:swp1", "leaf01:swp51"]
     - endpoints: ["spine01:swp2", "leaf02:swp51"]`
+
+const test1 = `name: test1
+topology:
+  nodes:
+    node1:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux
+
+    node2:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux
+
+  links:
+    - endpoints: ["node1:e1-1", "node2:e1-1"]`
 
 func writeTopologyFile(topologyId string, content string, storage storage.StorageManager) {
 	if err := storage.WriteTopology(topologyId, content); err != nil {

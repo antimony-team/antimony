@@ -298,6 +298,8 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial
 		}
 
 		bindFilePath = *req.FilePath
+	} else {
+		return utils.ErrorInvalidBindFilePath
 	}
 
 	var bindFileContent string
@@ -377,7 +379,7 @@ func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) 
 
 	bindFilesOut := make([]BindFileOut, 0)
 	for _, bindFile := range bindFiles {
-		bindFileOut, err := s.loadBindFile(definition, bindFile)
+		bindFileOut, err := s.loadBindFile(topologyId, bindFile)
 		if err != nil {
 			return "", nil, err
 		}
