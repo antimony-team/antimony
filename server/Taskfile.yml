@@ -62,4 +62,4 @@ tasks:
   test:
     dir: './src/test'
     cmds:
-      - CGO_ENABLED=0 go test
+      - go test -v ./
