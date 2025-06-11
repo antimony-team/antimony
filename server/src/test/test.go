@@ -23,6 +23,8 @@ import (
 	"time"
 )
 
+func ptr(t time.Time) *time.Time { return &t }
+
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
@@ -151,7 +153,7 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		UUID:       "TestLabUUID1",
 		Name:       "Test Lab",
 		StartTime:  time.Now().Add(-1 * time.Hour),
-		EndTime:    time.Now().Add(1 * time.Hour),
+		EndTime:    ptr(time.Now().Add(1 * time.Hour)),
 		TopologyID: topology1.ID,
 		Topology:   topology1,
 		CreatorID:  user1.ID,
@@ -162,7 +164,7 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		UUID:       "TestLabUUID2",
 		Name:       "Test Lab2",
 		StartTime:  time.Now().Add(-1 * time.Hour),
-		EndTime:    time.Now().Add(1 * time.Hour),
+		EndTime:    ptr(time.Now().Add(1 * time.Hour)),
 		TopologyID: topology1.ID,
 		Topology:   topology1,
 		CreatorID:  user1.ID,
@@ -185,11 +187,11 @@ topology:
   links:
     - endpoints: ["node1:e1-1", "node2:e1-1"]`
 
-const cvx03 = `name: ctd # Cumulus Linux Test Drive
+const cvx03 = `name: ctd
 topology:
   nodes:
     leaf01:
-      kind: cvx
+      kind: nokia_srlinux
       image: networkop/cx:4.3.0
       binds:
         - leaf01/interfaces:/etc/network/interfaces
@@ -197,7 +199,7 @@ topology:
         - leaf01/frr.conf:/etc/frr/frr.conf
 
     leaf02:
-      kind: cvx
+      kind: nokia_srlinux
       image: networkop/cx:4.3.0
       binds:
         - leaf02/interfaces:/etc/network/interfaces
@@ -205,7 +207,7 @@ topology:
         - leaf02/frr.conf:/etc/frr/frr.conf	
 
     spine01:
-      kind: cvx
+      kind: nokia_srlinux
       image: networkop/cx:4.3.0
       binds:
         - spine01/interfaces:/etc/network/interfaces
@@ -329,9 +331,8 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	// Init repos, services, handlers
 	socketManager := socket.CreateSocketManager(authManager)
 
-	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, nil,
-		"status-messages",
+	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
+		socketManager, false, false, nil, "status-messages",
 	)
 
 	userRepo := user.CreateRepository(db)
@@ -355,7 +356,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	labRepository := lab.CreateRepository(db)
 	labService := lab.CreateService(
-		labRepository, userRepo, topologyRepository,
+		cfg, labRepository, userRepo, topologyRepository,
 		storageManager, socketManager, statusMessageNamespace,
 	)
 	labHandler := lab.CreateHandler(labService)
@@ -376,57 +377,5 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	schema.RegisterRoutes(router, schemaHandler)
 	user.RegisterRoutes(router, userHandler)
 	lab.RegisterRoutes(router, labHandler, authManager)
-	return router, authManager, db
-}
-
-func SetupTestServerWithOIDC(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
-	gin.SetMode(gin.TestMode)
-	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
-	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
-
-	storageDir := t.TempDir()
-	runDir := t.TempDir()
-	cfg := &config.AntimonyConfig{
-		FileSystem: config.FilesystemConfig{
-			Storage: storageDir,
-			Run:     runDir,
-		},
-		Auth: config.AuthConfig{
-			EnableNative:      false,
-			EnableOpenId:      true,
-			OpenIdIssuer:      "",
-			OpenIdClientId:    "",
-			OpenIdAdminGroups: []string{},
-		},
-	}
-	authManager := auth.CreateAuthManager(cfg)
-	storageManager := storage.CreateStorageManager(cfg)
-
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	assert.NoError(t, err)
-
-	err = db.AutoMigrate(
-		&user.User{},
-		&collection.Collection{},
-		&topology.Topology{},
-		&topology.BindFile{},
-		&lab.Lab{},
-	)
-	assert.NoError(t, err)
-	GenerateTestData(db, storageManager)
-	userRepo := user.CreateRepository(db)
-	userService := user.CreateService(userRepo, authManager)
-	userHandler := user.CreateHandler(userService)
-
-	addAuthenticatedUsers(authManager)
-
-	authManager.RegisterTestUser(auth.AuthenticatedUser{
-		UserId:      auth.NativeUserID,
-		IsAdmin:     true,
-		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
-	})
-
-	router := gin.Default()
-	user.RegisterRoutes(router, userHandler)
 	return router, authManager, db
 }

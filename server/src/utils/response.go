@@ -35,9 +35,9 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 	case errors.Is(err, ErrorDatabaseError):
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
-	case errors.Is(err, ErrorUnauthorized):
-	case errors.Is(err, ErrorOpenIDAuthDisabledError):
-	case errors.Is(err, ErrorNativeAuthDisabledError):
+	case errors.Is(err, ErrorUnauthorized),
+		errors.Is(err, ErrorOpenIDAuthDisabledError),
+		errors.Is(err, ErrorNativeAuthDisabledError):
 		return http.StatusUnauthorized, ErrorResponse{Code: 401, Message: err.Error()}
 	case errors.Is(err, ErrorTokenInvalid):
 		return 498, ErrorResponse{Code: 498, Message: err.Error()}
