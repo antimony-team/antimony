@@ -206,8 +206,6 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     );
   }
 
-  function onOpenSyncOverlay() {}
-
   function onAmogus() {
     if (!amogusRef.current?.paused) return;
     amogusRef.current.volume = 0.1;

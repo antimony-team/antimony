@@ -12,67 +12,79 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     this.data = response.payload;
     this.lookup = new Map(this.data.map(device => [device.kind, device]));
   }
-  /*
-  public getNodeIcon(kind?: string) {
-    let iconName;
-    if (kind) {
-      const deviceInfo = this.lookup.get(kind);
 
-      if (deviceInfo) {
-        iconName = IconMap.get(deviceInfo?.type);
-      } else {
-        iconName = 'generic';
-      }
-    }
-    if (!kind || !iconName) iconName = 'generic';
-
-    return '/icons/' + iconName + '.svg';
-  }*/
-
-  public getNodeIcon(node?: TopologyNode | null) {
-    let icon_path = '/icons/generic.svg';
+  public getNodeIcon(node?: TopologyNode | null): string {
+    let iconPath = '/icons/nodes/client.svg';
     const icon = node?.labels?.['graph-icon'];
     if (icon !== undefined) {
-      if (IconMap.get(icon) !== undefined) {
-        icon_path = `/icons/${IconMap.get(icon)}.svg`;
+      if (NodeIconMap.has(icon)) {
+        iconPath = `/icons/nodes/${NodeIconMap.get(icon)!}.svg`;
       }
     }
-    return icon_path;
+    return iconPath;
   }
+
+  public getAllIcons(): string[][] {
+    return [
+      ...new Set(
+        NodeIconMap.values().map(entry => [
+          entry,
+          `/icons/nodes/${NodeIconMap.get(entry)!}.svg`,
+        ])
+      ),
+    ];
+  }
+
+  public getNodeShape(node?: TopologyNode | null): string {
+    let iconShape = 'octagon';
+    const icon = node?.labels?.['graph-icon'];
+    if (icon !== undefined) {
+      if (IconShapeMap.has(icon)) {
+        iconShape = IconShapeMap.get(icon)!;
+      }
+    }
+    return iconShape;
+  }
+
   /**
    * Returns the interface config of a given node.
    *
    * If the node's kind does not have a specific config, the default config
    * is returned instead.
    */
-  public getInterfaceConfig(nodeKind: string) {
+  public getInterfaceConfig(nodeKind?: string) {
+    if (!nodeKind) return DefaultDeviceConfig;
+
     return this.lookup.get(nodeKind) ?? DefaultDeviceConfig;
   }
 }
-/*
-const IconMap = new Map([
-  ['VM', 'virtualserver'],
-  ['Generic', 'generic'],
-  ['Router', 'router'],
-  ['Switch', 'switch'],
-  ['Linux', 'linux'],
-  ['Cisco', 'cisco'],
-  ['Container', 'computer'],
-  ['Docker', 'docker'],
-]);
-*/
-const IconMap = new Map<string, string>([
+
+const NodeIconMap = new Map<string, string>([
   ['pe', 'router'],
   ['router', 'router'],
-  ['dcgw', 'router'],
+  ['dcgw', 'dcgw'],
   ['leaf', 'switch'],
   ['switch', 'switch'],
-  ['spine', 'switch'],
-  ['server', 'linux'],
-  ['pon', 'generic'],
-  ['controller', 'cisco'],
-  ['rgw', 'docker'],
-  ['client', 'computer'],
+  ['spine', 'spine'],
+  ['server', 'server'],
+  ['pon', 'pon'],
+  ['controller', 'controller'],
+  ['rgw', 'rgw'],
+  ['client', 'client'],
+]);
+
+const IconShapeMap = new Map<string, string>([
+  ['pe', 'ellipse'],
+  ['router', 'ellipse'],
+  ['dcgw', 'ellipse'],
+  ['leaf', 'ellipse'],
+  ['switch', 'ellipse'],
+  ['spine', 'ellipse'],
+  ['server', 'octagon'],
+  ['pon', 'octagon'],
+  ['controller', 'octagon'],
+  ['rgw', 'octagon'],
+  ['client', 'octagon'],
 ]);
 
 const DefaultDeviceConfig: InterfaceConfig = {

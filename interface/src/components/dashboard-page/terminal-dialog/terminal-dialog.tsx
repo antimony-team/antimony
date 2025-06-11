@@ -1,7 +1,7 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
 import './terminal-dialog.sass';
-import {useShellStore} from '@sb/lib/stores/root-store';
+import {useLabStore, useShellStore} from '@sb/lib/stores/root-store';
 import {DialogState} from '@sb/lib/utils/hooks';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
@@ -41,6 +41,7 @@ interface TerminalTab {
 }
 
 const TerminalDialog = observer((props: TerminalDialogProps) => {
+  const labStore = useLabStore();
   const shellStore = useShellStore();
 
   const [isExpired, setExpired] = useState(false);
@@ -73,7 +74,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       label: `${node.name} (${node.containerId})`,
       value: node.name,
     }));
-  }, [props.dialogState.state]);
+  }, [props.dialogState.state, labStore.data]);
 
   const tabIndex = useMemo(() => {
     if (!shellStore.currentShell || !props.dialogState.state) return 0;
@@ -191,7 +192,6 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
     deferTerminalReset();
 
-    console.log('switchToNewTab, switch to new shell: ', shell);
     shellStore.switchToShell(shell);
   }
 
@@ -208,13 +208,6 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       );
     } else {
       deferTerminalReset();
-
-      console.log(
-        'onTabSwitch, switch to index: ',
-        event.index,
-        'current shells:',
-        currentShells
-      );
       shellStore.switchToShell(currentShells[event.index]);
       termRef.current.focus();
     }

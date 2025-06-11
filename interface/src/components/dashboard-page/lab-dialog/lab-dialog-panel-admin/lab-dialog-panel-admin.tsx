@@ -103,18 +103,7 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
         }
         severity="danger"
         onClick={props.onDestroyLabRequest}
-        tooltip={
-          props.lab.state === InstanceState.Deploying
-            ? 'Lab is currently being deployed.'
-            : ''
-        }
-        tooltipOptions={{
-          showOnDisabled: true,
-        }}
-        disabled={
-          props.lab.state === InstanceState.Inactive ||
-          props.lab.state === InstanceState.Deploying
-        }
+        disabled={props.lab.state === InstanceState.Inactive}
       />
     </div>
   );

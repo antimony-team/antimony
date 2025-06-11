@@ -54,9 +54,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
             <div className="node-connection-table-entry" key={connection.index}>
               <div className="node-connection-table-entry-group">
                 <Image
-                  src={deviceStore.getNodeIcon(
-                    props.nodeEditor.getNode()?.kind
-                  )}
+                  src={deviceStore.getNodeIcon(props.nodeEditor.getNode())}
                   width="45px"
                 />
                 <span className="node-connection-table-entry-text">
@@ -75,7 +73,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
                   src={deviceStore.getNodeIcon(
                     props.nodeEditor.getTopology().toJS().topology.nodes[
                       connection.targetNode
-                    ]?.kind
+                    ]
                   )}
                   width="45px"
                 />

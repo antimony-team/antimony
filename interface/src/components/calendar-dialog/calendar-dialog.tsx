@@ -119,7 +119,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
   return (
     <SBDialog
       className="calender-dialog"
-      headerTitle="Lab Scheudle"
+      headerTitle="Lab Schedule"
       isOpen={props.isOpen}
       onClose={props.onClose}
       hideButtons={true}

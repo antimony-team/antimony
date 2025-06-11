@@ -174,7 +174,6 @@ export class DataBinder {
     });
 
     subscription.socket.on('connect_error', e => {
-      console.log('Socket Error:', e, 'namespace:', subscription.namespace);
       if (e.message === 'Invalid Token') {
         this.refreshToken().then(result => {
           if (result.isOk()) {
@@ -197,7 +196,11 @@ export class DataBinder {
         setTimeout(() => {
           subscription.socket?.connect();
         }, 2000);
+
+        return;
       }
+
+      console.error('Socket Error:', e, 'namespace:', subscription.namespace);
     });
 
     subscription.onDataCallbacks.forEach(callback => {
@@ -289,12 +292,6 @@ export class DataBinder {
   ) {
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
-      console.log(
-        'namespave: ',
-        namespace,
-        'callbacks:',
-        subscription.onDataCallbacks
-      );
       subscription.onDataCallbacks.delete(onData as (data: unknown) => void);
       if (onConnect) subscription.onConnectCallbacks.delete(onConnect);
       if (onDisconnect) subscription.onDisconnectCallbacks.delete(onDisconnect);
@@ -417,7 +414,7 @@ export class DataBinder {
         isAdmin: tokenData.isAdmin,
       };
     } catch (e) {
-      console.log('Failed to parse access token. Logging out.');
+      console.error('Failed to parse access token. Logging out.');
       this.logout();
     }
   }

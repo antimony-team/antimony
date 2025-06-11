@@ -1,5 +1,9 @@
 import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
-import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
+import {
+  useCollectionStore,
+  useLabStore,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
 import {Choose, If, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 import {Button, ButtonProps} from 'primereact/button';
@@ -29,6 +33,7 @@ const defaultLabButtonProps: ButtonProps = {
 const LabEntry = (props: LabEntryProps) => {
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
+  const notificationStore = useStatusMessages();
 
   function generateDisplayDate(lab: Lab): string {
     switch (lab.state) {
@@ -55,6 +60,16 @@ const LabEntry = (props: LabEntryProps) => {
     }
   }
 
+  function onDeleteScheduledLab() {
+    notificationStore.confirm({
+      message: 'This action cannot be undone.',
+      header: `Delete Lab '${props.lab.name}'?`,
+      icon: 'pi pi-trash',
+      severity: 'danger',
+      onAccept: () => labStore.delete(props.lab.id),
+    });
+  }
+
   function onEditLab(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
     props.onRescheduleLab();
@@ -79,19 +94,19 @@ const LabEntry = (props: LabEntryProps) => {
             <Choose>
               <When condition={props.lab.state === InstanceState.Scheduled}>
                 <Button
-                  icon="pi pi-pen"
                   severity="info"
+                  icon="pi pi-pen-to-square"
                   tooltip="Edit"
                   aria-label="Edit Lab"
                   onClick={onEditLab}
                   {...defaultLabButtonProps}
                 />
                 <Button
-                  icon="pi pi-power-off"
+                  icon="pi pi-trash"
                   severity="danger"
-                  tooltip="Destroy"
-                  aria-label="Destroy Lab"
-                  onClick={() => props.onDestroyLabRequest()}
+                  tooltip="Delete"
+                  aria-label="Delete Lab"
+                  onClick={onDeleteScheduledLab}
                   {...defaultLabButtonProps}
                 />
               </When>

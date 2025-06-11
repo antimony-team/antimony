@@ -225,14 +225,29 @@ export class TopologyManager {
    * Connects two nodes in the topology.
    *
    * @param nodeName1 The name of the first node to connect.
-   * @param nodeName2 The name of ths second node to connect.
+   * @param nodeName2 The name of the second node to connect.
    */
   public connectNodes(nodeName1: string, nodeName2: string) {
     if (!this.editingTopology || !this.deviceStore.data) return;
 
     const updatedTopology = this.editingTopology.definition.clone();
-    const hostInterface = this.getNextInterface(nodeName1);
-    const targetInterface = this.getNextInterface(nodeName2);
+
+    const nodeKind1 = updatedTopology.getIn([
+      'topology',
+      'nodes',
+      nodeName1,
+      'kind',
+    ]) as string | undefined;
+
+    const nodeKind2 = updatedTopology.getIn([
+      'topology',
+      'nodes',
+      nodeName1,
+      'kind',
+    ]) as string | undefined;
+
+    const hostInterface = this.getNextInterface(nodeName1, nodeKind1);
+    const targetInterface = this.getNextInterface(nodeName2, nodeKind2);
 
     if (!updatedTopology.hasIn(['topology', 'links'])) {
       updatedTopology.setIn(['topology', 'links'], new YAMLSeq());
@@ -433,10 +448,10 @@ export class TopologyManager {
   /**
    * Generates a valid interface ID for a given node.
    */
-  private getNextInterface(nodeName: string): string {
+  private getNextInterface(nodeName: string, nodeKind?: string): string {
     if (!this.editingTopology) return '';
 
-    const deviceInfo = this.deviceStore.getInterfaceConfig(nodeName);
+    const deviceInfo = this.deviceStore.getInterfaceConfig(nodeKind);
     const assignedNumbers = new Set(
       this.getAssignedInterfaces(
         nodeName,
@@ -444,10 +459,14 @@ export class TopologyManager {
         this.editingTopology.connectionMap
       )
     );
+
     let checkIndex = deviceInfo.interfaceStart;
     let validIndexFound = false;
     while (!validIndexFound) {
-      validIndexFound = !assignedNumbers.has(checkIndex);
+      if (!assignedNumbers.has(checkIndex)) {
+        validIndexFound = true;
+        break;
+      }
       checkIndex++;
     }
 

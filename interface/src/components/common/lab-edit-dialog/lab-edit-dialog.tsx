@@ -13,6 +13,7 @@ import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {Lab, LabIn} from '@sb/types/domain/lab';
 import dayjs from 'dayjs';
 import {isEqual} from 'lodash';
+import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 
 import {Calendar} from 'primereact/calendar';
@@ -60,7 +61,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   });
 
   function onNameChange(name: string, isImplicit: boolean) {
-    editingLab.name = name;
+    runInAction(() => (editingLab.name = name));
     if (!isImplicit) void onSubmit();
   }
 
@@ -133,10 +134,12 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       };
       setOriginalLab(editLab);
 
-      editingLab.name = editLab.name;
-      editingLab.topologyId = editLab.topologyId;
-      editingLab.startTime = editLab.startTime;
-      editingLab.endTime = editLab.endTime;
+      runInAction(() => {
+        editingLab.name = editLab.name;
+        editingLab.topologyId = editLab.topologyId;
+        editingLab.startTime = editLab.startTime;
+        editingLab.endTime = editLab.endTime;
+      });
     }
   }, [props.dialogState.isOpen]);
 
@@ -208,7 +211,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             value={editingLab.startTime}
             onChange={e => {
               const date = e.value as Nullable<Date | null>;
-              if (date) editingLab.startTime = date;
+              if (date) runInAction(() => (editingLab.startTime = date));
             }}
             selectionMode="single"
             placeholder="Start Time"
@@ -229,7 +232,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             value={editingLab.endTime}
             onChange={e => {
               const date = e.value as Nullable<Date | null>;
-              if (date) editingLab.endTime = date;
+              if (date) runInAction(() => (editingLab.endTime = date));
             }}
             selectionMode="single"
             placeholder="End Time"

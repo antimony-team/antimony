@@ -18,6 +18,7 @@ import cytoscape, {NodeSingular} from 'cytoscape';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error This library does not have a type declaration
 import coseBilkent from 'cytoscape-cose-bilkent';
+import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
@@ -84,6 +85,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
      */
     useEffect(() => {
       if (props.openTopology === null || !cyRef.current) return;
+      closeRadialMenu();
 
       cyRef.current?.elements().remove();
 
@@ -278,7 +280,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       compound.children().forEach(child => {
         (child as NodeSingular).move({parent: parentId});
       });
-      cy.getElementById(getGroupCloseId(groupId));
       compound.remove();
 
       onSaveGraph();
@@ -290,29 +291,12 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       onGroupDelete(menuTargetRef.current);
     }
 
-    function onGroupClose(e: EventObject) {
-      const btnNode = e.target as NodeSingular;
-      const closeId = btnNode.id();
-
-      const groupId = closeId.replace(/^close-/, '');
-      onGroupDelete(groupId);
-    }
-
-    function getGroupCloseId(groupId: string) {
-      return `close-${groupId}`;
-    }
-
-    function closeGroupDeleteBtn() {
-      cyRef.current?.nodes('.compound-close-btn').style('visibility', 'hidden');
-    }
-
     function onEdgeClick(event: cytoscape.EventObject) {
       if (!event.target.hasClass(GHOST_EDGE_ID)) return;
 
       exitConnectionMode();
       closeRadialMenu();
       cyRef.current?.elements().unselect();
-      closeGroupDeleteBtn();
     }
 
     function onNodeClick(event: cytoscape.EventObject) {
@@ -325,25 +309,11 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (node.hasClass(GHOST_NODE_ID)) {
         exitConnectionMode();
         closeRadialMenu();
-        cyRef.current?.elements().unselect();
-        closeGroupDeleteBtn();
+        cy.elements().unselect();
         return;
       }
 
-      closeGroupDeleteBtn();
-      if (node.hasClass('compound-close-btn')) return;
-
       if (node.hasClass('drawn-shape')) {
-        const closeBtnId = getGroupCloseId(nodeId);
-        const closeBtn = cy.getElementById(closeBtnId);
-
-        if (!node.nonempty() || !closeBtn.nonempty()) return;
-        const bb = node.boundingBox();
-        closeBtn.position({
-          x: bb.x2 + 10,
-          y: bb.y1 - 10,
-        });
-        cy.getElementById(closeBtnId).style('visibility', 'visible');
         return;
       }
 
@@ -367,7 +337,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (event.target === cyRef.current) {
         closeRadialMenu();
         cyRef.current?.elements().unselect();
-        closeGroupDeleteBtn();
       }
     }
 
@@ -404,7 +373,12 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     }
 
     function onDoubleClick(event: cytoscape.EventObject) {
-      if (event.target.hasClass('drawn-shape')) return;
+      if (event.target.hasClass('drawn-shape')) {
+        menuTargetRef.current = event.target.id();
+        onGroupEdit();
+
+        return;
+      }
 
       const nodeId = event.target.id();
       if (!nodeId || !contextMenuRef.current) return;
@@ -464,7 +438,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     function onDrag() {
       closeRadialMenu();
       exitConnectionMode();
-      closeGroupDeleteBtn();
       exitDrawMode();
     }
 
@@ -583,7 +556,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.style().fromJson(topologyStyle).update();
 
       cy.on('click', onGraphClick);
-      cy.on('click', 'node.compound-close-btn', onGroupClose);
       cy.on('click', 'node', onNodeClick);
       cy.on('dbltap', 'node', onDoubleClick);
       cy.on('cxttap', onGraphContext);
@@ -675,7 +647,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       const hitsArray = cy
         .nodes()
         .filter(n => {
-          if (n.hasClass('compound-close-btn') || !n.parent()) return false;
+          if (!n.parent()) return false;
           const {x: nx, y: ny} = n.position();
           return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
         })
@@ -697,14 +669,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           );
         });
       }
-
-      // Add group close button to graph
-      cy.add({
-        group: 'nodes',
-        data: {id: getGroupCloseId(groupName), parent: groupName},
-        position: {x: 0, y: 0},
-        classes: 'compound-close-btn',
-      });
 
       drawStartPos.current = null;
       drawEndPos.current = null;
@@ -803,6 +767,20 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         label: 'Group Nodes',
         icon: <span className="material-symbols-outlined">Ink_Selection</span>,
         command: onDrawStart,
+      },
+      {
+        label: 'Fit Graph',
+        icon: (
+          <ExpandLines
+            style={{transform: 'rotate(90deg)'}}
+            width={24}
+            height={24}
+          />
+        ),
+        command: onFitGraph,
+      },
+      {
+        separator: true,
       },
       {
         label: 'Clear Graph',

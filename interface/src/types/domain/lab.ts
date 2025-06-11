@@ -13,6 +13,7 @@ export type LabOut = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
+  instanceName: string;
 
   topologyDefinition: string;
 
@@ -28,9 +29,10 @@ export type Lab = {
 
   topologyId: uuid4;
   collectionId: uuid4;
+  topologyDefinition: RunTopology;
 
-  instance?: Instance;
-  instanceName?: string;
+  instance: Instance | null;
+  instanceName: string | null;
   state: InstanceState;
 };
 
@@ -41,13 +43,10 @@ export type InstanceOut = {
   latestStateChange: Date;
   nodes: InstanceNode[];
   recovered: boolean;
-
-  topologyDefinition: string;
 };
 
 export type Instance = InstanceOut & {
   nodeMap: Map<string, InstanceNode>;
-  runTopology: RunTopology;
 };
 
 export type InstanceNode = {

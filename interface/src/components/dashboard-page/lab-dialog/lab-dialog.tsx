@@ -72,10 +72,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       return collectionStore.lookup.get(collectionId)!.name;
     }, [props.dialogState.state, collectionStore.lookup]);
 
-    const openTopology = props.dialogState.state
-      ? topologyStore.lookup.get(props.dialogState.state.topologyId)
-      : null;
-
     useEffect(() => {
       if (isCyReady && cyRef.current) {
         initCytoscape(cyRef.current);
@@ -93,15 +89,15 @@ const LabDialog: React.FC<LabDialogProps> = observer(
      * are also deleted. This is unwanted behavior.
      */
     const updateGraph = useCallback(() => {
-      if (!cyRef.current || !openTopology) return;
+      if (!cyRef.current || !props.dialogState.state) return;
 
       cyRef.current!.elements().remove();
 
       const elements = generateGraph(
-        openTopology,
+        props.dialogState.state.topologyDefinition,
         deviceStore,
         topologyStore.manager,
-        props.dialogState.state?.instance,
+        props.dialogState.state.instance,
         hostsHidden
       );
 
@@ -128,7 +124,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       updateGraph();
     }, [props.dialogState.state, hostsHidden]);
 
-    function onNodeContext(event: cytoscape.EventObject) {
+    function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
 
       closeDetails();
@@ -276,7 +272,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
     const graphContextMenuModel = [
       {
-        label: 'Center Graph',
+        label: 'Fit Graph',
         icon: (
           <ExpandLines
             style={{transform: 'rotate(90deg)'}}
@@ -289,13 +285,13 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     ];
 
     const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
-      if (!cyRef.current || !props.dialogState.state?.instance?.nodeMap) {
-        return undefined;
-      }
-
       // If the selected node is null, the graph itself is selected
       if (selectedNode === null) {
         return graphContextMenuModel;
+      }
+
+      if (!cyRef.current || !props.dialogState.state) {
+        return undefined;
       }
 
       // Return empty context menu if selected node is a group node
@@ -303,28 +299,30 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return;
       }
 
-      const nodeMap = props.dialogState.state.instance.nodeMap;
-      const node = nodeMap.get(selectedNode)!;
-      const isNodeRunning = node.state === 'running';
+      const nodeMap = props.dialogState.state.instance?.nodeMap;
+      const node = nodeMap?.get(selectedNode);
+
+      const isNodeAvailable = nodeMap?.has(selectedNode);
+      const isNodeRunning = nodeMap?.get(selectedNode)?.state === 'running';
 
       const entries: MenuItem[] = [
         {
           label: 'Start Node',
           icon: 'pi pi-power-off',
           command: onNodeStart,
-          disabled: isNodeRunning,
+          disabled: isNodeRunning || !isNodeAvailable,
         },
         {
           label: 'Stop Node',
           icon: 'pi pi-power-off',
           command: onNodeStop,
-          disabled: !isNodeRunning,
+          disabled: !isNodeRunning || !isNodeAvailable,
         },
         {
           label: 'Restart Node',
           icon: 'pi pi-sync',
           command: onNodeRestart,
-          disabled: !isNodeRunning,
+          disabled: !isNodeRunning || !isNodeAvailable,
         },
         {
           separator: true,
@@ -333,7 +331,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           label: 'Open Terminal',
           icon: <span className="material-symbols-outlined">terminal</span>,
           command: onOpenTerminal,
-          disabled: !isNodeRunning,
+          disabled: !isNodeRunning || !isNodeAvailable,
         },
         {
           label: 'Show Logs',
@@ -342,11 +340,12 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               quick_reference_all
             </span>
           ),
+          disabled: !isNodeAvailable,
           command: onOpenLogs,
         },
       ];
 
-      if (node.webSSH) {
+      if (node?.webSSH) {
         entries.push({
           label: 'Web SSH',
           icon: 'pi pi-external-link',
@@ -371,8 +370,11 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function initCytoscape(cy: cytoscape.Core) {
+      cy.minZoom(0.3);
+      cy.maxZoom(10);
+
       cy.on('tap', 'node', onNodeClick);
-      cy.on('cxttap', onNodeContext);
+      cy.on('cxttap', onGraphContext);
       cy.on('render', drawGridOverlay);
       cy.on('tap', onGraphClick);
       cy.on('zoom', onZoom);

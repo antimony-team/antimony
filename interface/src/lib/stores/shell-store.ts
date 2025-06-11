@@ -60,8 +60,6 @@ export class ShellStore {
         this.handleShellClose(data);
         break;
     }
-
-    console.log('recievd control: ', data);
   }
 
   private handleShellError(data: ShellControlIn) {
@@ -104,14 +102,11 @@ export class ShellStore {
     )) as DataResponse<ShellDataIn[]>;
 
     if (!('payload' in result)) {
-      console.log('Failed to fetch shells:', result);
+      console.error('Failed to fetch shells:', result);
       return this.openShells.get(lab.id)!;
     } else if (!result.payload) {
       return;
     }
-
-    console.log('result:', result);
-    console.log('node id:', lab.instance!.nodeMap);
 
     const activeShellMap = new Map<uuid4, ShellDataIn>(
       result.payload.map(shell => [shell.id, shell])
@@ -168,7 +163,6 @@ export class ShellStore {
 
     this.currentShell = {...shell};
 
-    console.log('subscirbe to shell:', this.currentShell);
     this.currentDataSubscription = this.dataBinder.subscribeNamespace(
       `shells/${this.currentShell.id}`,
       this.handleData
@@ -210,7 +204,8 @@ export class ShellStore {
         return null;
       }
 
-      console.log('Failed to open shell:', error);
+      this.statusMessageStore.error(error.message, 'Failed to open new shell');
+      console.error('Failed to open shell:', error);
       return null;
     }
 

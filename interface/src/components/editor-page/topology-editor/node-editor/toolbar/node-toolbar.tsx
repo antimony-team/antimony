@@ -35,8 +35,8 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         icon="pi pi-trash"
         text
         onClick={topologyStore.manager.clear}
-        tooltip="Clear Network"
-        aria-label="Clear Network"
+        tooltip="Clear Graph"
+        aria-label="Clear Graph"
       />
       <Button
         icon={<span className="material-symbols-outlined">Ink_Selection</span>}

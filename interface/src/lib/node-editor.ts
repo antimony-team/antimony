@@ -286,6 +286,14 @@ export class NodeEditor {
     );
   }
 
+  public onUpdateIcon(icon: string): string | null {
+    const updatedTopology = this.editingTopology.clone();
+
+    updatedTopology.setIn(this.propertyPath('labels', 'graph-icon'), icon);
+
+    return this.validateAndSetTopology(updatedTopology, "Invalid icon'");
+  }
+
   /**
    * Returns whether the current object has been edited.
    */

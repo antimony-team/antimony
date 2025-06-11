@@ -67,7 +67,7 @@ export function generateGraph(
   topology: Topology | RunTopology,
   deviceStore: DeviceStore,
   topologyManager: TopologyManager,
-  instance?: Instance,
+  instance: Instance | null,
   omitLabels: boolean = false
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
@@ -105,24 +105,14 @@ export function generateGraph(
       const groupLabel = omitLabels ? '' : group;
 
       if (!addedGroups.has(groupId)) {
-        elements.push(
-          {
-            group: 'nodes',
-            data: {
-              id: groupId,
-              label: groupLabel,
-            },
-            classes: 'drawn-shape',
+        elements.push({
+          group: 'nodes',
+          data: {
+            id: groupId,
+            label: groupLabel,
           },
-          {
-            group: 'nodes',
-            data: {
-              id: `close-${groupId}`,
-            },
-            position: {x: 0, y: 0},
-            classes: 'compound-close-btn',
-          }
-        );
+          classes: 'drawn-shape',
+        });
         addedGroups.add(groupId);
       }
 
@@ -131,8 +121,10 @@ export function generateGraph(
 
     let label = omitLabels ? '' : nodeName;
 
-    if (!omitLabels && instance && instance.nodeMap.has(nodeName)) {
-      if (instance.nodeMap.get(nodeName)!.state === 'running') {
+    if (!omitLabels && instance && instance) {
+      if (!instance.nodeMap.has(nodeName)) {
+        label = `🟠 ${nodeName}`;
+      } else if (instance.nodeMap.get(nodeName)!.state === 'running') {
         label = `🟢 ${nodeName}`;
       } else {
         label = `🔴 ${nodeName}`;
@@ -147,6 +139,7 @@ export function generateGraph(
         title: topologyManager.getNodeTooltip(nodeName),
         kind: node?.kind ?? '',
         image: deviceStore.getNodeIcon(node),
+        shape: deviceStore.getNodeShape(node),
       },
       position: position,
       classes: 'topology-node',

@@ -82,11 +82,13 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
       runInAction(() => {
         this.data = [
-          ...this.data.map(lab => {
-            if (lab.id !== labId) return lab;
+          ...this.data
+            .map(lab => {
+              if (lab.id !== labId) return lab;
 
-            return updatedLab;
-          }),
+              return updatedLab;
+            })
+            .filter(lab => lab !== null),
         ];
 
         this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
@@ -112,8 +114,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       'data',
       JSON.stringify(command)
     );
-
-    console.log('reso:', response);
 
     if (!('payload' in response)) {
       console.error('Failed to execute lab command: ', response);
@@ -232,9 +232,18 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return input.map(lab => this.parseLab(lab)).filter(lab => lab !== null);
   }
 
-  private parseLab(input: LabOut): Lab {
+  private parseLab(input: LabOut): Lab | null {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
+
+    const definition = this.topologyStore.parseTopology(
+      input.topologyDefinition
+    );
+
+    if (!definition) {
+      console.error('[NET] Failed to parse incoming run topology: ', input);
+      return null;
+    }
 
     return {
       ...input,
@@ -248,28 +257,20 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
           ? InstanceState.Scheduled
           : InstanceState.Inactive,
       instance: this.parseInstance(input.instance),
+      instanceName: input.instanceName,
+      topologyDefinition: {
+        ...this.topologyStore.manager.buildTopologyMetadata(definition),
+        definition: definition,
+      },
     };
   }
 
-  private parseInstance(input?: InstanceOut): Instance | undefined {
-    if (input === undefined) return undefined;
-
-    const definition = this.topologyStore.parseTopology(
-      input.topologyDefinition
-    );
-
-    if (!definition) {
-      console.error('[NET] Failed to parse incoming run topology: ', input);
-      return;
-    }
+  private parseInstance(input?: InstanceOut): Instance | null {
+    if (input === undefined) return null;
 
     return {
       ...input,
       nodeMap: new Map(input.nodes?.map(node => [node.name, node])),
-      runTopology: {
-        ...this.topologyStore.manager.buildTopologyMetadata(definition),
-        definition,
-      },
     };
   }
 }
