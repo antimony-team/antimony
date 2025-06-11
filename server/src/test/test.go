@@ -14,8 +14,8 @@ import (
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log"
 	"os"
@@ -148,27 +148,29 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	}
 	db.Create(&topology2)
 	writeTopologyFile(topology2Uuid, test1, storage)
-
+	emptyString := "empty"
 	lab1 := lab.Lab{
-		UUID:       "TestLabUUID1",
-		Name:       "Test Lab",
-		StartTime:  time.Now().Add(-1 * time.Hour),
-		EndTime:    ptr(time.Now().Add(1 * time.Hour)),
-		TopologyID: topology1.ID,
-		Topology:   topology1,
-		CreatorID:  user1.ID,
-		Creator:    user1,
+		UUID:               "TestLabUUID1",
+		Name:               "Test Lab",
+		StartTime:          time.Now().Add(-1 * time.Hour),
+		EndTime:            ptr(time.Now().Add(1 * time.Hour)),
+		TopologyID:         topology1.ID,
+		Topology:           topology1,
+		CreatorID:          user1.ID,
+		Creator:            user1,
+		TopologyDefinition: &emptyString,
 	}
 	db.Create(&lab1)
 	lab2 := lab.Lab{
-		UUID:       "TestLabUUID2",
-		Name:       "Test Lab2",
-		StartTime:  time.Now().Add(-1 * time.Hour),
-		EndTime:    ptr(time.Now().Add(1 * time.Hour)),
-		TopologyID: topology1.ID,
-		Topology:   topology1,
-		CreatorID:  user1.ID,
-		Creator:    user1,
+		UUID:               "TestLabUUID2",
+		Name:               "Test Lab2",
+		StartTime:          time.Now().Add(-1 * time.Hour),
+		EndTime:            ptr(time.Now().Add(1 * time.Hour)),
+		TopologyID:         topology1.ID,
+		Topology:           topology1,
+		CreatorID:          user1.ID,
+		Creator:            user1,
+		TopologyDefinition: &emptyString,
 	}
 	db.Create(&lab2)
 
@@ -345,7 +347,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	labRepository := lab.CreateRepository(db)
 	labService := lab.CreateService(
-		cfg, labRepository, userRepo, topologyRepository,
+		cfg, labRepository, userRepo, topologyRepository, topologyService,
 		storageManager, socketManager, statusMessageNamespace,
 	)
 	labHandler := lab.CreateHandler(labService)
