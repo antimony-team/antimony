@@ -1,10 +1,12 @@
 import {
+  DataBinder,
   DataResponse,
   Subscription,
 } from '@sb/lib/stores/data-binder/data-binder';
 
 import {DataStore} from '@sb/lib/stores/data-store';
 import {RootStore} from '@sb/lib/stores/root-store';
+import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {QueryBuilder} from '@sb/lib/utils/query-builder';
 import {
   Instance,
@@ -18,7 +20,7 @@ import {
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
-import {action, computed, observable, observe} from 'mobx';
+import {action, computed, observable, observe, runInAction} from 'mobx';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -39,24 +41,59 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor startDate: string | null = null;
   @observable accessor endDate: string | null = null;
 
-  private labCommandsSubscription: Subscription;
+  private readonly labCommandsSubscription: Subscription;
 
-  constructor(rootStore: RootStore) {
+  private dataBinder: DataBinder;
+  private topologyStore: TopologyStore;
+
+  constructor(
+    rootStore: RootStore,
+    dataBinder: DataBinder,
+    topologyStore: TopologyStore
+  ) {
     super(rootStore);
+
+    this.dataBinder = dataBinder;
+    this.topologyStore = topologyStore;
 
     observe(this, 'getParams' as keyof this, () => this.fetch());
 
-    this.rootStore._dataBinder.subscribeNamespace(
+    this.dataBinder.subscribeNamespace(
       'lab-updates',
       this.onLabUpdate.bind(this)
     );
 
     this.labCommandsSubscription =
-      this.rootStore._dataBinder.subscribeNamespace('lab-commands');
+      this.dataBinder.subscribeNamespace('lab-commands');
   }
 
   protected get resourcePath(): string {
     return '/labs';
+  }
+
+  @action
+  private async fetchSingle(labId: string) {
+    const response = await this.rootStore._dataBinder.get<LabOut>(
+      this.resourcePath + '/' + labId
+    );
+
+    if (response.isOk()) {
+      const updatedLab = this.parseLab(response.data.payload);
+
+      runInAction(() => {
+        this.data = [
+          ...this.data
+            .map(lab => {
+              if (lab.id !== labId) return lab;
+
+              return updatedLab;
+            })
+            .filter(lab => lab !== null),
+        ];
+
+        this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
+      });
+    }
   }
 
   @computed
@@ -73,10 +110,17 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async sendLabCommand(command: LabCommandData): Promise<Result<null>> {
-    return await this.labCommandsSubscription.socket!.emitWithAck(
+    const response = await this.labCommandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify(command)
     );
+
+    if (!('payload' in response)) {
+      console.error('Failed to execute lab command: ', response);
+      return Result.createErr(response);
+    }
+
+    return Result.createOk(response);
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {
@@ -87,25 +131,33 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async destroyLab(lab: Lab): Promise<Result<null>> {
-    return this.sendLabCommand({
+    return await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.Destroy,
     });
   }
 
-  public async stopNode(lab: Lab, node: string): Promise<Result<null>> {
+  public async stopNode(lab: Lab, nodeName: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StopNode,
-      node: node,
+      node: nodeName,
     });
   }
 
-  public async startNode(lab: Lab, node: string): Promise<Result<null>> {
+  public async startNode(lab: Lab, nodeName: string): Promise<Result<null>> {
     return this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StartNode,
-      node: node,
+      node: nodeName,
+    });
+  }
+
+  public async restartNode(lab: Lab, nodeName: string): Promise<Result<null>> {
+    return this.sendLabCommand({
+      labId: lab.id,
+      command: LabCommand.RestartNode,
+      node: nodeName,
     });
   }
 
@@ -120,7 +172,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private onLabUpdate(labId: string) {
-    if (labId === '' || this.lookup.has(labId)) {
+    if (labId && this.lookup.has(labId)) {
+      void this.fetchSingle(labId);
+    } else {
       void this.fetch();
     }
   }
@@ -175,26 +229,44 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private parseLabs(input: LabOut[]): Lab[] {
-    return input.map(lab => {
-      const startTime = new Date(lab.startTime);
-      const endTime = new Date(lab.endTime);
-
-      return {
-        ...lab,
-        startTime: startTime,
-        endTime: endTime,
-        state: lab.instance
-          ? lab.instance.state
-          : startTime >= dayjs(new Date()).subtract(10, 'seconds').toDate()
-            ? InstanceState.Scheduled
-            : InstanceState.Inactive,
-        instance: this.parseInstance(lab.instance),
-      };
-    });
+    return input.map(lab => this.parseLab(lab)).filter(lab => lab !== null);
   }
 
-  private parseInstance(input?: InstanceOut): Instance | undefined {
-    if (input === undefined) return undefined;
+  private parseLab(input: LabOut): Lab | null {
+    const startTime = new Date(input.startTime);
+    const endTime = input.endTime ? new Date(input.endTime) : null;
+
+    const definition = this.topologyStore.parseTopology(
+      input.topologyDefinition
+    );
+
+    if (!definition) {
+      console.error('[NET] Failed to parse incoming run topology: ', input);
+      return null;
+    }
+
+    return {
+      ...input,
+      startTime: startTime,
+      endTime: endTime,
+      state: input.instance
+        ? input.instance.state
+        : endTime &&
+            endTime >= dayjs(new Date()).toDate() &&
+            startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
+          ? InstanceState.Scheduled
+          : InstanceState.Inactive,
+      instance: this.parseInstance(input.instance),
+      instanceName: input.instanceName,
+      topologyDefinition: {
+        ...this.topologyStore.manager.buildTopologyMetadata(definition),
+        definition: definition,
+      },
+    };
+  }
+
+  private parseInstance(input?: InstanceOut): Instance | null {
+    if (input === undefined) return null;
 
     return {
       ...input,

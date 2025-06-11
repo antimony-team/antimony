@@ -30,6 +30,8 @@ interface SBDialogProps {
   submitLabel?: string;
 
   onShow?: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }
 
 const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
@@ -43,6 +45,8 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
       draggable={props.draggable}
       resizable={props.resizeable}
       modal={!props.disableModal}
+      onDragStart={props.onDragStart}
+      onDragEnd={props.onDragEnd}
       header={
         <div className="sb-dialog-header">
           <div className="sb-dialog-header-title">

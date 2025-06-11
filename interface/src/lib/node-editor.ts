@@ -54,6 +54,8 @@ export class NodeEditor {
   private editingNode: string;
   private editingTopology: YAMLDocument<TopologyDefinition>;
 
+  private hasChangedName: boolean = false;
+
   constructor(
     clabSchema: ClabSchema,
     editingNode: string,
@@ -80,9 +82,10 @@ export class NodeEditor {
       return null;
     }
 
-    if (this.editingTopology.getIn(this.propertyPath(value))) {
-      this.statusMessageStore.error('Duplicate node name.', 'Schema Error');
-      return 'Duplicate node name.';
+    const oldName = this.editingNode;
+
+    if (this.editingTopology.getIn(['topology', 'nodes', value])) {
+      return 'A node with that name already exists';
     }
 
     this.editingTopology.setIn(
@@ -99,6 +102,31 @@ export class NodeEditor {
     this.originalTopology.deleteIn(['topology', 'nodes', this.editingNode]);
 
     this.editingNode = value;
+    this.hasChangedName = true;
+
+    // Update links to still connect with the renamed node
+    const links = (
+      this.editingTopology.getIn(['topology', 'links']) as YAMLSeq
+    ).toJS(this.editingTopology) as {endpoints: string[]}[];
+
+    for (const [index, link] of links.entries()) {
+      const endpoint1 = link.endpoints[0].split(':');
+      const endpoint2 = link.endpoints[1].split(':');
+
+      if (endpoint1[0] === oldName) {
+        this.editingTopology.setIn(
+          ['topology', 'links', index, 'endpoints', 0],
+          `${value}:${endpoint1[1]}`
+        );
+      }
+
+      if (endpoint2[0] === oldName) {
+        this.editingTopology.setIn(
+          ['topology', 'links', index, 'endpoints', 1],
+          `${value}:${endpoint2[1]}`
+        );
+      }
+    }
 
     return null;
   }
@@ -258,11 +286,22 @@ export class NodeEditor {
     );
   }
 
+  public onUpdateIcon(icon: string): string | null {
+    const updatedTopology = this.editingTopology.clone();
+
+    updatedTopology.setIn(this.propertyPath('labels', 'graph-icon'), icon);
+
+    return this.validateAndSetTopology(updatedTopology, "Invalid icon'");
+  }
+
   /**
    * Returns whether the current object has been edited.
    */
   public hasEdits(): boolean {
-    return !isEqual(this.originalTopology.toJS(), this.editingTopology.toJS());
+    return (
+      !isEqual(this.originalTopology.toJS(), this.editingTopology.toJS()) ||
+      this.hasChangedName
+    );
   }
 
   /**

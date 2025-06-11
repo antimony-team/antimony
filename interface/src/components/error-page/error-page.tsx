@@ -59,7 +59,9 @@ const ErrorPage = (props: ErrorPageProps) => {
               <span>Antimony Socket</span>
               <Choose>
                 <When condition={!dataBinder.isLoggedIn}>
-                  <i className="pi pi-question" />
+                  <div className="sb-error-question">
+                    <i className="pi pi-question" />
+                  </div>
                 </When>
                 <When condition={dataBinder.hasSocketError}>
                   <ProgressSpinner strokeWidth="5" />

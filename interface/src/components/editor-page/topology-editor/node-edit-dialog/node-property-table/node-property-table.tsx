@@ -106,7 +106,7 @@ const NodePropertyTable: React.FC<NodePropertyTableProps> = (
   function onAddPropertyClicked(event: MouseEvent<HTMLButtonElement>) {
     if (!newPropertyOverlayRef) return;
 
-    // If object does not have property list, add new empy property directly
+    // If an object does not have a property list, add new empy property directly
     if (availableProperties === null) {
       onAddProperty('');
       return;
@@ -188,9 +188,13 @@ const NodePropertyTable: React.FC<NodePropertyTableProps> = (
             }}
           >
             <IconField iconPosition="left">
-              <InputIcon className="pi pi-search"> </InputIcon>
+              <InputIcon className="pi pi-search"></InputIcon>
               <InputText
-                ref={newPropertyInputRef}
+                pt={{
+                  root: {
+                    ref: newPropertyInputRef,
+                  },
+                }}
                 placeholder="Search"
                 value={propertyQuery}
                 onChange={e => setPropertyQuery(e.target.value)}

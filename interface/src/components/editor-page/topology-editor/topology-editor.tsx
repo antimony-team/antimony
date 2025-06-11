@@ -129,10 +129,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         return;
       }
 
-      const definition = topologyStore.parseTopology(
-        content,
-        schemaStore.clabSchema
-      );
+      const definition = topologyStore.parseTopology(content);
 
       if (definition !== null) {
         setValidationState(ValidationState.Done);
@@ -208,8 +205,6 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
       `${topologyGroup.name}_${openTopology.definition.get('name')}.yaml`
     );
   }
-
-  function onOpenSyncOverlay() {}
 
   function onAmogus() {
     if (!amogusRef.current?.paused) return;
@@ -359,7 +354,11 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
         </Otherwise>
       </Choose>
-      <SyncOverlay popOverRef={syncOverlayRef} />
+      <SyncOverlay
+        popOverRef={syncOverlayRef}
+        topology={openTopology}
+        onSetContent={content => monacoWrapperRef.current?.setContent(content)}
+      />
       <NodeEditDialog
         key={currentlyEditedNode}
         isOpen={isNodeEditDialogOpen}

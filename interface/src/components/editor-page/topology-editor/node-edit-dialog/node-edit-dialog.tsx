@@ -1,3 +1,5 @@
+import {Image} from 'primereact/image';
+import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import objectPath from 'object-path';
@@ -37,6 +39,10 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
 ) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
   const nameFieldRef = useRef<SBInputRef>(null);
+  const iconSelectorOverlay = useRef<OverlayPanel>(null);
+  const iconSelectorAnchor = useRef<HTMLDivElement>(null);
+
+  const [nodeIcon, setNodeIcon] = useState<string>('');
 
   const topologyStore = useTopologyStore();
   const schemaStore = useSchemaStore();
@@ -88,6 +94,8 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     nodeEditor.onEdit.register(onTopologyUpdate);
     onTopologyUpdate();
 
+    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNode()));
+
     return () => nodeEditor.onEdit.unregister(onTopologyUpdate);
   }, [nodeEditor, onTopologyUpdate]);
 
@@ -132,7 +140,19 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     // Don't focus input field if the dialog was open to edit
     if (props.editingNode) return;
 
-    nameFieldRef.current?.input?.focus();
+    nameFieldRef.current?.input.current?.focus();
+  }
+
+  function onOpenIconSelector(event: React.MouseEvent<HTMLDivElement>) {
+    iconSelectorOverlay.current?.toggle(event, iconSelectorAnchor.current!);
+  }
+
+  function onSelectIcon(icon: string) {
+    if (!nodeEditor) return;
+
+    nodeEditor.onUpdateIcon(icon);
+    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNode()));
+    iconSelectorOverlay.current?.hide();
   }
 
   return (
@@ -148,30 +168,40 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
       onShow={onShow}
     >
       <If condition={nodeEditor !== null}>
-        <div className="flex flex-column gap-2">
-          <SBInput
-            id="sb-node-name"
-            ref={nameFieldRef}
-            label="Name"
-            defaultValue={props.editingNode}
-            placeholder="e.g. Arista cEOS"
-            onValueSubmit={nodeEditor!.onUpdateName}
-          />
-          <SBDropdown
-            id="node-editor-kind"
-            label="Kind"
-            hasFilter={true}
-            value={nodeKind}
-            options={kindList}
-            icon="pi-cog"
-            useItemTemplate={true}
-            useSelectTemplate={true}
-            optionLabel="value"
-            placeholder="Select a Kind"
-            onValueSubmit={value =>
-              nodeEditor!.updatePropertyValue('kind', '', value)
-            }
-          />
+        <div className="flex flex-row gap-3">
+          <div
+            className="sb-node-edit-dialog-icon-container"
+            ref={iconSelectorAnchor}
+            onClick={onOpenIconSelector}
+          >
+            <Image src={nodeIcon} />
+          </div>
+
+          <div className="flex flex-column gap-2 flex-grow-1">
+            <SBInput
+              id="sb-node-name"
+              ref={nameFieldRef}
+              label="Name"
+              defaultValue={props.editingNode}
+              placeholder="e.g. Arista cEOS"
+              onValueSubmit={nodeEditor!.onUpdateName}
+            />
+            <SBDropdown
+              id="node-editor-kind"
+              label="Kind"
+              hasFilter={true}
+              value={nodeKind}
+              options={kindList}
+              icon="pi-cog"
+              useItemTemplate={true}
+              useSelectTemplate={true}
+              optionLabel="value"
+              placeholder="Select a Kind"
+              onValueSubmit={value =>
+                nodeEditor!.updatePropertyValue('kind', '', value)
+              }
+            />
+          </div>
         </div>
         <div className="sb-node-edit-dialog-header">Node Properties</div>
         <NodePropertyTable
@@ -239,6 +269,19 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
           </AccordionTab>
         </Accordion>
       </If>
+      <OverlayPanel
+        ref={iconSelectorOverlay}
+        className="sb-icon-selector-panel"
+      >
+        <div className="sb-icon-selector-container">
+          {deviceStore.getAllIcons().map(([icon, path]) => (
+            <div className="sb-icon-selector-entry">
+              <Image src={path} onClick={() => onSelectIcon(icon)} />
+              <span>{icon}</span>
+            </div>
+          ))}
+        </div>
+      </OverlayPanel>
     </SBDialog>
   );
 };

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="53.429375mm"
+   height="53.429375mm"
+   viewBox="0 0 53.429375 53.429375"
+   version="1.1"
+   id="svg1"
+   xml:space="preserve"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+     id="defs1" /><g
+     id="layer7"
+     transform="translate(-68.958889,-147.2504)"><circle
+       style="fill:#42b5ac;fill-opacity:1;stroke:#000000;stroke-width:1.2;stroke-dasharray:none;stroke-opacity:1"
+       id="path4-3"
+       cx="95.673576"
+       cy="173.96509"
+       r="26.114687" /><path
+       id="path14-6"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.73632;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0.6;stroke-opacity:1"
+       d="m 85.637999,115.78567 4.283839,-4.26919 m 0,12.96609 v -11.97742 m 4.283839,3.28052 -4.283839,-4.26919 m 0,12.96609 v -11.97742"
+       transform="matrix(0.71685476,0.71685476,-0.71685476,0.71685476,126.0821,13.113697)" /><path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:2.02757;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0.6;stroke-opacity:1"
+       d="M 78.438039,173.51257 H 112.90911"
+       id="path24" /><path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:2.02757;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0.6;stroke-opacity:1"
+       d="M 78.438038,170.09471 H 112.90911"
+       id="path24-0" /><path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:2.02757;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0.6;stroke-opacity:1"
+       d="M 78.438036,176.93042 H 112.90911"
+       id="path24-0-1" /><use
+       x="0"
+       y="0"
+       xlink:href="#path14-6"
+       id="use24"
+       transform="rotate(90,95.558106,151.75624)" /><use
+       x="0"
+       y="0"
+       xlink:href="#path14-6"
+       id="use25"
+       transform="rotate(-90,117.31443,173.51257)" /><use
+       x="0"
+       y="0"
+       xlink:href="#use25"
+       id="use26"
+       transform="rotate(-90,95.558107,195.2689)" /></g></svg>

@@ -1,3 +1,4 @@
+import {ShellStore} from '@sb/lib/stores/shell-store';
 import {createContext, useContext} from 'react';
 
 import {computed} from 'mobx';
@@ -20,17 +21,34 @@ export class RootStore {
   _collectionStore: CollectionStore;
   _schemaStore: SchemaStore;
   _statusMessagesStore: StatusMessageStore;
+  _shellStore: ShellStore;
 
+  /**
+   * Poor man's dependency injection ( ͡° ͜ʖ ͡°)
+   */
   constructor() {
     this._dataBinder = new DataBinder();
 
     this._schemaStore = new SchemaStore(this);
     this._deviceStore = new DeviceStore(this);
-    this._topologyStore = new TopologyStore(this);
-    this._labStore = new LabStore(this);
-    this._calendarLabStore = new LabStore(this);
     this._collectionStore = new CollectionStore(this);
+    this._topologyStore = new TopologyStore(
+      this,
+      this._dataBinder,
+      this._schemaStore,
+      this._deviceStore
+    );
+    this._labStore = new LabStore(this, this._dataBinder, this._topologyStore);
+    this._calendarLabStore = new LabStore(
+      this,
+      this._dataBinder,
+      this._topologyStore
+    );
     this._statusMessagesStore = new StatusMessageStore(this);
+    this._shellStore = new ShellStore(
+      this._dataBinder,
+      this._statusMessagesStore
+    );
   }
 
   @computed
@@ -86,4 +104,8 @@ export const useSchemaStore = () => {
 
 export const useStatusMessages = () => {
   return useContext(RootStoreContext)._statusMessagesStore;
+};
+
+export const useShellStore = () => {
+  return useContext(RootStoreContext)._shellStore;
 };

@@ -14,6 +14,14 @@
       color: var(--danger-color-text)
       border-color: var(--danger-color-text)
 
+    &.p-button-success
+      color: var(--success-color-text)
+      border-color: var(--success-color-text)
+
+    &.p-button-warning
+      color: var(--warning-color-text)
+      border-color: var(--warning-color-text)
+
   &:not(.p-button-danger,.p-button-outlined,.p-button-icon-only)
     color: var(--primary-color)
     background-color: var(--primary-color-border)
@@ -71,12 +79,17 @@
 .p-contextmenu
   background-color: var(--header-color)
   border-left: 3px solid var(--primary-color-border)
-  max-height: 300px
   overflow-y: auto
 
   // This makes it so context menus can expand if the content too wide
   min-width: 12.5rem
   width: auto
+
+  .material-symbols-outlined
+    margin-right: 6px
+    margin-left: -2px
+    font-size: 22px
+    color: rgba(255, 255, 255, 0.6)
 
 .p-splitter
   background-color: transparent
@@ -107,6 +120,7 @@
     flex-direction: column
     align-items: stretch
     overflow: hidden
+    background-color: var(--overlay-color)
 
   .p-dialog-header
     padding: 0
@@ -193,7 +207,7 @@
 .p-menuitem-link
   padding: 12px 14px
 
-  .p-menuitem-icon
+  .p-menuitem-icon,svg
     margin-right: 12px
 
 .p-datepicker-trigger
@@ -201,6 +215,11 @@
 
 .p-overlaypanel
   border: 1px solid var(--primary-color-border)
+  background-color: var(--overlay-color)
+  padding: 16px
+
+  .p-overlaypanel-content
+    padding: 0
 
   &.p-overlaypanel-flipped
     &:before
@@ -257,3 +276,9 @@
 .p-placeholder
   font-style: italic
   opacity: 0.7
+
+.p-tree-container
+  overflow-x: hidden
+
+  .p-treenode-label
+    max-width: 100px

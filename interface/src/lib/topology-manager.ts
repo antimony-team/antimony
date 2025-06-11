@@ -1,4 +1,4 @@
-import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 
@@ -8,6 +8,7 @@ import {
   NodeConnection,
   Topology,
   TopologyDefinition,
+  TopologyMeta,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
@@ -21,8 +22,8 @@ export type TopologyEditReport = {
   isEdited: boolean;
 
   /*
-   * This field makes it so components can identify if the update comes from
-   * them or some other source and update accordingly.
+   * This field makes it so components can identify if an update comes from
+   * themselves or some other source and update accordingly.
    */
   source: TopologyEditSource;
 };
@@ -34,7 +35,6 @@ export enum TopologyEditSource {
 }
 
 export class TopologyManager {
-  private apiStore: DataBinder;
   private deviceStore: DeviceStore;
   private topologyStore: TopologyStore;
   private editingTopology: Topology | null = null;
@@ -44,12 +44,7 @@ export class TopologyManager {
   public readonly onClose: Binding<void> = new Binding();
   public readonly onEdit: Binding<TopologyEditReport> = new Binding();
 
-  constructor(
-    apiStore: DataBinder,
-    topologyStore: TopologyStore,
-    deviceStore: DeviceStore
-  ) {
-    this.apiStore = apiStore;
+  constructor(topologyStore: TopologyStore, deviceStore: DeviceStore) {
     this.deviceStore = deviceStore;
     this.topologyStore = topologyStore;
     this.onEdit.register(
@@ -96,10 +91,14 @@ export class TopologyManager {
     return result;
   }
 
-  public updateSyncUrl(url: string) {
+  public discardEdits() {
     if (!this.editingTopology) return;
 
-    this.editingTopology.syncUrl = url;
+    this.onEdit.update({
+      updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
+      isEdited: false,
+      source: TopologyEditSource.System,
+    });
   }
 
   public updateNodeLabels(
@@ -116,6 +115,8 @@ export class TopologyManager {
 
       for (const [labelKey, labelValue] of Object.entries(nodeLabels)) {
         if (labelValue === null) {
+          if (!yamlNode.get('labels')) continue;
+
           yamlNode.deleteIn(['labels', labelKey]);
         } else {
           yamlNode.setIn(['labels', labelKey], labelValue);
@@ -156,7 +157,7 @@ export class TopologyManager {
   }
 
   /**
-   * Replaces the current topology with a one and notifies all subscribers.
+   * Replaces the current topology with a new one and notifies all subscribers.
    *
    * @param updatedTopology The updated topology.
    * @param source The source of the update.
@@ -224,14 +225,29 @@ export class TopologyManager {
    * Connects two nodes in the topology.
    *
    * @param nodeName1 The name of the first node to connect.
-   * @param nodeName2 The name of ths second node to connect.
+   * @param nodeName2 The name of the second node to connect.
    */
   public connectNodes(nodeName1: string, nodeName2: string) {
     if (!this.editingTopology || !this.deviceStore.data) return;
 
     const updatedTopology = this.editingTopology.definition.clone();
-    const hostInterface = this.getNextInterface(nodeName1);
-    const targetInterface = this.getNextInterface(nodeName2);
+
+    const nodeKind1 = updatedTopology.getIn([
+      'topology',
+      'nodes',
+      nodeName1,
+      'kind',
+    ]) as string | undefined;
+
+    const nodeKind2 = updatedTopology.getIn([
+      'topology',
+      'nodes',
+      nodeName1,
+      'kind',
+    ]) as string | undefined;
+
+    const hostInterface = this.getNextInterface(nodeName1, nodeKind1);
+    const targetInterface = this.getNextInterface(nodeName2, nodeKind2);
 
     if (!updatedTopology.hasIn(['topology', 'links'])) {
       updatedTopology.setIn(['topology', 'links'], new YAMLSeq());
@@ -245,6 +261,35 @@ export class TopologyManager {
         `${nodeName2}:${targetInterface}`,
       ],
     });
+
+    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
+  }
+
+  public disconnectNodes(nodeName1: string, nodeName2: string) {
+    if (!this.editingTopology || !this.deviceStore.data) return;
+
+    const updatedTopology = this.editingTopology.definition.clone();
+
+    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
+
+    for (const linksKey in links.items) {
+      const endpoints = (
+        updatedTopology.getIn([
+          'topology',
+          'links',
+          linksKey,
+          'endpoints',
+        ]) as YAMLSeq
+      ).toJS(updatedTopology);
+
+      const node1 = endpoints[0].split(':')[0];
+      const node2 = endpoints[1].split(':')[0];
+
+      if (node1 === nodeName1 && node2 === nodeName2) {
+        updatedTopology.deleteIn(['topology', 'links', linksKey]);
+        break;
+      }
+    }
 
     this.apply(updatedTopology, TopologyEditSource.NodeEditor);
   }
@@ -300,7 +345,9 @@ export class TopologyManager {
     });
   }
 
-  public buildTopologyMetadata(topology: YAMLDocument<TopologyDefinition>) {
+  public buildTopologyMetadata(
+    topology: YAMLDocument<TopologyDefinition>
+  ): TopologyMeta {
     if (!topology.hasIn(['topology', 'links'])) {
       return {
         connections: [],
@@ -320,14 +367,22 @@ export class TopologyManager {
       const [hostNode, hostInterface] = link.endpoints[0].split(':');
       const [targetNode, targetInterface] = link.endpoints[1].split(':');
 
-      const hostNodeKind = this.editingTopology?.definition.getIn([
+      // Ignore the link if one of the nodes does not exist
+      if (
+        !topology.getIn(['topology', 'nodes', hostNode]) ||
+        !topology.getIn(['topology', 'nodes', targetNode])
+      ) {
+        continue;
+      }
+
+      const hostNodeKind = topology.getIn([
         'topology',
         'nodes',
         hostNode,
         'kind',
       ]) as string;
 
-      const targetNodeKind = this.editingTopology?.definition.getIn([
+      const targetNodeKind = topology.getIn([
         'topology',
         'nodes',
         targetNode,
@@ -393,10 +448,10 @@ export class TopologyManager {
   /**
    * Generates a valid interface ID for a given node.
    */
-  private getNextInterface(nodeName: string): string {
+  private getNextInterface(nodeName: string, nodeKind?: string): string {
     if (!this.editingTopology) return '';
 
-    const deviceInfo = this.deviceStore.getInterfaceConfig(nodeName);
+    const deviceInfo = this.deviceStore.getInterfaceConfig(nodeKind);
     const assignedNumbers = new Set(
       this.getAssignedInterfaces(
         nodeName,
@@ -404,10 +459,14 @@ export class TopologyManager {
         this.editingTopology.connectionMap
       )
     );
+
     let checkIndex = deviceInfo.interfaceStart;
     let validIndexFound = false;
     while (!validIndexFound) {
-      validIndexFound = !assignedNumbers.has(checkIndex);
+      if (!assignedNumbers.has(checkIndex)) {
+        validIndexFound = true;
+        break;
+      }
       checkIndex++;
     }
 
@@ -429,11 +488,9 @@ export class TopologyManager {
       .filter(index => index >= 0);
   }
 
-  private parseInterface(value: string, interfacePattern: string): number {
+  public parseInterface(value: string, interfacePattern: string): number {
     const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
     const match = value.match(pattern);
-
-    // console.log('VALUE:', value, 'MATCH:', match, 'PATTERN:', pattern);
 
     if (!match || match.length < 2) return 99;
     return Number(match[1]);

@@ -36,3 +36,11 @@ export const SeverityMapping: {[key in Severity]: PrimeSeverity} = {
   [Severity.Error]: 'error',
   [Severity.Fatal]: 'error',
 };
+
+export const SeverityIconMap: {[key in Severity]: string} = {
+  [Severity.Success]: 'pi pi-check-circle',
+  [Severity.Info]: 'pi pi-info-circle',
+  [Severity.Warning]: 'pi pi-exclamation-circle',
+  [Severity.Error]: 'pi pi-times-circle',
+  [Severity.Fatal]: 'pi pi-times-circle',
+};

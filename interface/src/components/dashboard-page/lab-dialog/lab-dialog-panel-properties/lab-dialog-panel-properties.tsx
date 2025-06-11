@@ -1,14 +1,14 @@
 import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
-import {If} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {Lab} from '@sb/types/domain/lab';
 import dayjs from 'dayjs';
-import React from 'react';
 
 import {Button} from 'primereact/button';
 
 import './lab-dialog-panel-properties.sass';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
-import {useNavigate} from 'react-router';
 import {Tooltip} from 'primereact/tooltip';
+import React from 'react';
+import {useNavigate} from 'react-router';
 
 interface LabDialogPanelProps {
   lab: Lab;
@@ -34,7 +34,7 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
         <div className="flex align-items-center gap-1">
           <span className="property-title">ID:</span>
           <span
-            className="property-value property-id lab-dialog-tooltip-target"
+            className="property-value copyable lab-dialog-tooltip-target"
             data-pr-tooltip="Copy to clipboard"
             data-pr-position="right"
             data-pr-my="left+10 center"
@@ -81,12 +81,19 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
             </If>
           </div>
         </If>
-        <div className="flex align-items-center gap-1">
-          <span className="property-title">State:</span>
-          <span className="property-value">
-            {InstanceState[props.lab.instance?.state ?? -1]}
-          </span>
-        </div>
+        <If condition={props.lab.instance}>
+          <div className="flex align-items-center gap-1">
+            <span className="property-title">Running Until:</span>
+            <span className="property-value">
+              <Choose>
+                <When condition={props.lab.endTime === null}>Indefinitely</When>
+                <Otherwise>
+                  {dayjs(props.lab.endTime).format('DD/MM/YYYY HH:mm')}
+                </Otherwise>
+              </Choose>
+            </span>
+          </div>
+        </If>
         <div className="flex align-items-center gap-1">
           <span className="property-title">Topology:</span>
           <span className="property-value">{topology?.name}</span>

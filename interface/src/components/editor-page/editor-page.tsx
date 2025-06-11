@@ -41,32 +41,14 @@ const EditorPage: React.FC = observer(() => {
   useEffect(() => {
     if (
       searchParams.has('t') &&
-      topologyStore.lookup.has(searchParams.get('t')!)
+      topologyStore.lookup.has(searchParams.get('t')!) &&
+      topologyStore.manager.editingTopologyId !== searchParams.get('t')
     ) {
       topologyStore.manager.open(
         topologyStore.lookup.get(searchParams.get('t')!)!
       );
-    } else {
-      topologyStore.manager.close();
     }
-  }, [searchParams, topologyStore.lookup, topologyStore.manager]);
-
-  useEffect(() => {
-    if (topologyStore.manager.editingTopologyId) {
-      if (topologyStore.lookup.has(topologyStore.manager.editingTopologyId)) {
-        topologyStore.manager.open(
-          topologyStore.lookup.get(topologyStore.manager.editingTopologyId)!
-        );
-      } else {
-        topologyStore.manager.close();
-      }
-    }
-  }, [
-    topologyStore.fetchReport,
-    topologyStore.lookup,
-    topologyStore.manager,
-    topologyStore.data,
-  ]);
+  }, [searchParams, topologyStore.lookup]);
 
   function onSelectTopology(id: string) {
     if (!topologyStore.lookup.has(id)) return;
@@ -95,9 +77,9 @@ const EditorPage: React.FC = observer(() => {
   }
 
   function onSelectConfirm(id: string) {
-    if (topologyStore.lookup.has(id)) {
-      topologyStore.manager.open(topologyStore.lookup.get(id)!);
-    }
+    if (!topologyStore.lookup.has(id)) return;
+
+    topologyStore.manager.open(topologyStore.lookup.get(id)!);
   }
 
   return (

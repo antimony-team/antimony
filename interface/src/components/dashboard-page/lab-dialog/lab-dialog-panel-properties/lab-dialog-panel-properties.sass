@@ -10,12 +10,12 @@
   .property-value
     opacity: 0.6
 
-  .property-id
-    user-select: none
+    &.copyable
+      user-select: none
 
-    &:hover
-      text-decoration: underline
-      cursor: copy
+      &:hover
+        text-decoration: underline
+        cursor: copy
 
   .topology-reference
     padding: 0 !important

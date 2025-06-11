@@ -1,9 +1,10 @@
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore} from '@sb/lib/stores/data-store';
+import {DeviceStore} from '@sb/lib/stores/device-store';
 
 import {RootStore} from '@sb/lib/stores/root-store';
+import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {ClabSchema} from '@sb/types/domain/schema';
 import {
   BindFile,
   BindFileIn,
@@ -26,13 +27,20 @@ export class TopologyStore extends DataStore<
 
   public manager: TopologyManager;
 
-  constructor(rootStore: RootStore) {
+  private dataBinder: DataBinder;
+  private schemaStore: SchemaStore;
+
+  constructor(
+    rootStore: RootStore,
+    dataBinder: DataBinder,
+    schemaStore: SchemaStore,
+    deviceStore: DeviceStore
+  ) {
     super(rootStore);
-    this.manager = new TopologyManager(
-      this.rootStore._dataBinder,
-      this,
-      this.rootStore._deviceStore
-    );
+    this.dataBinder = dataBinder;
+    this.schemaStore = schemaStore;
+
+    this.manager = new TopologyManager(this, deviceStore);
 
     observe(rootStore._schemaStore, () => this.fetch());
   }
@@ -43,12 +51,7 @@ export class TopologyStore extends DataStore<
 
   @action
   protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
-    if (!this.rootStore._schemaStore?.clabSchema) return;
-
-    const [data, bindFiles] = this.parseTopologies(
-      response.payload,
-      this.rootStore._schemaStore.clabSchema
-    );
+    const [data, bindFiles] = this.parseTopologies(response.payload);
     this.data = data;
     this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
 
@@ -56,7 +59,7 @@ export class TopologyStore extends DataStore<
   }
 
   public async addBindFile(topologyId: string, bindFile: BindFileIn) {
-    const result = await this.rootStore._dataBinder.post<BindFileIn, void>(
+    const result = await this.dataBinder.post<BindFileIn, void>(
       `${this.resourcePath}/${topologyId}/files`,
       bindFile
     );
@@ -71,7 +74,7 @@ export class TopologyStore extends DataStore<
     findFileId: string,
     bindFile: BindFileIn
   ) {
-    const result = await this.rootStore._dataBinder.put<BindFileIn, void>(
+    const result = await this.dataBinder.put<BindFileIn, void>(
       `${this.resourcePath}/${topologyId}/files/${findFileId}`,
       bindFile
     );
@@ -82,7 +85,7 @@ export class TopologyStore extends DataStore<
   }
 
   public async deleteBindFile(topologyId: string, bindFileId: string) {
-    const result = await this.rootStore._dataBinder.delete<void>(
+    const result = await this.dataBinder.delete<void>(
       `${this.resourcePath}/${topologyId}/files/${bindFileId}`
     );
 
@@ -91,14 +94,11 @@ export class TopologyStore extends DataStore<
     return result;
   }
 
-  private parseTopologies(
-    input: TopologyOut[],
-    schema: ClabSchema
-  ): [Topology[], BindFile[]] {
+  private parseTopologies(input: TopologyOut[]): [Topology[], BindFile[]] {
     const topologies: Topology[] = [];
     const bindFiles: BindFile[] = [];
     for (const topologyOut of input) {
-      const definition = this.parseTopology(topologyOut.definition, schema);
+      const definition = this.parseTopology(topologyOut.definition);
 
       if (!definition) {
         console.error('[NET] Failed to parse incoming topology: ', topologyOut);
@@ -128,15 +128,14 @@ export class TopologyStore extends DataStore<
   }
 
   public parseTopology(
-    definitionString: string,
-    schema: ClabSchema
+    definitionString: string
   ): YAMLDocument<TopologyDefinition> | null {
     const definition = parseDocument(definitionString, {
       keepSourceTokens: true,
     });
     if (
       definition.errors.length > 0 ||
-      validate(definition.toJS(), schema).errors.length > 0
+      validate(definition.toJS(), this.schemaStore.clabSchema).errors.length > 0
     ) {
       return null;
     }

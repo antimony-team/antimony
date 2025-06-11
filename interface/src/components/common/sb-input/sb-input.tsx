@@ -21,7 +21,7 @@ import './sb-input.sass';
 
 export interface SBInputRef {
   setValidationError: (msg: string) => void;
-  input: HTMLInputElement | null;
+  input: RefObject<HTMLInputElement>;
 }
 
 interface SBInputProps {
@@ -63,7 +63,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
         setValidationError(msg: string) {
           setValidationError(msg);
         },
-        input: inputFieldRef.current,
+        input: inputFieldRef,
       };
     },
     []

@@ -90,7 +90,7 @@ const SBDock: React.FC = observer(() => {
             icon: {
               className: 'p-overlay-badge',
               children: (
-                <If condition={notificationStore.unreadMessages > 0}>
+                <If condition={notificationStore.hasUnreadMessages}>
                   <Badge severity="danger" />
                 </If>
               ),
@@ -107,7 +107,7 @@ const SBDock: React.FC = observer(() => {
           tooltip="Lab Schedule"
           tooltipOptions={{position: 'bottom'}}
           onClick={() => setCalendarOpen(true)}
-          aria-label="Calendar"
+          aria-label="Lab Schedule"
         />
         <Button
           outlined
@@ -120,7 +120,8 @@ const SBDock: React.FC = observer(() => {
         />
         <If
           condition={
-            !dataBinder.nativeAutologin || dataBinder.isAuthenticatedWithOidc()
+            !dataBinder.useNativeAutoLogin ||
+            dataBinder.isAuthenticatedWithOidc()
           }
         >
           <Button

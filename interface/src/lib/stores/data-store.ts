@@ -1,4 +1,4 @@
-import {action, computed, observable, observe} from 'mobx';
+import {action, computed, observable, ObservableMap, observe} from 'mobx';
 
 import {
   DefaultFetchReport,
@@ -14,7 +14,7 @@ export abstract class DataStore<T, I, O> {
   protected rootStore: RootStore;
 
   @observable accessor data: T[] = [];
-  @observable accessor lookup: Map<string, T> = new Map();
+  @observable accessor lookup: Map<string, T> = new ObservableMap();
   @observable accessor fetchReport: FetchReport = DefaultFetchReport;
 
   protected abstract get resourcePath(): string;
@@ -28,6 +28,7 @@ export abstract class DataStore<T, I, O> {
     void this.fetch();
   }
 
+  @action
   public async fetch() {
     if (!this.rootStore._dataBinder.isLoggedIn) {
       this.fetchReport = {state: FetchState.Pending};
@@ -58,15 +59,17 @@ export abstract class DataStore<T, I, O> {
     );
 
     if (result.isOk()) {
-      console.log('fetching new collection');
       await this.fetch();
     }
 
     return result;
   }
 
-  public async update(id: uuid4, body: I): Promise<Result<DataResponse<void>>> {
-    const result = await this.rootStore._dataBinder.put<I, void>(
+  public async update(
+    id: uuid4,
+    body: Partial<I>
+  ): Promise<Result<DataResponse<void>>> {
+    const result = await this.rootStore._dataBinder.patch<I, void>(
       `${this.resourcePath}/${id}` + this.patchParams,
       body
     );

@@ -15,7 +15,7 @@ export class DialogState<T> {
   private readonly _onOpen?: (state: T | null) => void;
 
   constructor(
-    public dialogState: T | null,
+    dialogState: T | null,
     onClose?: () => void,
     onOpen?: (state: T | null) => void
   ) {
@@ -34,7 +34,7 @@ export class DialogState<T> {
   }
 
   @action
-  public openWith(state: T | null) {
+  public openWith(state: T | null = null) {
     this.state = state;
     this.isOpen = true;
     if (this._onOpen) this._onOpen(state);

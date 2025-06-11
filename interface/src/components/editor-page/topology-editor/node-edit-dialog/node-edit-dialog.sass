@@ -2,9 +2,47 @@
   width: clamp(800px, 45vw, 1000px)
   height: 85vh
 
+  .sb-node-edit-dialog-icon-container
+    padding: 16px
+    border-radius: 8px
+    display: flex
+    align-content: center
+    justify-content: center
+
+    &:hover
+      backdrop-filter: brightness(140%)
+
+    &:active
+        backdrop-filter: brightness(125%)
+
+    img
+      width: 122px
+
   .sb-node-edit-dialog-header
     font-size: 24px
     margin: 16px 0 12px 0
 
   .p-accordion
     margin-top: 8px
+
+.sb-icon-selector-panel
+  padding: 8px !important
+
+  .sb-icon-selector-container
+    display: grid
+    grid-template-columns: repeat(4, 1fr)
+
+    .sb-icon-selector-entry
+      padding: 10px
+      border-radius: 8px
+      text-align: center
+
+      &:hover
+        backdrop-filter: brightness(140%)
+
+      &:active
+        backdrop-filter: brightness(125%)
+
+      img
+        width: 80px
+        margin-bottom: 4px

@@ -23,8 +23,14 @@ export enum ErrorCodes {
   /*
    * Errors that the server returns from socket requests.
    */
-  ErrorSocketClabError = 5001,
+  ErrorContainerlab = 5001,
+  ErrorLabIsDeploying = 5002,
+  ErrorLabNotRunning = 5003,
+  ErrorNodeNotRunning = 5004,
+  ErrorUuidNotFound = 5005,
+  ErrorNodeNotFound = 5006,
+  ErrorShellNotFound = 5007,
+  ErrorShellLimitReached = 5008,
   ErrorSocketInvalidRequest = 5422,
   ErrorSocketForbidden = 5403,
-  ErrorSocketNotFound = 5404,
 }

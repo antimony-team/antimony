@@ -9,6 +9,7 @@ import {Choose, If, When} from '@sb/types/control';
 import {uuid4} from '@sb/types/types';
 
 import {Button} from 'primereact/button';
+import {Tooltip} from 'primereact/tooltip';
 import {TreeNode} from 'primereact/treenode';
 import React, {MouseEvent, useMemo} from 'react';
 
@@ -133,6 +134,7 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
 
   return (
     <div className="flex align-self-stretch w-full align-items-center justify-content-between">
+      <Tooltip target=".tree-node" />
       <span
         className="tree-node p-treenode-label"
         data-pr-position="right"

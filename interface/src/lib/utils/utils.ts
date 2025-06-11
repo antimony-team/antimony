@@ -1,19 +1,19 @@
-import {ElementDefinition} from 'cytoscape';
-import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
-
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {FetchState} from '@sb/types/types';
-import {Topology} from '@sb/types/domain/topology';
+import {Instance} from '@sb/types/domain/lab';
+import {RunTopology, Topology} from '@sb/types/domain/topology';
+import {FetchState, Position} from '@sb/types/types';
+import cytoscape, {ElementDefinition} from 'cytoscape';
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 export async function fetchResource<T>(
-  path: string,
-  method: string,
+  url: string,
+  method: string = 'GET',
   body?: T,
   requestHeaders?: HeadersInit
 ): Promise<Response | null> {
   try {
-    return await fetch(path, {
+    return await fetch(url, {
       method: method,
       headers: requestHeaders,
       body: JSON.stringify(body),
@@ -55,22 +55,134 @@ export function arrayOf(value: string, length: number) {
   return [...Array(length)].map(() => value);
 }
 
-export function drawGrid(
+export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
+  if (map.has(key)) {
+    map.get(key)!.push(value);
+  } else {
+    map.set(key, [value]);
+  }
+}
+
+export function generateGraph(
+  topology: Topology | RunTopology,
+  deviceStore: DeviceStore,
+  topologyManager: TopologyManager,
+  instance: Instance | null,
+  omitLabels: boolean = false
+): ElementDefinition[] {
+  const elements: ElementDefinition[] = [];
+  const addedGroups = new Set<string>();
+
+  const topologyNodes = Object.entries(
+    topology.definition.toJS().topology.nodes
+  );
+
+  for (const [nodeName, node] of topologyNodes) {
+    const posX = parseFloat(node?.labels?.['graph-posX'] ?? '');
+    const posY = parseFloat(node?.labels?.['graph-posY'] ?? '');
+
+    let position = {x: 0, y: 0};
+
+    if (!isNaN(posX) && !isNaN(posY)) {
+      position = {x: posX, y: posY};
+    } else {
+      const lat = parseFloat(node?.labels?.['graph-geoCoordinateLat'] ?? '');
+      const lng = parseFloat(node?.labels?.['graph-geoCoordinateLng'] ?? '');
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        position = convertLatLngToXY(lat, lng);
+      }
+    }
+
+    const group = node?.labels?.['graph-group'];
+    const level = node?.labels?.['graph-level'];
+
+    let parentId: string | undefined = undefined;
+
+    if (group !== undefined) {
+      const groupId = level !== undefined ? `${group}:${level}` : group;
+
+      const groupLabel = omitLabels ? '' : group;
+
+      if (!addedGroups.has(groupId)) {
+        elements.push({
+          group: 'nodes',
+          data: {
+            id: groupId,
+            label: groupLabel,
+          },
+          classes: 'drawn-shape',
+        });
+        addedGroups.add(groupId);
+      }
+
+      parentId = groupId;
+    }
+
+    let label = omitLabels ? '' : nodeName;
+
+    if (!omitLabels && instance && instance) {
+      if (!instance.nodeMap.has(nodeName)) {
+        label = `🟠 ${nodeName}`;
+      } else if (instance.nodeMap.get(nodeName)!.state === 'running') {
+        label = `🟢 ${nodeName}`;
+      } else {
+        label = `🔴 ${nodeName}`;
+      }
+    }
+
+    elements.push({
+      data: {
+        id: nodeName,
+        parent: parentId,
+        label: label,
+        title: topologyManager.getNodeTooltip(nodeName),
+        kind: node?.kind ?? '',
+        image: deviceStore.getNodeIcon(node),
+        shape: deviceStore.getNodeShape(node),
+      },
+      position: position,
+      classes: 'topology-node',
+    });
+  }
+
+  for (const connection of topology.connections) {
+    elements.push({
+      data: {
+        id: connection.index.toString(),
+        source: connection.hostNode,
+        target: connection.targetNode,
+        title: topologyManager.getEdgeTooltip(connection),
+        sourceLabel: connection.hostInterface,
+        targetLabel: connection.targetInterface,
+      },
+      classes: 'edge',
+    });
+  }
+
+  return elements;
+}
+
+export function drawGraphGrid(
+  container: HTMLDivElement,
+  canvas: HTMLCanvasElement,
+  cy: cytoscape.Core
+) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid(ctx, cy.zoom(), cy.pan());
+}
+
+function drawGrid(
   ctx: CanvasRenderingContext2D,
   zoom: number,
   pan: {x: number; y: number}
 ) {
-  // const canvas = ctx.canvas;
-  // const width = canvas.width;
-  // const height = canvas.height;
-  //
-  // const gridSpacing = 40;
-  // const gridColor = 'rgb(38,55,55)';
-  // const largeGridColor = 'rgb(40,68,71)';
-  //
-  // ctx.clearRect(0, 0, width, height);
-  // ctx.save();
-
   const width = window.outerWidth;
   const height = window.outerHeight;
   const gridSpacing = 50;
@@ -114,138 +226,12 @@ export function drawGrid(
     ctx.lineTo(-width * gridExtent, y);
     ctx.stroke();
   }
-
-  // apply pan & zoom to align grid
-
-  // const startX = -pan.x / zoom;
-  // const startY = -pan.y / zoom;
-  // const endX = startX + width / zoom;
-  // const endY = startY + height / zoom;
-  //
-  // for (
-  //   let x = Math.floor(startX / gridSpacing) * gridSpacing;
-  //   x < endX;
-  //   x += gridSpacing
-  // ) {
-  //   ctx.beginPath();
-  //   ctx.lineWidth = x % (gridSpacing * 8) === 0 ? 2 : 1;
-  //   ctx.strokeStyle = x % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
-  //   ctx.moveTo(x, startY);
-  //   ctx.lineTo(x, endY);
-  //   ctx.stroke();
-  // }
-  //
-  // for (
-  //   let y = Math.floor(startY / gridSpacing) * gridSpacing;
-  //   y < endY;
-  //   y += gridSpacing
-  // ) {
-  //   ctx.beginPath();
-  //   ctx.lineWidth = y % (gridSpacing * 8) === 0 ? 2 : 1;
-  //   ctx.strokeStyle = y % (gridSpacing * 8) === 0 ? largeGridColor : gridColor;
-  //   ctx.moveTo(startX, y);
-  //   ctx.lineTo(endX, y);
-  //   ctx.stroke();
-  // }
-
-  // ctx.restore();
 }
 
-export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
-  if (map.has(key)) {
-    map.get(key)!.push(value);
-  } else {
-    map.set(key, [value]);
-  }
-}
-
-function addedGroup(groupId: string, groupName: string): ElementDefinition[] {
-  return [
-    {
-      group: 'nodes',
-      data: {
-        id: groupId,
-        label: groupName,
-      },
-      classes: 'drawn-shape',
-    },
-    {
-      group: 'nodes',
-      data: {
-        id: `close-${groupId}`,
-      },
-      position: {x: 0, y: 0},
-      classes: 'compound-close-btn',
-    },
-  ];
-}
-
-export function generateGraph(
-  topology: Topology,
-  deviceStore: DeviceStore,
-  topologyManager: TopologyManager
-): ElementDefinition[] {
-  const elements: ElementDefinition[] = [];
-  const addedGroups = new Set<string>();
-  for (const [, [nodeName, node]] of Object.entries(
-    topology.definition.toJS().topology.nodes
-  ).entries()) {
-    const lat = parseFloat(node.labels?.['graph-geoCoordinateLat'] ?? '');
-    const lng = parseFloat(node.labels?.['graph-geoCoordinateLng'] ?? '');
-    const group = node.labels?.['graph-group'];
-    const level = node.labels?.['graph-level'];
-    const position =
-      isNaN(lat) || isNaN(lng) ? {x: 0, y: 0} : convertLatLngToXY(lat, lng);
-    let parentId: string | undefined = undefined;
-
-    if (group !== undefined) {
-      const groupId = level !== undefined ? `${group}:${level}` : group;
-
-      if (!addedGroups.has(groupId)) {
-        elements.push(...addedGroup(groupId, group));
-        addedGroups.add(groupId);
-      }
-
-      parentId = groupId;
-    }
-
-    elements.push({
-      data: {
-        id: nodeName,
-        parent: parentId,
-        label: nodeName,
-        title: topologyManager.getNodeTooltip(nodeName),
-        kind: node.kind,
-        image: deviceStore.getNodeIcon(node),
-      },
-      position: position,
-      classes: 'topology-node',
-    });
-  }
-  // Edges
-  for (const connection of topology.connections) {
-    elements.push({
-      data: {
-        id: connection.index.toString(),
-        source: connection.hostNode,
-        target: connection.targetNode,
-        title: topologyManager.getEdgeTooltip(connection),
-        sourceLabel: connection.hostInterface,
-        targetLabel: connection.targetInterface,
-      },
-      classes: 'edge',
-    });
-  }
-  return elements;
-}
-
-export function generateUuidv4() {
-  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
-    (
-      +c ^
-      (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
-    ).toString(16)
-  );
+export function getDistance(a: Position, b: Position): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 export const SBTooltipOptions: TooltipOptions = {

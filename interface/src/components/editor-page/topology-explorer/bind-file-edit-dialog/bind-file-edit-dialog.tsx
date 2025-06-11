@@ -12,6 +12,7 @@ import {BindFile} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
 
 import {isEqual} from 'lodash-es';
+import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 import {SelectItem} from 'primereact/selectitem';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
@@ -64,8 +65,10 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       };
       setOriginalBindFile(editBindFile);
 
-      editingBindFile.filePath = editBindFile.filePath;
-      editingBindFile.topologyId = editBindFile.topologyId;
+      runInAction(() => {
+        editingBindFile.filePath = editBindFile.filePath;
+        editingBindFile.topologyId = editBindFile.topologyId;
+      });
     }
   }, [props.dialogState.isOpen]);
 
@@ -215,7 +218,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       className="sb-bind-file-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onShow={() => bindFileNameRef.current?.input?.focus()}
+      onShow={() => bindFileNameRef.current?.input.current?.focus()}
     >
       <div className="mb-3">
         <SBInput

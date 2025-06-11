@@ -1,5 +1,5 @@
 import {useLabStore} from '@sb/lib/stores/root-store';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import {Button} from 'primereact/button';
@@ -12,10 +12,10 @@ import React from 'react';
 interface LabDialogPanelProps {
   lab: Lab;
 
-  hostsHidden: boolean;
-  setHostsHidden: (visible: boolean) => void;
+  labelsHidden: boolean;
+  setLabelsHidden: (visible: boolean) => void;
 
-  onShowLogs: () => void;
+  onOpenLogs: () => void;
   onDestroyLabRequest: () => void;
 }
 
@@ -28,28 +28,32 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
       <div className="flex align-items-center gap-2 mt-2 mb-2">
         <Checkbox
           inputId="hostsVisibleCheckbox"
-          checked={props.hostsHidden}
-          onChange={e => props.setHostsHidden(e.checked!)}
+          checked={props.labelsHidden}
+          onChange={e => props.setLabelsHidden(e.checked!)}
         />
-        <label htmlFor="hostsVisibleCheckbox">Hide hosts</label>
+        <label htmlFor="hostsVisibleCheckbox">Hide Labels</label>
       </div>
       <Button
         outlined
-        icon={<span className="material-symbols-outlined">find_in_page</span>}
+        icon={
+          <span className="material-symbols-outlined">quick_reference_all</span>
+        }
         label="Show Logs"
         aria-label="Show Logs"
-        onClick={props.onShowLogs}
+        onClick={props.onOpenLogs}
         disabled={!props.lab.instance}
       />
-      {/*<If condition={props.lab.instance?.edgesharkLink}>*/}
-      <Button
-        outlined
-        icon={<span className="material-symbols-outlined">sailing</span>}
-        label="Open EdgeShark"
-        onClick={() => window.open(props.lab.instance!.edgesharkLink, '_blank')}
-        aria-label="Open EdgeShark"
-      />
-      {/*</If>*/}
+      <If condition={props.lab.instance?.edgesharkLink}>
+        <Button
+          outlined
+          icon={<span className="material-symbols-outlined">sailing</span>}
+          label="Open EdgeShark"
+          onClick={() =>
+            window.open(props.lab.instance!.edgesharkLink, '_blank')
+          }
+          aria-label="Open EdgeShark"
+        />
+      </If>
       <Divider />
       <Choose>
         <When condition={!props.lab.instance}>
@@ -75,7 +79,7 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
             disabled={props.lab.state === InstanceState.Deploying}
             tooltip={
               props.lab.state === InstanceState.Deploying
-                ? 'Lab is already being deployed.'
+                ? 'Lab is currently being deployed.'
                 : ''
             }
             tooltipOptions={{
@@ -84,12 +88,6 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
           />
         </Otherwise>
       </Choose>
-      <Button
-        outlined
-        icon="pi pi-save"
-        label="Save Lab"
-        aria-label="Save Lab"
-      />
       <Button
         outlined
         icon="pi pi-power-off"
@@ -105,10 +103,7 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
         }
         severity="danger"
         onClick={props.onDestroyLabRequest}
-        disabled={
-          props.lab.state === InstanceState.Inactive ||
-          props.lab.state === InstanceState.Deploying
-        }
+        disabled={props.lab.state === InstanceState.Inactive}
       />
     </div>
   );

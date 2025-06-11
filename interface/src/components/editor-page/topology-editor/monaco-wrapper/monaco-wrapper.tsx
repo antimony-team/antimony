@@ -54,6 +54,8 @@ interface MonacoWrapperProps {
 export interface MonacoWrapperRef {
   undo: () => void;
   redo: () => void;
+
+  setContent: (content: string) => void;
 }
 
 const MonacoWrapper = observer(
@@ -65,31 +67,36 @@ const MonacoWrapper = observer(
     const editorRef = useRef<editor.ICodeEditor | null>(null);
 
     const currentlyOpenTopology = useRef<string | null>(null);
+    // const didEditorMount = useRef(false);
 
     const authUser = useAuthUser();
     const schemaStore = useSchemaStore();
     const topologyStore = useTopologyStore();
 
-    const onTopologyOpen = useCallback((topology: Topology) => {
-      /*
-       * Don't replace the current model if the topology ID has not changed.
-       * This happens whenever a topology is saved and reloaded automatically.
-       */
-      if (currentlyOpenTopology.current === topology.id) {
-        return;
-      }
+    const onTopologyOpen = useCallback(
+      (topology: Topology) => {
+        setLastDeployFailed(topology.lastDeployFailed);
 
-      const readOnly = !authUser.isAdmin && authUser.id !== topology.creator.id;
-      setReadOnly(readOnly);
-      editorRef.current?.updateOptions({readOnly: readOnly});
+        /*
+         * Don't replace the current model if the topology ID has not changed.
+         * This happens whenever a topology is saved and reloaded automatically.
+         */
+        if (currentlyOpenTopology.current === topology.id) {
+          return;
+        }
 
-      setLastDeployFailed(topology.lastDeployFailed);
+        const readOnly =
+          !authUser.isAdmin && authUser.id !== topology.creator.id;
+        setReadOnly(readOnly);
+        editorRef.current?.updateOptions({readOnly: readOnly});
 
-      if (textModelRef.current) {
-        textModelRef.current.setValue(topology.definition.toString());
-        currentlyOpenTopology.current = topology.id;
-      }
-    }, []);
+        if (textModelRef.current) {
+          textModelRef.current.setValue(topology.definition.toString());
+          currentlyOpenTopology.current = topology.id;
+        }
+      },
+      [hasLastDeployFailed]
+    );
 
     const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
       if (
@@ -108,25 +115,7 @@ const MonacoWrapper = observer(
       const existingContentStripped = existingContent.replaceAll(' ', '');
 
       if (!isEqual(updatedContentStripped, existingContentStripped)) {
-        /*
-         * For some reason the react-monaco-editor library adds multiple unto stops
-         * to the history stack whenever the content is updated. This messes
-         * up consecutive undos and redos. Therefore, we update the content
-         * manually and don't use the library's built-in functionality.
-         *
-         * https://github.com/react-monaco-editor/react-monaco-editor/blob/e8c823fa5e0156687e6129502369f7e1521d061b/src/editor.tsx#L107
-         */
-        textModelRef.current.pushStackElement();
-        textModelRef.current.pushEditOperations(
-          [],
-          [
-            {
-              range: textModelRef.current.getFullModelRange(),
-              text: updatedContent,
-            },
-          ],
-          undefined as never
-        );
+        injectContentUpdate(updatedContent);
       }
     }, []);
 
@@ -155,7 +144,32 @@ const MonacoWrapper = observer(
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
       redo: onTriggerRedo,
+      setContent: injectContentUpdate,
     }));
+
+    /*
+     * For some reason, the react-monaco-editor library adds multiple unto stops
+     * to the history stack whenever the content is updated. This messes
+     * up consecutive undos and redos. Therefore, we update the content
+     * manually and don't use the library's built-in reactive functionality.
+     *
+     * https://github.com/react-monaco-editor/react-monaco-editor/blob/e8c823fa5e0156687e6129502369f7e1521d061b/src/editor.tsx#L107
+     */
+    function injectContentUpdate(content: string) {
+      if (!textModelRef.current) return;
+
+      textModelRef.current.pushStackElement();
+      textModelRef.current.pushEditOperations(
+        [],
+        [
+          {
+            range: textModelRef.current.getFullModelRange(),
+            text: content,
+          },
+        ],
+        undefined as never
+      );
+    }
 
     const onGlobalKeyPress = useCallback(
       (event: KeyboardEvent) => {
@@ -237,7 +251,7 @@ const MonacoWrapper = observer(
           <If condition={hasLastDeployFailed}>
             <div className="sb-monaco-wrapper-unsuccessful">
               <span>
-                The latest deployment of this topology was unsuccessful.
+                The last deployment of this topology was unsuccessful.
               </span>
             </div>
           </If>

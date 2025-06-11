@@ -47,13 +47,15 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
 
   const events = useMemo(
     () =>
-      calendarLabStore.data.map(lab => ({
-        title: lab.name,
-        id: lab.id,
-        state: lab.instance?.state ?? InstanceState.Scheduled,
-        start: new Date(lab.startTime),
-        end: new Date(lab.endTime),
-      })),
+      calendarLabStore.data
+        .filter(lab => lab.endTime !== null)
+        .map(lab => ({
+          title: lab.name,
+          id: lab.id,
+          state: lab.instance?.state ?? InstanceState.Scheduled,
+          start: new Date(lab.startTime),
+          end: new Date(lab.endTime!),
+        })),
     [calendarLabStore.data]
   );
 
@@ -117,7 +119,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
   return (
     <SBDialog
       className="calender-dialog"
-      headerTitle="Calendar"
+      headerTitle="Lab Schedule"
       isOpen={props.isOpen}
       onClose={props.onClose}
       hideButtons={true}
