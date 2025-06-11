@@ -14,7 +14,7 @@ func RegisterRoutes(route *gin.Engine, handler Handler, authManager auth.AuthMan
 		routes.DELETE("/:topologyId", handler.Delete)
 
 		routes.POST("/:topologyId/files", handler.CreateBindFile)
-		routes.PUT("/:topologyId/files/:fileId", handler.UpdateBindFile)
+		routes.PATCH("/:topologyId/files/:fileId", handler.UpdateBindFile)
 		routes.DELETE("/:topologyId/files/:fileId", handler.DeleteBindFile)
 	}
 }
