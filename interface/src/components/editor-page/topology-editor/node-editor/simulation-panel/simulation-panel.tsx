@@ -26,7 +26,7 @@ const SimulationPanel = observer((props: SimulationPanelProps) => {
         'sb-node-editor-simulation-panel sb-animated-overlay',
         {
           visible: simulationConfig.panelOpen,
-        }
+        },
       )}
     >
       <span className="simulation-panel-title">Graph Stabilization</span>

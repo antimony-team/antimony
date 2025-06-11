@@ -44,7 +44,7 @@ interface NodePropertyTableProps {
 }
 
 const NodePropertyTable: React.FC<NodePropertyTableProps> = (
-  props: NodePropertyTableProps
+  props: NodePropertyTableProps,
 ) => {
   // List of available properties or null, if property does not have any restrictions.
   const [availableProperties, setAvailableProperties] = useState<
@@ -61,7 +61,7 @@ const NodePropertyTable: React.FC<NodePropertyTableProps> = (
     if (!propertyQuery) return availableProperties;
 
     return availableProperties.filter(property =>
-      matchesSearch(property.value!, propertyQuery)
+      matchesSearch(property.value!, propertyQuery),
     );
   }, [availableProperties, propertyQuery]);
 
@@ -86,7 +86,7 @@ const NodePropertyTable: React.FC<NodePropertyTableProps> = (
         .getAvailableProperties(props.objectKey, props.schemaKey)
         ?.map(property => ({
           value: property,
-        })) ?? null
+        })) ?? null,
     );
   }, [
     props.isKeyEditable,

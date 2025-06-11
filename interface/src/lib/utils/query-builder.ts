@@ -4,7 +4,7 @@ export class QueryBuilder {
   public add(
     name: string,
     value: string | number | undefined | null,
-    omitIfNull: boolean = true
+    omitIfNull: boolean = true,
   ): QueryBuilder {
     if (omitIfNull && (value === undefined || value === null)) return this;
 

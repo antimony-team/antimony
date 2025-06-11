@@ -16,7 +16,7 @@ interface NodePropertyArrayProps {
 }
 
 const NodePropertyArray: React.FC<NodePropertyArrayProps> = (
-  props: NodePropertyArrayProps
+  props: NodePropertyArrayProps,
 ) => {
   const entries = useMemo(() => {
     if (!props.entries) return [];

@@ -34,7 +34,7 @@ export class TopologyStore extends DataStore<
     rootStore: RootStore,
     dataBinder: DataBinder,
     schemaStore: SchemaStore,
-    deviceStore: DeviceStore
+    deviceStore: DeviceStore,
   ) {
     super(rootStore);
     this.dataBinder = dataBinder;
@@ -61,7 +61,7 @@ export class TopologyStore extends DataStore<
   public async addBindFile(topologyId: string, bindFile: BindFileIn) {
     const result = await this.dataBinder.post<BindFileIn, void>(
       `${this.resourcePath}/${topologyId}/files`,
-      bindFile
+      bindFile,
     );
 
     if (result.isOk()) await this.fetch();
@@ -72,11 +72,11 @@ export class TopologyStore extends DataStore<
   public async updateBindFile(
     topologyId: string,
     findFileId: string,
-    bindFile: BindFileIn
+    bindFile: BindFileIn,
   ) {
     const result = await this.dataBinder.put<BindFileIn, void>(
       `${this.resourcePath}/${topologyId}/files/${findFileId}`,
-      bindFile
+      bindFile,
     );
 
     if (result.isOk()) await this.fetch();
@@ -86,7 +86,7 @@ export class TopologyStore extends DataStore<
 
   public async deleteBindFile(topologyId: string, bindFileId: string) {
     const result = await this.dataBinder.delete<void>(
-      `${this.resourcePath}/${topologyId}/files/${bindFileId}`
+      `${this.resourcePath}/${topologyId}/files/${bindFileId}`,
     );
 
     if (result.isOk()) await this.fetch();
@@ -120,15 +120,15 @@ export class TopologyStore extends DataStore<
     return [
       topologies.toSorted((a, b) =>
         (a.definition.get('name') as string)?.localeCompare(
-          b.definition.get('name') as string
-        )
+          b.definition.get('name') as string,
+        ),
       ),
       bindFiles,
     ];
   }
 
   public parseTopology(
-    definitionString: string
+    definitionString: string,
   ): YAMLDocument<TopologyDefinition> | null {
     const definition = parseDocument(definitionString, {
       keepSourceTokens: true,

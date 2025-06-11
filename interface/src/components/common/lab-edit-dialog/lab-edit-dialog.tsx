@@ -86,12 +86,12 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           topologyId: editingLab.topologyId,
           startTime: editingLab.startTime.toISOString(),
           endTime: editingLab.endTime.toISOString(),
-        }
+        },
       );
       if (result.isErr()) {
         notificationStore.error(
           result.error.message,
-          'Failed to edit topology'
+          'Failed to edit topology',
         );
       } else {
         notificationStore.success('Lab has been udpated successfully.');

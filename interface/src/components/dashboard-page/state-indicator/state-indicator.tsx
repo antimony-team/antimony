@@ -33,7 +33,7 @@ const StateIndicator = (props: StateIndicatorProps) => {
     <div
       className={classNames(
         'lab-state-label-icon',
-        getLabStateIconClass(props.lab)
+        getLabStateIconClass(props.lab),
       )}
     >
       <i className={LabStateStatusIcons[props.lab.state]}></i>

@@ -80,7 +80,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     if (!shellStore.currentShell || !props.dialogState.state) return 0;
 
     const currentShells = shellStore.getShellsForLab(
-      props.dialogState.state.lab.id
+      props.dialogState.state.lab.id,
     );
 
     for (const [index, shell] of currentShells.entries()) {
@@ -96,7 +96,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     if (!props.dialogState.state) return;
 
     const currentShells = shellStore.getShellsForLab(
-      props.dialogState.state.lab.id
+      props.dialogState.state.lab.id,
     );
 
     setCurrentTabs(
@@ -107,7 +107,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           label: shell.node,
           expired: shell.expired,
         }))
-        .toArray()
+        .toArray(),
     );
 
     setExpired(shellStore.currentShell?.expired ?? false);
@@ -138,7 +138,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     await shellStore.fetchShellsForLab(props.dialogState.state.lab);
 
     const currentShells = shellStore.getShellsForLab(
-      props.dialogState.state.lab.id
+      props.dialogState.state.lab.id,
     );
 
     setCurrentTabs(
@@ -149,11 +149,11 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           label: shell.node,
           expired: shell.expired,
         }))
-        .toArray()
+        .toArray(),
     );
 
     const shellsForNode = currentShells.filter(
-      shell => shell.node === props.dialogState.state!.node
+      shell => shell.node === props.dialogState.state!.node,
     );
 
     if (shellsForNode.length < 1) {
@@ -174,7 +174,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
     const shell = await shellStore.openShell(
       props.dialogState.state.lab,
-      nodeName
+      nodeName,
     );
     if (!shell) return;
 
@@ -187,7 +187,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           label: shell.node,
           expired: shell.expired,
         }))
-        .toArray()
+        .toArray(),
     );
 
     deferTerminalReset();
@@ -199,12 +199,12 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     if (!props.dialogState.state || !termRef.current) return;
 
     const currentShells = shellStore.getShellsForLab(
-      props.dialogState.state.lab.id
+      props.dialogState.state.lab.id,
     );
     if (event.index >= currentShells.length) {
       newTabOverlay.current!.show(
         event.originalEvent,
-        newTabAnchor.current! as unknown as HTMLElement
+        newTabAnchor.current! as unknown as HTMLElement,
       );
     } else {
       deferTerminalReset();
@@ -255,7 +255,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     await shellStore.closeShell(props.dialogState.state.lab, shellId);
 
     const currentShells = shellStore.getShellsForLab(
-      props.dialogState.state.lab.id
+      props.dialogState.state.lab.id,
     );
 
     setCurrentTabs(
@@ -266,7 +266,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           label: shell.node,
           expired: shell.expired,
         }))
-        .toArray()
+        .toArray(),
     );
 
     if (closeIndex <= tabIndex) {
@@ -291,7 +291,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   function onTabClose(
     event: React.MouseEvent<HTMLDivElement>,
     shellId: string,
-    closeIndex: number
+    closeIndex: number,
   ) {
     event.stopPropagation();
 

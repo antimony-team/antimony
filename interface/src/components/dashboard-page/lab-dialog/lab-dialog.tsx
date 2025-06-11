@@ -98,7 +98,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         deviceStore,
         topologyStore.manager,
         props.dialogState.state.instance,
-        hostsHidden
+        hostsHidden,
       );
 
       for (const element of elements) {
@@ -161,7 +161,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         setSelectedNode(target.id());
 
         const node = props.dialogState.state?.instance?.nodeMap.get(
-          target.id()
+          target.id(),
         );
 
         if (node && nodeDetailOverlay.current) {
@@ -497,7 +497,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         />
       </>
     );
-  }
+  },
 );
 
 export default LabDialog;

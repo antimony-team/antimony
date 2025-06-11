@@ -20,7 +20,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
 
   function onHostChange(
     connection: NodeConnection,
-    event: InputNumberChangeEvent
+    event: InputNumberChangeEvent,
   ) {
     if (!event.value) return;
 
@@ -32,7 +32,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
 
   function onTargetChange(
     connection: NodeConnection,
-    event: InputNumberChangeEvent
+    event: InputNumberChangeEvent,
   ) {
     if (!event.value) return;
 
@@ -43,7 +43,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
   }
 
   const nodeConnections = topologyStore.manager.topology?.connectionMap.get(
-    props.nodeEditor.getNodeName()
+    props.nodeEditor.getNodeName(),
   );
 
   return (
@@ -73,7 +73,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
                   src={deviceStore.getNodeIcon(
                     props.nodeEditor.getTopology().toJS().topology.nodes[
                       connection.targetNode
-                    ]
+                    ],
                   )}
                   width="45px"
                 />

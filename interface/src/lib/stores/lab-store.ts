@@ -52,7 +52,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     rootStore: RootStore,
     dataBinder: DataBinder,
     topologyStore: TopologyStore,
-    statusMessageStore: StatusMessageStore
+    statusMessageStore: StatusMessageStore,
   ) {
     super(rootStore);
 
@@ -64,7 +64,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
     this.dataBinder.subscribeNamespace(
       'lab-updates',
-      this.onLabUpdate.bind(this)
+      this.onLabUpdate.bind(this),
     );
 
     this.labCommandsSubscription =
@@ -78,7 +78,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @action
   private async fetchSingle(labId: string) {
     const response = await this.rootStore._dataBinder.get<LabOut>(
-      this.resourcePath + '/' + labId
+      this.resourcePath + '/' + labId,
     );
 
     if (response.isOk()) {
@@ -116,7 +116,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   public async sendLabCommand(command: LabCommandData): Promise<Result<null>> {
     const response = await this.labCommandsSubscription.socket!.emitWithAck(
       'data',
-      JSON.stringify(command)
+      JSON.stringify(command),
     );
 
     if (!('payload' in response)) {
@@ -136,7 +136,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     if (result.isErr()) {
       this.statusMessageStore.error(
         result.error.message,
-        'Failed to deploy lab'
+        'Failed to deploy lab',
       );
     }
 
@@ -152,7 +152,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     if (result.isErr()) {
       this.statusMessageStore.error(
         result.error.message,
-        'Failed to destroy lab'
+        'Failed to destroy lab',
       );
     }
 
@@ -169,7 +169,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     if (result.isErr()) {
       this.statusMessageStore.error(
         result.error.message,
-        'Failed to stop node'
+        'Failed to stop node',
       );
     }
 
@@ -186,7 +186,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     if (result.isErr()) {
       this.statusMessageStore.error(
         result.error.message,
-        'Failed to start node'
+        'Failed to start node',
       );
     }
 
@@ -203,7 +203,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     if (result.isErr()) {
       this.statusMessageStore.error(
         result.error.message,
-        'Failed to restart node'
+        'Failed to restart node',
       );
     }
 
@@ -259,7 +259,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   public toggleCollection(collectionId: string) {
     if (this.collectionFilter.includes(collectionId)) {
       this.setCollectionFilter(
-        this.collectionFilter.filter(c => c !== collectionId)
+        this.collectionFilter.filter(c => c !== collectionId),
       );
     } else {
       this.setCollectionFilter([...this.collectionFilter, collectionId]);
@@ -286,7 +286,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
     const definition = this.topologyStore.parseTopology(
-      input.topologyDefinition
+      input.topologyDefinition,
     );
 
     if (!definition) {

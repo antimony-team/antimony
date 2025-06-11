@@ -33,7 +33,7 @@ const LogDialog = observer((props: LogDialogProps) => {
   const [lines, setLines] = useState<string[] | null>(null);
 
   const [logSource, setLogSource] = useState<string | number>(
-    props.dialogState.state?.source ?? -1
+    props.dialogState.state?.source ?? -1,
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,7 +82,7 @@ const LogDialog = observer((props: LogDialogProps) => {
       return 'Containerlab';
     } else {
       return props.dialogState.state.lab.instance!.nodes.find(
-        node => node.containerId === logSource
+        node => node.containerId === logSource,
       )!.name;
     }
   }, [props.dialogState.state, logSource]);

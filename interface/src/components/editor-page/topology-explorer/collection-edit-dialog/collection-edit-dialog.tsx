@@ -86,17 +86,17 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
 
       const result = await collectionStore.update(
         props.dialogState.state.editingCollection!.id,
-        editingCollection
+        editingCollection,
       );
       if (result.isErr()) {
         if (result.error.code === ErrorCodes.ErrorCollectionExists) {
           collectionNameRef.current?.setValidationError(
-            'A collection with that name already exists.'
+            'A collection with that name already exists.',
           );
         } else {
           notificationStore.error(
             result.error.message,
-            'Failed to update collection'
+            'Failed to update collection',
           );
         }
       } else {
@@ -108,12 +108,12 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
       if (result.isErr()) {
         if (result.error.code === ErrorCodes.ErrorCollectionExists) {
           collectionNameRef.current?.setValidationError(
-            'A collection with that name already exists.'
+            'A collection with that name already exists.',
           );
         } else {
           notificationStore.error(
             result.error.message,
-            'Failed to create collection'
+            'Failed to create collection',
           );
         }
       } else {

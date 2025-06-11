@@ -15,10 +15,10 @@ export class CollectionStore extends DataStore<
   @action
   protected handleUpdate(response: DataResponse<Collection[]>): void {
     this.data = response.payload.toSorted((a, b) =>
-      a.name.localeCompare(b.name)
+      a.name.localeCompare(b.name),
     );
     this.lookup = new Map(
-      this.data.map(collection => [collection.id, collection])
+      this.data.map(collection => [collection.id, collection]),
     );
   }
 

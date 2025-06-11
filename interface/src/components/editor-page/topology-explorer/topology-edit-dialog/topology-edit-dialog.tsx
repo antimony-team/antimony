@@ -97,27 +97,27 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
       props.dialogState.state.editingTopology!.definition.set(
         'name',
-        editingTopology.name
+        editingTopology.name,
       );
       const result = await topologyStore.update(
         props.dialogState.state.editingTopology!.id,
         {
           definition: TopologyManager.serializeTopology(
-            props.dialogState.state.editingTopology!.definition
+            props.dialogState.state.editingTopology!.definition,
           ),
           syncUrl: props.dialogState.state.editingTopology!.syncUrl,
           collectionId: editingTopology.collectionId,
-        }
+        },
       );
       if (result.isErr()) {
         if (result.error.code === ErrorCodes.ErrorTopologyExists) {
           topologyNameRef.current?.setValidationError(
-            'A topology with that name already exists.'
+            'A topology with that name already exists.',
           );
         } else {
           notificationStore.error(
             result.error.message,
-            'Failed to edit topology'
+            'Failed to edit topology',
           );
         }
       } else {
@@ -137,12 +137,12 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         if (result.isErr()) {
           if (result.error.code === ErrorCodes.ErrorTopologyExists) {
             topologyNameRef.current?.setValidationError(
-              'A topology with that name already exists in this collection.'
+              'A topology with that name already exists in this collection.',
             );
           } else {
             notificationStore.error(
               result.error.message,
-              'Failed to update topology'
+              'Failed to update topology',
             );
           }
         } else {
@@ -160,7 +160,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         collection =>
           collection.publicWrite ||
           authUser.isAdmin ||
-          collection.id === props.dialogState.state?.collectionId
+          collection.id === props.dialogState.state?.collectionId,
       )
       .map(collection => ({
         label: collection.name,
@@ -197,7 +197,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           onValueSubmit={onNameChange}
           defaultValue={
             (props.dialogState.state?.editingTopology?.definition.get(
-              'name'
+              'name',
             ) as string) ?? ''
           }
           placeholder="e.g. OSPF Lab"

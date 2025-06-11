@@ -56,13 +56,13 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
           start: new Date(lab.startTime),
           end: new Date(lab.endTime!),
         })),
-    [calendarLabStore.data]
+    [calendarLabStore.data],
   );
 
   useEffect(() => {
     calendarLabStore.setDates(
       moment(currentDate).startOf('month').toISOString(),
-      moment(currentDate).endOf('month').toISOString()
+      moment(currentDate).endOf('month').toISOString(),
     );
     calendarLabStore.setLimit(1000);
     calendarLabStore.setStateFilter([
@@ -79,12 +79,12 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
     if (Array.isArray(range)) {
       calendarLabStore.setDates(
         range[0].toISOString(),
-        range[range.length - 1].toISOString()
+        range[range.length - 1].toISOString(),
       );
     } else {
       calendarLabStore.setDates(
         range.start.toISOString(),
-        range.end.toISOString()
+        range.end.toISOString(),
       );
     }
   }
@@ -92,7 +92,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
   function onEventSelect(event: CalendarEvent) {
     if (event.state === InstanceState.Scheduled) {
       const lab: Lab | undefined = calendarLabStore.data.find(
-        lab => lab.id === event.id
+        lab => lab.id === event.id,
       );
       labEditDialogState.openWith({
         editingLab: lab!,

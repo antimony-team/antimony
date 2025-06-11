@@ -35,7 +35,7 @@ interface NodeEditDialogProps {
 }
 
 const NodeEditDialog: React.FC<NodeEditDialogProps> = (
-  props: NodeEditDialogProps
+  props: NodeEditDialogProps,
 ) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
   const nameFieldRef = useRef<SBInputRef>(null);
@@ -72,7 +72,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
       schemaStore.clabSchema,
       props.editingNode ?? '',
       props.editingTopology,
-      notificationStore
+      notificationStore,
     );
   }, [
     schemaStore.clabSchema,
@@ -129,7 +129,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     if (nodeEditor) {
       topologyStore.manager.apply(
         nodeEditor.getTopology(),
-        TopologyEditSource.NodeEditor
+        TopologyEditSource.NodeEditor,
       );
     }
 

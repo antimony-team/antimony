@@ -29,7 +29,7 @@ const EditorPage: React.FC = observer(() => {
     (topology: Topology) => {
       setSearchParams({t: topology.id});
     },
-    [setSearchParams]
+    [setSearchParams],
   );
 
   useEffect(() => {
@@ -45,7 +45,7 @@ const EditorPage: React.FC = observer(() => {
       topologyStore.manager.editingTopologyId !== searchParams.get('t')
     ) {
       topologyStore.manager.open(
-        topologyStore.lookup.get(searchParams.get('t')!)!
+        topologyStore.lookup.get(searchParams.get('t')!)!,
       );
     }
   }, [searchParams, topologyStore.lookup]);
@@ -94,7 +94,7 @@ const EditorPage: React.FC = observer(() => {
           'sb-admin-page-left',
           {
             'sb-admin-page-left-maximized': isMaximized,
-          }
+          },
         )}
       >
         <TopologyExplorer

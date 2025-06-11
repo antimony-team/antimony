@@ -10,7 +10,7 @@ export async function fetchResource<T>(
   url: string,
   method: string = 'GET',
   body?: T,
-  requestHeaders?: HeadersInit
+  requestHeaders?: HeadersInit,
 ): Promise<Response | null> {
   try {
     return await fetch(url, {
@@ -68,13 +68,13 @@ export function generateGraph(
   deviceStore: DeviceStore,
   topologyManager: TopologyManager,
   instance: Instance | null = null,
-  omitLabels: boolean = false
+  omitLabels: boolean = false,
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
   const addedGroups = new Set<string>();
 
   const topologyNodes = Object.entries(
-    topology.definition.toJS().topology.nodes
+    topology.definition.toJS().topology.nodes,
   );
 
   for (const [nodeName, node] of topologyNodes) {
@@ -166,7 +166,7 @@ export function generateGraph(
 export function drawGraphGrid(
   container: HTMLDivElement,
   canvas: HTMLCanvasElement,
-  cy: cytoscape.Core
+  cy: cytoscape.Core,
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -181,7 +181,7 @@ export function drawGraphGrid(
 function drawGrid(
   ctx: CanvasRenderingContext2D,
   zoom: number,
-  pan: {x: number; y: number}
+  pan: {x: number; y: number},
 ) {
   const width = window.outerWidth;
   const height = window.outerHeight;
@@ -249,7 +249,7 @@ const DEFAULT_AVERAGE_LNG = 9.0078;
 
 export function convertXYToLatLng(
   x: number,
-  y: number
+  y: number,
 ): {lat: number; lng: number} {
   const lat = DEFAULT_AVERAGE_LAT - (y / CANVAS_HEIGHT) * LATITUDE_RANGE;
   const lng = DEFAULT_AVERAGE_LNG + (x / CANVAS_WIDTH) * LONGITUDE_RANGE;
@@ -258,7 +258,7 @@ export function convertXYToLatLng(
 
 export function convertLatLngToXY(
   lat: number,
-  lng: number
+  lng: number,
 ): {x: number; y: number} {
   const y = (DEFAULT_AVERAGE_LAT - lat) * (CANVAS_HEIGHT / LATITUDE_RANGE);
   const x = (lng - DEFAULT_AVERAGE_LNG) * (CANVAS_WIDTH / LONGITUDE_RANGE);
@@ -273,7 +273,7 @@ export function isValidURL(url: string) {
   try {
     new URL(url);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

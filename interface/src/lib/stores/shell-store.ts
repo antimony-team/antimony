@@ -79,7 +79,7 @@ export class ShellStore {
         }
 
         return shell;
-      })
+      }),
     );
 
     if (this.currentShell?.id === data.shellId) {
@@ -98,7 +98,7 @@ export class ShellStore {
       JSON.stringify({
         labId: lab.id,
         command: LabCommand.FetchShells,
-      })
+      }),
     )) as DataResponse<ShellDataIn[]>;
 
     if (!('payload' in result)) {
@@ -109,7 +109,7 @@ export class ShellStore {
     }
 
     const activeShellMap = new Map<uuid4, ShellDataIn>(
-      result.payload.map(shell => [shell.id, shell])
+      result.payload.map(shell => [shell.id, shell]),
     );
 
     runInAction(() => {
@@ -157,7 +157,7 @@ export class ShellStore {
     if (this.currentShell) {
       this.dataBinder.unsubscribeNamespace(
         `shells/${this.currentShell.id}`,
-        this.handleData
+        this.handleData,
       );
     }
 
@@ -165,7 +165,7 @@ export class ShellStore {
 
     this.currentDataSubscription = this.dataBinder.subscribeNamespace(
       `shells/${this.currentShell.id}`,
-      this.handleData
+      this.handleData,
     );
   }
 
@@ -178,7 +178,7 @@ export class ShellStore {
   @action
   public async openShell(
     lab: Lab,
-    nodeName: string
+    nodeName: string,
   ): Promise<ShellData | null> {
     if (!this.openShells.has(lab.id)) {
       this.openShells.set(lab.id, []);
@@ -190,7 +190,7 @@ export class ShellStore {
         labId: lab.id,
         node: nodeName,
         command: LabCommand.OpenShell,
-      })
+      }),
     )) as DataResponse<uuid4>;
 
     if (!('payload' in result)) {
@@ -198,7 +198,7 @@ export class ShellStore {
       if (error.code === ErrorCodes.ErrorShellLimitReached) {
         this.statusMessageStore.error(
           'Shell limit reached',
-          'Failed to open new shell'
+          'Failed to open new shell',
         );
 
         return null;
@@ -229,13 +229,13 @@ export class ShellStore {
         labId: lab.id,
         shellId: shellId,
         command: LabCommand.CloseShell,
-      })
+      }),
     );
 
     runInAction(() => {
       this.openShells.set(
         lab.id,
-        labShells.filter(shell => shell.id !== shellId)
+        labShells.filter(shell => shell.id !== shellId),
       );
     });
   }

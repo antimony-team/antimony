@@ -37,14 +37,14 @@ export abstract class DataStore<T, I, O> {
 
     this.handleData(
       await this.rootStore._dataBinder.get<O[]>(
-        this.resourcePath + this.getParams
-      )
+        this.resourcePath + this.getParams,
+      ),
     );
   }
 
   public async delete(id: string): Promise<Result<DataResponse<void>>> {
     const result = await this.rootStore._dataBinder.delete<void>(
-      `${this.resourcePath}/${id}` + this.deleteParams
+      `${this.resourcePath}/${id}` + this.deleteParams,
     );
 
     if (result.isOk()) await this.fetch();
@@ -55,7 +55,7 @@ export abstract class DataStore<T, I, O> {
   public async add<R = void>(body: I): Promise<Result<DataResponse<R>>> {
     const result = await this.rootStore._dataBinder.post<I, R>(
       this.resourcePath + this.postParams,
-      body
+      body,
     );
 
     if (result.isOk()) {
@@ -67,11 +67,11 @@ export abstract class DataStore<T, I, O> {
 
   public async update(
     id: uuid4,
-    body: Partial<I>
+    body: Partial<I>,
   ): Promise<Result<DataResponse<void>>> {
     const result = await this.rootStore._dataBinder.patch<I, void>(
       `${this.resourcePath}/${id}` + this.patchParams,
-      body
+      body,
     );
 
     if (result.isOk()) await this.fetch();

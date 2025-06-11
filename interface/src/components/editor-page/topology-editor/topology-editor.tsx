@@ -43,11 +43,11 @@ interface TopologyEditorProps {
 }
 
 const TopologyEditor: React.FC<TopologyEditorProps> = (
-  props: TopologyEditorProps
+  props: TopologyEditorProps,
 ) => {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationState, setValidationState] = useState<ValidationState>(
-    ValidationState.Done
+    ValidationState.Done,
   );
 
   // Set to true if topology has pending changes and validation succeeded
@@ -56,7 +56,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
   const [isNodeEditDialogOpen, setNodeEditDialogOpen] = useState(false);
   const [openTopology, setOpenTopology] = useState<Topology | null>(null);
   const [currentlyEditedNode, setCurrentlyEditedNode] = useState<string | null>(
-    null
+    null,
   );
 
   const collectionStore = useCollectionStore();
@@ -170,7 +170,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     if (validationState !== ValidationState.Done) {
       notificatioStore.warning(
         'Your schema is not valid.',
-        'Failed to save topology.'
+        'Failed to save topology.',
       );
       return;
     }
@@ -196,14 +196,14 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     if (!openTopology) return;
 
     const topologyGroup = collectionStore.lookup.get(
-      openTopology.collectionId
+      openTopology.collectionId,
     )!;
     const blob = new Blob([openTopology.definition.toString()], {
       type: 'text/plain;charset=utf-8',
     });
     FileSaver.saveAs(
       blob,
-      `${topologyGroup.name}_${openTopology.definition.get('name')}.yaml`
+      `${topologyGroup.name}_${openTopology.definition.get('name')}.yaml`,
     );
   }
 
