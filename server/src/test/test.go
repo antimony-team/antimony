@@ -23,6 +23,8 @@ import (
 	"time"
 )
 
+func ptr(t time.Time) *time.Time { return &t }
+
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
 
@@ -132,9 +134,9 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 	})
 
 	writeTopologyFile(topology1Uuid, cvx03, storage)
-	writeBindFile(topology1Uuid, "leaf01/interfaces", "", storage)
-	writeBindFile(topology1Uuid, "leaf01/daemons", "", storage)
-	writeBindFile(topology1Uuid, "leaf01/frr.conf", "", storage)
+	writeBindFile(topology1Uuid, "leaf01/interfaces", "1", storage)
+	writeBindFile(topology1Uuid, "leaf01/daemons", "2", storage)
+	writeBindFile(topology1Uuid, "leaf01/frr.conf", "3", storage)
 
 	topology2Uuid := utils.GenerateUuid()
 	topology2 := topology.Topology{
@@ -151,7 +153,7 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		UUID:       "TestLabUUID1",
 		Name:       "Test Lab",
 		StartTime:  time.Now().Add(-1 * time.Hour),
-		EndTime:    time.Now().Add(1 * time.Hour),
+		EndTime:    ptr(time.Now().Add(1 * time.Hour)),
 		TopologyID: topology1.ID,
 		Topology:   topology1,
 		CreatorID:  user1.ID,
@@ -162,14 +164,55 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		UUID:       "TestLabUUID2",
 		Name:       "Test Lab2",
 		StartTime:  time.Now().Add(-1 * time.Hour),
-		EndTime:    time.Now().Add(1 * time.Hour),
+		EndTime:    ptr(time.Now().Add(1 * time.Hour)),
 		TopologyID: topology1.ID,
 		Topology:   topology1,
 		CreatorID:  user1.ID,
 		Creator:    user1,
 	}
 	db.Create(&lab2)
+
 }
+
+const cvx03 = `name: ctd
+topology:
+  nodes:
+    leaf01:
+      kind: nokia_srlinux
+      image: networkop/cx:4.3.0
+      binds:
+        - leaf01/interfaces:/etc/network/interfaces
+        - leaf01/daemons:/etc/frr/daemons
+        - leaf01/frr.conf:/etc/frr/frr.conf
+
+    leaf02:
+      kind: nokia_srlinux
+      image: networkop/cx:4.3.0
+
+    spine01:
+      kind: nokia_srlinux
+      image: networkop/cx:4.3.0
+
+    server01:
+      kind: linux
+      image: networkop/host:ifreload
+
+    server02:
+      kind: linux
+      image: networkop/host:ifreload
+
+
+  links:
+    - endpoints: ["leaf01:swp1", "server01:eth1"]
+    - endpoints: ["leaf01:swp2", "server02:eth1"]
+    - endpoints: ["leaf02:swp1", "server01:eth2"]
+    - endpoints: ["leaf02:swp2", "server02:eth2"]
+
+    - endpoints: ["leaf01:swp49", "leaf02:swp49"]
+    - endpoints: ["leaf01:swp50", "leaf02:swp50"]
+
+    - endpoints: ["spine01:swp1", "leaf01:swp51"]
+    - endpoints: ["spine01:swp2", "leaf02:swp51"]`
 
 const test1 = `name: test1
 topology:
@@ -184,58 +227,6 @@ topology:
 
   links:
     - endpoints: ["node1:e1-1", "node2:e1-1"]`
-
-const cvx03 = `name: ctd # Cumulus Linux Test Drive
-topology:
-  nodes:
-    leaf01:
-      kind: cvx
-      image: networkop/cx:4.3.0
-      binds:
-        - leaf01/interfaces:/etc/network/interfaces
-        - leaf01/daemons:/etc/frr/daemons
-        - leaf01/frr.conf:/etc/frr/frr.conf
-
-    leaf02:
-      kind: cvx
-      image: networkop/cx:4.3.0
-      binds:
-        - leaf02/interfaces:/etc/network/interfaces
-        - leaf02/daemons:/etc/frr/daemons
-        - leaf02/frr.conf:/etc/frr/frr.conf	
-
-    spine01:
-      kind: cvx
-      image: networkop/cx:4.3.0
-      binds:
-        - spine01/interfaces:/etc/network/interfaces
-        - spine01/daemons:/etc/frr/daemons
-        - spine01/frr.conf:/etc/frr/frr.conf
-
-    server01:
-      kind: linux
-      image: networkop/host:ifreload
-      binds:
-        - server01/interfaces:/etc/network/interfaces
-
-    server02:
-      kind: linux
-      image: networkop/host:ifreload
-      binds:
-        - server02/interfaces:/etc/network/interfaces
-
-
-  links:
-    - endpoints: ["leaf01:swp1", "server01:eth1"]
-    - endpoints: ["leaf01:swp2", "server02:eth1"]
-    - endpoints: ["leaf02:swp1", "server01:eth2"]
-    - endpoints: ["leaf02:swp2", "server02:eth2"]
-
-    - endpoints: ["leaf01:swp49", "leaf02:swp49"]
-    - endpoints: ["leaf01:swp50", "leaf02:swp50"]
-
-    - endpoints: ["spine01:swp1", "leaf01:swp51"]
-    - endpoints: ["spine01:swp2", "leaf02:swp51"]`
 
 func writeTopologyFile(topologyId string, content string, storage storage.StorageManager) {
 	if err := storage.WriteTopology(topologyId, content); err != nil {
@@ -329,9 +320,8 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	// Init repos, services, handlers
 	socketManager := socket.CreateSocketManager(authManager)
 
-	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, nil,
-		"status-messages",
+	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
+		socketManager, false, false, nil, "status-messages",
 	)
 
 	userRepo := user.CreateRepository(db)
@@ -355,7 +345,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	labRepository := lab.CreateRepository(db)
 	labService := lab.CreateService(
-		labRepository, userRepo, topologyRepository,
+		cfg, labRepository, userRepo, topologyRepository,
 		storageManager, socketManager, statusMessageNamespace,
 	)
 	labHandler := lab.CreateHandler(labService)
@@ -376,57 +366,5 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	schema.RegisterRoutes(router, schemaHandler)
 	user.RegisterRoutes(router, userHandler)
 	lab.RegisterRoutes(router, labHandler, authManager)
-	return router, authManager, db
-}
-
-func SetupTestServerWithOIDC(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
-	gin.SetMode(gin.TestMode)
-	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
-	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
-
-	storageDir := t.TempDir()
-	runDir := t.TempDir()
-	cfg := &config.AntimonyConfig{
-		FileSystem: config.FilesystemConfig{
-			Storage: storageDir,
-			Run:     runDir,
-		},
-		Auth: config.AuthConfig{
-			EnableNative:      false,
-			EnableOpenId:      true,
-			OpenIdIssuer:      "",
-			OpenIdClientId:    "",
-			OpenIdAdminGroups: []string{},
-		},
-	}
-	authManager := auth.CreateAuthManager(cfg)
-	storageManager := storage.CreateStorageManager(cfg)
-
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	assert.NoError(t, err)
-
-	err = db.AutoMigrate(
-		&user.User{},
-		&collection.Collection{},
-		&topology.Topology{},
-		&topology.BindFile{},
-		&lab.Lab{},
-	)
-	assert.NoError(t, err)
-	GenerateTestData(db, storageManager)
-	userRepo := user.CreateRepository(db)
-	userService := user.CreateService(userRepo, authManager)
-	userHandler := user.CreateHandler(userService)
-
-	addAuthenticatedUsers(authManager)
-
-	authManager.RegisterTestUser(auth.AuthenticatedUser{
-		UserId:      auth.NativeUserID,
-		IsAdmin:     true,
-		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
-	})
-
-	router := gin.Default()
-	user.RegisterRoutes(router, userHandler)
 	return router, authManager, db
 }

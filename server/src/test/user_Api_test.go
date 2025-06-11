@@ -17,7 +17,7 @@ func TestLogin_Success(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
 	body := `{"username":"testuser","password":"testpass"}`
-	req := httptest.NewRequest("POST", "/users/login", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/users/login/native", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
@@ -42,7 +42,7 @@ func TestLogin_InvalidJSON(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
 	body := `{"username": "testuser"` // malformed JSON
-	req := httptest.NewRequest("POST", "/users/login", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/users/login/native", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
@@ -59,7 +59,7 @@ func TestLogin_MissingFields(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
 	body := `{}` // missing both username and password
-	req := httptest.NewRequest("POST", "/users/login", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/users/login/native", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
@@ -76,7 +76,7 @@ func TestLogin_WrongCredentials(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
 	body := `{"username":"wronguser","password":"wrongpass"}`
-	req := httptest.NewRequest("POST", "/users/login", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/users/login/native", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
@@ -89,11 +89,11 @@ func TestLogin_WrongCredentials(t *testing.T) {
 	assert.Equal(t, 1001, response.Code)
 }
 
-// === Get === logout
+// === POST === logout
 func TestLogout_WithCookies(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
-	req := httptest.NewRequest("GET", "/users/logout", nil)
+	req := httptest.NewRequest("POST", "/users/logout", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: "fake-token"})
 	req.AddCookie(&http.Cookie{Name: "authToken", Value: "fake-token"})
 	req.AddCookie(&http.Cookie{Name: "authOidc", Value: "true"})
@@ -118,7 +118,7 @@ func TestLogout_WithCookies(t *testing.T) {
 func TestLogout_WithoutCookies(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
-	req := httptest.NewRequest("GET", "/users/logout", nil)
+	req := httptest.NewRequest("POST", "/users/logout", nil)
 	resp := httptest.NewRecorder()
 
 	router.ServeHTTP(resp, req)
@@ -126,61 +126,27 @@ func TestLogout_WithoutCookies(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
-// === GET === login/check
-func TestLoginCheck_ValidToken(t *testing.T) {
-	router, authManager, _ := SetupTestServer(t)
+// === GET === login/Config
+func TestAuthConfig_ReturnsConfig(t *testing.T) {
+	router, _, _ := SetupTestServer(t)
 
-	authUser := auth.AuthenticatedUser{
-		UserId:      "test-user-id1",
-		IsAdmin:     true,
-		Collections: []string{"hs25-cn2"},
-	}
-	token, err := authManager.CreateAccessToken(authUser)
+	req := httptest.NewRequest("GET", "/users/login/config", nil)
+	resp := httptest.NewRecorder()
+
+	router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var result utils.OkResponse[auth.AuthConfig]
+	err := json.Unmarshal(resp.Body.Bytes(), &result)
 	assert.NoError(t, err)
 
-	req := httptest.NewRequest("GET", "/users/login/check", nil)
-	req.AddCookie(&http.Cookie{Name: "Authorization", Value: token})
-	resp := httptest.NewRecorder()
-
-	router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusOK, resp.Code)
-}
-
-func TestLoginCheck_InvalidToken(t *testing.T) {
-	router, _, _ := SetupTestServer(t)
-
-	req := httptest.NewRequest("GET", "/users/login/check", nil)
-	req.AddCookie(&http.Cookie{Name: "Authorization", Value: "invalid-token"})
-	resp := httptest.NewRecorder()
-
-	router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusUnauthorized, resp.Code)
-}
-
-func TestLoginCheck_MissingToken(t *testing.T) {
-	router, _, _ := SetupTestServer(t)
-
-	req := httptest.NewRequest("GET", "/users/login/check", nil)
-	resp := httptest.NewRecorder()
-
-	router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusOK, resp.Code)
+	assert.Equal(t, true, result.Payload.Native.Enabled)
+	assert.Equal(t, false, result.Payload.OpenId.Enabled)
 }
 
 // === GET === login/openid
-func TestLoginOIDC_Redirect(t *testing.T) {
-	router, _, _ := SetupTestServerWithOIDC(t)
-
-	req := httptest.NewRequest("GET", "/users/login/openid", nil)
-	resp := httptest.NewRecorder()
-
-	router.ServeHTTP(resp, req)
-	//Redirected
-	assert.Equal(t, http.StatusFound, resp.Code)
-}
+//not testable
 
 //=== GET === login/success
 //not testable

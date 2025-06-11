@@ -300,6 +300,8 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial
 		}
 
 		bindFilePath = *req.FilePath
+	} else {
+		return utils.ErrorInvalidBindFilePath
 	}
 
 	var bindFileContent string
