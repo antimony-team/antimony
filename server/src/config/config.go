@@ -8,12 +8,17 @@ import (
 
 type (
 	AntimonyConfig struct {
+		General      GeneralConfig    `yaml:"general"`
 		Server       ServerConfig     `yaml:"server"`
 		Auth         AuthConfig       `yaml:"auth"`
 		Shell        ShellConfig      `yaml:"shell"`
 		Database     DatabaseConfig   `yaml:"database"`
 		FileSystem   FilesystemConfig `yaml:"fileSystem"`
 		Containerlab ClabConfig       `yaml:"containerlab"`
+	}
+
+	GeneralConfig struct {
+		Provider string `yaml:"provider"`
 	}
 
 	ServerConfig struct {
@@ -74,6 +79,9 @@ func Load(fileName string) *AntimonyConfig {
 
 func defaultConfig() *AntimonyConfig {
 	return &AntimonyConfig{
+		General: GeneralConfig{
+			Provider: "containerlab",
+		},
 		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,
