@@ -744,7 +744,7 @@ const docTemplate = `{
             }
         },
         "/topologies/{topologyId}/files/{bindFileId}": {
-            "put": {
+            "delete": {
                 "security": [
                     {
                         "BasicAuth": []
@@ -756,7 +756,7 @@ const docTemplate = `{
                 "tags": [
                     "bindFiles"
                 ],
-                "summary": "Update an existing bind file of a topology",
+                "summary": "Delete an existing bind file of a topology",
                 "parameters": [
                     {
                         "type": "string",
@@ -767,7 +767,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "The ID of the bind file to edit",
+                        "description": "The ID of the bind file to delete",
                         "name": "bindFileId",
                         "in": "path",
                         "required": true
@@ -797,7 +797,7 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
                         "BasicAuth": []
@@ -809,7 +809,7 @@ const docTemplate = `{
                 "tags": [
                     "bindFiles"
                 ],
-                "summary": "Delete an existing bind file of a topology",
+                "summary": "Update an existing bind file of a topology",
                 "parameters": [
                     {
                         "type": "string",
@@ -820,7 +820,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "The ID of the bind file to delete",
+                        "description": "The ID of the bind file to edit",
                         "name": "bindFileId",
                         "in": "path",
                         "required": true
@@ -1129,9 +1129,6 @@ const docTemplate = `{
                 },
                 "state": {
                     "$ref": "#/definitions/lab.InstanceState"
-                },
-                "topologyDefinition": {
-                    "type": "string"
                 }
             }
         },
@@ -1210,6 +1207,9 @@ const docTemplate = `{
                 "startTime": {
                     "type": "string"
                 },
+                "topologyDefinition": {
+                    "type": "string"
+                },
                 "topologyId": {
                     "type": "string"
                 }
@@ -1218,6 +1218,7 @@ const docTemplate = `{
         "topology.BindFileIn": {
             "type": "object",
             "required": [
+                "content",
                 "filePath"
             ],
             "properties": {

@@ -92,7 +92,7 @@ func main() {
 
 		labRepository = lab.CreateRepository(db)
 		labService    = lab.CreateService(
-			antimonyConfig, labRepository, userRepository, topologyRepository,
+			antimonyConfig, labRepository, userRepository, topologyRepository, topologyService,
 			storageManager, socketManager, statusMessageNamespace,
 		)
 		labHandler = lab.CreateHandler(labService)

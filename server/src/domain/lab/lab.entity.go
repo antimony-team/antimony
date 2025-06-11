@@ -13,15 +13,16 @@ import (
 
 type Lab struct {
 	gorm.Model
-	UUID         string     `gorm:"uniqueIndex;not null"`
-	Name         string     `gorm:"index;not null"`
-	StartTime    time.Time  `gorm:"index;not null"`
-	EndTime      *time.Time `gorm:"index"`
-	Topology     topology.Topology
-	TopologyID   uint `gorm:"not null"`
-	Creator      user.User
-	CreatorID    uint    `gorm:"not null"`
-	InstanceName *string `gorm:"uniqueIndex"`
+	UUID               string     `gorm:"uniqueIndex;not null"`
+	Name               string     `gorm:"index;not null"`
+	StartTime          time.Time  `gorm:"index;not null"`
+	EndTime            *time.Time `gorm:"index"`
+	Topology           topology.Topology
+	TopologyID         uint `gorm:"not null"`
+	Creator            user.User
+	CreatorID          uint    `gorm:"not null"`
+	InstanceName       *string `gorm:"uniqueIndex"`
+	TopologyDefinition *string
 }
 
 type LabIn struct {
@@ -39,15 +40,16 @@ type LabInPartial struct {
 }
 
 type LabOut struct {
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	StartTime    time.Time    `json:"startTime"`
-	EndTime      *time.Time   `json:"endTime"`
-	TopologyId   string       `json:"topologyId"`
-	CollectionId string       `json:"collectionId"`
-	Creator      user.UserOut `json:"creator"`
-	Instance     *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
-	InstanceName *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
+	ID                 string       `json:"id"`
+	Name               string       `json:"name"`
+	StartTime          time.Time    `json:"startTime"`
+	EndTime            *time.Time   `json:"endTime"`
+	TopologyId         string       `json:"topologyId"`
+	CollectionId       string       `json:"collectionId"`
+	Creator            user.UserOut `json:"creator"`
+	TopologyDefinition string       `json:"topologyDefinition"`
+	Instance           *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
+	InstanceName       *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
 }
 
 type LabFilter struct {
@@ -73,9 +75,6 @@ type Instance struct {
 	TopologyFile string
 	LogNamespace socket.OutputNamespace[string]
 
-	// TopologyDefinition Copy of the lab's run topology
-	TopologyDefinition string
-
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
 
@@ -84,14 +83,13 @@ type Instance struct {
 }
 
 type InstanceOut struct {
-	Name               string         `json:"name"`
-	Deployed           time.Time      `json:"deployed"`
-	EdgesharkLink      string         `json:"edgesharkLink"`
-	State              InstanceState  `json:"state"`
-	LatestStateChange  time.Time      `json:"latestStateChange"`
-	Nodes              []InstanceNode `json:"nodes"`
-	Recovered          bool           `json:"recovered"`
-	TopologyDefinition string         `json:"topologyDefinition"`
+	Name              string         `json:"name"`
+	Deployed          time.Time      `json:"deployed"`
+	EdgesharkLink     string         `json:"edgesharkLink"`
+	State             InstanceState  `json:"state"`
+	LatestStateChange time.Time      `json:"latestStateChange"`
+	Nodes             []InstanceNode `json:"nodes"`
+	Recovered         bool           `json:"recovered"`
 }
 
 type InstanceNode struct {
