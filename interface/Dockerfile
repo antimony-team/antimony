@@ -18,11 +18,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 COPY --from=build /build ./build
-#COPY run/start.js ./start.js
-#COPY run/package.json ./package.json
 
 RUN npm -g install serve
 
 EXPOSE 8100
 
-CMD ["serve", "./build"]
+CMD ["serve", "-s", "l", "8100", "./build"]

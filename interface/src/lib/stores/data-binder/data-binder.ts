@@ -71,7 +71,10 @@ export class DataBinder {
       '/users/login/config',
       false
     );
-    if (authConfigResponse.isErr()) return;
+    if (authConfigResponse.isErr()) {
+      this.hasAPIError = true;
+      return;
+    }
 
     const authConfig = authConfigResponse.data.payload;
     this.isOpenIdAuthEnabled = authConfig.openId.enabled;
