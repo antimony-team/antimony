@@ -35,24 +35,30 @@ tasks:
 
   build-docker:
     cmds:
-      - cp -r ./data/ ./docker/
-      - cp -r ./test/config.docker.yml ./docker/config.yml
-      - sudo DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend .
+      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend .
 
   run-docker:
     dir: './docker'
     cmds:
       - task: build-docker
-      - sudo DOCKER_HOST=unix:///var/run/docker.sock docker run
+      - mkdir -p ./db
+      - mkdir -p ./storage
+      - mkdir -p ./run
+      - cp -r ../data/ ./
+      - cp -r ../test/config.docker.yml ./
+      - DOCKER_HOST=unix:///var/run/docker.sock docker run
           -e SB_NATIVE_USERNAME=admin
           -e SB_NATIVE_PASSWORD=admin
-          -v ./db:/app/db
+          -v ./db/:/app/db/
           -v ./storage:/app/storage/
           -v ./run:/app/run/
-          -v ./data:/app/data
+          -v ./data:/app/data/
           -v ./config.yml:/app/config.yml
           -v /var/run/docker.sock:/var/run/docker.sock
           -p 3000:3000
+          --privileged
+          --network host
+          --user root
           antimony-backend -sqlite=true -config=./config.yml
 
   swagger-docs:
