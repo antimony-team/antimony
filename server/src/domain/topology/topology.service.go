@@ -24,6 +24,8 @@ type (
 		CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error)
 		UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileId string, authUser auth.AuthenticatedUser) error
 		DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error
+
+		LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error)
 	}
 
 	topologyService struct {
@@ -88,7 +90,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			continue
 		}
 
-		if definition, bindFilesOut, err = s.loadTopology(topology.UUID, bindFiles); err != nil {
+		if definition, bindFilesOut, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}
@@ -369,7 +371,7 @@ func (s *topologyService) saveTopology(topologyId string, definition string) err
 	return nil
 }
 
-func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error) {
+func (s *topologyService) LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error) {
 	var definition string
 
 	if err := s.storageManager.ReadTopology(topologyId, &definition); err != nil {

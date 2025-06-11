@@ -61,6 +61,7 @@ type (
 		labRepo                Repository
 		userRepo               user.Repository
 		topologyRepo           topology.Repository
+		topologyService        topology.Service
 		storageManager         storage.StorageManager
 		deploymentProvider     deployment.DeploymentProvider
 		socketManager          socket.SocketManager
@@ -86,6 +87,7 @@ func CreateService(
 	labRepo Repository,
 	userRepo user.Repository,
 	topologyRepo topology.Repository,
+	topologyService topology.Service,
 	storageManager storage.StorageManager,
 	socketManager socket.SocketManager,
 	statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage],
@@ -113,6 +115,7 @@ func CreateService(
 		labRepo:                labRepo,
 		userRepo:               userRepo,
 		topologyRepo:           topologyRepo,
+		topologyService:        topologyService,
 		labDeploymentSchedule:  deploymentSchedule,
 		labDestructionSchedule: destructionSchedule,
 		openShells:             make(map[string]*ShellConfig),
@@ -247,15 +250,16 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 		}
 
 		result = append(result, LabOut{
-			ID:           lab.UUID,
-			Name:         lab.Name,
-			StartTime:    lab.StartTime,
-			EndTime:      lab.EndTime,
-			TopologyId:   lab.Topology.UUID,
-			CollectionId: lab.Topology.Collection.UUID,
-			Creator:      s.userRepo.UserToOut(lab.Creator),
-			Instance:     s.instanceToOut(instance),
-			InstanceName: lab.InstanceName,
+			ID:                 lab.UUID,
+			Name:               lab.Name,
+			StartTime:          lab.StartTime,
+			EndTime:            lab.EndTime,
+			TopologyId:         lab.Topology.UUID,
+			CollectionId:       lab.Topology.Collection.UUID,
+			Creator:            s.userRepo.UserToOut(lab.Creator),
+			TopologyDefinition: *lab.TopologyDefinition,
+			Instance:           s.instanceToOut(instance),
+			InstanceName:       lab.InstanceName,
 		})
 	}
 
@@ -281,15 +285,16 @@ func (s *labService) GetByUuid(ctx *gin.Context, labId string, authUser auth.Aut
 	s.instancesMutex.Unlock()
 
 	result := &LabOut{
-		ID:           lab.UUID,
-		Name:         lab.Name,
-		StartTime:    lab.StartTime,
-		EndTime:      lab.EndTime,
-		TopologyId:   lab.Topology.UUID,
-		CollectionId: lab.Topology.Collection.UUID,
-		Creator:      s.userRepo.UserToOut(lab.Creator),
-		Instance:     s.instanceToOut(instance),
-		InstanceName: lab.InstanceName,
+		ID:                 lab.UUID,
+		Name:               lab.Name,
+		StartTime:          lab.StartTime,
+		EndTime:            lab.EndTime,
+		TopologyId:         lab.Topology.UUID,
+		CollectionId:       lab.Topology.Collection.UUID,
+		Creator:            s.userRepo.UserToOut(lab.Creator),
+		TopologyDefinition: *lab.TopologyDefinition,
+		Instance:           s.instanceToOut(instance),
+		InstanceName:       lab.InstanceName,
 	}
 
 	return result, err
@@ -311,14 +316,21 @@ func (s *labService) Create(ctx *gin.Context, req LabIn, authUser auth.Authentic
 		return "", utils.ErrorUnauthorized
 	}
 
+	topologyDefinition, _, err := s.topologyService.LoadTopology(labTopology.UUID, []topology.BindFile{})
+	if err != nil {
+		log.Errorf("Failed to read definition of topology '%s': %s", labTopology.UUID, err.Error())
+		return "", utils.ErrorAntimony
+	}
+
 	labUuid := utils.GenerateUuid()
 	lab := &Lab{
-		UUID:      labUuid,
-		Name:      *req.Name,
-		StartTime: *req.StartTime,
-		EndTime:   req.EndTime,
-		Creator:   *creator,
-		Topology:  *labTopology,
+		UUID:               labUuid,
+		Name:               *req.Name,
+		StartTime:          *req.StartTime,
+		EndTime:            req.EndTime,
+		Creator:            *creator,
+		Topology:           *labTopology,
+		TopologyDefinition: &topologyDefinition,
 	}
 
 	if err := s.labRepo.Create(ctx, lab); err != nil {
@@ -478,6 +490,11 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
+	// Close all open shells for all nodes in the lab
+	for _, node := range instance.Nodes {
+		s.closeNodeShells(node.Name)
+	}
+
 	ctx := context.Background()
 
 	s.updateStateAndNotify(*lab, InstanceStates.Stopping, statusMessage.Info(
@@ -516,7 +533,7 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	return nil
 }
 
-func (s *labService) redeployLab(lab *Lab, instance *Instance) bool {
+func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	// We have to ensure that the instance isn't already being deployed
 	if instance.State == InstanceStates.Deploying {
 		s.notifyUpdate(*lab,
@@ -526,7 +543,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) bool {
 				"Failed to deploy lab: The lab is already being deployed", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 			),
 		)
-		return false
+		return utils.ErrorLabIsDeploying
 	}
 
 	instance.Mutex.Lock()
@@ -539,14 +556,24 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) bool {
 	}
 	defer instance.DeploymentWorker.Cancel()
 
+	// Close all open shells for all nodes in the lab
+	for _, node := range instance.Nodes {
+		s.closeNodeShells(node.Name)
+	}
+
+	// Remove old nodes from instance
+	instance.Nodes = make([]InstanceNode, 0)
+
 	s.updateStateAndNotify(*lab, InstanceStates.Deploying, statusMessage.Info(
 		"Lab Manager",
 		fmt.Sprintf("Redeploying lab '%s' (%s)", lab.Name, lab.Topology.Name),
 		"Starting redeployment of lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 	), &instance.LogNamespace)
+
 	output, err := s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
+
 	streamClabOutput(instance.LogNamespace, output)
 
 	// Only report errors if the worker has not been cancelled
@@ -556,25 +583,50 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) bool {
 			fmt.Sprintf("Failed to redeploy lab '%s' (%s)", lab.Name, lab.Topology.Name),
 			"Failed to redeploy lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
-	} else {
-		s.updateStateAndNotify(*lab, InstanceStates.Running, statusMessage.Success(
-			"Lab Manager",
-			fmt.Sprintf("Successfully redeployed lab '%s' (%s)", lab.Name, lab.Topology.Name),
-			"Successfully redeployed lab", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
-		), &instance.LogNamespace)
+		s.setTopologyDeployStatus(*lab, false)
+		return utils.ErrorContainerlab
 	}
+
+	// Fetch and attach lab inspect info and change state to running if successful
+	instanceNodes, err := s.getNodesFromInspect(ctx, instance.TopologyFile, *lab.InstanceName, func(data string) {
+		instance.LogNamespace.Send(data)
+	})
+
+	// Only report errors if the deployment worker has not been cancelled
+	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
+		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Warning(
+			"Lab Manager",
+			fmt.Sprintf("Failed to get info of lab '%s' (%s)", lab.Name, lab.Topology.Name),
+			"Inspection of lab failed", "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+		), &instance.LogNamespace)
+		s.setTopologyDeployStatus(*lab, false)
+		return utils.ErrorContainerlab
+	}
+
+	log.Infof("[SCHEDULER] Successfully redeployed lab '%s'!", lab.Name)
+	s.instances[lab.UUID].Nodes = instanceNodes
+	for _, node := range instanceNodes {
+		containerLogNamespace := socket.CreateOutputNamespace[string](
+			s.socketManager, false, true, nil, "logs", lab.UUID, node.ContainerId,
+		)
+		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
+			containerLogNamespace.Send(data)
+		})
+		if err != nil {
+			log.Errorf("Failed to setup container logs for container %s: %s", node.ContainerId, err.Error())
+		}
+	}
+
+	s.updateStateAndNotify(*lab, InstanceStates.Running, statusMessage.Success(
+		"Lab Manager",
+		fmt.Sprintf("Successfully redeployed '%s' (%s)", lab.Name, lab.Topology.Name),
+		"Redeployment of lab was successful", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+	), &instance.LogNamespace)
+	s.setTopologyDeployStatus(*lab, true)
 
 	instance.DeploymentWorker.Context.Done()
 
-	return true
-}
-
-// setTopologyDeployStatus Sets the LastDeployFailed flag in the lab's topology
-func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
-	lab.Topology.LastDeployFailed = !wasSuccessful
-	if err := s.topologyRepo.Update(context.Background(), &lab.Topology); err != nil {
-		log.Error("Failed to set last deployment failed on topology", "topo", lab.Topology.UUID)
-	}
+	return nil
 }
 
 func (s *labService) deployLab(lab *Lab) error {
@@ -594,8 +646,8 @@ func (s *labService) deployLab(lab *Lab) error {
 
 	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
 
-	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
-	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
+	runTopologyFile, _, err := s.createLabEnvironment(lab)
+	instance := s.createInstance(logNamespace, runTopologyFile)
 
 	if err != nil {
 		log.Errorf("Failed to create lab environment for lab '%s': %s", lab.Name, err)
@@ -658,49 +710,56 @@ func (s *labService) deployLab(lab *Lab) error {
 			"Inspection of lab failed", "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &instance.LogNamespace)
 		s.setTopologyDeployStatus(*lab, false)
-	} else {
-		log.Infof("[SCHEDULER] Successfully deployed lab '%s'!", lab.Name)
-		s.instances[lab.UUID].Nodes = instanceNodes
-		for _, node := range instanceNodes {
-			containerLogNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager, false, true, nil, "logs", lab.UUID, node.ContainerId,
-			)
-			err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
-				containerLogNamespace.Send(data)
-			})
-			if err != nil {
-				log.Errorf("Failed to setup container logs for container %s: %s", node.ContainerId, err.Error())
-			}
-		}
-
-		s.updateStateAndNotify(*lab, InstanceStates.Running, statusMessage.Success(
-			"Lab Manager",
-			fmt.Sprintf("Successfully deployed '%s' (%s)", lab.Name, lab.Topology.Name),
-			"Deployment of lab was successful", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
-		), &instance.LogNamespace)
-		s.setTopologyDeployStatus(*lab, true)
+		return utils.ErrorContainerlab
 	}
+
+	log.Infof("[SCHEDULER] Successfully deployed lab '%s'!", lab.Name)
+	s.instances[lab.UUID].Nodes = instanceNodes
+	for _, node := range instanceNodes {
+		containerLogNamespace := socket.CreateOutputNamespace[string](
+			s.socketManager, false, true, nil, "logs", lab.UUID, node.ContainerId,
+		)
+		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
+			containerLogNamespace.Send(data)
+		})
+		if err != nil {
+			log.Errorf("Failed to setup container logs for container %s: %s", node.ContainerId, err.Error())
+		}
+	}
+
+	s.updateStateAndNotify(*lab, InstanceStates.Running, statusMessage.Success(
+		"Lab Manager",
+		fmt.Sprintf("Successfully deployed '%s' (%s)", lab.Name, lab.Topology.Name),
+		"Deployment of lab was successful", "id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
+	), &instance.LogNamespace)
+	s.setTopologyDeployStatus(*lab, true)
 
 	instance.DeploymentWorker.Context.Done()
 
 	return nil
 }
 
+// setTopologyDeployStatus Sets the LastDeployFailed flag in the lab's topology
+func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
+	lab.Topology.LastDeployFailed = !wasSuccessful
+	if err := s.topologyRepo.Update(context.Background(), &lab.Topology); err != nil {
+		log.Error("Failed to set last deployment failed on topology", "topo", lab.Topology.UUID)
+	}
+}
+
 func (s *labService) createInstance(
 	logNamespace socket.OutputNamespace[string],
 	runTopologyFile string,
-	topologyDefinition string,
 ) *Instance {
 	return &Instance{
-		Deployed:           time.Now(),
-		LatestStateChange:  time.Now(),
-		State:              InstanceStates.Deploying,
-		Recovered:          false,
-		Mutex:              sync.Mutex{},
-		DeploymentWorker:   nil,
-		LogNamespace:       logNamespace,
-		TopologyFile:       runTopologyFile,
-		TopologyDefinition: topologyDefinition,
+		Deployed:          time.Now(),
+		LatestStateChange: time.Now(),
+		State:             InstanceStates.Deploying,
+		Recovered:         false,
+		Mutex:             sync.Mutex{},
+		DeploymentWorker:  nil,
+		LogNamespace:      logNamespace,
+		TopologyFile:      runTopologyFile,
 	}
 }
 
@@ -710,13 +769,12 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 	}
 
 	return &InstanceOut{
-		Deployed:           instance.Deployed,
-		EdgesharkLink:      instance.EdgesharkLink,
-		State:              instance.State,
-		LatestStateChange:  instance.LatestStateChange,
-		Nodes:              instance.Nodes,
-		Recovered:          instance.Recovered,
-		TopologyDefinition: instance.TopologyDefinition,
+		Deployed:          instance.Deployed,
+		EdgesharkLink:     instance.EdgesharkLink,
+		State:             instance.State,
+		LatestStateChange: instance.LatestStateChange,
+		Nodes:             instance.Nodes,
+		Recovered:         instance.Recovered,
 	}
 }
 
@@ -853,22 +911,15 @@ func (s *labService) reviveLabs() {
 				}
 			}
 
-			var runTopologyDefinition string
-			if err := s.storageManager.ReadRunTopologyDefinition(lab.UUID, &runTopologyDefinition); err != nil {
-				log.Errorf("Failed to read run topology definition for %s: %s", lab.UUID, err.Error())
-				continue
-			}
-
 			s.instancesMutex.Lock()
 			s.instances[lab.UUID] = &Instance{
-				State:              InstanceStates.Running,
-				Nodes:              lo.Map(containers, s.containerToInstanceNode),
-				Deployed:           time.Now(),
-				LatestStateChange:  time.Now(),
-				Recovered:          true,
-				TopologyFile:       s.storageManager.GetRunTopologyFile(lab.UUID),
-				TopologyDefinition: runTopologyDefinition,
-				LogNamespace:       logNamespace,
+				State:             InstanceStates.Running,
+				Nodes:             lo.Map(containers, s.containerToInstanceNode),
+				Deployed:          time.Now(),
+				LatestStateChange: time.Now(),
+				Recovered:         true,
+				TopologyFile:      s.storageManager.GetRunTopologyFile(lab.UUID),
+				LogNamespace:      logNamespace,
 			}
 			s.instancesMutex.Unlock()
 
@@ -997,10 +1048,8 @@ func (s *labService) deployLabCommand(ctx context.Context, labId string, authUse
 	s.instancesMutex.Unlock()
 
 	if hasInstance {
-		result := s.redeployLab(lab, instance)
-
-		if !result {
-			return utils.ErrorLabIsDeploying
+		if err := s.redeployLab(lab, instance); err != nil {
+			return err
 		}
 	} else {
 		// Manually remove the lab from the lab schedule and add it to the destruction schedule
@@ -1391,7 +1440,9 @@ func (s *labService) handleShellData(
 		_, err := shell.Connection.Write(([]byte)(*data))
 		if err != nil {
 			log.Errorf("Failed to write shell data: %s", err.Error())
-			onError(utils.CreateSocketErrorResponse(err))
+			if onError != nil {
+				onError(utils.CreateSocketErrorResponse(err))
+			}
 		}
 	}
 }

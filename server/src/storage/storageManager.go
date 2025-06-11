@@ -20,7 +20,6 @@ type (
 		DeleteBindFile(topologyId string, filePath string) error
 
 		GetRunTopologyFile(labId string) string
-		ReadRunTopologyDefinition(labId string, content *string) error
 
 		CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error
 		DeleteRunEnvironment(labId string) error
