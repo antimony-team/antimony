@@ -421,7 +421,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       if (!cyRef.current) return;
 
       setTimeout(() => {
-        cyRef.current!.fit(cyRef.current!.elements(), 180);
+        cyRef.current!.fit(cyRef.current!.elements(), 120);
       }, 200);
     }
 

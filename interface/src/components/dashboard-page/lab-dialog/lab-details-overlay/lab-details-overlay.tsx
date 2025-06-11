@@ -10,7 +10,7 @@ import {Tooltip, TooltipRefProps} from 'react-tooltip';
 import {Tooltip as PrimeTooltip} from 'primereact/tooltip';
 
 interface LabDetailsOverlayProps {
-  overlayRef: React.RefObject<TooltipRefProps>;
+  overlayRef: React.RefObject<TooltipRefProps | null>;
 
   lab: Lab | null;
   nodeId: string | null;
