@@ -52,8 +52,8 @@ const App: React.FC = observer(() => {
   }, [dataBinder.isLoggedIn]);
 
   const hasEditorAccess = useMemo(() => {
-    return authUser.isAdmin || collectionStore.hasWritableCollections;
-  }, [authUser.isAdmin, collectionStore.hasWritableCollections]);
+    return authUser.isAdmin || collectionStore.hasAccessibleCollections;
+  }, [authUser.isAdmin, collectionStore.hasAccessibleCollections]);
 
   return (
     <PrimeReactProvider>

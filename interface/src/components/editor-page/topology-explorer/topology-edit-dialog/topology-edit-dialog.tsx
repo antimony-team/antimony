@@ -156,7 +156,12 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   const collectionOptions: SelectItem[] = useMemo(() => {
     return collectionStore.data
-      .filter(collection => collection.publicWrite || authUser.isAdmin)
+      .filter(
+        collection =>
+          collection.publicWrite ||
+          authUser.isAdmin ||
+          collection.id === props.dialogState.state?.collectionId
+      )
       .map(collection => ({
         label: collection.name,
         value: collection.id,

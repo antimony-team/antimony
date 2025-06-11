@@ -105,9 +105,18 @@ export class NodeEditor {
     this.hasChangedName = true;
 
     // Update links to still connect with the renamed node
-    const links = (
-      this.editingTopology.getIn(['topology', 'links']) as YAMLSeq
-    ).toJS(this.editingTopology) as {endpoints: string[]}[];
+    const linksObj = this.editingTopology.getIn([
+      'topology',
+      'links',
+    ]) as YAMLSeq;
+
+    if (!linksObj) {
+      return null;
+    }
+
+    const links = linksObj.toJS(this.editingTopology) as {
+      endpoints: string[];
+    }[];
 
     for (const [index, link] of links.entries()) {
       const endpoint1 = link.endpoints[0].split(':');

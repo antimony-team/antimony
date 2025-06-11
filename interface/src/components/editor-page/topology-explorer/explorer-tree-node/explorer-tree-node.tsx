@@ -81,11 +81,13 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
       return false;
     }
 
-    const publicDeploy = collectionStore.lookup.get(
-      props.node.key as string
-    )?.publicDeploy;
+    const topology = topologyStore.lookup.get(props.node.key as string);
+    if (!topology) return false;
+
+    const publicDeploy =
+      collectionStore.lookup.get(topology.collectionId)?.publicDeploy ?? false;
     return authUser.isAdmin || publicDeploy;
-  }, [authUser, collectionStore.lookup]);
+  }, [authUser, collectionStore.lookup, topologyStore.lookup]);
 
   function onEditCollection(event: MouseEvent<HTMLButtonElement>) {
     props.onEditCollection(props.node.key as uuid4);

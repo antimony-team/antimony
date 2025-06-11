@@ -20,8 +20,16 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         {
-          from: 'public',
-          to: 'assets',
+          from: './public/assets',
+          to: './',
+        },
+      ],
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: './public/manifest.json',
+          to: './',
         },
       ],
     }),
@@ -38,7 +46,7 @@ module.exports = {
         exclude: /node_modules/,
       },
       {
-        test: /\.(jpe?g|gif|png|svg|wav)$/i,
+        test: /\.(jpe?g|gif|png|svg|wav|ttf)$/i,
         loader: 'file-loader',
         options: {
           name: '[contenthash].[ext]',

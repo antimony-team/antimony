@@ -36,7 +36,14 @@ import {
   TreeExpandedKeysType,
   TreeSelectionEvent,
 } from 'primereact/tree';
-import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import ExplorerTreeNode, {
   ExplorerTreeNodeData,
   ExplorerTreeNodeType,
@@ -65,7 +72,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   const contextMenuRef = useRef<ContextMenu | null>(null);
   const contextMenuTarget = useRef<string | null>(null);
-  const contextMenuTargetEditable = useRef<boolean>(false);
 
   const topologyTree = useMemo(() => {
     const topologyTree: ExplorerTreeNodeData[] = [];
@@ -309,10 +315,14 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
-    if (!authUser.isAdmin) return;
+    e.preventDefault();
 
-    setContextMenuModel(containerContextMenu);
-    contextMenuRef!.current!.show(e);
+    const menu = getContainerContextMenu();
+
+    if (menu.length > 0) {
+      setContextMenuModel(menu);
+      contextMenuRef!.current!.show(e);
+    }
   }
 
   function saveNodeExpandKeys() {
@@ -325,15 +335,24 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onContextMenuTree(e: TreeEventNodeEvent) {
-    if (e.node.leaf) {
-      setContextMenuModel(topologyContextMenu);
+    e.originalEvent.preventDefault();
+
+    const nodeType = (e.node as ExplorerTreeNodeData).type;
+    let contextMenuEntries: MenuItem[] = [];
+
+    if (nodeType === ExplorerTreeNodeType.Topology) {
+      contextMenuEntries = getTopologyContextMenu(e.node.key as string);
+    } else if (nodeType === ExplorerTreeNodeType.Collection) {
+      contextMenuEntries = getCollectionContextMenu(e.node.key as string);
     } else {
-      setContextMenuModel(collectionContextMenu);
+      return;
     }
 
-    // contextMenuTargetEditable.current = isCollectionEditable(e.node.key);
-    contextMenuTarget.current = e.node.key as string;
-    contextMenuRef!.current!.show(e.originalEvent);
+    if (contextMenuEntries.length > 0) {
+      setContextMenuModel(contextMenuEntries);
+      contextMenuTarget.current = e.node.key as string;
+      contextMenuRef!.current!.show(e.originalEvent);
+    }
   }
 
   const onEditTopologyContext = () => {
@@ -352,16 +371,8 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   };
 
   const onAddTopologyContext = () => {
-    if (
-      !contextMenuTarget.current ||
-      !topologyStore.lookup.has(contextMenuTarget.current)
-    ) {
-      return;
-    }
-
-    void onAddTopology(
-      topologyStore.lookup.get(contextMenuTarget.current)!.collectionId
-    );
+    if (!contextMenuTarget.current) return;
+    void onAddTopology(contextMenuTarget.current);
   };
 
   const onDeployTopologyContext = () => {
@@ -374,67 +385,123 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     onDeleteTopologyRequest(contextMenuTarget.current);
   };
 
-  const containerContextMenu = [
-    {
-      id: 'create',
-      label: 'Add Collection',
-      icon: 'pi pi-plus',
-      command: onAddCollection,
-    },
-  ];
+  const getContainerContextMenu = useCallback(() => {
+    if (authUser.isAdmin) {
+      return [
+        {
+          id: 'create',
+          label: 'Add Collection',
+          icon: 'pi pi-plus',
+          command: onAddCollection,
+        },
+      ];
+    }
 
-  const collectionContextMenu = [
-    {
-      id: 'create',
-      label: 'Add Topology',
-      icon: 'pi pi-plus',
-      command: () => onAddTopology(contextMenuTarget.current),
-    },
-    {
-      id: 'edit',
-      label: 'Edit Collection',
-      icon: 'pi pi-file-edit',
-      command: onEditCollectionContext,
-    },
-    {
-      separator: true,
-    },
-    {
-      id: 'delete',
-      label: 'Delete Collection',
-      icon: 'pi pi-trash',
-      command: onDeleteCollectionContext,
-    },
-  ];
+    return [];
+  }, [authUser]);
 
-  const topologyContextMenu = [
-    {
-      id: 'create',
-      label: 'Deploy',
-      icon: 'pi pi-play',
-      command: onDeployTopologyContext,
+  const getCollectionContextMenu = useCallback(
+    (collectionId: string) => {
+      const collection = collectionStore.lookup.get(collectionId);
+      if (!collection) return [];
+
+      const isWritable = authUser.isAdmin;
+
+      const entries = [];
+
+      if (collection.publicWrite) {
+        entries.push({
+          id: 'create',
+          label: 'Add Topology',
+          icon: 'pi pi-plus',
+          command: onAddTopologyContext,
+        });
+      }
+
+      if (authUser.isAdmin) {
+        entries.push(
+          {
+            id: 'edit',
+            label: 'Edit Collection',
+            icon: 'pi pi-file-edit',
+            disabled: !isWritable,
+            command: onEditCollectionContext,
+          },
+          {
+            separator: true,
+          },
+          {
+            id: 'delete',
+            label: 'Delete Collection',
+            icon: 'pi pi-trash',
+            disabled: !isWritable,
+            command: onDeleteCollectionContext,
+          }
+        );
+      }
+
+      return entries;
     },
-    {
-      id: 'create',
-      label: 'Edit Topology',
-      icon: 'pi pi-file-edit',
-      command: onEditTopologyContext,
+    [authUser, collectionStore.lookup]
+  );
+
+  const getTopologyContextMenu = useCallback(
+    (topologyId: string) => {
+      const topology = topologyStore.lookup.get(topologyId);
+      if (!topology) return [];
+
+      const collection = collectionStore.lookup.get(topology.collectionId);
+      if (!collection) return [];
+
+      const entries = [];
+
+      if (authUser.isAdmin || collection.publicDeploy) {
+        entries.push({
+          id: 'create',
+          label: 'Deploy',
+          icon: 'pi pi-play',
+          command: onDeployTopologyContext,
+        });
+      }
+
+      if (authUser.isAdmin || topology.creator.id === authUser.id) {
+        entries.push(
+          {
+            id: 'create',
+            label: 'Edit Topology',
+            icon: 'pi pi-file-edit',
+            command: onEditTopologyContext,
+          },
+          {
+            separator: true,
+          },
+          {
+            id: 'delete',
+            label: 'Delete Topology',
+            icon: 'pi pi-trash',
+            command: onDeleteTopologyContext,
+          }
+        );
+      }
+
+      return entries;
     },
-    {
-      separator: true,
-    },
-    {
-      id: 'delete',
-      label: 'Delete Topology',
-      icon: 'pi pi-trash',
-      command: onDeleteTopologyContext,
-    },
-  ];
+    [authUser, collectionStore.lookup, topologyStore.lookup]
+  );
 
   async function moveTopologyToCollection(
     topologyId: string,
     collectionId: string
   ) {
+    const topology = topologyStore.lookup.get(topologyId);
+    if (!authUser.isAdmin && topology?.creator.id !== authUser.id) {
+      notificationStore.error(
+        'You do not have permissions to move this topology',
+        'Failed to move topology'
+      );
+      return;
+    }
+
     if (
       topologyStore.manager.editingTopologyId === topologyId &&
       topologyStore.manager.hasEdits()
@@ -505,7 +572,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         className="w-full"
         emptyMessage={
           <div className="sb-topology-explorer-empty">
-            <Image src="/assets/icons/no-results.png" width="100px" />
+            <Image src="/icons/no-results.png" width="100px" />
             <span>No topologies found :(</span>
           </div>
         }

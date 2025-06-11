@@ -324,7 +324,10 @@ export class DataBinder {
       return false;
     }
 
-    runInAction(() => (this.isLoggedIn = true));
+    const refreshResult = await this.refreshToken();
+    if (refreshResult.isOk()) {
+      runInAction(() => (this.isLoggedIn = true));
+    }
 
     return true;
   }
@@ -408,11 +411,11 @@ export class DataBinder {
   @action
   private processAccessToken(accessToken: string) {
     try {
+      console.log('processing token');
       const tokenData = JSON.parse(atob(accessToken.split('.')[1]));
       this.accessToken = accessToken;
       this.authUser = {
         id: tokenData.id,
-        // TODO(kian): Add actual name to user object
         name: tokenData.id,
         isAdmin: tokenData.isAdmin,
       };

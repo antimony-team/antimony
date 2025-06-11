@@ -29,6 +29,8 @@ export class RootStore {
   constructor() {
     this._dataBinder = new DataBinder();
 
+    this._statusMessagesStore = new StatusMessageStore(this);
+
     this._schemaStore = new SchemaStore(this);
     this._deviceStore = new DeviceStore(this);
     this._collectionStore = new CollectionStore(this);
@@ -38,13 +40,18 @@ export class RootStore {
       this._schemaStore,
       this._deviceStore
     );
-    this._labStore = new LabStore(this, this._dataBinder, this._topologyStore);
+    this._labStore = new LabStore(
+      this,
+      this._dataBinder,
+      this._topologyStore,
+      this._statusMessagesStore
+    );
     this._calendarLabStore = new LabStore(
       this,
       this._dataBinder,
-      this._topologyStore
+      this._topologyStore,
+      this._statusMessagesStore
     );
-    this._statusMessagesStore = new StatusMessageStore(this);
     this._shellStore = new ShellStore(
       this._dataBinder,
       this._statusMessagesStore

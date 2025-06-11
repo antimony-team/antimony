@@ -33,8 +33,8 @@ const SBDock: React.FC = observer(() => {
   const overlayRef = useRef<OverlayPanel>(null);
 
   const hasEditorAccess = useMemo(() => {
-    return authUser.isAdmin || collectionStore.hasWritableCollections;
-  }, [authUser, collectionStore.hasWritableCollections]);
+    return authUser.isAdmin || collectionStore.hasAccessibleCollections;
+  }, [authUser, collectionStore.hasAccessibleCollections]);
 
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
@@ -44,7 +44,7 @@ const SBDock: React.FC = observer(() => {
           onClick={() => navigate('/')}
         >
           <Image
-            src="/assets/icons/favicon-dark.png"
+            src="/icons/favicon-dark.png"
             width="60px"
             alt="Antimony Logo"
           />

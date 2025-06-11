@@ -114,9 +114,12 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }, [props.dialogState.state, hostsHidden]);
 
     const onOpen = useCallback(() => {
-      if (!cyRef.current) return;
+      if (!cyRef.current || !containerRef.current || !gridCanvasRef.current) {
+        return;
+      }
 
       initCytoscape(cyRef.current);
+      drawGraphGrid(containerRef.current, gridCanvasRef.current, cyRef.current);
       updateGraph();
     }, [updateGraph, props.dialogState.state]);
 

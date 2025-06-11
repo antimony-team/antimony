@@ -6,6 +6,7 @@ import {
 
 import {DataStore} from '@sb/lib/stores/data-store';
 import {RootStore} from '@sb/lib/stores/root-store';
+import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {QueryBuilder} from '@sb/lib/utils/query-builder';
 import {
@@ -45,16 +46,19 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
+  private statusMessageStore: StatusMessageStore;
 
   constructor(
     rootStore: RootStore,
     dataBinder: DataBinder,
-    topologyStore: TopologyStore
+    topologyStore: TopologyStore,
+    statusMessageStore: StatusMessageStore
   ) {
     super(rootStore);
 
     this.dataBinder = dataBinder;
     this.topologyStore = topologyStore;
+    this.statusMessageStore = statusMessageStore;
 
     observe(this, 'getParams' as keyof this, () => this.fetch());
 
@@ -124,41 +128,86 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {
-    return this.sendLabCommand({
+    const result = await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.Deploy,
     });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to deploy lab'
+      );
+    }
+
+    return result;
   }
 
   public async destroyLab(lab: Lab): Promise<Result<null>> {
-    return await this.sendLabCommand({
+    const result = await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.Destroy,
     });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to destroy lab'
+      );
+    }
+
+    return result;
   }
 
   public async stopNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    return this.sendLabCommand({
+    const result = await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StopNode,
       node: nodeName,
     });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to stop node'
+      );
+    }
+
+    return result;
   }
 
   public async startNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    return this.sendLabCommand({
+    const result = await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.StartNode,
       node: nodeName,
     });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to start node'
+      );
+    }
+
+    return result;
   }
 
   public async restartNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    return this.sendLabCommand({
+    const result = await this.sendLabCommand({
       labId: lab.id,
       command: LabCommand.RestartNode,
       node: nodeName,
     });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to restart node'
+      );
+    }
+
+    return result;
   }
 
   @action

@@ -64,7 +64,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
   const topologyStore = useTopologyStore();
   const notificatioStore = useStatusMessages();
 
-  const amogusRef = useRef(new Audio('/assets/amogus.wav'));
+  const amogusRef = useRef(new Audio('/amogus.wav'));
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
@@ -81,6 +81,14 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     setPendingEdits(editReport.isEdited);
     setOpenTopology(editReport.updatedTopology);
   }, []);
+
+  useEffect(() => {
+    if (!openTopology) return;
+
+    if (!topologyStore.lookup.has(openTopology.id)) {
+      topologyStore.manager.close();
+    }
+  }, [topologyStore.lookup]);
 
   useEffect(() => {
     if (hasPendingEdits || validationState !== ValidationState.Done) {
@@ -106,14 +114,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
       topologyStore.manager.onOpen.unregister(onTopologyOpen);
       topologyStore.manager.onClose.unregister(onTopologyClose);
     };
-  }, [
-    onTopologyOpen,
-    onTopologyEdit,
-    onTopologyClose,
-    topologyStore.manager.onEdit,
-    topologyStore.manager.onOpen,
-    topologyStore.manager.onClose,
-  ]);
+  }, [onTopologyOpen, onTopologyEdit, onTopologyClose]);
 
   function onContentChange(content: string) {
     if (!schemaStore.clabSchema) return;
@@ -230,7 +231,6 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
                 <Button
                   outlined
                   icon="pi pi-refresh"
-                  size="large"
                   tooltip="Redo"
                   onClick={() => monacoWrapperRef.current?.redo()}
                   tooltipOptions={{position: 'bottom', showDelay: 500}}
@@ -241,7 +241,6 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
                 <Button
                   outlined
                   icon="pi pi-sync"
-                  size="large"
                   onClick={e => syncOverlayRef.current?.toggle(e)}
                   tooltip="Sync Options"
                   tooltipOptions={{position: 'bottom', showDelay: 500}}
@@ -346,7 +345,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         <Otherwise>
           <div className="sb-topology-editor-empty" onDoubleClick={onAmogus}>
             <Image
-              src="/assets/icons/among-us.svg"
+              src="/icons/among-us.svg"
               width="350px"
               alt="Nothing selected placeholder"
             />

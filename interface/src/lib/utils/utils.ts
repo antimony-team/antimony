@@ -67,7 +67,7 @@ export function generateGraph(
   topology: Topology | RunTopology,
   deviceStore: DeviceStore,
   topologyManager: TopologyManager,
-  instance: Instance | null,
+  instance: Instance | null = null,
   omitLabels: boolean = false
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];

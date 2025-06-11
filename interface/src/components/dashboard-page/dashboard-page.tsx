@@ -157,18 +157,18 @@ const DashboardPage: React.FC = observer(() => {
         </div>
         <div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>
           {InstanceStates.map((state, i) => (
-            <Chip
+            <div
               key={i}
-              label={InstanceState[state]}
-              removable={true}
-              onRemove={() => {
-                labStore.toggleState(state);
-                return true;
-              }}
-              className={classNames('active-filter-chip', 'state-filter-chip', {
+              className={classNames('fake-state-filter-chip', {
                 hidden: !labStore.stateFilter.includes(state),
               })}
-            />
+            >
+              {InstanceState[state]}
+              <i
+                className="pi pi-times-circle"
+                onClick={() => labStore.toggleState(state)}
+              ></i>
+            </div>
           ))}
           {labStore.collectionFilter.map((collectionId, i) => {
             return (
@@ -218,7 +218,7 @@ const DashboardPage: React.FC = observer(() => {
             </When>
             <Otherwise>
               <div className="sb-dashboard-empty">
-                <Image src="/assets/icons/no-results.png" width="200px" />
+                <Image src="/icons/no-results.png" width="200px" />
                 <span>No labs found :(</span>
               </div>
             </Otherwise>

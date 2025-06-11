@@ -23,4 +23,4 @@ RUN npm -g install serve
 
 EXPOSE 8100
 
-CMD ["serve", "-s", "l", "8100", "./build"]
+CMD ["serve", "-s", "-l", "8100", "./build"]

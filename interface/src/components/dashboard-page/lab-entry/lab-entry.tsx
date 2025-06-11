@@ -1,5 +1,6 @@
 import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 import {
+  useAuthUser,
   useCollectionStore,
   useLabStore,
   useStatusMessages,
@@ -7,7 +8,7 @@ import {
 import {Choose, If, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 import {Button, ButtonProps} from 'primereact/button';
-import React from 'react';
+import React, {useMemo} from 'react';
 
 import './lab-entry.sass';
 
@@ -31,9 +32,14 @@ const defaultLabButtonProps: ButtonProps = {
 };
 
 const LabEntry = (props: LabEntryProps) => {
+  const authUser = useAuthUser();
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
+
+  const isChangeable = useMemo(() => {
+    return authUser.isAdmin || props.lab.creator.id === authUser.id;
+  }, [authUser]);
 
   function generateDisplayDate(lab: Lab): string {
     switch (lab.state) {
@@ -75,7 +81,8 @@ const LabEntry = (props: LabEntryProps) => {
     props.onRescheduleLab();
   }
 
-  const showButtons = props.lab.state !== InstanceState.Stopping;
+  const showButtons =
+    props.lab.state !== InstanceState.Stopping && isChangeable;
 
   return (
     <div className="lab-item-card">
