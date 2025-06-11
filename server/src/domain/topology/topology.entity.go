@@ -54,8 +54,13 @@ type BindFile struct {
 }
 
 type BindFileIn struct {
-	Content  string `json:"content"`
-	FilePath string `json:"filePath" binding:"required"`
+	Content  *string `json:"content" binding:"required"`
+	FilePath *string `json:"filePath" binding:"required"`
+}
+
+type BindFileInPartial struct {
+	Content  *string `json:"content"`
+	FilePath *string `json:"filePath"`
 }
 
 type BindFileOut struct {

@@ -22,7 +22,7 @@ type (
 		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
 
 		CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error)
-		UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileId string, authUser auth.AuthenticatedUser) error
+		UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileId string, authUser auth.AuthenticatedUser) error
 		DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error
 	}
 
@@ -232,6 +232,118 @@ func (s *topologyService) Delete(ctx *gin.Context, topologyId string, authUser a
 	return s.topologyRepo.Delete(ctx, topology)
 }
 
+func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error) {
+	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, topologyId)
+	if err != nil {
+		return "", err
+	}
+
+	// Deny request if user does not have access to the owning topology
+	if !authUser.IsAdmin && bindFileTopology.Creator.UUID != authUser.UserId {
+		return "", utils.ErrorNoWriteAccessToBindFile
+	}
+
+	// Don't allow duplicate bind file names within the same topology
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, ""); err != nil {
+		return "", err
+	} else if nameExists {
+		return "", utils.ErrorBindFileExists
+	}
+
+	if err := s.saveBindFile(topologyId, *req.FilePath, *req.Content); err != nil {
+		return "", err
+	}
+
+	newUuid := utils.GenerateUuid()
+	err = s.topologyRepo.CreateBindFile(ctx, &BindFile{
+		UUID:     newUuid,
+		FilePath: *req.FilePath,
+		Topology: *bindFileTopology,
+	})
+
+	return newUuid, err
+}
+
+func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileUuid string, authUser auth.AuthenticatedUser) error {
+	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
+	if err != nil {
+		return err
+	}
+
+	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, bindFile.Topology.UUID)
+	if err != nil {
+		return err
+	}
+
+	// Deny request if user does not have access to the owning topology
+	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
+		return utils.ErrorNoWriteAccessToBindFile
+	}
+
+	bindFilePath := bindFile.FilePath
+
+	if req.FilePath != nil {
+		// Don't allow duplicate bind file names within the same topology
+		if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
+			return err
+		} else if nameExists {
+			return utils.ErrorBindFileExists
+		}
+
+		// Delete old file if file path has changed
+		if bindFile.FilePath != *req.FilePath {
+			if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
+				log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
+			}
+		}
+
+		bindFilePath = *req.FilePath
+	}
+
+	var bindFileContent string
+	if req.Content != nil {
+		bindFileContent = *req.Content
+	} else {
+		bindFileOut, err := s.loadBindFile(bindFileTopology.UUID, *bindFile)
+		if err != nil {
+			return err
+		}
+
+		bindFileContent = bindFileOut.Content
+	}
+
+	if err := s.saveBindFile(bindFileTopology.UUID, bindFilePath, bindFileContent); err != nil {
+		return err
+	}
+
+	bindFile.FilePath = bindFilePath
+
+	return s.topologyRepo.UpdateBindFile(ctx, bindFile)
+}
+
+func (s *topologyService) DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error {
+	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileId)
+	if err != nil {
+		return err
+	}
+
+	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, bindFile.Topology.UUID)
+	if err != nil {
+		return err
+	}
+
+	// Deny request if user does not have access to the owning topology
+	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
+		return utils.ErrorNoWriteAccessToBindFile
+	}
+
+	if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
+		log.Errorf("Failed to delete bind file '%s': %s", bindFile.FilePath, err.Error())
+	}
+
+	return s.topologyRepo.DeleteBindFile(ctx, bindFile)
+}
+
 func (s *topologyService) validateTopology(definition string) error {
 	var definitionObj any
 
@@ -265,109 +377,27 @@ func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) 
 
 	bindFilesOut := make([]BindFileOut, 0)
 	for _, bindFile := range bindFiles {
-		var fileContent string
-		if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
-			log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFile.FilePath, topologyId, err.Error())
+		bindFileOut, err := s.loadBindFile(definition, bindFile)
+		if err != nil {
 			return "", nil, err
 		}
-		bindFilesOut = append(bindFilesOut, s.topologyRepo.BindFileToOut(bindFile, fileContent))
+
+		bindFilesOut = append(bindFilesOut, *bindFileOut)
 	}
 
 	return definition, bindFilesOut, nil
 }
 
-func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error) {
-	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, topologyId)
-	if err != nil {
-		return "", err
+func (s *topologyService) loadBindFile(topologyId string, bindFile BindFile) (*BindFileOut, error) {
+	var fileContent string
+	if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
+		log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFile.FilePath, topologyId, err.Error())
+		return nil, err
 	}
 
-	// Deny request if user does not have access to the owning topology
-	if !authUser.IsAdmin && bindFileTopology.Creator.UUID != authUser.UserId {
-		return "", utils.ErrorNoWriteAccessToBindFile
-	}
+	bindFileOut := s.topologyRepo.BindFileToOut(bindFile, fileContent)
 
-	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, ""); err != nil {
-		return "", err
-	} else if nameExists {
-		return "", utils.ErrorBindFileExists
-	}
-
-	if err := s.saveBindFile(topologyId, req.FilePath, req.Content); err != nil {
-		return "", err
-	}
-
-	newUuid := utils.GenerateUuid()
-	err = s.topologyRepo.CreateBindFile(ctx, &BindFile{
-		UUID:     newUuid,
-		FilePath: req.FilePath,
-		Topology: *bindFileTopology,
-	})
-
-	return newUuid, err
-}
-
-func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileUuid string, authUser auth.AuthenticatedUser) error {
-	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
-	if err != nil {
-		return err
-	}
-
-	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, bindFile.Topology.UUID)
-	if err != nil {
-		return err
-	}
-
-	// Deny request if user does not have access to the owning topology
-	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
-		return utils.ErrorNoWriteAccessToBindFile
-	}
-
-	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
-		return err
-	} else if nameExists {
-		return utils.ErrorBindFileExists
-	}
-
-	// Delete old file if file path has changed
-	if bindFile.FilePath != req.FilePath {
-		if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
-			log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
-		}
-	}
-
-	if err := s.saveBindFile(bindFileTopology.UUID, req.FilePath, req.Content); err != nil {
-		return err
-	}
-
-	bindFile.FilePath = req.FilePath
-
-	return s.topologyRepo.UpdateBindFile(ctx, bindFile)
-}
-
-func (s *topologyService) DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error {
-	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileId)
-	if err != nil {
-		return err
-	}
-
-	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, bindFile.Topology.UUID)
-	if err != nil {
-		return err
-	}
-
-	// Deny request if user does not have access to the owning topology
-	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
-		return utils.ErrorNoWriteAccessToBindFile
-	}
-
-	if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
-		log.Errorf("Failed to delete bind file '%s': %s", bindFile.FilePath, err.Error())
-	}
-
-	return s.topologyRepo.DeleteBindFile(ctx, bindFile)
+	return &bindFileOut, nil
 }
 
 func (s *topologyService) removeBindFile(topologyId string, filePath string) error {
