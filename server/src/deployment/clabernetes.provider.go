@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -48,7 +49,7 @@ func (p *ClabernetesProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(string),
-) (*InspectOutput, error) {
+) (InspectOutput, error) {
 	namespace := getTopologyName(topologyFile, onLog)
 
 	cmd := exec.CommandContext(ctx, "kubectl", "get", "pods", "-n", namespace, "-o", "json")
@@ -58,7 +59,7 @@ func (p *ClabernetesProvider) Inspect(
 	}
 
 	if raw == nil || *raw == "" {
-		return &InspectOutput{Containers: []InspectContainer{}}, nil
+		return InspectOutput{}, nil
 	}
 
 	var result struct {
@@ -97,12 +98,12 @@ func (p *ClabernetesProvider) Inspect(
 			Owner:       namespace,
 		})
 	}
-	return &InspectOutput{Containers: containers}, nil
+	return InspectOutput{}, nil
 }
 
 func (p *ClabernetesProvider) InspectAll( //not tested
 	ctx context.Context,
-) (*InspectOutput, error) {
+) (InspectOutput, error) {
 	/*cmd := exec.CommandContext(ctx, "kubectl", "get", "topology", "--all-namespaces", "-o", "json")
 	if output, err := runClabCommandSync(cmd); err != nil {
 		return nil, err
@@ -119,6 +120,13 @@ func (p *ClabernetesProvider) InspectAll( //not tested
 		return &InspectOutput{Containers: []InspectContainer{}}, nil
 	}*/
 
+	return InspectOutput{}, nil
+}
+
+func (p *ClabernetesProvider) OpenShell(
+	ctx context.Context,
+	containerId string,
+) (io.ReadWriteCloser, error) {
 	return nil, nil
 }
 
@@ -146,19 +154,20 @@ func (p *ClabernetesProvider) ExecOnNode(
 	runClabCommand(cmd, onLog, onDone)
 }
 
-func (p *ClabernetesProvider) Save(ctx context.Context,
-	topologyFile string,
-	onLog func(string),
-	onDone func(*string, error)) {
-	onDone(nil, nil)
+func (p *ClabernetesProvider) StartNode(ctx context.Context, containerId string) error {
+	return nil
 }
 
-func (p *ClabernetesProvider) SaveOnNode(ctx context.Context,
-	topologyFile string,
-	nodeName string,
-	onLog func(string),
-	onDone func(*string, error)) {
-	onDone(nil, nil)
+func (p *ClabernetesProvider) StopNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *ClabernetesProvider) RestartNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *ClabernetesProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
+	return nil
 }
 
 func (p *ClabernetesProvider) StreamContainerLogs(

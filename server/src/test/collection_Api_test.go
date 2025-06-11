@@ -126,10 +126,14 @@ func TestCreateCollection(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
+	name := "test-create"
+	publicWrite := true
+	publicDeploy := false
+
 	newCollection := collection.CollectionIn{
-		Name:         "test-create",
-		PublicWrite:  true,
-		PublicDeploy: false,
+		Name:         &name,
+		PublicWrite:  &publicWrite,
+		PublicDeploy: &publicDeploy,
 	}
 	payload, _ := json.Marshal(newCollection)
 
@@ -153,12 +157,21 @@ func TestCreateCollection_Unauthorized(t *testing.T) {
 
 	token, err := authManager.CreateAccessToken(auth.AuthenticatedUser{
 		UserId:      "test-user-id3", // Non-admin
-		IsAdmin:     false,
+		IsAdmin:     false,           // <--- Key part
 		Collections: []string{"hidden-group"},
 	})
 	assert.NoError(t, err)
 
-	newCollection := collection.CollectionIn{Name: "should-fail"}
+	name := "should-fail"
+	publicWrite := false
+	publicDeploy := false
+
+	newCollection := collection.CollectionIn{
+		Name:         &name,
+		PublicWrite:  &publicWrite,
+		PublicDeploy: &publicDeploy,
+	}
+
 	payload, _ := json.Marshal(newCollection)
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
@@ -166,6 +179,8 @@ func TestCreateCollection_Unauthorized(t *testing.T) {
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
+
+	// Now this will hit the IsAdmin check and return 403
 	assert.Equal(t, http.StatusForbidden, resp.Code)
 }
 
@@ -178,8 +193,8 @@ func TestCreateCollection_DuplicateName(t *testing.T) {
 		Collections: []string{"hidden-group"},
 	})
 	assert.NoError(t, err)
-
-	newCollection := collection.CollectionIn{Name: "hidden-group"} // Already exists
+	name := "hidden-group"
+	newCollection := collection.CollectionIn{Name: &name} // Already exists
 	payload, _ := json.Marshal(newCollection)
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
@@ -192,8 +207,8 @@ func TestCreateCollection_DuplicateName(t *testing.T) {
 
 func TestCreateCollection_Unauthorized_NoToken(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
-
-	newCollection := collection.CollectionIn{Name: "should-not-work"}
+	name := "should-not-work"
+	newCollection := collection.CollectionIn{Name: &name}
 	payload, _ := json.Marshal(newCollection)
 
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))
@@ -207,8 +222,8 @@ func TestCreateCollection_Unauthorized_NoToken(t *testing.T) {
 
 func TestCreateCollection_InvalidToken(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
-
-	newCollection := collection.CollectionIn{Name: "bad-token"}
+	name := "bad-token"
+	newCollection := collection.CollectionIn{Name: &name}
 	payload, _ := json.Marshal(newCollection)
 
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))
@@ -241,7 +256,7 @@ func TestCreateCollection_MissingName(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 }
 
-// === PUT ===
+// === PATCH ===
 func TestUpdateCollection_DuplicateName(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
@@ -251,9 +266,15 @@ func TestUpdateCollection_DuplicateName(t *testing.T) {
 		Collections: []string{"hidden-group"},
 	})
 	assert.NoError(t, err)
-
+	name := "update-source"
+	publicWrite := true
+	publicDeploy := true
 	// Create a collection
-	initial := collection.CollectionIn{Name: "update-source"}
+	initial := collection.CollectionIn{
+		Name:         &name,
+		PublicWrite:  &publicWrite,
+		PublicDeploy: &publicDeploy,
+	}
 	payload, _ := json.Marshal(initial)
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
@@ -263,11 +284,11 @@ func TestUpdateCollection_DuplicateName(t *testing.T) {
 
 	var created utils.OkResponse[string]
 	_ = json.Unmarshal(resp.Body.Bytes(), &created)
-
+	collectionName := "hidden-group"
 	// Try renaming to a name that already exists
-	dup := collection.CollectionIn{Name: "hidden-group"}
+	dup := collection.CollectionIn{Name: &collectionName}
 	body, _ := json.Marshal(dup)
-	req2, _ := http.NewRequest("PUT", "/collections/"+created.Payload, bytes.NewBuffer(body))
+	req2, _ := http.NewRequest("PATCH", "/collections/"+created.Payload, bytes.NewBuffer(body))
 	req2.Header.Set("Content-Type", "application/json")
 	req2.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp2 := httptest.NewRecorder()
@@ -287,11 +308,16 @@ func TestUpdateCollection(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create
+	name := "test-update"
+	publicWrite := true
+	publicDeploy := true
+
 	newCollection := collection.CollectionIn{
-		Name:         "test-update",
-		PublicWrite:  true,
-		PublicDeploy: true,
+		Name:         &name,
+		PublicWrite:  &publicWrite,
+		PublicDeploy: &publicDeploy,
 	}
+
 	payload, _ := json.Marshal(newCollection)
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
@@ -303,13 +329,17 @@ func TestUpdateCollection(t *testing.T) {
 	_ = json.Unmarshal(resp.Body.Bytes(), &created)
 
 	// Update
+	updateName := "updated-name"
+	updatePublicWrite := false
+	updatePublicDeploy := true
+
 	updated := collection.CollectionIn{
-		Name:         "updated-name",
-		PublicWrite:  false,
-		PublicDeploy: true,
+		Name:         &updateName,
+		PublicWrite:  &updatePublicWrite,
+		PublicDeploy: &updatePublicDeploy,
 	}
 	updatePayload, _ := json.Marshal(updated)
-	updateReq, _ := http.NewRequest("PUT", "/collections/"+created.Payload, bytes.NewBuffer(updatePayload))
+	updateReq, _ := http.NewRequest("PATCH", "/collections/"+created.Payload, bytes.NewBuffer(updatePayload))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateReq.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	updateResp := httptest.NewRecorder()
@@ -327,10 +357,10 @@ func TestUpdateCollection_InvalidID(t *testing.T) {
 		Collections: []string{"hidden-group"},
 	})
 	assert.NoError(t, err)
-
-	update := collection.CollectionIn{Name: "nonexistent"}
+	name := "nonexistent"
+	update := collection.CollectionIn{Name: &name}
 	body, _ := json.Marshal(update)
-	req, _ := http.NewRequest("PUT", "/collections/not-a-real-id", bytes.NewBuffer(body))
+	req, _ := http.NewRequest("PATCH", "/collections/not-a-real-id", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -343,7 +373,7 @@ func TestUpdateCollection_Unauthorized(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
 	// No token
-	req, _ := http.NewRequest("PUT", "/collections/some-id", nil)
+	req, _ := http.NewRequest("PATCH", "/collections/some-id", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -353,7 +383,7 @@ func TestUpdateCollection_Unauthorized(t *testing.T) {
 func TestUpdateCollection_InvalidToken(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
-	req, _ := http.NewRequest("PUT", "/collections/some-id", nil)
+	req, _ := http.NewRequest("PATCH", "/collections/some-id", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: "malformed.token.value"})
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
@@ -370,8 +400,14 @@ func TestUpdateCollection_Forbidden(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-
-	coll := collection.CollectionIn{Name: "forbidden-test"}
+	name := "forbidden-test"
+	publicWrite := true
+	publicDeploy := true
+	coll := collection.CollectionIn{
+		Name:         &name,
+		PublicWrite:  &publicWrite,
+		PublicDeploy: &publicDeploy,
+	}
 	body, _ := json.Marshal(coll)
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -388,10 +424,10 @@ func TestUpdateCollection_Forbidden(t *testing.T) {
 		IsAdmin:     false,
 		Collections: []string{},
 	})
-
-	update := collection.CollectionIn{Name: "unauthorized-update"}
+	collectionName := "unauthorized-update"
+	update := collection.CollectionIn{Name: &collectionName}
 	updateBody, _ := json.Marshal(update)
-	updateReq, _ := http.NewRequest("PUT", "/collections/"+created.Payload, bytes.NewBuffer(updateBody))
+	updateReq, _ := http.NewRequest("PATCH", "/collections/"+created.Payload, bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateReq.AddCookie(&http.Cookie{Name: "accessToken", Value: userToken})
 	updateResp := httptest.NewRecorder()
@@ -413,7 +449,7 @@ func TestUpdateCollection_BadInput(t *testing.T) {
 	// Intentionally malformed JSON
 	badJSON := []byte(`{"name": "valid", "publicWrite": tru`)
 
-	req, _ := http.NewRequest("PUT", "/collections/some-id", bytes.NewBuffer(badJSON))
+	req, _ := http.NewRequest("PATCH", "/collections/some-id", bytes.NewBuffer(badJSON))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 
@@ -434,10 +470,14 @@ func TestDeleteCollection(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
+	name := "test-delete"
+	publicWrite := true
+	publicDeploy := true
+
 	newCollection := collection.CollectionIn{
-		Name:         "test-delete",
-		PublicWrite:  true,
-		PublicDeploy: true,
+		Name:         &name,
+		PublicWrite:  &publicWrite,
+		PublicDeploy: &publicDeploy,
 	}
 	payload, _ := json.Marshal(newCollection)
 	req, _ := http.NewRequest("POST", "/collections", bytes.NewBuffer(payload))

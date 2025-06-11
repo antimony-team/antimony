@@ -157,8 +157,7 @@ func TestCreateTopology(t *testing.T) {
 
 	body := map[string]string{
 		"definition":   testTopo,
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(body)
@@ -182,8 +181,7 @@ func TestCreateTopology_Unauthorized(t *testing.T) {
 
 	body := map[string]string{
 		"definition":   testTopo,
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(body)
@@ -207,8 +205,7 @@ func TestCreateTopology_Forbidden(t *testing.T) {
 
 	body := map[string]string{
 		"definition":   testTopo,
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(body)
@@ -252,8 +249,7 @@ func TestCreateTopology_DuplicateName(t *testing.T) {
 
 	body := map[string]string{
 		"definition":   cvx03, // Already seeded as "ctd"
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(body)
@@ -277,9 +273,8 @@ func TestCreateTopology_MissingCollectionID(t *testing.T) {
 	})
 
 	body := map[string]string{
-		"definition":   testTopo,
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"definition": testTopo,
+		"syncUrl":    "https://example.com",
 		// Missing collectionId
 	}
 	topologyBody, _ := json.Marshal(body)
@@ -291,37 +286,6 @@ func TestCreateTopology_MissingCollectionID(t *testing.T) {
 
 	router.ServeHTTP(resp, req)
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
-}
-
-func TestCreateTopology_InvalidMetadata(t *testing.T) {
-	router, authManager, _ := SetupTestServer(t)
-
-	token, _ := authManager.CreateAccessToken(auth.AuthenticatedUser{
-		UserId:      "test-user-id1",
-		IsAdmin:     true,
-		Collections: []string{"hs25-cn2"},
-	})
-
-	body := map[string]string{
-		"definition":   test1,
-		"metadata":     `{"nodeData": [}`, // invalid JSON (unclosed array)
-		"gitSourceUrl": "",
-		"collectionId": "CollectionTestUUID1",
-	}
-	topologyBody, _ := json.Marshal(body)
-
-	req := httptest.NewRequest("POST", "/topologies", bytes.NewReader(topologyBody))
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
-	resp := httptest.NewRecorder()
-
-	router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	var response utils.ErrorResponse
-	err := json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Equal(t, 3002, response.Code)
 }
 
 func TestCreateTopology_InvalidTopology(t *testing.T) {
@@ -344,8 +308,7 @@ nodes:
 
 	body := map[string]string{
 		"definition":   invalidSchemaDef,
-		"metadata":     `{}`, // valid JSON
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(body)
@@ -364,7 +327,7 @@ nodes:
 	assert.Equal(t, 3003, response.Code)
 }
 
-// === PUT ===
+// === PATCH ===
 func TestUpdateTopology(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
@@ -379,13 +342,12 @@ func TestUpdateTopology(t *testing.T) {
 	topologyId := "TopologyTestUUID1"
 	updateBody := map[string]string{
 		"definition":   testTopo,
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(updateBody)
 
-	req := httptest.NewRequest("PUT", "/topologies/"+topologyId, bytes.NewReader(topologyBody))
+	req := httptest.NewRequest("PATCH", "/topologies/"+topologyId, bytes.NewReader(topologyBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -406,13 +368,12 @@ func TestUpdateTopology_UnauthorizedUser(t *testing.T) {
 
 	updateBody := map[string]string{
 		"definition":   test1,
-		"metadata":     `{}`,
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	topologyBody, _ := json.Marshal(updateBody)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1", bytes.NewReader(topologyBody))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1", bytes.NewReader(topologyBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 
@@ -420,37 +381,6 @@ func TestUpdateTopology_UnauthorizedUser(t *testing.T) {
 	router.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusForbidden, resp.Code)
-}
-
-func TestUpdateTopology_InvalidMetadata(t *testing.T) {
-	router, authManager, _ := SetupTestServer(t)
-
-	token, _ := authManager.CreateAccessToken(auth.AuthenticatedUser{
-		UserId:      "test-user-id1",
-		IsAdmin:     true,
-		Collections: []string{"hs25-cn2"},
-	})
-
-	updateBody := map[string]string{
-		"definition":   test1,
-		"metadata":     "{invalidJson}", // Broken metadata
-		"gitSourceUrl": "",
-		"collectionId": "CollectionTestUUID1",
-	}
-	bodyBytes, _ := json.Marshal(updateBody)
-
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1", bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
-
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	var response utils.ErrorResponse
-	err := json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Equal(t, 3002, response.Code)
 }
 
 func TestUpdateTopology_InvalidTopologyYaml(t *testing.T) {
@@ -464,13 +394,12 @@ func TestUpdateTopology_InvalidTopologyYaml(t *testing.T) {
 
 	updateBody := map[string]string{
 		"definition":   "invalid: \"unterminated quote",
-		"metadata":     `{}`,
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	bodyBytes, _ := json.Marshal(updateBody)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 
@@ -494,13 +423,12 @@ func TestUpdateTopology_DuplicateName(t *testing.T) {
 
 	updateBody := map[string]string{
 		"definition":   def,
-		"metadata":     `{}`,
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	bodyBytes, _ := json.Marshal(updateBody)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 
@@ -521,13 +449,12 @@ func TestUpdateTopology_TopologyNotFound(t *testing.T) {
 
 	updateBody := map[string]string{
 		"definition":   test1,
-		"metadata":     `{}`,
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	bodyBytes, _ := json.Marshal(updateBody)
 
-	req := httptest.NewRequest("PUT", "/topologies/nonexistent-uuid", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/nonexistent-uuid", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 
@@ -605,8 +532,7 @@ func TestDeleteTopology_OwnerCanDelete(t *testing.T) {
 	log.Infof(test1)
 	body := map[string]string{
 		"definition":   testTopo,
-		"metadata":     "",
-		"gitSourceUrl": "",
+		"syncUrl":      "https://example.com",
 		"collectionId": "CollectionTestUUID1",
 	}
 	bodyBytes, _ := json.Marshal(body)
@@ -786,7 +712,7 @@ func TestCreateBindFile_TopologyNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.Code)
 }
 
-// === PUT ===
+// === PATCH ===
 func TestUpdateBindFile(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
@@ -807,7 +733,7 @@ func TestUpdateBindFile(t *testing.T) {
 	}
 	topologyBody, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PUT", "/topologies/"+topologyId+"/files/"+bindFileId, bytes.NewReader(topologyBody))
+	req := httptest.NewRequest("PATCH", "/topologies/"+topologyId+"/files/"+bindFileId, bytes.NewReader(topologyBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -831,7 +757,7 @@ func TestUpdateBindFile_BindFileNotFound(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1/files/non-existent-id", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/non-existent-id", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -856,7 +782,7 @@ func TestUpdateBindFile_ForbiddenUser(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -881,7 +807,7 @@ func TestUpdateBindFile_DuplicatePath(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -909,7 +835,7 @@ func TestUpdateBindFile_MissingFilePath(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PUT", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()

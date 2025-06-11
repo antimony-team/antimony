@@ -32,23 +32,30 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}
 	case errors.Is(err, ErrorBindFileExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
+	case errors.Is(err, ErrorInvalidBindFilePath):
+		return http.StatusBadRequest, ErrorResponse{Code: 4002, Message: err.Error()}
+	case errors.Is(err, ErrorDatabaseError):
+		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
-	case errors.Is(err, ErrorUnauthorized):
-	case errors.Is(err, ErrorOpenIDAuthDisabledError):
-	case errors.Is(err, ErrorNativeAuthDisabledError):
+	case errors.Is(err, ErrorUnauthorized),
+		errors.Is(err, ErrorOpenIDAuthDisabledError),
+		errors.Is(err, ErrorNativeAuthDisabledError):
 		return http.StatusUnauthorized, ErrorResponse{Code: 401, Message: err.Error()}
 	case errors.Is(err, ErrorTokenInvalid):
 		return 498, ErrorResponse{Code: 498, Message: err.Error()}
 	case errors.Is(err, ErrorForbidden),
+		errors.Is(err, ErrorNoAccessToLab),
 		errors.Is(err, ErrorNoWriteAccessToLab),
 		errors.Is(err, ErrorNoWriteAccessToBindFile),
 		errors.Is(err, ErrorNoWriteAccessToTopology),
 		errors.Is(err, ErrorNoWriteAccessToCollection),
 		errors.Is(err, ErrorNoDeployAccessToCollection),
+		errors.Is(err, ErrorNoDeployAccessToLab),
 		errors.Is(err, ErrorNoPermissionToCreateCollections):
 		return http.StatusForbidden, ErrorResponse{Code: 403, Message: err.Error()}
 	}
-	return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
+
+	return http.StatusInternalServerError, ErrorResponse{Code: -1, Message: err.Error()}
 }
 
 func CreateValidationError(err error) (int, ErrorResponse) {
@@ -59,19 +66,31 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 	switch {
 	case errors.Is(err, ErrorContainerlab):
 		return ErrorResponse{Code: 5001, Message: err.Error()}
-	case errors.Is(err, ErrorLabActionInProgress):
+	case errors.Is(err, ErrorLabIsDeploying):
 		return ErrorResponse{Code: 5002, Message: err.Error()}
+	case errors.Is(err, ErrorLabNotRunning):
+		return ErrorResponse{Code: 5003, Message: err.Error()}
+	case errors.Is(err, ErrorNodeNotRunning):
+		return ErrorResponse{Code: 5004, Message: err.Error()}
+	case errors.Is(err, ErrorUuidNotFound):
+		return ErrorResponse{Code: 5005, Message: err.Error()}
+	case errors.Is(err, ErrorNodeNotFound):
+		return ErrorResponse{Code: 5006, Message: err.Error()}
+	case errors.Is(err, ErrorShellNotFound):
+		return ErrorResponse{Code: 5007, Message: err.Error()}
+	case errors.Is(err, ErrorShellLimitReached):
+		return ErrorResponse{Code: 5008, Message: err.Error()}
 	case errors.Is(err, ErrorInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
-	case errors.Is(err, ErrorUuidNotFound):
-		return ErrorResponse{Code: 5404, Message: err.Error()}
 	// Permission / Access errors
-	case errors.Is(err, ErrorNoDeployAccessToCollection),
-		errors.Is(err, ErrorNoDestroyAccessToLab):
+	case errors.Is(err, ErrorNoDeployAccessToCollection):
+	case errors.Is(err, ErrorNoDestroyAccessToLab):
+	case errors.Is(err, ErrorNoAccessToShell):
+	case errors.Is(err, ErrorNoAccessToLab):
 		return ErrorResponse{Code: 5403, Message: err.Error()}
-	default:
-		return ErrorResponse{Code: -1, Message: err.Error()}
 	}
+
+	return ErrorResponse{Code: -1, Message: err.Error()}
 }
 
 func CreateSocketOkResponse[T any](obj T) OkResponse[T] {

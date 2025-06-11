@@ -9,6 +9,11 @@ tasks:
       - sudo rm -rf ./build/
       - sudo rm -rf ./docker/
 
+  lint:
+    dir: './src'
+    cmds:
+      - golangci-lint run -c ../.golangci.yml
+
   build:
     dir: './src'
     cmds:
@@ -54,3 +59,7 @@ tasks:
     dir: './src'
     cmds:
       - go tool swag fmt
+  test:
+    dir: './src/test'
+    cmds:
+      - go test -v ./

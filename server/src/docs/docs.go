@@ -329,6 +329,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/labs/:labId": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "labs"
+                ],
+                "summary": "Get a specific lab by UUIDp",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-lab_LabOut"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "Access to the resource was denied. Details in the request body.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "The requested lab was not found.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
         "/labs/{id}": {
             "put": {
                 "security": [
@@ -446,7 +488,7 @@ const docTemplate = `{
                 "summary": "Returns the JSON schema to validate topology definitions",
                 "responses": {
                     "200": {
-                        "description": "The schema as JSON string",
+                        "description": "The schema as JSON object",
                         "schema": {
                             "$ref": "#/definitions/utils.OkResponse-any"
                         }
@@ -702,7 +744,7 @@ const docTemplate = `{
             }
         },
         "/topologies/{topologyId}/files/{bindFileId}": {
-            "put": {
+            "delete": {
                 "security": [
                     {
                         "BasicAuth": []
@@ -714,7 +756,7 @@ const docTemplate = `{
                 "tags": [
                     "bindFiles"
                 ],
-                "summary": "Update an existing bind file of a topology",
+                "summary": "Delete an existing bind file of a topology",
                 "parameters": [
                     {
                         "type": "string",
@@ -725,7 +767,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "The ID of the bind file to edit",
+                        "description": "The ID of the bind file to delete",
                         "name": "bindFileId",
                         "in": "path",
                         "required": true
@@ -755,7 +797,7 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
                         "BasicAuth": []
@@ -767,7 +809,7 @@ const docTemplate = `{
                 "tags": [
                     "bindFiles"
                 ],
-                "summary": "Delete an existing bind file of a topology",
+                "summary": "Update an existing bind file of a topology",
                 "parameters": [
                     {
                         "type": "string",
@@ -778,7 +820,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "The ID of the bind file to delete",
+                        "description": "The ID of the bind file to edit",
                         "name": "bindFileId",
                         "in": "path",
                         "required": true
@@ -1112,6 +1154,9 @@ const docTemplate = `{
         "lab.LabIn": {
             "type": "object",
             "required": [
+                "endTime",
+                "name",
+                "startTime",
                 "topologyId"
             ],
             "properties": {
@@ -1162,6 +1207,9 @@ const docTemplate = `{
                 "startTime": {
                     "type": "string"
                 },
+                "topologyDefinition": {
+                    "type": "string"
+                },
                 "topologyId": {
                     "type": "string"
                 }
@@ -1170,6 +1218,7 @@ const docTemplate = `{
         "topology.BindFileIn": {
             "type": "object",
             "required": [
+                "content",
                 "filePath"
             ],
             "properties": {
@@ -1334,6 +1383,14 @@ const docTemplate = `{
             "properties": {
                 "payload": {
                     "$ref": "#/definitions/auth.AuthConfig"
+                }
+            }
+        },
+        "utils.OkResponse-lab_LabOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/lab.LabOut"
                 }
             }
         },

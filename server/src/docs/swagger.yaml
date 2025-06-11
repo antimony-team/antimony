@@ -138,6 +138,9 @@ definitions:
       topologyId:
         type: string
     required:
+    - endTime
+    - name
+    - startTime
     - topologyId
     type: object
   lab.LabOut:
@@ -161,6 +164,8 @@ definitions:
         type: string
       startTime:
         type: string
+      topologyDefinition:
+        type: string
       topologyId:
         type: string
     type: object
@@ -171,6 +176,7 @@ definitions:
       filePath:
         type: string
     required:
+    - content
     - filePath
     type: object
   topology.BindFileOut:
@@ -273,6 +279,11 @@ definitions:
     properties:
       payload:
         $ref: '#/definitions/auth.AuthConfig'
+    type: object
+  utils.OkResponse-lab_LabOut:
+    properties:
+      payload:
+        $ref: '#/definitions/lab.LabOut'
     type: object
   utils.OkResponse-string:
     properties:
@@ -480,6 +491,32 @@ paths:
       summary: Create a new lab
       tags:
       - labs
+  /labs/:labId:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-lab_LabOut'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: The requested lab was not found.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Get a specific lab by UUIDp
+      tags:
+      - labs
   /labs/{id}:
     delete:
       parameters:
@@ -553,7 +590,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: The schema as JSON string
+          description: The schema as JSON object
           schema:
             $ref: '#/definitions/utils.OkResponse-any'
       summary: Returns the JSON schema to validate topology definitions
@@ -749,7 +786,7 @@ paths:
       summary: Delete an existing bind file of a topology
       tags:
       - bindFiles
-    put:
+    patch:
       parameters:
       - description: The ID of the topology the bind file belongs to
         in: path

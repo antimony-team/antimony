@@ -142,7 +142,7 @@ func (h *topologyHandler) Delete(ctx *gin.Context) {
 func (h *topologyHandler) CreateBindFile(ctx *gin.Context) {
 	payload := BindFileIn{}
 	if err := ctx.Bind(&payload); err != nil {
-		ctx.JSON(utils.CreateErrorResponse(err))
+		ctx.JSON(utils.CreateValidationError(err))
 		return
 	}
 
@@ -167,11 +167,11 @@ func (h *topologyHandler) CreateBindFile(ctx *gin.Context) {
 // @Failure	422			{object}	utils.ErrorResponse	"The request was invalid. Details in the response body."
 // @Param		topologyId	path		string				true	"The ID of the topology the bind file belongs to"
 // @Param		bindFileId	path		string				true	"The ID of the bind file to edit"
-// @Router		/topologies/{topologyId}/files/{bindFileId} [put]
+// @Router		/topologies/{topologyId}/files/{bindFileId} [patch]
 func (h *topologyHandler) UpdateBindFile(ctx *gin.Context) {
-	payload := BindFileIn{}
+	payload := BindFileInPartial{}
 	if err := ctx.Bind(&payload); err != nil {
-		ctx.JSON(utils.CreateErrorResponse(err))
+		ctx.JSON(utils.CreateValidationError(err))
 		return
 	}
 

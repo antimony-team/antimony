@@ -22,8 +22,10 @@ type (
 		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
 
 		CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error)
-		UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileId string, authUser auth.AuthenticatedUser) error
+		UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileId string, authUser auth.AuthenticatedUser) error
 		DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error
+
+		LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error)
 	}
 
 	topologyService struct {
@@ -88,7 +90,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			continue
 		}
 
-		if definition, bindFilesOut, err = s.loadTopology(topology.UUID, *bindFiles); err != nil {
+		if definition, bindFilesOut, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}
@@ -232,50 +234,6 @@ func (s *topologyService) Delete(ctx *gin.Context, topologyId string, authUser a
 	return s.topologyRepo.Delete(ctx, topology)
 }
 
-func (s *topologyService) validateTopology(definition string) error {
-	var definitionObj any
-
-	if err := yaml.Unmarshal([]byte(definition), &definitionObj); err != nil {
-		return utils.ErrorInvalidTopology
-	}
-
-	if err := s.schemaLoader.Validate(definitionObj); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *topologyService) saveTopology(topologyId string, definition string) error {
-	if err := s.storageManager.WriteTopology(topologyId, definition); err != nil {
-		log.Errorf("Failed to write topology definition for %s: %s", topologyId, err.Error())
-		return err
-	}
-
-	return nil
-}
-
-func (s *topologyService) loadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error) {
-	var definition string
-
-	if err := s.storageManager.ReadTopology(topologyId, &definition); err != nil {
-		log.Errorf("Failed to read topology definition for %s: %s", topologyId, err.Error())
-		return "", nil, err
-	}
-
-	bindFilesOut := make([]BindFileOut, 0)
-	for _, bindFile := range bindFiles {
-		var fileContent string
-		if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
-			log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFile.FilePath, topologyId, err.Error())
-			return "", nil, err
-		}
-		bindFilesOut = append(bindFilesOut, s.topologyRepo.BindFileToOut(bindFile, fileContent))
-	}
-
-	return definition, bindFilesOut, nil
-}
-
 func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error) {
 	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, topologyId)
 	if err != nil {
@@ -288,27 +246,27 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	}
 
 	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, ""); err != nil {
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, ""); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrorBindFileExists
 	}
 
-	if err := s.saveBindFile(topologyId, req.FilePath, req.Content); err != nil {
+	if err := s.saveBindFile(topologyId, *req.FilePath, *req.Content); err != nil {
 		return "", err
 	}
 
 	newUuid := utils.GenerateUuid()
 	err = s.topologyRepo.CreateBindFile(ctx, &BindFile{
 		UUID:     newUuid,
-		FilePath: req.FilePath,
+		FilePath: *req.FilePath,
 		Topology: *bindFileTopology,
 	})
 
 	return newUuid, err
 }
 
-func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindFileUuid string, authUser auth.AuthenticatedUser) error {
+func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileUuid string, authUser auth.AuthenticatedUser) error {
 	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
 	if err != nil {
 		return err
@@ -324,25 +282,45 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileIn, bindF
 		return utils.ErrorNoWriteAccessToBindFile
 	}
 
-	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
-		return err
-	} else if nameExists {
-		return utils.ErrorBindFileExists
-	}
+	bindFilePath := bindFile.FilePath
 
-	// Delete old file if file path has changed
-	if bindFile.FilePath != req.FilePath {
-		if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
-			log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
+	if req.FilePath != nil {
+		// Don't allow duplicate bind file names within the same topology
+		if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
+			return err
+		} else if nameExists {
+			return utils.ErrorBindFileExists
 		}
+
+		// Delete old file if file path has changed
+		if bindFile.FilePath != *req.FilePath {
+			if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
+				log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
+			}
+		}
+
+		bindFilePath = *req.FilePath
+	} else {
+		return utils.ErrorInvalidBindFilePath
 	}
 
-	if err := s.saveBindFile(bindFileTopology.UUID, req.FilePath, req.Content); err != nil {
+	var bindFileContent string
+	if req.Content != nil {
+		bindFileContent = *req.Content
+	} else {
+		bindFileOut, err := s.loadBindFile(bindFileTopology.UUID, *bindFile)
+		if err != nil {
+			return err
+		}
+
+		bindFileContent = bindFileOut.Content
+	}
+
+	if err := s.saveBindFile(bindFileTopology.UUID, bindFilePath, bindFileContent); err != nil {
 		return err
 	}
 
-	bindFile.FilePath = req.FilePath
+	bindFile.FilePath = bindFilePath
 
 	return s.topologyRepo.UpdateBindFile(ctx, bindFile)
 }
@@ -368,6 +346,62 @@ func (s *topologyService) DeleteBindFile(ctx *gin.Context, bindFileId string, au
 	}
 
 	return s.topologyRepo.DeleteBindFile(ctx, bindFile)
+}
+
+func (s *topologyService) validateTopology(definition string) error {
+	var definitionObj any
+
+	if err := yaml.Unmarshal([]byte(definition), &definitionObj); err != nil {
+		return utils.ErrorInvalidTopology
+	}
+
+	if err := s.schemaLoader.Validate(definitionObj); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *topologyService) saveTopology(topologyId string, definition string) error {
+	if err := s.storageManager.WriteTopology(topologyId, definition); err != nil {
+		log.Errorf("Failed to write topology definition for %s: %s", topologyId, err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (s *topologyService) LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error) {
+	var definition string
+
+	if err := s.storageManager.ReadTopology(topologyId, &definition); err != nil {
+		log.Errorf("Failed to read topology definition for %s: %s", topologyId, err.Error())
+		return "", nil, err
+	}
+
+	bindFilesOut := make([]BindFileOut, 0)
+	for _, bindFile := range bindFiles {
+		bindFileOut, err := s.loadBindFile(topologyId, bindFile)
+		if err != nil {
+			return "", nil, err
+		}
+
+		bindFilesOut = append(bindFilesOut, *bindFileOut)
+	}
+
+	return definition, bindFilesOut, nil
+}
+
+func (s *topologyService) loadBindFile(topologyId string, bindFile BindFile) (*BindFileOut, error) {
+	var fileContent string
+	if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
+		log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFile.FilePath, topologyId, err.Error())
+		return nil, err
+	}
+
+	bindFileOut := s.topologyRepo.BindFileToOut(bindFile, fileContent)
+
+	return &bindFileOut, nil
 }
 
 func (s *topologyService) removeBindFile(topologyId string, filePath string) error {

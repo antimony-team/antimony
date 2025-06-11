@@ -64,9 +64,8 @@ func main() {
 
 	socketManager := socket.CreateSocketManager(authManager)
 
-	statusMessageNamespace := socket.CreateNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, nil,
-		"status-messages",
+	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
+		socketManager, false, false, nil, "status-messages",
 	)
 
 	var (
@@ -93,14 +92,15 @@ func main() {
 
 		labRepository = lab.CreateRepository(db)
 		labService    = lab.CreateService(
-			labRepository, userRepository, topologyRepository,
+			antimonyConfig, labRepository, userRepository, topologyRepository, topologyService,
 			storageManager, socketManager, statusMessageNamespace,
 		)
 		labHandler = lab.CreateHandler(labService)
 	)
 
-	// Run lab scheduler in goroutine
 	go labService.RunScheduler()
+	go labService.RunShellManager()
+	go labService.ListenToProviderEvents()
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()

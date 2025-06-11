@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/socket"
+	"antimonyBackend/utils"
 	"gorm.io/gorm"
 	"sync"
 	"time"
@@ -12,34 +13,43 @@ import (
 
 type Lab struct {
 	gorm.Model
-	UUID         string    `gorm:"uniqueIndex;not null"`
-	Name         string    `gorm:"index;not null"`
-	StartTime    time.Time `gorm:"index;not null"`
-	EndTime      time.Time `gorm:"index;not null"`
-	Topology     topology.Topology
-	TopologyID   uint `gorm:"not null"`
-	Creator      user.User
-	CreatorID    uint    `gorm:"not null"`
-	InstanceName *string `gotm:"uniqueIndex"`
+	UUID               string     `gorm:"uniqueIndex;not null"`
+	Name               string     `gorm:"index;not null"`
+	StartTime          time.Time  `gorm:"index;not null"`
+	EndTime            *time.Time `gorm:"index"`
+	Topology           topology.Topology
+	TopologyID         uint `gorm:"not null"`
+	Creator            user.User
+	CreatorID          uint    `gorm:"not null"`
+	InstanceName       *string `gorm:"uniqueIndex"`
+	TopologyDefinition *string
 }
 
 type LabIn struct {
-	Name       string    `json:"name"`
-	StartTime  time.Time `json:"startTime"`
-	EndTime    time.Time `json:"endTime"`
-	TopologyId string    `json:"topologyId" binding:"required"`
+	Name       *string    `json:"name" binding:"required"`
+	StartTime  *time.Time `json:"startTime" binding:"required"`
+	EndTime    *time.Time `json:"endTime" binding:"required"`
+	TopologyId *string    `json:"topologyId" binding:"required"`
+}
+
+type LabInPartial struct {
+	Name       *string    `json:"name"`
+	StartTime  *time.Time `json:"startTime"`
+	EndTime    *time.Time `json:"endTime"`
+	Indefinite *bool      `json:"indefinite"`
 }
 
 type LabOut struct {
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	StartTime    time.Time    `json:"startTime"`
-	EndTime      time.Time    `json:"endTime"`
-	TopologyId   string       `json:"topologyId"`
-	CollectionId string       `json:"collectionId"`
-	Creator      user.UserOut `json:"creator"`
-	Instance     *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
-	InstanceName *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
+	ID                 string       `json:"id"`
+	Name               string       `json:"name"`
+	StartTime          time.Time    `json:"startTime"`
+	EndTime            *time.Time   `json:"endTime"`
+	TopologyId         string       `json:"topologyId"`
+	CollectionId       string       `json:"collectionId"`
+	Creator            user.UserOut `json:"creator"`
+	TopologyDefinition string       `json:"topologyDefinition"`
+	Instance           *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
+	InstanceName       *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
 }
 
 type LabFilter struct {
@@ -63,10 +73,13 @@ type Instance struct {
 	Recovered bool
 
 	TopologyFile string
-	LogNamespace socket.NamespaceManager[string]
+	LogNamespace socket.OutputNamespace[string]
 
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
+
+	// DeploymentWorker that holds the current deployment context of the lab
+	DeploymentWorker *utils.Worker
 }
 
 type InstanceOut struct {
@@ -89,6 +102,11 @@ type InstanceNode struct {
 	State         deployment.NodeState `json:"state"`
 	ContainerId   string               `json:"containerId"`
 	ContainerName string               `json:"containerName"`
+}
+
+type ShellData struct {
+	Id   string `json:"id"`
+	Node string `json:"node"`
 }
 
 type InstanceState int
@@ -124,9 +142,10 @@ var InstanceStates = struct {
 }
 
 type LabCommandData struct {
-	LabId   string     `json:"labId"`
-	Command LabCommand `json:"command"`
-	Node    *string    `json:"node"`
+	LabId   *string     `json:"labId"`
+	Command *LabCommand `json:"command"`
+	Node    *string     `json:"node"`
+	ShellId *string     `json:"shellId"`
 }
 
 type LabCommand int
@@ -136,34 +155,51 @@ const (
 	destroyCommand
 	stopNodeCommand
 	startNodeCommand
+	restartNodeCommand
+	fetchShellsCommand
+	openShellCommand
+	closeShellCommand
 )
 
 var LabCommands = struct {
-	Deploy    LabCommand
-	Destroy   LabCommand
-	StopNode  LabCommand
-	StartNode LabCommand
+	Deploy      LabCommand
+	Destroy     LabCommand
+	StopNode    LabCommand
+	StartNode   LabCommand
+	RestartNode LabCommand
+	FetchShells LabCommand
+	OpenShell   LabCommand
+	CloseShell  LabCommand
 }{
-	Deploy:    deployCommand,
-	Destroy:   destroyCommand,
-	StopNode:  stopNodeCommand,
-	StartNode: startNodeCommand,
+	Deploy:      deployCommand,
+	Destroy:     destroyCommand,
+	StopNode:    stopNodeCommand,
+	StartNode:   startNodeCommand,
+	RestartNode: restartNodeCommand,
+	FetchShells: fetchShellsCommand,
+	OpenShell:   openShellCommand,
+	CloseShell:  closeShellCommand,
 }
 
-type LabAction int
+type ShellCommandData struct {
+	LabId   string       `json:"labId"`
+	Command ShellCommand `json:"command"`
+	Node    string       `json:"node"`
+	ShellId string       `json:"shellId"`
+	Message string       `json:"message"`
+}
+
+type ShellCommand int
 
 const (
-	deployAction LabAction = iota
-	destroyAction
-	redeployAction
+	shellError ShellCommand = iota
+	shellClose
 )
 
-var LabActions = struct {
-	Deploy   LabAction
-	Destroy  LabAction
-	Redeploy LabAction
+var ShellCommands = struct {
+	Error ShellCommand
+	Close ShellCommand
 }{
-	Deploy:   deployAction,
-	Destroy:  destroyAction,
-	Redeploy: redeployAction,
+	Error: shellError,
+	Close: shellClose,
 }

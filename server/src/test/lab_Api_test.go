@@ -135,11 +135,16 @@ func TestGetLabs_BindQueryFailure(t *testing.T) {
 func TestCreateLab_Success(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
+	name := "New Test Lab"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "New Test Lab",
-		TopologyId: "TopologyTestUUID1",
-		StartTime:  time.Now().Add(1 * time.Hour),
-		EndTime:    time.Now().Add(2 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
 	body, _ := json.Marshal(payload)
 
@@ -184,11 +189,16 @@ func TestCreateLab_InvalidToken(t *testing.T) {
 func TestCreateLab_NoDeployAccess(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
+	name := "Forbidden Lab"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "Forbidden Lab",
-		TopologyId: "TopologyTestUUID1", // belongs to hs25-cn2
-		StartTime:  time.Now().Add(1 * time.Hour),
-		EndTime:    time.Now().Add(2 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
 	body, _ := json.Marshal(payload)
 
@@ -220,20 +230,25 @@ func TestCreateLab_ValidationFailure(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 }
 
-// === PUT ===
+// === PATCH ===
 func TestUpdateLab_Success(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
+	name := "Updated Lab Name"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "Updated Lab Name",
-		TopologyId: "TopologyTestUUID1",
-		StartTime:  time.Now().Add(3 * time.Hour),
-		EndTime:    time.Now().Add(4 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
 	body, _ := json.Marshal(payload)
 
 	token := getValidAccessToken(authManager, "test-user-id1")
-	req := httptest.NewRequest("PUT", "/labs/TestLabUUID1", bytes.NewReader(body))
+	req := httptest.NewRequest("PATCH", "/labs/TestLabUUID1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -246,16 +261,21 @@ func TestUpdateLab_Success(t *testing.T) {
 func TestUpdateLab_Forbidden(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
+	name := "Illegal Edit"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "Illegal Edit",
-		TopologyId: "TopologyTestUUID1",
-		StartTime:  time.Now().Add(3 * time.Hour),
-		EndTime:    time.Now().Add(4 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
 	body, _ := json.Marshal(payload)
 
 	token := getValidAccessToken(authManager, "test-user-id4") // not the owner
-	req := httptest.NewRequest("PUT", "/labs/TestLabUUID1", bytes.NewReader(body))
+	req := httptest.NewRequest("PATCH", "/labs/TestLabUUID1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -267,16 +287,22 @@ func TestUpdateLab_Forbidden(t *testing.T) {
 func TestUpdateLab_InvalidLabId(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
+	name := "Missing Lab"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "Missing Lab",
-		TopologyId: "TopologyTestUUID1",
-		StartTime:  time.Now().Add(3 * time.Hour),
-		EndTime:    time.Now().Add(4 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
+
 	body, _ := json.Marshal(payload)
 
 	token := getValidAccessToken(authManager, "test-user-id1")
-	req := httptest.NewRequest("PUT", "/labs/InvalidUUID", bytes.NewReader(body))
+	req := httptest.NewRequest("PATCH", "/labs/InvalidUUID", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -288,15 +314,21 @@ func TestUpdateLab_InvalidLabId(t *testing.T) {
 func TestUpdateLab_Unauthorized(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
+	name := "No Auth"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "No Auth",
-		TopologyId: "TopologyTestUUID1",
-		StartTime:  time.Now().Add(3 * time.Hour),
-		EndTime:    time.Now().Add(4 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
+
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("PUT", "/labs/TestLabUUID1", bytes.NewReader(body))
+	req := httptest.NewRequest("PATCH", "/labs/TestLabUUID1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
@@ -307,10 +339,10 @@ func TestUpdateLab_Unauthorized(t *testing.T) {
 func TestUpdateLab_ValidationFailure(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
 
-	body := []byte(`{}`)
+	body := []byte(`{"name": 123}`)
 	token := getValidAccessToken(authManager, "test-user-id1")
 
-	req := httptest.NewRequest("PUT", "/labs/TestLabUUID1", bytes.NewReader(body))
+	req := httptest.NewRequest("PATCH", "/labs/TestLabUUID1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -322,15 +354,21 @@ func TestUpdateLab_ValidationFailure(t *testing.T) {
 func TestUpdateLab_InvalidToken(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
 
+	name := "Invalid Token Update"
+	topo := "TopologyTestUUID1"
+	start := time.Now().Add(1 * time.Hour)
+	end := time.Now().Add(2 * time.Hour)
+
 	payload := lab.LabIn{
-		Name:       "Invalid Token Update",
-		TopologyId: "TopologyTestUUID1",
-		StartTime:  time.Now().Add(2 * time.Hour),
-		EndTime:    time.Now().Add(3 * time.Hour),
+		Name:       &name,
+		TopologyId: &topo,
+		StartTime:  &start,
+		EndTime:    &end,
 	}
+
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("PUT", "/labs/TestLabUUID1", bytes.NewReader(body))
+	req := httptest.NewRequest("PATCH", "/labs/TestLabUUID1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: "invalidtoken"})
 	resp := httptest.NewRecorder()

@@ -20,6 +20,7 @@ type (
 		DeleteBindFile(topologyId string, filePath string) error
 
 		GetRunTopologyFile(labId string) string
+
 		CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error
 		DeleteRunEnvironment(labId string) error
 	}
@@ -72,6 +73,10 @@ func (s *storageManager) CreateRunEnvironment(topologyId string, labId string, t
 func (s *storageManager) GetRunTopologyFile(labId string) string {
 	runDefinitionPath := getRunDefinitionFilePath(labId)
 	return filepath.Join(s.runPath, runDefinitionPath)
+}
+
+func (s *storageManager) ReadRunTopologyDefinition(labId string, content *string) error {
+	return s.readRun(getRunDefinitionFilePath(labId), content)
 }
 
 func (s *storageManager) ReadTopology(topologyId string, content *string) error {
