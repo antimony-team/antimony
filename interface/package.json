@@ -54,6 +54,7 @@
     "start": "webpack serve --config webpack.dev.cjs",
     "build:dev": "webpack --progress --config webpack.dev.cjs",
     "build:prod": "webpack --progress --config webpack.prod.cjs",
+    "build:docker": "docker build -t antimony-interface .",
     "lint": "gts lint '**/*.ts'",
     "clean": "rm -rf ./build/",
     "compile": "tsc"
