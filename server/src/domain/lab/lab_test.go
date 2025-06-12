@@ -332,7 +332,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 	mockLab := Lab{
 		UUID:      "lab123",
 		Name:      "Test Scheduled Lab",
-		StartTime: time.Now().Add(-1 * time.Minute), // already due
+		StartTime: time.Now().Add(-1 * time.Minute),
 		Topology:  topology.Topology{UUID: "topo1", Name: "TestTopo"},
 		Creator:   user.User{UUID: "user123"},
 	}
@@ -372,7 +372,6 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 			},
 		}, nil)
 
-	// Use emptySchedule here to avoid panic from destroyLab!
 	labDestructionSchedule := &emptySchedule{}
 
 	svc := &labService{
@@ -384,14 +383,11 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 		labUpdatesNamespace:    &fakeNamespace[string]{},
 		labDeploymentSchedule:  mockDeploymentSchedule,
-		labDestructionSchedule: labDestructionSchedule, // <== safe!
+		labDestructionSchedule: labDestructionSchedule,
 		instances:              map[string]*Instance{},
 	}
-
-	// Start scheduler in background
 	go svc.RunScheduler()
 
-	// Give it time to process the scheduled lab
 	time.Sleep(6 * time.Second)
 
 	svc.instancesMutex.Lock()
@@ -399,15 +395,12 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 	svc.instancesMutex.Unlock()
 	fmt.Printf("Instance exists? %v\n", ok)
 
-	// Check that the schedule is now empty
 	mockDeploymentSchedule.mu.Lock()
 	assert.Len(t, mockDeploymentSchedule.scheduled, 0)
 	mockDeploymentSchedule.mu.Unlock()
 
-	// Check that the lab is no longer scheduled
 	assert.False(t, svc.labDeploymentSchedule.IsScheduled("lab123"), "Lab should have been removed from scheduled list")
 
-	// Verify mocks
 	mockDeployment.AssertExpectations(t)
 	storageManager.AssertExpectations(t)
 }
@@ -503,7 +496,6 @@ func TestInitSchedule(t *testing.T) {
 			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).Return([]topology.BindFile{}, nil)
 			mockLabRepo.On("GetAll", mock.Anything, mock.Anything).Return(tt.mockLabs, nil)
 
-			// === KEY PART ===
 			instanceKey := instanceName
 			if tt.mockLabs[0].InstanceName != nil {
 				instanceKey = *tt.mockLabs[0].InstanceName
@@ -518,11 +510,9 @@ func TestInitSchedule(t *testing.T) {
 			}
 
 			for _, c := range tt.mockContainers {
-				// First call during getNodesFromInspect
 				mockDeployment.On("StreamContainerLogs", mock.Anything, "", c.ContainerId, mock.Anything).
 					Maybe().Return(tt.mockLogError)
 
-				// Second call during reviveLabs
 				mockDeployment.On("StreamContainerLogs", mock.Anything, "/tmp/fake.yaml", c.ContainerId, mock.Anything).
 					Maybe().Run(func(args mock.Arguments) {
 					cb := args.Get(3).(func(string))
@@ -551,7 +541,6 @@ func TestInitSchedule(t *testing.T) {
 				topologyRepo:           mockTopologyRepo,
 			}
 
-			// === Consistent instance key setup ===
 			if tt.wantInstances {
 				svc.instances[instanceKey] = &Instance{
 					LogNamespace: &fakeNamespace[string]{},
@@ -563,14 +552,12 @@ func TestInitSchedule(t *testing.T) {
 			}
 			svc.reviveLabs()
 
-			// === Scheduled check ===
 			if tt.wantScheduled {
 				assert.True(t, svc.labDeploymentSchedule.IsScheduled(tt.mockLabs[0].UUID), "Lab should be scheduled")
 			} else {
 				assert.False(t, svc.labDeploymentSchedule.IsScheduled(tt.mockLabs[0].UUID), "Lab should not be scheduled")
 			}
 
-			// === Instance check ===
 			if tt.wantInstances {
 				svc.instancesMutex.Lock()
 				_, ok := svc.instances[instanceKey]
@@ -580,7 +567,6 @@ func TestInitSchedule(t *testing.T) {
 				assert.Empty(t, svc.instances)
 			}
 
-			// === Final assertions ===
 			mockLabRepo.AssertExpectations(t)
 			mockDeployment.AssertExpectations(t)
 		})
@@ -896,7 +882,7 @@ func TestDestroyLab(t *testing.T) {
 				f.deploymentProvider = &MockDeploymentProvider{}
 				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).Return(nil, errors.New("destroy failed"))
 
-				f.storageManager = &mockStorageManager{} // should NOT be called
+				f.storageManager = &mockStorageManager{}
 
 				logNs := &mockNamespaceManager[string]{}
 				logNs.On("Send", mock.Anything).Maybe()
@@ -971,10 +957,8 @@ func TestDestroyLab(t *testing.T) {
 				instances:              map[string]*Instance{a.lab.UUID: a.instance},
 			}
 
-			// Call function
 			svc.destroyLab(&a.lab, a.instance)
 
-			// Perform general assertions per test
 			tt.assertion(f)
 
 			switch tt.name {
@@ -1016,7 +1000,7 @@ func TestRedeployLab(t *testing.T) {
 
 				a.lab = Lab{
 					UUID:         "lab1",
-					InstanceName: lo.ToPtr("lab1-instance"), // ADD THIS LINE
+					InstanceName: lo.ToPtr("lab1-instance"),
 				}
 				a.instance = &Instance{
 					State: InstanceStates.Deploying,
@@ -1103,7 +1087,6 @@ func TestRedeployLab(t *testing.T) {
 					Return(deployment.InspectOutput{}, nil)
 				f.deploymentProvider.On("Redeploy", mock.Anything, "broken.yaml", mock.Anything).
 					Run(func(args mock.Arguments) {
-						// simulate a log callback
 						if fn, ok := args.Get(2).(func(string)); ok && fn != nil {
 							fn("mock log")
 						}
@@ -1303,7 +1286,6 @@ topology:
 			labRepo := &mockLabRepo{}
 			topoRepo := &mockTopologyRepo{}
 
-			// Global Mocks (correct place!)
 			labRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			topoRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
@@ -1311,7 +1293,7 @@ topology:
 
 			f := &fields{
 				deploymentProvider: dp,
-				statusNamespace:    sn, // correct!
+				statusNamespace:    sn,
 				storageManager:     sm,
 				socketManager:      realSocketManager,
 			}
@@ -1417,7 +1399,7 @@ func TestContainerToInstanceNode(t *testing.T) {
 	assert.Equal(t, "node1", node.Name)
 	assert.Equal(t, "192.168.1.1", node.IPv4)
 	assert.Equal(t, "fe80::1", node.IPv6)
-	assert.Equal(t, deployment.NodeStates.Running, node.State) // Correct assertion
+	assert.Equal(t, deployment.NodeStates.Running, node.State)
 	assert.Equal(t, "abc123", node.ContainerId)
 	assert.Equal(t, "lab-node1", node.ContainerName)
 	assert.Equal(t, "ins", node.User)
@@ -1497,7 +1479,7 @@ func TestHandleLabCommand(t *testing.T) {
 				f.labRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 
 				f.deployment.On("Redeploy",
-					mock.Anything, // context
+					mock.Anything,
 					"/tmp/topology.clab.yaml",
 					mock.MatchedBy(func(fn interface{}) bool {
 						_, ok := fn.(func(string))
@@ -1964,7 +1946,6 @@ func TestHandleNewLabCommands(t *testing.T) {
 				openShells: make(map[string]*ShellConfig),
 			}
 
-			// Pre-populate openShells for closeShellCommand test
 			if tt.name == "close shell succeeds" {
 				svc.openShells[*a.shellId] = &ShellConfig{
 					Owner:            a.authUser,
@@ -1990,7 +1971,6 @@ func TestHandleNewLabCommands(t *testing.T) {
 			assert.Equal(t, tt.expectOK, okCalled, "okCallback should match expected")
 			assert.Equal(t, tt.expectErr, errCalled, "errCallback should match expected")
 
-			// Extra verify closeShellCommand
 			if tt.name == "close shell succeeds" {
 				svc.openShellsMutex.Lock()
 				_, exists := svc.openShells[*a.shellId]
@@ -2059,7 +2039,7 @@ func TestDestroyLabCommand(t *testing.T) {
 					},
 				}
 				f.labRepo.On("GetByUuid", mock.Anything, "lab123").Return(lab, nil)
-				f.instances = make(map[string]*Instance) // simulate missing instance
+				f.instances = make(map[string]*Instance)
 			},
 			expectErr: utils.ErrorLabNotRunning,
 			assert: func(t *testing.T, f *fields) {
@@ -2218,7 +2198,6 @@ func TestStopNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
 	assert.Equal(t, utils.ErrorNodeNotFound, err)
 }
 
-// --- Test startNodeCommand when node is nil ---
 func TestStartNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
 	service := &labService{}
 	err := service.startNodeCommand(context.Background(), "some-lab", nil, nil)
@@ -2226,7 +2205,6 @@ func TestStartNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
 	assert.Equal(t, utils.ErrorNodeNotFound, err)
 }
 
-// --- Mock NamespaceManager to record messages ---
 type recordNamespaceManager struct {
 	msgs []string
 }
