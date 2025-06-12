@@ -1,4 +1,4 @@
-basePath: /api/v1
+basePath: /
 definitions:
   auth.AuthConfig:
     properties:
@@ -835,7 +835,7 @@ paths:
       tags:
       - users
   /users/login/native:
-    get:
+    post:
       consumes:
       - application/json
       parameters:

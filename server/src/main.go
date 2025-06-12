@@ -39,7 +39,7 @@ import (
 //	@Contact.url	https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security
 //	@Contact.email	antimony@network.garden
 
-//	@BasePath	/api/v1
+//	@BasePath	/
 
 // @securityDefinitions.basic	BasicAuth
 func main() {

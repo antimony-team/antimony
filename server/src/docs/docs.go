@@ -874,7 +874,7 @@ const docTemplate = `{
             }
         },
         "/users/login/native": {
-            "get": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -1414,7 +1414,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "",
-	BasePath:         "/api/v1",
+	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Antimony API",
 	Description:      "",
