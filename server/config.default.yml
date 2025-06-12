@@ -1,3 +1,7 @@
+general:
+  # The provider that will be used to deploy nodes [containerlab, clabernetes].
+  # Default: containerlab
+  provider: containerlab
 server:
   # Default: 127.0.0.1
   host: 0.0.0.0

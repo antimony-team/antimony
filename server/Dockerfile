@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/gomod-cache go mod download
 COPY src .
 RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache CGO_ENABLED=0 go build -v -o ./antimony-server
 
-FROM ghcr.io/srl-labs/clab:0.67.0
+FROM ghcr.io/srl-labs/clab:0.68.0
 WORKDIR /app
 
 COPY data ./data

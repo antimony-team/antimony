@@ -123,7 +123,7 @@ func CreateService(
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
 		storageManager:         storageManager,
-		deploymentProvider:     deployment.GetProvider(),
+		deploymentProvider:     deployment.GetProvider(config),
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}
@@ -168,7 +168,6 @@ func (s *labService) RunShellManager() {
 	for {
 		s.openShellsMutex.Lock()
 		for shellId, shell := range s.openShells {
-			log.Infof("shell timeout: %d", time.Now().Unix()-shell.LastInteraction)
 			if time.Now().Unix()-shell.LastInteraction > s.config.Shell.Timeout {
 				if err := s.closeShell(shellId, shell, "shell was inactive for too long"); err != nil {
 					log.Errorf("Failed to close shell: %s", err.Error())
@@ -218,11 +217,6 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 		err  error
 	)
 
-	// If the user isn't admin, restrict collection filter to accessible collections
-	if !authUser.IsAdmin {
-		labFilter.CollectionFilter = lo.Intersect(labFilter.CollectionFilter, authUser.Collections)
-	}
-
 	if labs, err = s.labRepo.GetAll(ctx, &labFilter); err != nil {
 		return nil, err
 	}
@@ -231,6 +225,11 @@ func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Au
 
 	result := make([]LabOut, 0)
 	for _, lab := range labs {
+		// If the user isn't an admin, skip labs that they don't have access to
+		if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.Name) {
+			continue
+		}
+
 		s.instancesMutex.Lock()
 		instance, hasInstance := s.instances[lab.UUID]
 		s.instancesMutex.Unlock()
@@ -276,7 +275,7 @@ func (s *labService) GetByUuid(ctx *gin.Context, labId string, authUser auth.Aut
 	}
 
 	// Deny request if user doesn't have access to the lab
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.UUID) {
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.Name) {
 		return nil, utils.ErrorNoAccessToLab
 	}
 
@@ -477,7 +476,7 @@ func (s *labService) createLabEnvironment(lab *Lab) (string, string, error) {
 func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	// We have to ensure that we cancel any pending deployment operations before destroying
 	if instance.DeploymentWorker != nil && instance.DeploymentWorker.Context.Err() == nil {
-		log.Infof("Deployment still running, cancelling")
+		log.Infof("[SCHEDULER] Deployment still running, cancelling")
 		instance.DeploymentWorker.Cancel()
 
 		s.notifyUpdate(*lab,

@@ -2,7 +2,6 @@ package socket
 
 import (
 	"antimonyBackend/auth"
-	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 	socketio "github.com/zishang520/socket.io/socket"
 	"sync"
@@ -84,7 +83,6 @@ func (m *socketManager) SocketAuthenticatorMiddleware(
 			})
 
 			if !hasAccess {
-				log.Infof("no access")
 				next(socketio.NewExtendedError("No Access", nil))
 				return
 			}

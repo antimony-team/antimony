@@ -1,15 +1,16 @@
 package deployment
 
 import (
-	"os"
+	"antimonyBackend/config"
+	"github.com/charmbracelet/log"
 )
 
-// GetProvider returns the correct DeploymentProvider implementation based on the DEPLOYMENT_PROVIDER env variable.
-func GetProvider() DeploymentProvider {
-	switch os.Getenv("DEPLOYMENT_PROVIDER") {
-	case "clabernetes":
+func GetProvider(config *config.AntimonyConfig) DeploymentProvider {
+	if config.General.Provider == "clabernetes" {
+		log.Info("Using the Clabernetes deployment provider.")
 		return &ClabernetesProvider{}
-	default:
-		return &ContainerlabProvider{}
 	}
+
+	log.Info("Using the Containerlab deployment provider.")
+	return &ContainerlabProvider{}
 }
