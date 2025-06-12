@@ -3,9 +3,10 @@ package deployment
 import (
 	"bufio"
 	"bytes"
-	"github.com/charmbracelet/log"
 	"io"
 	"os/exec"
+
+	"github.com/charmbracelet/log"
 )
 
 func runClabCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
@@ -59,5 +60,6 @@ func streamOutput(pipe io.Reader, onLog func(data string)) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		return
 	}
 }

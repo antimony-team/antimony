@@ -6,11 +6,14 @@ import (
 	"antimonyBackend/utils"
 	"bytes"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetLabs_AdminSuccess(t *testing.T) {
@@ -26,7 +29,7 @@ func TestGetLabs_AdminSuccess(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var body utils.OkResponse[[]lab.LabOut]
 	err := json.NewDecoder(resp.Body).Decode(&body)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(body.Payload), 1)
 }
 
@@ -43,7 +46,7 @@ func TestGetLabs_UserSuccess(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var body utils.OkResponse[[]lab.LabOut]
 	err := json.NewDecoder(resp.Body).Decode(&body)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(body.Payload), 1)
 }
 
@@ -60,7 +63,7 @@ func TestGetLabs_SearchQuery(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var body utils.OkResponse[[]lab.LabOut]
 	err := json.NewDecoder(resp.Body).Decode(&body)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(body.Payload), 1)
 }
 
@@ -100,8 +103,8 @@ func TestGetLabs_noLabs(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var body utils.OkResponse[[]lab.LabOut]
 	err := json.NewDecoder(resp.Body).Decode(&body)
-	assert.NoError(t, err)
-	assert.GreaterOrEqual(t, len(body.Payload), 0)
+	require.NoError(t, err)
+	assert.Empty(t, body.Payload)
 }
 
 func TestGetLabs_FilterByState(t *testing.T) {
@@ -159,7 +162,7 @@ func TestCreateLab_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 	var result utils.OkResponse[string]
 	err := json.NewDecoder(resp.Body).Decode(&result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, result.Payload)
 }
 

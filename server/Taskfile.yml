@@ -66,11 +66,6 @@ tasks:
           --user root
           antimony-backend -sqlite=true -config=./config.yml
 
-  swagger-fmt:
-    dir: './src'
-    cmds:
-      - go tool swag fmt
-
   test:
     dir: './src'
     cmds:

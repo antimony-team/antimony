@@ -3,6 +3,7 @@ package topology
 import (
 	"antimonyBackend/utils"
 	"context"
+
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -24,7 +25,12 @@ type (
 		CreateBindFile(ctx context.Context, bindFile *BindFile) error
 		UpdateBindFile(ctx context.Context, bindFile *BindFile) error
 		DeleteBindFile(ctx context.Context, bindFile *BindFile) error
-		DoesBindFilePathExist(ctx context.Context, bindFilePath string, topologyId string, excludeString string) (bool, error)
+		DoesBindFilePathExist(
+			ctx context.Context,
+			bindFilePath string,
+			topologyId string,
+			excludeString string,
+		) (bool, error)
 		BindFileToOut(bindFile BindFile, content string) BindFileOut
 	}
 
@@ -47,7 +53,7 @@ func (r *topologyRepository) GetAll(ctx context.Context) ([]Topology, error) {
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch all topologies. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return topologies, nil
@@ -61,18 +67,22 @@ func (r *topologyRepository) GetByUuid(ctx context.Context, topologyId string) (
 		Find(&topology)
 
 	if result.RowsAffected < 1 {
-		return nil, utils.ErrorUuidNotFound
+		return nil, utils.ErrUuidNotFound
 	}
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch topology by UUID. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return &topology, nil
 }
 
-func (r *topologyRepository) GetByName(ctx context.Context, topologyName string, collectionId string) ([]Topology, error) {
+func (r *topologyRepository) GetByName(
+	ctx context.Context,
+	topologyName string,
+	collectionId string,
+) ([]Topology, error) {
 	var topologies []Topology
 	result := r.db.WithContext(ctx).
 		Joins("JOIN collections ON collections.id = topologies.collection_id").
@@ -86,7 +96,7 @@ func (r *topologyRepository) GetByName(ctx context.Context, topologyName string,
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch topologies by name. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return topologies, nil
@@ -106,7 +116,7 @@ func (r *topologyRepository) GetFromCollections(ctx context.Context, collectionN
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch topologies from collections. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return topologies, nil
@@ -115,7 +125,7 @@ func (r *topologyRepository) GetFromCollections(ctx context.Context, collectionN
 func (r *topologyRepository) Create(ctx context.Context, topology *Topology) error {
 	if err := r.db.WithContext(ctx).Create(topology).Error; err != nil {
 		log.Errorf("[DB] Failed to create topology. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -124,7 +134,7 @@ func (r *topologyRepository) Create(ctx context.Context, topology *Topology) err
 func (r *topologyRepository) Update(ctx context.Context, topology *Topology) error {
 	if err := r.db.WithContext(ctx).Save(topology).Error; err != nil {
 		log.Errorf("[DB] Failed to update topology. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -133,7 +143,7 @@ func (r *topologyRepository) Update(ctx context.Context, topology *Topology) err
 func (r *topologyRepository) Delete(ctx context.Context, topology *Topology) error {
 	if err := r.db.WithContext(ctx).Delete(topology).Error; err != nil {
 		log.Errorf("[DB] Failed to delete topology. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -147,12 +157,12 @@ func (r *topologyRepository) GetBindFileByUuid(ctx context.Context, bindFileId s
 		Find(&bindFile)
 
 	if result.RowsAffected < 1 {
-		return nil, utils.ErrorUuidNotFound
+		return nil, utils.ErrUuidNotFound
 	}
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to find bind file by UUID. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return &bindFile, nil
@@ -165,10 +175,10 @@ func (r *topologyRepository) GetBindFileForTopology(ctx context.Context, topolog
 		Joins("JOIN topologies ON topologies.id = bind_files.topology_id").
 		Where("topologies.uuid = ?", topologyId).
 		Find(&bindFiles)
-	
+
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to find bind files by topology. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return bindFiles, nil
@@ -177,7 +187,7 @@ func (r *topologyRepository) GetBindFileForTopology(ctx context.Context, topolog
 func (r *topologyRepository) CreateBindFile(ctx context.Context, bindFile *BindFile) error {
 	if err := r.db.WithContext(ctx).Create(bindFile).Error; err != nil {
 		log.Errorf("[DB] Failed to create bind file. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -186,7 +196,7 @@ func (r *topologyRepository) CreateBindFile(ctx context.Context, bindFile *BindF
 func (r *topologyRepository) UpdateBindFile(ctx context.Context, bindFile *BindFile) error {
 	if err := r.db.WithContext(ctx).Save(bindFile).Error; err != nil {
 		log.Errorf("[DB] Failed to update bind file. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -195,7 +205,7 @@ func (r *topologyRepository) UpdateBindFile(ctx context.Context, bindFile *BindF
 func (r *topologyRepository) DeleteBindFile(ctx context.Context, bindFile *BindFile) error {
 	if err := r.db.WithContext(ctx).Delete(bindFile).Error; err != nil {
 		log.Errorf("[DB] Failed to update delete file. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -210,7 +220,10 @@ func (r *topologyRepository) BindFileToOut(bindFile BindFile, content string) Bi
 	}
 }
 
-func (r *topologyRepository) DoesBindFilePathExist(ctx context.Context, bindFilePath, topologyId, excludeUUID string) (bool, error) {
+func (r *topologyRepository) DoesBindFilePathExist(
+	ctx context.Context,
+	bindFilePath, topologyId, excludeUUID string,
+) (bool, error) {
 	var bindFile BindFile
 	result := r.db.WithContext(ctx).
 		Joins("JOIN topologies ON topologies.id = bind_files.topology_id").
@@ -220,7 +233,7 @@ func (r *topologyRepository) DoesBindFilePathExist(ctx context.Context, bindFile
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to check if bind file exist. Error: %s", result.Error.Error())
-		return false, utils.ErrorDatabaseError
+		return false, utils.ErrDatabaseError
 	}
 
 	return result.RowsAffected > 0, nil

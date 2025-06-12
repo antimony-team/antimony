@@ -4,10 +4,13 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/utils"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // === GET ===
@@ -19,7 +22,7 @@ func TestGetClabSchema_Success(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/clab-schema", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
@@ -31,7 +34,7 @@ func TestGetClabSchema_Success(t *testing.T) {
 
 	var result utils.OkResponse[any]
 	err = json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.NotNil(t, result.Payload)
 }

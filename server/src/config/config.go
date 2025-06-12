@@ -1,9 +1,10 @@
 package config
 
 import (
+	"os"
+
 	"github.com/charmbracelet/log"
 	"gopkg.in/yaml.v3"
-	"os"
 )
 
 type (
@@ -28,9 +29,9 @@ type (
 
 	AuthConfig struct {
 		EnableNative       bool     `yaml:"enableNative"`
-		EnableOpenId       bool     `yaml:"enableOpenId"`
+		EnableOpenID       bool     `yaml:"enableOpenId"`
 		OpenIdIssuer       string   `yaml:"openIdIssuer"`
-		OpenIdClientId     string   `yaml:"openIdClientId"`
+		OpenIdClientID     string   `yaml:"openIdClientId"`
 		OpenIdRedirectHost string   `yaml:"openIdRedirectHost"`
 		OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
 	}
@@ -65,8 +66,14 @@ func Load(fileName string) *AntimonyConfig {
 
 	if configData, err := os.ReadFile(fileName); err != nil {
 		log.Warn("Failed to load configuration file.", "path", fileName)
-		data, err := yaml.Marshal(&config)
-		err = os.WriteFile(fileName, data, 0755)
+		var data []byte
+		data, err = yaml.Marshal(&config)
+		if err != nil {
+			log.Error("Failed to marshal default configuration file.", "path", fileName)
+		}
+
+		//nolint:gosec // We need this file to be accessible
+		err = os.WriteFile(fileName, data, 0750)
 		if err != nil {
 			log.Error("Failed to write default configuration file.", "path", fileName)
 		}
@@ -88,9 +95,9 @@ func defaultConfig() *AntimonyConfig {
 		},
 		Auth: AuthConfig{
 			EnableNative:       true,
-			EnableOpenId:       false,
+			EnableOpenID:       false,
 			OpenIdIssuer:       "",
-			OpenIdClientId:     "",
+			OpenIdClientID:     "",
 			OpenIdRedirectHost: "",
 			OpenIdAdminGroups:  make([]string, 0),
 		},

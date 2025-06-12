@@ -57,9 +57,11 @@ definitions:
   deployment.NodeState:
     enum:
     - running
+    - exited
     type: string
     x-enum-varnames:
     - running
+    - exited
   device.DeviceConfig:
     properties:
       interfacePattern:

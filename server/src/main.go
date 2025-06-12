@@ -24,8 +24,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/joho/godotenv"
-	"github.com/swaggo/files"
-	"github.com/swaggo/gin-swagger"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	socketio "github.com/zishang520/socket.io/socket"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -60,8 +60,6 @@ func main() {
 	storageManager := storage.CreateStorageManager(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
-	//test.GenerateTestData(db, storageManager)
-
 	socketManager := socket.CreateSocketManager(authManager)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
@@ -127,7 +125,7 @@ func main() {
 
 	serverWaitGroup.Add(1)
 	go startWebServer(webServer, connection, &serverWaitGroup)
-	time.Sleep(100)
+	time.Sleep(100 * time.Millisecond)
 
 	log.Info("Antimony API is ready to serve calls!", "conn", connection)
 	serverWaitGroup.Wait()
@@ -141,7 +139,7 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 
 	if useLocalDatabase {
 		log.Info("Connecting to local SQLite database", "path", config.Database.LocalFile)
-		if err := os.MkdirAll(filepath.Dir(config.Database.LocalFile), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(config.Database.LocalFile), 0750); err != nil {
 			log.Fatal("Failed to create database file", "path", config.Database.Database)
 		}
 		db, err = gorm.Open(sqlite.Open(config.Database.LocalFile), &gorm.Config{})
@@ -166,13 +164,28 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 	}
 
 	err = db.AutoMigrate(&lab.Lab{})
-	err = db.AutoMigrate(&user.User{})
-	err = db.AutoMigrate(&topology.BindFile{})
-	err = db.AutoMigrate(&topology.Topology{})
-	err = db.AutoMigrate(&collection.Collection{})
-
 	if err != nil {
-		log.Fatalf("Failed to migrate table to database: %s", err.Error())
+		log.Fatalf("Failed to migrate labs to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&user.User{})
+	if err != nil {
+		log.Fatalf("Failed to migrate users to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&topology.BindFile{})
+	if err != nil {
+		log.Fatalf("Failed to migrate bind files to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&topology.Topology{})
+	if err != nil {
+		log.Fatalf("Failed to migrate topologies to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&collection.Collection{})
+	if err != nil {
+		log.Fatalf("Failed to migrate collections to database: %s", err.Error())
 	}
 
 	return db
@@ -182,6 +195,6 @@ func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup
 	defer waitGroup.Done()
 
 	if err := server.Run(socket); err != nil {
-		log.Fatalf("Failed to start web server on %s: %s", socket, err.Error())
+		log.Errorf("Failed to start web server on %s: %s", socket, err.Error())
 	}
 }

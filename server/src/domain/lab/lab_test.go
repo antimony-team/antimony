@@ -13,14 +13,17 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"errors"
-	"fmt"
-	"github.com/samber/lo"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"io"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/stretchr/testify/require"
+
+	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type mockNamespaceManager[T any] struct {
@@ -67,7 +70,13 @@ func (m *mockStorageManager) GetRunTopologyFile(labUUID string) string {
 	args := m.Called(labUUID)
 	return args.String(0)
 }
-func (m *mockStorageManager) CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error {
+
+func (m *mockStorageManager) CreateRunEnvironment(
+	topologyId string,
+	labId string,
+	topologyDefinition string,
+	topologyFilePath *string,
+) error {
 	args := m.Called(topologyId, labId, topologyDefinition, topologyFilePath)
 	return args.Error(0)
 }
@@ -84,7 +93,11 @@ type MockDeploymentProvider struct {
 	mock.Mock
 }
 
-func (m *MockDeploymentProvider) Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (deployment.InspectOutput, error) {
+func (m *MockDeploymentProvider) Inspect(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(data string),
+) (deployment.InspectOutput, error) {
 	args := m.Called(ctx, topologyFile, onLog)
 	return args.Get(0).(deployment.InspectOutput), args.Error(1)
 }
@@ -104,7 +117,6 @@ func (m *MockDeploymentProvider) OpenShell(ctx context.Context, containerId stri
 }
 
 func (m *MockDeploymentProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
-	//TODO implement me
 	panic("implement me")
 }
 
@@ -118,23 +130,55 @@ func (m *MockDeploymentProvider) StopNode(ctx context.Context, containerId strin
 	return args.Error(0)
 }
 
-func (m *MockDeploymentProvider) Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error)) {
+func (m *MockDeploymentProvider) Exec(
+	ctx context.Context,
+	topologyFile string,
+	content string,
+	onLog func(data string),
+	onDone func(output *string, err error),
+) {
 	panic("implement me")
 }
-func (m *MockDeploymentProvider) ExecOnNode(ctx context.Context, topologyFile string, content string, nodeName string, onLog func(data string), onDone func(output *string, err error)) {
+
+func (m *MockDeploymentProvider) ExecOnNode(
+	ctx context.Context,
+	topologyFile string,
+	content string,
+	nodeName string,
+	onLog func(data string),
+	onDone func(output *string, err error),
+) {
 	panic("implement me")
 }
-func (m *MockDeploymentProvider) Save(ctx context.Context, topologyFile string, onLog func(data string), onDone func(output *string, err error)) {
+
+func (m *MockDeploymentProvider) Save(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(data string),
+	onDone func(output *string, err error),
+) {
 	panic("implement me")
 }
-func (m *MockDeploymentProvider) SaveOnNode(ctx context.Context, topologyFile string, nodeName string, onLog func(data string), onDone func(output *string, err error)) {
+
+func (m *MockDeploymentProvider) SaveOnNode(
+	ctx context.Context,
+	topologyFile string,
+	nodeName string,
+	onLog func(data string),
+	onDone func(output *string, err error),
+) {
 	panic("implement me")
 }
 func (m *MockDeploymentProvider) Deploy(ctx context.Context, topologyFile string, onLog func(string)) (*string, error) {
 	args := m.Called(ctx, topologyFile, onLog)
 	return args.Get(0).(*string), args.Error(1)
 }
-func (m *MockDeploymentProvider) Destroy(ctx context.Context, topologyFile string, onLog func(string)) (*string, error) {
+
+func (m *MockDeploymentProvider) Destroy(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(string),
+) (*string, error) {
 	args := m.Called(ctx, topologyFile, onLog)
 
 	var result *string
@@ -143,7 +187,12 @@ func (m *MockDeploymentProvider) Destroy(ctx context.Context, topologyFile strin
 	}
 	return result, args.Error(1)
 }
-func (m *MockDeploymentProvider) Redeploy(ctx context.Context, topologyFile string, onLog func(string)) (*string, error) {
+
+func (m *MockDeploymentProvider) Redeploy(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(string),
+) (*string, error) {
 	args := m.Called(ctx, topologyFile, onLog)
 
 	var result *string
@@ -152,7 +201,13 @@ func (m *MockDeploymentProvider) Redeploy(ctx context.Context, topologyFile stri
 	}
 	return result, args.Error(1)
 }
-func (m *MockDeploymentProvider) StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(string)) error {
+
+func (m *MockDeploymentProvider) StreamContainerLogs(
+	ctx context.Context,
+	topologyFile string,
+	containerID string,
+	onLog func(string),
+) error {
 	args := m.Called(ctx, topologyFile, containerID, onLog)
 	return args.Error(0)
 }
@@ -170,17 +225,22 @@ func (m *mockLabRepo) GetByUuid(ctx context.Context, labId string) (*Lab, error)
 	lab, _ := args.Get(0).(*Lab)
 	return lab, args.Error(1)
 }
-func (m mockLabRepo) GetFromCollections(ctx context.Context, labFilter LabFilter, collectionNames []string) ([]Lab, error) {
+
+func (m *mockLabRepo) GetFromCollections(
+	ctx context.Context,
+	labFilter LabFilter,
+	collectionNames []string,
+) ([]Lab, error) {
 	panic("implement me GetFromCollections")
 }
-func (m mockLabRepo) Create(ctx context.Context, lab *Lab) error {
+func (m *mockLabRepo) Create(ctx context.Context, lab *Lab) error {
 	panic("implement me Create")
 }
 func (m *mockLabRepo) Update(ctx context.Context, lab *Lab) error {
 	args := m.Called(ctx, lab)
 	return args.Error(0)
 }
-func (m mockLabRepo) Delete(ctx context.Context, lab *Lab) error {
+func (m *mockLabRepo) Delete(ctx context.Context, lab *Lab) error {
 	panic("implement me Delete")
 }
 
@@ -229,10 +289,18 @@ type mockTopologyRepo struct {
 	mock.Mock
 }
 
-func (m *mockTopologyRepo) GetByName(ctx context.Context, topologyName string, collectionId string) ([]topology.Topology, error) {
+func (m *mockTopologyRepo) GetByName(
+	ctx context.Context,
+	topologyName string,
+	collectionId string,
+) ([]topology.Topology, error) {
 	panic("implement me")
 }
-func (m *mockTopologyRepo) GetFromCollections(ctx context.Context, collectionNames []string) ([]topology.Topology, error) {
+
+func (m *mockTopologyRepo) GetFromCollections(
+	ctx context.Context,
+	collectionNames []string,
+) ([]topology.Topology, error) {
 	panic("implement me")
 }
 func (m *mockTopologyRepo) Create(ctx context.Context, topology *topology.Topology) error {
@@ -257,7 +325,13 @@ func (m *mockTopologyRepo) UpdateBindFile(ctx context.Context, bindFile *topolog
 func (m *mockTopologyRepo) DeleteBindFile(ctx context.Context, bindFile *topology.BindFile) error {
 	panic("implement me")
 }
-func (m *mockTopologyRepo) DoesBindFilePathExist(ctx context.Context, bindFilePath string, topologyId string, excludeString string) (bool, error) {
+
+func (m *mockTopologyRepo) DoesBindFilePathExist(
+	ctx context.Context,
+	bindFilePath string,
+	topologyId string,
+	excludeString string,
+) (bool, error) {
 	panic("implement me")
 }
 func (m *mockTopologyRepo) BindFileToOut(bindFile topology.BindFile, content string) topology.BindFileOut {
@@ -269,6 +343,7 @@ func (m *mockTopologyRepo) Update(ctx context.Context, topo *topology.Topology) 
 }
 func (m *mockTopologyRepo) GetAll(ctx context.Context) ([]topology.Topology, error) { return nil, nil }
 func (m *mockTopologyRepo) GetByUuid(ctx context.Context, topologyId string) (*topology.Topology, error) {
+	//nolint:nilnil // This is a mock function
 	return nil, nil
 }
 
@@ -397,11 +472,11 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 	svc.instancesMutex.Lock()
 	_, ok := svc.instances["lab123"]
 	svc.instancesMutex.Unlock()
-	fmt.Printf("Instance exists? %v\n", ok)
+	log.Infof("Instance exists? %v\n", ok)
 
 	// Check that the schedule is now empty
 	mockDeploymentSchedule.mu.Lock()
-	assert.Len(t, mockDeploymentSchedule.scheduled, 0)
+	assert.Empty(t, mockDeploymentSchedule.scheduled)
 	mockDeploymentSchedule.mu.Unlock()
 
 	// Check that the lab is no longer scheduled
@@ -500,7 +575,8 @@ func TestInitSchedule(t *testing.T) {
 			mockDeploymentSchedule := &mockSchedule{}
 			mockTopologyRepo := &mockTopologyRepo{}
 
-			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).Return([]topology.BindFile{}, nil)
+			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).
+				Return([]topology.BindFile{}, nil)
 			mockLabRepo.On("GetAll", mock.Anything, mock.Anything).Return(tt.mockLabs, nil)
 
 			// === KEY PART ===
@@ -684,9 +760,9 @@ func TestRenameTopology(t *testing.T) {
 			err := svc.renameTopology(tt.args.topologyId, tt.args.topologyName, tt.args.runTopologyDefinition)
 
 			if tt.expectErr {
-				assert.Error(t, err, tt.name)
+				require.Error(t, err, tt.name)
 			} else {
-				assert.NoError(t, err, tt.name)
+				require.NoError(t, err, tt.name)
 			}
 			if tt.expectOutputEmpty {
 				assert.Empty(t, *tt.args.runTopologyDefinition, tt.name)
@@ -822,12 +898,12 @@ func TestCreateLabEnvironment(t *testing.T) {
 				storageManager: fields.storageManager,
 			}
 
-			runFile, _, err := svc.createLabEnvironment(args.lab)
+			runFile, err := svc.createLabEnvironment(args.lab)
 
 			if tt.wantErr {
-				assert.Error(t, err, tt.name)
+				require.Error(t, err, tt.name)
 			} else {
-				assert.NoError(t, err, tt.name)
+				require.NoError(t, err, tt.name)
 				assert.Equal(t, tt.expectTopology, runFile, "Topology file should match expected output")
 				if tt.expectInstance {
 					assert.NotNil(t, args.lab.InstanceName, "lab.InstanceName should be set")
@@ -860,7 +936,8 @@ func TestDestroyLab(t *testing.T) {
 				f.statusNamespace.On("Send", mock.Anything).Maybe()
 
 				f.deploymentProvider = &MockDeploymentProvider{}
-				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).Return(lo.ToPtr("destroyed"), nil)
+				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).
+					Return(lo.ToPtr("destroyed"), nil)
 
 				f.storageManager = &mockStorageManager{}
 				f.storageManager.On("DeleteRunEnvironment", "lab1").Return(nil)
@@ -894,7 +971,8 @@ func TestDestroyLab(t *testing.T) {
 				f.statusNamespace.On("Send", mock.Anything).Maybe()
 
 				f.deploymentProvider = &MockDeploymentProvider{}
-				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).Return(nil, errors.New("destroy failed"))
+				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).
+					Return(nil, errors.New("destroy failed"))
 
 				f.storageManager = &mockStorageManager{} // should NOT be called
 
@@ -926,7 +1004,8 @@ func TestDestroyLab(t *testing.T) {
 				f.statusNamespace.On("Send", mock.Anything).Maybe()
 
 				f.deploymentProvider = &MockDeploymentProvider{}
-				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).Return(lo.ToPtr("destroyed"), nil)
+				f.deploymentProvider.On("Destroy", mock.Anything, "file.yaml", mock.Anything).
+					Return(lo.ToPtr("destroyed"), nil)
 
 				f.storageManager = &mockStorageManager{}
 				f.storageManager.On("DeleteRunEnvironment", "lab3").Return(errors.New("fs error"))
@@ -1021,7 +1100,7 @@ func TestRedeployLab(t *testing.T) {
 				a.instance = &Instance{
 					State: InstanceStates.Deploying,
 					DeploymentWorker: &utils.Worker{
-						Context: context.Background(),
+						Context: t.Context(),
 						Cancel:  func() {},
 					},
 				}
@@ -1144,16 +1223,21 @@ func TestRedeployLab(t *testing.T) {
 			err := svc.redeployLab(&a.lab, a.instance)
 
 			if tt.wantFail {
-				assert.Error(t, err, tt.name)
+				require.Error(t, err, tt.name)
 			} else {
-				assert.NoError(t, err, tt.name)
+				require.NoError(t, err, tt.name)
 			}
 
 			switch tt.name {
 			case "returns false when already deploying":
 				assert.Equal(t, InstanceStates.Deploying, a.instance.State, "State should remain Deploying")
 			case "successful redeploy":
-				assert.Equal(t, InstanceStates.Running, a.instance.State, "State should return to Running after success")
+				assert.Equal(
+					t,
+					InstanceStates.Running,
+					a.instance.State,
+					"State should return to Running after success",
+				)
 				f.statusNamespace.AssertCalled(t, "Send", mock.Anything)
 			case "redeploy fails":
 				assert.Equal(t, InstanceStates.Failed, a.instance.State, "State should change to Failed on error")
@@ -1335,7 +1419,7 @@ topology:
 					Mutex:        sync.Mutex{},
 					LogNamespace: &mockNamespaceManager[string]{},
 					DeploymentWorker: &utils.Worker{
-						Context: context.Background(),
+						Context: t.Context(),
 						Cancel:  func() {},
 					},
 				}
@@ -1344,9 +1428,9 @@ topology:
 			err := svc.deployLab(&a.lab)
 
 			if tt.wantErr {
-				assert.Error(t, err, "Unexpected error state in deployLab")
+				require.Error(t, err, "Unexpected error state in deployLab")
 			} else {
-				assert.NoError(t, err, "Unexpected error state in deployLab")
+				require.NoError(t, err, "Unexpected error state in deployLab")
 			}
 
 			switch tt.name {
@@ -1701,7 +1785,7 @@ func TestHandleLabCommand(t *testing.T) {
 
 			var okCalled, errCalled bool
 			var receivedErr utils.ErrorResponse
-			svc.handleLabCommand(context.Background(), &LabCommandData{
+			svc.handleLabCommand(t.Context(), &LabCommandData{
 				LabId:   &a.labId,
 				Command: &a.cmd,
 				Node:    a.Node,
@@ -1731,7 +1815,7 @@ func TestHandleLabCommand(t *testing.T) {
 				assert.True(t, errCalled)
 			case "stop node returns error", "start node returns error":
 				assert.Equal(t, 5006, receivedErr.Code)
-				assert.Equal(t, utils.ErrorNodeNotFound.Error(), receivedErr.Message)
+				assert.Equal(t, utils.ErrNodeNotFound.Error(), receivedErr.Message)
 			}
 		})
 	}
@@ -1739,11 +1823,11 @@ func TestHandleLabCommand(t *testing.T) {
 
 type mockReadWriteCloser struct{}
 
-func (m *mockReadWriteCloser) Read(p []byte) (n int, err error) {
+func (m *mockReadWriteCloser) Read(p []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func (m *mockReadWriteCloser) Write(p []byte) (n int, err error) {
+func (m *mockReadWriteCloser) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
@@ -1976,7 +2060,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 			}
 
 			var okCalled, errCalled bool
-			svc.handleLabCommand(context.Background(), &LabCommandData{
+			svc.handleLabCommand(t.Context(), &LabCommandData{
 				LabId:   &a.labId,
 				Command: &a.cmd,
 				Node:    a.node,
@@ -2042,7 +2126,7 @@ func TestDestroyLabCommand(t *testing.T) {
 				}
 				f.labRepo.On("GetByUuid", mock.Anything, "lab123").Return(lab, nil)
 			},
-			expectErr: utils.ErrorNoDestroyAccessToLab,
+			expectErr: utils.ErrNoDestroyAccessToLab,
 			assert: func(t *testing.T, f *fields) {
 				f.labRepo.AssertCalled(t, "GetByUuid", mock.Anything, "lab123")
 			},
@@ -2061,7 +2145,7 @@ func TestDestroyLabCommand(t *testing.T) {
 				f.labRepo.On("GetByUuid", mock.Anything, "lab123").Return(lab, nil)
 				f.instances = make(map[string]*Instance) // simulate missing instance
 			},
-			expectErr: utils.ErrorLabNotRunning,
+			expectErr: utils.ErrLabNotRunning,
 			assert: func(t *testing.T, f *fields) {
 				f.labRepo.AssertCalled(t, "GetByUuid", mock.Anything, "lab123")
 				_, exists := f.instances["lab123"]
@@ -2089,11 +2173,11 @@ func TestDestroyLabCommand(t *testing.T) {
 				instances: f.instances,
 			}
 
-			err := svc.destroyLabCommand(context.Background(), a.labId, a.authUser)
+			err := svc.destroyLabCommand(t.Context(), a.labId, a.authUser)
 			if tt.expectErr != nil {
-				assert.EqualError(t, err, tt.expectErr.Error())
+				require.Error(t, err, tt.expectErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			if tt.assert != nil {
@@ -2110,7 +2194,6 @@ func TestDeployLabCommand(t *testing.T) {
 	type args struct {
 		labId    string
 		authUser *auth.AuthenticatedUser
-		lab      *Lab
 	}
 	tests := []struct {
 		name      string
@@ -2142,7 +2225,7 @@ func TestDeployLabCommand(t *testing.T) {
 						Creator: user.User{UUID: "user123"},
 					}, nil)
 			},
-			expectErr: utils.ErrorNoDeployAccessToLab,
+			expectErr: utils.ErrNoDeployAccessToLab,
 			validate: func(t *testing.T, svc *labService, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 			},
@@ -2163,11 +2246,10 @@ func TestDeployLabCommand(t *testing.T) {
 					}, nil)
 			},
 
-			expectErr: utils.ErrorLabIsDeploying,
+			expectErr: utils.ErrLabIsDeploying,
 			validate: func(t *testing.T, svc *labService, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
-				assert.True(t, svc.instances["lab123"] != nil, "expected lab123 to exist in instances")
-
+				assert.NotNil(t, svc.instances["lab123"], "expected lab123 to exist in instances")
 			},
 		},
 	}
@@ -2195,35 +2277,34 @@ func TestDeployLabCommand(t *testing.T) {
 				svc.instances["lab123"] = &Instance{}
 			}
 
-			err := svc.deployLabCommand(context.Background(), a.labId, a.authUser)
+			err := svc.deployLabCommand(t.Context(), a.labId, a.authUser)
 
 			if tt.expectErr != nil {
-				assert.EqualError(t, err, tt.expectErr.Error())
+				require.EqualError(t, err, tt.expectErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			if tt.validate != nil {
 				tt.validate(t, svc, a)
 			}
 		})
-
 	}
 }
 
 func TestStopNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
 	service := &labService{}
-	err := service.stopNodeCommand(context.Background(), "some-lab", nil, nil)
-	assert.Error(t, err)
-	assert.Equal(t, utils.ErrorNodeNotFound, err)
+	err := service.stopNodeCommand(t.Context(), "some-lab", nil, nil)
+	require.Error(t, err)
+	assert.Equal(t, utils.ErrNodeNotFound, err)
 }
 
 // --- Test startNodeCommand when node is nil ---
 func TestStartNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
 	service := &labService{}
-	err := service.startNodeCommand(context.Background(), "some-lab", nil, nil)
-	assert.Error(t, err)
-	assert.Equal(t, utils.ErrorNodeNotFound, err)
+	err := service.startNodeCommand(t.Context(), "some-lab", nil, nil)
+	require.Error(t, err)
+	assert.Equal(t, utils.ErrNodeNotFound, err)
 }
 
 // --- Mock NamespaceManager to record messages ---

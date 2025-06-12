@@ -26,7 +26,10 @@ type (
 		AuthenticateUser(tokenString string) (*AuthenticatedUser, error)
 		LoginNative(username string, password string) (string, string, error)
 		GetAuthCodeURL(stateToken string) (string, error)
-		AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error)
+		AuthenticateWithCode(
+			authCode string,
+			userSubToIdMapper func(userSub string, userProfile string) (string, error),
+		) (*AuthenticatedUser, error)
 		AuthenticatorMiddleware() gin.HandlerFunc
 		RefreshAccessToken(authToken string) (string, error)
 		RegisterTestUser(authUser AuthenticatedUser) (string, error)
@@ -71,11 +74,17 @@ type (
 )
 
 func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
-	isOpenIdEnabled := config.Auth.EnableOpenId
+	isOpenIdEnabled := config.Auth.EnableOpenID
 	isNativeEnabled := config.Auth.EnableNative
 
 	if !isNativeEnabled && !isOpenIdEnabled {
-		log.Fatal("Please enable at least one authentication method.", "native", isNativeEnabled, "openid", isOpenIdEnabled)
+		log.Fatal(
+			"Please enable at least one authentication method.",
+			"native",
+			isNativeEnabled,
+			"openid",
+			isOpenIdEnabled,
+		)
 	}
 
 	nativeUsername := os.Getenv("SB_NATIVE_USERNAME")
@@ -125,7 +134,7 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 		} else {
 			authManager.provider = *provider
 			authManager.oauth2Config = oauth2.Config{
-				ClientID:     config.Auth.OpenIdClientId,
+				ClientID:     config.Auth.OpenIdClientID,
 				ClientSecret: authManager.oidcSecret,
 				RedirectURL:  fmt.Sprintf("%s/users/login/success", config.Auth.OpenIdRedirectHost),
 				Endpoint:     provider.Endpoint(),
@@ -138,9 +147,15 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 }
 
 func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
-	if authUser, err := m.AuthenticateUser(authToken); err != nil {
+	var (
+		authUser       *AuthenticatedUser
+		newAccessToken string
+		err            error
+	)
+
+	if authUser, err = m.AuthenticateUser(authToken); err != nil {
 		return "", err
-	} else if newAccessToken, err := m.CreateAccessToken(*authUser); err != nil {
+	} else if newAccessToken, err = m.CreateAccessToken(*authUser); err != nil {
 		return "", err
 	} else {
 		return newAccessToken, nil
@@ -149,15 +164,21 @@ func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
 
 func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		accessToken, err := ctx.Cookie("accessToken")
+		var (
+			accessToken string
+			user        *AuthenticatedUser
+			err         error
+		)
+
+		accessToken, err = ctx.Cookie("accessToken")
 		if err != nil {
-			ctx.JSON(utils.CreateErrorResponse(utils.ErrorUnauthorized))
+			ctx.JSON(utils.CreateErrorResponse(utils.ErrUnauthorized))
 			ctx.Abort()
 			return
 		}
 
-		if user, err := m.AuthenticateUser(accessToken); err != nil {
-			ctx.JSON(utils.CreateErrorResponse(utils.ErrorTokenInvalid))
+		if user, err = m.AuthenticateUser(accessToken); err != nil {
+			ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 			ctx.Abort()
 			return
 		} else {
@@ -167,22 +188,25 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 	}
 }
 
-func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper func(userSub string, userProfile string) (string, error)) (*AuthenticatedUser, error) {
+func (m *authManager) AuthenticateWithCode(
+	authCode string,
+	userSubToIdMapper func(userSub string, userProfile string) (string, error),
+) (*AuthenticatedUser, error) {
 	if !m.authConfig.OpenId.Enabled {
-		return nil, utils.ErrorOpenIDAuthDisabledError
+		return nil, utils.ErrOpenIDAuthDisabledError
 	}
 
 	ctx := context.TODO()
 	token, err := m.oauth2Config.Exchange(ctx, authCode)
 	if err != nil {
 		log.Errorf("[AUTH] OAuth token exchange failed: %s", err.Error())
-		return nil, utils.ErrorOpenIDError
+		return nil, utils.ErrOpenIDError
 	}
 
 	info, err := m.provider.UserInfo(ctx, m.oauth2Config.TokenSource(ctx, token))
 	if err != nil {
 		log.Errorf("[AUTH] Failed to get oauth userinfo: %s", err.Error())
-		return nil, utils.ErrorOpenIDError
+		return nil, utils.ErrOpenIDError
 	}
 
 	var claims struct {
@@ -194,7 +218,7 @@ func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper fu
 	err = info.Claims(&claims)
 	if err != nil {
 		log.Warn("[AUTH] Failed to parse claims from userinfo: %s", err.Error())
-		return nil, utils.ErrorOpenIDError
+		return nil, utils.ErrOpenIDError
 	}
 
 	userSub := claims.Sub
@@ -226,41 +250,54 @@ func (m *authManager) AuthenticateWithCode(authCode string, userSubToIdMapper fu
 }
 func (m *authManager) GetAuthCodeURL(stateToken string) (string, error) {
 	if !m.authConfig.OpenId.Enabled {
-		return "", utils.ErrorOpenIDAuthDisabledError
+		return "", utils.ErrOpenIDAuthDisabledError
 	}
 
 	return m.oauth2Config.AuthCodeURL(stateToken), nil
 }
 
 func (m *authManager) LoginNative(username string, password string) (string, string, error) {
+	var (
+		authToken   string
+		accessToken string
+		err         error
+	)
+
 	if !m.authConfig.Native.Enabled {
-		return "", "", utils.ErrorNativeAuthDisabledError
+		return "", "", utils.ErrNativeAuthDisabledError
 	}
 
 	if username == m.nativeUsername && password == m.nativePassword {
 		authUser := m.authenticatedUsers[NativeUserID]
-		if authToken, err := m.CreateAuthToken(NativeUserID); err != nil {
+		if authToken, err = m.CreateAuthToken(NativeUserID); err != nil {
 			return "", "", err
-		} else if accessToken, err := m.CreateAccessToken(*authUser); err != nil {
+		} else if accessToken, err = m.CreateAccessToken(*authUser); err != nil {
 			return "", "", err
 		} else {
 			return authToken, accessToken, nil
 		}
 	}
-	return "", "", utils.ErrorInvalidCredentials
+	return "", "", utils.ErrInvalidCredentials
 }
 
 func (m *authManager) AuthenticateUser(tokenString string) (*AuthenticatedUser, error) {
 	if token, err := jwt.Parse(tokenString, m.tokenParser); err != nil {
-		return nil, utils.ErrorTokenInvalid
+		return nil, utils.ErrTokenInvalid
 	} else if tokenClaims, ok := token.Claims.(jwt.MapClaims); !ok {
-		return nil, utils.ErrorTokenInvalid
+		return nil, utils.ErrTokenInvalid
 	} else if userId, ok := tokenClaims["id"]; !ok {
-		return nil, utils.ErrorTokenInvalid
-	} else if permissions, ok := m.authenticatedUsers[userId.(string)]; !ok {
-		return nil, utils.ErrorTokenInvalid
+		return nil, utils.ErrTokenInvalid
 	} else {
-		return permissions, nil
+		userIdStr, ok := userId.(string)
+		if !ok {
+			return nil, utils.ErrTokenInvalid
+		}
+
+		if permissions, ok := m.authenticatedUsers[userIdStr]; !ok {
+			return nil, utils.ErrTokenInvalid
+		} else {
+			return permissions, nil
+		}
 	}
 }
 
@@ -287,7 +324,7 @@ func (m *authManager) CreateAccessToken(authUser AuthenticatedUser) (string, err
 
 func (m *authManager) tokenParser(token *jwt.Token) (interface{}, error) {
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, utils.ErrorTokenInvalid
+		return nil, utils.ErrTokenInvalid
 	}
 
 	return m.jwtSecret, nil

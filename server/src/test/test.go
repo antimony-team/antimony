@@ -13,21 +13,21 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
-	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
-	"log"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 func ptr(t time.Time) *time.Time { return &t }
 
+//nolint:funlen
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
-	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
-
 	user1 := user.User{
 		UUID: "test-user-id1",
 		Sub:  "doesntmatter",
@@ -173,7 +173,6 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		TopologyDefinition: &emptyString,
 	}
 	db.Create(&lab2)
-
 }
 
 const cvx03 = `name: ctd
@@ -250,16 +249,28 @@ func addAuthenticatedUsers(authManager auth.AuthManager) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
+	if err != nil {
+		return
+	}
+
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      "test-user-id2",
 		IsAdmin:     true,
 		Collections: []string{},
 	})
+	if err != nil {
+		return
+	}
+
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      "test-user-id3",
 		IsAdmin:     false,
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
+	if err != nil {
+		return
+	}
+
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      "test-user-id4",
 		IsAdmin:     false,
@@ -274,8 +285,8 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	gin.SetMode(gin.TestMode)
 
 	// Set environment variables
-	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
-	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
+	t.Setenv("SB_NATIVE_USERNAME", "testuser")
+	t.Setenv("SB_NATIVE_PASSWORD", "testpass")
 
 	storageDir := t.TempDir()
 	runDir := t.TempDir()
@@ -292,9 +303,9 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 		},
 		Auth: config.AuthConfig{
 			EnableNative:      true,
-			EnableOpenId:      false,
+			EnableOpenID:      false,
 			OpenIdIssuer:      "",
-			OpenIdClientId:    "",
+			OpenIdClientID:    "",
 			OpenIdAdminGroups: []string{},
 		},
 	}
@@ -305,7 +316,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	// Step 4: Setup in-memory DB
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = db.AutoMigrate(
 		&user.User{},
@@ -314,7 +325,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 		&topology.BindFile{},
 		&lab.Lab{},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Seed test data
 	GenerateTestData(db, storageManager)
@@ -354,11 +365,15 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	addAuthenticatedUsers(authManager)
 
-	authManager.RegisterTestUser(auth.AuthenticatedUser{
+	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      auth.NativeUserID,
 		IsAdmin:     true,
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
+
+	if err != nil {
+		log.Fatalf("Failed to register test user")
+	}
 
 	// Setup Gin + register routes with real middleware
 	router := gin.Default()

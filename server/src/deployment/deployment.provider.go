@@ -6,11 +6,11 @@ import (
 )
 
 type DeploymentProvider interface {
-	Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
-	Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
-	Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (output InspectOutput, err error)
+	Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
+	Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
+	Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (InspectOutput, error)
 	InspectAll(ctx context.Context) (InspectOutput, error)
-	Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (output *string, err error)
+	Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
 
 	OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error)
 
@@ -42,7 +42,7 @@ type NodeState string
 
 const (
 	running NodeState = "running"
-	exited            = "exited"
+	exited  NodeState = "exited"
 )
 
 var NodeStates = struct {

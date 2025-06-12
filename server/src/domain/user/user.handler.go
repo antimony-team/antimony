@@ -2,8 +2,9 @@ package user
 
 import (
 	"antimonyBackend/utils"
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type (
@@ -39,7 +40,7 @@ func CreateHandler(userService Service) Handler {
 func (h *userHandler) LoginNative(ctx *gin.Context) {
 	payload := CredentialsIn{}
 	if err := ctx.Bind(&payload); err != nil {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrorInvalidCredentials))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrInvalidCredentials))
 		return
 	}
 
@@ -115,12 +116,12 @@ func (h *userHandler) RefreshToken(ctx *gin.Context) {
 	)
 
 	if authToken, err = ctx.Cookie("authToken"); err != nil {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrorUnauthorized))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrUnauthorized))
 		return
 	}
 
 	if accessToken, err = h.userService.RefreshAccessToken(authToken); err != nil {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrorForbidden))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrForbidden))
 		return
 	}
 

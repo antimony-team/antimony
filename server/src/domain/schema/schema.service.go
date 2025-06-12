@@ -3,11 +3,12 @@ package schema
 import (
 	"antimonyBackend/config"
 	"encoding/json"
-	"github.com/charmbracelet/log"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/charmbracelet/log"
 )
 
 type (
@@ -35,7 +36,10 @@ func (u *schemaService) Get() string {
 func loadSchema(config *config.AntimonyConfig) string {
 	var schema any
 
-	if resp, err := http.Get(config.Containerlab.SchemaUrl); err != nil {
+	//nolint:noctx // We don't need to provide context here
+	resp, err := http.Get(config.Containerlab.SchemaUrl)
+
+	if err != nil {
 		log.Warn("Failed to download clab schema from remote resource. Falling back to local schema.")
 
 		// Try to use local fallback schema instead
@@ -50,21 +54,14 @@ func loadSchema(config *config.AntimonyConfig) string {
 		}
 	} else {
 		buf := new(strings.Builder)
-		if _, err := io.Copy(buf, resp.Body); err != nil {
+		_, err := io.Copy(buf, resp.Body)
+		_ = resp.Body.Close()
+
+		if err != nil {
 			log.Fatal("Failed to parse remote clab schema. Exiting.")
 		}
 
 		return buf.String()
-		//if err := json.NewDecoder(resp.Body).Decode(&schema); err != nil {
-		//	log.Fatal("Failed to parse remote clab schema. Exiting.")
-		//} else {
-		//	buf := new(strings.Builder)
-		//	if _, err := io.Copy(buf, resp.Body); err != nil {
-		//		log.Fatal("Failed to parse remote clab schema. Exiting.")
-		//	}
-		//
-		//	return buf.String()
-		//}
 	}
 
 	return ""

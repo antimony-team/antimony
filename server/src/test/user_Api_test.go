@@ -4,12 +4,15 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/utils"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // === POST === login
@@ -51,7 +54,7 @@ func TestLogin_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	var response utils.ErrorResponse
 	err := json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1001, response.Code)
 }
 
@@ -68,7 +71,7 @@ func TestLogin_MissingFields(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	var response utils.ErrorResponse
 	err := json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1001, response.Code)
 }
 
@@ -85,7 +88,7 @@ func TestLogin_WrongCredentials(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	var response utils.ErrorResponse
 	err := json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1001, response.Code)
 }
 
@@ -139,17 +142,11 @@ func TestAuthConfig_ReturnsConfig(t *testing.T) {
 
 	var result utils.OkResponse[auth.AuthConfig]
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, true, result.Payload.Native.Enabled)
-	assert.Equal(t, false, result.Payload.OpenId.Enabled)
+	assert.True(t, result.Payload.Native.Enabled)
+	assert.False(t, result.Payload.OpenId.Enabled)
 }
-
-// === GET === login/openid
-//not testable
-
-//=== GET === login/success
-//not testable
 
 // === GET === login/refresh
 func TestRefreshToken_Success(t *testing.T) {
@@ -172,7 +169,7 @@ func TestRefreshToken_Success(t *testing.T) {
 
 	var result utils.OkResponse[string]
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, result.Payload)
 }
 

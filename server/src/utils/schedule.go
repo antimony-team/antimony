@@ -101,7 +101,6 @@ func (s *schedule[T]) has(key string) bool {
 }
 
 func (s *schedule[T]) remove(key string) {
-
 	if item, isScheduled := s.scheduleMap[key]; isScheduled {
 		delete(s.scheduleMap, key)
 		itemIndex := slices.Index(s.schedule, item)

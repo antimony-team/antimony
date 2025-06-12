@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"github.com/google/uuid"
 	"os"
+
+	"github.com/google/uuid"
 )
 
 func GenerateUuid() string {

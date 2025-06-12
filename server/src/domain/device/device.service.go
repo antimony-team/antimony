@@ -3,9 +3,10 @@ package device
 import (
 	"antimonyBackend/config"
 	"encoding/json"
-	"github.com/charmbracelet/log"
 	"io"
 	"os"
+
+	"github.com/charmbracelet/log"
 )
 
 type (

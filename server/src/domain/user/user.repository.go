@@ -3,6 +3,7 @@ package user
 import (
 	"antimonyBackend/utils"
 	"context"
+
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 )
@@ -34,12 +35,12 @@ func (r *userRepository) GetByUuid(ctx context.Context, userId string) (*User, e
 	result := r.db.WithContext(ctx).Where("uuid = ?", userId).Limit(1).Find(&user)
 
 	if result.RowsAffected < 1 {
-		return nil, utils.ErrorUuidNotFound
+		return nil, utils.ErrUuidNotFound
 	}
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch user by UUID. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return &user, nil
@@ -53,7 +54,7 @@ func (r *userRepository) GetBySub(ctx context.Context, userSub string) (*User, b
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to get user by sub. Error: %s", result.Error.Error())
-		return nil, false, utils.ErrorDatabaseError
+		return nil, false, utils.ErrDatabaseError
 	}
 
 	return &user, result.RowsAffected > 0, nil
@@ -62,7 +63,7 @@ func (r *userRepository) GetBySub(ctx context.Context, userSub string) (*User, b
 func (r *userRepository) Update(ctx context.Context, user *User) error {
 	if err := r.db.WithContext(ctx).Save(user).Error; err != nil {
 		log.Errorf("[DB] Failed to update user. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -71,7 +72,7 @@ func (r *userRepository) Update(ctx context.Context, user *User) error {
 func (r *userRepository) Create(ctx context.Context, user *User) error {
 	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
 		log.Errorf("[DB] Failed to create user. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil

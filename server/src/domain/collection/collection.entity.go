@@ -2,6 +2,7 @@ package collection
 
 import (
 	"antimonyBackend/domain/user"
+
 	"gorm.io/gorm"
 )
 
@@ -16,8 +17,8 @@ type Collection struct {
 }
 
 type CollectionIn struct {
-	Name         *string `json:"name" binding:"required"`
-	PublicWrite  *bool   `json:"publicWrite" binding:"required"`
+	Name         *string `json:"name"         binding:"required"`
+	PublicWrite  *bool   `json:"publicWrite"  binding:"required"`
 	PublicDeploy *bool   `json:"publicDeploy" binding:"required"`
 }
 

@@ -32,6 +32,6 @@ jobs:
         working-directory: ./src
         run: go build -v ./main.go
 
-#      - name: Run tests
-#        working-directory: ./src
-#        run: go rest -v ./main.go
+      - name: Run Test
+        working-directory: ./src
+        run: go test -v ./...
