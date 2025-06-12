@@ -5,15 +5,6 @@ The authentication in Antimony is done via a refresh token system. A refresh tok
 * **Access Token:** The classic token that can be used to access Antimony's resources. This token has an expiration time of 30 minutes and can be accessed directly by the client and contains additional information about the user. 
 * **Auth Token:** This is the refresh token. Is used to generate more *Access Tokens*. This token has an expiration time of 30 days and is HTTP only, meaning the client does not have direct access to it.
 
-## Advantages of Refresh Tokens
-
-* **Protection Against Cookie Theft**  
-    Since the refresh token is stored as an HTTP only cookie, it is not possible to steal it via XSS or other cookie theft practices.
-* **Better User Experience**  
-    Due to the refresh token being stored more securely, we are able to greatly increase its lifetime which in turn decreases the amount of times the user has to login.
-* **Token Theft Detection (Not implemented)**  
-    Though not implemented, it would be possible to easily detect token theft if the thief tries to authenticate themselves with an expired access token.
-
 You can find more information about refresh tokens [here](https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/).
 
 ## Token Acquisition

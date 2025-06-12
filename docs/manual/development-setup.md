@@ -165,9 +165,10 @@ go-task test
 go-task test-coverage
 ```
 
-### Additional Tasks
+### Running Linters
 
-#### Running Linters
+The following commands can be used to run all `golangci-lint` linters and format the source files.
+
 
 ```bash
 # Step 1: Run all linters and return results
@@ -175,12 +176,6 @@ go-task lint
 
 # Step 2: Automatically format all the source files
 go-task lint-fmt
-```
-
-#### Formatting Swagger Doc Comments
-
-```bash
-go-task swagger-fmt
 ```
 
 ### Swagger Documentation

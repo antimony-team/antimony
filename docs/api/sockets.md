@@ -1,4 +1,4 @@
-# Streaming API
+# Socket.IO API
 
 Antimony uses Socket.IO sockets to communicate real-time data such as logs or terminal data and server event data such as status messages. Every type of message has its own Socket.IO namespace. Read more about Socket.IO namespaces [here](https://socket.io/docs/v4/namespaces/).
 

@@ -11,18 +11,15 @@ nav:
   - Quick Start: 'quick-start.md'
   - User Manual:
     - Configuration: 'manual/configuration.md'
-    - Glossary: 'manual/glossary.md'
     - Developer Guide: 'manual/development-setup.md'
+    - Glossary: 'manual/glossary.md'
   - Implementation:
-    - 'implementation/index.md'
+    - 'implementation/architecture.md'
     - Authentication: 'implementation/authentication.md'
-    - Topologies: 'implementation/topologies.md'
     - Lab Management: 'implementation/labs.md'
   - API Definition:
-    - 'api/index.md'
+    - Restful API: 'api/restful.md'
     - Socket.IO Api: 'api/sockets.md'
-    - Restful API:
-      - 'api/restful.md'
   - Issues: 'https://github.com/antimony-team/antimony-backend/issues/'
 
 theme:
