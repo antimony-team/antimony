@@ -8,10 +8,10 @@ import {Binding} from '@sb/lib/utils/binding';
 import {
   Lab,
   LabCommand,
-  ShellControlCommand,
-  ShellControlIn,
+  ShellCommand,
+  ShellCommandData,
   ShellData,
-  ShellDataIn,
+  ShellDataOut,
 } from '@sb/types/domain/lab';
 import {ErrorCodes} from '@sb/types/error-codes';
 import {Result} from '@sb/types/result';
@@ -49,25 +49,25 @@ export class ShellStore {
   }
 
   @action
-  private handleControl(data: ShellControlIn) {
+  private handleControl(data: ShellCommandData) {
     if (!this.openShells.has(data.labId)) return;
 
     switch (data.command) {
-      case ShellControlCommand.ShellError:
+      case ShellCommand.ShellError:
         this.handleShellError(data);
         break;
-      case ShellControlCommand.ShellClose:
+      case ShellCommand.ShellClose:
         this.handleShellClose(data);
         break;
     }
   }
 
-  private handleShellError(data: ShellControlIn) {
+  private handleShellError(data: ShellCommandData) {
     console.error('Received error in shell', data);
   }
 
   @action
-  private handleShellClose(data: ShellControlIn) {
+  private handleShellClose(data: ShellCommandData) {
     this.openShells.set(
       data.labId,
       this.openShells.get(data.labId)!.map(shell => {
@@ -99,7 +99,7 @@ export class ShellStore {
         labId: lab.id,
         command: LabCommand.FetchShells,
       }),
-    )) as DataResponse<ShellDataIn[]>;
+    )) as DataResponse<ShellDataOut[]>;
 
     if (!('payload' in result)) {
       console.error('Failed to fetch shells:', result);
@@ -108,7 +108,7 @@ export class ShellStore {
       return;
     }
 
-    const activeShellMap = new Map<uuid4, ShellDataIn>(
+    const activeShellMap = new Map<uuid4, ShellDataOut>(
       result.payload.map(shell => [shell.id, shell]),
     );
 

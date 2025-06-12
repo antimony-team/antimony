@@ -75,22 +75,24 @@ export const InstanceStates = Object.values(InstanceState).filter(
   instance => typeof instance === 'number',
 );
 
-export type ShellDataIn = {
+export type ShellDataOut = {
   id: uuid4;
   node: string;
 };
 
-export type ShellData = ShellDataIn & {
+export type ShellData = ShellDataOut & {
   expired: boolean;
 };
 
-export type ShellControlIn = {
+export type ShellCommandData = {
   labId: string;
+  node: string;
   shellId: string;
-  command: ShellControlCommand;
+  command: ShellCommand;
+  message: string;
 };
 
-export enum ShellControlCommand {
+export enum ShellCommand {
   ShellError,
   ShellClose,
 }
@@ -105,8 +107,8 @@ export type LabCommandData = {
 export enum LabCommand {
   Deploy,
   Destroy,
-  StopNode,
   StartNode,
+  StopNode,
   RestartNode,
   FetchShells,
   OpenShell,
