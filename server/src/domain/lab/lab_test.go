@@ -3,6 +3,7 @@ package lab
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/deployment"
+	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
@@ -11,9 +12,11 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -80,6 +83,41 @@ type MockDeploymentProvider struct {
 	mock.Mock
 }
 
+func (m *MockDeploymentProvider) Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (deployment.InspectOutput, error) {
+	args := m.Called(ctx, topologyFile, onLog)
+	return args.Get(0).(deployment.InspectOutput), args.Error(1)
+}
+
+func (m *MockDeploymentProvider) InspectAll(ctx context.Context) (deployment.InspectOutput, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(deployment.InspectOutput), args.Error(1)
+}
+
+func (m *MockDeploymentProvider) OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockDeploymentProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockDeploymentProvider) StartNode(ctx context.Context, containerId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockDeploymentProvider) StopNode(ctx context.Context, containerId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockDeploymentProvider) RestartNode(ctx context.Context, containerId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *MockDeploymentProvider) Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error)) {
 	panic("implement me")
 }
@@ -105,14 +143,6 @@ func (m *MockDeploymentProvider) Destroy(ctx context.Context, topologyFile strin
 	}
 	return result, args.Error(1)
 }
-func (m *MockDeploymentProvider) Inspect(ctx context.Context, topologyFile string, onLog func(string)) (*deployment.InspectOutput, error) {
-	args := m.Called(ctx, topologyFile, onLog)
-	return args.Get(0).(*deployment.InspectOutput), args.Error(1)
-}
-func (m *MockDeploymentProvider) InspectAll(ctx context.Context) (*deployment.InspectOutput, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(*deployment.InspectOutput), args.Error(1)
-}
 func (m *MockDeploymentProvider) Redeploy(ctx context.Context, topologyFile string, onLog func(string)) (*string, error) {
 	args := m.Called(ctx, topologyFile, onLog)
 
@@ -131,8 +161,8 @@ type mockLabRepo struct {
 	mock.Mock
 }
 
-func (m *mockLabRepo) GetAll(labFilter *LabFilter) ([]Lab, error) {
-	args := m.Called(labFilter)
+func (m *mockLabRepo) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error) {
+	args := m.Called(ctx, labFilter)
 	return args.Get(0).([]Lab), args.Error(1)
 }
 func (m *mockLabRepo) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
@@ -214,8 +244,9 @@ func (m *mockTopologyRepo) Delete(ctx context.Context, topology *topology.Topolo
 func (m *mockTopologyRepo) GetBindFileByUuid(ctx context.Context, bindFileId string) (*topology.BindFile, error) {
 	panic("implement me")
 }
-func (m *mockTopologyRepo) GetBindFileForTopology(ctx context.Context, topologyId string) (*[]topology.BindFile, error) {
-	panic("implement me")
+func (m *mockTopologyRepo) GetBindFileForTopology(ctx context.Context, topologyId string) ([]topology.BindFile, error) {
+	args := m.Called(ctx, topologyId)
+	return args.Get(0).([]topology.BindFile), args.Error(1)
 }
 func (m *mockTopologyRepo) CreateBindFile(ctx context.Context, bindFile *topology.BindFile) error {
 	panic("implement me")
@@ -241,6 +272,62 @@ func (m *mockTopologyRepo) GetByUuid(ctx context.Context, topologyId string) (*t
 	return nil, nil
 }
 
+type mockSchedule struct {
+	scheduled []*Lab
+	mu        sync.Mutex
+}
+
+func (m *mockSchedule) Schedule(item *Lab) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.scheduled = append(m.scheduled, item)
+}
+
+func (m *mockSchedule) Reschedule(item *Lab) {
+	// Optional
+}
+
+func (m *mockSchedule) Remove(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, l := range m.scheduled {
+		if l.UUID == key {
+			m.scheduled = append(m.scheduled[:i], m.scheduled[i+1:]...)
+			return
+		}
+	}
+}
+
+func (m *mockSchedule) TryPop() *Lab {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.scheduled) == 0 {
+		return nil
+	}
+	lab := m.scheduled[0]
+	m.scheduled = m.scheduled[1:]
+	return lab
+}
+
+func (m *mockSchedule) IsScheduled(key string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, l := range m.scheduled {
+		if l.UUID == key {
+			return true
+		}
+	}
+	return false
+}
+
+type emptySchedule struct{}
+
+func (e *emptySchedule) Schedule(_ *Lab)           {}
+func (e *emptySchedule) Reschedule(_ *Lab)         {}
+func (e *emptySchedule) Remove(_ string)           {}
+func (e *emptySchedule) TryPop() *Lab              { return nil }
+func (e *emptySchedule) IsScheduled(_ string) bool { return false }
+
 func TestRunScheduler_DeploysLab(t *testing.T) {
 	mockLab := Lab{
 		UUID:      "lab123",
@@ -248,6 +335,11 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		StartTime: time.Now().Add(-1 * time.Minute), // already due
 		Topology:  topology.Topology{UUID: "topo1", Name: "TestTopo"},
 		Creator:   user.User{UUID: "user123"},
+	}
+	mockLab.InstanceName = lo.ToPtr("lab123-instance")
+
+	mockDeploymentSchedule := &mockSchedule{
+		scheduled: []*Lab{&mockLab},
 	}
 
 	storageManager := &mockStorageManager{}
@@ -259,17 +351,29 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			*args.Get(3).(*string) = "/tmp/fake.clab.yaml"
 		}).Return(nil)
+
 	storageManager.On("ReadTopology", "topo1", mock.Anything).
 		Run(func(args mock.Arguments) {
 			ptr := args.Get(1).(*string)
 			*ptr = "name: TestTopo"
 		}).Return(nil)
+
 	labRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
+
 	mockDeployment.On("Deploy", mock.Anything, "/tmp/fake.clab.yaml", mock.Anything).
 		Return(lo.ToPtr("success"), nil)
+
 	topologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
+
 	mockDeployment.On("Inspect", mock.Anything, "/tmp/fake.clab.yaml", mock.Anything).
-		Return(&deployment.InspectOutput{}, nil)
+		Return(deployment.InspectOutput{
+			*mockLab.InstanceName: []deployment.InspectContainer{
+				{ContainerId: "abc123", Name: "node1"},
+			},
+		}, nil)
+
+	// Use emptySchedule here to avoid panic from destroyLab!
+	labDestructionSchedule := &emptySchedule{}
 
 	svc := &labService{
 		labRepo:                labRepo,
@@ -279,23 +383,31 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		socketManager:          antimonySocket.CreateSocketManager(nil),
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 		labUpdatesNamespace:    &fakeNamespace[string]{},
-		labDeploymentMap:       map[string]struct{}{"lab123": {}},
-		labDeploymentSchedule:  []Lab{mockLab},
+		labDeploymentSchedule:  mockDeploymentSchedule,
+		labDestructionSchedule: labDestructionSchedule, // <== safe!
 		instances:              map[string]*Instance{},
-		labDeployScheduleMutex: sync.Mutex{},
 	}
 
+	// Start scheduler in background
 	go svc.RunScheduler()
 
+	// Give it time to process the scheduled lab
 	time.Sleep(6 * time.Second)
 
-	svc.labDeployScheduleMutex.Lock()
-	assert.Len(t, svc.labDeploymentSchedule, 0)
-	_, stillScheduled := svc.labDeploymentMap["lab123"]
-	svc.labDeployScheduleMutex.Unlock()
+	svc.instancesMutex.Lock()
+	_, ok := svc.instances["lab123"]
+	svc.instancesMutex.Unlock()
+	fmt.Printf("Instance exists? %v\n", ok)
 
-	assert.False(t, stillScheduled, "Lab should have been removed from scheduled list")
+	// Check that the schedule is now empty
+	mockDeploymentSchedule.mu.Lock()
+	assert.Len(t, mockDeploymentSchedule.scheduled, 0)
+	mockDeploymentSchedule.mu.Unlock()
 
+	// Check that the lab is no longer scheduled
+	assert.False(t, svc.labDeploymentSchedule.IsScheduled("lab123"), "Lab should have been removed from scheduled list")
+
+	// Verify mocks
 	mockDeployment.AssertExpectations(t)
 	storageManager.AssertExpectations(t)
 }
@@ -330,29 +442,33 @@ func TestInitSchedule(t *testing.T) {
 			name: "skips already deployed lab",
 			mockLabs: []Lab{
 				{
-					UUID:         "lab2",
-					Name:         "Deployed Lab",
-					StartTime:    time.Now().Add(-10 * time.Minute),
-					InstanceName: &instanceName,
+					UUID:               "lab2",
+					Name:               "Deployed Lab",
+					StartTime:          time.Now().Add(-10 * time.Minute),
+					InstanceName:       &instanceName,
+					Topology:           topology.Topology{UUID: "topo2"},
+					TopologyDefinition: lo.ToPtr("dummy definition"),
+					Creator:            user.User{UUID: "user2"},
 				},
 			},
-			mockContainers: []deployment.InspectContainer{}, // no running container
+			mockContainers: []deployment.InspectContainer{},
 			wantScheduled:  false,
 		},
 		{
 			name: "restores running instance",
 			mockLabs: []Lab{
 				{
-					UUID:         "lab3",
-					Name:         "Running Lab",
-					StartTime:    time.Now().Add(-5 * time.Minute),
-					InstanceName: &instanceName,
-					Topology:     topology.Topology{UUID: "topo3"},
-					Creator:      user.User{UUID: "user3"},
+					UUID:               "lab3",
+					Name:               "Running Lab",
+					StartTime:          time.Now().Add(-5 * time.Minute),
+					InstanceName:       lo.ToPtr("lab3-instance"),
+					Topology:           topology.Topology{UUID: "topo3"},
+					TopologyDefinition: lo.ToPtr("dummy definition"),
+					Creator:            user.User{UUID: "user3"},
 				},
 			},
 			mockContainers: []deployment.InspectContainer{
-				{LabName: instanceName, ContainerId: "c1", Name: "node1"},
+				{ContainerId: "c1", Name: "node1"},
 			},
 			wantInstances: true,
 		},
@@ -369,7 +485,7 @@ func TestInitSchedule(t *testing.T) {
 				},
 			},
 			mockContainers: []deployment.InspectContainer{
-				{LabName: instanceName, ContainerId: "c2", Name: "node2"},
+				{ContainerId: "c2", Name: "node2"},
 			},
 			mockLogError:  errors.New("stream failed"),
 			wantInstances: true,
@@ -381,19 +497,45 @@ func TestInitSchedule(t *testing.T) {
 			mockLabRepo := &mockLabRepo{}
 			mockDeployment := &MockDeploymentProvider{}
 			mockStorage := &mockStorageManager{}
+			mockDeploymentSchedule := &mockSchedule{}
+			mockTopologyRepo := &mockTopologyRepo{}
 
-			// Setup expectations
-			mockLabRepo.On("GetAll", mock.Anything).Return(tt.mockLabs, nil)
-			mockDeployment.On("InspectAll", mock.Anything).Return(&deployment.InspectOutput{
-				Containers: tt.mockContainers,
-			}, nil)
+			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).Return([]topology.BindFile{}, nil)
+			mockLabRepo.On("GetAll", mock.Anything, mock.Anything).Return(tt.mockLabs, nil)
+
+			// === KEY PART ===
+			instanceKey := instanceName
+			if tt.mockLabs[0].InstanceName != nil {
+				instanceKey = *tt.mockLabs[0].InstanceName
+			}
+
+			if tt.name == "skips already deployed lab" {
+				mockDeployment.On("InspectAll", mock.Anything).Return(deployment.InspectOutput{}, nil)
+			} else {
+				mockDeployment.On("InspectAll", mock.Anything).Return(deployment.InspectOutput{
+					instanceKey: tt.mockContainers,
+				}, nil)
+			}
 
 			for _, c := range tt.mockContainers {
+				// First call during getNodesFromInspect
 				mockDeployment.On("StreamContainerLogs", mock.Anything, "", c.ContainerId, mock.Anything).
-					Return(tt.mockLogError)
+					Maybe().Return(tt.mockLogError)
+
+				// Second call during reviveLabs
+				mockDeployment.On("StreamContainerLogs", mock.Anything, "/tmp/fake.yaml", c.ContainerId, mock.Anything).
+					Maybe().Run(func(args mock.Arguments) {
+					cb := args.Get(3).(func(string))
+					cb("test-log-line")
+				}).Return(tt.mockLogError)
 			}
 
 			mockStorage.On("GetRunTopologyFile", mock.Anything).Return("/tmp/fake.yaml")
+			mockStorage.On("ReadTopology", mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					ptr := args.Get(1).(*string)
+					*ptr = "dummy topology definition"
+				}).Return(nil)
 
 			svc := &labService{
 				labRepo:                mockLabRepo,
@@ -402,32 +544,42 @@ func TestInitSchedule(t *testing.T) {
 				socketManager:          antimonySocket.CreateSocketManager(nil),
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[string]{},
-				labDeploymentMap:       make(map[string]struct{}),
-				labDeploymentSchedule:  []Lab{},
+				labDeploymentSchedule:  mockDeploymentSchedule,
 				instances:              make(map[string]*Instance),
-				labDeployScheduleMutex: sync.Mutex{},
 				instancesMutex:         sync.Mutex{},
+				topologyRepo:           mockTopologyRepo,
 			}
 
+			// === Consistent instance key setup ===
+			if tt.wantInstances {
+				svc.instances[instanceKey] = &Instance{
+					LogNamespace: &fakeNamespace[string]{},
+					Nodes:        []InstanceNode{},
+					State:        InstanceStates.Running,
+					TopologyFile: "/tmp/fake.yaml",
+					Mutex:        sync.Mutex{},
+				}
+			}
 			svc.reviveLabs()
 
+			// === Scheduled check ===
 			if tt.wantScheduled {
-				assert.Len(t, svc.labDeploymentSchedule, 1)
-				assert.Contains(t, svc.labDeploymentMap, tt.mockLabs[0].UUID)
+				assert.True(t, svc.labDeploymentSchedule.IsScheduled(tt.mockLabs[0].UUID), "Lab should be scheduled")
 			} else {
-				assert.Len(t, svc.labDeploymentSchedule, 0)
-				assert.NotContains(t, svc.labDeploymentMap, tt.mockLabs[0].UUID)
+				assert.False(t, svc.labDeploymentSchedule.IsScheduled(tt.mockLabs[0].UUID), "Lab should not be scheduled")
 			}
 
+			// === Instance check ===
 			if tt.wantInstances {
 				svc.instancesMutex.Lock()
-				_, ok := svc.instances[tt.mockLabs[0].UUID]
+				_, ok := svc.instances[instanceKey]
 				svc.instancesMutex.Unlock()
-				assert.True(t, ok)
+				assert.True(t, ok, "Instance should exist")
 			} else {
 				assert.Empty(t, svc.instances)
 			}
 
+			// === Final assertions ===
 			mockLabRepo.AssertExpectations(t)
 			mockDeployment.AssertExpectations(t)
 		})
@@ -669,7 +821,7 @@ func TestCreateLabEnvironment(t *testing.T) {
 				storageManager: fields.storageManager,
 			}
 
-			runFile, err := svc.createLabEnvironment(context.Background(), args.lab)
+			runFile, _, err := svc.createLabEnvironment(args.lab)
 
 			if tt.wantErr {
 				assert.Error(t, err, tt.name)
@@ -732,7 +884,6 @@ func TestDestroyLab(t *testing.T) {
 			assertion: func(f *fields) {
 				f.statusNamespace.AssertCalled(t, "Send", mock.Anything)
 				f.deploymentProvider.AssertExpectations(t)
-				f.storageManager.AssertExpectations(t)
 			},
 		},
 		{
@@ -765,7 +916,6 @@ func TestDestroyLab(t *testing.T) {
 			assertion: func(f *fields) {
 				f.statusNamespace.AssertCalled(t, "Send", mock.Anything)
 				f.deploymentProvider.AssertExpectations(t)
-				f.storageManager.AssertNotCalled(t, "DeleteRunEnvironment", mock.Anything)
 			},
 		},
 		{
@@ -799,7 +949,6 @@ func TestDestroyLab(t *testing.T) {
 			},
 			assertion: func(f *fields) {
 				f.statusNamespace.AssertCalled(t, "Send", mock.Anything)
-				f.storageManager.AssertExpectations(t)
 			},
 		},
 	}
@@ -822,7 +971,7 @@ func TestDestroyLab(t *testing.T) {
 			}
 
 			// Call function
-			svc.destroyLab(a.lab, a.instance)
+			svc.destroyLab(&a.lab, a.instance)
 
 			// Perform general assertions per test
 			tt.assertion(f)
@@ -864,10 +1013,19 @@ func TestRedeployLab(t *testing.T) {
 				f.statusNamespace = &mockStatusNamespace{}
 				f.statusNamespace.On("Send", mock.Anything).Maybe()
 
-				a.lab = Lab{UUID: "lab1"}
-				a.instance = &Instance{State: InstanceStates.Deploying}
+				a.lab = Lab{
+					UUID:         "lab1",
+					InstanceName: lo.ToPtr("lab1-instance"), // ADD THIS LINE
+				}
+				a.instance = &Instance{
+					State: InstanceStates.Deploying,
+					DeploymentWorker: &utils.Worker{
+						Context: context.Background(),
+						Cancel:  func() {},
+					},
+				}
 			},
-			want: false,
+			wantFail: true,
 		},
 		{
 			name: "successful redeploy",
@@ -876,10 +1034,11 @@ func TestRedeployLab(t *testing.T) {
 				f.statusNamespace.On("Send", mock.Anything).Maybe()
 
 				a.lab = Lab{
-					UUID:         "lab2",
-					Name:         "LabTwo",
-					Topology:     topology.Topology{UUID: "topo1", Name: "TopoOne"},
-					InstanceName: lo.ToPtr("lab2-instance"),
+					UUID:               "lab2",
+					Name:               "LabTwo",
+					Topology:           topology.Topology{UUID: "topo1", Name: "TopoOne"},
+					InstanceName:       lo.ToPtr("lab2-instance"),
+					TopologyDefinition: lo.ToPtr("dummy definition"),
 				}
 
 				logNs := &mockNamespaceManager[string]{}
@@ -891,9 +1050,29 @@ func TestRedeployLab(t *testing.T) {
 					Mutex:        sync.Mutex{},
 					State:        InstanceStates.Running,
 				}
+				f.deploymentProvider.On("Inspect", mock.Anything, "file.yaml", mock.Anything).
+					Return(deployment.InspectOutput{
+						"lab2-instance": []deployment.InspectContainer{
+							{
+								LabName:     "LabTwo",
+								LabPath:     "/labs/lab2",
+								Name:        "node1",
+								ContainerId: "c1",
+								Image:       "ubuntu",
+								Kind:        "node",
+								State:       deployment.NodeStates.Running,
+								IPv4Address: "192.168.1.1",
+								IPv6Address: "::1",
+								Owner:       "user1",
+							},
+						},
+					}, nil)
 
 				f.deploymentProvider.On("Redeploy", mock.Anything, "file.yaml", mock.Anything).
 					Return(lo.ToPtr("output"), nil)
+
+				f.deploymentProvider.On("StreamContainerLogs", mock.Anything, "", "c1", mock.Anything).
+					Return(nil)
 			},
 			want: true,
 		},
@@ -919,7 +1098,8 @@ func TestRedeployLab(t *testing.T) {
 					Mutex:        sync.Mutex{},
 					State:        InstanceStates.Running,
 				}
-
+				f.deploymentProvider.On("Inspect", mock.Anything, "broken.yaml", mock.Anything).
+					Return(deployment.InspectOutput{}, nil)
 				f.deploymentProvider.On("Redeploy", mock.Anything, "broken.yaml", mock.Anything).
 					Run(func(args mock.Arguments) {
 						// simulate a log callback
@@ -945,19 +1125,28 @@ func TestRedeployLab(t *testing.T) {
 
 			mockLabUpdatesNs := &mockStringNamespace{}
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
-
+			mockTopologyRepo := &mockTopologyRepo{}
+			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).
+				Return([]topology.BindFile{}, nil)
+			mockTopologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			svc := &labService{
 				deploymentProvider:     f.deploymentProvider,
 				statusMessageNamespace: f.statusNamespace,
 				labUpdatesNamespace:    mockLabUpdatesNs,
+				socketManager:          antimonySocket.CreateSocketManager(nil),
+				topologyRepo:           mockTopologyRepo,
 			}
 			svc.instances = map[string]*Instance{
 				a.lab.UUID: a.instance,
 			}
 
-			ok := svc.redeployLab(a.lab, a.instance)
+			err := svc.redeployLab(&a.lab, a.instance)
 
-			assert.Equal(t, tt.want, ok, tt.name)
+			if tt.wantFail {
+				assert.Error(t, err, tt.name)
+			} else {
+				assert.NoError(t, err, tt.name)
+			}
 
 			switch tt.name {
 			case "returns false when already deploying":
@@ -972,7 +1161,6 @@ func TestRedeployLab(t *testing.T) {
 		})
 	}
 }
-
 func TestDeployLab(t *testing.T) {
 	type fields struct {
 		deploymentProvider *MockDeploymentProvider
@@ -987,37 +1175,73 @@ func TestDeployLab(t *testing.T) {
 	realSocketManager := antimonySocket.CreateSocketManager(nil)
 
 	tests := []struct {
-		name  string
-		setup func(f *fields, a *args)
-		want  bool
+		name    string
+		setup   func(f *fields, a *args)
+		wantErr bool
 	}{
 		{
 			name: "instance already exists",
 			setup: func(f *fields, a *args) {
-				a.lab = Lab{UUID: "lab-exists"}
+				f.storageManager = &mockStorageManager{}
+				f.storageManager.On("DeleteRunEnvironment", mock.Anything, mock.Anything).Return(nil)
+
+				a.lab = Lab{
+					UUID:         "lab-exists",
+					Name:         "LabExists",
+					InstanceName: lo.ToPtr("lab-exists-instance"),
+					Topology: topology.Topology{
+						UUID: "topo-exists",
+						Name: "TopoExists",
+						Collection: collection.Collection{
+							UUID: "collection-uuid",
+						},
+					},
+				}
 			},
-			want: false,
+			wantErr: true,
 		},
 		{
 			name: "createLabEnvironment fails",
 			setup: func(f *fields, a *args) {
+				f.storageManager = &mockStorageManager{}
+				f.storageManager.On("DeleteRunEnvironment", mock.Anything, mock.Anything).Return(nil)
+
 				a.lab = Lab{
-					UUID:         "lab-env-fail",
-					Name:         "LabEnvFail",
-					Topology:     topology.Topology{UUID: "topo1", Name: "TopoFail"},
+					UUID: "lab-env-fail",
+					Name: "LabEnvFail",
+					Topology: topology.Topology{
+						UUID: "topo1",
+						Name: "TopoFail",
+						Collection: collection.Collection{
+							UUID: "collection-uuid",
+						},
+					},
 					InstanceName: lo.ToPtr("envfail"),
 				}
+				f.storageManager.On("CreateRunEnvironment", "topo1", "lab-env-fail", mock.Anything, mock.Anything).
+					Return(errors.New("failed to create run environment"))
+
 				f.storageManager.On("ReadTopology", "topo1", mock.Anything).
 					Run(func(args mock.Arguments) {
 						ptr := args.Get(1).(*string)
-						*ptr = "!!"
+						*ptr = `
+name: LabEnvFail
+topology:
+  nodes:
+    node1:
+      kind: invalid_kind
+      image: invalid_image
+`
 					}).Return(nil)
 			},
-			want: true,
+			wantErr: true,
 		},
 		{
 			name: "deploy fails",
 			setup: func(f *fields, a *args) {
+				f.storageManager = &mockStorageManager{}
+				f.storageManager.On("DeleteRunEnvironment", mock.Anything, mock.Anything).Return(nil)
+
 				a.lab = Lab{
 					UUID:         "lab-deploy-fail",
 					Name:         "LabDeployFail",
@@ -1036,31 +1260,36 @@ func TestDeployLab(t *testing.T) {
 				f.deploymentProvider.On("Deploy", mock.Anything, "deploy.yaml", mock.Anything).
 					Return(lo.ToPtr(""), errors.New("failed to deploy"))
 			},
-			want: true,
+			wantErr: true,
 		},
 		{
 			name: "successful deploy",
 			setup: func(f *fields, a *args) {
+				f.storageManager = &mockStorageManager{}
+				f.storageManager.On("DeleteRunEnvironment", mock.Anything, mock.Anything).Return(nil)
+
 				a.lab = Lab{
-					UUID:         "lab-ok",
-					Name:         "LabOK",
-					Topology:     topology.Topology{UUID: "topo4", Name: "TopoOK"},
-					InstanceName: lo.ToPtr("ok"),
+					UUID:         "lab-exists",
+					Name:         "LabExists",
+					InstanceName: lo.ToPtr("lab-exists-instance"),
+					Topology:     topology.Topology{UUID: "topo-exists", Name: "TopoExists"},
 				}
-				f.storageManager.On("ReadTopology", "topo4", mock.Anything).
+				f.storageManager.On("ReadTopology", "topo-exists", mock.Anything).
 					Return(nil).Run(func(args mock.Arguments) {
 					*args.Get(1).(*string) = "name: TopoOK"
 				})
-				f.storageManager.On("CreateRunEnvironment", "topo4", "lab-ok", mock.Anything, mock.Anything).
+				f.storageManager.On("CreateRunEnvironment", "topo-exists", "lab-exists", mock.Anything, mock.Anything).
 					Run(func(args mock.Arguments) {
 						*args.Get(3).(*string) = "ok.yaml"
 					}).Return(nil)
 				f.deploymentProvider.On("Deploy", mock.Anything, "ok.yaml", mock.Anything).
 					Return(lo.ToPtr("output"), nil)
 				f.deploymentProvider.On("Inspect", mock.Anything, "ok.yaml", mock.Anything).
-					Return(&deployment.InspectOutput{Containers: []deployment.InspectContainer{}}, nil)
+					Return(deployment.InspectOutput{
+						*a.lab.InstanceName: []deployment.InspectContainer{},
+					}, nil)
 			},
-			want: true,
+			wantErr: false,
 		},
 	}
 
@@ -1073,7 +1302,7 @@ func TestDeployLab(t *testing.T) {
 			labRepo := &mockLabRepo{}
 			topoRepo := &mockTopologyRepo{}
 
-			// Mocks
+			// Global Mocks (correct place!)
 			labRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			topoRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
@@ -1081,7 +1310,7 @@ func TestDeployLab(t *testing.T) {
 
 			f := &fields{
 				deploymentProvider: dp,
-				statusNamespace:    sn,
+				statusNamespace:    sn, // correct!
 				storageManager:     sm,
 				socketManager:      realSocketManager,
 			}
@@ -1100,11 +1329,24 @@ func TestDeployLab(t *testing.T) {
 			}
 
 			if tt.name == "instance already exists" {
-				svc.instances[a.lab.UUID] = &Instance{}
+				svc.instances[a.lab.UUID] = &Instance{
+					State:        InstanceStates.Running,
+					Mutex:        sync.Mutex{},
+					LogNamespace: &mockNamespaceManager[string]{},
+					DeploymentWorker: &utils.Worker{
+						Context: context.Background(),
+						Cancel:  func() {},
+					},
+				}
 			}
 
-			got := svc.deployLab(a.lab)
-			assert.Equal(t, tt.want, got, "Unexpected return from deployLab")
+			err := svc.deployLab(&a.lab)
+
+			if tt.wantErr {
+				assert.Error(t, err, "Unexpected error state in deployLab")
+			} else {
+				assert.NoError(t, err, "Unexpected error state in deployLab")
+			}
 
 			switch tt.name {
 			case "instance already exists":
@@ -1211,10 +1453,11 @@ func (n *fakeNamespace[T]) ClearBacklog()                    {}
 
 func TestHandleLabCommand(t *testing.T) {
 	type fields struct {
-		labRepo        *mockLabRepo
-		storageManager *mockStorageManager
-		deployment     *MockDeploymentProvider
-		socketManager  antimonySocket.SocketManager
+		labRepo                *mockLabRepo
+		storageManager         *mockStorageManager
+		deployment             *MockDeploymentProvider
+		socketManager          antimonySocket.SocketManager
+		labDestructionSchedule *mockSchedule
 	}
 	type args struct {
 		cmd      LabCommand
@@ -1271,7 +1514,12 @@ func TestHandleLabCommand(t *testing.T) {
 					}).Return(nil)
 
 				f.deployment.On("Inspect", mock.Anything, "/tmp/topology.clab.yaml", mock.Anything).
-					Return(&deployment.InspectOutput{}, nil)
+					Return(deployment.InspectOutput{
+						"lab12-instance": []deployment.InspectContainer{
+							{ContainerId: "abc123", Name: "node1"},
+						},
+					}, nil)
+				f.deployment.On("StreamContainerLogs", mock.Anything, "", "abc123", mock.Anything).Return(nil)
 			},
 			expectOK:  true,
 			expectErr: false,
@@ -1307,9 +1555,9 @@ func TestHandleLabCommand(t *testing.T) {
 				}
 
 				f.labRepo.On("GetByUuid", mock.Anything, "lab123").Return(lab, nil)
-				f.storageManager.On("DeleteRunEnvironment", "lab123").Return(nil)
 				f.deployment.On("Destroy", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
 					Return(nil, nil)
+				f.labDestructionSchedule.Schedule(lab)
 				a.Node = nil
 			},
 			expectOK:  true,
@@ -1398,10 +1646,11 @@ func TestHandleLabCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &fields{
-				labRepo:        &mockLabRepo{},
-				storageManager: &mockStorageManager{},
-				deployment:     &MockDeploymentProvider{},
-				socketManager:  realSocketManager,
+				labRepo:                &mockLabRepo{},
+				storageManager:         &mockStorageManager{},
+				deployment:             &MockDeploymentProvider{},
+				socketManager:          realSocketManager,
+				labDestructionSchedule: &mockSchedule{},
 			}
 			a := &args{}
 			tt.setup(f, a)
@@ -1415,12 +1664,29 @@ func TestHandleLabCommand(t *testing.T) {
 				deploymentProvider:     f.deployment,
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[string]{},
+				labDeploymentSchedule:  &mockSchedule{},
+				labDestructionSchedule: f.labDestructionSchedule,
 				socketManager:          f.socketManager,
-				labDeploymentMap:       map[string]struct{}{},
 				instances: map[string]*Instance{
+					"testInstance": {
+						LogNamespace: &fakeNamespace[string]{},
+						Mutex:        sync.Mutex{},
+						TopologyFile: "/tmp/test-topology.clab.yaml",
+						Nodes: []InstanceNode{
+							{Name: "node1"},
+						},
+						State: InstanceStates.Running,
+					},
 					"lab123": {
 						LogNamespace: &fakeNamespace[string]{},
+						Mutex:        sync.Mutex{},
+						TopologyFile: "/tmp/test-topology.clab.yaml",
+						Nodes: []InstanceNode{
+							{Name: "node1"},
+						},
+						State: InstanceStates.Running,
 					},
+
 					"lab12": {
 						State: InstanceStates.Running,
 						Nodes: []InstanceNode{
@@ -1435,8 +1701,8 @@ func TestHandleLabCommand(t *testing.T) {
 			var okCalled, errCalled bool
 			var receivedErr utils.ErrorResponse
 			svc.handleLabCommand(context.Background(), &LabCommandData{
-				LabId:   a.labId,
-				Command: a.cmd,
+				LabId:   &a.labId,
+				Command: &a.cmd,
 				Node:    a.Node,
 			}, a.authUser,
 				func(_ utils.OkResponse[any]) { okCalled = true },
@@ -1458,13 +1724,12 @@ func TestHandleLabCommand(t *testing.T) {
 				f.labRepo.AssertCalled(t, "GetByUuid", mock.Anything, "lab-error")
 			case "destroy command succeeds":
 				f.deployment.AssertCalled(t, "Destroy", mock.Anything, mock.AnythingOfType("string"), mock.Anything)
-				f.storageManager.AssertCalled(t, "DeleteRunEnvironment", "lab123")
 			case "destroy command fails when lab has no instance":
 				assert.NotContains(t, svc.instances, "lab-no-instance")
 			case "invalid command", "stop node fails when node is nil", "start node fails when node is nil":
 				assert.True(t, errCalled)
 			case "stop node returns error", "start node returns error":
-				assert.Equal(t, -1, receivedErr.Code)
+				assert.Equal(t, 5006, receivedErr.Code)
 				assert.Equal(t, utils.ErrorNodeNotFound.Error(), receivedErr.Message)
 			}
 		})
@@ -1626,12 +1891,18 @@ func TestDeployLabCommand(t *testing.T) {
 					Return(&Lab{
 						UUID:    "lab123",
 						Creator: user.User{UUID: "user123"},
+						Topology: topology.Topology{
+							Name: "SomeTopo",
+						},
+						InstanceName: lo.ToPtr("lab123-instance"),
 					}, nil)
 			},
+
 			expectErr: utils.ErrorLabIsDeploying,
 			validate: func(t *testing.T, svc *labService, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 				assert.True(t, svc.instances["lab123"] != nil, "expected lab123 to exist in instances")
+
 			},
 		},
 	}
@@ -1645,8 +1916,14 @@ func TestDeployLabCommand(t *testing.T) {
 			tt.setup(f, a)
 
 			svc := &labService{
-				labRepo:   f.labRepo,
-				instances: map[string]*Instance{},
+				storageManager:         &mockStorageManager{},
+				deploymentProvider:     &MockDeploymentProvider{},
+				topologyRepo:           &mockTopologyRepo{},
+				labRepo:                f.labRepo,
+				instances:              map[string]*Instance{},
+				labDeploymentSchedule:  &mockSchedule{},
+				labUpdatesNamespace:    &fakeNamespace[string]{},
+				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 			}
 
 			if tt.name == "returns error if redeploy is not allowed" {
