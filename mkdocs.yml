@@ -19,7 +19,7 @@ nav:
     - Lab Management: 'implementation/labs.md'
   - API Definition:
     - Restful API: 'api/restful.md'
-    - Socket.IO Api: 'api/sockets.md'
+    - Socket.IO API: 'api/sockets.md'
   - Issues: 'https://github.com/antimony-team/antimony-backend/issues/'
 
 theme:
