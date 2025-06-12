@@ -14,6 +14,11 @@ tasks:
     cmds:
       - golangci-lint run -c ../.golangci.yml
 
+  lint-fmt:
+    dir: './src'
+    cmds:
+      - golangci-lint fmt -c ../.golangci.yml
+
   build:
     dir: './src'
     cmds:
@@ -61,10 +66,11 @@ tasks:
           --user root
           antimony-backend -sqlite=true -config=./config.yml
 
-  swagger-docs:
+  swagger-fmt:
     dir: './src'
     cmds:
       - go tool swag fmt
+
   test:
     dir: './src'
     cmds:
@@ -73,11 +79,11 @@ tasks:
   test-coverage:
     dir: './src'
     cmds:
-      - mkdir -p test/coverage
-      - go test -v -coverprofile=test/coverage/coverage.out -coverpkg=./... ./...
-      - go tool cover -html=test/coverage/coverage.out -o test/coverage/coverage.html
-      - go tool cover -func=test/coverage/coverage.out
+      - mkdir -p ../coverage
+      - go test -v -coverprofile=../coverage/coverage.out -coverpkg=./... ./...
+      - go tool cover -html=../coverage/coverage.out -o ../coverage/coverage.html
+      - go tool cover -func=../coverage/coverage.out
       - cmd: |
-          echo "Coverage report generated at: test/coverage/coverage.html"
-          echo "Total coverage:" $(go tool cover -func=test/coverage/coverage.out | grep total | awk '{print $3}')
+          echo "Coverage report generated at: coverage/coverage.html"
+          echo "Total coverage:" $(go tool cover -func=../coverage/coverage.out | grep total | awk '{print $3}')
         silent: false
