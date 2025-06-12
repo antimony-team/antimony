@@ -84,6 +84,10 @@ export type ShellData = ShellDataOut & {
   expired: boolean;
 };
 
+export type LabUpdateOut = {
+  labId: string;
+};
+
 export type ShellCommandData = {
   labId: string;
   node: string;

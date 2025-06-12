@@ -18,6 +18,7 @@ import {
   LabCommandData,
   LabIn,
   LabOut,
+  LabUpdateOut,
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
@@ -220,9 +221,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     }
   }
 
-  private onLabUpdate(labId: string) {
-    if (labId && this.lookup.has(labId)) {
-      void this.fetchSingle(labId);
+  private onLabUpdate(data: DataResponse<LabUpdateOut>) {
+    if (data.payload.labId && this.lookup.has(data.payload.labId)) {
+      void this.fetchSingle(data.payload.labId);
     } else {
       void this.fetch();
     }

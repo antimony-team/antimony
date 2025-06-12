@@ -23,6 +23,7 @@ export enum ErrorCodes {
   /*
    * Errors that the server returns from socket requests.
    */
+  ErrorAntimony = 5000,
   ErrorContainerlab = 5001,
   ErrorLabIsDeploying = 5002,
   ErrorLabNotRunning = 5003,

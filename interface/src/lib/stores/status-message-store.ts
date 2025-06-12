@@ -14,6 +14,7 @@ import {
   StatusMessage,
   StatusMessageOut,
 } from '@sb/types/domain/status-message';
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 
 export class StatusMessageStore {
   protected rootStore: RootStore;
@@ -39,8 +40,8 @@ export class StatusMessageStore {
   }
 
   @action
-  private handleMessage(messageOut: StatusMessageOut) {
-    const message = StatusMessageStore.parseMessage(messageOut, false);
+  private handleMessage(data: DataResponse<StatusMessageOut>) {
+    const message = StatusMessageStore.parseMessage(data.payload, false);
     this.lookup.set(message.id, message);
 
     this.countBySeverity.set(
