@@ -35,7 +35,7 @@ func CreateHandler(userService Service) Handler {
 // @Failure	400		{object}	nil				"The provided credentials were invalid"
 // @Failure	401		{object}	nil				"Authentication via native login is disabled"
 // @Param		request	body		CredentialsIn	true	"The native credentials"
-// @Router		/users/login/native [get]
+// @Router		/users/login/native [post]
 func (h *userHandler) LoginNative(ctx *gin.Context) {
 	payload := CredentialsIn{}
 	if err := ctx.Bind(&payload); err != nil {

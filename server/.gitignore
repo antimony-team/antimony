@@ -30,11 +30,12 @@ go.work.sum
 # Testing files
 antimony.db
 .db/
-/storage/
 
+storage/
+run/
 build/
-#run directory
-run
 docker/
 
 config.yml
+
+coverage/

@@ -9,7 +9,7 @@
         },
         "version": "1.0"
     },
-    "basePath": "/api/v1",
+    "basePath": "/",
     "paths": {
         "/collections": {
             "get": {
@@ -866,7 +866,7 @@
             }
         },
         "/users/login/native": {
-            "get": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
