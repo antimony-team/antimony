@@ -15,6 +15,11 @@ type mockAuthManager struct {
 	mock.Mock
 }
 
+func (m *mockAuthManager) GetAuthConfig() auth.AuthConfig {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *mockAuthManager) Init(config *config.AntimonyConfig) {
 	m.Called(config)
 }

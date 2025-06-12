@@ -2,6 +2,7 @@ package lab
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/statusMessage"
@@ -92,10 +93,14 @@ func (m *MockDeploymentProvider) InspectAll(ctx context.Context) (deployment.Ins
 	args := m.Called(ctx)
 	return args.Get(0).(deployment.InspectOutput), args.Error(1)
 }
+func (m *MockDeploymentProvider) RestartNode(ctx context.Context, containerId string) error {
+	args := m.Called(ctx, containerId)
+	return args.Error(0)
+}
 
 func (m *MockDeploymentProvider) OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error) {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(ctx, containerId)
+	return args.Get(0).(io.ReadWriteCloser), args.Error(1)
 }
 
 func (m *MockDeploymentProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
@@ -104,18 +109,13 @@ func (m *MockDeploymentProvider) RegisterListener(ctx context.Context, onUpdate 
 }
 
 func (m *MockDeploymentProvider) StartNode(ctx context.Context, containerId string) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(ctx, containerId)
+	return args.Error(0)
 }
 
 func (m *MockDeploymentProvider) StopNode(ctx context.Context, containerId string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockDeploymentProvider) RestartNode(ctx context.Context, containerId string) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(ctx, containerId)
+	return args.Error(0)
 }
 
 func (m *MockDeploymentProvider) Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error)) {
@@ -545,6 +545,7 @@ func TestInitSchedule(t *testing.T) {
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[string]{},
 				labDeploymentSchedule:  mockDeploymentSchedule,
+				labDestructionSchedule: &emptySchedule{},
 				instances:              make(map[string]*Instance),
 				instancesMutex:         sync.Mutex{},
 				topologyRepo:           mockTopologyRepo,
@@ -1731,6 +1732,270 @@ func TestHandleLabCommand(t *testing.T) {
 			case "stop node returns error", "start node returns error":
 				assert.Equal(t, 5006, receivedErr.Code)
 				assert.Equal(t, utils.ErrorNodeNotFound.Error(), receivedErr.Message)
+			}
+		})
+	}
+}
+
+type mockReadWriteCloser struct{}
+
+func (m *mockReadWriteCloser) Read(p []byte) (n int, err error) {
+	return 0, io.EOF
+}
+
+func (m *mockReadWriteCloser) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (m *mockReadWriteCloser) Close() error {
+	return nil
+}
+
+func TestHandleNewLabCommands(t *testing.T) {
+	type fields struct {
+		labRepo       *mockLabRepo
+		deployment    *MockDeploymentProvider
+		socketManager antimonySocket.SocketManager
+	}
+	type args struct {
+		cmd      LabCommand
+		labId    string
+		authUser *auth.AuthenticatedUser
+		node     *string
+		shellId  *string
+	}
+
+	realSocketManager := antimonySocket.CreateSocketManager(nil)
+
+	tests := []struct {
+		name      string
+		setup     func(f *fields, a *args)
+		expectOK  bool
+		expectErr bool
+	}{
+		{
+			name: "restart node fails when node is nil",
+			setup: func(f *fields, a *args) {
+				a.cmd = restartNodeCommand
+				a.labId = "lab123"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123", IsAdmin: false}
+			},
+			expectOK:  false,
+			expectErr: true,
+		},
+		{
+			name: "restart node succeeds",
+			setup: func(f *fields, a *args) {
+				a.cmd = restartNodeCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123", IsAdmin: false, Collections: []string{"col1"}}
+				a.node = lo.ToPtr("node1")
+
+				f.labRepo.On("GetByUuid", mock.Anything, "lab12").
+					Return(&Lab{
+						UUID:    "lab12",
+						Creator: user.User{UUID: "user123"},
+						Topology: topology.Topology{
+							Collection: collection.Collection{UUID: "col1"},
+						},
+						InstanceName: lo.ToPtr("lab12-instance"),
+					}, nil)
+				f.deployment.On("Inspect", mock.Anything, "/tmp/topology.clab.yaml", mock.Anything).
+					Return(deployment.InspectOutput{
+						"lab12-instance": []deployment.InspectContainer{
+							{ContainerId: "abc123", Name: "node1"},
+						},
+					}, nil)
+
+				f.deployment.On("RestartNode", mock.Anything, "abc123").Return(nil)
+			},
+			expectOK:  true,
+			expectErr: false,
+		},
+
+		{
+			name: "open shell succeeds",
+			setup: func(f *fields, a *args) {
+				a.cmd = openShellCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123", IsAdmin: false, Collections: []string{"col1"}}
+				a.node = lo.ToPtr("node1")
+				a.shellId = lo.ToPtr("shell1")
+
+				f.labRepo.On("GetByUuid", mock.Anything, "lab12").
+					Return(&Lab{
+						UUID:    "lab12",
+						Creator: user.User{UUID: "user123"},
+						Topology: topology.Topology{
+							Collection: collection.Collection{UUID: "col1"},
+						},
+					}, nil)
+
+				f.deployment.On("OpenShell", mock.Anything, "abc123").Return(&mockReadWriteCloser{}, nil)
+			},
+			expectOK:  true,
+			expectErr: false,
+		},
+		{
+			name: "open shell fails when node is nil",
+			setup: func(f *fields, a *args) {
+				a.cmd = openShellCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123"}
+				a.shellId = lo.ToPtr("shell1")
+			},
+			expectOK:  false,
+			expectErr: true,
+		},
+		{
+			name: "fetch shells success",
+			setup: func(f *fields, a *args) {
+				a.cmd = fetchShellsCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123"}
+
+				f.labRepo.On("GetByUuid", mock.Anything, "lab12").
+					Return(&Lab{
+						UUID:    "lab12",
+						Creator: user.User{UUID: "user123"},
+						Topology: topology.Topology{
+							Collection: collection.Collection{UUID: "col1"},
+						},
+					}, nil)
+
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123", IsAdmin: false, Collections: []string{"col1"}}
+			},
+			expectOK:  true,
+			expectErr: false,
+		},
+		{
+			name: "fetch shells fails when labRepo returns error",
+			setup: func(f *fields, a *args) {
+				a.cmd = fetchShellsCommand
+				a.labId = "lab-error"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123", IsAdmin: false}
+
+				f.labRepo.On("GetByUuid", mock.Anything, "lab-error").Return(nil, errors.New("db error"))
+			},
+			expectOK:  false,
+			expectErr: true,
+		},
+		{
+			name: "fetch shells success",
+			setup: func(f *fields, a *args) {
+				a.cmd = fetchShellsCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123", IsAdmin: false, Collections: []string{"col1"}}
+
+				f.labRepo.On("GetByUuid", mock.Anything, "lab12").
+					Return(&Lab{
+						UUID:    "lab12",
+						Creator: user.User{UUID: "user123"},
+						Topology: topology.Topology{
+							Collection: collection.Collection{UUID: "col1"},
+						},
+					}, nil)
+			},
+			expectOK:  true,
+			expectErr: false,
+		},
+		{
+			name: "close shell fails when shell not found",
+			setup: func(f *fields, a *args) {
+				a.cmd = closeShellCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123"}
+				a.shellId = lo.ToPtr("nonexistent-shell")
+			},
+			expectOK:  false,
+			expectErr: true,
+		},
+		{
+			name: "close shell succeeds",
+			setup: func(f *fields, a *args) {
+				a.cmd = closeShellCommand
+				a.labId = "lab12"
+				a.authUser = &auth.AuthenticatedUser{UserId: "user123"}
+				a.shellId = lo.ToPtr("shell1")
+			},
+			expectOK:  true,
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fields{
+				labRepo:       &mockLabRepo{},
+				deployment:    &MockDeploymentProvider{},
+				socketManager: realSocketManager,
+			}
+			a := &args{}
+			tt.setup(f, a)
+
+			svc := &labService{
+				config: &config.AntimonyConfig{
+					Shell: config.ShellConfig{
+						UserLimit: 10,
+						Timeout:   60,
+					},
+				},
+				labRepo:                f.labRepo,
+				deploymentProvider:     f.deployment,
+				storageManager:         &mockStorageManager{},
+				topologyRepo:           &mockTopologyRepo{},
+				socketManager:          f.socketManager,
+				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
+				labUpdatesNamespace:    &fakeNamespace[string]{},
+				labDeploymentSchedule:  &mockSchedule{},
+				labDestructionSchedule: &mockSchedule{},
+				shellCommandsNamespace: &fakeNamespace[ShellCommandData]{},
+				instances: map[string]*Instance{
+					"lab12": {
+						LogNamespace: &fakeNamespace[string]{},
+						Mutex:        sync.Mutex{},
+						TopologyFile: "/tmp/topology.clab.yaml",
+						Nodes: []InstanceNode{
+							{Name: "node1", ContainerId: "abc123"},
+						},
+						State: InstanceStates.Running,
+					},
+				},
+				openShells: make(map[string]*ShellConfig),
+			}
+
+			// Pre-populate openShells for closeShellCommand test
+			if tt.name == "close shell succeeds" {
+				svc.openShells[*a.shellId] = &ShellConfig{
+					Owner:            a.authUser,
+					LabId:            a.labId,
+					Node:             "node1",
+					Connection:       &mockReadWriteCloser{},
+					ConnectionCancel: func() {},
+				}
+			}
+
+			var okCalled, errCalled bool
+			svc.handleLabCommand(context.Background(), &LabCommandData{
+				LabId:   &a.labId,
+				Command: &a.cmd,
+				Node:    a.node,
+				ShellId: a.shellId,
+			}, a.authUser,
+				func(_ utils.OkResponse[any]) { okCalled = true },
+				func(_ utils.ErrorResponse) { errCalled = true },
+			)
+
+			t.Logf("okCalled=%v, errCalled=%v", okCalled, errCalled)
+			assert.Equal(t, tt.expectOK, okCalled, "okCallback should match expected")
+			assert.Equal(t, tt.expectErr, errCalled, "errCallback should match expected")
+
+			// Extra verify closeShellCommand
+			if tt.name == "close shell succeeds" {
+				svc.openShellsMutex.Lock()
+				_, exists := svc.openShells[*a.shellId]
+				svc.openShellsMutex.Unlock()
+				assert.False(t, exists, "Shell should be removed after closeShellCommand")
 			}
 		})
 	}

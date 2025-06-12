@@ -650,11 +650,13 @@ func (s *labService) deployLab(lab *Lab) error {
 	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
 
 	runTopologyFile, _, err := s.createLabEnvironment(lab)
+
 	instance := s.createInstance(logNamespace, runTopologyFile)
+	s.instances[lab.UUID] = instance
+	s.instancesMutex.Unlock()
 
 	if err != nil {
 		log.Errorf("Failed to create lab environment for lab '%s': %s", lab.Name, err)
-
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
 			fmt.Sprintf("Failed to create environment for lab '%s' (%s)", lab.Name, lab.Topology.Name),
@@ -663,9 +665,6 @@ func (s *labService) deployLab(lab *Lab) error {
 		s.setTopologyDeployStatus(*lab, false)
 		return utils.ErrorAntimony
 	}
-
-	s.instances[lab.UUID] = instance
-	s.instancesMutex.Unlock()
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
@@ -982,7 +981,6 @@ func (s *labService) handleLabCommand(
 	case LabCommands.FetchShells:
 		if shells, err := s.fetchShellsCommand(ctx, *data.LabId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
-			return
 		} else {
 			onResponse(utils.CreateSocketOkResponse[any](shells))
 		}
@@ -990,7 +988,6 @@ func (s *labService) handleLabCommand(
 	case LabCommands.OpenShell:
 		if shellId, err := s.openShellCommand(ctx, *data.LabId, data.Node, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
-			return
 		} else {
 			onResponse(utils.CreateSocketOkResponse[any](shellId))
 		}
@@ -998,6 +995,7 @@ func (s *labService) handleLabCommand(
 	case LabCommands.CloseShell:
 		if err := s.closeShellCommand(data.ShellId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
+			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 	default:
