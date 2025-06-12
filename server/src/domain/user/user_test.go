@@ -5,10 +5,13 @@ import (
 	"antimonyBackend/config"
 	"context"
 	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 type mockAuthManager struct {
@@ -16,7 +19,6 @@ type mockAuthManager struct {
 }
 
 func (m *mockAuthManager) GetAuthConfig() auth.AuthConfig {
-	//TODO implement me
 	panic("implement me")
 }
 
@@ -118,7 +120,7 @@ func TestAuthenticateWithCode(t *testing.T) {
 						mapper := args.Get(1).(func(string, string) (string, error))
 						uuid, err := mapper("sub123", "John")
 						assert.NotEmpty(t, uuid)
-						assert.NoError(t, err)
+						require.NoError(t, err)
 					}).
 					Return(&auth.AuthenticatedUser{UserId: "uuid-123"}, nil)
 
@@ -145,7 +147,7 @@ func TestAuthenticateWithCode(t *testing.T) {
 						mapper := args.Get(1).(func(string, string) (string, error))
 						uuid, err := mapper("sub123", "John")
 						assert.Equal(t, "uuid-123", uuid)
-						assert.NoError(t, err)
+						require.NoError(t, err)
 					}).
 					Return(&auth.AuthenticatedUser{UserId: "uuid-123"}, nil)
 				mRepo.On("GetByUuid", mock.Anything, "00000000-0000-0000-0000-00000000000").
@@ -204,9 +206,9 @@ func TestAuthenticateWithCode(t *testing.T) {
 			authToken, accessToken, err := svc.AuthenticateWithCode(&gin.Context{}, "authCode123")
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, "auth-token", authToken)
 				assert.Equal(t, "access-token", accessToken)
 			}

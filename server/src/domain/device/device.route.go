@@ -2,6 +2,7 @@ package device
 
 import (
 	"antimonyBackend/auth"
+
 	"github.com/gin-gonic/gin"
 )
 

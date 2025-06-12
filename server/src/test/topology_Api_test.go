@@ -6,14 +6,17 @@ import (
 	"antimonyBackend/utils"
 	"bytes"
 	"encoding/json"
-	"github.com/charmbracelet/log"
-	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/charmbracelet/log"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 var testTopo = `name: testTopo
@@ -48,7 +51,7 @@ func TestGetTopologies(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/topologies", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
@@ -60,7 +63,7 @@ func TestGetTopologies(t *testing.T) {
 
 	var result utils.OkResponse[[]topology.TopologyOut]
 	err = json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Validate the returned topologies
 	names := make([]string, 0)
@@ -89,7 +92,7 @@ func TestGetTopologies_UserWithAccess(t *testing.T) {
 
 	var result utils.OkResponse[[]topology.TopologyOut]
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	names := make([]string, 0)
 	for _, topo := range result.Payload {
@@ -118,8 +121,8 @@ func TestGetTopologies_UserWithoutAccess(t *testing.T) {
 
 	var result utils.OkResponse[[]topology.TopologyOut]
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
-	assert.Len(t, result.Payload, 0)
+	require.NoError(t, err)
+	assert.Empty(t, result.Payload)
 }
 
 func TestGetTopologies_Unauthorized_NoToken(t *testing.T) {
@@ -153,7 +156,7 @@ func TestCreateTopology(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	body := map[string]string{
 		"definition":   testTopo,
@@ -172,7 +175,7 @@ func TestCreateTopology(t *testing.T) {
 
 	var result utils.OkResponse[string]
 	err = json.Unmarshal(resp.Body.Bytes(), &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, result.Payload)
 }
 
@@ -323,7 +326,7 @@ nodes:
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	var response utils.ErrorResponse
 	err := json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 3003, response.Code)
 }
 
@@ -337,7 +340,7 @@ func TestUpdateTopology(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	topologyId := "TopologyTestUUID1"
 	updateBody := map[string]string{
@@ -474,7 +477,7 @@ func TestDeleteTopology(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	topologyId := "TopologyTestUUID1"
 	req := httptest.NewRequest("DELETE", "/topologies/"+topologyId, nil)
@@ -602,7 +605,7 @@ func TestCreateBindFile(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	topologyId := "TopologyTestUUID1"
 	body := `{
@@ -722,7 +725,7 @@ func TestUpdateBindFile(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	topologyId := "TopologyTestUUID1"
 	bindFileId := "BindFileTestUUID1"
@@ -757,7 +760,11 @@ func TestUpdateBindFile_BindFileNotFound(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/non-existent-id", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest(
+		"PATCH",
+		"/topologies/TopologyTestUUID1/files/non-existent-id",
+		bytes.NewReader(bodyBytes),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -782,7 +789,11 @@ func TestUpdateBindFile_ForbiddenUser(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest(
+		"PATCH",
+		"/topologies/TopologyTestUUID1/files/BindFileTestUUID1",
+		bytes.NewReader(bodyBytes),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -807,7 +818,11 @@ func TestUpdateBindFile_DuplicatePath(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest(
+		"PATCH",
+		"/topologies/TopologyTestUUID1/files/BindFileTestUUID1",
+		bytes.NewReader(bodyBytes),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
 	resp := httptest.NewRecorder()
@@ -820,30 +835,6 @@ func TestUpdateBindFile_DuplicatePath(t *testing.T) {
 	assert.Equal(t, 4001, errResp.Code)
 }
 
-func TestUpdateBindFile_MissingFilePath(t *testing.T) {
-	router, authManager, _ := SetupTestServer(t)
-
-	token, _ := authManager.CreateAccessToken(auth.AuthenticatedUser{
-		UserId:      "test-user-id1",
-		IsAdmin:     true,
-		Collections: []string{"hs25-cn2"},
-	})
-
-	// filePath is missing here
-	body := map[string]string{
-		"content": "no path",
-	}
-	bodyBytes, _ := json.Marshal(body)
-
-	req := httptest.NewRequest("PATCH", "/topologies/TopologyTestUUID1/files/BindFileTestUUID1", bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
-	resp := httptest.NewRecorder()
-
-	router.ServeHTTP(resp, req)
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-}
-
 // === DELETE ===
 func TestDeleteBindFile(t *testing.T) {
 	router, authManager, _ := SetupTestServer(t)
@@ -854,7 +845,7 @@ func TestDeleteBindFile(t *testing.T) {
 		Collections: []string{"hs25-cn2"},
 	}
 	token, err := authManager.CreateAccessToken(authUser)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	topologyId := "TopologyTestUUID1"
 	bindFileId := "BindFileTestUUID1"

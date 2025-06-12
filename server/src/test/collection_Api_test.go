@@ -6,10 +6,13 @@ import (
 	"antimonyBackend/utils"
 	"bytes"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // === GET ===
@@ -22,7 +25,7 @@ func TestGetCollections(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Create a GET request with the token as a cookie
 	req, _ := http.NewRequest("GET", "/collections", nil)
@@ -38,7 +41,8 @@ func TestGetCollections(t *testing.T) {
 
 	var response utils.OkResponse[[]collection.CollectionOut]
 	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, len(response.Payload), 1)
 
@@ -65,7 +69,7 @@ func TestGetCollections_NoAccess_ReturnsEmpty(t *testing.T) {
 		IsAdmin:     false,
 		Collections: []string{},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	req, _ := http.NewRequest("GET", "/collections", nil)
 	req.AddCookie(&http.Cookie{
@@ -80,10 +84,10 @@ func TestGetCollections_NoAccess_ReturnsEmpty(t *testing.T) {
 
 	var response utils.OkResponse[[]collection.CollectionOut]
 	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// ✅ Expect no collections returned
-	assert.Len(t, response.Payload, 0)
+	assert.Empty(t, response.Payload)
 }
 
 func TestGetCollections_Unauthorized(t *testing.T) {
@@ -96,8 +100,6 @@ func TestGetCollections_Unauthorized(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, resp.Code)
 }
-
-//forbidden not testable
 
 func TestGetCollections_InvalidToken(t *testing.T) {
 	router, _, _ := SetupTestServer(t)
@@ -124,7 +126,7 @@ func TestCreateCollection(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	name := "test-create"
 	publicWrite := true
@@ -148,7 +150,7 @@ func TestCreateCollection(t *testing.T) {
 
 	var response utils.OkResponse[string]
 	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, response.Payload)
 }
 
@@ -160,7 +162,7 @@ func TestCreateCollection_Unauthorized(t *testing.T) {
 		IsAdmin:     false,           // <--- Key part
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	name := "should-fail"
 	publicWrite := false
@@ -192,7 +194,7 @@ func TestCreateCollection_DuplicateName(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	name := "hidden-group"
 	newCollection := collection.CollectionIn{Name: &name} // Already exists
 	payload, _ := json.Marshal(newCollection)
@@ -265,7 +267,7 @@ func TestUpdateCollection_DuplicateName(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	name := "update-source"
 	publicWrite := true
 	publicDeploy := true
@@ -305,7 +307,7 @@ func TestUpdateCollection(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Create
 	name := "test-update"
@@ -356,7 +358,7 @@ func TestUpdateCollection_InvalidID(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	name := "nonexistent"
 	update := collection.CollectionIn{Name: &name}
 	body, _ := json.Marshal(update)
@@ -444,7 +446,7 @@ func TestUpdateCollection_BadInput(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Intentionally malformed JSON
 	badJSON := []byte(`{"name": "valid", "publicWrite": tru`)
@@ -468,7 +470,7 @@ func TestDeleteCollection(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	name := "test-delete"
 	publicWrite := true
@@ -507,7 +509,7 @@ func TestDeleteCollection_NotFound(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	req, _ := http.NewRequest("DELETE", "/collections/not-found-id", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
@@ -550,7 +552,7 @@ func TestDeleteCollection_Forbidden(t *testing.T) {
 	})
 	var target collection.Collection
 	err := db.Where("name = ?", "hidden-group").First(&target).Error
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Try to delete a known collection created by someone else
 	req, _ := http.NewRequest("DELETE", "/collections/"+target.UUID, nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})

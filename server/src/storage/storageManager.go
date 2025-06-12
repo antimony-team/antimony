@@ -4,11 +4,12 @@ import (
 	"antimonyBackend/config"
 	"antimonyBackend/utils"
 	"fmt"
-	"github.com/charmbracelet/log"
-	cp "github.com/otiai10/copy"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/charmbracelet/log"
+	cp "github.com/otiai10/copy"
 )
 
 type (
@@ -46,12 +47,16 @@ func CreateStorageManager(config *config.AntimonyConfig) StorageManager {
 	}
 
 	storageManager.setupDirectories()
-	//storageManager.preloadFiles(config)
 
 	return storageManager
 }
 
-func (s *storageManager) CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error {
+func (s *storageManager) CreateRunEnvironment(
+	topologyId string,
+	labId string,
+	topologyDefinition string,
+	topologyFilePath *string,
+) error {
 	absoluteStoragePath := filepath.Join(s.storagePath, topologyId)
 	absoluteRunPath := filepath.Join(s.runPath, labId)
 
@@ -106,7 +111,7 @@ func (s *storageManager) DeleteRunEnvironment(labId string) error {
 func (s *storageManager) setupDirectories() {
 	if _, err := os.ReadDir(s.storagePath); err != nil || !utils.IsDirectoryWritable(s.storagePath) {
 		log.Info("Storage directory not found. Creating.", "dir", s.storagePath)
-		if err = os.MkdirAll(s.storagePath, 0755); err != nil {
+		if err = os.MkdirAll(s.storagePath, 0750); err != nil {
 			log.Fatal("Storage directory is not accessible. Exiting.", "dir", s.storagePath)
 			return
 		}
@@ -114,38 +119,11 @@ func (s *storageManager) setupDirectories() {
 
 	if _, err := os.ReadDir(s.runPath); err != nil || !utils.IsDirectoryWritable(s.runPath) {
 		log.Info("Run directory not found. Creating.", "dir", s.runPath)
-		if err = os.MkdirAll(s.runPath, 0755); err != nil {
+		if err = os.MkdirAll(s.runPath, 0750); err != nil {
 			log.Fatal("Run directory is not accessible. Exiting.", "dir", s.runPath)
 			return
 		}
 	}
-}
-
-func (s *storageManager) preloadFiles() {
-	files, err := os.ReadDir(s.storagePath)
-	if err != nil {
-		return
-	}
-
-	if len(files) == 0 {
-		log.Info("No files to preload. Skipping.")
-		return
-	} else {
-		log.Info("Preloading files from storage.", "files", len(files))
-	}
-
-	preloadCount := 0
-	for _, e := range files {
-		var content string
-		if err := s.read(e.Name(), &content); err != nil {
-			filePath := filepath.Join(s.storagePath, e.Name())
-			log.Warnf("Failed to preload storage file '%s': %s", filePath, err.Error())
-			continue
-		}
-		preloadCount++
-	}
-
-	log.Info("Successfully preloaded files from storage.", "files", fmt.Sprintf("%d/%d", preloadCount, len(files)))
 }
 
 func (s *storageManager) writeStorage(relativeFilePath string, content string) error {
@@ -184,12 +162,13 @@ func (s *storageManager) read(absoluteFilePath string, content *string) error {
 
 func (s *storageManager) write(absoluteFilePath string, content string) error {
 	if _, err := os.ReadDir(filepath.Dir(absoluteFilePath)); err != nil {
-		if err = os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
-			return utils.ErrorFileStorage
+		if err = os.MkdirAll(filepath.Dir(absoluteFilePath), 0750); err != nil {
+			return utils.ErrFileStorage
 		}
 	}
 
-	return os.WriteFile(absoluteFilePath, ([]byte)(content), 0755)
+	//nolint:gosec // We need this file to be accessible
+	return os.WriteFile(absoluteFilePath, ([]byte)(content), 0750)
 }
 
 func (s *storageManager) delete(absolutePath string) error {

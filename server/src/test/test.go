@@ -15,22 +15,22 @@ import (
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"context"
-	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 	"io"
-	"log"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/log"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func ptr(t time.Time) *time.Time { return &t }
 
+//nolint:funlen
 func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
-	//db.Exec("DROP TABLE IF EXISTS collections,labs,status_messages,topologies,user_status_messages,users,bind_files")
-
 	user1 := user.User{
 		UUID: "test-user-id1",
 		Sub:  "doesntmatter",
@@ -176,7 +176,6 @@ func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
 		TopologyDefinition: &emptyString,
 	}
 	db.Create(&lab2)
-
 }
 
 const cvx03 = `name: ctd
@@ -253,16 +252,28 @@ func addAuthenticatedUsers(authManager auth.AuthManager) {
 		IsAdmin:     true,
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
+	if err != nil {
+		return
+	}
+
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      "test-user-id2",
 		IsAdmin:     true,
 		Collections: []string{},
 	})
+	if err != nil {
+		return
+	}
+
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      "test-user-id3",
 		IsAdmin:     false,
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
+	if err != nil {
+		return
+	}
+
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      "test-user-id4",
 		IsAdmin:     false,
@@ -275,7 +286,11 @@ func addAuthenticatedUsers(authManager auth.AuthManager) {
 
 type MockDeploymentProvider struct{}
 
-func (p *MockDeploymentProvider) Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error) {
+func (p *MockDeploymentProvider) Deploy(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(data string),
+) (*string, error) {
 	output := "Mock Deploy called"
 	if onLog != nil {
 		onLog(output)
@@ -283,7 +298,11 @@ func (p *MockDeploymentProvider) Deploy(ctx context.Context, topologyFile string
 	return &output, nil
 }
 
-func (p *MockDeploymentProvider) Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error) {
+func (p *MockDeploymentProvider) Redeploy(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(data string),
+) (*string, error) {
 	output := "Mock Redeploy called"
 	if onLog != nil {
 		onLog(output)
@@ -291,7 +310,11 @@ func (p *MockDeploymentProvider) Redeploy(ctx context.Context, topologyFile stri
 	return &output, nil
 }
 
-func (p *MockDeploymentProvider) Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error) {
+func (p *MockDeploymentProvider) Destroy(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(data string),
+) (*string, error) {
 	output := "Mock Destroy called"
 	if onLog != nil {
 		onLog(output)
@@ -299,7 +322,11 @@ func (p *MockDeploymentProvider) Destroy(ctx context.Context, topologyFile strin
 	return &output, nil
 }
 
-func (p *MockDeploymentProvider) Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (output deployment.InspectOutput, err error) {
+func (p *MockDeploymentProvider) Inspect(
+	ctx context.Context,
+	topologyFile string,
+	onLog func(data string),
+) (deployment.InspectOutput, error) {
 	// Return empty output and nil error as mock
 	return deployment.InspectOutput{}, nil
 }
@@ -308,7 +335,13 @@ func (p *MockDeploymentProvider) InspectAll(ctx context.Context) (deployment.Ins
 	return deployment.InspectOutput{}, nil
 }
 
-func (p *MockDeploymentProvider) Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error)) {
+func (p *MockDeploymentProvider) Exec(
+	ctx context.Context,
+	topologyFile string,
+	content string,
+	onLog func(data string),
+	onDone func(output *string, err error),
+) {
 	if onLog != nil {
 		onLog("Mock Exec called")
 	}
@@ -318,7 +351,14 @@ func (p *MockDeploymentProvider) Exec(ctx context.Context, topologyFile string, 
 	}
 }
 
-func (p *MockDeploymentProvider) ExecOnNode(ctx context.Context, topologyFile string, content string, nodeLabel string, onLog func(data string), onDone func(output *string, err error)) {
+func (p *MockDeploymentProvider) ExecOnNode(
+	ctx context.Context,
+	topologyFile string,
+	content string,
+	nodeLabel string,
+	onLog func(data string),
+	onDone func(output *string, err error),
+) {
 	if onLog != nil {
 		onLog("Mock ExecOnNode called")
 	}
@@ -330,6 +370,7 @@ func (p *MockDeploymentProvider) ExecOnNode(ctx context.Context, topologyFile st
 
 func (p *MockDeploymentProvider) OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error) {
 	// Return nil or a dummy ReadWriteCloser if needed.
+	//nolint:nilnil // This is a mock
 	return nil, nil
 }
 
@@ -350,7 +391,12 @@ func (p *MockDeploymentProvider) RegisterListener(ctx context.Context, onUpdate 
 	return nil
 }
 
-func (p *MockDeploymentProvider) StreamContainerLogs(ctx context.Context, topologyFile string, containerId string, onLog func(data string)) error {
+func (p *MockDeploymentProvider) StreamContainerLogs(
+	ctx context.Context,
+	topologyFile string,
+	containerId string,
+	onLog func(data string),
+) error {
 	if onLog != nil {
 		onLog("Mock log line")
 	}
@@ -361,8 +407,8 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	gin.SetMode(gin.TestMode)
 
 	// Set environment variables
-	_ = os.Setenv("SB_NATIVE_USERNAME", "testuser")
-	_ = os.Setenv("SB_NATIVE_PASSWORD", "testpass")
+	t.Setenv("SB_NATIVE_USERNAME", "testuser")
+	t.Setenv("SB_NATIVE_PASSWORD", "testpass")
 
 	storageDir := t.TempDir()
 	runDir := t.TempDir()
@@ -379,9 +425,9 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 		},
 		Auth: config.AuthConfig{
 			EnableNative:      true,
-			EnableOpenId:      false,
+			EnableOpenID:      false,
 			OpenIdIssuer:      "",
-			OpenIdClientId:    "",
+			OpenIdClientID:    "",
 			OpenIdAdminGroups: []string{},
 		},
 	}
@@ -392,7 +438,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	// Step 4: Setup in-memory DB
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = db.AutoMigrate(
 		&user.User{},
@@ -401,7 +447,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 		&topology.BindFile{},
 		&lab.Lab{},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Seed test data
 	GenerateTestData(db, storageManager)
@@ -443,11 +489,15 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	addAuthenticatedUsers(authManager)
 
-	authManager.RegisterTestUser(auth.AuthenticatedUser{
+	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
 		UserId:      auth.NativeUserID,
 		IsAdmin:     true,
 		Collections: []string{"hidden-group", "fs25-cldinf", "fs25-nisec", "hs25-cn1", "hs25-cn2"},
 	})
+
+	if err != nil {
+		log.Fatalf("Failed to register test user")
+	}
 
 	// Setup Gin + register routes with real middleware
 	router := gin.Default()

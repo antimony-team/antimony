@@ -2,9 +2,10 @@ package socket
 
 import (
 	"antimonyBackend/auth"
+	"sync"
+
 	"github.com/samber/lo"
 	socketio "github.com/zishang520/socket.io/socket"
-	"sync"
 )
 
 type (

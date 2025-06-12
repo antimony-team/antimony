@@ -3,6 +3,7 @@ package lab
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,7 +37,11 @@ func CreateHandler(labService Service) Handler {
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
 // @Router		/labs [get]
 func (h *labHandler) Get(ctx *gin.Context) {
-	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+	}
+
 	var labFilter LabFilter
 	if err := ctx.BindQuery(&labFilter); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
@@ -63,7 +68,10 @@ func (h *labHandler) Get(ctx *gin.Context) {
 // @Failure	404	{object}	utils.ErrorResponse	"The requested lab was not found."
 // @Router		/labs/:labId [get]
 func (h *labHandler) GetByUuid(ctx *gin.Context) {
-	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+	}
 
 	result, err := h.labService.GetByUuid(ctx, ctx.Param("labId"), authUser)
 	if err != nil {
@@ -86,13 +94,17 @@ func (h *labHandler) GetByUuid(ctx *gin.Context) {
 // @Param		request	body		lab.LabIn					true	"The lab"
 // @Router		/labs [post]
 func (h *labHandler) Create(ctx *gin.Context) {
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+	}
+
 	payload := LabIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
 	}
 
-	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	result, err := h.labService.Create(ctx, payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
@@ -116,13 +128,17 @@ func (h *labHandler) Create(ctx *gin.Context) {
 // @Param		id		path		string				true	"The ID of the lab to edit"
 // @Router		/labs/{id} [put]
 func (h *labHandler) Update(ctx *gin.Context) {
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+	}
+
 	payload := LabInPartial{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
 	}
 
-	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if err := h.labService.Update(ctx, payload, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -143,7 +159,11 @@ func (h *labHandler) Update(ctx *gin.Context) {
 // @Param		id	path		string				true	"The ID of the lab to delete"
 // @Router		/labs/{id} [delete]
 func (h *labHandler) Delete(ctx *gin.Context) {
-	authUser := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+	}
+
 	if err := h.labService.Delete(ctx, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return

@@ -1048,10 +1048,12 @@ const docTemplate = `{
         "deployment.NodeState": {
             "type": "string",
             "enum": [
-                "running"
+                "running",
+                "exited"
             ],
             "x-enum-varnames": [
-                "running"
+                "running",
+                "exited"
             ]
         },
         "device.DeviceConfig": {

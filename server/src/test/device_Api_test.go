@@ -5,10 +5,13 @@ import (
 	"antimonyBackend/domain/device"
 	"antimonyBackend/utils"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // === GET ===
@@ -20,7 +23,7 @@ func TestGetDevices_Success(t *testing.T) {
 		IsAdmin:     true,
 		Collections: []string{},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	req, _ := http.NewRequest("GET", "/devices", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token})
@@ -32,7 +35,7 @@ func TestGetDevices_Success(t *testing.T) {
 
 	var response utils.OkResponse[[]device.DeviceConfig]
 	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, response.Payload, "Expected at least one device config in payload")
 }
 

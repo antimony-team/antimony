@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"errors"
+
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +33,7 @@ func CreateService(userRepo Repository, authManager auth.AuthManager) Service {
 		authManager: authManager,
 	}
 
-	if _, err := userRepo.GetByUuid(context.Background(), auth.NativeUserID); errors.Is(err, utils.ErrorUuidNotFound) {
+	if _, err := userRepo.GetByUuid(context.Background(), auth.NativeUserID); errors.Is(err, utils.ErrUuidNotFound) {
 		nativeUser := &User{
 			UUID: auth.NativeUserID,
 			Sub:  "Admin",
@@ -68,33 +69,36 @@ func (s *userService) GetAuthCodeURL(stateToken string) (string, error) {
 }
 
 func (s *userService) AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error) {
-	authUser, err := s.authManager.AuthenticateWithCode(authCode, func(userSub string, userProfile string) (string, error) {
-		var (
-			user       *User
-			userExists bool
-			err        error
-		)
+	authUser, err := s.authManager.AuthenticateWithCode(
+		authCode,
+		func(userSub string, userProfile string) (string, error) {
+			var (
+				user       *User
+				userExists bool
+				err        error
+			)
 
-		if user, userExists, err = s.userRepo.GetBySub(ctx, userSub); err != nil {
-			return "", err
-		}
-
-		if !userExists {
-			// Create the user if not registered yet
-			user = &User{
-				UUID: utils.GenerateUuid(),
-				Sub:  userSub,
-				Name: userProfile,
+			if user, userExists, err = s.userRepo.GetBySub(ctx, userSub); err != nil {
+				return "", err
 			}
-			err = s.userRepo.Create(ctx, user)
-		} else {
-			// Update the name of the user in case it has changed
-			user.Name = userProfile
-			err = s.userRepo.Update(ctx, user)
-		}
 
-		return user.UUID, err
-	})
+			if !userExists {
+				// Create the user if not registered yet
+				user = &User{
+					UUID: utils.GenerateUuid(),
+					Sub:  userSub,
+					Name: userProfile,
+				}
+				err = s.userRepo.Create(ctx, user)
+			} else {
+				// Update the name of the user in case it has changed
+				user.Name = userProfile
+				err = s.userRepo.Update(ctx, user)
+			}
+
+			return user.UUID, err
+		},
+	)
 	if err != nil {
 		return "", "", err
 	}

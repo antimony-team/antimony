@@ -6,9 +6,10 @@ import (
 	"antimonyBackend/domain/user"
 	"antimonyBackend/socket"
 	"antimonyBackend/utils"
-	"gorm.io/gorm"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Lab struct {
@@ -26,9 +27,9 @@ type Lab struct {
 }
 
 type LabIn struct {
-	Name       *string    `json:"name" binding:"required"`
-	StartTime  *time.Time `json:"startTime" binding:"required"`
-	EndTime    *time.Time `json:"endTime" binding:"required"`
+	Name       *string    `json:"name"       binding:"required"`
+	StartTime  *time.Time `json:"startTime"  binding:"required"`
+	EndTime    *time.Time `json:"endTime"    binding:"required"`
 	TopologyId *string    `json:"topologyId" binding:"required"`
 }
 
@@ -48,7 +49,7 @@ type LabOut struct {
 	CollectionId       string       `json:"collectionId"`
 	Creator            user.UserOut `json:"creator"`
 	TopologyDefinition string       `json:"topologyDefinition"`
-	Instance           *InstanceOut `json:"instance,omitempty" extensions:"x-nullable"`
+	Instance           *InstanceOut `json:"instance,omitempty"     extensions:"x-nullable"`
 	InstanceName       *string      `json:"instanceName,omitempty" extensions:"x-nullable"`
 }
 

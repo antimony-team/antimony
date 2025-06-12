@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"os"
 	"os/exec"
+
+	"gopkg.in/yaml.v3"
 )
 
 type TopologyMeta struct {
@@ -22,7 +23,7 @@ func (p *ClabernetesProvider) Deploy(
 	onLog func(string),
 ) (*string, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c",
-		"clabverter -t '"+topologyFile+"' --stdout --naming non-prefixed | kubectl apply -f -")
+		"clabverter", "-t", topologyFile, "--stdout", "--naming", "non-prefixed", "| kubectl apply -f -")
 	return runClabCommandSync(cmd, onLog)
 }
 
@@ -77,7 +78,7 @@ func (p *ClabernetesProvider) Inspect(
 			} `json:"status"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(*raw), &result); err != nil {
+	if err = json.Unmarshal([]byte(*raw), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse pod list: %w", err)
 	}
 
@@ -98,10 +99,13 @@ func (p *ClabernetesProvider) Inspect(
 			Owner:       namespace,
 		})
 	}
-	return InspectOutput{}, nil
+	inspectOutput := make(map[string][]InspectContainer)
+	inspectOutput[topologyFile] = containers
+
+	return inspectOutput, nil
 }
 
-func (p *ClabernetesProvider) InspectAll( //not tested
+func (p *ClabernetesProvider) InspectAll(
 	ctx context.Context,
 ) (InspectOutput, error) {
 	/*cmd := exec.CommandContext(ctx, "kubectl", "get", "topology", "--all-namespaces", "-o", "json")
@@ -127,6 +131,7 @@ func (p *ClabernetesProvider) OpenShell(
 	ctx context.Context,
 	containerId string,
 ) (io.ReadWriteCloser, error) {
+	//nolint:nilnil // This is a mock function
 	return nil, nil
 }
 

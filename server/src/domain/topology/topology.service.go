@@ -6,12 +6,13 @@ import (
 	"antimonyBackend/domain/user"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"slices"
+	"strings"
+
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
-	"slices"
-	"strings"
 )
 
 type (
@@ -21,8 +22,18 @@ type (
 		Update(ctx *gin.Context, req TopologyInPartial, topologyId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
 
-		CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error)
-		UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileId string, authUser auth.AuthenticatedUser) error
+		CreateBindFile(
+			ctx *gin.Context,
+			topologyId string,
+			req BindFileIn,
+			authUser auth.AuthenticatedUser,
+		) (string, error)
+		UpdateBindFile(
+			ctx *gin.Context,
+			req BindFileInPartial,
+			bindFileId string,
+			authUser auth.AuthenticatedUser,
+		) error
 		DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error
 
 		LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error)
@@ -116,8 +127,9 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	}
 
 	// Deny request if user does not have access to the target collection
-	if !authUser.IsAdmin && (!topologyCollection.PublicWrite || !slices.Contains(authUser.Collections, topologyCollection.Name)) {
-		return "", utils.ErrorNoWriteAccessToCollection
+	if !authUser.IsAdmin &&
+		(!topologyCollection.PublicWrite || !slices.Contains(authUser.Collections, topologyCollection.Name)) {
+		return "", utils.ErrNoWriteAccessToCollection
 	}
 
 	if err := s.validateTopology(*req.Definition); err != nil {
@@ -129,7 +141,7 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, *req.CollectionId); err != nil {
 		return "", err
 	} else if len(topologies) > 0 {
-		return "", utils.ErrorTopologyExists
+		return "", utils.ErrTopologyExists
 	}
 
 	newUuid := utils.GenerateUuid()
@@ -139,7 +151,7 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 
 	creatorUser, err := s.userRepo.GetByUuid(ctx, authUser.UserId)
 	if err != nil {
-		return "", utils.ErrorUnauthorized
+		return "", utils.ErrUnauthorized
 	}
 
 	err = s.topologyRepo.Create(ctx, &Topology{
@@ -154,7 +166,12 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 	return newUuid, err
 }
 
-func (s *topologyService) Update(ctx *gin.Context, req TopologyInPartial, topologyId string, authUser auth.AuthenticatedUser) error {
+func (s *topologyService) Update(
+	ctx *gin.Context,
+	req TopologyInPartial,
+	topologyId string,
+	authUser auth.AuthenticatedUser,
+) error {
 	topology, err := s.topologyRepo.GetByUuid(ctx, topologyId)
 	if err != nil {
 		return err
@@ -162,12 +179,13 @@ func (s *topologyService) Update(ctx *gin.Context, req TopologyInPartial, topolo
 
 	// Deny request if user is not the owner of the requested topology or an admin
 	if !authUser.IsAdmin && authUser.UserId != topology.Creator.UUID {
-		return utils.ErrorNoWriteAccessToTopology
+		return utils.ErrNoWriteAccessToTopology
 	}
 
 	// Deny request if user does not have access to topology's collection
-	if !authUser.IsAdmin && (!topology.Collection.PublicWrite && !slices.Contains(authUser.Collections, topology.Collection.UUID)) {
-		return utils.ErrorNoWriteAccessToCollection
+	if !authUser.IsAdmin &&
+		(!topology.Collection.PublicWrite && !slices.Contains(authUser.Collections, topology.Collection.UUID)) {
+		return utils.ErrNoWriteAccessToCollection
 	}
 
 	topologyCollection := topology.Collection
@@ -180,8 +198,9 @@ func (s *topologyService) Update(ctx *gin.Context, req TopologyInPartial, topolo
 		}
 
 		// Deny change of collection if user does not have access to the new collection
-		if !authUser.IsAdmin && (!newCollection.PublicWrite && !slices.Contains(authUser.Collections, *req.CollectionId)) {
-			return utils.ErrorNoWriteAccessToCollection
+		if !authUser.IsAdmin &&
+			(!newCollection.PublicWrite && !slices.Contains(authUser.Collections, *req.CollectionId)) {
+			return utils.ErrNoWriteAccessToCollection
 		}
 
 		topologyCollection = *newCollection
@@ -200,7 +219,7 @@ func (s *topologyService) Update(ctx *gin.Context, req TopologyInPartial, topolo
 		if topologies, err := s.topologyRepo.GetByName(ctx, topologyName, topologyCollection.UUID); err != nil {
 			return err
 		} else if len(topologies) > 0 {
-			return utils.ErrorTopologyExists
+			return utils.ErrTopologyExists
 		}
 	}
 
@@ -228,13 +247,18 @@ func (s *topologyService) Delete(ctx *gin.Context, topologyId string, authUser a
 
 	// Deny request if user is not the owner of the requested topology or an admin
 	if !authUser.IsAdmin && authUser.UserId != topology.Creator.UUID {
-		return utils.ErrorNoWriteAccessToTopology
+		return utils.ErrNoWriteAccessToTopology
 	}
 
 	return s.topologyRepo.Delete(ctx, topology)
 }
 
-func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, req BindFileIn, authUser auth.AuthenticatedUser) (string, error) {
+func (s *topologyService) CreateBindFile(
+	ctx *gin.Context,
+	topologyId string,
+	req BindFileIn,
+	authUser auth.AuthenticatedUser,
+) (string, error) {
 	bindFileTopology, err := s.topologyRepo.GetByUuid(ctx, topologyId)
 	if err != nil {
 		return "", err
@@ -242,14 +266,14 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 
 	// Deny request if user does not have access to the owning topology
 	if !authUser.IsAdmin && bindFileTopology.Creator.UUID != authUser.UserId {
-		return "", utils.ErrorNoWriteAccessToBindFile
+		return "", utils.ErrNoWriteAccessToBindFile
 	}
 
 	// Don't allow duplicate bind file names within the same topology
 	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, ""); err != nil {
 		return "", err
 	} else if nameExists {
-		return "", utils.ErrorBindFileExists
+		return "", utils.ErrBindFileExists
 	}
 
 	if err := s.saveBindFile(topologyId, *req.FilePath, *req.Content); err != nil {
@@ -266,7 +290,12 @@ func (s *topologyService) CreateBindFile(ctx *gin.Context, topologyId string, re
 	return newUuid, err
 }
 
-func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial, bindFileUuid string, authUser auth.AuthenticatedUser) error {
+func (s *topologyService) UpdateBindFile(
+	ctx *gin.Context,
+	req BindFileInPartial,
+	bindFileUuid string,
+	authUser auth.AuthenticatedUser,
+) error {
 	bindFile, err := s.topologyRepo.GetBindFileByUuid(ctx, bindFileUuid)
 	if err != nil {
 		return err
@@ -279,7 +308,7 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial
 
 	// Deny request if user does not have access to the owning topology
 	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
-		return utils.ErrorNoWriteAccessToBindFile
+		return utils.ErrNoWriteAccessToBindFile
 	}
 
 	bindFilePath := bindFile.FilePath
@@ -289,10 +318,10 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial
 		if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
 			return err
 		} else if nameExists {
-			return utils.ErrorBindFileExists
+			return utils.ErrBindFileExists
 		}
 
-		// Delete old file if file path has changed
+		// Delete the old file if the file path has changed
 		if bindFile.FilePath != *req.FilePath {
 			if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
 				log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
@@ -300,8 +329,6 @@ func (s *topologyService) UpdateBindFile(ctx *gin.Context, req BindFileInPartial
 		}
 
 		bindFilePath = *req.FilePath
-	} else {
-		return utils.ErrorInvalidBindFilePath
 	}
 
 	var bindFileContent string
@@ -338,7 +365,7 @@ func (s *topologyService) DeleteBindFile(ctx *gin.Context, bindFileId string, au
 
 	// Deny request if user does not have access to the owning topology
 	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
-		return utils.ErrorNoWriteAccessToBindFile
+		return utils.ErrNoWriteAccessToBindFile
 	}
 
 	if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
@@ -352,7 +379,7 @@ func (s *topologyService) validateTopology(definition string) error {
 	var definitionObj any
 
 	if err := yaml.Unmarshal([]byte(definition), &definitionObj); err != nil {
-		return utils.ErrorInvalidTopology
+		return utils.ErrInvalidTopology
 	}
 
 	if err := s.schemaLoader.Validate(definitionObj); err != nil {

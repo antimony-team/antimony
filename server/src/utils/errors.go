@@ -5,55 +5,60 @@ import "errors"
 /*
  * Generic errors.
  */
-var ErrorAntimony = errors.New("the antimony server encountered an error. please check the logs")
-var ErrorContainerlab = errors.New("the containerlab subprocess encountered an error")
-var ErrorDatabaseError = errors.New("the antimony database encountered an error. please check the logs")
-var ErrorFileStorage = errors.New("the antimony storage service encountered an error. please check the logs")
-var ErrorOpenIDError = errors.New("failed to authenticate via openid connect")
+
+var ErrAntimony = errors.New("the antimony server encountered an error. please check the logs")
+var ErrContainerlab = errors.New("the containerlab subprocess encountered an error")
+var ErrDatabaseError = errors.New("the antimony database encountered an error. please check the logs")
+var ErrFileStorage = errors.New("the antimony storage service encountered an error. please check the logs")
+var ErrOpenIDError = errors.New("failed to authenticate via openid connect")
 
 /*
  * Not found errors.
  */
-var ErrorUuidNotFound = errors.New("the specified uuid was not found")
-var ErrorNodeNotFound = errors.New("the specified node was not found")
-var ErrorShellNotFound = errors.New("the provided shell id does not exist")
+
+var ErrUuidNotFound = errors.New("the specified uuid was not found")
+var ErrNodeNotFound = errors.New("the specified node was not found")
+var ErrShellNotFound = errors.New("the provided shell id does not exist")
 
 /*
  * Input processing errors.
  */
-var ErrorLabRunning = errors.New("modifications to a running lab are not allowed")
-var ErrorTopologyExists = errors.New("a topology with that name already exists in that collection")
-var ErrorBindFileExists = errors.New("a file with that path already exists for that topology")
-var ErrorCollectionExists = errors.New("a collection with that name already exists")
-var ErrorInvalidTopology = errors.New("the topology provided were invalid")
-var ErrorInvalidBindFilePath = errors.New("the provided bind file path was invalid")
+
+var ErrLabRunning = errors.New("modifications to a running lab are not allowed")
+var ErrTopologyExists = errors.New("a topology with that name already exists in that collection")
+var ErrBindFileExists = errors.New("a file with that path already exists for that topology")
+var ErrCollectionExists = errors.New("a collection with that name already exists")
+var ErrInvalidTopology = errors.New("the topology provided were invalid")
+var ErrInvalidBindFilePath = errors.New("the provided bind file path was invalid")
 
 /*
  * Permission / Access errors.
  */
-var ErrorOpenIDAuthDisabledError = errors.New("authentication via openid is disabled")
-var ErrorNativeAuthDisabledError = errors.New("native authentication is disabled")
-var ErrorInvalidCredentials = errors.New("the provided native credentials were invalid")
-var ErrorTokenInvalid = errors.New("the auth token provided was invalid")
-var ErrorUnauthorized = errors.New("the request was unauthorized")
-var ErrorForbidden = errors.New("access to the requested resource is forbidden")
-var ErrorNoAccessToLab = errors.New("access to the provided lab is not granted")
-var ErrorNoWriteAccessToLab = errors.New("write access to the provided lab is not granted")
-var ErrorNoWriteAccessToTopology = errors.New("write access to the provided topology is not granted")
-var ErrorNoWriteAccessToBindFile = errors.New("write access to the provided file is not granted")
-var ErrorNoWriteAccessToCollection = errors.New("write access to the provided collection is not granted")
-var ErrorNoDeployAccessToLab = errors.New("deploy access to the provided lab is not granted")
-var ErrorNoDestroyAccessToLab = errors.New("destroy access to the provided lab is not granted")
-var ErrorNoDeployAccessToCollection = errors.New("deploy access to the provided collection is not granted")
-var ErrorNoPermissionToCreateCollections = errors.New("permission to create collections is not granted")
+
+var ErrOpenIDAuthDisabledError = errors.New("authentication via openid is disabled")
+var ErrNativeAuthDisabledError = errors.New("native authentication is disabled")
+var ErrInvalidCredentials = errors.New("the provided native credentials were invalid")
+var ErrTokenInvalid = errors.New("the auth token provided was invalid")
+var ErrUnauthorized = errors.New("the request was unauthorized")
+var ErrForbidden = errors.New("access to the requested resource is forbidden")
+var ErrNoAccessToLab = errors.New("access to the provided lab is not granted")
+var ErrNoWriteAccessToLab = errors.New("write access to the provided lab is not granted")
+var ErrNoWriteAccessToTopology = errors.New("write access to the provided topology is not granted")
+var ErrNoWriteAccessToBindFile = errors.New("write access to the provided file is not granted")
+var ErrNoWriteAccessToCollection = errors.New("write access to the provided collection is not granted")
+var ErrNoDeployAccessToLab = errors.New("deploy access to the provided lab is not granted")
+var ErrNoDestroyAccessToLab = errors.New("destroy access to the provided lab is not granted")
+var ErrNoDeployAccessToCollection = errors.New("deploy access to the provided collection is not granted")
+var ErrNoPermissionToCreateCollections = errors.New("permission to create collections is not granted")
 
 /*
  * Socket-exclusive errors.
  */
-var ErrorLabNotRunning = errors.New("the specified lab is not running")
-var ErrorShellLimitReached = errors.New("user shell limit reached")
-var ErrorNodeNotRunning = errors.New("the specified node is not running")
-var ErrorLabIsDeploying = errors.New("the specified lab is already being deployed")
-var ErrorInvalidLabCommand = errors.New("the provided lab command was invalid")
-var ErrorNoAccessToShell = errors.New("access to the provided shell is not granted")
-var ErrorInvalidSocketRequest = errors.New("the socket request was invalid")
+
+var ErrLabNotRunning = errors.New("the specified lab is not running")
+var ErrShellLimitReached = errors.New("user shell limit reached")
+var ErrNodeNotRunning = errors.New("the specified node is not running")
+var ErrLabIsDeploying = errors.New("the specified lab is already being deployed")
+var ErrInvalidLabCommand = errors.New("the provided lab command was invalid")
+var ErrNoAccessToShell = errors.New("access to the provided shell is not granted")
+var ErrInvalidSocketRequest = errors.New("the socket request was invalid")

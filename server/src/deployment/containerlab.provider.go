@@ -3,14 +3,15 @@ package deployment
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"os/exec"
+	"time"
+
 	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"io"
-	"os/exec"
-	"time"
 )
 
 type ContainerlabProvider struct{}
@@ -19,7 +20,7 @@ func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) (output *string, err error) {
+) (*string, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
 	return runClabCommandSync(cmd, onLog)
 }
@@ -28,7 +29,7 @@ func (p *ContainerlabProvider) Redeploy(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) (output *string, err error) {
+) (*string, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
 	return runClabCommandSync(cmd, onLog)
 }
@@ -37,7 +38,7 @@ func (p *ContainerlabProvider) Destroy(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) (output *string, err error) {
+) (*string, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
 	return runClabCommandSync(cmd, onLog)
 }
@@ -46,7 +47,7 @@ func (p *ContainerlabProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
 	onLog func(data string),
-) (output InspectOutput, err error) {
+) (InspectOutput, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
 	rawOutput, err := runClabCommandSync(cmd, onLog)
 

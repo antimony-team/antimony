@@ -5,16 +5,17 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"encoding/json"
-	"github.com/charmbracelet/log"
-	"github.com/samber/lo"
-	socketio "github.com/zishang520/socket.io/socket"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/charmbracelet/log"
+	"github.com/samber/lo"
+	socketio "github.com/zishang520/socket.io/socket"
 )
 
 type (
-	// Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
+	// IONamespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
 	//
 	// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
 	// to provide a valid access token which will be used to authenticate them via auth.AuthManager.
@@ -67,7 +68,7 @@ type (
 	)
 )
 
-// CreateNamespace Creates a new socket.io namespace for a given socket manager.
+// CreateIONamespace Creates a new socket.io namespace for a given socket manager.
 // The namespace can be anonymous, meaning that users don't need to authenticate themselves when connecting.
 // In anonymous namespaces, NamespaceManager.SendTo and NamespaceManager.SendToAdmins aren't available.
 //
@@ -189,7 +190,12 @@ func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*SocketConnectedUser)
 }
 
 func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
-	client := clients[0].(*socketio.Socket)
+	client, ok := clients[0].(*socketio.Socket)
+
+	if !ok {
+		log.Errorf("Received invalid connection: %+v", clients)
+		return
+	}
 
 	if m.isAnonymous {
 		socketClient := &SocketConnectedUser{
@@ -257,20 +263,32 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 }
 
 func (m *namespaceManager[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...any) {
-	var ack func([]any, error)
+	var (
+		ok      bool
+		ack     func([]any, error)
+		dataRaw string
+		data    I
+	)
+
 	if len(raw) > 1 {
-		ack = raw[1].(func([]any, error))
+		ack, ok = raw[1].(func([]any, error))
+		if !ok {
+			return
+		}
 	}
 
-	dataRaw := raw[0].(string)
-	var data I
+	if dataRaw, ok = raw[0].(string); !ok {
+		return
+	}
 
 	if m.useRawInput {
-		data = any(dataRaw).(I)
+		if data, ok = any(dataRaw).(I); !ok {
+			return
+		}
 	} else {
 		if err := json.Unmarshal([]byte(dataRaw), &data); err != nil {
 			if ack != nil {
-				errorResponse := utils.CreateSocketErrorResponse(utils.ErrorInvalidSocketRequest)
+				errorResponse := utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest)
 				ack([]any{errorResponse}, nil)
 			}
 			return

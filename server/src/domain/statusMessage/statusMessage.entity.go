@@ -42,9 +42,9 @@ func newStatusMessage(source string, content string, severity types.Severity, lo
 		logMessage := logParts[0] + " "
 		for i := 1; i < len(logParts); i += 2 {
 			if i+1 < len(logParts) {
-				logMessage = logMessage + fmt.Sprintf("%s=%s ", logParts[i], logParts[i+1])
+				logMessage += fmt.Sprintf("%s=%s ", logParts[i], logParts[i+1])
 			} else {
-				logMessage = logMessage + logParts[i]
+				logMessage += logParts[i]
 			}
 		}
 		logContent = fmt.Sprintf("%s ANTIMONY %s", time.Now().Format(time.TimeOnly), logMessage)

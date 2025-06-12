@@ -4,6 +4,7 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -57,17 +58,21 @@ func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUse
 	return result, err
 }
 
-func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error) {
+func (u *collectionService) Create(
+	ctx *gin.Context,
+	req CollectionIn,
+	authUser auth.AuthenticatedUser,
+) (string, error) {
 	// Deny request if the user is not an admin
 	if !authUser.IsAdmin {
-		return "", utils.ErrorNoPermissionToCreateCollections
+		return "", utils.ErrNoPermissionToCreateCollections
 	}
 
 	// Don't allow duplicate collection names
 	if nameExists, err := u.collectionRepo.DoesNameExist(ctx, *req.Name); err != nil {
 		return "", err
 	} else if nameExists {
-		return "", utils.ErrorCollectionExists
+		return "", utils.ErrCollectionExists
 	}
 
 	newUuid := utils.GenerateUuid()
@@ -86,7 +91,12 @@ func (u *collectionService) Create(ctx *gin.Context, req CollectionIn, authUser 
 	})
 }
 
-func (u *collectionService) Update(ctx *gin.Context, req CollectionInPartial, collectionId string, authUser auth.AuthenticatedUser) error {
+func (u *collectionService) Update(
+	ctx *gin.Context,
+	req CollectionInPartial,
+	collectionId string,
+	authUser auth.AuthenticatedUser,
+) error {
 	collection, err := u.collectionRepo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
@@ -94,7 +104,7 @@ func (u *collectionService) Update(ctx *gin.Context, req CollectionInPartial, co
 
 	// Deny request if user is not the owner of the requested topology or an admin
 	if !authUser.IsAdmin && authUser.UserId != collection.Creator.UUID {
-		return utils.ErrorNoWriteAccessToCollection
+		return utils.ErrNoWriteAccessToCollection
 	}
 
 	if req.Name != nil {
@@ -103,7 +113,7 @@ func (u *collectionService) Update(ctx *gin.Context, req CollectionInPartial, co
 			if nameExists, err := u.collectionRepo.DoesNameExist(ctx, *req.Name); err != nil {
 				return err
 			} else if nameExists {
-				return utils.ErrorCollectionExists
+				return utils.ErrCollectionExists
 			}
 		}
 
@@ -129,7 +139,7 @@ func (u *collectionService) Delete(ctx *gin.Context, collectionId string, authUs
 
 	// Deny request if user is not the owner of the requested topology or an admin
 	if !authUser.IsAdmin && authUser.UserId != collection.Creator.UUID {
-		return utils.ErrorNoWriteAccessToCollection
+		return utils.ErrNoWriteAccessToCollection
 	}
 
 	return u.collectionRepo.Delete(ctx, collection)

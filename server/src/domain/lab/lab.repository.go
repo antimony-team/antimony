@@ -3,6 +3,7 @@ package lab
 import (
 	"antimonyBackend/utils"
 	"context"
+
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 )
@@ -64,7 +65,7 @@ func (r *labRepository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch all labs. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return labs, nil
@@ -79,12 +80,12 @@ func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, erro
 		Find(&lab)
 
 	if result.RowsAffected < 1 {
-		return nil, utils.ErrorUuidNotFound
+		return nil, utils.ErrUuidNotFound
 	}
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch lab by UUID. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return &lab, nil
@@ -93,7 +94,7 @@ func (r *labRepository) GetByUuid(ctx context.Context, labId string) (*Lab, erro
 func (r *labRepository) Create(ctx context.Context, lab *Lab) error {
 	if err := r.db.WithContext(ctx).Create(lab).Error; err != nil {
 		log.Errorf("[DB] Failed to create lab. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -102,7 +103,7 @@ func (r *labRepository) Create(ctx context.Context, lab *Lab) error {
 func (r *labRepository) Update(ctx context.Context, lab *Lab) error {
 	if err := r.db.WithContext(ctx).Save(lab).Error; err != nil {
 		log.Errorf("[DB] Failed to update lab. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -111,7 +112,7 @@ func (r *labRepository) Update(ctx context.Context, lab *Lab) error {
 func (r *labRepository) Delete(ctx context.Context, lab *Lab) error {
 	if err := r.db.WithContext(ctx).Delete(lab).Error; err != nil {
 		log.Errorf("[DB] Failed to delete lab. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil

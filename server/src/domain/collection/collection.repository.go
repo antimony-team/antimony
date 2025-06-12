@@ -3,6 +3,7 @@ package collection
 import (
 	"antimonyBackend/utils"
 	"context"
+
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 )
@@ -38,7 +39,7 @@ func (r *collectionRepository) GetAll(ctx context.Context) ([]Collection, error)
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch all collections. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return collections, nil
@@ -52,12 +53,12 @@ func (r *collectionRepository) GetByUuid(ctx context.Context, collectionId strin
 		Find(&collection)
 
 	if result.RowsAffected < 1 {
-		return nil, utils.ErrorUuidNotFound
+		return nil, utils.ErrUuidNotFound
 	}
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to get collection by UUID. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return &collection, result.Error
@@ -72,7 +73,7 @@ func (r *collectionRepository) GetByNames(ctx context.Context, collectionNames [
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch collections by names. Error: %s", result.Error.Error())
-		return nil, utils.ErrorDatabaseError
+		return nil, utils.ErrDatabaseError
 	}
 
 	return collections, nil
@@ -87,7 +88,7 @@ func (r *collectionRepository) DoesNameExist(ctx context.Context, collectionName
 
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to check if collection name exists. Error: %s", result.Error.Error())
-		return false, utils.ErrorDatabaseError
+		return false, utils.ErrDatabaseError
 	}
 
 	return result.RowsAffected > 0, nil
@@ -96,7 +97,7 @@ func (r *collectionRepository) DoesNameExist(ctx context.Context, collectionName
 func (r *collectionRepository) Create(ctx context.Context, collection *Collection) error {
 	if err := r.db.WithContext(ctx).Create(collection).Error; err != nil {
 		log.Errorf("[DB] Failed to create collection. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -105,7 +106,7 @@ func (r *collectionRepository) Create(ctx context.Context, collection *Collectio
 func (r *collectionRepository) Update(ctx context.Context, collection *Collection) error {
 	if err := r.db.WithContext(ctx).Save(collection).Error; err != nil {
 		log.Errorf("[DB] Failed to update collection. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil
@@ -114,7 +115,7 @@ func (r *collectionRepository) Update(ctx context.Context, collection *Collectio
 func (r *collectionRepository) Delete(ctx context.Context, collection *Collection) error {
 	if err := r.db.WithContext(ctx).Delete(collection).Error; err != nil {
 		log.Errorf("[DB] Failed to delete collection. Error: %s", err.Error())
-		return utils.ErrorDatabaseError
+		return utils.ErrDatabaseError
 	}
 
 	return nil

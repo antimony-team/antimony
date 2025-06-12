@@ -3,6 +3,7 @@ package topology
 import (
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/user"
+
 	"gorm.io/gorm"
 )
 
@@ -24,8 +25,8 @@ type Topology struct {
 }
 
 type TopologyIn struct {
-	Definition   *string `json:"definition" binding:"required"`
-	SyncUrl      *string `json:"syncUrl" binding:"required"`
+	Definition   *string `json:"definition"   binding:"required"`
+	SyncUrl      *string `json:"syncUrl"      binding:"required"`
 	CollectionId *string `json:"collectionId" binding:"required"`
 }
 
@@ -54,7 +55,7 @@ type BindFile struct {
 }
 
 type BindFileIn struct {
-	Content  *string `json:"content" binding:"required"`
+	Content  *string `json:"content"  binding:"required"`
 	FilePath *string `json:"filePath" binding:"required"`
 }
 
