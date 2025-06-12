@@ -45,6 +45,7 @@ type (
 		connectedClientsMutex sync.Mutex
 
 		useRawInput   bool
+		useRawOutput  bool
 		isAnonymous   bool
 		socketManager SocketManager
 
@@ -80,6 +81,7 @@ func CreateIONamespace[I any, O any](
 	socketManager SocketManager,
 	isAnonymous bool,
 	useBacklog bool,
+	useRawOutput bool,
 	onData DataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
@@ -104,6 +106,7 @@ func CreateIONamespace[I any, O any](
 		onData:                onData,
 		isAnonymous:           isAnonymous,
 		useBacklog:            useBacklog,
+		useRawOutput:          useRawOutput,
 		useRawInput:           useRawInput,
 	}
 
@@ -127,17 +130,18 @@ func CreateInputNamespace[I any](
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
 ) InputNamespace[I] {
-	return CreateIONamespace[I, any](socketManager, isAnonymous, useBacklog, onData, accessGroup, namespacePath...)
+	return CreateIONamespace[I, any](socketManager, isAnonymous, useBacklog, true, onData, accessGroup, namespacePath...)
 }
 
 func CreateOutputNamespace[O any](
 	socketManager SocketManager,
 	isAnonymous bool,
 	useBacklog bool,
+	useRawOutput bool,
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
 ) OutputNamespace[O] {
-	return CreateIONamespace[any, O](socketManager, isAnonymous, useBacklog, nil, accessGroup, namespacePath...)
+	return CreateIONamespace[any, O](socketManager, isAnonymous, useBacklog, useRawOutput, nil, accessGroup, namespacePath...)
 }
 
 func (m *namespaceManager[I, O]) ClearBacklog() {
@@ -183,7 +187,14 @@ func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*SocketConnectedUser)
 	}
 
 	for _, client := range receivers {
-		if err := client.socket.Emit("data", msg); err != nil {
+		var err error
+		if m.useRawOutput {
+			err = client.socket.Emit("data", msg)
+		} else {
+			err = client.socket.Emit("data", utils.CreateSocketOkResponse[any](msg))
+		}
+
+		if err != nil {
 			log.Warnf("Failed to emit socket message to client : %s", err.Error())
 		}
 	}

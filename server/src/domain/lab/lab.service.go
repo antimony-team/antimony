@@ -63,7 +63,7 @@ type (
 		storageManager         storage.StorageManager
 		deploymentProvider     deployment.DeploymentProvider
 		socketManager          socket.SocketManager
-		labUpdatesNamespace    socket.OutputNamespace[string]
+		labUpdatesNamespace    socket.OutputNamespace[LabUpdateOut]
 		labCommandsNamespace   socket.InputNamespace[LabCommandData]
 		shellCommandsNamespace socket.OutputNamespace[ShellCommandData]
 		statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage]
@@ -126,18 +126,20 @@ func CreateService(
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}
-	labService.labUpdatesNamespace = socket.CreateOutputNamespace[string](
-		socketManager, false, false, nil, "lab-updates",
-	)
 	labService.labCommandsNamespace = socket.CreateInputNamespace[LabCommandData](
 		socketManager, false, false, labService.handleLabCommand, nil, "lab-commands",
 	)
+	labService.labUpdatesNamespace = socket.CreateOutputNamespace[LabUpdateOut](
+		socketManager, false, false, false, nil, "lab-updates",
+	)
 	labService.shellCommandsNamespace = socket.CreateOutputNamespace[ShellCommandData](
-		socketManager, false, false, nil, "shell-commands",
+		socketManager, false, false, false, nil, "shell-commands",
 	)
 
 	labService.reviveLabs()
-	labService.labUpdatesNamespace.Send("")
+	labService.labUpdatesNamespace.Send(LabUpdateOut{
+		LabId: nil,
+	})
 
 	return labService
 }
@@ -201,7 +203,9 @@ func (s *labService) ListenToProviderEvents() {
 		s.instancesMutex.Unlock()
 
 		if targetLabId != nil {
-			s.labUpdatesNamespace.Send(*targetLabId)
+			s.labUpdatesNamespace.Send(LabUpdateOut{
+				targetLabId,
+			})
 		}
 	})
 
@@ -527,11 +531,13 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	instance.LogNamespace.ClearBacklog()
 	instance.LogNamespace = nil
 
-	// Remove instance from lab and send update to clients
+	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
 	s.instancesMutex.Unlock()
-	s.labUpdatesNamespace.Send(lab.UUID)
+	s.labUpdatesNamespace.Send(LabUpdateOut{
+		LabId: &lab.UUID,
+	})
 
 	s.statusMessageNamespace.Send(*statusMessage.Success(
 		"Lab Manager", fmt.Sprintf("Successfully destroyed lab %s", lab.Name),
@@ -625,7 +631,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	s.instances[lab.UUID].Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager, false, true, nil, "logs", lab.UUID, node.ContainerId,
+			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
 		)
 		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 			containerLogNamespace.Send(data)
@@ -664,7 +670,7 @@ func (s *labService) deployLab(lab *Lab) error {
 		return utils.ErrLabIsDeploying
 	}
 
-	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, nil, "logs", lab.UUID)
+	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, true, nil, "logs", lab.UUID)
 	runTopologyFile, err := s.createLabEnvironment(lab)
 
 	instance := s.createInstance(logNamespace, runTopologyFile)
@@ -732,7 +738,7 @@ func (s *labService) deployLab(lab *Lab) error {
 	s.instances[lab.UUID].Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager, false, true, nil, "logs", lab.UUID, node.ContainerId,
+			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
 		)
 		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 			containerLogNamespace.Send(data)
@@ -853,7 +859,9 @@ func (s *labService) containerToInstanceNode(container deployment.InspectContain
 }
 
 func (s *labService) notifyUpdate(lab Lab, message *statusMessage.StatusMessage) {
-	s.labUpdatesNamespace.Send(lab.UUID)
+	s.labUpdatesNamespace.Send(LabUpdateOut{
+		LabId: &lab.UUID,
+	})
 
 	if message != nil {
 		s.statusMessageNamespace.Send(*message)
@@ -871,7 +879,9 @@ func (s *labService) updateStateAndNotify(
 ) {
 	s.instances[lab.UUID].State = state
 	s.instances[lab.UUID].LatestStateChange = time.Now()
-	s.labUpdatesNamespace.Send(lab.UUID)
+	s.labUpdatesNamespace.Send(LabUpdateOut{
+		LabId: &lab.UUID,
+	})
 
 	if statusMessage != nil {
 		s.statusMessageNamespace.Send(*statusMessage)
@@ -910,13 +920,13 @@ func (s *labService) reviveLabs() {
 		if containers, ok := result[*lab.InstanceName]; ok {
 			// Lab is currently running
 			logNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager, false, true, nil, "logs", lab.UUID,
+				s.socketManager, false, true, true, nil, "logs", lab.UUID,
 			)
 
 			// Create log namespaces for each container in the lab
 			for _, container := range containers {
 				containerLogNamespace := socket.CreateOutputNamespace[string](
-					s.socketManager, false, true, nil, "logs", lab.UUID, container.ContainerId,
+					s.socketManager, false, true, true, nil, "logs", lab.UUID, container.ContainerId,
 				)
 				err := s.deploymentProvider.StreamContainerLogs(
 					ctx, "", container.ContainerId, func(data string) {
@@ -1297,6 +1307,7 @@ func (s *labService) openShellCommand(
 	dataNamespace := socket.CreateIONamespace[string, string](
 		s.socketManager,
 		false,
+		true,
 		true,
 		s.handleShellData(shellId),
 		&accessGroup,

@@ -64,6 +64,8 @@ func CreateValidationError(err error) (int, ErrorResponse) {
 
 func CreateSocketErrorResponse(err error) ErrorResponse {
 	switch {
+	case errors.Is(err, ErrAntimony):
+		return ErrorResponse{Code: 5000, Message: err.Error()}
 	case errors.Is(err, ErrContainerlab):
 		return ErrorResponse{Code: 5001, Message: err.Error()}
 	case errors.Is(err, ErrLabIsDeploying):

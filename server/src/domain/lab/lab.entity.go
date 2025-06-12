@@ -142,6 +142,10 @@ var InstanceStates = struct {
 	Inactive:  inactive,
 }
 
+type LabUpdateOut struct {
+	LabId *string `json:"labId"`
+}
+
 type LabCommandData struct {
 	LabId   *string     `json:"labId"`
 	Command *LabCommand `json:"command"`

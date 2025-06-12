@@ -64,7 +64,7 @@ func main() {
 	socketManager := socket.CreateSocketManager(authManager)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, nil, "status-messages",
+		socketManager, false, false, false, nil, "status-messages",
 	)
 
 	var (
