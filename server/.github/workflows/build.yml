@@ -22,6 +22,12 @@ jobs:
         with:
           go-version: 1.24
 
+      - name: Run Linters
+        uses: golangci/golangci-lint-action@v8
+        with:
+          working-directory: ./src
+          args: --config=lint-config.yml -c ../.golangci.yml
+
       - name: Build
         working-directory: ./src
         run: go build -v ./main.go
