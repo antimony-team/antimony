@@ -72,7 +72,7 @@ export enum InstanceState {
 }
 
 export const InstanceStates = Object.values(InstanceState).filter(
-  instance => typeof instance === 'number'
+  instance => typeof instance === 'number',
 );
 
 export type ShellDataIn = {

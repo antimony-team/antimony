@@ -75,7 +75,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
   const topologyOptions: SelectItem[] = useMemo(() => {
     return topologyStore.data
       .filter(
-        topology => authUser.isAdmin || topology.creator.id === authUser.id
+        topology => authUser.isAdmin || topology.creator.id === authUser.id,
       )
       .map(topology => ({
         label: (topology.definition.get('name') as string) ?? '',
@@ -90,17 +90,17 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
 
   async function moveBindFile(
     originalBindFile: BindFile,
-    editingBindFile: BindFileEdit
+    editingBindFile: BindFileEdit,
   ) {
     const deleteResult = await topologyStore.deleteBindFile(
       originalBindFile.topologyId,
-      originalBindFile.id
+      originalBindFile.id,
     );
 
     if (deleteResult.isErr()) {
       notificationStore.error(
         deleteResult.error.message,
-        'Failed to move bind file'
+        'Failed to move bind file',
       );
       return;
     }
@@ -110,13 +110,13 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       {
         filePath: editingBindFile.filePath,
         content: '',
-      }
+      },
     );
 
     if (addResult.isErr()) {
       if (addResult.error.code === ErrorCodes.ErrorBindFileExists) {
         bindFileNameRef.current?.setValidationError(
-          'A file with that name already exists in that topology.'
+          'A file with that name already exists in that topology.',
         );
       } else {
         notificationStore.error(addResult.error.message, 'Failed to move file');
@@ -145,7 +145,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       if (originalBindFile.topologyId !== editingBindFile.topologyId) {
         void moveBindFile(
           props.dialogState.state.editingBindingFile!,
-          editingBindFile
+          editingBindFile,
         );
         return;
       }
@@ -156,12 +156,12 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
         {
           filePath: editingBindFile.filePath,
           content: props.dialogState.state.editingBindingFile!.content ?? '',
-        }
+        },
       );
       if (result.isErr()) {
         if (result.error.code === ErrorCodes.ErrorBindFileExists) {
           bindFileNameRef.current?.setValidationError(
-            'A file with that path already exists for the current topology.'
+            'A file with that path already exists for the current topology.',
           );
         } else {
           notificationStore.error(result.error.message, 'Failed to edit file');
@@ -176,18 +176,18 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
         {
           filePath: editingBindFile.filePath,
           content: '',
-        }
+        },
       );
 
       if (result.isErr()) {
         if (result.error.code === ErrorCodes.ErrorBindFileExists) {
           bindFileNameRef.current?.setValidationError(
-            'A file with that path already exists for the current topology.'
+            'A file with that path already exists for the current topology.',
           );
         } else {
           notificationStore.error(
             result.error.message,
-            'Failed to create file'
+            'Failed to create file',
           );
         }
       } else {

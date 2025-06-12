@@ -11,7 +11,7 @@ import {fetchResource, isValidURL} from '@sb/lib/utils/utils';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 
 interface SyncOverlayProps {
-  popOverRef: React.RefObject<OverlayPanel>;
+  popOverRef: React.RefObject<OverlayPanel | null>;
 
   topology: Topology | null;
   onSetContent: (content: string) => void;
@@ -79,7 +79,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
   }
 
   async function fetchSyncUrl(
-    value: string
+    value: string,
   ): Promise<[string | null, string | null]> {
     if (!isValidURL(value)) {
       return ['Specified URL is not valid', null];

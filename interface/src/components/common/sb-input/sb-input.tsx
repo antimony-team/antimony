@@ -42,7 +42,7 @@ interface SBInputProps {
 
   onValueSubmit?: (
     value: string,
-    isImplicit: boolean
+    isImplicit: boolean,
   ) => Promise<string | null | void> | string | null | void;
 }
 
@@ -56,18 +56,14 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
 
   const tooltipRef = useRef<TooltipRefProps>(null);
 
-  useImperativeHandle(
-    ref,
-    () => {
-      return {
-        setValidationError(msg: string) {
-          setValidationError(msg);
-        },
-        input: inputFieldRef,
-      };
-    },
-    []
-  );
+  useImperativeHandle(ref, () => {
+    return {
+      setValidationError(msg: string) {
+        setValidationError(msg);
+      },
+      input: inputFieldRef,
+    };
+  }, []);
 
   function onValueSubmit(value: string, isImplicit: boolean) {
     if (!props.onValueSubmit || (isImplicit && value === props.defaultValue)) {

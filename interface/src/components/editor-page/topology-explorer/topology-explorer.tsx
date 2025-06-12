@@ -163,7 +163,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       if (result.isErr()) {
         notificationStore.error(
           result.error.message,
-          'Failed to delete collection'
+          'Failed to delete collection',
         );
       } else {
         notificationStore.success('Collection has been deleted.');
@@ -176,7 +176,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       if (result.isErr()) {
         notificationStore.error(
           result.error.message,
-          'Failed to delete topology'
+          'Failed to delete topology',
         );
       } else {
         notificationStore.success('Topology has been deleted.');
@@ -254,7 +254,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (!collectionStore.lookup.has(id)) return;
 
     const childTopologies = topologyStore.data.filter(
-      topology => topology.collectionId === id
+      topology => topology.collectionId === id,
     );
 
     notificationStore.confirm({
@@ -330,7 +330,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       localStorage.getItem('explorerExpandedNodes') ?? ''
     ).split(';');
     setExpandedKeys(
-      Object.fromEntries(expandedNodes.map(node => [node, true]))
+      Object.fromEntries(expandedNodes.map(node => [node, true])),
     );
   }
 
@@ -436,13 +436,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             icon: 'pi pi-trash',
             disabled: !isWritable,
             command: onDeleteCollectionContext,
-          }
+          },
         );
       }
 
       return entries;
     },
-    [authUser, collectionStore.lookup]
+    [authUser, collectionStore.lookup],
   );
 
   const getTopologyContextMenu = useCallback(
@@ -480,24 +480,24 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             label: 'Delete Topology',
             icon: 'pi pi-trash',
             command: onDeleteTopologyContext,
-          }
+          },
         );
       }
 
       return entries;
     },
-    [authUser, collectionStore.lookup, topologyStore.lookup]
+    [authUser, collectionStore.lookup, topologyStore.lookup],
   );
 
   async function moveTopologyToCollection(
     topologyId: string,
-    collectionId: string
+    collectionId: string,
   ) {
     const topology = topologyStore.lookup.get(topologyId);
     if (!authUser.isAdmin && topology?.creator.id !== authUser.id) {
       notificationStore.error(
         'You do not have permissions to move this topology',
-        'Failed to move topology'
+        'Failed to move topology',
       );
       return;
     }
@@ -521,7 +521,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   async function moveTopologyToCollectionConfirm(
     topologyId: string,
-    collectionId: string
+    collectionId: string,
   ) {
     const topology = topologyStore.lookup.get(topologyId)!;
     const result = await topologyStore.update(topology.id, {
@@ -552,7 +552,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       if (dropNode.type === ExplorerTreeNodeType.Collection) {
         void moveTopologyToCollection(
           dragNode.key as string,
-          dropNode.key as string
+          dropNode.key as string,
         );
       }
     } else if (dragNode.type === ExplorerTreeNodeType.BindFile) {

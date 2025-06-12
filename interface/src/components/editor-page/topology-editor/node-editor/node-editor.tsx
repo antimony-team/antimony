@@ -15,7 +15,7 @@ import {Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 import type {EventObject} from 'cytoscape';
 import cytoscape, {NodeSingular} from 'cytoscape';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+
 // @ts-expect-error This library does not have a type declaration
 import coseBilkent from 'cytoscape-cose-bilkent';
 import {ExpandLines} from 'iconoir-react';
@@ -52,7 +52,7 @@ export interface GroupEditDialogState {
 const NodeEditor: React.FC<NodeEditorProps> = observer(
   (props: NodeEditorProps) => {
     const [contextMenuModel, setContextMenuModel] = useState<MenuItem[] | null>(
-      null
+      null,
     );
     const [isCyReady, setIsCyReady] = useState<boolean>(false);
 
@@ -92,7 +92,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       const elements = generateGraph(
         props.openTopology,
         deviceStore,
-        topologyStore.manager
+        topologyStore.manager,
       );
 
       for (const element of elements) {
@@ -166,7 +166,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
     function drawConnectionLine(
       sourceId: string,
       mouseX: number,
-      mouseY: number
+      mouseY: number,
     ) {
       if (!cyRef.current) return;
 
@@ -466,7 +466,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         {
           duration: 200,
           easing: 'ease-in-out',
-        }
+        },
       );
     }
 
@@ -575,7 +575,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
     function onGroupNameSubmit(
       groupName: string | undefined,
-      isImplicit: boolean = false
+      isImplicit: boolean = false,
     ) {
       if (!cyRef.current || !groupNameDialogState.state) return;
 
@@ -595,12 +595,12 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (!groupName || groupName === '') {
         if (!isImplicit) {
           groupRenameInput.current?.setValidationError(
-            "Group name can't be empty"
+            "Group name can't be empty",
           );
         }
       } else if (cyRef.current.hasElementWithId(groupName)) {
         groupRenameInput.current?.setValidationError(
-          'A group with this name already exists'
+          'A group with this name already exists',
         );
       } else if (dialogState.action === DialogAction.Add) {
         createDrawnGroup(groupName);
@@ -665,7 +665,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
             classes: 'drawn-shape',
           });
           hitsArray.forEach(node =>
-            cy.getElementById(node.id()).move({parent: groupName})
+            cy.getElementById(node.id()).move({parent: groupName}),
           );
         });
       }
@@ -853,7 +853,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
           onSubmit={() => {
             onGroupNameSubmit(
               groupRenameInput.current?.input.current?.value,
-              false
+              false,
             );
           }}
           headerTitle="Set Group Label"
@@ -873,7 +873,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         </SBDialog>
       </div>
     );
-  }
+  },
 );
 
 export default NodeEditor;

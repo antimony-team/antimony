@@ -10,8 +10,9 @@ module.exports = merge(common, {
     port: '8080',
     historyApiFallback: true,
     allowedHosts: 'all',
-    proxy: {
-      '/api': {
+    proxy: [
+      {
+        context: ['/api'],
         target: {
           host: '0.0.0.0',
           protocol: 'http:',
@@ -21,7 +22,8 @@ module.exports = merge(common, {
           '^/api': '',
         },
       },
-      '/socket.io': {
+      {
+        context: ['/socket.io'],
         target: {
           host: '0.0.0.0',
           protocol: 'ws:',
@@ -29,7 +31,7 @@ module.exports = merge(common, {
         },
         ws: true,
       },
-    },
+    ],
   },
   module: {
     rules: [

@@ -30,7 +30,7 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
         NodeIconMap.values().map(entry => [
           entry,
           `/icons/nodes/${NodeIconMap.get(entry)!}.svg`,
-        ])
+        ]),
       ),
     ];
   }

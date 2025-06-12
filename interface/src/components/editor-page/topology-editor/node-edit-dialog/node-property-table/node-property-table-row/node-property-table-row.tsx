@@ -20,14 +20,14 @@ interface NodePropertyTableRowProps {
 }
 
 const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
-  props: NodePropertyTableRowProps
+  props: NodePropertyTableRowProps,
 ) => {
   const dropdownOptions = useMemo(
     () =>
       props.property.availableValues?.map(value => ({
         value,
       })) ?? null,
-    [props.property]
+    [props.property],
   );
 
   function onTextInputSubmit(value: string): string | null {

@@ -14,7 +14,7 @@ export type ErrorResult = {
 export class Result<T> {
   protected constructor(
     readonly _tag: 'ok' | 'err',
-    protected readonly value: T | ErrorResult
+    protected readonly value: T | ErrorResult,
   ) {}
 
   static createOk<T>(data: T): Ok<T> {

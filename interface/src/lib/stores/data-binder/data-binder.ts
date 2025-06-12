@@ -69,7 +69,7 @@ export class DataBinder {
   private async initAuth() {
     const authConfigResponse = await this.get<AuthConfig>(
       '/users/login/config',
-      false
+      false,
     );
     if (authConfigResponse.isErr()) {
       this.hasAPIError = true;
@@ -145,7 +145,7 @@ export class DataBinder {
     if (subscription.isAnonymous) {
       try {
         subscription.socket = io(`/${subscription.namespace}`, SOCKETIO_CONFIG);
-      } catch (_) {
+      } catch {
         subscription.socket?.close();
         return;
       }
@@ -157,7 +157,7 @@ export class DataBinder {
             token: this.accessToken,
           },
         });
-      } catch (_) {
+      } catch {
         subscription.socket?.close();
         return;
       }
@@ -178,7 +178,7 @@ export class DataBinder {
 
     subscription.socket.on('connect_error', e => {
       if (e.message === 'Invalid Token') {
-        this.refreshToken().then(result => {
+        void this.refreshToken().then(result => {
           if (result.isOk()) {
             // Retry socket subscription if token was refreshed successfully
             this.connectSubscription(subscription);
@@ -231,7 +231,7 @@ export class DataBinder {
     onData?: (data: T) => void,
     onConnect?: () => void,
     onDisconnect?: () => void,
-    isAnonymous = false
+    isAnonymous = false,
   ): Subscription {
     const onDataGeneric = onData as (data: unknown) => void | unknown;
 
@@ -291,7 +291,7 @@ export class DataBinder {
     namespace: string,
     onData: (data: T) => void,
     onConnect?: () => void,
-    onDisconnect?: () => void
+    onDisconnect?: () => void,
   ) {
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
@@ -314,12 +314,12 @@ export class DataBinder {
     const tokenResponse = await this.post<UserCredentials, AuthResponse>(
       '/users/login/native',
       credentials,
-      false
+      false,
     );
 
     if (!tokenResponse.isOk()) {
       console.error(
-        '[AUTH] Failed to login user with provided credentials. Aborting.'
+        '[AUTH] Failed to login user with provided credentials. Aborting.',
       );
       return false;
     }
@@ -336,7 +336,7 @@ export class DataBinder {
     path: string,
     method: string,
     body?: R,
-    authenticated = true
+    authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     // If the request is authenticated, wait until the user is logged in
     if (authenticated && !this.isLoggedIn) {
@@ -389,7 +389,7 @@ export class DataBinder {
 
     try {
       responseBody = await response.json();
-    } catch (e) {
+    } catch {
       /* empty */
     }
 
@@ -419,7 +419,7 @@ export class DataBinder {
         name: tokenData.id,
         isAdmin: tokenData.isAdmin,
       };
-    } catch (e) {
+    } catch {
       console.error('Failed to parse access token. Logging out.');
       this.logout();
     }
@@ -435,7 +435,7 @@ export class DataBinder {
     if (this.refreshTokenPromise === null) {
       this.refreshTokenPromise = fetchResource(
         this.apiUrl + '/users/login/refresh',
-        'GET'
+        'GET',
       )
         .then(response => {
           if (!response || response.status !== 200) {
@@ -480,14 +480,14 @@ export class DataBinder {
 
   public async get<T>(
     path: string,
-    authenticated = true
+    authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<void, T>(path, 'GET', undefined, authenticated);
   }
 
   public async delete<T>(
     path: string,
-    authenticated = true
+    authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<void, T>(path, 'DELETE', undefined, authenticated);
   }
@@ -495,7 +495,7 @@ export class DataBinder {
   public async post<R, T>(
     path: string,
     body: R,
-    authenticated = true
+    authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<R, T>(path, 'POST', body, authenticated);
   }
@@ -503,7 +503,7 @@ export class DataBinder {
   public async put<R, T>(
     path: string,
     body: R,
-    authenticated = true
+    authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<R, T>(path, 'PUT', body, authenticated);
   }
@@ -511,7 +511,7 @@ export class DataBinder {
   public async patch<R, T>(
     path: string,
     body: Partial<R>,
-    authenticated = true
+    authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<Partial<R>, T>(path, 'PATCH', body, authenticated);
   }

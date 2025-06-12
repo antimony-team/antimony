@@ -34,7 +34,7 @@ const StatusMessagePanel = observer(
           <div
             className={classNames(
               'sb-dock-status-messages-item',
-              SeverityMapping[message.severity]
+              SeverityMapping[message.severity],
             )}
           >
             <i className={SeverityIconMap[message.severity]}></i>
@@ -122,7 +122,7 @@ const StatusMessagePanel = observer(
         />
       </OverlayPanel>
     );
-  })
+  }),
 );
 
 export default StatusMessagePanel;

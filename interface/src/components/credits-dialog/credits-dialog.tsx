@@ -32,7 +32,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
           </div>
           <div>
             <div className="sb-credits-header">Version</div>
-            <div className="mb-2">v0.0.1</div>
+            <div className="mb-2">v1.0.0</div>
             <div className="sb-credits-header">Authors</div>
             <div className="mb-2">Kian Gribi, Tom Stromer</div>
             <div className="sb-credits-header">Provided by</div>

@@ -95,7 +95,7 @@ const MonacoWrapper = observer(
           currentlyOpenTopology.current = topology.id;
         }
       },
-      [hasLastDeployFailed]
+      [hasLastDeployFailed],
     );
 
     const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
@@ -107,7 +107,7 @@ const MonacoWrapper = observer(
       }
 
       const updatedContent = TopologyManager.serializeTopology(
-        editReport.updatedTopology.definition
+        editReport.updatedTopology.definition,
       );
       const existingContent = textModelRef.current.getValue();
 
@@ -125,7 +125,7 @@ const MonacoWrapper = observer(
 
       if (textModelRef.current && topologyStore.manager.topology) {
         textModelRef.current.setValue(
-          topologyStore.manager.topology.definition.toString()
+          topologyStore.manager.topology.definition.toString(),
         );
 
         const readOnly =
@@ -167,7 +167,7 @@ const MonacoWrapper = observer(
             text: content,
           },
         ],
-        undefined as never
+        undefined as never,
       );
     }
 
@@ -188,7 +188,7 @@ const MonacoWrapper = observer(
             break;
         }
       },
-      [props]
+      [props],
     );
 
     useEffect(() => {
@@ -299,7 +299,7 @@ const MonacoWrapper = observer(
         </div>
       </If>
     );
-  })
+  }),
 );
 
 export default MonacoWrapper;

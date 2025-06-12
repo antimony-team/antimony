@@ -42,7 +42,7 @@ const DashboardPage: React.FC = observer(() => {
   const labDialogState = useDialogState<Lab>(
     null,
     onCloseLabDialog,
-    onOpenLabDialog
+    onOpenLabDialog,
   );
 
   const labEditDialogState = useDialogState<LabEditDialogState>(null);

@@ -55,12 +55,12 @@ const LabFilterOverlay: React.FC<FilterDialogProps> = observer(
                     'collection-filter-chip',
                     {
                       selected: labStore.collectionFilter.includes(
-                        collection.id
+                        collection.id,
                       ),
                       unselected: !labStore.collectionFilter.includes(
-                        collection.id
+                        collection.id,
                       ),
-                    }
+                    },
                   )}
                 />
               ))}
@@ -69,7 +69,7 @@ const LabFilterOverlay: React.FC<FilterDialogProps> = observer(
         </div>
       </OverlayPanel>
     );
-  }
+  },
 );
 
 export default LabFilterOverlay;

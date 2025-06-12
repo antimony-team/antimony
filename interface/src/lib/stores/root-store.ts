@@ -38,23 +38,23 @@ export class RootStore {
       this,
       this._dataBinder,
       this._schemaStore,
-      this._deviceStore
+      this._deviceStore,
     );
     this._labStore = new LabStore(
       this,
       this._dataBinder,
       this._topologyStore,
-      this._statusMessagesStore
+      this._statusMessagesStore,
     );
     this._calendarLabStore = new LabStore(
       this,
       this._dataBinder,
       this._topologyStore,
-      this._statusMessagesStore
+      this._statusMessagesStore,
     );
     this._shellStore = new ShellStore(
       this._dataBinder,
-      this._statusMessagesStore
+      this._statusMessagesStore,
     );
   }
 
@@ -65,7 +65,7 @@ export class RootStore {
       this._labStore.fetchReport.state,
       this._deviceStore.fetchReport.state,
       this._collectionStore.fetchReport.state,
-      this._schemaStore.fetchReport.state
+      this._schemaStore.fetchReport.state,
     );
   }
 }

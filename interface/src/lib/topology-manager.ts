@@ -48,7 +48,7 @@ export class TopologyManager {
     this.deviceStore = deviceStore;
     this.topologyStore = topologyStore;
     this.onEdit.register(
-      updateReport => (this.editingTopology = updateReport.updatedTopology)
+      updateReport => (this.editingTopology = updateReport.updatedTopology),
     );
 
     // Bind these functions to the class so they can be called from the view directly
@@ -70,7 +70,7 @@ export class TopologyManager {
     const result = await this.topologyStore.update(this.editingTopology.id, {
       collectionId: this.editingTopology.collectionId,
       definition: TopologyManager.serializeTopology(
-        this.editingTopology.definition
+        this.editingTopology.definition,
       ),
       syncUrl: this.editingTopology.syncUrl,
     });
@@ -79,7 +79,7 @@ export class TopologyManager {
       await this.topologyStore.fetch();
 
       this.originalTopology = TopologyManager.cloneTopology(
-        this.editingTopology
+        this.editingTopology,
       );
       this.onEdit.update({
         updatedTopology: this.editingTopology,
@@ -102,7 +102,7 @@ export class TopologyManager {
   }
 
   public updateNodeLabels(
-    labelMap: Map<string, Record<string, string | number>>
+    labelMap: Map<string, Record<string, string | number>>,
   ) {
     if (!this.editingTopology) return;
 
@@ -164,7 +164,7 @@ export class TopologyManager {
    */
   public apply(
     updatedTopology: YAMLDocument<TopologyDefinition>,
-    source: TopologyEditSource
+    source: TopologyEditSource,
   ) {
     if (!this.editingTopology) return;
 
@@ -178,7 +178,7 @@ export class TopologyManager {
       },
       isEdited: !isEqual(
         updatedTopology.toString(),
-        this.originalTopology?.definition.toString()
+        this.originalTopology?.definition.toString(),
       ),
       source: source,
     });
@@ -198,7 +198,7 @@ export class TopologyManager {
 
     this.apply(
       new YAMLDocument(updatedTopology),
-      TopologyEditSource.NodeEditor
+      TopologyEditSource.NodeEditor,
     );
   }
 
@@ -301,7 +301,7 @@ export class TopologyManager {
     if (!this.editingTopology || !this.originalTopology) return false;
     return !isEqual(
       this.editingTopology.definition.toString(),
-      this.originalTopology.definition.toString()
+      this.originalTopology.definition.toString(),
     );
   }
 
@@ -333,12 +333,12 @@ export class TopologyManager {
     if (!this.editingTopology) return [];
     this.editingTopology?.connections.filter(
       connection =>
-        connection.hostNode === nodeName || connection.targetNode === nodeName
+        connection.hostNode === nodeName || connection.targetNode === nodeName,
     );
   }
 
   public static serializeTopology(
-    definition: YAMLDocument<TopologyDefinition>
+    definition: YAMLDocument<TopologyDefinition>,
   ) {
     return definition.toString({
       collectionStyle: 'block',
@@ -346,7 +346,7 @@ export class TopologyManager {
   }
 
   public buildTopologyMetadata(
-    topology: YAMLDocument<TopologyDefinition>
+    topology: YAMLDocument<TopologyDefinition>,
   ): TopologyMeta {
     if (!topology.hasIn(['topology', 'links'])) {
       return {
@@ -356,7 +356,7 @@ export class TopologyManager {
     }
 
     const links = (topology.getIn(['topology', 'links']) as YAMLSeq).toJS(
-      topology
+      topology,
     );
 
     let index = 0;
@@ -396,11 +396,11 @@ export class TopologyManager {
 
       const hostInterfaceIndex = this.parseInterface(
         hostInterface,
-        hostInterfaceConfig.interfacePattern
+        hostInterfaceConfig.interfacePattern,
       );
       const targetInterfaceIndex = this.parseInterface(
         targetInterface,
-        targetInterfaceConfig.interfacePattern
+        targetInterfaceConfig.interfacePattern,
       );
 
       connections.push({
@@ -456,8 +456,8 @@ export class TopologyManager {
       this.getAssignedInterfaces(
         nodeName,
         deviceInfo.interfacePattern,
-        this.editingTopology.connectionMap
-      )
+        this.editingTopology.connectionMap,
+      ),
     );
 
     let checkIndex = deviceInfo.interfaceStart;
@@ -479,11 +479,11 @@ export class TopologyManager {
   private getAssignedInterfaces(
     nodeName: string,
     interfacePattern: string,
-    connectionMap: Map<string, NodeConnection[]>
+    connectionMap: Map<string, NodeConnection[]>,
   ): number[] {
     return (connectionMap.get(nodeName) ?? [])
       .map(connection =>
-        this.parseInterface(connection.hostInterface, interfacePattern)
+        this.parseInterface(connection.hostInterface, interfacePattern),
       )
       .filter(index => index >= 0);
   }
@@ -503,7 +503,7 @@ export class TopologyManager {
    * Format: pos=[x, y]
    */
   private static readPosition(
-    value: string | null | undefined
+    value: string | null | undefined,
   ): Position | null {
     if (!value) return null;
 

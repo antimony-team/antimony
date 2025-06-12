@@ -44,7 +44,7 @@ const SBDropdown = (props: SBDropdownProps) => {
 
   const dropdownTemplate = (
     option: SelectItem,
-    dropdownProps?: DropdownProps
+    dropdownProps?: DropdownProps,
   ) => {
     if (!option) {
       return <span>{dropdownProps?.placeholder}</span>;

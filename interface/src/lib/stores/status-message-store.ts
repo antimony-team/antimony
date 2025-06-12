@@ -34,7 +34,7 @@ export class StatusMessageStore {
 
     this.rootStore._dataBinder.subscribeNamespace(
       'status-messages',
-      this.handleMessage.bind(this)
+      this.handleMessage.bind(this),
     );
   }
 
@@ -45,12 +45,12 @@ export class StatusMessageStore {
 
     this.countBySeverity.set(
       message.severity,
-      (this.countBySeverity.get(message.severity) ?? 0) + 1
+      (this.countBySeverity.get(message.severity) ?? 0) + 1,
     );
     this.data.push(message);
     this.send(message.content, message.source, message.severity);
     console.log(
-      `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`
+      `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`,
     );
 
     this.updateFilteredMessages();
@@ -72,7 +72,7 @@ export class StatusMessageStore {
     this.filteredMessages = this.data
       .filter(
         msg =>
-          this.severityFilter.size < 1 || this.severityFilter.has(msg.severity)
+          this.severityFilter.size < 1 || this.severityFilter.has(msg.severity),
       )
       .toReversed();
   }
@@ -146,7 +146,7 @@ export class StatusMessageStore {
 
   public static parseMessage(
     input: StatusMessageOut,
-    isRead: boolean
+    isRead: boolean,
   ): StatusMessage {
     return {
       ...input,

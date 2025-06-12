@@ -17,7 +17,7 @@ export class DialogState<T> {
   constructor(
     dialogState: T | null,
     onClose?: () => void,
-    onOpen?: (state: T | null) => void
+    onOpen?: (state: T | null) => void,
   ) {
     this.state = dialogState;
     this.isOpen = false;
@@ -44,10 +44,10 @@ export class DialogState<T> {
 export function useDialogState<T>(
   defaultState: T | null = null,
   onClose?: () => void,
-  onOpen?: (state: T | null) => void
+  onOpen?: (state: T | null) => void,
 ) {
   const [dialogState] = useState(
-    () => new DialogState<T>(defaultState, onClose, onOpen)
+    () => new DialogState<T>(defaultState, onClose, onOpen),
   );
   return dialogState;
 }

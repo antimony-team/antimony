@@ -60,7 +60,7 @@ export class NodeEditor {
     clabSchema: ClabSchema,
     editingNode: string,
     originalTopology: YAMLDocument<TopologyDefinition>,
-    statusMessageStore: StatusMessageStore
+    statusMessageStore: StatusMessageStore,
   ) {
     this.clabSchema = clabSchema;
     this.editingNode = editingNode;
@@ -90,12 +90,12 @@ export class NodeEditor {
 
     this.editingTopology.setIn(
       ['topology', 'nodes', value],
-      this.editingTopology.getIn(['topology', 'nodes', this.editingNode])
+      this.editingTopology.getIn(['topology', 'nodes', this.editingNode]),
     );
 
     this.originalTopology.setIn(
       ['topology', 'nodes', value],
-      this.originalTopology.getIn(['topology', 'nodes', this.editingNode])
+      this.originalTopology.getIn(['topology', 'nodes', this.editingNode]),
     );
 
     this.editingTopology.deleteIn(['topology', 'nodes', this.editingNode]);
@@ -125,14 +125,14 @@ export class NodeEditor {
       if (endpoint1[0] === oldName) {
         this.editingTopology.setIn(
           ['topology', 'links', index, 'endpoints', 0],
-          `${value}:${endpoint1[1]}`
+          `${value}:${endpoint1[1]}`,
         );
       }
 
       if (endpoint2[0] === oldName) {
         this.editingTopology.setIn(
           ['topology', 'links', index, 'endpoints', 1],
-          `${value}:${endpoint2[1]}`
+          `${value}:${endpoint2[1]}`,
         );
       }
     }
@@ -151,13 +151,13 @@ export class NodeEditor {
    */
   public getObjectProperties(
     objectKey: string = '',
-    schemaKey: string = 'node-config'
+    schemaKey: string = 'node-config',
   ): PropertyIO[] {
     const properties: PropertyIO[] = [];
 
     const obj = objectPath.get(
       this.editingTopology.toJS().topology.nodes[this.editingNode],
-      objectKey
+      objectKey,
     );
 
     if (!obj) return [];
@@ -204,11 +204,11 @@ export class NodeEditor {
    */
   public getAvailableProperties(
     objectKey: string = '',
-    schemaKey: string = 'node-config'
+    schemaKey: string = 'node-config',
   ): string[] | null {
     const schemaProperties = objectPath.get(
       this.clabSchema.definitions,
-      schemaKey
+      schemaKey,
     )?.properties;
     if (!schemaProperties) return null;
 
@@ -216,14 +216,14 @@ export class NodeEditor {
 
     const setProperties = objectPath.get(
       this.editingTopology.toJS().topology.nodes[this.editingNode],
-      objectKey
+      objectKey,
     );
     if (!setProperties) return [...schemaPropertyKeys];
 
     const setPropertyKeys = new Set(Object.keys(setProperties));
 
     return [...schemaPropertyKeys.difference(setPropertyKeys)].filter(
-      property => !IgnoredGenericProperties.has(property)
+      property => !IgnoredGenericProperties.has(property),
     );
   }
 
@@ -237,13 +237,13 @@ export class NodeEditor {
   public addProperty(
     propertyKey: string,
     objectRootPath: string,
-    schemaRootPath: string
+    schemaRootPath: string,
   ): string | null {
     return this.setPropertyDefault(
       propertyKey,
       objectRootPath,
       schemaRootPath,
-      false
+      false,
     );
   }
 
@@ -278,7 +278,7 @@ export class NodeEditor {
   public updatePropertyValue(
     propertyKey: string,
     objectRootPath: string,
-    value: FieldType
+    value: FieldType,
   ): string | null {
     const updatedTopology = this.editingTopology.clone();
 
@@ -286,12 +286,12 @@ export class NodeEditor {
 
     updatedTopology.setIn(
       this.propertyPath(objectRootPath, propertyKey),
-      value
+      value,
     );
 
     return this.validateAndSetTopology(
       updatedTopology,
-      `Invalid value for property '${objectRootPath}/${propertyKey}'`
+      `Invalid value for property '${objectRootPath}/${propertyKey}'`,
     );
   }
 
@@ -323,20 +323,22 @@ export class NodeEditor {
   private updatePropertyKey(
     propertyKey: string,
     objectRootPath: string,
-    newKey: string
+    newKey: string,
   ): string | null {
     const updatedTopology = this.editingTopology.clone();
 
     updatedTopology.setIn(
       this.propertyPath(objectRootPath, newKey),
-      this.editingTopology.getIn(this.propertyPath(objectRootPath, propertyKey))
+      this.editingTopology.getIn(
+        this.propertyPath(objectRootPath, propertyKey),
+      ),
     );
 
     updatedTopology.deleteIn(this.propertyPath(objectRootPath, propertyKey));
 
     return this.validateAndSetTopology(
       updatedTopology,
-      `Invalid value for property '${objectRootPath}/${propertyKey}'`
+      `Invalid value for property '${objectRootPath}/${propertyKey}'`,
     );
   }
 
@@ -358,7 +360,7 @@ export class NodeEditor {
      */
     const obj = objectPath.get(
       updatedTopology.toJS().topology.nodes[this.editingNode],
-      objectRootPath
+      objectRootPath,
     );
 
     if (_.isEmpty(obj)) {
@@ -367,7 +369,7 @@ export class NodeEditor {
 
     return this.validateAndSetTopology(
       updatedTopology,
-      'Unable to remove property.'
+      'Unable to remove property.',
     );
   }
 
@@ -383,7 +385,7 @@ export class NodeEditor {
     propertyKey: string,
     objectRootPath: string,
     schemaRootPath: string,
-    searchOriginal: boolean = true
+    searchOriginal: boolean = true,
   ) {
     const updatedTopology = this.editingTopology.clone();
 
@@ -395,13 +397,13 @@ export class NodeEditor {
         propertyKey,
         objectRootPath,
         schemaRootPath,
-        searchOriginal
-      )
+        searchOriginal,
+      ),
     );
 
     return this.validateAndSetTopology(
       updatedTopology,
-      `Failed to add property '${propertyKey}'.`
+      `Failed to add property '${propertyKey}'.`,
     );
   }
 
@@ -413,11 +415,11 @@ export class NodeEditor {
    */
   private wasPropertyAdded(
     propertyKey: string,
-    objectRootPath: string
+    objectRootPath: string,
   ): boolean {
     return (
       this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey)
+        this.propertyPath(objectRootPath, propertyKey),
       ) === undefined
     );
   }
@@ -432,15 +434,15 @@ export class NodeEditor {
   private wasPropertyEdited(
     propertyKey: string,
     objectRootPath: string,
-    schemaRootPath: string
+    schemaRootPath: string,
   ): boolean {
     const currentValue = this.editingTopology.getIn(
-      this.propertyPath(objectRootPath, propertyKey)
+      this.propertyPath(objectRootPath, propertyKey),
     );
 
     const originalValue =
       this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey)
+        this.propertyPath(objectRootPath, propertyKey),
       ) ?? this.getPropertyDefault(propertyKey, objectRootPath, schemaRootPath);
 
     return !_.isEqual(currentValue, originalValue);
@@ -462,11 +464,11 @@ export class NodeEditor {
     propertyKey: string,
     objectRootPath: string,
     schemaRootPath: string,
-    searchOriginal: boolean = true
+    searchOriginal: boolean = true,
   ) {
     if (searchOriginal) {
       const originalValue = this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey)
+        this.propertyPath(objectRootPath, propertyKey),
       );
 
       if (originalValue) return originalValue;
@@ -501,11 +503,11 @@ export class NodeEditor {
    */
   private getPropertyType(
     propertyKey: string,
-    schemaRootPath: string
+    schemaRootPath: string,
   ): PropertyDefinition {
     const regularDefinition: PropertySchema | undefined = objectPath.get(
       this.clabSchema.definitions,
-      schemaRootPath + '.properties.' + propertyKey
+      schemaRootPath + '.properties.' + propertyKey,
     );
 
     if (regularDefinition) {
@@ -515,7 +517,7 @@ export class NodeEditor {
     const patternDefinition: PatternPropertyDefinition | undefined =
       objectPath.get(
         this.clabSchema.definitions,
-        schemaRootPath + '.patternProperties'
+        schemaRootPath + '.patternProperties',
       );
 
     if (patternDefinition) {
@@ -531,10 +533,10 @@ export class NodeEditor {
    * @param propertyDefinition The schema definition of the property.
    */
   private getRegularPropertyType(
-    propertyDefinition: PropertySchema
+    propertyDefinition: PropertySchema,
   ): PropertyDefinition {
     return this.getMostSignificantType(
-      propertyDefinition.anyOf ?? [propertyDefinition]
+      propertyDefinition.anyOf ?? [propertyDefinition],
     );
   }
 
@@ -544,7 +546,7 @@ export class NodeEditor {
    * @param patternPropertyDefinition The schema definition of the property.
    */
   private getPatternPropertyType(
-    patternPropertyDefinition: PatternPropertyDefinition
+    patternPropertyDefinition: PatternPropertyDefinition,
   ): PropertyDefinition {
     const typeArray =
       patternPropertyDefinition['.*']?.oneOf ??
@@ -576,10 +578,10 @@ export class NodeEditor {
    * @param propertyList The list of properties.
    */
   private getMostSignificantType(
-    propertyList: PropertySchema[]
+    propertyList: PropertySchema[],
   ): PropertyDefinition {
     const availableTypes = new Map(
-      propertyList.map(entry => [entry.type, entry])
+      propertyList.map(entry => [entry.type, entry]),
     );
 
     if (availableTypes.has('object')) return {type: 'object'};
@@ -596,7 +598,7 @@ export class NodeEditor {
       };
     }
 
-    let type: PropertyType = 'string';
+    const type: PropertyType = 'string';
 
     if (availableTypes.has('string')) {
       const type = availableTypes.get('string')!;
@@ -641,13 +643,13 @@ export class NodeEditor {
     const updatedHostInterface =
       updatedConnection.hostInterfaceConfig.interfacePattern.replaceAll(
         '$',
-        String(updatedConnection.hostInterfaceIndex)
+        String(updatedConnection.hostInterfaceIndex),
       );
 
     const updatedTargetInterface =
       updatedConnection.targetInterfaceConfig.interfacePattern.replaceAll(
         '$',
-        String(updatedConnection.targetInterfaceIndex)
+        String(updatedConnection.targetInterfaceIndex),
       );
 
     links.set(updatedConnection.index, {
@@ -659,7 +661,7 @@ export class NodeEditor {
 
     this.validateAndSetTopology(
       updatedTopology,
-      'Failed to update connection.'
+      'Failed to update connection.',
     );
   }
 
@@ -674,7 +676,7 @@ export class NodeEditor {
    */
   private validateAndSetTopology(
     topology: YAMLDocument<TopologyDefinition>,
-    customErrorMessage: string | null = null
+    customErrorMessage: string | null = null,
   ): string | null {
     const validation = validate(topology.toJS(), this.clabSchema);
 
@@ -685,11 +687,11 @@ export class NodeEditor {
     } else {
       console.error(
         `[YAML] Failed to apply node edit: ${validation}`,
-        topology
+        topology,
       );
       this.statusMessageStore.error(
         customErrorMessage ?? validation.errors[0].message,
-        'YAML Schema Error'
+        'YAML Schema Error',
       );
       return validation.errors[0].message;
     }

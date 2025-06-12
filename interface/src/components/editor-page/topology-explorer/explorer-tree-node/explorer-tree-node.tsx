@@ -49,7 +49,7 @@ const NodeButtonProps = {
 };
 
 const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
-  props: ExplorerTreeNodeProps
+  props: ExplorerTreeNodeProps,
 ) => {
   const authUser = useAuthUser();
   const topologyStore = useTopologyStore();
@@ -58,17 +58,17 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   const isWritable = useMemo(() => {
     if (props.node.type === ExplorerTreeNodeType.Collection) {
       const publicWrite = collectionStore.lookup.get(
-        props.node.key as string
+        props.node.key as string,
       )?.publicWrite;
       return authUser.isAdmin || publicWrite;
     } else if (props.node.type === ExplorerTreeNodeType.Topology) {
       const creator = topologyStore.lookup.get(
-        props.node.key as string
+        props.node.key as string,
       )!.creator;
       return authUser.isAdmin || creator.id === authUser.id;
     } else if (props.node.type === ExplorerTreeNodeType.BindFile) {
       const topologyId = topologyStore.bindFileLookup.get(
-        props.node.key as string
+        props.node.key as string,
       )!.topologyId;
       const creator = topologyStore.lookup.get(topologyId)?.creator;
       return authUser.isAdmin || (creator && creator.id === authUser.id);
