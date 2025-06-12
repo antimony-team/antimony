@@ -1,8 +1,8 @@
 ---
 hide:
   - navigation
+  - title
 ---
-
 # Home
 
 <p align=center><a href="https://containerlab.dev"><img src=images/antimony-title.png?sanitize=true/></a></p>

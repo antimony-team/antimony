@@ -6,6 +6,8 @@ In this section of the documentation we will go over the inner workings of Antim
 
 Before going into with any implementation details, lets look at the big picture. The following domain diagram depicts all of Antimony's entities and the relationships between them.
 
+![Antimony Arch](../images/antimony-arch.svg)
+
 ```puml
 @startuml Antimony Backend
 

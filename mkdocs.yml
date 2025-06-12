@@ -10,11 +10,9 @@ nav:
   - Home: 'index.md'
   - Quick Start: 'quick-start.md'
   - User Manual:
-    - 'manual/index.md'
     - Configuration: 'manual/configuration.md'
     - Glossary: 'manual/glossary.md'
-    - Developer Guide:
-      - Setup: 'manual/development-setup.md'
+    - Developer Guide: 'manual/development-setup.md'
   - Implementation:
     - 'implementation/index.md'
     - Authentication: 'implementation/authentication.md'
@@ -73,11 +71,18 @@ plugins:
   - plantuml:
       puml_url: https://www.plantuml.com/plantuml/
       num_workers: 8
+  - glightbox:
+      width: 120%
+      touchNavigation: true
+      slide_effect: slide
 
 markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
 
 extra_css:
   - stylesheets/extra.css

@@ -7,30 +7,30 @@ services:
     container_name: traefik
     network_mode: host
     command:
-      - "--log.level=INFO"
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedByDefault=false"
+      - --log.level=INFO
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
 
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
 
       # HTTP -> HTTPS redirect
-      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
 
       # ACME / Let's Encrypt config
-      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.email=antimony@ost.ch"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=antimony@ost.ch
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
 
-      # Self-signed fallback
-      - "--entrypoints.websecure.forwardedHeaders.insecure=true"
-      - "--serversTransport.insecureSkipVerify=true"
+      # Self-signed certificate fallback
+      - --entrypoints.websecure.forwardedHeaders.insecure=true"
+      - --serversTransport.insecureSkipVerify=true"
 
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./letsencrypt:/letsencrypt"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
 
     depends_on:
      - server
@@ -62,14 +62,14 @@ services:
       - server
     network_mode: host
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.interface.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.interface.entrypoints=websecure"
-      - "traefik.http.routers.interface.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.interface.service=interface"
-      # - "traefik.http.routers.interface.tls.domains[0].main=example.com"
-      - "traefik.http.services.interface.loadbalancer.server.port=8100"
-      - "traefik.http.services.interface.loadbalancer.server.scheme=http"
+      - traefik.enable=true
+      - traefik.http.routers.interface.rule=PathPrefix(`/`)
+      - traefik.http.routers.interface.entrypoints=websecure
+      - traefik.http.routers.interface.tls.certresolver=letsencrypt
+      - traefik.http.routers.interface.service=interface
+      # - traefik.http.routers.interface.tls.domains[0].main=example.com
+      - traefik.http.services.interface.loadbalancer.server.port=8100
+      - traefik.http.services.interface.loadbalancer.server.scheme=http
 
   server:
     container_name: server
@@ -91,31 +91,29 @@ services:
       database:
         condition: service_healthy
     labels:
-      # Server /socket.io route
-      - "traefik.enable=true"
-      - "traefik.http.routers.server-socket.rule=PathPrefix(`/socket.io`)"
-      - "traefik.http.routers.server-socket.entrypoints=websecure"
-      - "traefik.http.routers.server-socket.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.server-socket.service=server-socket"
-      # - "traefik.http.routers.server-socket.tls.domains[0].main=example.com"
-      - "traefik.http.services.server-socket.loadbalancer.server.port=3000"
-      - "traefik.http.services.server-socket.loadbalancer.server.scheme=http"
+      # Server '/socket.io' route
+      - traefik.enable=true
+      - traefik.http.routers.server-socket.rule=PathPrefix(`/socket.io`)
+      - traefik.http.routers.server-socket.entrypoints=websecure
+      - traefik.http.routers.server-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.server-socket.service=server-socket
+      # - traefik.http.routers.server-socket.tls.domains[0].main=example.com
+      - traefik.http.services.server-socket.loadbalancer.server.port=3000
+      - traefik.http.services.server-socket.loadbalancer.server.scheme=http
 
-      # WebSocket support
-      - "traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Connection=Upgrade"
-      - "traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Upgrade=websocket"
+      # Add web socket headers
+      - traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Connection=Upgrade
+      - traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Upgrade=websocket
+      - traefik.http.routers.server-socket.middlewares=socketio-headers
 
-      # Attach middleware
-      - "traefik.http.routers.server-socket.middlewares=socketio-headers"
+      # Server '/api' route
+      - traefik.http.routers.server-api.rule=PathPrefix(`/api`)
+      - traefik.http.routers.server-api.entrypoints=websecure
+      - traefik.http.routers.server-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.server-api.service=server-api
+      - traefik.http.routers.server-api.middlewares=api-strip-prefix
+      # - traefik.http.routers.server-api.tls.domains[0].main=example.com
+      - traefik.http.services.server-api.loadbalancer.server.port=3000
+      - traefik.http.services.server-api.loadbalancer.server.scheme=http
 
-      # Server /api route
-      - "traefik.http.routers.server-api.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.server-api.entrypoints=websecure"
-      - "traefik.http.routers.server-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.server-api.service=server-api"
-      - "traefik.http.routers.server-api.middlewares=api-strip-prefix"
-      # - "traefik.http.routers.server-api.tls.domains[0].main=example.com"
-      - "traefik.http.services.server-api.loadbalancer.server.port=3000"
-      - "traefik.http.services.server-api.loadbalancer.server.scheme=http"
-
-      - "traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api"
+      - traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api

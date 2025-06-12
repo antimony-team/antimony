@@ -11,7 +11,7 @@ To deploy Antimony locally, simply use the pre-configured docker compose script 
 
 ```bash
 git clone https://github.com/antimony-team/antimony
-
+cd antimony
 docker compose up
 ```
 
@@ -26,7 +26,7 @@ docker compose up
 
 The default login is `admin:admin`. To change this, change the environment variables `SB_NATIVE_USERNAME` and `SB_NATIVE_PASSWORD` in the docker compose file.
 
-```yaml
+```yaml title="docker-compose.yml"
 environment:
   - SB_NATIVE_USERNAME=admin
   - SB_NATIVE_PASSWORD=admin
@@ -34,20 +34,20 @@ environment:
 
 ## Database
 
-By default, Antimony uses a SQLite database. This can be changed by removing the `-sqlite=true` command line argument in the docker compose file.
+By default, Antimony uses a file-based SQLite database. This can be changed by removing the `-sqlite=true` command line argument in the docker compose file.
 
-If a postgres database is used, you have to set the connection details in the configuration file and use an environment variable to set the database password. 
-
-```yaml title="docker-compose.yml"
-environment:
-  - SB_DATABASE_PASSWORD=password123
-```
+If a PostgreSQL database is used, you can provide the connection details in the configuration file and use an environment variable to set the database password. 
 
 ```yaml title="config.yml"
 database:
   host: 127.0.0.1
-  user: antimony
-  database: antimony
   port: 5432
+  database: antimony
+  user: antimony
+```
+
+```yaml title="docker-compose.yml"
+environment:
+  - SB_DATABASE_PASSWORD=password123
 ```
 

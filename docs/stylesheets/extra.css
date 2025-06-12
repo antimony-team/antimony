@@ -28,3 +28,19 @@ table th {
 table td {
   padding: 8px !important;
 }
+
+[data-md-color-scheme="slate"] {
+  --glightbox-background-color: #1E2129; 
+}
+
+[data-md-color-scheme="default"] {
+  --glightbox-background-color: white; 
+}
+
+.gslide-image img {
+  background: var(--glightbox-background-color) !important;
+}
+
+.goverlay {
+  background: rgba(0,0,0,0.5) !important;
+}
