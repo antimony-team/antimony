@@ -3,6 +3,7 @@ package test
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/config"
+	"antimonyBackend/deployment"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
@@ -13,10 +14,12 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
+	"io"
 	"log"
 	"os"
 	"testing"
@@ -270,6 +273,90 @@ func addAuthenticatedUsers(authManager auth.AuthManager) {
 	}
 }
 
+type MockDeploymentProvider struct{}
+
+func (p *MockDeploymentProvider) Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error) {
+	output := "Mock Deploy called"
+	if onLog != nil {
+		onLog(output)
+	}
+	return &output, nil
+}
+
+func (p *MockDeploymentProvider) Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error) {
+	output := "Mock Redeploy called"
+	if onLog != nil {
+		onLog(output)
+	}
+	return &output, nil
+}
+
+func (p *MockDeploymentProvider) Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error) {
+	output := "Mock Destroy called"
+	if onLog != nil {
+		onLog(output)
+	}
+	return &output, nil
+}
+
+func (p *MockDeploymentProvider) Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (output deployment.InspectOutput, err error) {
+	// Return empty output and nil error as mock
+	return deployment.InspectOutput{}, nil
+}
+
+func (p *MockDeploymentProvider) InspectAll(ctx context.Context) (deployment.InspectOutput, error) {
+	return deployment.InspectOutput{}, nil
+}
+
+func (p *MockDeploymentProvider) Exec(ctx context.Context, topologyFile string, content string, onLog func(data string), onDone func(output *string, err error)) {
+	if onLog != nil {
+		onLog("Mock Exec called")
+	}
+	if onDone != nil {
+		output := "Mock Exec result"
+		onDone(&output, nil)
+	}
+}
+
+func (p *MockDeploymentProvider) ExecOnNode(ctx context.Context, topologyFile string, content string, nodeLabel string, onLog func(data string), onDone func(output *string, err error)) {
+	if onLog != nil {
+		onLog("Mock ExecOnNode called")
+	}
+	if onDone != nil {
+		output := "Mock ExecOnNode result"
+		onDone(&output, nil)
+	}
+}
+
+func (p *MockDeploymentProvider) OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error) {
+	// Return nil or a dummy ReadWriteCloser if needed.
+	return nil, nil
+}
+
+func (p *MockDeploymentProvider) StartNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *MockDeploymentProvider) StopNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *MockDeploymentProvider) RestartNode(ctx context.Context, containerId string) error {
+	return nil
+}
+
+func (p *MockDeploymentProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
+	// Simulate some fake events if needed, otherwise just return nil.
+	return nil
+}
+
+func (p *MockDeploymentProvider) StreamContainerLogs(ctx context.Context, topologyFile string, containerId string, onLog func(data string)) error {
+	if onLog != nil {
+		onLog("Mock log line")
+	}
+	return nil
+}
+
 func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	gin.SetMode(gin.TestMode)
 
@@ -286,7 +373,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 			Run:     runDir,
 		},
 		Containerlab: config.ClabConfig{
-			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
+			SchemaUrl:      "",
 			SchemaFallback: "../../data/clab.schema.json",
 			DeviceConfig:   "../../data/device-config.json",
 		},
@@ -334,6 +421,8 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	schemaHandler := schema.CreateHandler(schemaService)
 
+	mockProvider := &MockDeploymentProvider{}
+
 	collectionRepo := collection.CreateRepository(db)
 	collectionService := collection.CreateService(collectionRepo, userRepo)
 	collectionHandler := collection.CreateHandler(collectionService)
@@ -348,7 +437,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	labRepository := lab.CreateRepository(db)
 	labService := lab.CreateService(
 		cfg, labRepository, userRepo, topologyRepository, topologyService,
-		storageManager, socketManager, statusMessageNamespace,
+		storageManager, socketManager, statusMessageNamespace, mockProvider,
 	)
 	labHandler := lab.CreateHandler(labService)
 

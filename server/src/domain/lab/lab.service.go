@@ -91,6 +91,7 @@ func CreateService(
 	storageManager storage.StorageManager,
 	socketManager socket.SocketManager,
 	statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage],
+	deploymentProvider deployment.DeploymentProvider,
 ) Service {
 	deploymentSchedule := utils.CreateSchedule[Lab](
 		func(lab Lab) string {
@@ -123,7 +124,7 @@ func CreateService(
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
 		storageManager:         storageManager,
-		deploymentProvider:     deployment.GetProvider(config),
+		deploymentProvider:     deploymentProvider,
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
 	}

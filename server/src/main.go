@@ -3,6 +3,7 @@ package main
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/config"
+	"antimonyBackend/deployment"
 	_ "antimonyBackend/docs"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/device"
@@ -79,6 +80,8 @@ func main() {
 		userService    = user.CreateService(userRepository, authManager)
 		userHandler    = user.CreateHandler(userService)
 
+		deploymentProvider = deployment.GetProvider(antimonyConfig)
+
 		collectionRepository = collection.CreateRepository(db)
 		collectionService    = collection.CreateService(collectionRepository, userRepository)
 		collectionHandler    = collection.CreateHandler(collectionService)
@@ -93,7 +96,7 @@ func main() {
 		labRepository = lab.CreateRepository(db)
 		labService    = lab.CreateService(
 			antimonyConfig, labRepository, userRepository, topologyRepository, topologyService,
-			storageManager, socketManager, statusMessageNamespace,
+			storageManager, socketManager, statusMessageNamespace, deploymentProvider,
 		)
 		labHandler = lab.CreateHandler(labService)
 	)
