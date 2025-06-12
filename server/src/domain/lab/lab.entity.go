@@ -154,8 +154,8 @@ type LabCommand int
 const (
 	deployCommand LabCommand = iota
 	destroyCommand
-	stopNodeCommand
 	startNodeCommand
+	stopNodeCommand
 	restartNodeCommand
 	fetchShellsCommand
 	openShellCommand
