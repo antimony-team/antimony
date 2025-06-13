@@ -221,6 +221,8 @@ func (m *authManager) AuthenticateWithCode(
 		return nil, utils.ErrOpenIDError
 	}
 
+	log.Infof("[AUTH] Received user claims: %+v", claims)
+
 	userSub := claims.Sub
 	userGroups := claims.Groups
 	userProfile := claims.Profile

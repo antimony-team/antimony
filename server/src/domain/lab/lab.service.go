@@ -1301,7 +1301,6 @@ func (s *labService) openShellCommand(
 	}
 
 	shellId := utils.GenerateUuid()
-
 	accessGroup := []*auth.AuthenticatedUser{authUser}
 
 	dataNamespace := socket.CreateIONamespace[string, string](

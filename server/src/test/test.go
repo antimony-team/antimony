@@ -456,7 +456,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	socketManager := socket.CreateSocketManager(authManager)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, nil, "status-messages",
+		socketManager, false, false, false, nil, "status-messages",
 	)
 
 	userRepo := user.CreateRepository(db)

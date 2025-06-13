@@ -130,7 +130,14 @@ func CreateInputNamespace[I any](
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
 ) InputNamespace[I] {
-	return CreateIONamespace[I, any](socketManager, isAnonymous, useBacklog, true, onData, accessGroup, namespacePath...)
+	return CreateIONamespace[I, any](
+		socketManager,
+		isAnonymous,
+		useBacklog,
+		true,
+		onData,
+		accessGroup,
+		namespacePath...)
 }
 
 func CreateOutputNamespace[O any](
@@ -141,7 +148,14 @@ func CreateOutputNamespace[O any](
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
 ) OutputNamespace[O] {
-	return CreateIONamespace[any, O](socketManager, isAnonymous, useBacklog, useRawOutput, nil, accessGroup, namespacePath...)
+	return CreateIONamespace[any, O](
+		socketManager,
+		isAnonymous,
+		useBacklog,
+		useRawOutput,
+		nil,
+		accessGroup,
+		namespacePath...)
 }
 
 func (m *namespaceManager[I, O]) ClearBacklog() {

@@ -261,27 +261,27 @@ func (m *mockStatusNamespace) ClearBacklog() {
 	m.Called()
 }
 
-type mockStringNamespace struct {
+type mockLabUpdateNamespace struct {
 	mock.Mock
 }
 
-func (m *mockStringNamespace) Send(msg string) {
+func (m *mockLabUpdateNamespace) Send(msg LabUpdateOut) {
 	m.Called(msg)
 }
-func (m *mockStringNamespace) SendTo(msg string, receivers []string) {
+func (m *mockLabUpdateNamespace) SendTo(msg LabUpdateOut, receivers []string) {
 	m.Called(msg, receivers)
 }
-func (m *mockStringNamespace) SendToAdmins(msg string) {
+func (m *mockLabUpdateNamespace) SendToAdmins(msg LabUpdateOut) {
 	m.Called(msg)
 }
-func (m *mockStringNamespace) Broadcast(msg string) {
+func (m *mockLabUpdateNamespace) Broadcast(msg LabUpdateOut) {
 	m.Called(msg)
 }
-func (m *mockStringNamespace) Register(fn func(data string)) func() {
+func (m *mockLabUpdateNamespace) Register(fn func(data LabUpdateOut)) func() {
 	m.Called(fn)
 	return func() {}
 }
-func (m *mockStringNamespace) ClearBacklog() {
+func (m *mockLabUpdateNamespace) ClearBacklog() {
 	m.Called()
 }
 
@@ -456,7 +456,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		topologyRepo:           topologyRepo,
 		socketManager:          antimonySocket.CreateSocketManager(nil),
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
-		labUpdatesNamespace:    &fakeNamespace[string]{},
+		labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 		labDeploymentSchedule:  mockDeploymentSchedule,
 		labDestructionSchedule: labDestructionSchedule,
 		instances:              map[string]*Instance{},
@@ -609,7 +609,7 @@ func TestInitSchedule(t *testing.T) {
 				deploymentProvider:     mockDeployment,
 				socketManager:          antimonySocket.CreateSocketManager(nil),
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
-				labUpdatesNamespace:    &fakeNamespace[string]{},
+				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  mockDeploymentSchedule,
 				labDestructionSchedule: &emptySchedule{},
 				instances:              make(map[string]*Instance),
@@ -1025,7 +1025,7 @@ func TestDestroyLab(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			mockLabUpdatesNs := &mockStringNamespace{}
+			mockLabUpdatesNs := &mockLabUpdateNamespace{}
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
 
 			svc := &labService{
@@ -1186,7 +1186,7 @@ func TestRedeployLab(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			mockLabUpdatesNs := &mockStringNamespace{}
+			mockLabUpdatesNs := &mockLabUpdateNamespace{}
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
 			mockTopologyRepo := &mockTopologyRepo{}
 			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).
@@ -1366,7 +1366,7 @@ topology:
 			dp := &MockDeploymentProvider{}
 			sm := &mockStorageManager{}
 			sn := &mockStatusNamespace{}
-			mockLabUpdatesNs := &mockStringNamespace{}
+			mockLabUpdatesNs := &mockLabUpdateNamespace{}
 			labRepo := &mockLabRepo{}
 			topoRepo := &mockTopologyRepo{}
 
@@ -1492,7 +1492,7 @@ func TestContainerToInstanceNode(t *testing.T) {
 
 func TestNotifyUpdate(t *testing.T) {
 	mockStatusNs := &mockStatusNamespace{}
-	mockLabNs := &mockStringNamespace{}
+	mockLabNs := &mockLabUpdateNamespace{}
 
 	svc := &labService{
 		statusMessageNamespace: mockStatusNs,
@@ -1503,7 +1503,8 @@ func TestNotifyUpdate(t *testing.T) {
 	msg := statusMessage.Info("test", "body", "summary")
 
 	mockStatusNs.On("Send", mock.Anything).Once()
-	mockLabNs.On("Send", "lab123").Once()
+	labId := "lab123"
+	mockLabNs.On("Send", LabUpdateOut{LabId: &labId}).Once()
 
 	svc.notifyUpdate(lab, msg)
 
@@ -1730,7 +1731,7 @@ func TestHandleLabCommand(t *testing.T) {
 				topologyRepo:           topologyRepo,
 				deploymentProvider:     f.deployment,
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
-				labUpdatesNamespace:    &fakeNamespace[string]{},
+				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  &mockSchedule{},
 				labDestructionSchedule: f.labDestructionSchedule,
 				socketManager:          f.socketManager,
@@ -2012,7 +2013,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 				topologyRepo:           &mockTopologyRepo{},
 				socketManager:          f.socketManager,
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
-				labUpdatesNamespace:    &fakeNamespace[string]{},
+				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  &mockSchedule{},
 				labDestructionSchedule: &mockSchedule{},
 				shellCommandsNamespace: &fakeNamespace[ShellCommandData]{},
@@ -2249,7 +2250,7 @@ func TestDeployLabCommand(t *testing.T) {
 				labRepo:                f.labRepo,
 				instances:              map[string]*Instance{},
 				labDeploymentSchedule:  &mockSchedule{},
-				labUpdatesNamespace:    &fakeNamespace[string]{},
+				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 			}
 
