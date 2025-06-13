@@ -49,15 +49,15 @@ export class ShellStore {
   }
 
   @action
-  private handleControl(data: ShellCommandData) {
-    if (!this.openShells.has(data.labId)) return;
+  private handleControl(data: DataResponse<ShellCommandData>) {
+    if (!this.openShells.has(data.payload.labId)) return;
 
-    switch (data.command) {
+    switch (data.payload.command) {
       case ShellCommand.ShellError:
-        this.handleShellError(data);
+        this.handleShellError(data.payload);
         break;
       case ShellCommand.ShellClose:
-        this.handleShellClose(data);
+        this.handleShellClose(data.payload);
         break;
     }
   }
