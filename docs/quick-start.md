@@ -34,9 +34,14 @@ environment:
 
 ## Database
 
-By default, Antimony uses a file-based SQLite database. This can be changed by removing the `-sqlite=true` command line argument in the docker compose file.
+By default, Antimony uses a file-based SQLite database. This can be changed by removing the `-sqlite=true` command line argument in the docker compose file. You can change the database file that Antimony will be using in the config.
 
-If a PostgreSQL database is used, you can provide the connection details in the configuration file and use an environment variable to set the database password. 
+```yaml title="config.yml"
+database:
+  localFile: ./db/antimony.db
+```
+
+If instead a PostgreSQL database is used, you can provide the connection details in the configuration file and use an environment variable to set the database password. 
 
 ```yaml title="config.yml"
 database:

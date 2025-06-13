@@ -1,22 +1,10 @@
+![Antimony Logo](https://antimony-team.github.io/antimony/images/logo.svg)
+
+
 # Antimony
 Antimony is a platform and graphical interface to design and manage <a href="https://containerlab.dev">containerlab</a> networks.
 
 ![Antimony](https://antimony-team.github.io/antimony/images/antimony-title.png)
-
-## 🚀 How to Run
-To run Antimony locally, simply clone this repository and deploy the docker containers with docker compose.
-```bash
-git clone https://github.com/antimony-team/antimony
-
-docker compose up --build
-```
-
-For more information about the deployment please refer to Antimony's [documentation](https://antimony-team.github.io/antimony).
-
-## ⚙️ Configuration
-The config file `config.yml` is mounted into the docker container and can be used to configure the Antimony server.
-
-By default, the server uses an SQLite database. This can be changed in the CLI arguments in the docker compose file.
 
 ## ✨ Features
 
@@ -34,6 +22,23 @@ By default, the server uses an SQLite database. This can be changed in the CLI a
     Antimony talks to containerlab and [Docker](https://www.docker.com/) and provides real-time information on containers such as deployment status, Docker stats and more!
 * **Log Streaming**  
     The interface allows you to view containerlab and Docker logs in real-time. 
+
+## 🚀 How to Run
+To run Antimony locally, simply clone this repository and deploy the docker containers with docker compose.
+```bash
+git clone https://github.com/antimony-team/antimony
+cd antimony
+docker compose up
+```
+
+By default, the server is hosted on `localhost:80` and `localhost:443` and the interface can be accessed with the `admin:admin`.
+
+For more information about the deployment please refer to Antimony's [documentation](https://antimony-team.github.io/antimony/quick-start.html).
+
+## ⚙️ Configuration
+The config file `config.yml` is mounted into the docker container and can be used to configure the Antimony server.
+
+For more information about the contiguration please refer to Antimony's [documentation](https://antimony-team.github.io/antimony/manual/configuration.html).
 
 ## 💼 Use cases
 
@@ -53,3 +58,7 @@ Antimony is separated into three main repositories.
     Contains the code base for Antimony's frontend interface.
 
 If you encounter any issues or would like to suggest a new feature, please submit an issue to the corresponding repository.
+
+## License
+
+Antimony and all of its assets are distributed under the MIT license.
