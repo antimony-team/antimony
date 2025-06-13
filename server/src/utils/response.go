@@ -85,14 +85,13 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 	case errors.Is(err, ErrInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
 	// Permission / Access errors
-	case errors.Is(err, ErrNoDeployAccessToCollection):
-	case errors.Is(err, ErrNoDestroyAccessToLab):
-	case errors.Is(err, ErrNoAccessToShell):
-	case errors.Is(err, ErrNoAccessToLab):
+	case errors.Is(err, ErrNoDestroyAccessToLab),
+		errors.Is(err, ErrNoAccessToShell),
+		errors.Is(err, ErrNoAccessToLab):
 		return ErrorResponse{Code: 5403, Message: err.Error()}
 	}
 
-	return ErrorResponse{Code: -1, Message: err.Error()}
+	return ErrorResponse{Code: 5000, Message: err.Error()}
 }
 
 func CreateSocketOkResponse[T any](obj T) OkResponse[T] {
