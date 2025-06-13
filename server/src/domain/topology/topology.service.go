@@ -184,7 +184,7 @@ func (s *topologyService) Update(
 
 	// Deny request if user does not have access to topology's collection
 	if !authUser.IsAdmin &&
-		(!topology.Collection.PublicWrite && !slices.Contains(authUser.Collections, topology.Collection.UUID)) {
+		(!topology.Collection.PublicWrite || !slices.Contains(authUser.Collections, topology.Collection.Name)) {
 		return utils.ErrNoWriteAccessToCollection
 	}
 
@@ -197,9 +197,9 @@ func (s *topologyService) Update(
 			return err
 		}
 
-		// Deny change of collection if user does not have access to the new collection
+		// Deny change of a collection if the user does not have access to the new collection
 		if !authUser.IsAdmin &&
-			(!newCollection.PublicWrite && !slices.Contains(authUser.Collections, *req.CollectionId)) {
+			(!newCollection.PublicWrite || !slices.Contains(authUser.Collections, newCollection.Name)) {
 			return utils.ErrNoWriteAccessToCollection
 		}
 

@@ -1863,7 +1863,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 						UUID:    "lab12",
 						Creator: user.User{UUID: "user123"},
 						Topology: topology.Topology{
-							Collection: collection.Collection{UUID: "col1"},
+							Collection: collection.Collection{Name: "col1"},
 						},
 						InstanceName: lo.ToPtr("lab12-instance"),
 					}, nil)
@@ -1894,7 +1894,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 						UUID:    "lab12",
 						Creator: user.User{UUID: "user123"},
 						Topology: topology.Topology{
-							Collection: collection.Collection{UUID: "col1"},
+							Collection: collection.Collection{Name: "col1"},
 						},
 					}, nil)
 
@@ -1926,7 +1926,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 						UUID:    "lab12",
 						Creator: user.User{UUID: "user123"},
 						Topology: topology.Topology{
-							Collection: collection.Collection{UUID: "col1"},
+							Collection: collection.Collection{Name: "col1"},
 						},
 					}, nil)
 
@@ -1959,7 +1959,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 						UUID:    "lab12",
 						Creator: user.User{UUID: "user123"},
 						Topology: topology.Topology{
-							Collection: collection.Collection{UUID: "col1"},
+							Collection: collection.Collection{Name: "col1"},
 						},
 					}, nil)
 			},

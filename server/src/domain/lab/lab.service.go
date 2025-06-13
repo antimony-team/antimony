@@ -1231,7 +1231,7 @@ func (s *labService) fetchShellsCommand(
 		return nil, err
 	}
 
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.UUID) {
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.Name) {
 		return nil, utils.ErrNoAccessToLab
 	}
 
@@ -1266,7 +1266,7 @@ func (s *labService) openShellCommand(
 		return "", err
 	}
 
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.UUID) {
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.Name) {
 		return "", utils.ErrNoAccessToLab
 	}
 
