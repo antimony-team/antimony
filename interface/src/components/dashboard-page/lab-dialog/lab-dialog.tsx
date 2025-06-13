@@ -372,9 +372,14 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       closeDetails();
     }
 
+    function onGraphReady() {
+      onFitGraph();
+    }
+
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
       cy.maxZoom(10);
+      cy.ready(onGraphReady);
 
       cy.on('tap', 'node', onNodeClick);
       cy.on('cxttap', onGraphContext);

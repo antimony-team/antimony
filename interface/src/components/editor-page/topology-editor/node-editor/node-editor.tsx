@@ -550,10 +550,15 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
     }
 
+    function onGraphReady() {
+      onFitGraph();
+    }
+
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
       cy.maxZoom(10);
       cy.style().fromJson(topologyStyle).update();
+      cy.ready(onGraphReady);
 
       cy.on('click', onGraphClick);
       cy.on('click', 'node', onNodeClick);
@@ -570,7 +575,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.on('mousemove', handleMouseMove);
       cy.on('mouseup', handleMouseUp);
 
-      onFitGraph();
+      // onFitGraph();
     }
 
     function onGroupNameSubmit(
