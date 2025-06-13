@@ -411,7 +411,6 @@ export class DataBinder {
   @action
   private processAccessToken(accessToken: string) {
     try {
-      console.log('processing token');
       const tokenData = JSON.parse(atob(accessToken.split('.')[1]));
       this.accessToken = accessToken;
       this.authUser = {

@@ -25,14 +25,10 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
   }
 
   public getAllIcons(): string[][] {
-    return [
-      ...new Set(
-        NodeIconMap.values().map(entry => [
-          entry,
-          `/icons/nodes/${NodeIconMap.get(entry)!}.svg`,
-        ]),
-      ),
-    ];
+    return [...new Set(NodeIconMap.values())].map(entry => [
+      entry,
+      `/icons/nodes/${NodeIconMap.get(entry)!}.svg`,
+    ]);
   }
 
   public getNodeShape(node?: TopologyNode | null): string {

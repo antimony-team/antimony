@@ -133,7 +133,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         }),
         syncUrl: '',
       };
-      topologyStore.add<string>(newTopology).then(result => {
+      void topologyStore.add<string>(newTopology).then(result => {
         if (result.isErr()) {
           if (result.error.code === ErrorCodes.ErrorTopologyExists) {
             topologyNameRef.current?.setValidationError(

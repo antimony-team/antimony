@@ -159,7 +159,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onDeleteCollection(id: string) {
-    collectionStore.delete(id).then(result => {
+    void collectionStore.delete(id).then(result => {
       if (result.isErr()) {
         notificationStore.error(
           result.error.message,
@@ -172,7 +172,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onDeleteTopology(id: string) {
-    topologyStore.delete(id).then(result => {
+    void topologyStore.delete(id).then(result => {
       if (result.isErr()) {
         notificationStore.error(
           result.error.message,
@@ -185,7 +185,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onDeleteBindFile(id: string, topologyId: string) {
-    topologyStore.deleteBindFile(topologyId, id).then(result => {
+    void topologyStore.deleteBindFile(topologyId, id).then(result => {
       if (result.isErr()) {
         notificationStore.error(result.error.message, 'Failed to delete file');
       } else {
@@ -237,6 +237,52 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       collectionId: collectionId,
       action: DialogAction.Add,
     });
+  }
+
+  function onDuplicateTopologyRequest(topologyId: string) {
+    if (topologyStore.manager.hasEdits()) {
+      notificationStore.confirm({
+        message: 'Discard unsaved changes?',
+        header: 'Unsaved Changes',
+        icon: 'pi pi-info-circle',
+        severity: 'warning',
+        onAccept: () => onDuplicateTopology(topologyId),
+      });
+    } else {
+      onDuplicateTopology(topologyId);
+    }
+  }
+
+  function onDuplicateTopology(topologyId: string) {
+    if (!topologyStore.lookup.has(topologyId)) return;
+
+    const topology = topologyStore.lookup.get(topologyId)!;
+    const definitionClone = topology.definition.clone();
+    definitionClone.set('name', `${definitionClone.get('name')} (clone)`);
+
+    void topologyStore
+      .add<string>({
+        definition: definitionClone.toString(),
+        collectionId: topology.collectionId,
+        syncUrl: topology.syncUrl,
+      })
+      .then(result => {
+        if (result.isErr()) {
+          notificationStore.error(
+            result.error.message,
+            'Failed to update topology',
+          );
+        } else {
+          notificationStore.success(
+            'Topology has been duplicated successfully.',
+          );
+
+          if (topologyStore.lookup.has(result.data.payload)) {
+            const topology = topologyStore.lookup.get(result.data.payload)!;
+            topologyStore.manager.open(topology);
+          }
+        }
+      });
   }
 
   function onEditTopology(topologyId: string) {
@@ -360,6 +406,11 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     onEditTopology(contextMenuTarget.current ?? undefined);
   };
 
+  const onDuplicateTopologyContext = () => {
+    if (!contextMenuTarget.current) return;
+    onDuplicateTopologyRequest(contextMenuTarget.current ?? undefined);
+  };
+
   const onEditCollectionContext = () => {
     if (!contextMenuTarget.current) return;
     onEditCollection(contextMenuTarget.current ?? undefined);
@@ -471,6 +522,12 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             label: 'Edit Topology',
             icon: 'pi pi-file-edit',
             command: onEditTopologyContext,
+          },
+          {
+            id: 'create',
+            label: 'Duplicate Topology',
+            icon: 'pi pi-clone',
+            command: onDuplicateTopologyContext,
           },
           {
             separator: true,
@@ -595,6 +652,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             onDeleteCollection={onDeleteCollectionRequest}
             onAddTopology={onAddTopology}
             onEditTopology={onEditTopology}
+            onDuplicateTopology={onDuplicateTopologyRequest}
             onDeployTopology={props.onTopologyDeploy}
             onDeleteTopology={onDeleteTopologyRequest}
             onAddBindFile={onAddBindFile}

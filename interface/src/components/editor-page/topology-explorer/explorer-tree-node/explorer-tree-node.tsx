@@ -23,6 +23,7 @@ interface ExplorerTreeNodeProps {
 
   // Topology functions
   onEditTopology: (id: uuid4) => void;
+  onDuplicateTopology: (id: uuid4) => void;
   onDeployTopology: (id: uuid4) => void;
   onDeleteTopology: (id: uuid4) => void;
   onAddBindFile: (topologyId: uuid4) => void;
@@ -55,26 +56,41 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
 
+  const isCollectionWritable = useMemo(() => {
+    if (props.node.type !== ExplorerTreeNodeType.Topology) {
+      return false;
+    }
+
+    if (authUser.isAdmin) return true;
+
+    const topology = topologyStore.lookup.get(props.node.key as string);
+    if (!topology) return false;
+
+    const collection = collectionStore.lookup.get(topology.collectionId);
+    if (!collection) return false;
+
+    return collection.publicWrite;
+  }, [authUser, collectionStore.data, topologyStore.data]);
+
   const isWritable = useMemo(() => {
+    if (authUser.isAdmin) return true;
+
     if (props.node.type === ExplorerTreeNodeType.Collection) {
-      const publicWrite = collectionStore.lookup.get(
-        props.node.key as string,
-      )?.publicWrite;
-      return authUser.isAdmin || publicWrite;
+      return collectionStore.lookup.get(props.node.key as string)?.publicWrite;
     } else if (props.node.type === ExplorerTreeNodeType.Topology) {
       const creator = topologyStore.lookup.get(
         props.node.key as string,
-      )!.creator;
-      return authUser.isAdmin || creator.id === authUser.id;
+      )?.creator;
+      return creator?.id === authUser.id;
     } else if (props.node.type === ExplorerTreeNodeType.BindFile) {
       const topologyId = topologyStore.bindFileLookup.get(
         props.node.key as string,
       )!.topologyId;
       const creator = topologyStore.lookup.get(topologyId)?.creator;
-      return authUser.isAdmin || (creator && creator.id === authUser.id);
+      return creator && creator.id === authUser.id;
     }
     return false;
-  }, [authUser]);
+  }, [authUser, collectionStore.data, topologyStore.data]);
 
   const isDeployable = useMemo(() => {
     if (props.node.type !== ExplorerTreeNodeType.Topology) {
@@ -106,6 +122,11 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
 
   function onEditTopology(event: MouseEvent<HTMLButtonElement>) {
     props.onEditTopology(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onDuplicateTopology(event: MouseEvent<HTMLButtonElement>) {
+    props.onDuplicateTopology(props.node.key as uuid4);
     event.stopPropagation();
   }
 
@@ -208,6 +229,19 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
               onClick={onEditTopology}
               aria-label="Edit Topology"
               disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+            <Button
+              icon="pi pi-clone"
+              severity="secondary"
+              tooltip={
+                !isWritable
+                  ? 'No permissions to duplicate topology'
+                  : 'Duplicate Topology'
+              }
+              onClick={onDuplicateTopology}
+              aria-label="Duplicate Topology"
+              disabled={!isCollectionWritable}
               {...NodeButtonProps}
             />
             <Button

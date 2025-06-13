@@ -156,7 +156,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       simulationConfig.setIsStabilizing(true);
       layout.run();
-      layout.promiseOn('layoutstop')?.then(() => {
+      void layout.promiseOn('layoutstop')?.then(() => {
         simulationConfig.setIsStabilizing(false);
       });
 
@@ -354,6 +354,8 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       const node = cy.getElementById(targetNodeId);
       const element = radialMenuRef.current.getElement();
       const updatePosition = () => {
+        if (!element) return;
+
         const zoom = cy.zoom();
         const pos = node.renderedPosition();
         element.style.position = 'absolute';
@@ -367,7 +369,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
 
       cy.on('pan zoom position', updatePosition);
 
-      element.dataset.popperAttachedTo = targetNodeId;
+      if (element) element.dataset.popperAttachedTo = targetNodeId;
 
       radialMenuRef.current.show();
     }
@@ -828,7 +830,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
               cyRef.current = cy;
               setIsCyReady(true);
             }}
-            wheelSensitivity={0.3}
           />
         </div>
         <NodeToolbar

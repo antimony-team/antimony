@@ -297,7 +297,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return undefined;
       }
 
-      // Return empty context menu if selected node is a group node
+      // Return an empty context menu if selected node is a group node
       if (cyRef.current.getElementById(selectedNode).hasClass('drawn-shape')) {
         return;
       }
