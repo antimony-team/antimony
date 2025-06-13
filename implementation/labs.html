@@ -1,0 +1,1516 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="The documentation of the Antimonty platform. A visual approach to designing and managing Containerlab networks.">
+      
+      
+        <meta name="author" content="Kian Gribi">
+      
+      
+        <link rel="canonical" href="https://antimony-team.github.io/implementation/labs.html">
+      
+      
+        <link rel="prev" href="authentication.html">
+      
+      
+        <link rel="next" href="../api/restful.html">
+      
+      
+      <link rel="icon" href="../images/favicon-light.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.11">
+    
+    
+      
+        <title>Lab Management - Antimony Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.4af4bdda.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+        <script src="https://unpkg.com/iframe-worker/shim"></script>
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../assets/mkdocs_puml/puml.css">
+    
+      <link rel="stylesheet" href="../assets/mkdocs_puml/interaction.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<!-- Determine title -->
+
+
+
+
+
+<meta property="og:title" content="Antimony Docs - Lab Management" />
+<meta property="og:type" content="website" />
+<meta property="og:description" content="The documentation of the Antimonty platform. A visual approach to designing and managing Containerlab networks." />
+<meta property="og:url" content="https://antimony-team.github.io/implementation/labs.html" />
+<meta property="og:image" content="" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1092" />
+<meta property="og:image:height" content="954" />
+
+<meta name="twitter:title" content="Antimony Docs - Lab Management" />
+<meta name="twitter:description" content="The documentation of the Antimonty platform. A visual approach to designing and managing Containerlab networks." />
+<meta name="twitter:image" content="" />
+<meta name="twitter:site" content="@ntdvps" />
+<meta name="twitter:creator" content="@ntdvps" />
+<meta name="twitter:card" content="summary_large_image" />
+
+
+   <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: white; }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#lab-management" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="Antimony Docs" class="md-header__button md-logo" aria-label="Antimony Docs" data-md-component="logo">
+      
+  
+  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="297mm"
+   height="297mm"
+   viewBox="0 0 297 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   sodipodi:docname="logo.svg"
+   inkscape:export-filename="../public/icons/favicon.png"
+   inkscape:export-xdpi="21.889999"
+   inkscape:export-ydpi="21.889999"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#363636"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.66724888"
+     inkscape:cx="541.77686"
+     inkscape:cy="546.27293"
+     inkscape:window-width="1728"
+     inkscape:window-height="1000"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Logo"
+     inkscape:groupmode="layer"
+     id="layer1"
+     style="display:inline"
+     sodipodi:insensitive="true">
+    <path
+       id="rect1-5"
+       style="fill:none;stroke:#141f29;stroke-width:7.79324;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 211.67763,211.54527 -63.11608,63.1161 -63.116093,-63.1161 63.116093,-63.11608 z m -1e-5,-126.232189 -63.1161,63.116099 L 85.44544,85.313082 148.56153,22.19699 Z" />
+    <g
+       id="g18"
+       transform="matrix(1.082395,0,0,1.082395,34.910073,-12.30647)">
+      <circle
+         style="fill:#141f29;fill-opacity:1;stroke:none;stroke-width:0.476;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+         id="path2-0"
+         cy="36.745396"
+         cx="105.44287"
+         r="20" />
+      <circle
+         style="fill:#609e9f;fill-opacity:1;stroke:none;stroke-width:0.850721;stroke-linecap:round;stroke-opacity:1"
+         id="circle18"
+         cy="36.745396"
+         cx="105.44287"
+         r="11.527368" />
+    </g>
+    <use
+       x="0"
+       y="0"
+       xlink:href="#g18"
+       id="use18"
+       transform="matrix(1.1752426,0,0,1.1752426,-26.118314,-4.8133113)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use18"
+       id="use19"
+       transform="translate(-63.950903,57.942093)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use19"
+       id="use20"
+       transform="translate(125.3266)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use19"
+       id="use21"
+       transform="translate(-5.4119748e-7,126.61421)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use20"
+       id="use22"
+       transform="translate(-5.4119748e-7,126.61421)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use18"
+       id="use23"
+       transform="translate(-5.4119748e-7,243.78599)" />
+    <path
+       style="fill:#141f29;fill-opacity:1;stroke:#141f29;stroke-width:7.79324;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 89.53258,148.42918 H 207.59047"
+       id="path23" />
+    <g
+       id="g24"
+       transform="matrix(1.1653268,0,0,1.1653268,30.561742,-24.621848)">
+      <rect
+         style="fill:#141f29;fill-opacity:1;stroke:#141f29;stroke-width:4.41134;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="rect23"
+         width="26.640715"
+         height="26.640715"
+         x="39.112225"
+         y="135.17963"
+         ry="4.2815299"
+         rx="4.6383405" />
+      <rect
+         style="fill:#609e9f;fill-opacity:1;stroke:none;stroke-width:2.84092;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="use24"
+         width="17.15674"
+         height="17.15674"
+         x="43.85421"
+         y="139.92162"
+         ry="2.7573245"
+         rx="2.9871118" />
+    </g>
+    <use
+       x="0"
+       y="0"
+       xlink:href="#g24"
+       id="use25"
+       transform="translate(115.32647)" />
+  </g>
+</svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Antimony Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Lab Management
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/antimony-team/antimony" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    antimony-team/antimony
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quick-start.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quick Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../manual/configuration.html" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Manual
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="architecture.html" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Implementation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/restful.html" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Definition
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://github.com/antimony-team/antimony-backend/issues/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Issues
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="Antimony Docs" class="md-nav__button md-logo" aria-label="Antimony Docs" data-md-component="logo">
+      
+  
+  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="297mm"
+   height="297mm"
+   viewBox="0 0 297 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   sodipodi:docname="logo.svg"
+   inkscape:export-filename="../public/icons/favicon.png"
+   inkscape:export-xdpi="21.889999"
+   inkscape:export-ydpi="21.889999"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#363636"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.66724888"
+     inkscape:cx="541.77686"
+     inkscape:cy="546.27293"
+     inkscape:window-width="1728"
+     inkscape:window-height="1000"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Logo"
+     inkscape:groupmode="layer"
+     id="layer1"
+     style="display:inline"
+     sodipodi:insensitive="true">
+    <path
+       id="rect1-5"
+       style="fill:none;stroke:#141f29;stroke-width:7.79324;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 211.67763,211.54527 -63.11608,63.1161 -63.116093,-63.1161 63.116093,-63.11608 z m -1e-5,-126.232189 -63.1161,63.116099 L 85.44544,85.313082 148.56153,22.19699 Z" />
+    <g
+       id="g18"
+       transform="matrix(1.082395,0,0,1.082395,34.910073,-12.30647)">
+      <circle
+         style="fill:#141f29;fill-opacity:1;stroke:none;stroke-width:0.476;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+         id="path2-0"
+         cy="36.745396"
+         cx="105.44287"
+         r="20" />
+      <circle
+         style="fill:#609e9f;fill-opacity:1;stroke:none;stroke-width:0.850721;stroke-linecap:round;stroke-opacity:1"
+         id="circle18"
+         cy="36.745396"
+         cx="105.44287"
+         r="11.527368" />
+    </g>
+    <use
+       x="0"
+       y="0"
+       xlink:href="#g18"
+       id="use18"
+       transform="matrix(1.1752426,0,0,1.1752426,-26.118314,-4.8133113)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use18"
+       id="use19"
+       transform="translate(-63.950903,57.942093)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use19"
+       id="use20"
+       transform="translate(125.3266)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use19"
+       id="use21"
+       transform="translate(-5.4119748e-7,126.61421)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use20"
+       id="use22"
+       transform="translate(-5.4119748e-7,126.61421)" />
+    <use
+       x="0"
+       y="0"
+       xlink:href="#use18"
+       id="use23"
+       transform="translate(-5.4119748e-7,243.78599)" />
+    <path
+       style="fill:#141f29;fill-opacity:1;stroke:#141f29;stroke-width:7.79324;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 89.53258,148.42918 H 207.59047"
+       id="path23" />
+    <g
+       id="g24"
+       transform="matrix(1.1653268,0,0,1.1653268,30.561742,-24.621848)">
+      <rect
+         style="fill:#141f29;fill-opacity:1;stroke:#141f29;stroke-width:4.41134;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="rect23"
+         width="26.640715"
+         height="26.640715"
+         x="39.112225"
+         y="135.17963"
+         ry="4.2815299"
+         rx="4.6383405" />
+      <rect
+         style="fill:#609e9f;fill-opacity:1;stroke:none;stroke-width:2.84092;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="use24"
+         width="17.15674"
+         height="17.15674"
+         x="43.85421"
+         y="139.92162"
+         ry="2.7573245"
+         rx="2.9871118" />
+    </g>
+    <use
+       x="0"
+       y="0"
+       xlink:href="#g24"
+       id="use25"
+       transform="translate(115.32647)" />
+  </g>
+</svg>
+
+    </a>
+    Antimony Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/antimony-team/antimony" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    antimony-team/antimony
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick-start.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quick Start
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    User Manual
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            User Manual
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../manual/configuration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../manual/development-setup.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Developer Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../manual/glossary.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Glossary
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Implementation
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Implementation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="architecture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="authentication.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authentication
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Lab Management
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="labs.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Lab Management
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      The Instance
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Instance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#instance-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instance State
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instance State">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scheduled-pseudo-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Scheduled (Pseudo State)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deploying
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#failed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Failed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stopping" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stopping
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inactive-pseudo-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inactive (Pseudo State)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#instance-reviving" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instance Reviving
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instance Reviving">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#algorithm-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Algorithm Overview
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Definition
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            API Definition
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/restful.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Restful API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/sockets.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Socket.IO API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/antimony-team/antimony-backend/issues/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Issues
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      The Instance
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Instance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#instance-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instance State
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instance State">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scheduled-pseudo-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Scheduled (Pseudo State)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deploying
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#failed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Failed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stopping" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stopping
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inactive-pseudo-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inactive (Pseudo State)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#instance-reviving" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instance Reviving
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instance Reviving">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#algorithm-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Algorithm Overview
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+
+                  
+
+
+  
+    <a href="https://github.com/antimony-team/antimony/edit/master/docs/implementation/labs.md" title="Edit this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="lab-management">Lab Management</h1>
+<p>Antimony uses the term "Lab" to describe a deployed instance of a topology. This lab does not necessarily have to be active or running. Labs become inactive once they are stopped or they reach their scheduled shutdown time.</p>
+<h2 id="the-instance">The Instance</h2>
+<p>Once a lab has been deployed for the first time, Antimony assigns an instance to it. The instance contains real-time information about the deployed lab such as the instance state, the nodes it has deployed and more.</p>
+<p>Unlike the labs, which are persisted in the Antimony database, instances are transient and only exist during Antimony's runtime. When Antimony is restarted, it attempts to revive existing instances and re-attach them to labs (see <a href="#instance-reviving">instance reviving</a>).</p>
+<div class="admonition info">
+<p class="admonition-title">Instance Names</p>
+<p>Due to the limitation of Containerlab requiring topology names to be unique, we have to give each lab topology a unique name before deploying it. We call this the <em>instance name</em>. The instance name is composed of the topology name and a UNIX timestamp.</p>
+<p>Unlike the instance itself, the instance name is persisted in Antimony's database. This is because the instance name is required for <a href="#instance-reviving">instance reviving</a>.</p>
+</div>
+<h3 id="instance-state">Instance State</h3>
+<div class="puml-container" style="float:right;width: 350px;height: 500px">
+<div class='puml-container'><div class="puml light" style=""><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="STATE" height="969px" preserveAspectRatio="xMidYMid meet" style="width:655px;height:969px;" version="1.1" viewBox="0 0 655 969" width="655px" zoomAndPan="magnify" class="diagram"><defs/><g><g id="Scheduled"><rect fill="#F1F1F1" height="64.2344" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="206.1641" x="332.34" y="152.66"/><line style="stroke:#181818;stroke-width:0.5;" x1="332.34" x2="538.5041" y1="178.9569" y2="178.9569"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="73.2197" x="398.8122" y="170.6551">Scheduled</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="186.1641" x="337.34" y="195.0955">Lab has not yet been deployed</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="337.34" y="209.0643">❌</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="355.9845" y="209.0643">Instance</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="414.6545" y="209.0643">❌</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="433.299" y="209.0643">Containers</text></g><g id="Deploying"><rect fill="#F1F1F1" height="64.2344" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="256.4199" x="307.21" y="293.89"/><line style="stroke:#181818;stroke-width:0.5;" x1="307.21" x2="563.6299" y1="320.1869" y2="320.1869"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="70.6699" x="400.085" y="311.8851">Deploying</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="236.4199" x="312.21" y="336.3255">Clab deploy / inspect is being executed</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="312.21" y="350.2943">✅</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="327.0401" y="350.2943">Instance</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="381.8955" y="350.2943">❌</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="400.5401" y="350.2943">Containers</text></g><g class="entity" data-entity="deploy" data-uid="ent0004" id="entity_deploy"><polygon fill="#F1F1F1" points="339.42,419.13,351.42,431.13,339.42,443.13,327.42,431.13,339.42,419.13" style="stroke:#181818;stroke-width:0.5;"/></g><g id="Running"><rect fill="#F1F1F1" height="78.2031" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="199.2148" x="309.81" y="520.13"/><line style="stroke:#181818;stroke-width:0.5;" x1="309.81" x2="509.0248" y1="546.4269" y2="546.4269"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="57.9961" x="380.4194" y="538.1251">Running</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="179.2148" x="314.81" y="562.5655">Clab successfully created and</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="127.7109" x="314.81" y="576.5343">started all containers</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="314.81" y="590.503">✅</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="329.6401" y="590.503">Instance</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="384.4955" y="590.503">✅</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="399.3256" y="590.503">Containers</text></g><g id="Stopping"><rect fill="#F1F1F1" height="64.2344" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="206.1934" x="292.32" y="675.33"/><line style="stroke:#181818;stroke-width:0.5;" x1="292.32" x2="498.5134" y1="701.6269" y2="701.6269"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="62.3643" x="364.2346" y="693.3251">Stopping</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="186.1934" x="297.32" y="717.7655">Clab destroy is being executed</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="297.32" y="731.7343">✅</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="312.1501" y="731.7343">Instance</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="367.0055" y="731.7343">❓</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="385.6501" y="731.7343">Containers</text></g><g id="Failed"><rect fill="#F1F1F1" height="64.2344" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="173.2227" x="101.81" y="527.11"/><line style="stroke:#181818;stroke-width:0.5;" x1="101.81" x2="275.0327" y1="553.4069" y2="553.4069"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="41.9111" x="167.4658" y="545.1051">Failed</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="107.9531" x="106.81" y="569.5455">Clab deploy failed</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="106.81" y="583.5143">✅</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="121.6401" y="583.5143">Instance</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="176.4955" y="583.5143">❌</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="195.1401" y="583.5143">Containers</text></g><g id="Inactive"><rect fill="#F1F1F1" height="64.2344" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="186.6582" x="67.09" y="816.57"/><line style="stroke:#181818;stroke-width:0.5;" x1="67.09" x2="253.7482" y1="842.8669" y2="842.8669"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="55.5557" x="132.6413" y="834.5651">Inactive</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="166.6582" x="72.09" y="859.0055">Lab is not currently running</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="72.09" y="872.9743">❌</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="90.7345" y="872.9743">Instance</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="149.4045" y="872.9743">❌</text><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="168.049" y="872.9743">Containers</text></g><g class="entity" data-entity="n1" data-source-line="16" data-uid="ent0009" id="entity_n1"><path d="M480.04,6 L480.04,91.6641 L648.7944,91.6641 L648.7944,16 L638.7944,6 L480.04,6" fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><path d="M638.7944,6 L638.7944,16 L648.7944,16 L638.7944,6" fill="#FEFFDD" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="147.7544" x="486.04" y="23.0669">Instance Commands</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="45.519" x="486.04" y="38.1997">Deploy</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.8701" x="486.04" y="53.3325">Destroy</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="67.6152" x="486.04" y="68.4653">Stop Node</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="69.8179" x="486.04" y="83.5981">Start Node</text></g><ellipse cx="435.42" cy="48.83" fill="#222222" rx="10" ry="10" style="stroke:#222222;stroke-width:1;"/><ellipse cx="160.42" cy="952.8" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1;"/><ellipse cx="160.42" cy="952.8" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/><g class="entity" data-entity="GMN2" data-source-line="24" data-uid="ent0003" id="entity_GMN2"><path d="M46,157.08 L46,212.4784 A0,0 0 0 0 46,212.4784 L296.8423,212.4784 A0,0 0 0 0 296.8423,212.4784 L296.8423,188.78 L332.05,184.78 L296.8423,180.78 L296.8423,167.08 L286.8423,157.08 L46,157.08 A0,0 0 0 0 46,157.08" fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><path d="M286.8423,157.08 L286.8423,167.08 L296.8423,167.08 L286.8423,157.08" fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacing" textLength="128.4702" x="52" y="174.1469">Not an actual state.</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="60.3979" x="184.6025" y="174.1469">Indicated</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="229.8423" x="52" y="189.2797">by the absence of the instance and</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="218.9434" x="52" y="204.4125">the start time being in the future.</text></g><g class="entity" data-entity="GMN5" data-source-line="30" data-uid="ent0006" id="entity_GMN5"><path d="M6,679.75 L6,735.1484 A0,0 0 0 0 6,735.1484 L133.08,735.1484 L153.86,816.19 L141.08,735.1484 L256.8423,735.1484 A0,0 0 0 0 256.8423,735.1484 L256.8423,689.75 L246.8423,679.75 L6,679.75 A0,0 0 0 0 6,679.75" fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><path d="M246.8423,679.75 L246.8423,689.75 L256.8423,689.75 L246.8423,679.75" fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacing" textLength="128.4702" x="12" y="696.8169">Not an actual state.</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="60.3979" x="144.6025" y="696.8169">Indicated</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="229.8423" x="12" y="711.9497">by the absence of the instance and</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="207.5366" x="12" y="727.0825">the start time being in the past.</text></g><g class="link" data-entity-1=".start." data-entity-2="Scheduled" data-source-line="35" data-uid="lnk3" id="link_.start._Scheduled"><path d="M435.42,59.03 C435.42,77.95 435.42,115.95 435.42,146.29" fill="none" id="*start*-to-Scheduled" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="435.42,152.29,439.42,143.29,435.42,147.29,431.42,143.29,435.42,152.29" style="stroke:#181818;stroke-width:1;"/></g><g class="link" data-entity-1="Scheduled" data-entity-2="Deploying" data-source-line="36" data-uid="lnk4" id="link_Scheduled_Deploying"><path d="M435.42,217.37 C435.42,240.16 435.42,264.78 435.42,287.54" fill="none" id="Scheduled-to-Deploying" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="435.42,293.54,439.42,284.54,435.42,288.54,431.42,284.54,435.42,293.54" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="137.3062" x="436.42" y="259.9569">⠀(Scheduled) Deploy</text></g><g class="link" data-entity-1="Deploying" data-entity-2="Stopping" data-source-line="37" data-uid="lnk5" id="link_Deploying_Stopping"><path d="M462.65,358.36 C511.31,418.35 602.53,551.75 540.42,645.33 C530.22,660.7 520.6318,669.4198 504.2218,678.0398" fill="none" id="Deploying-to-Stopping" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="498.91,680.83,508.7378,680.1859,503.3365,678.5048,505.0175,673.1035,498.91,680.83" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.8701" x="543.42" y="486.1969">Destroy</text></g><g class="link" data-entity-1="Deploying" data-entity-2="deploy" data-source-line="38" data-uid="lnk6" id="link_Deploying_deploy"><path d="M406.1,358.51 C384.26,381.96 360.4076,407.5878 348.8676,419.9878" fill="none" id="Deploying-to-deploy" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="344.78,424.38,353.8395,420.5167,348.1863,420.7198,347.9832,415.0666,344.78,424.38" style="stroke:#181818;stroke-width:1;"/></g><g class="link" data-entity-1="deploy" data-entity-2="Running" data-source-line="39" data-uid="lnk7" id="link_deploy_Running"><path d="M336.65,440.81 C333.42,452.54 329.35,473.85 336.42,490.13 C341.19,501.1 344.5347,506.7718 352.9447,515.5318" fill="none" id="deploy-to-Running" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="357.1,519.86,353.7525,510.5975,353.6373,516.2531,347.9816,516.1379,357.1,519.86" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="71.2842" x="337.42" y="486.1969">Succeeded</text></g><g class="link" data-entity-1="deploy" data-entity-2="Failed" data-source-line="40" data-uid="lnk8" id="link_deploy_Failed"><path d="M332.65,437.03 C322.31,444.57 302.01,459.58 285.42,473.13 C264.25,490.42 245.7043,506.5524 227.4043,522.9024" fill="none" id="deploy-to-Failed" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="222.93,526.9,232.3065,523.8866,226.6586,523.5687,226.9765,517.9208,222.93,526.9" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="38.9175" x="286.42" y="486.1969">Failed</text></g><g class="link" data-entity-1="Failed" data-entity-2="Stopping" data-source-line="42" data-uid="lnk9" id="link_Failed_Stopping"><path d="M233.08,591.78 C267.91,616.38 311.1399,646.9075 345.9399,671.4975" fill="none" id="Failed-to-Stopping" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="350.84,674.96,345.7981,666.4995,346.7566,672.0746,341.1815,673.033,350.84,674.96" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.8701" x="305.42" y="641.3969">Destroy</text></g><g class="link" data-entity-1="Running" data-entity-2="Stopping" data-source-line="43" data-uid="lnk10" id="link_Running_Stopping"><path d="M398.05,598.82 C395.72,608.38 393.61,618.66 392.42,628.33 C391.5,635.83 392.24,637.78 392.42,645.33 C392.66,655 392.8148,659.5173 393.2848,669.0573" fill="none" id="Running-to-Stopping" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="393.58,675.05,397.1323,665.8641,393.334,670.0561,389.142,666.2577,393.58,675.05" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="142.6572" x="393.42" y="641.3969">⠀(Scheduled) Destroy</text></g><g class="link" data-entity-1="Running" data-entity-2="Deploying" data-source-line="44" data-uid="lnk11" id="link_Running_Deploying"><path d="M413.74,519.86 C418.83,474.56 426.5299,406.0625 431.2399,364.1525" fill="none" id="Running-to-Deploying" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="431.91,358.19,426.9299,366.687,431.3516,363.1587,434.8799,367.5804,431.91,358.19" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="45.519" x="426.42" y="435.6969">Deploy</text></g><g class="link" data-entity-1="Stopping" data-entity-2="Inactive" data-source-line="45" data-uid="lnk12" id="link_Stopping_Inactive"><path d="M342.1,740.04 C303.64,762.83 257.1124,790.4023 218.7024,813.1523" fill="none" id="Stopping-to-Inactive" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="213.54,816.21,223.3221,815.0651,217.842,813.6619,219.2452,808.1819,213.54,816.21" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="9.5215" x="293.42" y="782.6369">⠀</text><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacing" textLength="157.6377" x="302.9415" y="782.6369">Clab subprocess is done</text></g><g class="link" data-entity-1="Inactive" data-entity-2=".end." data-source-line="47" data-uid="lnk14" id="link_Inactive_.end."><path d="M160.42,881.15 C160.42,901.78 160.42,921.44 160.42,935.46" fill="none" id="Inactive-to-*end*" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="160.42,941.46,164.42,932.46,160.42,936.46,156.42,932.46,160.42,941.46" style="stroke:#181818;stroke-width:1;"/></g></g></svg></div><div class="puml dark" style=""><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="STATE" height="969px" preserveAspectRatio="xMidYMid meet" style="width:655px;height:969px;" version="1.1" viewBox="0 0 655 969" width="655px" zoomAndPan="magnify" class="diagram"><defs/><g><g id="Scheduled"><rect fill="#313139" height="64.2344" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="206.1641" x="332.34" y="152.66"/><line style="stroke:#E7E7E7;stroke-width:0.5;" x1="332.34" x2="538.5041" y1="178.9569" y2="178.9569"/><text fill="#FFFFFF" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="73.2197" x="398.8122" y="170.6551">Scheduled</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="186.1641" x="337.34" y="195.0955">Lab has not yet been deployed</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="337.34" y="209.0643">❌</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="355.9845" y="209.0643">Instance</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="414.6545" y="209.0643">❌</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="433.299" y="209.0643">Containers</text></g><g id="Deploying"><rect fill="#313139" height="64.2344" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="256.4199" x="307.21" y="293.89"/><line style="stroke:#E7E7E7;stroke-width:0.5;" x1="307.21" x2="563.6299" y1="320.1869" y2="320.1869"/><text fill="#FFFFFF" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="70.6699" x="400.085" y="311.8851">Deploying</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="236.4199" x="312.21" y="336.3255">Clab deploy / inspect is being executed</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="312.21" y="350.2943">✅</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="327.0401" y="350.2943">Instance</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="381.8955" y="350.2943">❌</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="400.5401" y="350.2943">Containers</text></g><g class="entity" data-entity="deploy" data-uid="ent0004" id="entity_deploy"><polygon fill="#313139" points="339.42,419.13,351.42,431.13,339.42,443.13,327.42,431.13,339.42,419.13" style="stroke:#E7E7E7;stroke-width:0.5;"/></g><g id="Running"><rect fill="#313139" height="78.2031" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="199.2148" x="309.81" y="520.13"/><line style="stroke:#E7E7E7;stroke-width:0.5;" x1="309.81" x2="509.0248" y1="546.4269" y2="546.4269"/><text fill="#FFFFFF" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="57.9961" x="380.4194" y="538.1251">Running</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="179.2148" x="314.81" y="562.5655">Clab successfully created and</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="127.7109" x="314.81" y="576.5343">started all containers</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="314.81" y="590.503">✅</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="329.6401" y="590.503">Instance</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="384.4955" y="590.503">✅</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="399.3256" y="590.503">Containers</text></g><g id="Stopping"><rect fill="#313139" height="64.2344" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="206.1934" x="292.32" y="675.33"/><line style="stroke:#E7E7E7;stroke-width:0.5;" x1="292.32" x2="498.5134" y1="701.6269" y2="701.6269"/><text fill="#FFFFFF" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="62.3643" x="364.2346" y="693.3251">Stopping</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="186.1934" x="297.32" y="717.7655">Clab destroy is being executed</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="297.32" y="731.7343">✅</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="312.1501" y="731.7343">Instance</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="367.0055" y="731.7343">❓</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="385.6501" y="731.7343">Containers</text></g><g id="Failed"><rect fill="#313139" height="64.2344" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="173.2227" x="101.81" y="527.11"/><line style="stroke:#E7E7E7;stroke-width:0.5;" x1="101.81" x2="275.0327" y1="553.4069" y2="553.4069"/><text fill="#FFFFFF" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="41.9111" x="167.4658" y="545.1051">Failed</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="107.9531" x="106.81" y="569.5455">Clab deploy failed</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="106.81" y="583.5143">✅</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="121.6401" y="583.5143">Instance</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="176.4955" y="583.5143">❌</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="195.1401" y="583.5143">Containers</text></g><g id="Inactive"><rect fill="#313139" height="64.2344" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="186.6582" x="67.09" y="816.57"/><line style="stroke:#E7E7E7;stroke-width:0.5;" x1="67.09" x2="253.7482" y1="842.8669" y2="842.8669"/><text fill="#FFFFFF" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="55.5557" x="132.6413" y="834.5651">Inactive</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="166.6582" x="72.09" y="859.0055">Lab is not currently running</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="72.09" y="872.9743">❌</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="51.041" x="90.7345" y="872.9743">Instance</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="7.2012" x="149.4045" y="872.9743">❌</text><text fill="#FFFFFF" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="64.8926" x="168.049" y="872.9743">Containers</text></g><g class="entity" data-entity="n1" data-source-line="16" data-uid="ent0009" id="entity_n1"><path d="M480.04,6 L480.04,91.6641 L648.7944,91.6641 L648.7944,16 L638.7944,6 L480.04,6" fill="#714137" style="stroke:#E7E7E7;stroke-width:0.5;"/><path d="M638.7944,6 L638.7944,16 L648.7944,16 L638.7944,6" fill="#714137" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="147.7544" x="486.04" y="23.0669">Instance Commands</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="45.519" x="486.04" y="38.1997">Deploy</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.8701" x="486.04" y="53.3325">Destroy</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="67.6152" x="486.04" y="68.4653">Stop Node</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="69.8179" x="486.04" y="83.5981">Start Node</text></g><ellipse cx="435.42" cy="48.83" fill="#222222" rx="10" ry="10" style="stroke:#222222;stroke-width:1;"/><ellipse cx="160.42" cy="952.8" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1;"/><ellipse cx="160.42" cy="952.8" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/><g class="entity" data-entity="GMN2" data-source-line="24" data-uid="ent0003" id="entity_GMN2"><path d="M46,157.08 L46,212.4784 A0,0 0 0 0 46,212.4784 L296.8423,212.4784 A0,0 0 0 0 296.8423,212.4784 L296.8423,188.78 L332.05,184.78 L296.8423,180.78 L296.8423,167.08 L286.8423,157.08 L46,157.08 A0,0 0 0 0 46,157.08" fill="#714137" style="stroke:#E7E7E7;stroke-width:0.5;"/><path d="M286.8423,157.08 L286.8423,167.08 L296.8423,167.08 L286.8423,157.08" fill="#714137" style="stroke:#E7E7E7;stroke-width:0.5;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacing" textLength="128.4702" x="52" y="174.1469">Not an actual state.</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="60.3979" x="184.6025" y="174.1469">Indicated</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="229.8423" x="52" y="189.2797">by the absence of the instance and</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="218.9434" x="52" y="204.4125">the start time being in the future.</text></g><g class="entity" data-entity="GMN5" data-source-line="30" data-uid="ent0006" id="entity_GMN5"><path d="M6,679.75 L6,735.1484 A0,0 0 0 0 6,735.1484 L133.08,735.1484 L153.86,816.19 L141.08,735.1484 L256.8423,735.1484 A0,0 0 0 0 256.8423,735.1484 L256.8423,689.75 L246.8423,679.75 L6,679.75 A0,0 0 0 0 6,679.75" fill="#714137" style="stroke:#E7E7E7;stroke-width:0.5;"/><path d="M246.8423,679.75 L246.8423,689.75 L256.8423,689.75 L246.8423,679.75" fill="#714137" style="stroke:#E7E7E7;stroke-width:0.5;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacing" textLength="128.4702" x="12" y="696.8169">Not an actual state.</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="60.3979" x="144.6025" y="696.8169">Indicated</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="229.8423" x="12" y="711.9497">by the absence of the instance and</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="207.5366" x="12" y="727.0825">the start time being in the past.</text></g><g class="link" data-entity-1=".start." data-entity-2="Scheduled" data-source-line="35" data-uid="lnk3" id="link_.start._Scheduled"><path d="M435.42,59.03 C435.42,77.95 435.42,115.95 435.42,146.29" fill="none" id="*start*-to-Scheduled" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="435.42,152.29,439.42,143.29,435.42,147.29,431.42,143.29,435.42,152.29" style="stroke:#E7E7E7;stroke-width:1;"/></g><g class="link" data-entity-1="Scheduled" data-entity-2="Deploying" data-source-line="36" data-uid="lnk4" id="link_Scheduled_Deploying"><path d="M435.42,217.37 C435.42,240.16 435.42,264.78 435.42,287.54" fill="none" id="Scheduled-to-Deploying" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="435.42,293.54,439.42,284.54,435.42,288.54,431.42,284.54,435.42,293.54" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="137.3062" x="436.42" y="259.9569">⠀(Scheduled) Deploy</text></g><g class="link" data-entity-1="Deploying" data-entity-2="Stopping" data-source-line="37" data-uid="lnk5" id="link_Deploying_Stopping"><path d="M462.65,358.36 C511.31,418.35 602.53,551.75 540.42,645.33 C530.22,660.7 520.6318,669.4198 504.2218,678.0398" fill="none" id="Deploying-to-Stopping" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="498.91,680.83,508.7378,680.1859,503.3365,678.5048,505.0175,673.1035,498.91,680.83" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.8701" x="543.42" y="486.1969">Destroy</text></g><g class="link" data-entity-1="Deploying" data-entity-2="deploy" data-source-line="38" data-uid="lnk6" id="link_Deploying_deploy"><path d="M406.1,358.51 C384.26,381.96 360.4076,407.5878 348.8676,419.9878" fill="none" id="Deploying-to-deploy" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="344.78,424.38,353.8395,420.5167,348.1863,420.7198,347.9832,415.0666,344.78,424.38" style="stroke:#E7E7E7;stroke-width:1;"/></g><g class="link" data-entity-1="deploy" data-entity-2="Running" data-source-line="39" data-uid="lnk7" id="link_deploy_Running"><path d="M336.65,440.81 C333.42,452.54 329.35,473.85 336.42,490.13 C341.19,501.1 344.5347,506.7718 352.9447,515.5318" fill="none" id="deploy-to-Running" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="357.1,519.86,353.7525,510.5975,353.6373,516.2531,347.9816,516.1379,357.1,519.86" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="71.2842" x="337.42" y="486.1969">Succeeded</text></g><g class="link" data-entity-1="deploy" data-entity-2="Failed" data-source-line="40" data-uid="lnk8" id="link_deploy_Failed"><path d="M332.65,437.03 C322.31,444.57 302.01,459.58 285.42,473.13 C264.25,490.42 245.7043,506.5524 227.4043,522.9024" fill="none" id="deploy-to-Failed" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="222.93,526.9,232.3065,523.8866,226.6586,523.5687,226.9765,517.9208,222.93,526.9" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="38.9175" x="286.42" y="486.1969">Failed</text></g><g class="link" data-entity-1="Failed" data-entity-2="Stopping" data-source-line="42" data-uid="lnk9" id="link_Failed_Stopping"><path d="M233.08,591.78 C267.91,616.38 311.1399,646.9075 345.9399,671.4975" fill="none" id="Failed-to-Stopping" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="350.84,674.96,345.7981,666.4995,346.7566,672.0746,341.1815,673.033,350.84,674.96" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.8701" x="305.42" y="641.3969">Destroy</text></g><g class="link" data-entity-1="Running" data-entity-2="Stopping" data-source-line="43" data-uid="lnk10" id="link_Running_Stopping"><path d="M398.05,598.82 C395.72,608.38 393.61,618.66 392.42,628.33 C391.5,635.83 392.24,637.78 392.42,645.33 C392.66,655 392.8148,659.5173 393.2848,669.0573" fill="none" id="Running-to-Stopping" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="393.58,675.05,397.1323,665.8641,393.334,670.0561,389.142,666.2577,393.58,675.05" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="142.6572" x="393.42" y="641.3969">⠀(Scheduled) Destroy</text></g><g class="link" data-entity-1="Running" data-entity-2="Deploying" data-source-line="44" data-uid="lnk11" id="link_Running_Deploying"><path d="M413.74,519.86 C418.83,474.56 426.5299,406.0625 431.2399,364.1525" fill="none" id="Running-to-Deploying" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="431.91,358.19,426.9299,366.687,431.3516,363.1587,434.8799,367.5804,431.91,358.19" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="45.519" x="426.42" y="435.6969">Deploy</text></g><g class="link" data-entity-1="Stopping" data-entity-2="Inactive" data-source-line="45" data-uid="lnk12" id="link_Stopping_Inactive"><path d="M342.1,740.04 C303.64,762.83 257.1124,790.4023 218.7024,813.1523" fill="none" id="Stopping-to-Inactive" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="213.54,816.21,223.3221,815.0651,217.842,813.6619,219.2452,808.1819,213.54,816.21" style="stroke:#E7E7E7;stroke-width:1;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="9.5215" x="293.42" y="782.6369">⠀</text><text fill="#FFFFFF" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacing" textLength="157.6377" x="302.9415" y="782.6369">Clab subprocess is done</text></g><g class="link" data-entity-1="Inactive" data-entity-2=".end." data-source-line="47" data-uid="lnk14" id="link_Inactive_.end."><path d="M160.42,881.15 C160.42,901.78 160.42,921.44 160.42,935.46" fill="none" id="Inactive-to-*end*" style="stroke:#E7E7E7;stroke-width:1;"/><polygon fill="#E7E7E7" points="160.42,941.46,164.42,932.46,160.42,936.46,156.42,932.46,160.42,941.46" style="stroke:#E7E7E7;stroke-width:1;"/></g></g></svg></div></div>
+</div>
+
+<p>Every lab has a state defining what information can be retrieved from and which actions can be performed on it. Some states are implicit states, or pseudo states, which are indicative of the absence of the lab's instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Pseudo States in the Interface</p>
+<p>In order to be able to filter and search for labs in a pseudo state, Antimony defines sub-zero values for pseudo states.</p>
+<p>An instance's state field will <em>never</em> have the value of a pseudo state.</p>
+</div>
+<h4 id="scheduled-pseudo-state">Scheduled (Pseudo State)</h4>
+<p>Every lab starts in the scheduled state, no matter if the lab is to be deployed right now or scheduled for deployment in two days.</p>
+<p>At this point, the lab does not have an instance yet and is present in the <em>lab scheduler</em> queue. The scheduler will start the deployment of the lab once its <em>start time</em> has been reached.</p>
+<h4 id="deploying">Deploying</h4>
+<p>An instance can be moved from the scheduled state into the deploying state by the scheduler or the user. When the user issues the <code>Deploy</code> lab command, the lab is deployed with immediate effect and the scheduler will remove the lab from the queue.</p>
+<p>At this point, the lab's log streaming namespace is available.</p>
+<h4 id="running">Running</h4>
+<p>Once the deployment was successful, and Antimony was able to retrieve all the node data from the deployment provider, the instance state changes to running.</p>
+<p>At this point, instance nodes are defined and node log streaming namespaces for the instance's nodes are available. </p>
+<h4 id="failed">Failed</h4>
+<p>If the deployment of the topology failed, or Antimony was unable to retrieve all necessary node information from Containerlab, the instance's state switches to failed.</p>
+<p>At this point, the user is be able to attempt to redeploy or destroy the lab, given they have the permission to do so.</p>
+<h4 id="stopping">Stopping</h4>
+<p>A lab enters the stopping state when the user issues the <code>Destroy</code> command, or the scheduler stops the lab at the end of its life.</p>
+<p>Stopping is an intermediate state that is usually short-lived unless the lab is rather complex.</p>
+<h4 id="inactive-pseudo-state">Inactive (Pseudo State)</h4>
+<p>Once the lab has been stopped it becomes inactive. Inactive labs do not have an instance attached to them.</p>
+<p>This is the final state. Once a lab is inactive, its no longer possible to deploy it. Attempting to re-deploy an inactive lab will result in Antimony creating a new, duplicated lab with the same properties.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Inactive labs can be permanently deleted and removed from future database results with an API call.</p>
+</div>
+<h2 id="instance-reviving">Instance Reviving</h2>
+<div class="puml-container" style="float:right;width: 400px;height: 300px">
+<div class='puml-container'><div class="puml light" style=""><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="ACTIVITY" height="204px" preserveAspectRatio="xMidYMid meet" style="width:542px;height:204px;" version="1.1" viewBox="0 0 542 204" width="542px" zoomAndPan="magnify" class="diagram"><defs/><g><ellipse cx="278.2081" cy="20" fill="#222222" rx="10" ry="10" style="stroke:#222222;stroke-width:1;"/><polygon fill="#F1F1F1" points="222.5233,50,333.8929,50,345.8929,62,333.8929,74,222.5233,74,210.5233,62,222.5233,50" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="111.3696" x="222.5233" y="65.8081">Has instance name?</text><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="19.0083" x="191.515" y="59.4058">yes</text><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="13.7017" x="345.8929" y="59.4058">no</text><polygon fill="#F1F1F1" points="67.8555,84,205.0493,84,217.0493,96,205.0493,108,67.8555,108,55.8555,96,67.8555,84" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="137.1938" x="67.8555" y="99.8081">Clab inspect has results?</text><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="19.0083" x="36.8472" y="93.4058">yes</text><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="13.7017" x="217.0493" y="93.4058">no</text><rect fill="#F1F1F1" height="33.9688" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="69.7109" x="11" y="118"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="49.7109" x="21" y="139.1387">Running</text><ellipse cx="45.8555" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1;"/><ellipse cx="45.8555" cy="182.9688" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/><rect fill="#F1F1F1" height="33.9688" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="67.6191" x="193.2397" y="118"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="47.6191" x="203.2397" y="139.1387">Inactive</text><ellipse cx="227.0493" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1;"/><ellipse cx="227.0493" cy="182.9688" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/><polygon fill="#F1F1F1" points="364.2388,84,475.689,84,487.689,96,475.689,108,364.2388,108,352.2388,96,364.2388,84" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="111.4502" x="364.2388" y="99.8081">Start date in future?</text><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="19.0083" x="333.2305" y="93.4058">yes</text><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="13.7017" x="487.689" y="93.4058">no</text><rect fill="#F1F1F1" height="33.9688" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="82.7598" x="300.8589" y="118"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="62.7598" x="310.8589" y="139.1387">Scheduled</text><ellipse cx="342.2388" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1;"/><ellipse cx="342.2388" cy="182.9688" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/><rect fill="#F1F1F1" height="33.9688" rx="12.5" ry="12.5" style="stroke:#181818;stroke-width:0.5;" width="67.6191" x="463.8794" y="118"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="47.6191" x="473.8794" y="139.1387">Inactive</text><ellipse cx="497.689" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1;"/><ellipse cx="497.689" cy="182.9688" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="45.8555" x2="45.8555" y1="151.9688" y2="171.9688"/><polygon fill="#181818" points="41.8555,161.9688,45.8555,171.9688,49.8555,161.9688,45.8555,165.9688" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="227.0493" x2="227.0493" y1="151.9688" y2="171.9688"/><polygon fill="#181818" points="223.0493,161.9688,227.0493,171.9688,231.0493,161.9688,227.0493,165.9688" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="55.8555" x2="45.8555" y1="96" y2="96"/><line style="stroke:#181818;stroke-width:1;" x1="45.8555" x2="45.8555" y1="96" y2="118"/><polygon fill="#181818" points="41.8555,108,45.8555,118,49.8555,108,45.8555,112" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="217.0493" x2="227.0493" y1="96" y2="96"/><line style="stroke:#181818;stroke-width:1;" x1="227.0493" x2="227.0493" y1="96" y2="118"/><polygon fill="#181818" points="223.0493,108,227.0493,118,231.0493,108,227.0493,112" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="342.2388" x2="342.2388" y1="151.9688" y2="171.9688"/><polygon fill="#181818" points="338.2388,161.9688,342.2388,171.9688,346.2388,161.9688,342.2388,165.9688" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="497.689" x2="497.689" y1="151.9688" y2="171.9688"/><polygon fill="#181818" points="493.689,161.9688,497.689,171.9688,501.689,161.9688,497.689,165.9688" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="352.2388" x2="342.2388" y1="96" y2="96"/><line style="stroke:#181818;stroke-width:1;" x1="342.2388" x2="342.2388" y1="96" y2="118"/><polygon fill="#181818" points="338.2388,108,342.2388,118,346.2388,108,342.2388,112" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="487.689" x2="497.689" y1="96" y2="96"/><line style="stroke:#181818;stroke-width:1;" x1="497.689" x2="497.689" y1="96" y2="118"/><polygon fill="#181818" points="493.689,108,497.689,118,501.689,108,497.689,112" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="210.5233" x2="136.4524" y1="62" y2="62"/><line style="stroke:#181818;stroke-width:1;" x1="136.4524" x2="136.4524" y1="62" y2="84"/><polygon fill="#181818" points="132.4524,74,136.4524,84,140.4524,74,136.4524,78" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="345.8929" x2="419.9639" y1="62" y2="62"/><line style="stroke:#181818;stroke-width:1;" x1="419.9639" x2="419.9639" y1="62" y2="84"/><polygon fill="#181818" points="415.9639,74,419.9639,84,423.9639,74,419.9639,78" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="278.2081" x2="278.2081" y1="30" y2="50"/><polygon fill="#181818" points="274.2081,40,278.2081,50,282.2081,40,278.2081,44" style="stroke:#181818;stroke-width:1;"/></g></svg></div><div class="puml dark" style=""><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="ACTIVITY" height="204px" preserveAspectRatio="xMidYMid meet" style="width:542px;height:204px;" version="1.1" viewBox="0 0 542 204" width="542px" zoomAndPan="magnify" class="diagram"><defs/><g><ellipse cx="278.2081" cy="20" fill="#DDDDDD" rx="10" ry="10" style="stroke:#DDDDDD;stroke-width:1;"/><polygon fill="#313139" points="222.5233,50,333.8929,50,345.8929,62,333.8929,74,222.5233,74,210.5233,62,222.5233,50" style="stroke:#E7E7E7;stroke-width:0.5;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="111.3696" x="222.5233" y="65.8081">Has instance name?</text><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="19.0083" x="191.515" y="59.4058">yes</text><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="13.7017" x="345.8929" y="59.4058">no</text><polygon fill="#313139" points="67.8555,84,205.0493,84,217.0493,96,205.0493,108,67.8555,108,55.8555,96,67.8555,84" style="stroke:#E7E7E7;stroke-width:0.5;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="137.1938" x="67.8555" y="99.8081">Clab inspect has results?</text><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="19.0083" x="36.8472" y="93.4058">yes</text><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="13.7017" x="217.0493" y="93.4058">no</text><rect fill="#313139" height="33.9688" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="69.7109" x="11" y="118"/><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="49.7109" x="21" y="139.1387">Running</text><ellipse cx="45.8555" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#DDDDDD;stroke-width:1;"/><ellipse cx="45.8555" cy="182.9688" fill="#DDDDDD" rx="6" ry="6" style="stroke:#DDDDDD;stroke-width:1;"/><rect fill="#313139" height="33.9688" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="67.6191" x="193.2397" y="118"/><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="47.6191" x="203.2397" y="139.1387">Inactive</text><ellipse cx="227.0493" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#DDDDDD;stroke-width:1;"/><ellipse cx="227.0493" cy="182.9688" fill="#DDDDDD" rx="6" ry="6" style="stroke:#DDDDDD;stroke-width:1;"/><polygon fill="#313139" points="364.2388,84,475.689,84,487.689,96,475.689,108,364.2388,108,352.2388,96,364.2388,84" style="stroke:#E7E7E7;stroke-width:0.5;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="111.4502" x="364.2388" y="99.8081">Start date in future?</text><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="19.0083" x="333.2305" y="93.4058">yes</text><text fill="#FFFFFF" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="13.7017" x="487.689" y="93.4058">no</text><rect fill="#313139" height="33.9688" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="82.7598" x="300.8589" y="118"/><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="62.7598" x="310.8589" y="139.1387">Scheduled</text><ellipse cx="342.2388" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#DDDDDD;stroke-width:1;"/><ellipse cx="342.2388" cy="182.9688" fill="#DDDDDD" rx="6" ry="6" style="stroke:#DDDDDD;stroke-width:1;"/><rect fill="#313139" height="33.9688" rx="12.5" ry="12.5" style="stroke:#E7E7E7;stroke-width:0.5;" width="67.6191" x="463.8794" y="118"/><text fill="#FFFFFF" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="47.6191" x="473.8794" y="139.1387">Inactive</text><ellipse cx="497.689" cy="182.9688" fill="none" rx="11" ry="11" style="stroke:#DDDDDD;stroke-width:1;"/><ellipse cx="497.689" cy="182.9688" fill="#DDDDDD" rx="6" ry="6" style="stroke:#DDDDDD;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="45.8555" x2="45.8555" y1="151.9688" y2="171.9688"/><polygon fill="#E7E7E7" points="41.8555,161.9688,45.8555,171.9688,49.8555,161.9688,45.8555,165.9688" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="227.0493" x2="227.0493" y1="151.9688" y2="171.9688"/><polygon fill="#E7E7E7" points="223.0493,161.9688,227.0493,171.9688,231.0493,161.9688,227.0493,165.9688" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="55.8555" x2="45.8555" y1="96" y2="96"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="45.8555" x2="45.8555" y1="96" y2="118"/><polygon fill="#E7E7E7" points="41.8555,108,45.8555,118,49.8555,108,45.8555,112" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="217.0493" x2="227.0493" y1="96" y2="96"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="227.0493" x2="227.0493" y1="96" y2="118"/><polygon fill="#E7E7E7" points="223.0493,108,227.0493,118,231.0493,108,227.0493,112" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="342.2388" x2="342.2388" y1="151.9688" y2="171.9688"/><polygon fill="#E7E7E7" points="338.2388,161.9688,342.2388,171.9688,346.2388,161.9688,342.2388,165.9688" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="497.689" x2="497.689" y1="151.9688" y2="171.9688"/><polygon fill="#E7E7E7" points="493.689,161.9688,497.689,171.9688,501.689,161.9688,497.689,165.9688" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="352.2388" x2="342.2388" y1="96" y2="96"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="342.2388" x2="342.2388" y1="96" y2="118"/><polygon fill="#E7E7E7" points="338.2388,108,342.2388,118,346.2388,108,342.2388,112" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="487.689" x2="497.689" y1="96" y2="96"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="497.689" x2="497.689" y1="96" y2="118"/><polygon fill="#E7E7E7" points="493.689,108,497.689,118,501.689,108,497.689,112" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="210.5233" x2="136.4524" y1="62" y2="62"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="136.4524" x2="136.4524" y1="62" y2="84"/><polygon fill="#E7E7E7" points="132.4524,74,136.4524,84,140.4524,74,136.4524,78" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="345.8929" x2="419.9639" y1="62" y2="62"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="419.9639" x2="419.9639" y1="62" y2="84"/><polygon fill="#E7E7E7" points="415.9639,74,419.9639,84,423.9639,74,419.9639,78" style="stroke:#E7E7E7;stroke-width:1;"/><line style="stroke:#E7E7E7;stroke-width:1;" x1="278.2081" x2="278.2081" y1="30" y2="50"/><polygon fill="#E7E7E7" points="274.2081,40,278.2081,50,282.2081,40,278.2081,44" style="stroke:#E7E7E7;stroke-width:1;"/></g></svg></div></div>
+</div>
+
+<p>Antimony is supposed to run completely independently of whatever deployment backend (e.g. Docker) it is working with. Because of this, we need a way to revive instances that have been deployed by Antimony in the past and re-attach an instance to them whenever Antimony is restarted.</p>
+<p>This task is done by Antimony's instance reviving algorithm that runs everytime Antimony is starting.</p>
+<h3 id="algorithm-overview">Algorithm Overview</h3>
+<p>First, the algorithm retrieves all running nodes from the deployment provider. After that, it iterates over every lab in the Antimony database and attempts to revive each one of them.</p>
+<p>For each lab, the algorithm checks whether it has an instance name. If this is not the case, it means that the lab has never been deployed before.</p>
+<p>If the lab does not have an instance name and its start date is in the past, it is treated as inactive. If its start date is in the future, it is treated as scheduled and added to the scheduler queue.</p>
+<p>If the lab has an instance name and containerlab returns results for the given instance name, the lab is treated as active, gets the <code>Running</code> state and Antimony re-attaches an instance object. If containerlab does not return any results for the instance name, the lab is treated as inactive. </p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+    
+    
+    Made by the
+    <a href="https://github.com/antimony-team" target="_blank" rel="noopener">
+        Antimony team
+    </a>
+    
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.top", "navigation.tabs", "search.suggest", "content.code.annotate", "content.code.copy", "content.action.edit", "toc.follow", "content.tooltips", "navigation.indexes", "content.footnote.tooltips"], "search": "../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+        <script src="../assets/mkdocs_puml/puml.js"></script>
+      
+        <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+      
+        <script src="../assets/mkdocs_puml/interaction.js"></script>
+      
+    
+  <script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(() => { lightbox.reload() });
+</script></body>
+</html>

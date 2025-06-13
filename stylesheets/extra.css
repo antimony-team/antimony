@@ -1,0 +1,46 @@
+@font-face {
+  font-family: Figtree;
+  src: local('Figtree'), url("../fonts/Figtree-VariableFont_wght.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: Iosevka;
+    src: local('Iosevka'), url("../fonts/Iosevka-Regular.ttf") format("truetype");
+}
+
+:root {
+    --md-text-font: "Figtree", Roboto;
+    --md-code-font: "Iosevka", monospace; 
+}
+
+.puml-container {
+  margin: 8px;
+}
+
+.puml .diagram {
+  height: unset !important;
+}
+
+table th {
+  padding: 8px !important;
+}
+
+table td {
+  padding: 8px !important;
+}
+
+[data-md-color-scheme="slate"] {
+  --glightbox-background-color: #1E2129; 
+}
+
+[data-md-color-scheme="default"] {
+  --glightbox-background-color: white; 
+}
+
+.gslide-image img {
+  background: var(--glightbox-background-color) !important;
+}
+
+.goverlay {
+  background: rgba(0,0,0,0.5) !important;
+}
