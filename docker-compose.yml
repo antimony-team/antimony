@@ -25,8 +25,8 @@ services:
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
 
       # Self-signed certificate fallback
-      - --entrypoints.websecure.forwardedHeaders.insecure=true"
-      - --serversTransport.insecureSkipVerify=true"
+      - --entrypoints.websecure.forwardedHeaders.insecure=true
+      - --serversTransport.insecureSkipVerify=true
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
