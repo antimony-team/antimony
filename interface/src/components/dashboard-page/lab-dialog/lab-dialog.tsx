@@ -91,7 +91,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const updateGraph = useCallback(() => {
       if (!cyRef.current || !props.dialogState.state) return;
 
-      cyRef.current!.elements().remove();
+      cyRef.current.elements().remove();
 
       const elements = generateGraph(
         props.dialogState.state.topologyDefinition,
@@ -102,7 +102,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       );
 
       for (const element of elements) {
-        cyRef.current!.add(element);
+        cyRef.current.add(element);
       }
 
       if (!graphInitiallyFitted.current) {
@@ -125,7 +125,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
     useEffect(() => {
       updateGraph();
-    }, [props.dialogState.state, hostsHidden]);
+    }, [hostsHidden]);
 
     function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
@@ -425,9 +425,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function onFitGraph() {
       if (!cyRef.current) return;
 
-      setTimeout(() => {
-        cyRef.current!.fit(cyRef.current!.elements(), 120);
-      }, 200);
+      cyRef.current.fit(undefined, 120);
     }
 
     function closeDetails() {

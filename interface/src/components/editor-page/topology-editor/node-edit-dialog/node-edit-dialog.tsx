@@ -274,7 +274,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
         className="sb-icon-selector-panel"
       >
         <div className="sb-icon-selector-container">
-          {deviceStore.getAllIcons().map(([[icon, path], index]) => (
+          {deviceStore.getAllIcons().map(([icon, path], index) => (
             <div key={index} className="sb-icon-selector-entry">
               <Image src={path} onClick={() => onSelectIcon(icon)} />
               <span>{icon}</span>
