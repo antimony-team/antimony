@@ -87,7 +87,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       if (props.openTopology === null || !cyRef.current) return;
       closeRadialMenu();
 
-      cyRef.current?.elements().remove();
+      cyRef.current.elements().remove();
 
       const elements = generateGraph(
         props.openTopology,
@@ -103,7 +103,7 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
         lastOpenedTopology.current = props.openTopology.id;
         onFitGraph();
       }
-    }, [deviceStore, props.openTopology, topologyStore.manager]);
+    }, [deviceStore, props.openTopology]);
 
     const elements = useMemo(() => {
       if (props.openTopology === null) return [];
@@ -552,15 +552,10 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       }
     }
 
-    function onGraphReady() {
-      onFitGraph();
-    }
-
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
       cy.maxZoom(10);
       cy.style().fromJson(topologyStyle).update();
-      cy.ready(onGraphReady);
 
       cy.on('click', onGraphClick);
       cy.on('click', 'node', onNodeClick);
@@ -576,8 +571,6 @@ const NodeEditor: React.FC<NodeEditorProps> = observer(
       cy.on('mousedown', handleMouseDown);
       cy.on('mousemove', handleMouseMove);
       cy.on('mouseup', handleMouseUp);
-
-      // onFitGraph();
     }
 
     function onGroupNameSubmit(

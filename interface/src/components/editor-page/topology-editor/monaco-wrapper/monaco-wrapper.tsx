@@ -58,6 +58,8 @@ export interface MonacoWrapperRef {
   setContent: (content: string) => void;
 }
 
+let hasInitializedValidator = false;
+
 const MonacoWrapper = observer(
   forwardRef<MonacoWrapperRef, MonacoWrapperProps>((props, ref) => {
     const [isReadOnly, setReadOnly] = useState(false);
@@ -222,16 +224,20 @@ const MonacoWrapper = observer(
         }
       });
 
-      configureMonacoYaml(MonacoEditor, {
-        enableSchemaRequest: false,
-        schemas: [
-          {
-            fileMatch: ['**/*.yaml'],
-            schema: toJS(schemaStore.clabSchema),
-            uri: process.env.SB_CLAB_SCHEMA_URL!,
-          },
-        ],
-      });
+      if (!hasInitializedValidator) {
+        configureMonacoYaml(MonacoEditor, {
+          enableSchemaRequest: false,
+          schemas: [
+            {
+              fileMatch: ['**/*.yaml'],
+              schema: toJS(schemaStore.clabSchema),
+              uri: process.env.SB_CLAB_SCHEMA_URL!,
+            },
+          ],
+        });
+
+        hasInitializedValidator = true;
+      }
     }
 
     function onContentChange() {

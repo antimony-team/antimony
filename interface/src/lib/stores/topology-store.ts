@@ -51,6 +51,8 @@ export class TopologyStore extends DataStore<
 
   @action
   protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
+    if (!this.schemaStore.clabSchema) return;
+
     const [data, bindFiles] = this.parseTopologies(response.payload);
     this.data = data;
     this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
