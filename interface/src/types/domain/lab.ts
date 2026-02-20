@@ -59,6 +59,8 @@ export type InstanceNode = {
   webSSH: string;
   containerId: string;
   containerName: string;
+
+  interfaceCaptures: Record<string, string>;
 };
 
 export enum InstanceState {

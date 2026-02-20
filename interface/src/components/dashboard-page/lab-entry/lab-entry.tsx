@@ -11,6 +11,7 @@ import {Button, ButtonProps} from 'primereact/button';
 import React, {useMemo} from 'react';
 
 import './lab-entry.sass';
+import {observer} from 'mobx-react-lite';
 
 interface LabEntryProps {
   lab: Lab;
@@ -31,7 +32,7 @@ const defaultLabButtonProps: ButtonProps = {
   },
 };
 
-const LabEntry = (props: LabEntryProps) => {
+const LabEntry = observer((props: LabEntryProps) => {
   const authUser = useAuthUser();
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
@@ -193,6 +194,6 @@ const LabEntry = (props: LabEntryProps) => {
       </div>
     </div>
   );
-};
+});
 
 export default LabEntry;

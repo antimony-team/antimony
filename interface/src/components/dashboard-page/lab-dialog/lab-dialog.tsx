@@ -16,6 +16,7 @@ import {
   useCollectionStore,
   useDeviceStore,
   useLabStore,
+  useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {DialogState, useDialogState} from '@sb/lib/utils/hooks';
@@ -60,6 +61,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const deviceStore = useDeviceStore();
     const labStore = useLabStore();
     const topologyStore = useTopologyStore();
+    const statusMessageStore = useStatusMessages();
 
     const nodeDetailOverlay = useRef<TooltipRefProps>(null);
 
@@ -348,6 +350,21 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         },
       ];
 
+      if (node) {
+        const interfaceCaptures = Object.entries(node.interfaceCaptures);
+        if (interfaceCaptures.length > 0) {
+          entries.push({separator: true});
+        }
+
+        for (const [iface, capture] of interfaceCaptures) {
+          entries.push({
+            label: 'Open Capture for ' + iface,
+            icon: 'pi pi-eye',
+            command: () => copyCaptureToClipboard(capture),
+          });
+        }
+      }
+
       if (node?.webSSH) {
         entries.push({
           label: 'Web SSH',
@@ -358,6 +375,12 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
       return entries;
     }, [selectedNode, props.dialogState.state]);
+
+    function copyCaptureToClipboard(capture: string) {
+      void navigator.clipboard.writeText(capture);
+
+      statusMessageStore.success('Command copied to clipboard!');
+    }
 
     function onGraphClick(event: cytoscape.EventObject) {
       if (
@@ -397,6 +420,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     useEffect(() => {
+      updateGraph();
+
       if (!props.dialogState.state) return;
 
       if (logDialogState.isOpen) {
