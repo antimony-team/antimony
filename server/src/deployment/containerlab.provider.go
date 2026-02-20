@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os/exec"
 	"time"
@@ -184,6 +185,11 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 
 	eventFilter := filters.NewArgs()
 	eventFilter.Add("type", "container")
+	eventFilter.Add("event", "start")
+	eventFilter.Add("event", "stop")
+	eventFilter.Add("event", "die")
+	eventFilter.Add("event", "destroy")
+	eventFilter.Add("event", "create")
 
 	channel, errs := cli.Events(ctx, events.ListOptions{
 		Filters: eventFilter,
@@ -227,4 +233,77 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 
 	go streamOutput(out, onLog)
 	return nil
+}
+
+func (p *ContainerlabProvider) GetInterfaces(
+	ctx context.Context,
+	containerId string,
+) ([]string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+	}
+	defer cli.Close()
+
+	// Inspect the container
+	info, err := cli.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %q: %w", containerId, err)
+	}
+
+	// Execute `ip -j link show` inside the container to get all interfaces
+	execConfig := container.ExecOptions{
+		Cmd:          []string{"ip", "-j", "link", "show"},
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execID, err := cli.ContainerExecCreate(ctx, info.ID, execConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	resp, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to attach exec: %w", err)
+	}
+	defer resp.Close()
+
+	// Read all output — docker multiplexes stdout/stderr with an 8-byte header per frame
+	// [stream_type(1), padding(3), size(4)] then payload
+	var raw []byte
+	buf := make([]byte, 4096)
+	for {
+		n, err := resp.Reader.Read(buf)
+		if n > 0 {
+			data := buf[:n]
+			// Strip docker stream multiplexing headers
+			for len(data) > 8 {
+				frameSize := int(data[4])<<24 | int(data[5])<<16 | int(data[6])<<8 | int(data[7])
+				if len(data) < 8+frameSize {
+					break
+				}
+				raw = append(raw, data[8:8+frameSize]...)
+				data = data[8+frameSize:]
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	// Parse JSON output of `ip -j link show`
+	var links []struct {
+		IfName string `json:"ifname"`
+	}
+	if err := json.Unmarshal(raw, &links); err != nil {
+		return nil, fmt.Errorf("failed to parse ip link output: %w\nraw: %s", err, string(raw))
+	}
+
+	interfaces := make([]string, 0, len(links))
+	for _, l := range links {
+		interfaces = append(interfaces, l.IfName)
+	}
+
+	return interfaces, nil
 }

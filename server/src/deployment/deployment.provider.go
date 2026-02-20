@@ -21,6 +21,8 @@ type DeploymentProvider interface {
 	RestartNode(ctx context.Context, containerId string) error
 
 	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
+
+	GetInterfaces(ctx context.Context, containerId string) ([]string, error)
 }
 
 type InspectOutput = map[string][]InspectContainer

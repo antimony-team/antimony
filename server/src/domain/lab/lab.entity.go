@@ -103,6 +103,9 @@ type InstanceNode struct {
 	State         deployment.NodeState `json:"state"`
 	ContainerId   string               `json:"containerId"`
 	ContainerName string               `json:"containerName"`
+
+	// TODO(kian): Implement properly
+	InterfaceCaptures map[string]string `json:"interfaceCaptures"`
 }
 
 type ShellData struct {

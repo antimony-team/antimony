@@ -209,3 +209,10 @@ func getTopologyName(topologyFile string, onLog func(string)) string {
 
 	return "c9s-" + meta.Name
 }
+
+func (p *ClabernetesProvider) GetInterfaces(
+	ctx context.Context,
+	containerId string,
+) ([]string, error) {
+	return nil, nil
+}

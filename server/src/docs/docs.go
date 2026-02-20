@@ -1082,6 +1082,13 @@ const docTemplate = `{
                 "containerName": {
                     "type": "string"
                 },
+                "interfaceCaptures": {
+                    "description": "TODO(kian): Implement properly",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "ipv4": {
                     "type": "string"
                 },
