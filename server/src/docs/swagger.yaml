@@ -79,6 +79,11 @@ definitions:
         type: string
       containerName:
         type: string
+      interfaceCaptures:
+        additionalProperties:
+          type: string
+        description: 'TODO(kian): Implement properly'
+        type: object
       ipv4:
         type: string
       ipv6:

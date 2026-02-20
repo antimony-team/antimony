@@ -270,7 +270,12 @@ func (s *topologyService) CreateBindFile(
 	}
 
 	// Don't allow duplicate bind file names within the same topology
-	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, ""); err != nil {
+	if nameExists, err := s.topologyRepo.DoesBindFilePathExist(
+		ctx,
+		*req.FilePath,
+		bindFileTopology.UUID,
+		"",
+	); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrBindFileExists
@@ -315,7 +320,12 @@ func (s *topologyService) UpdateBindFile(
 
 	if req.FilePath != nil {
 		// Don't allow duplicate bind file names within the same topology
-		if nameExists, err := s.topologyRepo.DoesBindFilePathExist(ctx, *req.FilePath, bindFileTopology.UUID, bindFileUuid); err != nil {
+		if nameExists, err := s.topologyRepo.DoesBindFilePathExist(
+			ctx,
+			*req.FilePath,
+			bindFileTopology.UUID,
+			bindFileUuid,
+		); err != nil {
 			return err
 		} else if nameExists {
 			return utils.ErrBindFileExists

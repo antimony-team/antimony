@@ -403,6 +403,13 @@ func (p *MockDeploymentProvider) StreamContainerLogs(
 	return nil
 }
 
+func (m *MockDeploymentProvider) GetInterfaces(
+	ctx context.Context,
+	containerId string,
+) ([]string, error) {
+	return make([]string, 0), nil
+}
+
 func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	gin.SetMode(gin.TestMode)
 

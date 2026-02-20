@@ -10,8 +10,10 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"bytes"
 	"context"
 	"fmt"
+	"html/template"
 	"io"
 	"regexp"
 	"slices"
@@ -465,7 +467,12 @@ func (s *labService) createLabEnvironment(lab *Lab) (string, error) {
 		return "", err
 	}
 
-	if err := s.storageManager.CreateRunEnvironment(lab.Topology.UUID, lab.UUID, runTopologyDefinition, &runTopologyFile); err != nil {
+	if err := s.storageManager.CreateRunEnvironment(
+		lab.Topology.UUID,
+		lab.UUID,
+		runTopologyDefinition,
+		&runTopologyFile,
+	); err != nil {
 		return "", err
 	}
 
@@ -793,9 +800,54 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 		EdgesharkLink:     instance.EdgesharkLink,
 		State:             instance.State,
 		LatestStateChange: instance.LatestStateChange,
-		Nodes:             instance.Nodes,
+		Nodes:             s.nodesToOut(instance.Nodes),
 		Recovered:         instance.Recovered,
 	}
+}
+
+func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
+	baseSsh := "ssh ins@localhost python3 /home/ins/relay.py --container-name {{.ContainerName}} --nif {{.InterfaceName}} | wireshark -k -i -"
+	baseSshTemplate := template.Must(template.New("msg").Parse(baseSsh))
+
+	var nodesOut []InstanceNode
+
+	for _, node := range nodes {
+		ctx := context.Background()
+		exclude := []string{"gway-2800", "monit_in", "lo", "mgmt0-0"}
+		interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
+
+		interfaces = utils.FilterList(interfaces, exclude)
+
+		interfaceCaptures := make(map[string]string)
+
+		for _, interfaceName := range interfaces {
+			var buf bytes.Buffer
+			_ = baseSshTemplate.Execute(&buf, struct {
+				ContainerName string
+				InterfaceName string
+			}{
+				ContainerName: node.ContainerName,
+				InterfaceName: interfaceName,
+			})
+
+			interfaceCaptures[interfaceName] = buf.String()
+		}
+
+		nodesOut = append(nodesOut, InstanceNode{
+			Name:              node.Name,
+			IPv4:              node.IPv4,
+			IPv6:              node.IPv6,
+			Port:              node.Port,
+			User:              node.User,
+			WebSSH:            node.WebSSH,
+			State:             node.State,
+			ContainerId:       node.ContainerId,
+			ContainerName:     node.ContainerName,
+			InterfaceCaptures: interfaceCaptures,
+		})
+	}
+
+	return nodesOut
 }
 
 func (s *labService) updateInstanceNodes(

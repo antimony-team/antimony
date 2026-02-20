@@ -45,3 +45,21 @@ func GetItemsFromList[T any](list []T, limit int, offset int) []T {
 
 	return list[offset:end]
 }
+
+func FilterList(input, exclude []string) []string {
+	excluded := make(map[string]struct{})
+
+	// Put excluded strings into a map for O(1) lookup
+	for _, e := range exclude {
+		excluded[e] = struct{}{}
+	}
+
+	var result []string
+	for _, s := range input {
+		if _, found := excluded[s]; !found {
+			result = append(result, s)
+		}
+	}
+
+	return result
+}

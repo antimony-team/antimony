@@ -147,7 +147,13 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 		}
 		db, err = gorm.Open(sqlite.Open(config.Database.LocalFile), &gorm.Config{})
 	} else {
-		connection := fmt.Sprintf("%s@%s:%d/%s", config.Database.User, config.Database.Host, config.Database.Port, config.Database.Database)
+		connection := fmt.Sprintf(
+			"%s@%s:%d/%s",
+			config.Database.User,
+			config.Database.Host,
+			config.Database.Port,
+			config.Database.Database,
+		)
 		log.Info("Connecting to remote PostgreSQL database", "conn", connection)
 
 		dsn := fmt.Sprintf(
