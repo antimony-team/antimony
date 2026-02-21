@@ -25,7 +25,6 @@ export default [
       'webpack.common.cjs',
       'webpack.prod.cjs',
       'webpack.dev.cjs',
-      'workbox-config.cjs',
       'eslint.config.js',
       '.prettierrc.cjs',
       'start.js',
@@ -38,8 +37,8 @@ export default [
       'plugin:@typescript-eslint/recommended',
       'plugin:jsx-control-statements/recommended',
       'plugin:import/recommended',
-      './node_modules/gts'
-    )
+      './node_modules/gts',
+    ),
   ),
   {
     plugins: {

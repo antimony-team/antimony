@@ -3,7 +3,7 @@ FROM node:22-alpine AS build
 WORKDIR /
 
 # We copy all of the needed local files into the docker container and run commands to install dependencies and build
-COPY .babelrc .prettierrc.cjs eslint.config.js package.json tsconfig.json workbox-config.cjs yarn.lock .env ./
+COPY .babelrc .prettierrc.cjs eslint.config.js package.json tsconfig.json yarn.lock .env ./
 COPY webpack.common.cjs webpack.prod.cjs ./
 COPY src/ ./src/
 COPY public/ ./public/
