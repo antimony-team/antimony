@@ -163,7 +163,7 @@ func (s *labService) RunScheduler() {
 			}()
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
@@ -807,7 +807,7 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 
 func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
 	baseSsh := fmt.Sprintf(
-		"ssh %s@%s python3 %s --container-name {{.ContainerName}} --nif {{.InterfaceName}} | wireshark -k -i -",
+		"ssh -o StrictHostKeyChecking=no %s@%s python3 %s --container-name {{.ContainerName}} --nif {{.InterfaceName}} | wireshark -k -i -",
 		s.config.PacketflixRelay.User,
 		s.config.PacketflixRelay.Host,
 		s.config.PacketflixRelay.Path,
