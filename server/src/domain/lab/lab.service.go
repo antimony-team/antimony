@@ -806,7 +806,12 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 }
 
 func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
-	baseSsh := "ssh ins@localhost python3 /home/ins/relay.py --container-name {{.ContainerName}} --nif {{.InterfaceName}} | wireshark -k -i -"
+	baseSsh := fmt.Sprintf(
+		"ssh %s@%s python3 %s --container-name {{.ContainerName}} --nif {{.InterfaceName}} | wireshark -k -i -",
+		s.config.PacketflixRelay.User,
+		s.config.PacketflixRelay.Host,
+		s.config.PacketflixRelay.Path,
+	)
 	baseSshTemplate := template.Must(template.New("msg").Parse(baseSsh))
 
 	var nodesOut []InstanceNode

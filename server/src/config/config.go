@@ -9,13 +9,14 @@ import (
 
 type (
 	AntimonyConfig struct {
-		General      GeneralConfig    `yaml:"general"`
-		Server       ServerConfig     `yaml:"server"`
-		Auth         AuthConfig       `yaml:"auth"`
-		Shell        ShellConfig      `yaml:"shell"`
-		Database     DatabaseConfig   `yaml:"database"`
-		FileSystem   FilesystemConfig `yaml:"fileSystem"`
-		Containerlab ClabConfig       `yaml:"containerlab"`
+		General         GeneralConfig         `yaml:"general"`
+		Server          ServerConfig          `yaml:"server"`
+		Auth            AuthConfig            `yaml:"auth"`
+		Shell           ShellConfig           `yaml:"shell"`
+		Database        DatabaseConfig        `yaml:"database"`
+		PacketflixRelay PacketflixRelayConfig `yaml:"packetflixRelay"`
+		FileSystem      FilesystemConfig      `yaml:"fileSystem"`
+		Containerlab    ClabConfig            `yaml:"containerlab"`
 	}
 
 	GeneralConfig struct {
@@ -25,6 +26,12 @@ type (
 	ServerConfig struct {
 		Host string `yaml:"host"`
 		Port uint   `yaml:"port"`
+	}
+
+	PacketflixRelayConfig struct {
+		Host string `yaml:"host"`
+		User string `yaml:"user"`
+		Path string `yaml:"path"`
 	}
 
 	AuthConfig struct {
@@ -111,6 +118,11 @@ func defaultConfig() *AntimonyConfig {
 			Database:  "antimony",
 			Port:      5432,
 			LocalFile: "./test.db",
+		},
+		PacketflixRelay: PacketflixRelayConfig{
+			Host: "127.0.0.1",
+			User: "ins",
+			Path: "/home/ins/relay.py",
 		},
 		FileSystem: FilesystemConfig{
 			Storage: "./storage/",

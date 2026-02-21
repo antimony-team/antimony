@@ -40,6 +40,13 @@ database:
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
   localFile: ./db/antimony.db
+packetflixRelay:
+  # The host where the packetflix relay is hosted (needs to be externally accessible).
+  host: 127.0.0.1
+  # The user with which the packetflix relay can be accessed on the host.
+  user: ins
+  # The path where the packetflix relay is stored.
+  path: /home/ins/relay.py
 filesystem:
   # Topology definition files will be stored in this directory.
   # Default: ./storage/
