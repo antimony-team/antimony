@@ -135,7 +135,7 @@ const DashboardPage: React.FC = observer(() => {
   return (
     <>
       <div className="height-100 width-100 sb-card overflow-y-hidden overflow-x-hidden sb-labs-container">
-        <div className="sb-dashboard-search-bar sb-card">
+        <div className="sb-dashboard-search-bar">
           <IconField
             className="sb-dashboard-search-bar-input"
             iconPosition="right"

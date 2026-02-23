@@ -47,6 +47,7 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
       modal={!props.disableModal}
       onDragStart={props.onDragStart}
       onDragEnd={props.onDragEnd}
+      keepInViewport={false}
       header={
         <div className="sb-dialog-header">
           <div className="sb-dialog-header-title">

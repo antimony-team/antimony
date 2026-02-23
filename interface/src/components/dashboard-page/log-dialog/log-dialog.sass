@@ -1,6 +1,6 @@
 .sb-log-dialog
-  width: max(1300px, 70vw)
-  height: max(630px, 70vh)
+  width: max(900px, 70vw)
+  height: max(500px, 50vh)
 
   .sb-dialog-content
     padding: 0
@@ -43,7 +43,7 @@
       .sb-log-dialog-lines-background
         position: absolute
         height: 100%
-        width: 60px
+        width: 40px
         border-right: solid 1px var(--primary-color-border)
         background-color: var(--primary-color)
         z-index: 1
@@ -52,7 +52,7 @@
         position: relative
         margin: 0
         padding: 0 24px 0 0
-        font-size: 18px
+        font-size: 16px
         z-index: 2
         font-family: Iosevka, monospace !important
 
@@ -101,6 +101,8 @@
 .hljs-linenumber
   border-right: solid 1px var(--primary-color-border)
   display: inline-block
+  position: sticky
+  left: 0
   font-weight: 800
   padding: 3px 6px
   width: 60px

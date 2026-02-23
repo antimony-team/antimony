@@ -164,7 +164,7 @@ const LogDialog = observer((props: LogDialogProps) => {
       resizeable={true}
       disableModal={true}
       headerIcon={
-        <span className="material-symbols-outlined">border_color</span>
+        <span className="material-symbols-outlined">document_search</span>
       }
     >
       <Choose>
