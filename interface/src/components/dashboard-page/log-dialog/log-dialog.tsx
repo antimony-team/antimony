@@ -54,7 +54,8 @@ const LogDialog = observer((props: LogDialogProps) => {
     if (lines.length > 0) {
       content = [...lines, '', '', '']
         .map((line, i) => {
-          return `${i + 1}ඞ${line}`;
+          // Add line number and remove escape characters
+          return `${i + 1}ඞ${line.replace(/\u001B/g, '')}`;
         })
         .join('\n');
     }

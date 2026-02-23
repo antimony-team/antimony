@@ -2,7 +2,6 @@
   display: flex
   align-items: center
   padding: 8px
-  margin: -2px
   border-bottom: 1px solid var(--primary-color-border)
 
 .sb-dashboard-search-bar-input
@@ -11,6 +10,7 @@
 .sb-labs-container
   display: flex
   flex-direction: column
+  background-color: var(--secondary-color)
   gap: 16px
   margin-bottom: 16px
 
@@ -43,7 +43,9 @@
   justify-content: space-around
   align-items: center
   flex-direction: row
-  background-color: var(--primary-color)
+
+  svg
+    color: var(--primary-color-text)
 
   .p-paginator
     background-color: transparent

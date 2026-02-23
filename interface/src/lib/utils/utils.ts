@@ -187,8 +187,8 @@ function drawGrid(
   const height = window.outerHeight;
   const gridSpacing = 50;
   const gridExtent = 4;
-  const gridColor = 'rgb(38,55,55)';
-  const largeGridColor = 'rgb(40,68,71)';
+  const gridColor = 'rgb(34,37,37)';
+  const largeGridColor = 'rgb(52,56,57)';
 
   ctx.strokeStyle = 'rgba(34, 51, 56, 1)';
   ctx.beginPath();

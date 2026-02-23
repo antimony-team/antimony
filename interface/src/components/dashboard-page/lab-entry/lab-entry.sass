@@ -5,11 +5,11 @@
   min-height: 80px
   justify-content: space-between
   align-items: center
-  background-color: #1B2B34
+  background-color: var(--primary-color)
   border-radius: 4px
-  border: 1px solid var(--primary-color-border)
   cursor: pointer
   position: relative
+  box-shadow: 0 0 33px -18px rgba(0,0,0,0.75)
 
   &:hover
     .lab-state-buttons
@@ -21,11 +21,12 @@
   font-weight: 700
   display: flex
   text-align: center
-  border: 1px solid var(--primary-color-border)
   border-radius: 4px 0 0 4px
-  margin: -1px
+  //margin: -1px
   align-self: stretch
   align-items: center
+  background-color: var(--header-color)
+
   p
     margin: 0
 
@@ -45,9 +46,7 @@
   min-width: 150px
   padding: 0 16px 0 16px
   text-align: center
-  border: 1px solid var(--primary-color-border)
   border-radius: 0 6px 6px 0
-  margin: -1px
   align-self: stretch
   align-items: center
   position: relative
@@ -59,21 +58,17 @@
     top: 0
     left: 0
     right: 0
-    border: 1px solid var(--primary-color-border)
-    border-radius: 6px 4px 4px 6px
-    margin: -1px
-    background-color: #1A2B34
+    //border: 1px solid var(--primary-color-border)
+    border-radius: 0 6px 6px 0
+    //margin: -1px
+    //border-left: 1px solid var(--primary-color-border)
+    background-color: var(--header-color)
     display: flex
     justify-content: space-evenly
     align-items: center
     z-index: 2
     transform: translateX(100%)
     transition: transform ease 0.2s
-
-    .p-button
-      background-color: transparent
-      border: none
-      padding: 0
 
   .lab-state-label
     display: flex

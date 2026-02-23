@@ -1,5 +1,5 @@
 .sb-dock
-  background-color: #283239
+  background-color: var(--secondary-color)
   padding-right: 16px
   height: 80px
   margin-bottom: 8px
@@ -14,6 +14,14 @@
   .sb-dock-page-button
     width: 190px
 
+    &:hover
+      background-color: unset !important
+      border-color: var(--primary-color-border)
+
+    &.selected
+      background-color: var(--primary-color)
+      border-color: var(--primary-color-border)
+
   .material-symbols-outlined
     font-size: 20px
 
@@ -23,8 +31,7 @@
 .sb-logo-tab
   align-self: stretch
   width: 80px
-  border: 1px solid var(--primary-color-border)
-  margin: -1px 8px -1px -1px
+  background-color: var(--header-color)
   border-radius: 6px 0 0 6px
   display: flex
   justify-content: center

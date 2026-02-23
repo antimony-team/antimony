@@ -23,7 +23,6 @@ interface LabEntryProps {
 }
 
 const defaultLabButtonProps: ButtonProps = {
-  rounded: true,
   text: true,
   size: 'large',
   tooltipOptions: {
@@ -87,7 +86,7 @@ const LabEntry = observer((props: LabEntryProps) => {
 
   return (
     <div className="lab-item-card">
-      <div className="lab-group sb-corner-tab" onClick={props.onOpenLab}>
+      <div className="lab-group" onClick={props.onOpenLab}>
         <span>
           {collectionStore.lookup.get(props.lab.collectionId)?.name ??
             'unknown'}

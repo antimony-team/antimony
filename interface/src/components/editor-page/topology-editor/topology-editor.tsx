@@ -213,146 +213,136 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     amogusRef.current.play().catch(() => {});
   }
 
+  if (!openTopology) {
+    return (
+      <div className="sb-topology-editor-empty" onDoubleClick={onAmogus}>
+        <Image
+          src="/icons/among-us.svg"
+          width="350px"
+          alt="Nothing selected placeholder"
+        />
+        <span className="text-center">No topology selected</span>
+      </div>
+    );
+  }
+
   return (
     <>
-      <Choose>
-        <When condition={openTopology !== null}>
-          <div className="flex flex-column h-full overflow-hidden">
-            <div className="flex justify-content-between sb-topology-editor-topbar">
-              <div className="flex gap-2 justify-content-center left-tab">
-                <Button
-                  outlined
-                  icon="pi pi-undo"
-                  tooltip="Undo"
-                  onClick={() => monacoWrapperRef.current?.undo()}
-                  tooltipOptions={{position: 'bottom', showDelay: 500}}
-                  aria-label="Undo"
-                />
-                <Button
-                  outlined
-                  icon="pi pi-refresh"
-                  tooltip="Redo"
-                  onClick={() => monacoWrapperRef.current?.redo()}
-                  tooltipOptions={{position: 'bottom', showDelay: 500}}
-                  aria-label="Redo"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  outlined
-                  icon="pi pi-sync"
-                  onClick={e => syncOverlayRef.current?.toggle(e)}
-                  tooltip="Sync Options"
-                  tooltipOptions={{position: 'bottom', showDelay: 500}}
-                  aria-label="Sync Options"
-                />
-                <Button
-                  outlined
-                  size="large"
-                  icon="pi pi-save"
-                  disabled={
-                    validationState !== ValidationState.Done || !hasPendingEdits
-                  }
-                  tooltip="Save"
-                  onClick={onSaveTopology}
-                  tooltipOptions={{position: 'bottom', showDelay: 500}}
-                  pt={{
-                    icon: {
-                      className: 'p-overlay-badge',
-                      children: (
-                        <If condition={hasPendingEdits}>
-                          <Badge severity="danger" />
-                        </If>
-                      ),
-                    },
-                  }}
-                  aria-label="Save"
-                />
-                <Button
-                  outlined
-                  icon="pi pi-download"
-                  size="large"
-                  onClick={onDownloadTopology}
-                  tooltip="Download"
-                  tooltipOptions={{position: 'bottom', showDelay: 500}}
-                  aria-label="Download"
-                />
-              </div>
-              <div className="flex gap-2 justify-content-center">
-                <Button
-                  outlined
-                  icon="pi pi-play"
-                  size="large"
-                  onClick={onDeployTopoplogy}
-                  tooltip="Deploy Topology"
-                  tooltipOptions={{
-                    position: 'bottom',
-                    showDelay: 500,
-                    showOnDisabled: true,
-                  }}
-                  aria-label="Deploy Topology"
-                />
-                <Choose>
-                  <When condition={props.isMaximized}>
-                    <Button
-                      outlined
-                      icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
-                      size="large"
-                      onClick={() => props.setMaximized(false)}
-                      aria-label="Maximize"
-                    />
-                  </When>
-                  <Otherwise>
-                    <Button
-                      outlined
-                      icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
-                      size="large"
-                      onClick={() => props.setMaximized(true)}
-                      aria-label="Minimize"
-                    />
-                  </Otherwise>
-                </Choose>
-              </div>
-            </div>
-            <div className="flex-grow-1 min-h-0">
-              <Splitter className="h-full">
-                <SplitterPanel minSize={10} size={30}>
-                  <MonacoWrapper
-                    ref={monacoWrapperRef}
-                    validationError={validationError}
-                    validationState={validationState}
-                    language="yaml"
-                    setContent={onContentChange}
-                    onSaveTopology={onSaveTopology}
-                    setValidationError={onSetValidationError}
-                  />
-                </SplitterPanel>
-                <SplitterPanel minSize={10}>
-                  <SimulationConfigContext.Provider
-                    value={new SimulationConfig()}
-                  >
-                    <NodeEditor
-                      onAddNode={onAddNode}
-                      onEditNode={onEditNode}
-                      openTopology={openTopology!}
-                    />
-                  </SimulationConfigContext.Provider>
-                </SplitterPanel>
-              </Splitter>
-            </div>
-          </div>
-        </When>
-        <Otherwise>
-          <div className="sb-topology-editor-empty" onDoubleClick={onAmogus}>
-            <Image
-              src="/icons/among-us.svg"
-              width="350px"
-              alt="Nothing selected placeholder"
+      <div className="sb-topology-editor-container">
+        <div className="sb-topology-editor-toolbar">
+          <div className="flex gap-2 justify-content-center left-tab">
+            <Button
+              icon="pi pi-undo"
+              tooltip="Undo"
+              onClick={() => monacoWrapperRef.current?.undo()}
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Undo"
             />
-            <span className="text-center">No topology selected</span>
+            <Button
+              icon="pi pi-refresh"
+              tooltip="Redo"
+              onClick={() => monacoWrapperRef.current?.redo()}
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Redo"
+            />
           </div>
-        </Otherwise>
-      </Choose>
+          <div className="flex gap-2">
+            <Button
+              icon="pi pi-sync"
+              onClick={e => syncOverlayRef.current?.toggle(e)}
+              tooltip="Sync Options"
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Sync Options"
+            />
+            <Button
+              size="large"
+              icon="pi pi-save"
+              disabled={
+                validationState !== ValidationState.Done || !hasPendingEdits
+              }
+              tooltip="Save"
+              onClick={onSaveTopology}
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              pt={{
+                icon: {
+                  className: 'p-overlay-badge',
+                  children: (
+                    <If condition={hasPendingEdits}>
+                      <Badge severity="danger" />
+                    </If>
+                  ),
+                },
+              }}
+              aria-label="Save"
+            />
+            <Button
+              icon="pi pi-download"
+              size="large"
+              onClick={onDownloadTopology}
+              tooltip="Download"
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Download"
+            />
+          </div>
+          <div className="flex gap-2 justify-content-center">
+            <Button
+              icon="pi pi-play"
+              severity="success"
+              size="large"
+              onClick={onDeployTopoplogy}
+              tooltip="Deploy Topology"
+              tooltipOptions={{
+                position: 'bottom',
+                showDelay: 500,
+                showOnDisabled: true,
+              }}
+              aria-label="Deploy Topology"
+            />
+            <Choose>
+              <When condition={props.isMaximized}>
+                <Button
+                  icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
+                  size="large"
+                  onClick={() => props.setMaximized(false)}
+                  aria-label="Maximize"
+                />
+              </When>
+              <Otherwise>
+                <Button
+                  icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
+                  size="large"
+                  onClick={() => props.setMaximized(true)}
+                  aria-label="Minimize"
+                />
+              </Otherwise>
+            </Choose>
+          </div>
+        </div>
+        <div className="sb-topology-editor-content">
+          <Splitter className="h-full">
+            <SplitterPanel minSize={10} size={30}>
+              <MonacoWrapper
+                ref={monacoWrapperRef}
+                validationError={validationError}
+                validationState={validationState}
+                language="yaml"
+                setContent={onContentChange}
+                onSaveTopology={onSaveTopology}
+                setValidationError={onSetValidationError}
+              />
+            </SplitterPanel>
+            <SplitterPanel minSize={10}>
+              <SimulationConfigContext.Provider value={new SimulationConfig()}>
+                <NodeEditor
+                  onAddNode={onAddNode}
+                  onEditNode={onEditNode}
+                  openTopology={openTopology!}
+                />
+              </SimulationConfigContext.Provider>
+            </SplitterPanel>
+          </Splitter>
+        </div>
+      </div>
       <SyncOverlay
         popOverRef={syncOverlayRef}
         topology={openTopology}

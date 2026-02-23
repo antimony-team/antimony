@@ -1,9 +1,8 @@
 .sb-dialog-header
   background-color: var(--header-color)
-  border: var(--primary-color-border) solid 1px
   height: 50px
   border-radius: 6px 6px 0 0
-  margin: -1px -1px 0 -1px
+  //margin: -1px -1px 0 -1px
   display: flex
   align-items: center
   justify-content: space-between
@@ -30,9 +29,12 @@
     width: 50px
     border: none
 
+    &:hover
+      background-color: unset
+
 .sb-dialog-content
   padding: 16px
-  margin-top: 1px
+  //margin-top: 1px
   flex-grow: 1
   overflow-y: auto
   background-color: var(--overlay-color)
