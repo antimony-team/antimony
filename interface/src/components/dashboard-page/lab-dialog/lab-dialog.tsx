@@ -350,7 +350,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         },
       ];
 
-      if (node) {
+      if (node?.interfaceCaptures) {
         const interfaceCaptures = Object.entries(node.interfaceCaptures);
         if (interfaceCaptures.length > 0) {
           entries.push({separator: true});
