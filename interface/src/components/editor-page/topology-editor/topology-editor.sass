@@ -1,10 +1,22 @@
-.sb-topology-editor-topbar
+.sb-topology-editor-container
+  display: flex
+  flex-direction: column
+  background-color: var(--secondary-color)
+  border-radius: 6px
+  height: 100%
+
+.sb-topology-editor-toolbar
+  display: flex
+  flex-direction: row
+  justify-content: space-between
   padding: 8px
-  border-bottom: 2px solid var(--primary-color-border)
+  border-bottom: 1px solid var(--primary-color-border)
 
   // This makes it so the node editor menu can hide between the topbar
   z-index: 2
-  background-color: var(--primary-color)
+
+.sb-topology-editor-content
+  flex-grow: 1
 
 .sb-toplogy-editor-validation
   overflow: hidden
@@ -25,6 +37,7 @@
   opacity: 0.3
   font-style: italic
   font-size: 22px
+  box-shadow: none !important
 
   img
     filter: invert(1)

@@ -1,11 +1,11 @@
 .sb-log-dialog
-  width: max(1300px, 70vw)
-  height: max(630px, 70vh)
+  width: max(900px, 70vw)
+  height: max(500px, 50vh)
 
   .sb-dialog-content
     padding: 0
     position: relative
-    background-color: #0b1219
+    background-color: var(--secondary-color)
 
     .sb-log-dialog-loading
       margin-top: 8px
@@ -27,6 +27,7 @@
       width: 100%
       overflow: auto
       position: relative
+      background-color: var(--secondary-color)
 
       .sb-log-dialog-empty
         margin: auto
@@ -44,7 +45,7 @@
         position: absolute
         height: 100%
         width: 60px
-        border-right: solid 1px var(--primary-color-border)
+        border-right: 1px solid var(--primary-color-border)
         background-color: var(--primary-color)
         z-index: 1
 
@@ -52,9 +53,9 @@
         position: relative
         margin: 0
         padding: 0 24px 0 0
-        font-size: 18px
+        font-size: 16px
         z-index: 2
-        font-family: Iosevka, monospace !important
+        font-family: Iosevka, monospace
 
     .p-dropdown
       position: absolute
@@ -71,7 +72,7 @@
 
 .hljs-antimony
   font-weight: 800
-  color: var(--primary-color-border)
+  color: var(--subtle-color-text)
   display: inline-block
   //border: 2px solid var(--primary-color-border)
   //margin-bottom: 4px
@@ -101,6 +102,8 @@
 .hljs-linenumber
   border-right: solid 1px var(--primary-color-border)
   display: inline-block
+  position: sticky
+  left: 0
   font-weight: 800
   padding: 3px 6px
   width: 60px

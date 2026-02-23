@@ -20,7 +20,7 @@ import {
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Topology} from '@sb/types/domain/topology';
-import {uuid4} from '@sb/types/types';
+import {FetchState, uuid4} from '@sb/types/types';
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {ContextMenu} from 'primereact/contextmenu';
@@ -103,7 +103,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
           label: topology.definition.getIn(['name']) as string,
-          icon: <span className="material-symbols-outlined">lan</span>,
+          icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files
           leaf: topology.bindFiles.length === 0,
           selectable: true,
@@ -616,6 +616,10 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       if (dropNode.type === ExplorerTreeNodeType.Topology) {
       }
     }
+  }
+
+  if (topologyStore.fetchReport.state === FetchState.Pending) {
+    return <></>;
   }
 
   return (

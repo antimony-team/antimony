@@ -1,34 +1,53 @@
 .p-button
-  transition: all 0.1s ease-in
-  border-color: transparent
+  transition: all 0.08s ease-in
+  border: 1px solid transparent
+  background: transparent
+  color: var(--primary-color-text)
 
   span
     font-weight: 600 !important
 
   &.p-button-outlined
-    color: var(--primary-color-border)
+    color: var(--primary-color-text)
     border-color: var(--primary-color-border)
     background-color: transparent
 
-    &.p-button-danger
-      color: var(--danger-color-text)
-      border-color: var(--danger-color-text)
+  &.p-button-danger
+    color: var(--danger-color-text)
 
-    &.p-button-success
-      color: var(--success-color-text)
-      border-color: var(--success-color-text)
+    &:hover
+      border-color: var(--danger-color-text) !important
 
-    &.p-button-warning
-      color: var(--warning-color-text)
-      border-color: var(--warning-color-text)
+  &.p-button-success
+    color: var(--success-color-text)
 
-  &:not(.p-button-danger,.p-button-outlined,.p-button-icon-only)
-    color: var(--primary-color)
-    background-color: var(--primary-color-border)
+    &:hover
+      border-color: var(--success-color-text) !important
+
+  &.p-button-warning
+    color: var(--warning-color-text)
+
+    &:hover
+      border-color: var(--warning-color-text) !important
+
+  &:active
+    filter: brightness(1.2)
+
+  &:not(.p-button-icon-only)
+    &:hover
+      background-color: var(--primary-color)
+
+  &.p-button-icon-only
+    &:hover
+      border-color: var(--primary-color-border)
+
+  //&:not(.p-button-icon-only)
+  //  color: var(--primary-color-text)
+  //  color: var(--primary-color)
+  //  background-color: var(--primary-color-border)
 
   &.p-button-icon-only
     padding: 0.75rem 0
-    background-color: transparent
 
     &.p-disabled
       filter: brightness(0.5)
@@ -38,12 +57,6 @@
   &.sb-iconoir-button
     padding: 6px !important
 
-  &:hover
-    filter: brightness(1.25)
-
-  &:active
-    filter: brightness(1)
-
   .p-badge
     width: 0.75rem
     height: 0.75rem
@@ -52,6 +65,12 @@
 .p-tooltip
   transition: opacity 0.2s ease-in-out !important
   opacity: 0 !important
+
+  .p-tooltip-text
+    background-color: var(--primary-color)
+
+  .p-tooltip-arrow
+    color: var(--primary-color)
 
   &.p-tooltip-active
     opacity: 1 !important
@@ -98,6 +117,9 @@
   border: none
   width: 100%
 
+  .p-splitter-gutter
+    background-color: var(--primary-color)
+
   .p-splitter-panel
    min-width: 0
 
@@ -113,16 +135,17 @@
 
 .p-dialog:not(.p-confirm-dialog)
   border-radius: 6px
-  border: var(--primary-color-border) solid 1px
+  //border: var(--primary-color-border) solid 1px
+  border: none
 
   .p-dialog-content
-    border-radius: 6px
+    //border-radius: 6px
     padding: 0
     display: flex
     flex-direction: column
     align-items: stretch
     overflow: hidden
-    background-color: var(--overlay-color)
+    //background-color: var(--overlay-color)
 
   .p-dialog-header
     padding: 0
@@ -130,20 +153,28 @@
     .p-dialog-header-icon
       display: none
 
-.p-confirm-dialog
-  background-color: var(--overlay-color)
-  border: 1px solid var(--primary-color-border)
-
-  .border-circle
-    border: 1px solid var(--primary-color-border)
-
 .p-inputtextarea
   resize: none
 
-.p-inputtext,.p-dropdown,.p-button
+.p-inputtext,.p-dropdown
+  background: var(--primary-color)
+  border: 1px solid transparent
+
   &:focus
+    border: 1px solid var(--primary-color-border)
+
+.p-inputgroup-addon
+  background-color: var(--header-color)
+  border: none
+
+.p-inputtext,.p-dropdown,.p-button,.p-calendar
+  &.p-focus
     outline: none
     box-shadow: none
+
+    > .p-inputtext
+      outline: none
+      box-shadow: none
 
 .p-accordion-header-link
   background-color: transparent
@@ -165,8 +196,19 @@
 .p-chip
   user-select: none
 
+.p-checkbox-box
+  background-color: var(--primary-color)
+  border: 1px solid var(--primary-color-border)
+
+  svg
+    color: var(--primary-color-text)
+
+.p-dropdown-label
+  &:focus
+    border: none
+
 .p-dropdown-panel
-  background-color: var(--overlay-color)
+  background-color: var(--primary-color)
   border-color: var(--primary-color-border)
 
   .p-dropdown-item
@@ -218,7 +260,7 @@
 .p-overlaypanel
   border: 1px solid var(--primary-color-border)
   background-color: var(--overlay-color)
-  padding: 16px
+  padding: 12px
 
   .p-overlaypanel-content
     padding: 0

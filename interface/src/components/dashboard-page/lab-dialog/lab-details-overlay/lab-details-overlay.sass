@@ -1,11 +1,16 @@
 .lab-details
+  background-color: var(--secondary-color) !important
   pointer-events: all !important
   color: rgba(255, 255, 255, 0.87) !important
   font-size: 1rem !important
   border-radius: 4px !important
-  z-index: 9999 !important
+  z-index: 999999 !important
 
   box-shadow: -1px 1px 25px -8px rgba(0,0,0,0.4)
+
+  .p-button-icon-only
+    &:not(:hover)
+      border-color: transparent
 
   .lab-details-title
     font-weight: 800

@@ -73,7 +73,7 @@ const App: React.FC = observer(() => {
             <div className="flex flex-grow-1 gap-2 min-h-0">
               <Routes>
                 <Choose>
-                  {/* Allow access to dashboard but not editor if user doesn't have access to editor */}
+                  {/* Allow access to the dashboard but not the editor if the user doesn't have access to the editor */}
                   <When condition={!hasEditorAccess}>
                     <Route path="/" element={<DashboardPage />} />
                     <Route

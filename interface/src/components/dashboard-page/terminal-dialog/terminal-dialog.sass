@@ -1,11 +1,12 @@
 .sb-terminal-dialog
-  width: min(1200px, 70vw)
+  width: min(1000px, 70vw)
+  height: 560px
 
   .sb-dialog-content
-    background: var(--primary-color) !important
+    background: var(--secondary-color) !important
 
   .xterm-viewport
-    background: var(--primary-color) !important
+    background: var(--secondary-color) !important
 
   .sb-dialog-content
     position: relative
@@ -19,6 +20,7 @@
 .sb-terminal-container
   position: relative
   padding: 8px
+  background-color: var(--secondary-color)
 
   .sb-terminal-expired
     backdrop-filter: blur(4px)
@@ -123,7 +125,7 @@
       .p-tabview-nav-link
         border: 0 solid transparent
         border-top: 2px transparent solid
-        border-radius: 4px 4px 0 0
+        border-radius: 0
         margin: 0
         padding: 12px 16px
         background: var(--overlay-color)
@@ -133,4 +135,4 @@
           border-top-color: var(--primary-color-border)
           border-bottom-color: var(--primary-color)
           color: var(--primary-color-border)
-          background: var(--primary-color)
+          background-color: var(--secondary-color)

@@ -13,6 +13,8 @@ import {Tooltip} from 'primereact/tooltip';
 import {TreeNode} from 'primereact/treenode';
 import React, {MouseEvent, useMemo} from 'react';
 
+import './explorer-tree-node.sass';
+
 interface ExplorerTreeNodeProps {
   node: ExplorerTreeNodeData;
 
@@ -49,9 +51,7 @@ const NodeButtonProps = {
   tooltipOptions: SBTooltipOptions,
 };
 
-const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
-  props: ExplorerTreeNodeProps,
-) => {
+const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
   const authUser = useAuthUser();
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
@@ -156,7 +156,7 @@ const ExplorerTreeNode: React.FC<ExplorerTreeNodeProps> = (
   }
 
   return (
-    <div className="flex align-self-stretch w-full align-items-center justify-content-between">
+    <div className="sb-explorer-node">
       <Tooltip target=".tree-node" />
       <span
         className="tree-node p-treenode-label"
