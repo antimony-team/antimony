@@ -11,8 +11,6 @@ import {ConfirmDialog} from 'primereact/confirmdialog';
 
 import './sb-confirm.sass';
 
-interface SBConfirmProps {}
-
 export interface SBConfirmOpenProps extends SBConfirmState {
   message?: string;
   header?: string;
@@ -43,10 +41,10 @@ interface SBConfirmState {
   rejectText?: string;
 }
 
-const SBConfirm = forwardRef<SBConfirmRef, SBConfirmProps>((props, ref) => {
+const SBConfirm = forwardRef<SBConfirmRef, object>((props, ref) => {
   const [isOpen, setOpen] = useState(false);
 
-  const dialogState = useRef<SBConfirmState>();
+  const dialogState = useRef<SBConfirmState>(null);
 
   useImperativeHandle(ref, () => ({
     show: (props: SBConfirmOpenProps) => {
@@ -70,13 +68,14 @@ const SBConfirm = forwardRef<SBConfirmRef, SBConfirmProps>((props, ref) => {
   return (
     <ConfirmDialog
       group="headless"
+      className="sb-confirm-dialog"
       visible={isOpen}
       dismissableMask={true}
       closeOnEscape={true}
       onHide={() => setOpen(false)}
       content={() => (
-        <div className="flex flex-column align-items-center p-4">
-          <div className="border-circle bg-primary inline-flex justify-content-center align-items-center h-6rem w-6rem -mt-8">
+        <div className="flex flex-column align-items-center p-3">
+          <div className="border-circle inline-flex justify-content-center align-items-center h-6rem w-6rem -mt-8">
             <i className={getIconClass()}></i>
           </div>
           <span className="font-bold text-2xl block mb-2 mt-4">
@@ -87,8 +86,8 @@ const SBConfirm = forwardRef<SBConfirmRef, SBConfirmProps>((props, ref) => {
           </span>
           <div className="flex align-items-center gap-3 mt-4">
             <Button
-              label={dialogState.current?.rejectText}
               outlined
+              label={dialogState.current?.rejectText}
               onClick={() => {
                 setOpen(false);
                 dialogState.current?.onReject?.call(null);
@@ -97,6 +96,7 @@ const SBConfirm = forwardRef<SBConfirmRef, SBConfirmProps>((props, ref) => {
               aria-label={dialogState.current?.rejectText ?? 'Reject'}
             />
             <Button
+              outlined
               label={dialogState.current?.acceptText}
               onClick={() => {
                 setOpen(false);

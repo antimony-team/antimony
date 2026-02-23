@@ -54,7 +54,8 @@ const LogDialog = observer((props: LogDialogProps) => {
     if (lines.length > 0) {
       content = [...lines, '', '', '']
         .map((line, i) => {
-          return `${i + 1}ඞ${line}`;
+          // Add line number and remove escape characters
+          return `${i + 1}ඞ${line.replace(/\u001B/g, '')}`;
         })
         .join('\n');
     }
@@ -69,7 +70,7 @@ const LogDialog = observer((props: LogDialogProps) => {
     const generateWidth = () => Math.random() * (60 - 15) + 15;
     return Array.from({length: 24}, generateWidth).map((width, i) => (
       <div className="sb-log-dialog-loading-line" key={i}>
-        <Skeleton width="50px"></Skeleton>
+        <Skeleton width="80px"></Skeleton>
         <Skeleton width={`${width}rem`}></Skeleton>
       </div>
     ));
@@ -164,7 +165,7 @@ const LogDialog = observer((props: LogDialogProps) => {
       resizeable={true}
       disableModal={true}
       headerIcon={
-        <span className="material-symbols-outlined">border_color</span>
+        <span className="material-symbols-outlined">document_search</span>
       }
     >
       <Choose>

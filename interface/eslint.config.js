@@ -75,6 +75,7 @@ export default [
       // We hate unused imports.
       'unused-imports/no-unused-imports': 'error',
       'jsx-control-statements/jsx-jcs-no-undef': 'off',
+      'no-control-regex': 'off',
 
       'n/no-unsupported-features/node-builtins': [
         'off',

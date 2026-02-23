@@ -104,17 +104,17 @@ const EditorPage: React.FC = observer(() => {
         />
       </div>
       <div
-        className={classNames('flex-grow-1', 'sb-admin-page-right', {
+        className={classNames('sb-admin-page-right', {
           'sb-admin-page-right-maximized': isMaximized,
         })}
       >
-        <div className="font-bold height-100 sb-card overflow-y-auto overflow-x-hidden">
-          <TopologyEditor
-            isMaximized={isMaximized}
-            setMaximized={setMaximized}
-            onTopologyDeploy={onDeployTopology}
-          />
-        </div>
+        {/*<div className="font-bold height-100 sb-card overflow-y-auto overflow-x-hidden">*/}
+        <TopologyEditor
+          isMaximized={isMaximized}
+          setMaximized={setMaximized}
+          onTopologyDeploy={onDeployTopology}
+        />
+        {/*</div>*/}
       </div>
       <LabEditDialog dialogState={labEditDialogState} />
     </>

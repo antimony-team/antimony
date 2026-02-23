@@ -22,8 +22,8 @@ export class StatusMessageStore {
   private data: StatusMessage[] = observable<StatusMessage>([]);
   private lookup: Map<string, StatusMessage> = new Map();
 
-  private toastRef: React.RefObject<Toast> | null = null;
-  private confirmRef: React.RefObject<SBConfirmRef> | null = null;
+  private toastRef: React.RefObject<Toast | null> | null = null;
+  private confirmRef: React.RefObject<SBConfirmRef | null> | null = null;
 
   @observable accessor countBySeverity: Map<Severity, number> = new Map();
   @observable accessor filteredMessages: StatusMessage[] = [];
@@ -110,11 +110,11 @@ export class StatusMessageStore {
     this.confirmRef.current.show(props);
   }
 
-  public setToast(toastRef: React.RefObject<Toast>) {
+  public setToast(toastRef: React.RefObject<Toast | null>) {
     this.toastRef = toastRef;
   }
 
-  public setConfirm(confirmRef: React.RefObject<SBConfirmRef>) {
+  public setConfirm(confirmRef: React.RefObject<SBConfirmRef | null>) {
     this.confirmRef = confirmRef;
   }
 

@@ -19,6 +19,7 @@ import React, {useMemo, useRef, useState} from 'react';
 import {useNavigate} from 'react-router';
 
 import './sb-dock.sass';
+import classNames from 'classnames';
 
 const SBDock: React.FC = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
@@ -38,11 +39,8 @@ const SBDock: React.FC = observer(() => {
 
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
-      <div className="flex align-items-center gap-2">
-        <div
-          className="sb-logo-tab sb-corner-tab"
-          onClick={() => navigate('/')}
-        >
+      <div className="flex align-items-center gap-3">
+        <div className="sb-logo-tab" onClick={() => navigate('/')}>
           <Image
             src="/icons/favicon-dark.png"
             width="60px"
@@ -50,27 +48,27 @@ const SBDock: React.FC = observer(() => {
           />
         </div>
         <Choose>
-          {/* Only show buttons in online mode and if user has access to editor */}
+          {/* Only show buttons in online mode and if the user has access to the editor */}
           <When condition={hasEditorAccess}>
             <Button
               icon={
-                <span className="material-symbols-outlined">
-                  space_dashboard
-                </span>
+                <span className="material-symbols-outlined">dashboard</span>
               }
-              className="sb-dock-page-button"
+              className={classNames('sb-dock-page-button', {
+                selected: window.location.pathname === '/',
+              })}
               label="Dashboard"
-              outlined
               onClick={() => navigate('/')}
               aria-label="Dashboard Page"
             />
             <Button
               icon={
-                <span className="material-symbols-outlined">border_color</span>
+                <span className="material-symbols-outlined">construction</span>
               }
-              className="sb-dock-page-button"
+              className={classNames('sb-dock-page-button', {
+                selected: window.location.pathname === '/editor',
+              })}
               label="Topology Editor"
-              outlined
               onClick={() => navigate('/editor')}
               aria-label="Topology Editor Page"
             />
@@ -82,7 +80,6 @@ const SBDock: React.FC = observer(() => {
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
         <Button
-          outlined
           icon="pi pi-bell"
           size="large"
           onClick={e => overlayRef.current?.toggle(e)}
@@ -101,7 +98,6 @@ const SBDock: React.FC = observer(() => {
           aria-label="Messages"
         />
         <Button
-          outlined
           icon="pi pi-calendar"
           size="large"
           tooltip="Lab Schedule"
@@ -110,7 +106,6 @@ const SBDock: React.FC = observer(() => {
           aria-label="Lab Schedule"
         />
         <Button
-          outlined
           icon="pi pi-info-circle"
           size="large"
           tooltip="Credits"
@@ -125,7 +120,6 @@ const SBDock: React.FC = observer(() => {
           }
         >
           <Button
-            outlined
             size="large"
             icon="pi pi-sign-out"
             onClick={() => dataBinder.logout()}
