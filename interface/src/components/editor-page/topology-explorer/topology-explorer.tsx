@@ -103,7 +103,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
           label: topology.definition.getIn(['name']) as string,
-          icon: <span className="material-symbols-outlined">lan</span>,
+          icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files
           leaf: topology.bindFiles.length === 0,
           selectable: true,

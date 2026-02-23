@@ -191,7 +191,9 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           <SBDropdown
             id="edit-lab-topology"
             label="Topology"
-            icon={<span className="material-symbols-outlined">lan</span>}
+            icon={
+              <span className="material-symbols-outlined">network_node</span>
+            }
             hasFilter={true}
             useSelectTemplate={true}
             useItemTemplate={true}
@@ -207,6 +209,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           </label>
           <Calendar
             id="edit-lab-date-start"
+            inputId="deploy-date-start"
             className="w-full"
             value={editingLab.startTime}
             onChange={e => {
@@ -228,6 +231,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           </label>
           <Calendar
             id="edit-lab-date-end"
+            inputId="deploy-date-end"
             className="w-full"
             value={editingLab.endTime}
             onChange={e => {

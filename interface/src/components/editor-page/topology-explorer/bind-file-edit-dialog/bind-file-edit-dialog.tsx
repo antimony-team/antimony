@@ -233,7 +233,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       <SBDropdown
         id="edit-topology-file"
         label="Topology"
-        icon={<span className="material-symbols-outlined">lan</span>}
+        icon={<span className="material-symbols-outlined">network_node</span>}
         hasFilter={false}
         useSelectTemplate={true}
         useItemTemplate={true}

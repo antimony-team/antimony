@@ -70,7 +70,7 @@ const LogDialog = observer((props: LogDialogProps) => {
     const generateWidth = () => Math.random() * (60 - 15) + 15;
     return Array.from({length: 24}, generateWidth).map((width, i) => (
       <div className="sb-log-dialog-loading-line" key={i}>
-        <Skeleton width="50px"></Skeleton>
+        <Skeleton width="80px"></Skeleton>
         <Skeleton width={`${width}rem`}></Skeleton>
       </div>
     ));

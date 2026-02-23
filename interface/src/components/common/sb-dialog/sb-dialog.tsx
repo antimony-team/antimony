@@ -54,7 +54,7 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
             <If condition={props.headerIcon}>
               <Choose>
                 <When condition={typeof props.headerIcon === 'string'}>
-                  <Image src={props.headerIcon as string} width="45px" />
+                  <Image src={props.headerIcon as string} width="35px" />
                 </When>
                 <Otherwise>{props.headerIcon}</Otherwise>
               </Choose>
@@ -82,9 +82,9 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
       <If condition={!props.hideButtons}>
         <div className="sb-dialog-footer w-full">
           <Button
+            outlined
             icon="pi pi-times"
             label={props.cancelLabel ?? 'Cancel'}
-            outlined
             onClick={() =>
               props.onCancel?.call(null) ?? props.onClose?.call(null)
             }
@@ -92,6 +92,7 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
             aria-label="Cancel"
           />
           <Button
+            outlined
             icon="pi pi-check"
             label={props.submitLabel ?? 'Submit'}
             onClick={() => props.onSubmit?.call(null)}

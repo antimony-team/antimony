@@ -5,7 +5,7 @@
   .sb-dialog-content
     padding: 0
     position: relative
-    background-color: #0b1219
+    background-color: var(--secondary-color)
 
     .sb-log-dialog-loading
       margin-top: 8px
@@ -44,9 +44,9 @@
       .sb-log-dialog-lines-background
         position: absolute
         height: 100%
-        width: 40px
+        width: 60px
         border-right: 1px solid var(--primary-color-border)
-        background-color: var(--header-color)
+        background-color: var(--primary-color)
         z-index: 1
 
       pre
@@ -72,7 +72,7 @@
 
 .hljs-antimony
   font-weight: 800
-  color: var(--primary-color-border)
+  color: var(--subtle-color-text)
   display: inline-block
   //border: 2px solid var(--primary-color-border)
   //margin-bottom: 4px

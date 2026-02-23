@@ -63,7 +63,7 @@ const SBDock: React.FC = observer(() => {
             />
             <Button
               icon={
-                <span className="material-symbols-outlined">insert_text</span>
+                <span className="material-symbols-outlined">construction</span>
               }
               className={classNames('sb-dock-page-button', {
                 selected: window.location.pathname === '/editor',

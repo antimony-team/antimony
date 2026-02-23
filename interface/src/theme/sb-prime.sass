@@ -153,13 +153,6 @@
     .p-dialog-header-icon
       display: none
 
-.p-confirm-dialog
-  background-color: var(--overlay-color)
-  border: 1px solid var(--primary-color-border)
-
-  .border-circle
-    border: 1px solid var(--primary-color-border)
-
 .p-inputtextarea
   resize: none
 
@@ -174,10 +167,14 @@
   background-color: var(--header-color)
   border: none
 
-.p-inputtext,.p-dropdown,.p-button
-  &:focus,&.p-focus
+.p-inputtext,.p-dropdown,.p-button,.p-calendar
+  &.p-focus
     outline: none
     box-shadow: none
+
+    > .p-inputtext
+      outline: none
+      box-shadow: none
 
 .p-accordion-header-link
   background-color: transparent
@@ -205,6 +202,10 @@
 
   svg
     color: var(--primary-color-text)
+
+.p-dropdown-label
+  &:focus
+    border: none
 
 .p-dropdown-panel
   background-color: var(--primary-color)
