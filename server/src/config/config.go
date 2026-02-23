@@ -9,14 +9,14 @@ import (
 
 type (
 	AntimonyConfig struct {
-		General         GeneralConfig         `yaml:"general"`
-		Server          ServerConfig          `yaml:"server"`
-		Auth            AuthConfig            `yaml:"auth"`
-		Shell           ShellConfig           `yaml:"shell"`
-		Database        DatabaseConfig        `yaml:"database"`
-		PacketflixRelay PacketflixRelayConfig `yaml:"packetflixRelay"`
-		FileSystem      FilesystemConfig      `yaml:"fileSystem"`
-		Containerlab    ClabConfig            `yaml:"containerlab"`
+		General      GeneralConfig    `yaml:"general"`
+		Server       ServerConfig     `yaml:"server"`
+		Auth         AuthConfig       `yaml:"auth"`
+		Shell        ShellConfig      `yaml:"shell"`
+		Database     DatabaseConfig   `yaml:"database"`
+		Capture      CaptureConfig    `yaml:"capture"`
+		FileSystem   FilesystemConfig `yaml:"fileSystem"`
+		Containerlab ClabConfig       `yaml:"containerlab"`
 	}
 
 	GeneralConfig struct {
@@ -28,10 +28,10 @@ type (
 		Port uint   `yaml:"port"`
 	}
 
-	PacketflixRelayConfig struct {
-		Host string `yaml:"host"`
-		User string `yaml:"user"`
-		Path string `yaml:"path"`
+	CaptureConfig struct {
+		Enabled  bool     `yaml:"enabled"`
+		Cmd      string   `yaml:"cmd"`
+		Excluded []string `yaml:"excluded"`
 	}
 
 	AuthConfig struct {
@@ -119,10 +119,10 @@ func defaultConfig() *AntimonyConfig {
 			Port:      5432,
 			LocalFile: "./test.db",
 		},
-		PacketflixRelay: PacketflixRelayConfig{
-			Host: "127.0.0.1",
-			User: "ins",
-			Path: "/home/ins/relay.py",
+		Capture: CaptureConfig{
+			Enabled:  false,
+			Cmd:      "ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -",
+			Excluded: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
 		},
 		FileSystem: FilesystemConfig{
 			Storage: "./storage/",

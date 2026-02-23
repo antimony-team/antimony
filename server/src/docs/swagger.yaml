@@ -103,8 +103,6 @@ definitions:
     properties:
       deployed:
         type: string
-      edgesharkLink:
-        type: string
       latestStateChange:
         type: string
       name:

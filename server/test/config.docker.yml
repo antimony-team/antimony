@@ -19,6 +19,10 @@ database:
   database: antimony
   user: antimony
   localFile: ./db/antimony.db
+capture:
+  enabled: yes
+  cmd: ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -
+  excluded: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
 filesystem:
   storage: ./storage/
   run: ./run/

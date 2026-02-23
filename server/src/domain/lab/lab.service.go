@@ -462,7 +462,7 @@ func (s *labService) createLabEnvironment(lab *Lab) (string, error) {
 		runTopologyFile       string
 	)
 
-	runTopologyName = fmt.Sprintf("%s_%d", strings.ReplaceAll(lab.Topology.Name, " ", "_"), time.Now().UnixMilli())
+	runTopologyName = fmt.Sprintf("%s-%d", strings.ReplaceAll(lab.Topology.Name, " ", "-"), time.Now().UnixMilli())
 	if err := s.renameTopology(lab.Topology.UUID, runTopologyName, &runTopologyDefinition); err != nil {
 		return "", err
 	}
@@ -797,7 +797,6 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 
 	return &InstanceOut{
 		Deployed:          instance.Deployed,
-		EdgesharkLink:     instance.EdgesharkLink,
 		State:             instance.State,
 		LatestStateChange: instance.LatestStateChange,
 		Nodes:             s.nodesToOut(instance.Nodes),
@@ -806,36 +805,32 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 }
 
 func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
-	baseSsh := fmt.Sprintf(
-		"ssh -o StrictHostKeyChecking=no %s@%s python3 %s --container-name {{.ContainerName}} --nif {{.InterfaceName}} | wireshark -k -i -",
-		s.config.PacketflixRelay.User,
-		s.config.PacketflixRelay.Host,
-		s.config.PacketflixRelay.Path,
-	)
-	baseSshTemplate := template.Must(template.New("msg").Parse(baseSsh))
+	cmdTemplate := template.Must(template.New("msg").Parse(s.config.Capture.Cmd))
 
 	var nodesOut []InstanceNode
+	ctx := context.Background()
 
 	for _, node := range nodes {
-		ctx := context.Background()
-		exclude := []string{"gway-2800", "monit_in", "lo", "mgmt0-0"}
-		interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
+		var interfaceCaptures map[string]string
 
-		interfaces = utils.FilterList(interfaces, exclude)
+		if s.config.Capture.Enabled {
+			interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
+			interfaces = utils.FilterList(interfaces, s.config.Capture.Excluded)
 
-		interfaceCaptures := make(map[string]string)
+			interfaceCaptures = make(map[string]string)
 
-		for _, interfaceName := range interfaces {
-			var buf bytes.Buffer
-			_ = baseSshTemplate.Execute(&buf, struct {
-				ContainerName string
-				InterfaceName string
-			}{
-				ContainerName: node.ContainerName,
-				InterfaceName: interfaceName,
-			})
+			for _, interfaceName := range interfaces {
+				var buf bytes.Buffer
+				_ = cmdTemplate.Execute(&buf, struct {
+					ContainerName string
+					InterfaceName string
+				}{
+					ContainerName: node.ContainerName,
+					InterfaceName: interfaceName,
+				})
 
-			interfaceCaptures[interfaceName] = buf.String()
+				interfaceCaptures[interfaceName] = buf.String()
+			}
 		}
 
 		nodesOut = append(nodesOut, InstanceNode{

@@ -1118,9 +1118,6 @@ const docTemplate = `{
                 "deployed": {
                     "type": "string"
                 },
-                "edgesharkLink": {
-                    "type": "string"
-                },
                 "latestStateChange": {
                     "type": "string"
                 },

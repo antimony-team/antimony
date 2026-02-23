@@ -65,7 +65,6 @@ type LabFilter struct {
 
 type Instance struct {
 	Deployed          time.Time
-	EdgesharkLink     string
 	State             InstanceState
 	LatestStateChange time.Time
 	Nodes             []InstanceNode
@@ -86,7 +85,6 @@ type Instance struct {
 type InstanceOut struct {
 	Name              string         `json:"name"`
 	Deployed          time.Time      `json:"deployed"`
-	EdgesharkLink     string         `json:"edgesharkLink"`
 	State             InstanceState  `json:"state"`
 	LatestStateChange time.Time      `json:"latestStateChange"`
 	Nodes             []InstanceNode `json:"nodes"`

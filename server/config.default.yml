@@ -40,13 +40,14 @@ database:
   # The DB file that is used if the local database flag is set.
   # Default: ./antimony.db
   localFile: ./db/antimony.db
-packetflixRelay:
-  # The host where the packetflix relay is hosted (needs to be externally accessible).
-  host: 127.0.0.1
-  # The user with which the packetflix relay can be accessed on the host.
-  user: ins
-  # The path where the packetflix relay is stored.
-  path: /home/ins/relay.py
+capture:
+  # Whether interface traffic capture is enabled.
+  enabled: no
+  # The command that is used to initiate the packetflix capture streaming by the client.
+  # The variables 'ContainerName' and 'InterfaceName' will be replaced with the container name and interface name.
+  cmd: ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -
+  # Interfaces that are excluded from traffic capture.
+  excluded: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
 filesystem:
   # Topology definition files will be stored in this directory.
   # Default: ./storage/
