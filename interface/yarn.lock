@@ -1372,9 +1372,9 @@
   integrity sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==
 
 "@monaco-editor/loader@^1.5.0":
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/@monaco-editor/loader/-/loader-1.5.0.tgz#dcdbc7fe7e905690fb449bed1c251769f325c55d"
-  integrity sha512-hKoGSM+7aAc7eRTRjpqAZucPmoNOC4UUbknb/VNoTkEIkCPhqV8LfbsgM1webRM7S/z21eHEx9Fkwx8Z/C/+Xw==
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/@monaco-editor/loader/-/loader-1.7.0.tgz#967aaa4601b19e913627688dfe8159d57549e793"
+  integrity sha512-gIwR1HrJrrx+vfyOhYmCZ0/JcWqG5kbfG7+d3f/C1LXk2EvzAbHSg3MQ5lO2sMlo9izoAZ04shohfKLVT6crVA==
   dependencies:
     state-local "^1.0.6"
 
@@ -5614,9 +5614,9 @@ moment@>=2.13.0, moment@^2.29.4:
   integrity sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==
 
 monaco-editor-webpack-plugin@^7.1.0:
-  version "7.1.0"
-  resolved "https://registry.yarnpkg.com/monaco-editor-webpack-plugin/-/monaco-editor-webpack-plugin-7.1.0.tgz#16f265c2b5dbb5fe08681b6b3b7d00d3c5b2ee97"
-  integrity sha512-ZjnGINHN963JQkFqjjcBtn1XBtUATDZBMgNQhDQwd78w2ukRhFXAPNgWuacaQiDZsUr4h1rWv5Mv6eriKuOSzA==
+  version "7.1.1"
+  resolved "https://registry.yarnpkg.com/monaco-editor-webpack-plugin/-/monaco-editor-webpack-plugin-7.1.1.tgz#5c90c8ccfadd11a9168d439d1f5b96a397431553"
+  integrity sha512-WxdbFHS3Wtz4V9hzhe/Xog5hQRSMxmDLkEEYZwqMDHgJlkZo00HVFZR0j5d0nKypjTUkkygH3dDSXERLG4757A==
   dependencies:
     loader-utils "^2.0.2"
 
@@ -5635,16 +5635,16 @@ monaco-languageserver-types@^0.4.0:
     vscode-uri "^3.0.0"
 
 monaco-marker-data-provider@^1.0.0:
-  version "1.2.4"
-  resolved "https://registry.yarnpkg.com/monaco-marker-data-provider/-/monaco-marker-data-provider-1.2.4.tgz#56fbeede5bd830ec2ee15b2aea9a7df62fa447a7"
-  integrity sha512-4DsPgsAqpTyUDs3humXRBPUJoihTv+L6v9aupQWD80X2YXaCXUd11mWYeSCYHuPgdUmjFaNWCEOjQ6ewf/QA1Q==
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/monaco-marker-data-provider/-/monaco-marker-data-provider-1.2.5.tgz#f589e46cf9339247536315764fe0c87b7c5828de"
+  integrity sha512-5ZdcYukhPwgYMCvlZ9H5uWs5jc23BQ8fFF5AhSIdrz5mvYLsqGZ58ZLxTv8rCX6+AxdJ8+vxg1HVSk+F2bLosg==
   dependencies:
     monaco-types "^0.1.0"
 
 monaco-types@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/monaco-types/-/monaco-types-0.1.0.tgz#3a3066aba499cb5923cd60efc736f3f14a169e10"
-  integrity sha512-aWK7SN9hAqNYi0WosPoMjenMeXJjwCxDibOqWffyQ/qXdzB/86xshGQobRferfmNz7BSNQ8GB0MD0oby9/5fTQ==
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/monaco-types/-/monaco-types-0.1.2.tgz#77cf7bbd14f7ba7e5f2210cc61ae28611fcae1bc"
+  integrity sha512-8LwfrlWXsedHwAL41xhXyqzPibS8IqPuIXr9NdORhonS495c2/wky+sI1PRLvMCuiI0nqC2NH1six9hdiRY4Xg==
 
 monaco-worker-manager@^2.0.0:
   version "2.0.1"
@@ -5652,9 +5652,9 @@ monaco-worker-manager@^2.0.0:
   integrity sha512-kdPL0yvg5qjhKPNVjJoym331PY/5JC11aPJXtCZNwWRvBr6jhkIamvYAyiY5P1AWFmNOy0aRDRoMdZfa71h8kg==
 
 monaco-yaml@^5.4.0:
-  version "5.4.0"
-  resolved "https://registry.yarnpkg.com/monaco-yaml/-/monaco-yaml-5.4.0.tgz#c0ed6226c710c32c509e7c316c9a45f004862088"
-  integrity sha512-tuBVDy1KAPrgO905GHTItu8AaA5bIzF5S4X0JVRAE/D66FpRhkDUk7tKi5bwKMVTTugtpMLsXN4ewh4CgE/FtQ==
+  version "5.4.1"
+  resolved "https://registry.yarnpkg.com/monaco-yaml/-/monaco-yaml-5.4.1.tgz#c26106c6e497d514aa6254c78ab184610a9923b4"
+  integrity sha512-YQ6d/Ei98Uk073SJLFbwuSi95qhnl8F8NNmIUqN2XhDt9psZN2LqQ1T7pPQ866NJb2wFj44IrjnANgpa2jTfag==
   dependencies:
     jsonc-parser "^3.0.0"
     monaco-languageserver-types "^0.4.0"
@@ -6362,7 +6362,12 @@ prettier@3.3.3:
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-3.3.3.tgz#30c54fe0be0d8d12e6ae61dbb10109ea00d53105"
   integrity sha512-i2tDNA0O5IrMO757lfrdQZCc2jPNDVntV0m/+4whiDfWaTKfMNgR7Qz0NAeGz/nRqF4m5/6CLzbP4/liHt12Ew==
 
-prettier@^3.0.0, prettier@^3.5.3:
+prettier@^3.0.0:
+  version "3.8.1"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-3.8.1.tgz#edf48977cf991558f4fcbd8a3ba6015ba2a3a173"
+  integrity sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg==
+
+prettier@^3.5.3:
   version "3.5.3"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-3.5.3.tgz#4fc2ce0d657e7a02e602549f053b239cb7dfe1b5"
   integrity sha512-QQtaxnoDJeAkDvDKWCLiwIXkTgRhwYDEQCghU9Z6q03iyek/rxRh/2lC3HB7P8sWT2xC/y5JDctPLBIGzHKbhw==
@@ -7832,9 +7837,9 @@ vscode-languageserver-types@3.17.5, vscode-languageserver-types@^3.0.0:
   integrity sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==
 
 vscode-uri@^3.0.0:
-  version "3.0.8"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.8.tgz#1770938d3e72588659a172d0fd4642780083ff9f"
-  integrity sha512-AyFQ0EVmsOZOlAnxoFOGOq1SQDWAB7C6aqMGS23svWAllfOaxbuFvcT8D1i8z3Gyn8fraVeZNNmN6e9bxxXkKw==
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.1.0.tgz#dd09ec5a66a38b5c3fffc774015713496d14e09c"
+  integrity sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==
 
 warning@^4.0.3:
   version "4.0.3"
@@ -8072,9 +8077,9 @@ yallist@^4.0.0:
   integrity sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
 
 yaml@^2.0.0:
-  version "2.6.0"
-  resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.6.0.tgz#14059ad9d0b1680d0f04d3a60fe00f3a857303c3"
-  integrity sha512-a6ae//JvKDEra2kdi1qzCyrJW/WZCgFi8ydDV+eXExl95t+5R+ijnqHJbz9tmMh8FUjx3iv2fCQ4dclAQlO2UQ==
+  version "2.8.2"
+  resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.8.2.tgz#5694f25eca0ce9c3e7a9d9e00ce0ddabbd9e35c5"
+  integrity sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A==
 
 yaml@^2.8.0:
   version "2.8.0"

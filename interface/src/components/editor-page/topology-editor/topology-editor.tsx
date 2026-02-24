@@ -115,6 +115,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     };
   }, [onTopologyOpen, onTopologyEdit, onTopologyClose]);
 
+  const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   function onContentChange(content: string) {
     if (!schemaStore.clabSchema) return;
 
@@ -129,16 +131,27 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         return;
       }
 
-      const definition = topologyStore.parseTopologyDefinition(content);
+      setValidationState(ValidationState.Working);
 
-      if (definition !== null) {
-        setValidationState(ValidationState.Done);
-        topologyStore.manager.apply(definition, TopologyEditSource.TextEditor);
-      } else {
-        // Set this to working until the monaco worker has finished and generated the error
-        setValidationState(ValidationState.Working);
+      if (validateTimeoutRef.current) {
+        clearTimeout(validateTimeoutRef.current);
       }
-    } catch (_) {
+
+      validateTimeoutRef.current = setTimeout(() => {
+        const definition = topologyStore.parseTopologyDefinition(content);
+
+        if (definition !== null) {
+          setValidationState(ValidationState.Done);
+          topologyStore.manager.apply(
+            definition,
+            TopologyEditSource.TextEditor,
+          );
+        }
+
+        // We don't explicitly set the validation state to error here,
+        // but let the monaco-yaml validator find the error and handle it.
+      }, 100);
+    } catch {
       setValidationState(ValidationState.Working);
     }
   }

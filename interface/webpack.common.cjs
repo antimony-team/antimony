@@ -33,7 +33,19 @@ module.exports = {
         },
       ],
     }),
-    new MonacoWebpackPlugin({languages: ['yaml']}),
+    new MonacoWebpackPlugin({
+      languages: ['yaml'],
+      customLanguages: [
+        {
+          label: 'yaml',
+          entry: 'monaco-yaml',
+          worker: {
+            id: 'monaco-yaml/yamlWorker',
+            entry: 'monaco-yaml/yaml.worker',
+          },
+        },
+      ],
+    }),
     new webpack.DefinePlugin({
       'process.env': JSON.stringify(process.env),
     }),
@@ -46,7 +58,7 @@ module.exports = {
         exclude: /node_modules/,
       },
       {
-        test: /\.(jpe?g|gif|png|svg|wav|ttf)$/i,
+        test: /\.(jpe?g|gif|png|svg|wav)$/i,
         loader: 'file-loader',
         options: {
           name: '[contenthash].[ext]',

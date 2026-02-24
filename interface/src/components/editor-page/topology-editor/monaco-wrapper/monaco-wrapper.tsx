@@ -9,12 +9,12 @@ import React, {
 
 import {toJS} from 'mobx';
 import {isEqual} from 'lodash-es';
-import MonacoEditor, {editor, Uri} from 'monaco-editor';
 import {observer} from 'mobx-react-lite';
 import {Tooltip} from 'primereact/tooltip';
 import {configureMonacoYaml} from 'monaco-yaml';
-import MonacoEditorElement from 'react-monaco-editor/lib/editor';
 import {AntimonyTheme, MonacoOptions} from './monaco.conf';
+
+import * as monaco from 'monaco-editor';
 
 import {Topology} from '@sb/types/domain/topology';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
@@ -31,6 +31,9 @@ import {
 import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
 
 import './monaco-wrapper.sass';
+
+import ICodeEditor = monaco.editor.ICodeEditor;
+import ITextModel = monaco.editor.ITextModel;
 
 const schemaModelUri = 'inmemory://schema.yaml';
 
@@ -58,18 +61,16 @@ export interface MonacoWrapperRef {
   setContent: (content: string) => void;
 }
 
-let hasInitializedValidator = false;
-
 const MonacoWrapper = observer(
   forwardRef<MonacoWrapperRef, MonacoWrapperProps>((props, ref) => {
     const [isReadOnly, setReadOnly] = useState(false);
     const [hasLastDeployFailed, setLastDeployFailed] = useState(false);
 
-    const textModelRef = useRef<editor.ITextModel | null>(null);
-    const editorRef = useRef<editor.ICodeEditor | null>(null);
+    const textModelRef = useRef<ITextModel | null>(null);
+    const editorRef = useRef<ICodeEditor | null>(null);
 
     const currentlyOpenTopology = useRef<string | null>(null);
-    // const didEditorMount = useRef(false);
+    const editorContainerRef = useRef<HTMLDivElement>(null);
 
     const authUser = useAuthUser();
     const schemaStore = useSchemaStore();
@@ -117,7 +118,7 @@ const MonacoWrapper = observer(
       const existingContentStripped = existingContent.replaceAll(' ', '');
 
       if (!isEqual(updatedContentStripped, existingContentStripped)) {
-        injectContentUpdate(updatedContent);
+        setContent(updatedContent);
       }
     }, []);
 
@@ -146,31 +147,13 @@ const MonacoWrapper = observer(
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
       redo: onTriggerRedo,
-      setContent: injectContentUpdate,
+      setContent: setContent,
     }));
 
-    /*
-     * For some reason, the react-monaco-editor library adds multiple unto stops
-     * to the history stack whenever the content is updated. This messes
-     * up consecutive undos and redos. Therefore, we update the content
-     * manually and don't use the library's built-in reactive functionality.
-     *
-     * https://github.com/react-monaco-editor/react-monaco-editor/blob/e8c823fa5e0156687e6129502369f7e1521d061b/src/editor.tsx#L107
-     */
-    function injectContentUpdate(content: string) {
+    function setContent(content: string) {
       if (!textModelRef.current) return;
 
-      textModelRef.current.pushStackElement();
-      textModelRef.current.pushEditOperations(
-        [],
-        [
-          {
-            range: textModelRef.current.getFullModelRange(),
-            text: content,
-          },
-        ],
-        undefined as never,
-      );
+      textModelRef.current.setValue(content);
     }
 
     const onGlobalKeyPress = useCallback(
@@ -209,36 +192,65 @@ const MonacoWrapper = observer(
       editorRef.current?.trigger('', 'redo', '');
     }
 
-    function onEditorMount(codeEditor: editor.ICodeEditor) {
-      if (!schemaStore.clabSchema) return;
+    function initializeEditor() {
+      if (!editorContainerRef.current || !schemaStore.clabSchema) return;
 
-      editorRef.current = codeEditor;
-      textModelRef.current = editor.getModel(Uri.parse(schemaModelUri))!;
+      configureMonacoYaml(monaco, {
+        enableSchemaRequest: false,
+        schemas: [
+          {
+            fileMatch: ['**/*.yaml'],
+            schema: toJS(schemaStore.clabSchema),
+            uri: process.env.SB_CLAB_SCHEMA_URL!,
+          },
+        ],
+      });
 
-      editor.defineTheme('antimonyTheme', AntimonyTheme);
+      monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
 
-      editor.onDidChangeMarkers(() => {
-        const markers = editor.getModelMarkers({});
+      monaco.editor.onDidChangeMarkers(() => {
+        const markers = monaco.editor.getModelMarkers({});
         if (markers.length > 0) {
           props.setValidationError(markers[0].message);
         }
       });
 
-      if (!hasInitializedValidator) {
-        configureMonacoYaml(MonacoEditor, {
-          enableSchemaRequest: false,
-          schemas: [
-            {
-              fileMatch: ['**/*.yaml'],
-              schema: toJS(schemaStore.clabSchema),
-              uri: process.env.SB_CLAB_SCHEMA_URL!,
-            },
-          ],
-        });
+      textModelRef.current = monaco.editor.createModel(
+        topologyStore.manager.topology?.definition.toString() ?? '',
+        'yaml',
+        monaco.Uri.parse(schemaModelUri),
+      );
 
-        hasInitializedValidator = true;
-      }
+      editorRef.current = monaco.editor.create(editorContainerRef.current, {
+        model: textModelRef.current,
+        language: 'yaml',
+        theme: 'antimonyTheme',
+        fontFamily: 'JetBrains Mono, monospace',
+      });
+
+      editorRef.current.updateOptions(MonacoOptions);
+      editorRef.current.onDidChangeModelContent(onContentChange);
     }
+
+    useEffect(() => {
+      if (!editorContainerRef.current) return;
+
+      initializeEditor();
+
+      const resizeObserver = new ResizeObserver(() => {
+        requestAnimationFrame(() => editorRef.current?.layout());
+      });
+      resizeObserver.observe(editorContainerRef.current);
+
+      return () => {
+        editorRef.current?.dispose();
+        textModelRef.current?.dispose();
+
+        textModelRef.current = null;
+        editorRef.current = null;
+        resizeObserver.disconnect();
+      };
+    }, []);
 
     function onContentChange() {
       if (textModelRef.current) {
@@ -293,14 +305,7 @@ const MonacoWrapper = observer(
                 target=".sb-monaco-wrapper-error"
               />
             </div>
-            <MonacoEditorElement
-              language="yaml"
-              theme="antimonyTheme"
-              options={MonacoOptions}
-              onChange={onContentChange}
-              editorDidMount={onEditorMount}
-              uri={() => Uri.parse(schemaModelUri)}
-            />
+            <div ref={editorContainerRef} style={{height: '100%'}}></div>
           </div>
         </div>
       </If>
