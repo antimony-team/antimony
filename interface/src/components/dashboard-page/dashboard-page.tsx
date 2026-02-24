@@ -135,67 +135,70 @@ const DashboardPage: React.FC = observer(() => {
   return (
     <>
       <div className="height-100 width-100 sb-card overflow-y-hidden overflow-x-hidden sb-labs-container">
-        <div className="sb-dashboard-search-bar">
-          <IconField
-            className="sb-dashboard-search-bar-input"
-            iconPosition="right"
-          >
-            <InputText
-              ref={searchQueryFieldRef as unknown as RefObject<InputText>}
-              className="width-100"
-              placeholder="Search"
-              onChange={e => handleSearchChange(e.target.value)}
-            />
-            <InputIcon className="pi pi-search" />
-          </IconField>
-          <span
-            className="search-bar-icon"
-            onClick={e => labFilterOverlay.current?.toggle(e)}
-          >
-            <i className="pi pi-filter" />
-          </span>
-        </div>
-        <div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>
-          {InstanceStates.map((state, i) => (
-            <div
-              key={i}
-              className={classNames('fake-state-filter-chip', {
-                hidden: !labStore.stateFilter.includes(state),
-              })}
-            >
-              {InstanceState[state]}
-              <i
-                className="pi pi-times-circle"
-                onClick={() => labStore.toggleState(state)}
-              ></i>
-            </div>
-          ))}
-          {labStore.collectionFilter.map((collectionId, i) => {
-            return (
-              <Chip
+        <div className="sb-dashboard-filter">
+          {/*<div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>*/}
+          <div className="sb-dashboard-filter-chips">
+            {InstanceStates.map((state, i) => (
+              <div
                 key={i}
-                label={collectionStore.lookup.get(collectionId)!.name}
+                className={classNames('fake-state-filter-chip', {
+                  hidden: !labStore.stateFilter.includes(state),
+                })}
+              >
+                {InstanceState[state]}
+                <i
+                  className="pi pi-times-circle"
+                  onClick={() => labStore.toggleState(state)}
+                ></i>
+              </div>
+            ))}
+            {labStore.collectionFilter.map((collectionId, i) => {
+              return (
+                <Chip
+                  key={i}
+                  label={collectionStore.lookup.get(collectionId)!.name}
+                  removable={true}
+                  onRemove={() => {
+                    labStore.toggleCollection(collectionId);
+                    return true;
+                  }}
+                  className="state-filter-chip"
+                />
+              );
+            })}
+
+            <If condition={labStore.searchQuery !== ''}>
+              <Chip
+                label={`Query: ${labStore.searchQuery}`}
                 removable={true}
                 onRemove={() => {
-                  labStore.toggleCollection(collectionId);
+                  labStore.setSearchQuery('');
                   return true;
                 }}
                 className="state-filter-chip"
               />
-            );
-          })}
-
-          <If condition={labStore.searchQuery !== ''}>
-            <Chip
-              label={`Query: ${labStore.searchQuery}`}
-              removable={true}
-              onRemove={() => {
-                labStore.setSearchQuery('');
-                return true;
-              }}
-              className="state-filter-chip"
-            />
-          </If>
+            </If>
+          </div>
+          <div className="sb-dashboard-filter-search">
+            <IconField
+              className="sb-dashboard-filter-search-field"
+              iconPosition="right"
+            >
+              <InputText
+                ref={searchQueryFieldRef as unknown as RefObject<InputText>}
+                className="width-100"
+                placeholder="Search"
+                onChange={e => handleSearchChange(e.target.value)}
+              />
+              <InputIcon className="pi pi-search" />
+            </IconField>
+            <span
+              className="search-bar-icon"
+              onClick={e => labFilterOverlay.current?.toggle(e)}
+            >
+              <i className="pi pi-filter" />
+            </span>
+          </div>
         </div>
         <div className="sb-dashboard-content" ref={containerRef}>
           <Choose>
