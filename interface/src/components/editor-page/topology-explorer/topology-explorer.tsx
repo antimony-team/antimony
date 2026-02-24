@@ -536,6 +536,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             id: 'delete',
             label: 'Delete Topology',
             icon: 'pi pi-trash',
+            className: 'sb-menuitem-danger',
             command: onDeleteTopologyContext,
           },
         );
@@ -685,7 +686,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />
       <If condition={authUser.isAdmin}>
         <Button
-          className="sb-topology-explorer-add-group"
+          outlined
+          rounded
+          className="sb-topology-explorer-add-collection"
           icon="pi pi-plus"
           onClick={onAddCollection}
           aria-label="Add Group"

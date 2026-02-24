@@ -28,6 +28,7 @@ import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
 
 import './topology-editor.sass';
 import {Topology} from '@sb/types/domain/topology';
+import {observer} from 'mobx-react-lite';
 
 export enum ValidationState {
   Working,
@@ -42,9 +43,7 @@ interface TopologyEditorProps {
   onTopologyDeploy: (id: uuid4) => void;
 }
 
-const TopologyEditor: React.FC<TopologyEditorProps> = (
-  props: TopologyEditorProps,
-) => {
+const TopologyEditor = observer((props: TopologyEditorProps) => {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationState, setValidationState] = useState<ValidationState>(
     ValidationState.Done,
@@ -232,6 +231,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         <div className="sb-topology-editor-toolbar">
           <div className="flex gap-2 justify-content-center left-tab">
             <Button
+              text
               icon="pi pi-undo"
               tooltip="Undo"
               onClick={() => monacoWrapperRef.current?.undo()}
@@ -239,6 +239,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               aria-label="Undo"
             />
             <Button
+              text
               icon="pi pi-refresh"
               tooltip="Redo"
               onClick={() => monacoWrapperRef.current?.redo()}
@@ -248,6 +249,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
           <div className="flex gap-2">
             <Button
+              text
               icon="pi pi-sync"
               onClick={e => syncOverlayRef.current?.toggle(e)}
               tooltip="Sync Options"
@@ -255,6 +257,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               aria-label="Sync Options"
             />
             <Button
+              text
               size="large"
               icon="pi pi-save"
               disabled={
@@ -276,6 +279,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               aria-label="Save"
             />
             <Button
+              text
               icon="pi pi-download"
               size="large"
               onClick={onDownloadTopology}
@@ -286,6 +290,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
           <div className="flex gap-2 justify-content-center">
             <Button
+              text
               icon="pi pi-play"
               severity="success"
               size="large"
@@ -301,6 +306,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
             <Choose>
               <When condition={props.isMaximized}>
                 <Button
+                  text
                   icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
                   size="large"
                   onClick={() => props.setMaximized(false)}
@@ -309,6 +315,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               </When>
               <Otherwise>
                 <Button
+                  text
                   icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
                   size="large"
                   onClick={() => props.setMaximized(true)}
@@ -357,6 +364,6 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
       />
     </>
   );
-};
+});
 
 export default TopologyEditor;

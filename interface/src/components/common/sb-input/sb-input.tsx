@@ -71,7 +71,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
       return;
     }
 
-    Promise.resolve(props.onValueSubmit(value, isImplicit)).then(error => {
+    void Promise.resolve(props.onValueSubmit(value, isImplicit)).then(error => {
       if (error) {
         setValidationError(error);
       } else {

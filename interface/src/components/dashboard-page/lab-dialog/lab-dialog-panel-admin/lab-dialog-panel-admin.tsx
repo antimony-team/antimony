@@ -62,6 +62,7 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
             icon="pi pi-play"
             label="Deploy Now"
             aria-label="Deploy Now"
+            severity="success"
             onClick={() => labStore.deployLab(props.lab)}
           />
         </When>

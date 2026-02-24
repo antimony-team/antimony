@@ -14,7 +14,7 @@ import {
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {Choose, Otherwise, When} from '@sb/types/control';
 import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
 import {FetchState} from '@sb/types/types';
 import classNames from 'classnames';
@@ -27,13 +27,7 @@ import {InputIcon} from 'primereact/inputicon';
 import {InputText} from 'primereact/inputtext';
 import {OverlayPanel} from 'primereact/overlaypanel';
 import {Paginator} from 'primereact/paginator';
-import React, {
-  RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useSearchParams} from 'react-router';
 
 const DashboardPage: React.FC = observer(() => {
@@ -166,18 +160,6 @@ const DashboardPage: React.FC = observer(() => {
                 />
               );
             })}
-
-            <If condition={labStore.searchQuery !== ''}>
-              <Chip
-                label={`Query: ${labStore.searchQuery}`}
-                removable={true}
-                onRemove={() => {
-                  labStore.setSearchQuery('');
-                  return true;
-                }}
-                className="state-filter-chip"
-              />
-            </If>
           </div>
           <div className="sb-dashboard-filter-search">
             <IconField
@@ -185,7 +167,7 @@ const DashboardPage: React.FC = observer(() => {
               iconPosition="right"
             >
               <InputText
-                ref={searchQueryFieldRef as unknown as RefObject<InputText>}
+                ref={searchQueryFieldRef}
                 className="width-100"
                 placeholder="Search"
                 onChange={e => handleSearchChange(e.target.value)}

@@ -107,6 +107,14 @@ export class TopologyStore extends DataStore<
         continue;
       }
 
+      // const topology: Topology = observable({
+      //   ...topologyOut,
+      //   name: definition.get('name') as string,
+      //   definition: definition,
+      //   definitionString: topologyOut.definition,
+      //   ...this.manager.buildTopologyMetadata(definition),
+      // });
+
       const topology: Topology = {
         ...topologyOut,
         name: definition.get('name') as string,

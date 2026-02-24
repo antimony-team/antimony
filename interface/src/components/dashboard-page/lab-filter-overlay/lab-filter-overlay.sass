@@ -103,12 +103,16 @@
 .fake-state-filter-chip
   display: flex
   flex-direction: row
-  background: var(--primary-color)
   border-radius: 16px
   padding: 0.55rem 0.75rem
   color: var(--primary-color-text)
+  background: var(--primary-color)
   align-items: center
   gap: 8px
+  user-select: none
+
+  &:has(i:hover)
+    filter: brightness(1.2)
 
   i:hover
     cursor: pointer

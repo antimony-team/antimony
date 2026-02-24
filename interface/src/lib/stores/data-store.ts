@@ -74,6 +74,18 @@ export abstract class DataStore<T, I, O> {
       body,
     );
 
+    // if (result.isOk()) {
+    //   if (this.lookup.has(id)) {
+    //     const existingObject = this.lookup.get(id)!;
+    //     console.log('Updating existing object: ', existingObject);
+    //     runInAction(() => {
+    //       Object.assign(existingObject, result.data.payload);
+    //     });
+    //   } else {
+    //     await this.fetch();
+    //   }
+    // }
+
     if (result.isOk()) await this.fetch();
 
     return result;

@@ -81,7 +81,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
   async function fetchSyncUrl(
     value: string,
   ): Promise<[string | null, string | null]> {
-    if (!isValidURL(value)) {
+    if (value !== '' && !isValidURL(value)) {
       return ['Specified URL is not valid', null];
     }
 
@@ -106,10 +106,24 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
           id="sb-node-name"
           ref={urlFieldRef}
           label="Sync URL"
+          placeholder="e.g. https://example.com/topology.yaml"
           defaultValue={props.topology?.syncUrl}
           onValueSubmit={onUrlSubmit}
         />
-        <div className="flex flex-col justify-content-between">
+        <div className="flex flex-col justify-content-between mt-1">
+          <Button
+            icon={
+              <span className="material-symbols-outlined">
+                vertical_align_bottom
+              </span>
+            }
+            disabled={!props.topology?.syncUrl}
+            className="sb-dock-page-button"
+            outlined
+            onClick={onSync}
+            label="Fetch"
+            aria-label="Fetch"
+          />
           <Button
             icon="pi pi-save"
             className="sb-dock-page-button"
@@ -117,14 +131,6 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
             outlined
             onClick={onSave}
             aria-label="Save"
-          />
-          <Button
-            icon="pi pi-sync"
-            className="sb-dock-page-button"
-            outlined
-            onClick={onSync}
-            label="Sync Now"
-            aria-label="Sync Now"
           />
         </div>
       </div>
