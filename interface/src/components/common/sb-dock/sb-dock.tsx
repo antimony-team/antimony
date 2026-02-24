@@ -49,7 +49,7 @@ const SBDock: React.FC = observer(() => {
         <div className="sb-logo-tab" onClick={() => navigate('/')}>
           <Image
             src="/icons/favicon-dark.png"
-            width="50px"
+            width="45px"
             alt="Antimony Logo"
           />
         </div>

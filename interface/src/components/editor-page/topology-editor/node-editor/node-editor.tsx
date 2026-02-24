@@ -101,6 +101,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (lastOpenedTopology.current !== props.openTopology.id) {
       lastOpenedTopology.current = props.openTopology.id;
       onFitGraph();
+      console.log('FITTING GRAPH');
     }
   }, [deviceStore, props.openTopology?.definition]);
 
@@ -567,6 +568,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy.on('mousedown', handleMouseDown);
     cy.on('mousemove', handleMouseMove);
     cy.on('mouseup', handleMouseUp);
+
+    cy.animate({
+      fit: {padding: 120, eles: cy.elements()},
+      duration: 50,
+    });
   }
 
   function onGroupNameSubmit(
