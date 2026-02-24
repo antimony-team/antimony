@@ -68,25 +68,14 @@ export abstract class DataStore<T, I, O> {
   public async update(
     id: uuid4,
     body: Partial<I>,
+    fetch: boolean = true,
   ): Promise<Result<DataResponse<void>>> {
     const result = await this.rootStore._dataBinder.patch<I, void>(
       `${this.resourcePath}/${id}` + this.patchParams,
       body,
     );
 
-    // if (result.isOk()) {
-    //   if (this.lookup.has(id)) {
-    //     const existingObject = this.lookup.get(id)!;
-    //     console.log('Updating existing object: ', existingObject);
-    //     runInAction(() => {
-    //       Object.assign(existingObject, result.data.payload);
-    //     });
-    //   } else {
-    //     await this.fetch();
-    //   }
-    // }
-
-    if (result.isOk()) await this.fetch();
+    if (result.isOk() && fetch) await this.fetch();
 
     return result;
   }

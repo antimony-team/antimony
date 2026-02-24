@@ -1,6 +1,6 @@
 import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
 import {Image} from 'primereact/image';
@@ -63,7 +63,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const topologyStore = useTopologyStore();
   const notificatioStore = useStatusMessages();
 
-  const amogusRef = useRef(new Audio('/amogus.wav'));
+  const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
@@ -129,7 +129,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         return;
       }
 
-      const definition = topologyStore.parseTopology(content);
+      const definition = topologyStore.parseTopologyDefinition(content);
 
       if (definition !== null) {
         setValidationState(ValidationState.Done);
@@ -138,7 +138,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         // Set this to working until the monaco worker has finished and generated the error
         setValidationState(ValidationState.Working);
       }
-    } catch (e) {
+    } catch (_) {
       setValidationState(ValidationState.Working);
     }
   }
@@ -207,9 +207,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   }
 
   function onAmogus() {
-    if (!amogusRef.current?.paused) return;
-    amogusRef.current.volume = 0.1;
-    amogusRef.current.play().catch(() => {});
+    if (!amogusAudio.paused) return;
+    amogusAudio.volume = 0.1;
+    amogusAudio.play().catch(() => {});
   }
 
   if (!openTopology) {

@@ -286,7 +286,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
-    const definition = this.topologyStore.parseTopology(
+    const definition = this.topologyStore.parseTopologyDefinition(
       input.topologyDefinition,
     );
 
