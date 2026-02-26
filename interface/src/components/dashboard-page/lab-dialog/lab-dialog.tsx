@@ -29,16 +29,10 @@ import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
-import React, {
-  MouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import {TooltipRefProps} from 'react-tooltip';
+import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -56,7 +50,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const logDialogState = useDialogState<LogDialogState>();
     const terminalDialogState = useDialogState<TerminalDialogState>();
 
-    const [isCyReady, setIsCyReady] = useState<boolean>(false);
     const collectionStore = useCollectionStore();
     const deviceStore = useDeviceStore();
     const labStore = useLabStore();
@@ -74,60 +67,23 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       return collectionStore.lookup.get(collectionId)!.name;
     }, [props.dialogState.state, collectionStore.lookup]);
 
-    useEffect(() => {
-      if (isCyReady && cyRef.current) {
-        initCytoscape(cyRef.current);
-      }
-    }, [isCyReady]);
-
     const graphInitiallyFitted = useRef(false);
 
-    /**
-     * We have update graph elements manually instead of using the reactive
-     * elements prop provided by the React Cytoscape library because the library
-     * dynamically adds and removes elements when the element prop is updated.
-     *
-     * This makes it so, if a parent is deleted in the graph, its children
-     * are also deleted. This is unwanted behavior.
-     */
-    const updateGraph = useCallback(() => {
-      if (!cyRef.current || !props.dialogState.state) return;
+    const elements = useMemo(() => {
+      if (!props.dialogState.state) return [];
 
-      cyRef.current.elements().remove();
-
-      const elements = generateGraph(
+      return generateGraph(
         props.dialogState.state.topologyDefinition,
         deviceStore,
         topologyStore.manager,
         props.dialogState.state.instance,
         hostsHidden,
       );
-
-      for (const element of elements) {
-        cyRef.current.add(element);
-      }
-
-      if (!graphInitiallyFitted.current) {
-        graphInitiallyFitted.current = true;
-        onFitGraph();
-      }
-
-      cyRef.current!.nodes().lock();
-    }, [props.dialogState.state, hostsHidden]);
-
-    const onOpen = useCallback(() => {
-      if (!cyRef.current || !containerRef.current || !gridCanvasRef.current) {
-        return;
-      }
-
-      initCytoscape(cyRef.current);
-      drawGraphGrid(containerRef.current, gridCanvasRef.current, cyRef.current);
-      updateGraph();
-    }, [updateGraph, props.dialogState.state]);
-
-    useEffect(() => {
-      updateGraph();
-    }, [hostsHidden]);
+    }, [
+      props.dialogState.state?.topologyDefinition,
+      props.dialogState.state?.instance,
+      hostsHidden,
+    ]);
 
     function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
@@ -295,7 +251,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return graphContextMenuModel;
       }
 
-      if (!cyRef.current || !props.dialogState.state) {
+      const instance = props.dialogState.state?.instance;
+
+      if (!cyRef.current || !props.dialogState.state || !instance) {
         return undefined;
       }
 
@@ -304,30 +262,27 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return;
       }
 
-      const nodeMap = props.dialogState.state.instance?.nodeMap;
-      const node = nodeMap?.get(selectedNode);
-
-      const isNodeAvailable = nodeMap?.has(selectedNode);
-      const isNodeRunning = nodeMap?.get(selectedNode)?.state === 'running';
+      const node = instance.nodeMap.get(selectedNode);
+      const nodeActionChecker = new NodeActionChecker(instance, node);
 
       const entries: MenuItem[] = [
         {
           label: 'Start Node',
           icon: 'pi pi-power-off',
           command: onNodeStart,
-          disabled: isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canStart,
         },
         {
           label: 'Stop Node',
           icon: 'pi pi-power-off',
           command: onNodeStop,
-          disabled: !isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canStop,
         },
         {
           label: 'Restart Node',
           icon: 'pi pi-sync',
           command: onNodeRestart,
-          disabled: !isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canRestart,
         },
         {
           separator: true,
@@ -336,7 +291,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           label: 'Open Terminal',
           icon: <span className="material-symbols-outlined">terminal</span>,
           command: onOpenTerminal,
-          disabled: !isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canOpenTerminal,
         },
         {
           label: 'Show Logs',
@@ -345,7 +300,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               quick_reference_all
             </span>
           ),
-          disabled: !isNodeAvailable,
+          disabled: !nodeActionChecker.canShowLogs,
           command: onOpenLogs,
         },
       ];
@@ -395,14 +350,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       closeDetails();
     }
 
-    function onGraphReady() {
-      onFitGraph();
-    }
-
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
       cy.maxZoom(10);
-      cy.ready(onGraphReady);
 
       cy.on('tap', 'node', onNodeClick);
       cy.on('cxttap', onGraphContext);
@@ -411,6 +361,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       cy.on('zoom', onZoom);
       cy.on('mousedown', onMouseDown);
       cy.style().fromJson(topologyStyle).update();
+
+      cy.nodes().lock();
+      cy.fit(undefined, 130);
     }
 
     function drawGridOverlay(event: cytoscape.EventObject) {
@@ -420,8 +373,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     useEffect(() => {
-      updateGraph();
-
       if (!props.dialogState.state) return;
 
       if (logDialogState.isOpen) {
@@ -470,7 +421,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         <SBDialog
           isOpen={props.dialogState.isOpen}
           onClose={onClose}
-          onShow={onOpen}
           headerTitle={
             <If condition={props.dialogState.state}>
               <StateIndicator lab={props.dialogState.state!} showText={false} />
@@ -501,10 +451,11 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               <canvas ref={gridCanvasRef} className="grid-canvas" />
               <CytoscapeComponent
                 className="cytoscape-container"
-                elements={[]}
+                elements={elements}
                 cy={(cy: cytoscape.Core) => {
                   cyRef.current = cy;
-                  setIsCyReady(true);
+                  initCytoscape(cy);
+                  // setIsCyReady(true);
                 }}
               />
             </div>

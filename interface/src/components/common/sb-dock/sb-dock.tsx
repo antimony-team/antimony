@@ -20,6 +20,7 @@ import {useNavigate} from 'react-router';
 
 import './sb-dock.sass';
 import classNames from 'classnames';
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 const SBDock: React.FC = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
@@ -37,13 +38,18 @@ const SBDock: React.FC = observer(() => {
     return authUser.isAdmin || collectionStore.hasAccessibleCollections;
   }, [authUser, collectionStore.hasAccessibleCollections]);
 
+  const dockButtonTooltipOptions: TooltipOptions = {
+    position: 'bottom',
+    showDelay: 500,
+  };
+
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
       <div className="flex align-items-center gap-3">
         <div className="sb-logo-tab" onClick={() => navigate('/')}>
           <Image
             src="/icons/favicon-dark.png"
-            width="60px"
+            width="45px"
             alt="Antimony Logo"
           />
         </div>
@@ -51,6 +57,7 @@ const SBDock: React.FC = observer(() => {
           {/* Only show buttons in online mode and if the user has access to the editor */}
           <When condition={hasEditorAccess}>
             <Button
+              text
               icon={
                 <span className="material-symbols-outlined">dashboard</span>
               }
@@ -62,6 +69,7 @@ const SBDock: React.FC = observer(() => {
               aria-label="Dashboard Page"
             />
             <Button
+              text
               icon={
                 <span className="material-symbols-outlined">construction</span>
               }
@@ -80,6 +88,7 @@ const SBDock: React.FC = observer(() => {
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
         <Button
+          text
           icon="pi pi-bell"
           size="large"
           onClick={e => overlayRef.current?.toggle(e)}
@@ -94,22 +103,24 @@ const SBDock: React.FC = observer(() => {
             },
           }}
           tooltip="Messages"
-          tooltipOptions={{position: 'bottom'}}
+          tooltipOptions={dockButtonTooltipOptions}
           aria-label="Messages"
         />
         <Button
+          text
           icon="pi pi-calendar"
           size="large"
           tooltip="Lab Schedule"
-          tooltipOptions={{position: 'bottom'}}
+          tooltipOptions={dockButtonTooltipOptions}
           onClick={() => setCalendarOpen(true)}
           aria-label="Lab Schedule"
         />
         <Button
+          text
           icon="pi pi-info-circle"
           size="large"
           tooltip="Credits"
-          tooltipOptions={{position: 'bottom'}}
+          tooltipOptions={dockButtonTooltipOptions}
           onClick={() => setCreditsOpen(true)}
           aria-label="Credits"
         />
@@ -120,11 +131,12 @@ const SBDock: React.FC = observer(() => {
           }
         >
           <Button
+            text
             size="large"
             icon="pi pi-sign-out"
             onClick={() => dataBinder.logout()}
             tooltip="Log Out"
-            tooltipOptions={{position: 'bottom'}}
+            tooltipOptions={dockButtonTooltipOptions}
             aria-label="Log Out"
             className="ml-2"
           />

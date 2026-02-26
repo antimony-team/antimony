@@ -13,10 +13,11 @@ import {
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
-import {YAMLDocument} from '@sb/types/types';
+import {uuid4, YAMLDocument} from '@sb/types/types';
 import {validate} from 'jsonschema';
-import {action, observable, observe} from 'mobx';
+import {action, observable, observe, toJS} from 'mobx';
 import {parseDocument} from 'yaml';
+import {Result} from '@sb/types/result';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -53,11 +54,98 @@ export class TopologyStore extends DataStore<
   protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
     if (!this.schemaStore.clabSchema) return;
 
-    const [data, bindFiles] = this.parseTopologies(response.payload);
-    this.data = data;
-    this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
+    const topologies: Topology[] = [];
+    const bindFiles: BindFile[] = [];
 
+    for (const topologyOut of response.payload) {
+      const existingTopology = this.lookup.get(topologyOut.id);
+      if (existingTopology) {
+        this.assignExisting(existingTopology, topologyOut);
+        topologies.push(existingTopology);
+      } else {
+        const topology = this.parseTopology(topologyOut);
+        if (!topology) continue;
+
+        topologies.push(topology);
+
+        for (const bindFile of topologyOut.bindFiles) {
+          bindFiles.push(bindFile);
+        }
+      }
+    }
+
+    this.data = topologies;
     this.lookup = new Map(this.data.map(topology => [topology.id, topology]));
+    this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
+  }
+
+  public override async update(
+    id: uuid4,
+    body: Partial<TopologyIn>,
+  ): Promise<Result<DataResponse<void>>> {
+    const result = await super.update(id, body, false);
+
+    if (result.isErr()) {
+      return result;
+    }
+
+    if (this.lookup.has(id)) {
+      const existingTopology = this.lookup.get(id)!;
+      console.log('Updating existing object: ', toJS(existingTopology));
+
+      this.assignExisting(existingTopology, body);
+
+      console.log('Updating existing object: ', toJS(existingTopology));
+    } else {
+      await this.fetch();
+    }
+
+    return result;
+  }
+
+  @action
+  protected assignExisting(
+    topology: Topology,
+    updated: TopologyOut | Partial<TopologyIn>,
+  ): void {
+    if (
+      updated.definition &&
+      topology.definitionString !== updated.definition
+    ) {
+      const definition = this.parseTopologyDefinition(updated.definition);
+
+      if (!definition) {
+        console.error('[NET] Failed to parse incoming topology: ', updated);
+      } else {
+        const metadata = this.manager.buildTopologyMetadata(definition);
+
+        topology.name = definition.get('name') as string;
+        topology.definition = definition;
+        topology.definitionString = updated.definition;
+        topology.connections = metadata.connections;
+        topology.connectionMap = metadata.connectionMap;
+      }
+    }
+
+    if (updated.syncUrl !== undefined) {
+      topology.syncUrl = updated.syncUrl;
+    }
+
+    if (updated.collectionId !== undefined) {
+      topology.collectionId = updated.collectionId;
+    }
+
+    if ((updated as TopologyOut).creator) {
+      topology.creator = (updated as TopologyOut).creator;
+    }
+
+    if ((updated as TopologyOut).bindFiles) {
+      topology.bindFiles = (updated as TopologyOut).bindFiles;
+    }
+
+    if ((updated as TopologyOut).lastDeployFailed) {
+      topology.lastDeployFailed = (updated as TopologyOut).lastDeployFailed;
+    }
   }
 
   public async addBindFile(topologyId: string, bindFile: BindFileIn) {
@@ -96,40 +184,24 @@ export class TopologyStore extends DataStore<
     return result;
   }
 
-  private parseTopologies(input: TopologyOut[]): [Topology[], BindFile[]] {
-    const topologies: Topology[] = [];
-    const bindFiles: BindFile[] = [];
-    for (const topologyOut of input) {
-      const definition = this.parseTopology(topologyOut.definition);
+  private parseTopology(input: TopologyOut): Topology | null {
+    const definition = this.parseTopologyDefinition(input.definition);
 
-      if (!definition) {
-        console.error('[NET] Failed to parse incoming topology: ', topologyOut);
-        continue;
-      }
-
-      const topology: Topology = {
-        ...topologyOut,
-        name: definition.get('name') as string,
-        definition: definition,
-        definitionString: topologyOut.definition,
-        ...this.manager.buildTopologyMetadata(definition),
-      };
-
-      bindFiles.push(...topology.bindFiles);
-      topologies.push(topology);
+    if (!definition) {
+      console.error('[NET] Failed to parse incoming topology: ', input);
+      return null;
     }
 
-    return [
-      topologies.toSorted((a, b) =>
-        (a.definition.get('name') as string)?.localeCompare(
-          b.definition.get('name') as string,
-        ),
-      ),
-      bindFiles,
-    ];
+    return observable({
+      ...input,
+      name: definition.get('name') as string,
+      definition: definition,
+      definitionString: input.definition,
+      ...this.manager.buildTopologyMetadata(definition),
+    });
   }
 
-  public parseTopology(
+  public parseTopologyDefinition(
     definitionString: string,
   ): YAMLDocument<TopologyDefinition> | null {
     const definition = parseDocument(definitionString, {

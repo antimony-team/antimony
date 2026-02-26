@@ -12,64 +12,56 @@ import './lab-filter-overlay.sass';
 import {If} from '@sb/types/control';
 
 interface FilterDialogProps {
-  popOverRef: React.RefObject<OverlayPanel>;
+  popOverRef: React.RefObject<OverlayPanel | null>;
 }
-const LabFilterOverlay: React.FC<FilterDialogProps> = observer(
-  (props: FilterDialogProps) => {
-    const labStore = useLabStore();
-    const collectionStore = useCollectionStore();
+const LabFilterOverlay = observer((props: FilterDialogProps) => {
+  const labStore = useLabStore();
+  const collectionStore = useCollectionStore();
 
-    return (
-      <OverlayPanel ref={props.popOverRef} className="filter-overlay-panel">
-        <div className="filters-container">
-          <div className="filters-title">Instance States</div>
+  return (
+    <OverlayPanel ref={props.popOverRef} className="filter-overlay-panel">
+      <div className="filters-container">
+        <div className="filters-title">Instance States</div>
+        <div className="filters-chips-container">
+          {InstanceStates.map((state, i) => (
+            <Chip
+              key={i}
+              label={InstanceState[state]}
+              onClick={() => labStore.toggleState(state)}
+              className={classNames('filter-chip', 'state-filter-chip', {
+                selected: labStore.stateFilter.includes(state),
+                unselected: !labStore.stateFilter.includes(state),
+                running: state === InstanceState.Running,
+                scheduled: state === InstanceState.Scheduled,
+                deploying: state === InstanceState.Deploying,
+                stopping: state === InstanceState.Stopping,
+                inactive: state === InstanceState.Inactive,
+                failed: state === InstanceState.Failed,
+              })}
+            />
+          ))}
+        </div>
+        <If condition={collectionStore.data.length > 0}>
+          <div className="filters-title">Collections</div>
           <div className="filters-chips-container">
-            {InstanceStates.map((state, i) => (
+            {collectionStore.data.map((collection, i) => (
               <Chip
                 key={i}
-                label={InstanceState[state]}
-                onClick={() => labStore.toggleState(state)}
-                className={classNames('filter-chip', 'state-filter-chip', {
-                  selected: labStore.stateFilter.includes(state),
-                  unselected: !labStore.stateFilter.includes(state),
-                  running: state === InstanceState.Running,
-                  scheduled: state === InstanceState.Scheduled,
-                  deploying: state === InstanceState.Deploying,
-                  stopping: state === InstanceState.Stopping,
-                  inactive: state === InstanceState.Inactive,
-                  failed: state === InstanceState.Failed,
+                label={collection.name}
+                onClick={() => labStore.toggleCollection(collection.id)}
+                className={classNames('filter-chip', 'collection-filter-chip', {
+                  selected: labStore.collectionFilter.includes(collection.id),
+                  unselected: !labStore.collectionFilter.includes(
+                    collection.id,
+                  ),
                 })}
               />
             ))}
           </div>
-          <If condition={collectionStore.data.length > 0}>
-            <div className="filters-title">Collections</div>
-            <div className="filters-chips-container">
-              {collectionStore.data.map((collection, i) => (
-                <Chip
-                  key={i}
-                  label={collection.name}
-                  onClick={() => labStore.toggleCollection(collection.id)}
-                  className={classNames(
-                    'filter-chip',
-                    'collection-filter-chip',
-                    {
-                      selected: labStore.collectionFilter.includes(
-                        collection.id,
-                      ),
-                      unselected: !labStore.collectionFilter.includes(
-                        collection.id,
-                      ),
-                    },
-                  )}
-                />
-              ))}
-            </div>
-          </If>
-        </div>
-      </OverlayPanel>
-    );
-  },
-);
+        </If>
+      </div>
+    </OverlayPanel>
+  );
+});
 
 export default LabFilterOverlay;

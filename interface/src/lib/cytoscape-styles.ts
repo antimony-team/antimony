@@ -23,6 +23,8 @@ export const topologyStyle = [
       'font-size': 12,
       'text-margin-y': 4,
       'text-margin-x': 32,
+      'z-index': 0,
+      'z-index-compare': 'manual',
     },
   },
   {
@@ -74,15 +76,14 @@ export const topologyStyle = [
       //interfaces
       'source-label': 'data(sourceLabel)',
       'target-label': 'data(targetLabel)',
-      'source-text-rotation': 'autorotate',
-      'target-text-rotation': 'autorotate',
 
       'source-text-offset': 14,
       'target-text-offset': 14,
       'font-family': 'Figtree',
+      'z-index': 999999,
+      'z-index-compare': 'manual',
       'font-size': 12,
-      color: '#42b5ac',
-      'text-outline-width': 0.8,
+      color: '#000000',
 
       'text-background-color': '#888',
       'text-background-opacity': 1,

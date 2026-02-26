@@ -1,6 +1,6 @@
 import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
 import {Image} from 'primereact/image';
@@ -28,6 +28,7 @@ import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
 
 import './topology-editor.sass';
 import {Topology} from '@sb/types/domain/topology';
+import {observer} from 'mobx-react-lite';
 
 export enum ValidationState {
   Working,
@@ -42,9 +43,7 @@ interface TopologyEditorProps {
   onTopologyDeploy: (id: uuid4) => void;
 }
 
-const TopologyEditor: React.FC<TopologyEditorProps> = (
-  props: TopologyEditorProps,
-) => {
+const TopologyEditor = observer((props: TopologyEditorProps) => {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationState, setValidationState] = useState<ValidationState>(
     ValidationState.Done,
@@ -64,7 +63,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
   const topologyStore = useTopologyStore();
   const notificatioStore = useStatusMessages();
 
-  const amogusRef = useRef(new Audio('/amogus.wav'));
+  const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
@@ -116,6 +115,8 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
     };
   }, [onTopologyOpen, onTopologyEdit, onTopologyClose]);
 
+  const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   function onContentChange(content: string) {
     if (!schemaStore.clabSchema) return;
 
@@ -130,16 +131,27 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         return;
       }
 
-      const definition = topologyStore.parseTopology(content);
+      setValidationState(ValidationState.Working);
 
-      if (definition !== null) {
-        setValidationState(ValidationState.Done);
-        topologyStore.manager.apply(definition, TopologyEditSource.TextEditor);
-      } else {
-        // Set this to working until the monaco worker has finished and generated the error
-        setValidationState(ValidationState.Working);
+      if (validateTimeoutRef.current) {
+        clearTimeout(validateTimeoutRef.current);
       }
-    } catch (e) {
+
+      validateTimeoutRef.current = setTimeout(() => {
+        const definition = topologyStore.parseTopologyDefinition(content);
+
+        if (definition !== null) {
+          setValidationState(ValidationState.Done);
+          topologyStore.manager.apply(
+            definition,
+            TopologyEditSource.TextEditor,
+          );
+        }
+
+        // We don't explicitly set the validation state to error here,
+        // but let the monaco-yaml validator find the error and handle it.
+      }, 100);
+    } catch {
       setValidationState(ValidationState.Working);
     }
   }
@@ -208,9 +220,9 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
   }
 
   function onAmogus() {
-    if (!amogusRef.current?.paused) return;
-    amogusRef.current.volume = 0.1;
-    amogusRef.current.play().catch(() => {});
+    if (!amogusAudio.paused) return;
+    amogusAudio.volume = 0.1;
+    amogusAudio.play().catch(() => {});
   }
 
   if (!openTopology) {
@@ -232,6 +244,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
         <div className="sb-topology-editor-toolbar">
           <div className="flex gap-2 justify-content-center left-tab">
             <Button
+              text
               icon="pi pi-undo"
               tooltip="Undo"
               onClick={() => monacoWrapperRef.current?.undo()}
@@ -239,6 +252,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               aria-label="Undo"
             />
             <Button
+              text
               icon="pi pi-refresh"
               tooltip="Redo"
               onClick={() => monacoWrapperRef.current?.redo()}
@@ -248,6 +262,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
           <div className="flex gap-2">
             <Button
+              text
               icon="pi pi-sync"
               onClick={e => syncOverlayRef.current?.toggle(e)}
               tooltip="Sync Options"
@@ -255,6 +270,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               aria-label="Sync Options"
             />
             <Button
+              text
               size="large"
               icon="pi pi-save"
               disabled={
@@ -276,6 +292,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               aria-label="Save"
             />
             <Button
+              text
               icon="pi pi-download"
               size="large"
               onClick={onDownloadTopology}
@@ -286,6 +303,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
           </div>
           <div className="flex gap-2 justify-content-center">
             <Button
+              text
               icon="pi pi-play"
               severity="success"
               size="large"
@@ -301,6 +319,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
             <Choose>
               <When condition={props.isMaximized}>
                 <Button
+                  text
                   icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
                   size="large"
                   onClick={() => props.setMaximized(false)}
@@ -309,6 +328,7 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
               </When>
               <Otherwise>
                 <Button
+                  text
                   icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
                   size="large"
                   onClick={() => props.setMaximized(true)}
@@ -357,6 +377,6 @@ const TopologyEditor: React.FC<TopologyEditorProps> = (
       />
     </>
   );
-};
+});
 
 export default TopologyEditor;

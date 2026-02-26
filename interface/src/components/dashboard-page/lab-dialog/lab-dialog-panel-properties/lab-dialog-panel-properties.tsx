@@ -98,6 +98,7 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
           <span className="property-title">Topology:</span>
           <span className="property-value">{topology?.name}</span>
           <Button
+            text
             className="topology-reference"
             icon="pi pi-external-link"
             tooltip="Go to topology"

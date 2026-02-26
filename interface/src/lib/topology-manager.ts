@@ -14,6 +14,7 @@ import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
 import {cloneDeep, isEqual} from 'lodash-es';
 import {isMap, YAMLMap, YAMLSeq} from 'yaml';
+import {runInAction} from 'mobx';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -38,7 +39,7 @@ export class TopologyManager {
   private deviceStore: DeviceStore;
   private topologyStore: TopologyStore;
   private editingTopology: Topology | null = null;
-  private originalTopology: Topology | null = null;
+  private originalDefinition: string | null = null;
 
   public readonly onOpen: Binding<Topology> = new Binding();
   public readonly onClose: Binding<void> = new Binding();
@@ -76,11 +77,10 @@ export class TopologyManager {
     });
 
     if (result.isOk()) {
-      await this.topologyStore.fetch();
-
-      this.originalTopology = TopologyManager.cloneTopology(
-        this.editingTopology,
-      );
+      // this.originalTopology = TopologyManager.cloneTopology(
+      //   this.editingTopology,
+      // );
+      this.originalDefinition = this.editingTopology.definitionString;
       this.onEdit.update({
         updatedTopology: this.editingTopology,
         isEdited: false,
@@ -95,7 +95,8 @@ export class TopologyManager {
     if (!this.editingTopology) return;
 
     this.onEdit.update({
-      updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
+      // updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
+      updatedTopology: this.editingTopology,
       isEdited: false,
       source: TopologyEditSource.System,
     });
@@ -140,8 +141,10 @@ export class TopologyManager {
    * @param topology The topology to edit.
    */
   public open(topology: Topology) {
-    this.originalTopology = topology;
-    this.editingTopology = TopologyManager.cloneTopology(topology);
+    // this.originalTopology = topology;
+    // this.editingTopology = TopologyManager.cloneTopology(topology);
+    this.originalDefinition = topology.definitionString;
+    this.editingTopology = topology;
 
     this.onOpen.update(this.editingTopology);
   }
@@ -151,7 +154,7 @@ export class TopologyManager {
    */
   public close() {
     this.editingTopology = null;
-    this.originalTopology = null;
+    this.originalDefinition = null;
 
     this.onClose.update();
   }
@@ -170,16 +173,15 @@ export class TopologyManager {
 
     const topologyMeta = this.buildTopologyMetadata(updatedTopology);
 
+    runInAction(() => {
+      this.editingTopology!.definition = updatedTopology;
+      this.editingTopology!.connections = topologyMeta.connections;
+      this.editingTopology!.connectionMap = topologyMeta.connectionMap;
+    });
+
     this.onEdit.update({
-      updatedTopology: {
-        ...this.editingTopology,
-        definition: updatedTopology,
-        ...topologyMeta,
-      },
-      isEdited: !isEqual(
-        updatedTopology.toString(),
-        this.originalTopology?.definition.toString(),
-      ),
+      updatedTopology: this.editingTopology,
+      isEdited: !isEqual(updatedTopology.toString(), this.originalDefinition),
       source: source,
     });
   }
@@ -298,10 +300,10 @@ export class TopologyManager {
    * Returns whether the currently open topology has been edited.
    */
   public hasEdits() {
-    if (!this.editingTopology || !this.originalTopology) return false;
+    if (!this.editingTopology || !this.originalDefinition) return false;
     return !isEqual(
       this.editingTopology.definition.toString(),
-      this.originalTopology.definition.toString(),
+      this.originalDefinition,
     );
   }
 

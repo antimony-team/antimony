@@ -1,6 +1,6 @@
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {Instance} from '@sb/types/domain/lab';
+import {Instance, InstanceNode, InstanceState} from '@sb/types/domain/lab';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
 import cytoscape, {ElementDefinition} from 'cytoscape';
@@ -119,16 +119,16 @@ export function generateGraph(
       parentId = groupId;
     }
 
-    let label = omitLabels ? '' : nodeName;
+    let label;
 
-    if (!omitLabels && instance && instance) {
-      if (!instance.nodeMap.has(nodeName)) {
-        label = `🟠 ${nodeName}`;
-      } else if (instance.nodeMap.get(nodeName)!.state === 'running') {
-        label = `🟢 ${nodeName}`;
-      } else {
-        label = `🔴 ${nodeName}`;
-      }
+    if (!omitLabels && instance) {
+      label = getNodeDisplayName(
+        nodeName,
+        instance,
+        instance.nodeMap.get(nodeName),
+      );
+    } else {
+      label = '';
     }
 
     elements.push({
@@ -163,6 +163,23 @@ export function generateGraph(
   return elements;
 }
 
+export function getNodeDisplayName(
+  nodeName: string,
+  instance?: Instance | null,
+  node?: InstanceNode | null,
+) {
+  if (node?.state === 'running') {
+    return `🟢 ${nodeName}`;
+  } else if (
+    node?.state === 'starting' ||
+    instance?.state === InstanceState.Deploying
+  ) {
+    return `🟠 ${nodeName}`;
+  }
+
+  return `🔴 ${nodeName}`;
+}
+
 export function drawGraphGrid(
   container: HTMLDivElement,
   canvas: HTMLCanvasElement,
@@ -175,57 +192,51 @@ export function drawGraphGrid(
   canvas.height = container.clientHeight;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGrid(ctx, cy.zoom(), cy.pan());
+  drawCytoscapeGrid(cy, ctx);
 }
 
-function drawGrid(
+export function drawCytoscapeGrid(
+  cy: cytoscape.Core,
   ctx: CanvasRenderingContext2D,
-  zoom: number,
-  pan: {x: number; y: number},
-) {
-  const width = window.outerWidth;
-  const height = window.outerHeight;
-  const gridSpacing = 50;
-  const gridExtent = 4;
-  const gridColor = 'rgb(34,37,37)';
-  const largeGridColor = 'rgb(52,56,57)';
+): void {
+  const GRID_SPACING = 35;
+  const DOT_RADIUS = 1.2;
+  const DOT_COLOR = 'rgba(150, 150, 170, 0.4)';
 
-  ctx.strokeStyle = 'rgba(34, 51, 56, 1)';
+  const pan = cy.pan();
+  const zoom = cy.zoom();
+
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const modelLeft = (0 - pan.x) / zoom;
+  const modelTop = (0 - pan.y) / zoom;
+  const modelRight = (W - pan.x) / zoom;
+  const modelBottom = (H - pan.y) / zoom;
+
+  const startX = Math.ceil(modelLeft / GRID_SPACING) * GRID_SPACING;
+  const startY = Math.ceil(modelTop / GRID_SPACING) * GRID_SPACING;
+
+  ctx.fillStyle = DOT_COLOR;
+
+  const r = DOT_RADIUS * zoom;
+
   ctx.beginPath();
 
-  ctx.translate(pan.x, pan.y);
-  ctx.scale(zoom, zoom);
+  for (let mx = startX; mx <= modelRight; mx += GRID_SPACING) {
+    const sx = mx * zoom + pan.x;
 
-  for (let x = -width * gridExtent; x <= width * gridExtent; x += gridSpacing) {
-    ctx.beginPath();
-    if (x % 8 === 0) {
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = largeGridColor;
-    } else {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = gridColor;
+    for (let my = startY; my <= modelBottom; my += GRID_SPACING) {
+      const sy = my * zoom + pan.y;
+
+      ctx.moveTo(sx + r, sy);
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
     }
-    ctx.moveTo(x, height * gridExtent);
-    ctx.lineTo(x, -height * gridExtent);
-    ctx.stroke();
   }
-  for (
-    let y = -height * gridExtent;
-    y <= height * gridExtent;
-    y += gridSpacing
-  ) {
-    ctx.beginPath();
-    if (y % 8 === 0) {
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = largeGridColor;
-    } else {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = gridColor;
-    }
-    ctx.moveTo(width * gridExtent, y);
-    ctx.lineTo(-width * gridExtent, y);
-    ctx.stroke();
-  }
+
+  ctx.fill();
 }
 
 export function getDistance(a: Position, b: Position): number {

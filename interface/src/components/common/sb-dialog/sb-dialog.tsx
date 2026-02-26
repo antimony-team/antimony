@@ -34,7 +34,7 @@ interface SBDialogProps {
   onDragEnd?: () => void;
 }
 
-const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
+const SBDialog = (props: SBDialogProps) => {
   return (
     <Dialog
       visible={props.isOpen}
@@ -92,7 +92,6 @@ const SBDialog: React.FC<SBDialogProps> = (props: SBDialogProps) => {
             aria-label="Cancel"
           />
           <Button
-            outlined
             icon="pi pi-check"
             label={props.submitLabel ?? 'Submit'}
             onClick={() => props.onSubmit?.call(null)}

@@ -8,6 +8,8 @@ import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 import React, {useMemo} from 'react';
 import {Tooltip, TooltipRefProps} from 'react-tooltip';
 import {Tooltip as PrimeTooltip} from 'primereact/tooltip';
+import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
+import {getNodeDisplayName} from '@sb/lib/utils/utils';
 
 interface LabDetailsOverlayProps {
   overlayRef: React.RefObject<TooltipRefProps | null>;
@@ -42,8 +44,13 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
     return props.lab.instance.nodeMap.get(props.nodeId)!;
   }, [props.nodeId, props.lab]);
 
-  const isNodeRunning = node?.state === 'running';
-  const nodeTitle = isNodeRunning ? `🟢 ${node?.name}` : `🔴 ${node?.name}`;
+  const nodeActionChecker = useMemo(() => {
+    return new NodeActionChecker(props.lab?.instance, node);
+  }, [props.lab?.instance, node]);
+
+  const nodeName = useMemo(() => {
+    return getNodeDisplayName(node?.name ?? '', props.lab?.instance, node);
+  }, [node]);
 
   const CopyableProperty = ({value}: {value: string}) => (
     <span
@@ -69,7 +76,7 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
     >
       <If condition={node !== null}>
         <div className="flex flex-column gap-1">
-          <div className="lab-details-title">{nodeTitle}</div>
+          <div className="lab-details-title">{nodeName}</div>
           <div className="flex gap-1">
             <span className="property-title">Container ID:</span>
             <CopyableProperty value={node!.containerId} />
@@ -106,6 +113,7 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
             }
             outlined
             onClick={props.onOpenLogs}
+            disabled={!nodeActionChecker.canShowLogs}
             tooltip="Show Logs"
             tooltipOptions={buttonTooltipOptions}
           />
@@ -113,7 +121,7 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
             icon={<span className="material-symbols-outlined">terminal</span>}
             outlined
             onClick={props.onOpenTerminal}
-            disabled={!isNodeRunning}
+            disabled={!nodeActionChecker.canOpenTerminal}
             tooltip="Open Terminal"
             tooltipOptions={buttonTooltipOptions}
           />
@@ -123,7 +131,7 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
             severity="success"
             outlined
             onClick={props.onNodeStart}
-            disabled={isNodeRunning}
+            disabled={!nodeActionChecker.canStart}
             tooltip="Start Node"
             tooltipOptions={buttonTooltipOptions}
           />
@@ -132,7 +140,7 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
             severity="warning"
             outlined
             onClick={props.onNodeRestart}
-            disabled={!isNodeRunning}
+            disabled={!nodeActionChecker.canRestart}
             tooltip="Restart Node"
             tooltipOptions={buttonTooltipOptions}
           />
@@ -141,7 +149,7 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
             severity="danger"
             outlined
             onClick={props.onNodeStop}
-            disabled={!isNodeRunning}
+            disabled={!nodeActionChecker.canStop}
             tooltip="Stop Node"
             tooltipOptions={buttonTooltipOptions}
           />

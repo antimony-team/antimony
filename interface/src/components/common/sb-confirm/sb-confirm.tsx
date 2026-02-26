@@ -96,7 +96,6 @@ const SBConfirm = forwardRef<SBConfirmRef, object>((props, ref) => {
               aria-label={dialogState.current?.rejectText ?? 'Reject'}
             />
             <Button
-              outlined
               label={dialogState.current?.acceptText}
               onClick={() => {
                 setOpen(false);

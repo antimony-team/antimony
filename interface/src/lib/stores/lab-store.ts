@@ -222,6 +222,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private onLabUpdate(data: DataResponse<LabUpdateOut>) {
+    const lab = this.lookup.get(data.payload.labId);
+    console.log('Received lab update for lab', data.payload.labId, 'lab:', lab);
+
     if (data.payload.labId && this.lookup.has(data.payload.labId)) {
       void this.fetchSingle(data.payload.labId);
     } else {
@@ -286,7 +289,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
-    const definition = this.topologyStore.parseTopology(
+    const definition = this.topologyStore.parseTopologyDefinition(
       input.topologyDefinition,
     );
 

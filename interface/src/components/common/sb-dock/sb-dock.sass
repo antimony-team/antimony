@@ -1,7 +1,7 @@
 .sb-dock
   background-color: var(--secondary-color)
   padding-right: 16px
-  height: 80px
+  height: 60px
   margin-bottom: 8px
 
   .sb-dock-title
@@ -11,8 +11,14 @@
   .p-badge
     font-size: 10pt
 
+  .p-button
+    padding: 8px !important
+
+  .p-button-icon-only
+    width: 40px
+
   .sb-dock-page-button
-    width: 190px
+    width: 180px
 
     &:hover
       background-color: unset !important
@@ -20,7 +26,9 @@
 
     &.selected
       background-color: var(--primary-color)
-      border-color: var(--primary-color-border)
+
+      &:hover
+        background-color: var(--primary-color) !important
 
   .material-symbols-outlined
     font-size: 20px
@@ -30,7 +38,7 @@
 
 .sb-logo-tab
   align-self: stretch
-  width: 80px
+  width: 60px
   background-color: var(--header-color)
   border-radius: 6px 0 0 6px
   display: flex

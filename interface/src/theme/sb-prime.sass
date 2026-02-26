@@ -1,54 +1,78 @@
 .p-button
   transition: all 0.08s ease-in
-  border: 1px solid transparent
-  background: transparent
   color: var(--primary-color-text)
+  background-color: var(--header-color)
+  border-color: transparent
+
+  &:hover
+    filter: brightness(1.2)
 
   span
     font-weight: 600 !important
+
+  &.p-button-danger
+    color: var(--secondary-color)
+    background-color: var(--danger-color-text)
+
+  &.p-button-success
+    color: var(--primary-color-text)
+    background-color: var(--success-color-text)
+
+  &.p-button-warning
+    color: var(--primary-color-text)
+    background-color: var(--warning-color-text)
 
   &.p-button-outlined
     color: var(--primary-color-text)
     border-color: var(--primary-color-border)
     background-color: transparent
 
-  &.p-button-danger
-    color: var(--danger-color-text)
-
-    &:hover
-      border-color: var(--danger-color-text) !important
-
-  &.p-button-success
-    color: var(--success-color-text)
-
-    &:hover
-      border-color: var(--success-color-text) !important
-
-  &.p-button-warning
-    color: var(--warning-color-text)
-
-    &:hover
-      border-color: var(--warning-color-text) !important
-
-  &:active
-    filter: brightness(1.2)
-
-  &:not(.p-button-icon-only)
     &:hover
       background-color: var(--primary-color)
+      filter: unset
 
-  &.p-button-icon-only
+    &.p-button-danger
+      color: var(--danger-color-text)
+      border-color: var(--danger-color-text)
+
+    &.p-button-success
+      color: var(--success-color-text)
+      border-color: var(--success-color-text)
+
+    &.p-button-warning
+      color: var(--warning-color-text)
+      border-color: var(--warning-color-text)
+
+  &.p-button-text
+    background-color: transparent
+
     &:hover
+      background-color: unset
       border-color: var(--primary-color-border)
+      filter: unset
 
-  //&:not(.p-button-icon-only)
-  //  color: var(--primary-color-text)
-  //  color: var(--primary-color)
-  //  background-color: var(--primary-color-border)
+    &.p-button-danger
+      color: var(--danger-color-text)
+
+      &:hover
+        border-color: var(--danger-color) !important
+
+    &.p-button-success
+      color: var(--success-color-text)
+
+      &:hover
+        border-color: var(--success-color) !important
+
+    &.p-button-warning
+      color: var(--warning-color-text)
+
+      &:hover
+        border-color: var(--warning-color) !important
+
+  &:active
+    background-color: unset
 
   &.p-button-icon-only
-    padding: 0.75rem 0
-
     &.p-disabled
       filter: brightness(0.5)
       cursor: pointer !important
@@ -61,6 +85,9 @@
     width: 0.75rem
     height: 0.75rem
     min-width: unset
+
+  .material-symbols-outlined
+    margin-right: 6px
 
 .p-tooltip
   transition: opacity 0.2s ease-in-out !important
@@ -90,6 +117,20 @@
   padding: 0
   box-shadow: none
   outline: none
+  border: 1px solid transparent
+  transition: border-color 0.08s ease, background-color 0.08s ease
+
+  &.p-highlight
+    background-color: var(--primary-color)
+
+.p-treenode-leaf
+  .p-treenode-content
+    &:hover
+      border-color: var(--primary-color-border)
+      background-color: unset
+
+    &.p-highlight
+      background-color: var(--primary-color)
 
 .p-treenode-label
   text-wrap: nowrap
@@ -98,8 +139,8 @@
   max-width: 140px
 
 .p-contextmenu
-  background-color: var(--header-color)
-  border-left: 3px solid var(--primary-color-border)
+  background-color: var(--overlay-color)
+  border-left: 2px solid var(--primary-color-border)
   overflow-y: auto
 
   // This makes it so context menus can expand if the content too wide
@@ -158,10 +199,10 @@
 
 .p-inputtext,.p-dropdown
   background: var(--primary-color)
-  border: 1px solid transparent
+  border-color: transparent
 
   &:focus
-    border: 1px solid var(--primary-color-border)
+    border-color: var(--primary-color-border)
 
 .p-inputgroup-addon
   background-color: var(--header-color)
@@ -195,6 +236,7 @@
 
 .p-chip
   user-select: none
+  background: var(--primary-color)
 
 .p-checkbox-box
   background-color: var(--primary-color)
@@ -248,6 +290,28 @@
     .p-inline-message-icon
       display: none
 
+.p-menuitem-text,.p-menuitem-icon
+  color: var(--primary-color-text)
+
+.p-menuitem
+  &.sb-menuitem-danger
+    .p-menuitem-text,.p-menuitem-icon
+      color: var(--danger-color-text)
+
+    &:hover
+      .p-menuitem-text,.p-menuitem-icon
+        color: var(--danger-color-text)
+
+.p-menuitem-content
+  background-color: unset
+  color: var(--primary-color-text)
+
+  &:hover
+    background-color: var(--primary-color)
+
+    .p-menuitem-text,.p-menuitem-icon
+      color: var(--primary-color-text)
+
 .p-menuitem-link
   padding: 12px 14px
 
@@ -255,7 +319,11 @@
     margin-right: 12px
 
 .p-datepicker-trigger
-  background-color: var(--primary-color-border) !important
+  background-color: var(--header-color)
+  border-color: transparent
+
+  &:active
+    background-color: var(--header-color)
 
 .p-overlaypanel
   border: 1px solid var(--primary-color-border)
