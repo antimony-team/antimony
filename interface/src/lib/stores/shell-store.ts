@@ -222,15 +222,18 @@ export class ShellStore {
 
   public async closeShell(lab: Lab, shellId: string) {
     const labShells = this.openShells.get(lab.id)!;
+    const shell = labShells.find(shell => shell.id === shellId);
 
-    await this.labCommandsSubscription.socket!.emitWithAck(
-      'data',
-      JSON.stringify({
-        labId: lab.id,
-        shellId: shellId,
-        command: LabCommand.CloseShell,
-      }),
-    );
+    if (shell && !shell.expired) {
+      await this.labCommandsSubscription.socket!.emitWithAck(
+        'data',
+        JSON.stringify({
+          labId: lab.id,
+          shellId: shellId,
+          command: LabCommand.CloseShell,
+        }),
+      );
+    }
 
     runInAction(() => {
       this.openShells.set(

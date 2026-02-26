@@ -1,6 +1,6 @@
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {Instance} from '@sb/types/domain/lab';
+import {Instance, InstanceNode, InstanceState} from '@sb/types/domain/lab';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
 import cytoscape, {ElementDefinition} from 'cytoscape';
@@ -119,16 +119,16 @@ export function generateGraph(
       parentId = groupId;
     }
 
-    let label = omitLabels ? '' : nodeName;
+    let label;
 
-    if (!omitLabels && instance && instance) {
-      if (!instance.nodeMap.has(nodeName)) {
-        label = `🟠 ${nodeName}`;
-      } else if (instance.nodeMap.get(nodeName)!.state === 'running') {
-        label = `🟢 ${nodeName}`;
-      } else {
-        label = `🔴 ${nodeName}`;
-      }
+    if (!omitLabels && instance) {
+      label = getNodeDisplayName(
+        nodeName,
+        instance,
+        instance.nodeMap.get(nodeName),
+      );
+    } else {
+      label = '';
     }
 
     elements.push({
@@ -161,6 +161,23 @@ export function generateGraph(
   }
 
   return elements;
+}
+
+export function getNodeDisplayName(
+  nodeName: string,
+  instance?: Instance | null,
+  node?: InstanceNode | null,
+) {
+  if (node?.state === 'running') {
+    return `🟢 ${nodeName}`;
+  } else if (
+    node?.state === 'starting' ||
+    instance?.state === InstanceState.Deploying
+  ) {
+    return `🟠 ${nodeName}`;
+  }
+
+  return `🔴 ${nodeName}`;
 }
 
 export function drawGraphGrid(

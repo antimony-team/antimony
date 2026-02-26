@@ -32,6 +32,7 @@ import {MenuItem} from 'primereact/menuitem';
 import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import {TooltipRefProps} from 'react-tooltip';
+import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -250,7 +251,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return graphContextMenuModel;
       }
 
-      if (!cyRef.current || !props.dialogState.state) {
+      const instance = props.dialogState.state?.instance;
+
+      if (!cyRef.current || !props.dialogState.state || !instance) {
         return undefined;
       }
 
@@ -259,30 +262,27 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return;
       }
 
-      const nodeMap = props.dialogState.state.instance?.nodeMap;
-      const node = nodeMap?.get(selectedNode);
-
-      const isNodeAvailable = nodeMap?.has(selectedNode);
-      const isNodeRunning = nodeMap?.get(selectedNode)?.state === 'running';
+      const node = instance.nodeMap.get(selectedNode);
+      const nodeActionChecker = new NodeActionChecker(instance, node);
 
       const entries: MenuItem[] = [
         {
           label: 'Start Node',
           icon: 'pi pi-power-off',
           command: onNodeStart,
-          disabled: isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canStart,
         },
         {
           label: 'Stop Node',
           icon: 'pi pi-power-off',
           command: onNodeStop,
-          disabled: !isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canStop,
         },
         {
           label: 'Restart Node',
           icon: 'pi pi-sync',
           command: onNodeRestart,
-          disabled: !isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canRestart,
         },
         {
           separator: true,
@@ -291,7 +291,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           label: 'Open Terminal',
           icon: <span className="material-symbols-outlined">terminal</span>,
           command: onOpenTerminal,
-          disabled: !isNodeRunning || !isNodeAvailable,
+          disabled: !nodeActionChecker.canOpenTerminal,
         },
         {
           label: 'Show Logs',
@@ -300,7 +300,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               quick_reference_all
             </span>
           ),
-          disabled: !isNodeAvailable,
+          disabled: !nodeActionChecker.canShowLogs,
           command: onOpenLogs,
         },
       ];

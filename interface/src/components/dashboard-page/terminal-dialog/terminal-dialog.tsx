@@ -47,7 +47,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   const [isExpired, setExpired] = useState(false);
   const [currentTabs, setCurrentTabs] = useState<TerminalTab[]>([]);
 
-  const termRef = useRef<Terminal>();
+  const termRef = useRef<Terminal | null>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const newTabOverlay = useRef<OverlayPanel>(null);
   const newTabAnchor = useRef<TabPanel>(null);
@@ -55,6 +55,8 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
   const onData = useCallback((data: string) => {
     if (!termRef.current) return;
+
+    data = data.replace(/^[\r\n]+/, '');
 
     if (resetBeforeNextUpdate.current) {
       termRef.current.reset();
@@ -123,6 +125,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       termRef.current = new Terminal({
         fontFamily: 'Iosevka, monospace',
         rows: 25,
+        cols: 130,
       });
       termRef.current.open(terminalContainerRef.current);
 
@@ -306,7 +309,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       className="sb-terminal-dialog"
       hideButtons={true}
       draggable={true}
-      resizeable={true}
+      resizeable={false}
       disableModal={true}
       onShow={onOpen}
       headerIcon={<span className="material-symbols-outlined">terminal</span>}
@@ -364,7 +367,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           <div className="sb-terminal-expired">
             <span className="sb-terminal-expired-title">Terminal Expired</span>
             <span className="sb-terminal-expired-text">
-              This terminal is expired and can no longer be used
+              This terminal session is expired and can no longer be used
             </span>
             <Button onClick={closeCurrentTab}>Close</Button>
           </div>
