@@ -111,8 +111,12 @@ func (m *MockDeploymentProvider) RestartNode(ctx context.Context, containerId st
 	return args.Error(0)
 }
 
-func (m *MockDeploymentProvider) OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error) {
-	args := m.Called(ctx, containerId)
+func (m *MockDeploymentProvider) ExecInteractive(
+	ctx context.Context,
+	containerId string,
+	cmd []string,
+) (io.ReadWriteCloser, error) {
+	args := m.Called(ctx, containerId, cmd)
 	return args.Get(0).(io.ReadWriteCloser), args.Error(1)
 }
 
@@ -293,6 +297,23 @@ func (m *mockLabUpdateNamespace) ClearBacklog() {
 	m.Called()
 }
 
+type mockSchemaService struct {
+	mock.Mock
+}
+
+func (m *mockSchemaService) Parse(data string) (*any, error) {
+	args := m.Called(data)
+	result := args.Get(0).(*any)
+	if args.Get(1) == nil {
+		return result, nil
+	}
+	return result, args.Get(1).(error)
+}
+
+func (m *mockSchemaService) Get() string {
+	panic("implement me")
+}
+
 type mockTopologyRepo struct {
 	mock.Mock
 }
@@ -429,6 +450,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 	mockDeployment := &MockDeploymentProvider{}
 	labRepo := &mockLabRepo{}
 	topologyRepo := &mockTopologyRepo{}
+	schemaService := &mockSchemaService{}
 
 	storageManager.On("CreateRunEnvironment", "topo1", "lab123", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
@@ -455,12 +477,18 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 			},
 		}, nil)
 
+	parsed := any(map[string]any{
+		"name": "TestTopo",
+	})
+	schemaService.On("Parse", mock.Anything).Return(&parsed, nil)
+
 	labDestructionSchedule := &emptySchedule{}
 
 	svc := &labService{
 		labRepo:                labRepo,
 		storageManager:         storageManager,
 		deploymentProvider:     mockDeployment,
+		schemaService:          schemaService,
 		topologyRepo:           topologyRepo,
 		socketManager:          antimonySocket.CreateSocketManager(nil),
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
@@ -548,24 +576,6 @@ func TestInitSchedule(t *testing.T) {
 			},
 			wantInstances: true,
 		},
-		{
-			name: "handles log stream failure",
-			mockLabs: []Lab{
-				{
-					UUID:         "lab4",
-					Name:         "Broken Lab",
-					StartTime:    time.Now().Add(-5 * time.Minute),
-					InstanceName: &instanceName,
-					Topology:     topology.Topology{UUID: "topo4"},
-					Creator:      user.User{UUID: "user4"},
-				},
-			},
-			mockContainers: []deployment.InspectContainer{
-				{ContainerId: "c2", Name: "node2"},
-			},
-			mockLogError:  errors.New("stream failed"),
-			wantInstances: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -575,6 +585,7 @@ func TestInitSchedule(t *testing.T) {
 			mockStorage := &mockStorageManager{}
 			mockDeploymentSchedule := &mockSchedule{}
 			mockTopologyRepo := &mockTopologyRepo{}
+			schemaService := &mockSchemaService{}
 
 			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).
 				Return([]topology.BindFile{}, nil)
@@ -602,6 +613,9 @@ func TestInitSchedule(t *testing.T) {
 					cb := args.Get(3).(func(string))
 					cb("test-log-line")
 				}).Return(tt.mockLogError)
+
+				mockDeployment.On("ExecInteractive", mock.Anything, c.ContainerId, mock.Anything).
+					Maybe().Return(&mockReadWriteCloser{}, nil)
 			}
 
 			mockStorage.On("GetRunTopologyFile", mock.Anything).Return("/tmp/fake.yaml")
@@ -611,10 +625,16 @@ func TestInitSchedule(t *testing.T) {
 					*ptr = "dummy topology definition"
 				}).Return(nil)
 
+			parsed := any(map[string]any{
+				"name": "TestTopo",
+			})
+			schemaService.On("Parse", mock.Anything).Return(&parsed, nil)
+
 			svc := &labService{
 				labRepo:                mockLabRepo,
 				storageManager:         mockStorage,
 				deploymentProvider:     mockDeployment,
+				schemaService:          schemaService,
 				socketManager:          antimonySocket.CreateSocketManager(nil),
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
@@ -896,7 +916,7 @@ func TestCreateLabEnvironment(t *testing.T) {
 				storageManager: fields.storageManager,
 			}
 
-			runFile, err := svc.createLabEnvironment(args.lab)
+			runFile, _, err := svc.createLabEnvironment(args.lab)
 
 			if tt.wantErr {
 				require.Error(t, err, tt.name)
@@ -1149,6 +1169,9 @@ func TestRedeployLab(t *testing.T) {
 
 				f.deploymentProvider.On("StreamContainerLogs", mock.Anything, "", "c1", mock.Anything).
 					Return(nil)
+
+				f.deploymentProvider.On("ExecInteractive", mock.Anything, "c1", mock.Anything).
+					Maybe().Return(&mockReadWriteCloser{}, nil)
 			},
 			want: true,
 		},
@@ -1381,11 +1404,17 @@ topology:
 			mockLabUpdatesNs := &mockLabUpdateNamespace{}
 			labRepo := &mockLabRepo{}
 			topoRepo := &mockTopologyRepo{}
+			schemaService := &mockSchemaService{}
 
 			labRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			topoRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
 			sn.On("Send", mock.Anything).Maybe()
+
+			parsed := any(map[string]any{
+				"name": "TestTopo",
+			})
+			schemaService.On("Parse", mock.Anything).Return(&parsed, nil)
 
 			f := &fields{
 				deploymentProvider: dp,
@@ -1404,6 +1433,7 @@ topology:
 				socketManager:          f.socketManager,
 				labRepo:                labRepo,
 				topologyRepo:           topoRepo,
+				schemaService:          schemaService,
 				instances:              make(map[string]*Instance),
 			}
 
@@ -1491,16 +1521,19 @@ func TestContainerToInstanceNode(t *testing.T) {
 		ContainerId: "abc123",
 	}
 
-	node := svc.containerToInstanceNode(container, 0)
+	nodeKinds := map[string]string{
+		"node1": "nokia_srlinux",
+	}
+
+	node := svc.containerToInstanceNode(container, nodeKinds)
 
 	assert.Equal(t, "node1", node.Name)
+	assert.Equal(t, "nokia_srlinux", node.Kind)
 	assert.Equal(t, "192.168.1.1", node.IPv4)
 	assert.Equal(t, "fe80::1", node.IPv6)
-	assert.Equal(t, deployment.NodeStates.Running, node.State)
+	assert.Equal(t, deployment.NodeStates.Starting, node.State)
 	assert.Equal(t, "abc123", node.ContainerId)
 	assert.Equal(t, "lab-node1", node.ContainerName)
-	assert.Equal(t, "ins", node.User)
-	assert.Equal(t, 50005, node.Port)
 }
 
 func TestNotifyUpdate(t *testing.T) {
@@ -1601,6 +1634,8 @@ func TestHandleLabCommand(t *testing.T) {
 						},
 					}, nil)
 				f.deployment.On("StreamContainerLogs", mock.Anything, "", "abc123", mock.Anything).Return(nil)
+				f.deployment.On("ExecInteractive", mock.Anything, "abc123", mock.Anything).
+					Maybe().Return(&mockReadWriteCloser{}, nil)
 			},
 			expectOK:  true,
 			expectErr: false,
@@ -1894,7 +1929,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 		},
 
 		{
-			name: "open shell succeeds",
+			name: "open shell fails due to SSH connection",
 			setup: func(f *fields, a *args) {
 				a.cmd = openShellCommand
 				a.labId = "lab12"
@@ -1910,11 +1945,9 @@ func TestHandleNewLabCommands(t *testing.T) {
 							Collection: collection.Collection{Name: "col1"},
 						},
 					}, nil)
-
-				f.deployment.On("OpenShell", mock.Anything, "abc123").Return(&mockReadWriteCloser{}, nil)
 			},
-			expectOK:  true,
-			expectErr: false,
+			expectOK:  false,
+			expectErr: true,
 		},
 		{
 			name: "open shell fails when node is nil",

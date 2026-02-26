@@ -63,3 +63,18 @@ func FilterList(input, exclude []string) []string {
 
 	return result
 }
+
+func GetTopologyValue(topologyDefinition map[string]any, keys ...string) (any, bool) {
+	var current any = topologyDefinition
+	for _, key := range keys {
+		cm, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = cm[key]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
+}

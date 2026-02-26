@@ -368,7 +368,11 @@ func (p *MockDeploymentProvider) ExecOnNode(
 	}
 }
 
-func (p *MockDeploymentProvider) OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error) {
+func (p *MockDeploymentProvider) ExecInteractive(
+	ctx context.Context,
+	containerId string,
+	cmd []string,
+) (io.ReadWriteCloser, error) {
 	// Return nil or a dummy ReadWriteCloser if needed.
 	//nolint:nilnil // This is a mock
 	return nil, nil
@@ -483,14 +487,14 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	topologyRepository := topology.CreateRepository(db)
 	topologyService := topology.CreateService(
 		topologyRepository, userRepo, collectionRepo,
-		storageManager, schemaService.Get(),
+		schemaService, storageManager,
 	)
 	topologyHandler := topology.CreateHandler(topologyService)
 
 	labRepository := lab.CreateRepository(db)
 	labService := lab.CreateService(
-		cfg, labRepository, userRepo, topologyRepository, topologyService,
-		storageManager, socketManager, statusMessageNamespace, mockProvider,
+		cfg, labRepository, userRepo, topologyRepository, schemaService,
+		topologyService, storageManager, socketManager, statusMessageNamespace, mockProvider,
 	)
 	labHandler := lab.CreateHandler(labService)
 

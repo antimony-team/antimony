@@ -1,0 +1,17 @@
+# Node kind configuration.
+# Each key corresponds to a ContainerLab node kind (e.g., nokia_srlinux, cisco_csr1000v).
+#
+# Available fields per kind:
+#   sshUsername - The username used to authenticate the SSH connection.
+#                 Default: "admin"
+#   sshPassword - The password used to authenticate the SSH connection.
+#                 If not specified, SSH key authentication will be used instead.
+#
+# Example:
+#   nokia_srlinux:
+#     sshUsername: admin
+#     sshPassword: NokiaSrl1!
+
+cisco_csr1000v:
+  sshUsername: admin
+  sshPassword: admin

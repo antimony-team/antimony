@@ -3,15 +3,14 @@ package topology
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"slices"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
-	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
 )
 
@@ -43,8 +42,8 @@ type (
 		topologyRepo   Repository
 		userRepo       user.Repository
 		collectionRepo collection.Repository
+		schemaService  schema.Service
 		storageManager storage.StorageManager
-		schemaLoader   *jsonschema.Schema
 	}
 )
 
@@ -52,24 +51,15 @@ func CreateService(
 	topologyRepo Repository,
 	userRepo user.Repository,
 	collectionRepo collection.Repository,
+	schemaService schema.Service,
 	storageManager storage.StorageManager,
-	clabSchema string,
 ) Service {
-	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("clab-schema.json", strings.NewReader(clabSchema)); err != nil {
-		panic(err)
-	}
-	schema, err := compiler.Compile("clab-schema.json")
-	if err != nil {
-		panic(err)
-	}
-
 	return &topologyService{
 		topologyRepo:   topologyRepo,
 		userRepo:       userRepo,
 		collectionRepo: collectionRepo,
+		schemaService:  schemaService,
 		storageManager: storageManager,
-		schemaLoader:   schema,
 	}
 }
 
@@ -132,7 +122,7 @@ func (s *topologyService) Create(ctx *gin.Context, req TopologyIn, authUser auth
 		return "", utils.ErrNoWriteAccessToCollection
 	}
 
-	if err := s.validateTopology(*req.Definition); err != nil {
+	if _, err := s.schemaService.Parse(*req.Definition); err != nil {
 		return "", err
 	}
 
@@ -207,7 +197,7 @@ func (s *topologyService) Update(
 	}
 
 	if req.Definition != nil {
-		if err := s.validateTopology(*req.Definition); err != nil {
+		if _, err := s.schemaService.Parse(*req.Definition); err != nil {
 			return err
 		}
 
@@ -383,20 +373,6 @@ func (s *topologyService) DeleteBindFile(ctx *gin.Context, bindFileId string, au
 	}
 
 	return s.topologyRepo.DeleteBindFile(ctx, bindFile)
-}
-
-func (s *topologyService) validateTopology(definition string) error {
-	var definitionObj any
-
-	if err := yaml.Unmarshal([]byte(definition), &definitionObj); err != nil {
-		return utils.ErrInvalidTopology
-	}
-
-	if err := s.schemaLoader.Validate(definitionObj); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *topologyService) saveTopology(topologyId string, definition string) error {

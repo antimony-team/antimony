@@ -4,6 +4,7 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
+	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
@@ -12,9 +13,11 @@ import (
 	"antimonyBackend/utils"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -24,6 +27,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 )
 
@@ -58,9 +62,12 @@ type (
 		openShells      map[string]*ShellConfig
 		openShellsMutex sync.Mutex
 
+		nodeKindConfigs map[string]NodeKindConfig
+
 		labRepo                Repository
 		userRepo               user.Repository
 		topologyRepo           topology.Repository
+		schemaService          schema.Service
 		topologyService        topology.Service
 		storageManager         storage.StorageManager
 		deploymentProvider     deployment.DeploymentProvider
@@ -87,6 +94,7 @@ func CreateService(
 	labRepo Repository,
 	userRepo user.Repository,
 	topologyRepo topology.Repository,
+	schemaService schema.Service,
 	topologyService topology.Service,
 	storageManager storage.StorageManager,
 	socketManager socket.SocketManager,
@@ -116,9 +124,11 @@ func CreateService(
 		labRepo:                labRepo,
 		userRepo:               userRepo,
 		topologyRepo:           topologyRepo,
+		schemaService:          schemaService,
 		topologyService:        topologyService,
 		labDeploymentSchedule:  deploymentSchedule,
 		labDestructionSchedule: destructionSchedule,
+		nodeKindConfigs:        getNodeKindConfigs("./kinds.conf.yml"),
 		openShells:             make(map[string]*ShellConfig),
 		openShellsMutex:        sync.Mutex{},
 		instances:              make(map[string]*Instance),
@@ -455,7 +465,7 @@ func (s *labService) renameTopology(topologyId string, topologyName string, runT
 	}
 }
 
-func (s *labService) createLabEnvironment(lab *Lab) (string, error) {
+func (s *labService) createLabEnvironment(lab *Lab) (string, string, error) {
 	var (
 		runTopologyName       string
 		runTopologyDefinition string
@@ -464,7 +474,7 @@ func (s *labService) createLabEnvironment(lab *Lab) (string, error) {
 
 	runTopologyName = fmt.Sprintf("%s-%d", strings.ReplaceAll(lab.Topology.Name, " ", "-"), time.Now().UnixMilli())
 	if err := s.renameTopology(lab.Topology.UUID, runTopologyName, &runTopologyDefinition); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if err := s.storageManager.CreateRunEnvironment(
@@ -473,15 +483,15 @@ func (s *labService) createLabEnvironment(lab *Lab) (string, error) {
 		runTopologyDefinition,
 		&runTopologyFile,
 	); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	lab.InstanceName = &runTopologyName
 	if err := s.labRepo.Update(context.Background(), lab); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return runTopologyFile, nil
+	return runTopologyFile, runTopologyDefinition, nil
 }
 
 func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
@@ -619,9 +629,13 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	}
 
 	// Fetch and attach lab inspect info and change state to running if successful
-	instanceNodes, err := s.getNodesFromInspect(ctx, instance.TopologyFile, *lab.InstanceName, func(data string) {
+	instanceNodes, err := s.getNodesFromInspect(ctx, instance, *lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
+
+	for i := range instanceNodes {
+		go s.startNodeStartupListener(&instanceNodes[i], instance, lab)
+	}
 
 	// Only report errors if the deployment worker has not been cancelled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
@@ -635,7 +649,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	}
 
 	log.Infof("[SCHEDULER] Successfully redeployed lab '%s'!", lab.Name)
-	s.instances[lab.UUID].Nodes = instanceNodes
+	instance.Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
 			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
@@ -660,6 +674,102 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	return nil
 }
 
+func (s *labService) openSshSession(hostname string, nodeKind string) (io.ReadWriteCloser, error) {
+	key, err := os.ReadFile(os.ExpandEnv("$HOME/.ssh/id_rsa"))
+	if err != nil {
+		return nil, err
+	}
+
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	authMethods := []ssh.AuthMethod{ssh.PublicKeys(signer)}
+
+	sshUsername := "admin"
+	kindConfig, hasConfig := s.nodeKindConfigs[nodeKind]
+
+	if hasConfig && kindConfig.SSHUsername != nil {
+		sshUsername = *kindConfig.SSHUsername
+	}
+
+	if hasConfig && kindConfig.SSHPassword != nil {
+		authMethods = append(authMethods, ssh.Password(*kindConfig.SSHPassword))
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            sshUsername,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	client, err := ssh.Dial("tcp", hostname+":22", sshConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+
+	err = session.RequestPty("xterm", 25, 130, ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	})
+
+	if err != nil {
+		_ = session.Close()
+		_ = client.Close()
+		return nil, err
+	}
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		_ = session.Close()
+		_ = client.Close()
+		return nil, err
+	}
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		_ = session.Close()
+		_ = client.Close()
+		return nil, err
+	}
+
+	if err = session.Shell(); err != nil {
+		_ = session.Close()
+		_ = client.Close()
+		return nil, err
+	}
+
+	return &sshReadWriteCloser{
+		reader:  stdout,
+		writer:  stdin,
+		session: session,
+		client:  client,
+	}, nil
+}
+
+type sshReadWriteCloser struct {
+	reader  io.Reader
+	writer  io.WriteCloser
+	session *ssh.Session
+	client  *ssh.Client
+}
+
+func (s *sshReadWriteCloser) Read(p []byte) (int, error)  { return s.reader.Read(p) }
+func (s *sshReadWriteCloser) Write(p []byte) (int, error) { return s.writer.Write(p) }
+func (s *sshReadWriteCloser) Close() error {
+	_ = s.writer.Close()
+	_ = s.session.Close()
+	return s.client.Close()
+}
+
 func (s *labService) deployLab(lab *Lab) error {
 	// We have to ensure that the instance is only created once
 	s.instancesMutex.Lock()
@@ -678,9 +788,9 @@ func (s *labService) deployLab(lab *Lab) error {
 	}
 
 	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, true, nil, "logs", lab.UUID)
-	runTopologyFile, err := s.createLabEnvironment(lab)
+	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
 
-	instance := s.createInstance(logNamespace, runTopologyFile)
+	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
 	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
 
@@ -727,9 +837,13 @@ func (s *labService) deployLab(lab *Lab) error {
 	}
 
 	// Fetch and attach lab inspect info and change state to running if successful
-	instanceNodes, err := s.getNodesFromInspect(ctx, runTopologyFile, *lab.InstanceName, func(data string) {
+	instanceNodes, err := s.getNodesFromInspect(ctx, instance, *lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
+
+	for i := range instanceNodes {
+		go s.startNodeStartupListener(&instanceNodes[i], instance, lab)
+	}
 
 	// Only report errors if the deployment worker has not been cancelled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
@@ -742,7 +856,7 @@ func (s *labService) deployLab(lab *Lab) error {
 	}
 
 	log.Infof("[SCHEDULER] Successfully deployed lab '%s'!", lab.Name)
-	s.instances[lab.UUID].Nodes = instanceNodes
+	instance.Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
 			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
@@ -766,6 +880,37 @@ func (s *labService) deployLab(lab *Lab) error {
 	return nil
 }
 
+// startNodeStartupListener Starts a blocking listener that waits until the localhost SSH service responds or the container is stopped
+func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *Lab) {
+	ctx := context.Background()
+	cmd := []string{
+		"bash", "-c", `
+		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost 2> /dev/null; do
+			sleep 5
+		done
+	`}
+
+	connection, err := s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, cmd)
+	if err != nil {
+		return
+	}
+
+	// We wait until the SSH process responds or the pipe is broken
+	buf := make([]byte, 1024)
+	_, err = connection.Read(buf)
+
+	// Set the instance state to running if the SSH process responded
+	if err == nil {
+		instance.Mutex.Lock()
+		node.State = deployment.NodeStates.Running
+		instance.Mutex.Unlock()
+
+		s.labUpdatesNamespace.Send(LabUpdateOut{
+			LabId: &lab.UUID,
+		})
+	}
+}
+
 // setTopologyDeployStatus Sets the LastDeployFailed flag in the lab's topology
 func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
 	lab.Topology.LastDeployFailed = !wasSuccessful
@@ -777,7 +922,10 @@ func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
 func (s *labService) createInstance(
 	logNamespace socket.OutputNamespace[string],
 	runTopologyFile string,
+	runTopologyDefinition string,
 ) *Instance {
+	runTopologyDefintionParsed, _ := s.schemaService.Parse(runTopologyDefinition)
+
 	return &Instance{
 		Deployed:          time.Now(),
 		LatestStateChange: time.Now(),
@@ -787,7 +935,82 @@ func (s *labService) createInstance(
 		DeploymentWorker:  nil,
 		LogNamespace:      logNamespace,
 		TopologyFile:      runTopologyFile,
+		NodeKinds:         s.extractNodeKinds(*runTopologyDefintionParsed),
+		NodeLabels:        s.extractNodeLabels(*runTopologyDefintionParsed),
 	}
+}
+
+func (s *labService) extractNodeLabels(topologyDefinition any) map[string]map[string]string {
+	result := make(map[string]map[string]string)
+
+	topologyMap, ok := topologyDefinition.(map[string]any)
+	if !ok {
+		return result
+	}
+
+	top, ok := topologyMap["topology"].(map[string]any)
+	if !ok {
+		return result
+	}
+
+	nodes, ok := top["nodes"].(map[string]any)
+	if !ok {
+		return result
+	}
+
+	for nodeName, nodeVal := range nodes {
+		node, ok := nodeVal.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		labels, ok := node["labels"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		result[nodeName] = make(map[string]string)
+		for k, v := range labels {
+			result[nodeName][k] = fmt.Sprintf("%v", v)
+		}
+	}
+
+	return result
+}
+
+func (s *labService) extractNodeKinds(topologyDefinition any) map[string]string {
+	result := make(map[string]string)
+
+	topologyMap, ok := topologyDefinition.(map[string]any)
+	if !ok {
+		return result
+	}
+
+	top, ok := topologyMap["topology"].(map[string]any)
+	if !ok {
+		return result
+	}
+
+	nodes, ok := top["nodes"].(map[string]any)
+	if !ok {
+		return result
+	}
+
+	for nodeName, nodeVal := range nodes {
+		node, ok := nodeVal.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		kind, ok := node["kind"].(string)
+		if !ok {
+			continue
+		}
+
+		result[nodeName] = kind
+	}
+
+	return result
 }
 
 func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
@@ -837,9 +1060,6 @@ func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
 			Name:              node.Name,
 			IPv4:              node.IPv4,
 			IPv6:              node.IPv6,
-			Port:              node.Port,
-			User:              node.User,
-			WebSSH:            node.WebSSH,
 			State:             node.State,
 			ContainerId:       node.ContainerId,
 			ContainerName:     node.ContainerName,
@@ -864,7 +1084,7 @@ func (s *labService) updateInstanceNodes(
 		}
 	}
 
-	updatedNodes, err := s.getNodesFromInspect(ctx, instance.TopologyFile, instanceName, onLog)
+	updatedNodes, err := s.getNodesFromInspect(ctx, instance, instanceName, onLog)
 
 	if err != nil {
 		return err
@@ -879,11 +1099,11 @@ func (s *labService) updateInstanceNodes(
 
 func (s *labService) getNodesFromInspect(
 	ctx context.Context,
-	runTopologyFile string,
+	instance *Instance,
 	instanceName string,
 	onLog func(data string),
 ) ([]InstanceNode, error) {
-	inspectOutput, err := s.deploymentProvider.Inspect(ctx, runTopologyFile, onLog)
+	inspectOutput, err := s.deploymentProvider.Inspect(ctx, instance.TopologyFile, onLog)
 
 	if err != nil {
 		return nil, err
@@ -891,20 +1111,32 @@ func (s *labService) getNodesFromInspect(
 
 	containers := inspectOutput[instanceName]
 
-	return lo.Map(containers, s.containerToInstanceNode), nil
+	return lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
+		return s.containerToInstanceNode(container, instance.NodeKinds)
+	}), nil
 }
 
-func (s *labService) containerToInstanceNode(container deployment.InspectContainer, _ int) InstanceNode {
+func (s *labService) containerToInstanceNode(
+	container deployment.InspectContainer,
+	nodeKinds map[string]string,
+) InstanceNode {
+	var ok bool
+
 	nodeNameParts := strings.Split(container.Name, "-")
+	nodeName := nodeNameParts[len(nodeNameParts)-1]
+
+	var nodeKind string
+
+	if nodeKind, ok = nodeKinds[nodeName]; !ok {
+		log.Warnf("Failed to get kind for running node '%s'", nodeName)
+	}
 
 	return InstanceNode{
-		Name:          nodeNameParts[len(nodeNameParts)-1],
+		Name:          nodeName,
+		Kind:          nodeKind,
 		IPv4:          container.IPv4Address,
 		IPv6:          container.IPv6Address,
-		Port:          50005,
-		User:          "ins",
-		WebSSH:        "",
-		State:         container.State,
+		State:         deployment.NodeStates.Starting,
 		ContainerId:   container.ContainerId,
 		ContainerName: container.Name,
 	}
@@ -992,16 +1224,38 @@ func (s *labService) reviveLabs() {
 				}
 			}
 
-			s.instancesMutex.Lock()
-			s.instances[lab.UUID] = &Instance{
+			var nodeKinds map[string]string
+			var nodeLabels map[string]map[string]string
+			topologyDefinition := new(string)
+
+			if err := s.storageManager.ReadTopology(lab.Topology.UUID, topologyDefinition); err == nil {
+				topologyDefinitionParsed, _ := s.schemaService.Parse(*topologyDefinition)
+				nodeLabels = s.extractNodeLabels(*topologyDefinitionParsed)
+				nodeKinds = s.extractNodeKinds(*topologyDefinitionParsed)
+			}
+
+			instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
+				return s.containerToInstanceNode(container, nodeKinds)
+			})
+
+			instance := &Instance{
 				State:             InstanceStates.Running,
-				Nodes:             lo.Map(containers, s.containerToInstanceNode),
+				Nodes:             instanceNodes,
 				Deployed:          time.Now(),
 				LatestStateChange: time.Now(),
 				Recovered:         true,
 				TopologyFile:      s.storageManager.GetRunTopologyFile(lab.UUID),
 				LogNamespace:      logNamespace,
+				NodeLabels:        nodeLabels,
+				NodeKinds:         nodeKinds,
 			}
+
+			for i := range instanceNodes {
+				go s.startNodeStartupListener(&instanceNodes[i], instance, &lab)
+			}
+
+			s.instancesMutex.Lock()
+			s.instances[lab.UUID] = instance
 			s.instancesMutex.Unlock()
 
 			s.labDestructionSchedule.Schedule(&lab)
@@ -1346,7 +1600,8 @@ func (s *labService) openShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.deploymentProvider.OpenShell(ctx, node.ContainerId)
+	connection, err := s.openSshSession(node.ContainerName, node.Kind)
+
 	if err != nil {
 		log.Errorf("Failed to open shell: %s", err.Error())
 		return "", err
@@ -1367,11 +1622,26 @@ func (s *labService) openShellCommand(
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	shellConfig := &ShellConfig{
+		Owner:            authUser,
+		Node:             *nodeName,
+		LabId:            labId,
+		Connection:       connection,
+		ConnectionCancel: cancel,
+		LastInteraction:  time.Now().Unix(),
+		DataNamespace:    dataNamespace,
+	}
+
 	go func() {
 		buf := make([]byte, 1024)
 		for {
 			n, err := connection.Read(buf)
 			if err != nil {
+				if errors.Is(err, io.EOF) {
+					_ = s.closeShell(shellId, shellConfig, "User closed the shell")
+					break
+				}
+
 				// Only send an error if the connection hasn't been closed explicitly
 				if ctx.Err() == nil {
 					s.shellCommandsNamespace.Send(ShellCommandData{
@@ -1389,16 +1659,6 @@ func (s *labService) openShellCommand(
 			dataNamespace.Send(string(buf[:n]))
 		}
 	}()
-
-	shellConfig := &ShellConfig{
-		Owner:            authUser,
-		Node:             *nodeName,
-		LabId:            labId,
-		Connection:       connection,
-		ConnectionCancel: cancel,
-		LastInteraction:  time.Now().Unix(),
-		DataNamespace:    dataNamespace,
-	}
 
 	s.openShellsMutex.Lock()
 	s.openShells[shellId] = shellConfig
@@ -1457,6 +1717,10 @@ func (s *labService) closeNodeShells(nodeName string) {
 }
 
 func (s *labService) closeShell(shellId string, shell *ShellConfig, reason string) error {
+	s.openShellsMutex.Lock()
+	delete(s.openShells, shellId)
+	s.openShellsMutex.Unlock()
+
 	s.shellCommandsNamespace.Send(ShellCommandData{
 		LabId:   shell.LabId,
 		Node:    shell.Node,
@@ -1532,4 +1796,26 @@ func streamClabOutput(logNamespace socket.OutputNamespace[string], output *strin
 		}
 		logNamespace.Send(string(re.ReplaceAll([]byte(line), []byte(""))))
 	}
+}
+
+func getNodeKindConfigs(path string) map[string]NodeKindConfig {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Infof("No kind config file was specified: %s", err)
+		return make(map[string]NodeKindConfig)
+	}
+
+	log.Infof("Loaded kind config file: %s", err)
+
+	var configs map[string]NodeKindConfig
+	if err := yaml.Unmarshal(data, &configs); err != nil {
+		log.Warnf("Failed to parse node kind config: %s", err)
+		return make(map[string]NodeKindConfig)
+	}
+
+	for kind, nodeConfig := range configs {
+		configs[kind] = nodeConfig
+	}
+
+	return configs
 }

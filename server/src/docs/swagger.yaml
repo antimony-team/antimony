@@ -56,10 +56,12 @@ definitions:
     type: object
   deployment.NodeState:
     enum:
+    - starting
     - running
     - exited
     type: string
     x-enum-varnames:
+    - starting
     - running
     - exited
   device.DeviceConfig:
@@ -88,16 +90,12 @@ definitions:
         type: string
       ipv6:
         type: string
+      kind:
+        type: string
       name:
         type: string
-      port:
-        type: integer
       state:
         $ref: '#/definitions/deployment.NodeState'
-      user:
-        type: string
-      webSSH:
-        type: string
     type: object
   lab.InstanceOut:
     properties:

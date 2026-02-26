@@ -1048,10 +1048,12 @@ const docTemplate = `{
         "deployment.NodeState": {
             "type": "string",
             "enum": [
+                "starting",
                 "running",
                 "exited"
             ],
             "x-enum-varnames": [
+                "starting",
                 "running",
                 "exited"
             ]
@@ -1095,20 +1097,14 @@ const docTemplate = `{
                 "ipv6": {
                     "type": "string"
                 },
+                "kind": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
-                "port": {
-                    "type": "integer"
-                },
                 "state": {
                     "$ref": "#/definitions/deployment.NodeState"
-                },
-                "user": {
-                    "type": "string"
-                },
-                "webSSH": {
-                    "type": "string"
                 }
             }
         },

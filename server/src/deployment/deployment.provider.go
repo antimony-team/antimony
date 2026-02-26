@@ -12,7 +12,7 @@ type DeploymentProvider interface {
 	InspectAll(ctx context.Context) (InspectOutput, error)
 	Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
 
-	OpenShell(ctx context.Context, containerId string) (io.ReadWriteCloser, error)
+	ExecInteractive(ctx context.Context, containerId string, cmd []string) (io.ReadWriteCloser, error)
 
 	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
 
@@ -43,14 +43,17 @@ type InspectContainer struct {
 type NodeState string
 
 const (
-	running NodeState = "running"
-	exited  NodeState = "exited"
+	starting NodeState = "starting"
+	running  NodeState = "running"
+	exited   NodeState = "exited"
 )
 
 var NodeStates = struct {
-	Running NodeState
-	exited  NodeState
+	Starting NodeState
+	Running  NodeState
+	Exited   NodeState
 }{
-	Running: running,
-	exited:  exited,
+	Starting: starting,
+	Running:  running,
+	Exited:   exited,
 }

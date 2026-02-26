@@ -87,14 +87,14 @@ func main() {
 		topologyRepository = topology.CreateRepository(db)
 		topologyService    = topology.CreateService(
 			topologyRepository, userRepository, collectionRepository,
-			storageManager, schemaService.Get(),
+			schemaService, storageManager,
 		)
 		topologyHandler = topology.CreateHandler(topologyService)
 
 		labRepository = lab.CreateRepository(db)
 		labService    = lab.CreateService(
-			antimonyConfig, labRepository, userRepository, topologyRepository, topologyService,
-			storageManager, socketManager, statusMessageNamespace, deploymentProvider,
+			antimonyConfig, labRepository, userRepository, topologyRepository, schemaService,
+			topologyService, storageManager, socketManager, statusMessageNamespace, deploymentProvider,
 		)
 		labHandler = lab.CreateHandler(labService)
 	)

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"antimonyBackend/config"
+	"antimonyBackend/utils"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,32 +10,48 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
+	"github.com/santhosh-tekuri/jsonschema/v5"
+	"gopkg.in/yaml.v3"
 )
 
 type (
 	Service interface {
 		Get() string
+		Parse(data string) (*any, error)
 	}
 
 	schemaService struct {
-		clabSchema string
+		schemaString *string
+		clabSchema   *jsonschema.Schema
 	}
 )
 
 func CreateService(config *config.AntimonyConfig) Service {
-	schema := loadSchema(config)
+	schema, schemaString := loadSchema(config)
 
 	return &schemaService{
-		clabSchema: schema,
+		schemaString: schemaString,
+		clabSchema:   schema,
 	}
 }
 
 func (u *schemaService) Get() string {
-	return u.clabSchema
+	return *u.schemaString
 }
 
-func loadSchema(config *config.AntimonyConfig) string {
+func (u *schemaService) Parse(data string) (*any, error) {
+	var obj any
+
+	if err := yaml.Unmarshal([]byte(data), &obj); err != nil {
+		return nil, utils.ErrInvalidTopology
+	}
+
+	return &obj, u.clabSchema.Validate(obj)
+}
+
+func loadSchema(config *config.AntimonyConfig) (*jsonschema.Schema, *string) {
 	var schema any
+	var schemaString string
 
 	//nolint:noctx // We don't need to provide context here
 	resp, err := http.Get(config.Containerlab.SchemaUrl)
@@ -45,12 +62,14 @@ func loadSchema(config *config.AntimonyConfig) string {
 		// Try to use local fallback schema instead
 		if schemaData, err := os.ReadFile(config.Containerlab.SchemaFallback); err != nil {
 			log.Fatal("Failed to read fallback clab schema. Exiting.")
+			return nil, nil
 		} else {
 			if err := json.Unmarshal(schemaData, &schema); err != nil {
 				log.Fatal("Failed to parse fallback clab schema. Exiting.")
+				return nil, nil
 			}
 
-			return string(schemaData)
+			schemaString = string(schemaData)
 		}
 	} else {
 		buf := new(strings.Builder)
@@ -59,10 +78,23 @@ func loadSchema(config *config.AntimonyConfig) string {
 
 		if err != nil {
 			log.Fatal("Failed to parse remote clab schema. Exiting.")
+			return nil, nil
 		}
 
-		return buf.String()
+		schemaString = buf.String()
 	}
 
-	return ""
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("clab-schema.json", strings.NewReader(schemaString)); err != nil {
+		log.Fatal("Failed to read clab schema. Exiting.")
+		return nil, nil
+	}
+
+	jsonSchema, err := compiler.Compile("clab-schema.json")
+	if err != nil {
+		log.Fatal("Failed to compile remote clab schema. Exiting.")
+		return nil, nil
+	}
+
+	return jsonSchema, &schemaString
 }

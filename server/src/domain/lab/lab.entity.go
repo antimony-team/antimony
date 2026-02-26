@@ -72,14 +72,18 @@ type Instance struct {
 	// Recovered Whether the instance has been recovered after an Antimony restart
 	Recovered bool
 
-	TopologyFile string
-	LogNamespace socket.OutputNamespace[string]
+	TopologyFile       string
+	TopologyDefinition string
+	LogNamespace       socket.OutputNamespace[string]
 
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
 
 	// DeploymentWorker that holds the current deployment context of the lab
 	DeploymentWorker *utils.Worker
+
+	NodeKinds  map[string]string
+	NodeLabels map[string]map[string]string
 }
 
 type InstanceOut struct {
@@ -93,11 +97,9 @@ type InstanceOut struct {
 
 type InstanceNode struct {
 	Name          string               `json:"name"`
+	Kind          string               `json:"kind"`
 	IPv4          string               `json:"ipv4"`
 	IPv6          string               `json:"ipv6"`
-	Port          int                  `json:"port"`
-	User          string               `json:"user"`
-	WebSSH        string               `json:"webSSH"`
 	State         deployment.NodeState `json:"state"`
 	ContainerId   string               `json:"containerId"`
 	ContainerName string               `json:"containerName"`
@@ -208,4 +210,9 @@ var ShellCommands = struct {
 }{
 	Error: shellError,
 	Close: shellClose,
+}
+
+type NodeKindConfig struct {
+	SSHUsername *string `yaml:"sshUsername"`
+	SSHPassword *string `yaml:"sshPassword"`
 }

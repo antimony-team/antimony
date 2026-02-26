@@ -26,6 +26,7 @@ tasks:
       - go build -o ../build/antimony-server ./main.go
       - cp -r ../data/ ../build/
       - cp -r ../test/config.test.yml ../build/config.yml
+      - cp -r ../test/kinds.conf.yml ../build/kinds.conf.yml
 
   run:
     dir: './build'
@@ -59,11 +60,15 @@ tasks:
           -v ./run:/app/run/
           -v ./data:/app/data/
           -v ./config.yml:/app/config.yml
+          -v ./kinds.conf.yml:/app/kinds.conf.yml
           -v /var/run/docker.sock:/var/run/docker.sock
+          -v /var/run/netns:/var/run/netns
+          -v  /var/lib/docker:/var/lib/docker
           -p 3000:3000
           --privileged
           --network host
           --user root
+          --pid host
           antimony-backend -sqlite=true -config=./config.yml
 
   test:

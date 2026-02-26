@@ -127,9 +127,10 @@ func (p *ClabernetesProvider) InspectAll(
 	return InspectOutput{}, nil
 }
 
-func (p *ClabernetesProvider) OpenShell(
+func (p *ClabernetesProvider) ExecInteractive(
 	ctx context.Context,
 	containerId string,
+	cmd []string,
 ) (io.ReadWriteCloser, error) {
 	//nolint:nilnil // This is a mock function
 	return nil, nil

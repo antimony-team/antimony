@@ -65,7 +65,7 @@ func TestGetTopologies(t *testing.T) {
 	err = json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 
-	// Validate the returned topologies
+	// Parse the returned topologies
 	names := make([]string, 0)
 	for _, topo := range result.Payload {
 		names = append(names, extractTopologyName(topo.Definition))

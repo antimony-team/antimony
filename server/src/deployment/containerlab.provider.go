@@ -106,9 +106,10 @@ func (p *ContainerlabProvider) ExecOnNode(
 	runClabCommand(cmd, onLog, onDone)
 }
 
-func (p *ContainerlabProvider) OpenShell(
+func (p *ContainerlabProvider) ExecInteractive(
 	ctx context.Context,
 	containerId string,
+	cmd []string,
 ) (io.ReadWriteCloser, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -116,7 +117,7 @@ func (p *ContainerlabProvider) OpenShell(
 	}
 
 	execConfig := container.ExecOptions{
-		Cmd:          []string{"/bin/bash"},
+		Cmd:          cmd,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
