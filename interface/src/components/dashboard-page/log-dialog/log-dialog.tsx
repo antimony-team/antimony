@@ -77,12 +77,17 @@ const LogDialog = observer((props: LogDialogProps) => {
   }, [formatted]);
 
   const logSourceName = useMemo(() => {
-    if (!props.dialogState.state) return '';
+    if (
+      !props.dialogState.state ||
+      !props.dialogState.state.lab.instance?.nodes
+    ) {
+      return '';
+    }
 
     if (logSource === -1) {
       return 'Containerlab';
     } else {
-      return props.dialogState.state.lab.instance!.nodes.find(
+      return props.dialogState.state.lab.instance.nodes.find(
         node => node.containerId === logSource,
       )!.name;
     }

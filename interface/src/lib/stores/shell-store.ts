@@ -221,7 +221,9 @@ export class ShellStore {
   }
 
   public async closeShell(lab: Lab, shellId: string) {
-    const labShells = this.openShells.get(lab.id)!;
+    const labShells = this.openShells.get(lab.id);
+    if (!labShells) return;
+
     const shell = labShells.find(shell => shell.id === shellId);
 
     if (shell && !shell.expired) {
