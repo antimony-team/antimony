@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/netip"
 	"os"
 	"regexp"
 	"slices"
@@ -472,7 +473,10 @@ func (s *labService) createLabEnvironment(lab *Lab) (string, string, error) {
 		runTopologyFile       string
 	)
 
-	runTopologyName = fmt.Sprintf("%s-%d", strings.ReplaceAll(lab.Topology.Name, " ", "-"), time.Now().UnixMilli())
+	runTopologyName = strings.ReplaceAll(lab.Topology.Name, " ", "-")
+	runTopologyName = strings.ReplaceAll(runTopologyName, "_", "-")
+	runTopologyName = fmt.Sprintf("%s-%d", runTopologyName, time.Now().UnixMilli())
+
 	if err := s.renameTopology(lab.Topology.UUID, runTopologyName, &runTopologyDefinition); err != nil {
 		return "", "", err
 	}
@@ -674,7 +678,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	return nil
 }
 
-func (s *labService) openSshSession(hostname string, nodeKind string) (io.ReadWriteCloser, error) {
+func (s *labService) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
 	key, err := os.ReadFile(os.ExpandEnv("$HOME/.ssh/id_rsa"))
 	if err != nil {
 		return nil, err
@@ -704,7 +708,7 @@ func (s *labService) openSshSession(hostname string, nodeKind string) (io.ReadWr
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	client, err := ssh.Dial("tcp", hostname+":22", sshConfig)
+	client, err := ssh.Dial("tcp", host+":22", sshConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -1600,7 +1604,14 @@ func (s *labService) openShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.openSshSession(node.ContainerName, node.Kind)
+	var host string
+	if ip, err := netip.ParsePrefix(node.IPv4); err != nil {
+		host = ip.Addr().String()
+	} else {
+		host = node.Name
+	}
+
+	connection, err := s.openSshSession(host, node.Kind)
 
 	if err != nil {
 		log.Errorf("Failed to open shell: %s", err.Error())
