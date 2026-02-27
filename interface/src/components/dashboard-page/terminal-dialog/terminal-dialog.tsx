@@ -56,12 +56,12 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   const onData = useCallback((data: string) => {
     if (!termRef.current) return;
 
-    data = data.replace(/^[\r\n]+/, '');
-
     if (resetBeforeNextUpdate.current) {
       termRef.current.reset();
       setExpired(shellStore.currentShell?.expired ?? false);
       resetBeforeNextUpdate.current = false;
+
+      data = data.replace(/^[\r\n]+/, '');
     }
 
     termRef.current.write(data);
@@ -196,6 +196,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     deferTerminalReset();
 
     shellStore.switchToShell(shell);
+    termRef.current?.focus();
   }
 
   function onTabSwitch(event: TabViewTabChangeEvent) {
@@ -212,7 +213,6 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     } else {
       deferTerminalReset();
       shellStore.switchToShell(currentShells[event.index]);
-      termRef.current.focus();
     }
   }
 
@@ -277,11 +277,14 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
       if (currentShells.length <= 0) {
         onClose();
+        return;
       } else if (tabIndex < currentShells.length) {
         shellStore.switchToShell(currentShells[tabIndex]);
       } else {
         shellStore.switchToShell(currentShells[tabIndex - 1]);
       }
+
+      termRef.current?.focus();
     }
   }
 
@@ -300,6 +303,14 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
     void closeTab(shellId, closeIndex);
   }
+
+  const expiredCloseButtonRef = useRef<Button | null>(null);
+
+  useEffect(() => {
+    if (!isExpired || !expiredCloseButtonRef.current) return;
+
+    (expiredCloseButtonRef.current as unknown as HTMLButtonElement).focus();
+  }, [isExpired]);
 
   return (
     <SBDialog
@@ -369,7 +380,9 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
             <span className="sb-terminal-expired-text">
               This terminal session is expired and can no longer be used
             </span>
-            <Button onClick={closeCurrentTab}>Close</Button>
+            <Button onClick={closeCurrentTab} ref={expiredCloseButtonRef}>
+              Close
+            </Button>
           </div>
         </If>
       </div>
