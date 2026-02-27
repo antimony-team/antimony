@@ -1599,9 +1599,14 @@ func (s *labService) openShellCommand(
 
 	var host string
 	if ip, err := netip.ParsePrefix(node.IPv4); err != nil {
+		log.Warn(
+			"Failed to parse node IP",
+			"ip", node.IPv4, "container", node.ContainerName,
+			"err", err,
+		)
 		host = ip.Addr().String()
 	} else {
-		host = node.Name
+		host = node.ContainerName
 	}
 
 	connection, err := s.openSshSession(host, node.Kind)
