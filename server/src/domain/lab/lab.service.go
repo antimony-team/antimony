@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/netip"
 	"os"
+	filepath "path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -63,6 +64,7 @@ type (
 		openShells      map[string]*ShellConfig
 		openShellsMutex sync.Mutex
 
+		defaultSshAuth  []ssh.AuthMethod
 		nodeKindConfigs map[string]NodeKindConfig
 
 		labRepo                Repository
@@ -134,6 +136,7 @@ func CreateService(
 		openShellsMutex:        sync.Mutex{},
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
+		defaultSshAuth:         getSshKeyAuth(),
 		storageManager:         storageManager,
 		deploymentProvider:     deploymentProvider,
 		socketManager:          socketManager,
@@ -679,17 +682,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 }
 
 func (s *labService) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
-	key, err := os.ReadFile(os.ExpandEnv("$HOME/.ssh/id_rsa"))
-	if err != nil {
-		return nil, err
-	}
-
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-
-	authMethods := []ssh.AuthMethod{ssh.PublicKeys(signer)}
+	authMethods := s.defaultSshAuth
 
 	sshUsername := "admin"
 	kindConfig, hasConfig := s.nodeKindConfigs[nodeKind]
@@ -1829,4 +1822,43 @@ func getNodeKindConfigs(path string) map[string]NodeKindConfig {
 	}
 
 	return configs
+}
+
+func getSshKeyAuth() []ssh.AuthMethod {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Errorf("Failed to get home directory for SSH keys.")
+		return []ssh.AuthMethod{}
+	}
+
+	keyFiles := []string{
+		"id_rsa",
+		"id_ed25519",
+		"id_ecdsa",
+		"id_dsa",
+		"id_ecdsa_sk",
+		"id_ed25519_sk",
+	}
+
+	var signers []ssh.AuthMethod
+	for _, name := range keyFiles {
+		path := filepath.Join(home, ".ssh", name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+
+		signer, err := ssh.ParsePrivateKey(data)
+		if err != nil {
+			continue
+		}
+
+		signers = append(signers, ssh.PublicKeys(signer))
+	}
+
+	if len(signers) == 0 {
+		log.Warnf("Failed to find any SSH keys on the system.")
+	}
+
+	return signers
 }
