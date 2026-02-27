@@ -889,6 +889,10 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 
 	connection, err := s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, cmd)
 	if err != nil {
+		instance.Mutex.Lock()
+		node.State = deployment.NodeStates.Running
+		instance.Mutex.Unlock()
+
 		return
 	}
 
@@ -1575,10 +1579,11 @@ func (s *labService) openShellCommand(
 
 	s.instancesMutex.Lock()
 	instance, hasInstance := s.instances[lab.UUID]
+	s.instancesMutex.Unlock()
+
 	if !hasInstance {
 		return "", utils.ErrLabNotRunning
 	}
-	s.instancesMutex.Unlock()
 
 	node, hasNode := lo.Find(instance.Nodes, func(node InstanceNode) bool {
 		return node.Name == *nodeName
@@ -1597,22 +1602,9 @@ func (s *labService) openShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	var host string
-	if ip, err := netip.ParsePrefix(node.IPv4); err != nil {
-		log.Warn(
-			"Failed to parse node IP",
-			"ip", node.IPv4, "container", node.ContainerName,
-			"err", err,
-		)
-		host = ip.Addr().String()
-	} else {
-		host = node.ContainerName
-	}
-
-	connection, err := s.openSshSession(host, node.Kind)
-
+	connection, err := s.openNodeShell(ctx, node)
 	if err != nil {
-		log.Errorf("Failed to open shell: %s", err.Error())
+		log.Error("Failed to open shell on node.", "node", node.ContainerName)
 		return "", err
 	}
 
@@ -1674,6 +1666,47 @@ func (s *labService) openShellCommand(
 	s.openShellsMutex.Unlock()
 
 	return shellId, nil
+}
+
+func (s *labService) openNodeShell(ctx context.Context, node InstanceNode) (io.ReadWriteCloser, error) {
+	var host string
+	var connection io.ReadWriteCloser
+	var err error
+
+	if ip, err := netip.ParsePrefix(node.IPv4); err != nil {
+		log.Warn(
+			"Failed to parse node IP",
+			"ip", node.IPv4, "container", node.ContainerName,
+			"err", err,
+		)
+		host = ip.Addr().String()
+	} else {
+		host = node.ContainerName
+	}
+
+	connection, err = s.openSshSession(host, node.Kind)
+	if err == nil {
+		return connection, nil
+	}
+
+	log.Debug(
+		"Failed to open SSH session for node. Falling back to native bash.",
+		"node",
+		node.ContainerName,
+	)
+
+	connection, err = s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/bash"})
+	if err == nil {
+		return connection, nil
+	}
+
+	log.Debug(
+		"Failed to open native bash session for node. Falling back to native sh.",
+		"node",
+		node.ContainerName,
+	)
+
+	return s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/sh"})
 }
 
 func (s *labService) closeShellCommand(shellId *string, authUser *auth.AuthenticatedUser) error {

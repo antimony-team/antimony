@@ -1,11 +1,13 @@
 package deployment
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -13,6 +15,7 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 type ContainerlabProvider struct{}
@@ -111,10 +114,11 @@ func (p *ContainerlabProvider) ExecInteractive(
 	containerId string,
 	cmd []string,
 ) (io.ReadWriteCloser, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
+	defer closeDockerClient(cli)
 
 	execConfig := container.ExecOptions{
 		Cmd:          cmd,
@@ -134,6 +138,23 @@ func (p *ContainerlabProvider) ExecInteractive(
 		return nil, err
 	}
 
+	time.Sleep(10 * time.Millisecond)
+
+	inspect, err := cli.ContainerExecInspect(ctx, containerExec.ID)
+	if err != nil {
+		hr.Close()
+		return nil, err
+	}
+
+	if !inspect.Running && inspect.ExitCode != 0 {
+		hr.Close()
+		return nil, fmt.Errorf(
+			"command %v failed to start (exit code %d): command not found or not executable",
+			cmd,
+			inspect.ExitCode,
+		)
+	}
+
 	return hr.Conn, nil
 }
 
@@ -142,6 +163,7 @@ func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string
 	if err != nil {
 		return err
 	}
+	defer closeDockerClient(cli)
 
 	if err := cli.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
 		return err
@@ -155,6 +177,7 @@ func (p *ContainerlabProvider) StopNode(ctx context.Context, containerId string)
 	if err != nil {
 		return err
 	}
+	defer closeDockerClient(cli)
 
 	timeout := int(10 * time.Second)
 	if err := cli.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
@@ -169,6 +192,7 @@ func (p *ContainerlabProvider) RestartNode(ctx context.Context, containerId stri
 	if err != nil {
 		return err
 	}
+	defer closeDockerClient(cli)
 
 	timeout := int(10 * time.Second)
 	if err := cli.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
@@ -183,6 +207,7 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 	if err != nil {
 		return err
 	}
+	defer closeDockerClient(cli)
 
 	eventFilter := filters.NewArgs()
 	eventFilter.Add("type", "container")
@@ -215,10 +240,12 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 	containerId string,
 	onLog func(data string),
 ) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
 	}
+	defer closeDockerClient(cli)
+
 	logOptions := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -233,6 +260,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 	}
 
 	go streamOutput(out, onLog)
+
 	return nil
 }
 
@@ -242,9 +270,9 @@ func (p *ContainerlabProvider) GetInterfaces(
 ) ([]string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+		return nil, err
 	}
-	defer cli.Close()
+	defer closeDockerClient(cli)
 
 	// Inspect the container
 	info, err := cli.ContainerInspect(ctx, containerId)
@@ -254,7 +282,7 @@ func (p *ContainerlabProvider) GetInterfaces(
 
 	// Execute `ip -j link show` inside the container to get all interfaces
 	execConfig := container.ExecOptions{
-		Cmd:          []string{"ip", "-j", "link", "show"},
+		Cmd:          []string{"ls", "/sys/class/net"},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
@@ -264,47 +292,28 @@ func (p *ContainerlabProvider) GetInterfaces(
 		return nil, fmt.Errorf("failed to create exec: %w", err)
 	}
 
-	resp, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
+	hr, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach exec: %w", err)
 	}
-	defer resp.Close()
+	defer hr.Close()
 
-	// Read all output — docker multiplexes stdout/stderr with an 8-byte header per frame
-	// [stream_type(1), padding(3), size(4)] then payload
-	var raw []byte
-	buf := make([]byte, 4096)
-	for {
-		n, err := resp.Reader.Read(buf)
-		if n > 0 {
-			data := buf[:n]
-			// Strip docker stream multiplexing headers
-			for len(data) > 8 {
-				frameSize := int(data[4])<<24 | int(data[5])<<16 | int(data[6])<<8 | int(data[7])
-				if len(data) < 8+frameSize {
-					break
-				}
-				raw = append(raw, data[8:8+frameSize]...)
-				data = data[8+frameSize:]
-			}
+	var buf bytes.Buffer
+	if _, err := stdcopy.StdCopy(&buf, &buf, hr.Reader); err != nil {
+		return nil, err
+	}
+
+	var interfaces []string
+	for _, iface := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		iface = strings.TrimSpace(iface)
+		if iface != "" {
+			interfaces = append(interfaces, iface)
 		}
-		if err != nil {
-			break
-		}
-	}
-
-	// Parse JSON output of `ip -j link show`
-	var links []struct {
-		IfName string `json:"ifname"`
-	}
-	if err := json.Unmarshal(raw, &links); err != nil {
-		return nil, fmt.Errorf("failed to parse ip link output: %w\nraw: %s", err, string(raw))
-	}
-
-	interfaces := make([]string, 0, len(links))
-	for _, l := range links {
-		interfaces = append(interfaces, l.IfName)
 	}
 
 	return interfaces, nil
+}
+
+func closeDockerClient(client *client.Client) {
+	_ = client.Close()
 }

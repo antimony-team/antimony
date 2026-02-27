@@ -117,6 +117,9 @@ func (m *MockDeploymentProvider) ExecInteractive(
 	cmd []string,
 ) (io.ReadWriteCloser, error) {
 	args := m.Called(ctx, containerId, cmd)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(io.ReadWriteCloser), args.Error(1)
 }
 
@@ -1945,6 +1948,10 @@ func TestHandleNewLabCommands(t *testing.T) {
 							Collection: collection.Collection{Name: "col1"},
 						},
 					}, nil)
+
+				// Mock ExecInteractive to return error for all fallback attempts (bash and sh)
+				f.deployment.On("ExecInteractive", mock.Anything, "abc123", mock.Anything).
+					Return(nil, errors.New("failed to open shell"))
 			},
 			expectOK:  false,
 			expectErr: true,
