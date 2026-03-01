@@ -102,10 +102,12 @@ type InstanceNode struct {
 	IPv6          string               `json:"ipv6"`
 	State         deployment.NodeState `json:"state"`
 	ContainerId   string               `json:"containerId"`
-	ContainerName string               `json:"containerName"`
+	ContainerName string               `json:"containnerName"`
 
 	// TODO(kian): Implement properly
 	InterfaceCaptures map[string]string `json:"interfaceCaptures"`
+
+	CanRestart bool `json:"canRestart"`
 }
 
 type ShellData struct {
@@ -215,4 +217,5 @@ var ShellCommands = struct {
 type NodeKindConfig struct {
 	SSHUsername *string `yaml:"sshUsername"`
 	SSHPassword *string `yaml:"sshPassword"`
+	CanRestart  *bool   `yaml:"canRestart"`
 }

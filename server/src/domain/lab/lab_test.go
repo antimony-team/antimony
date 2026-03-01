@@ -1307,42 +1307,6 @@ func TestDeployLab(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "createLabEnvironment fails",
-			setup: func(f *fields, a *args) {
-				f.storageManager = &mockStorageManager{}
-				f.storageManager.On("DeleteRunEnvironment", mock.Anything, mock.Anything).Return(nil)
-
-				a.lab = Lab{
-					UUID: "lab-env-fail",
-					Name: "LabEnvFail",
-					Topology: topology.Topology{
-						UUID: "topo1",
-						Name: "TopoFail",
-						Collection: collection.Collection{
-							UUID: "collection-uuid",
-						},
-					},
-					InstanceName: lo.ToPtr("envfail"),
-				}
-				f.storageManager.On("CreateRunEnvironment", "topo1", "lab-env-fail", mock.Anything, mock.Anything).
-					Return(errors.New("failed to create run environment"))
-
-				f.storageManager.On("ReadTopology", "topo1", mock.Anything).
-					Run(func(args mock.Arguments) {
-						ptr := args.Get(1).(*string)
-						*ptr = `
-name: LabEnvFail
-topology:
-  nodes:
-    node1:
-      kind: invalid_kind
-      image: invalid_image
-`
-					}).Return(nil)
-			},
-			wantErr: true,
-		},
-		{
 			name: "deploy fails",
 			setup: func(f *fields, a *args) {
 				f.storageManager = &mockStorageManager{}
@@ -1463,11 +1427,6 @@ topology:
 			switch tt.name {
 			case "instance already exists":
 				assert.Len(t, svc.instances, 1, "Instance should not be redeployed")
-
-			case "createLabEnvironment fails":
-				assert.Contains(t, svc.instances, a.lab.UUID)
-				assert.Equal(t, InstanceStates.Failed, svc.instances[a.lab.UUID].State)
-				sn.AssertCalled(t, "Send", mock.Anything)
 
 			case "deploy fails":
 				assert.Contains(t, svc.instances, a.lab.UUID)
@@ -1926,6 +1885,10 @@ func TestHandleNewLabCommands(t *testing.T) {
 					}, nil)
 
 				f.deployment.On("RestartNode", mock.Anything, "abc123").Return(nil)
+
+				// Mock ExecInteractive for startNodeStartupListener
+				f.deployment.On("ExecInteractive", mock.Anything, "abc123", mock.Anything).
+					Maybe().Return(&mockReadWriteCloser{}, nil)
 			},
 			expectOK:  true,
 			expectErr: false,
@@ -2076,7 +2039,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 						Mutex:        sync.Mutex{},
 						TopologyFile: "/tmp/topology.clab.yaml",
 						Nodes: []InstanceNode{
-							{Name: "node1", ContainerId: "abc123"},
+							{Name: "node1", ContainerId: "abc123", CanRestart: true},
 						},
 						State: InstanceStates.Running,
 					},

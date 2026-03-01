@@ -77,9 +77,11 @@ definitions:
     type: object
   lab.InstanceNode:
     properties:
+      canRestart:
+        type: boolean
       containerId:
         type: string
-      containerName:
+      containnerName:
         type: string
       interfaceCaptures:
         additionalProperties:

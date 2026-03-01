@@ -1078,10 +1078,13 @@ const docTemplate = `{
         "lab.InstanceNode": {
             "type": "object",
             "properties": {
+                "canRestart": {
+                    "type": "boolean"
+                },
                 "containerId": {
                     "type": "string"
                 },
-                "containerName": {
+                "containnerName": {
                     "type": "string"
                 },
                 "interfaceCaptures": {

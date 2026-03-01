@@ -138,7 +138,7 @@ func (p *ContainerlabProvider) ExecInteractive(
 		return nil, err
 	}
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	inspect, err := cli.ContainerExecInspect(ctx, containerExec.ID)
 	if err != nil {

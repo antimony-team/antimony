@@ -186,6 +186,10 @@ func (s *labService) RunShellManager() {
 		s.openShellsMutex.Lock()
 		for shellId, shell := range s.openShells {
 			if time.Now().Unix()-shell.LastInteraction > s.config.Shell.Timeout {
+				s.openShellsMutex.Lock()
+				delete(s.openShells, shellId)
+				s.openShellsMutex.Unlock()
+
 				if err := s.closeShell(shellId, shell, "shell was inactive for too long"); err != nil {
 					log.Errorf("Failed to close shell: %s", err.Error())
 				}
@@ -781,15 +785,12 @@ func (s *labService) deployLab(lab *Lab) error {
 				"id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 			),
 		)
+		s.instancesMutex.Unlock()
 		return utils.ErrLabIsDeploying
 	}
 
 	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, true, nil, "logs", lab.UUID)
 	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
-
-	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
-	s.instances[lab.UUID] = instance
-	s.instancesMutex.Unlock()
 
 	if err != nil {
 		log.Errorf("Failed to create lab environment for lab '%s': %s", lab.Name, err)
@@ -799,8 +800,13 @@ func (s *labService) deployLab(lab *Lab) error {
 			"id", lab.UUID, "instance", *lab.InstanceName, "topo", lab.Topology.Name,
 		), &logNamespace)
 		s.setTopologyDeployStatus(*lab, false)
+		s.instancesMutex.Unlock()
 		return utils.ErrAntimony
 	}
+
+	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
+	s.instances[lab.UUID] = instance
+	s.instancesMutex.Unlock()
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
@@ -889,9 +895,27 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 
 	connection, err := s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, cmd)
 	if err != nil {
-		instance.Mutex.Lock()
-		node.State = deployment.NodeStates.Running
-		instance.Mutex.Unlock()
+		// Error code 127 means that the command was not found.
+		// If bash or ssh can't be found, just treat the node as started as there is no other
+		// way to listen to whether the node is started.
+		if strings.Contains(err.Error(), "exit code 127") {
+			instance.Mutex.Lock()
+			node.State = deployment.NodeStates.Running
+			instance.Mutex.Unlock()
+
+			s.labUpdatesNamespace.Send(LabUpdateOut{
+				LabId: &lab.UUID,
+			})
+
+			return
+		}
+
+		log.Error(
+			"Failed to listen for node startup.",
+			"err", err.Error(),
+			"lab", lab.ID,
+			"node", node.Name,
+		)
 
 		return
 	}
@@ -1059,22 +1083,25 @@ func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
 
 		nodesOut = append(nodesOut, InstanceNode{
 			Name:              node.Name,
+			Kind:              node.Kind,
 			IPv4:              node.IPv4,
 			IPv6:              node.IPv6,
 			State:             node.State,
 			ContainerId:       node.ContainerId,
 			ContainerName:     node.ContainerName,
 			InterfaceCaptures: interfaceCaptures,
+			CanRestart:        node.CanRestart,
 		})
 	}
 
 	return nodesOut
 }
 
-func (s *labService) updateInstanceNodes(
+func (s *labService) updateInstanceNode(
 	ctx context.Context,
 	instance *Instance,
 	instanceName string,
+	node *InstanceNode,
 	sendLogs bool,
 ) error {
 	var onLog func(string)
@@ -1086,13 +1113,23 @@ func (s *labService) updateInstanceNodes(
 	}
 
 	updatedNodes, err := s.getNodesFromInspect(ctx, instance, instanceName, onLog)
-
 	if err != nil {
 		return err
 	}
 
+	updatedNode, found := lo.Find(updatedNodes, func(cmpNode InstanceNode) bool {
+		return cmpNode.Name == node.Name
+	})
+
+	if !found {
+		return nil
+	}
+
 	instance.Mutex.Lock()
-	instance.Nodes = updatedNodes
+	node.State = updatedNode.State
+	node.IPv4 = updatedNode.IPv4
+	node.IPv6 = updatedNode.IPv6
+	node.InterfaceCaptures = updatedNode.InterfaceCaptures
 	instance.Mutex.Unlock()
 
 	return nil
@@ -1127,9 +1164,23 @@ func (s *labService) containerToInstanceNode(
 	nodeName := nodeNameParts[len(nodeNameParts)-1]
 
 	var nodeKind string
+	canRestart := false
 
-	if nodeKind, ok = nodeKinds[nodeName]; !ok {
+	if nodeKind, ok = nodeKinds[nodeName]; ok {
+		if kindConfig, ok := s.nodeKindConfigs[nodeKind]; ok {
+			if kindConfig.CanRestart != nil && *kindConfig.CanRestart {
+				canRestart = true
+			}
+		}
+	} else {
 		log.Warnf("Failed to get kind for running node '%s'", nodeName)
+	}
+
+	nodeState := container.State
+
+	// Always set running nodes to starting as we want the startup listener to decide when they are actually running
+	if container.State == deployment.NodeStates.Running {
+		nodeState = deployment.NodeStates.Starting
 	}
 
 	return InstanceNode{
@@ -1137,9 +1188,10 @@ func (s *labService) containerToInstanceNode(
 		Kind:          nodeKind,
 		IPv4:          container.IPv4Address,
 		IPv6:          container.IPv6Address,
-		State:         deployment.NodeStates.Starting,
+		State:         nodeState,
 		ContainerId:   container.ContainerId,
 		ContainerName: container.Name,
+		CanRestart:    canRestart,
 	}
 }
 
@@ -1252,7 +1304,9 @@ func (s *labService) reviveLabs() {
 			}
 
 			for i := range instanceNodes {
-				go s.startNodeStartupListener(&instanceNodes[i], instance, &lab)
+				if instanceNodes[i].State != deployment.NodeStates.Exited {
+					go s.startNodeStartupListener(&instanceNodes[i], instance, &lab)
+				}
 			}
 
 			s.instancesMutex.Lock()
@@ -1411,18 +1465,31 @@ func (s *labService) startNodeCommand(
 		return err
 	}
 
+	if !node.CanRestart {
+		return fmt.Errorf("unable to start nodes of kind '%s'", node.Kind)
+	}
+
+	switch node.State {
+	case deployment.NodeStates.Starting:
+		return fmt.Errorf("node is already starting")
+	case deployment.NodeStates.Running:
+		return fmt.Errorf("node is already running")
+	}
+
 	if err := s.deploymentProvider.StartNode(ctx, node.ContainerId); err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNodes(ctx, instance, *lab.InstanceName, true); err != nil {
+	if err := s.updateInstanceNode(ctx, instance, *lab.InstanceName, node, true); err != nil {
 		return err
 	}
+
+	go s.startNodeStartupListener(node, instance, lab)
 
 	s.notifyUpdate(*lab, statusMessage.Success(
 		"Lab Manager",
 		fmt.Sprintf("Node %s is starting", node.Name),
-		"Starting of node has been issued", "nodeId", node.ContainerId, "labId", lab.UUID,
+		"Node has been started", "nodeId", node.ContainerId, "labId", lab.UUID,
 	))
 
 	return nil
@@ -1439,20 +1506,28 @@ func (s *labService) stopNodeCommand(
 		return err
 	}
 
+	if !node.CanRestart {
+		return fmt.Errorf("unable to stop nodes of kind '%s'", node.Kind)
+	}
+
+	if node.State == deployment.NodeStates.Exited {
+		return fmt.Errorf("node is already stopped")
+	}
+
 	s.closeNodeShells(node.Name)
 
 	if err := s.deploymentProvider.StopNode(ctx, node.ContainerId); err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNodes(ctx, instance, *lab.InstanceName, true); err != nil {
+	if err := s.updateInstanceNode(ctx, instance, *lab.InstanceName, node, true); err != nil {
 		return err
 	}
 
 	s.notifyUpdate(*lab, statusMessage.Success(
 		"Lab Manager",
 		fmt.Sprintf("Node %s is stopping", node.Name),
-		"Stopping of node has been issued", "nodeId", node.ContainerId, "labId", lab.UUID,
+		"Node has been stopped", "nodeId", node.ContainerId, "labId", lab.UUID,
 	))
 
 	return nil
@@ -1469,20 +1544,26 @@ func (s *labService) restartNodeCommand(
 		return err
 	}
 
+	if !node.CanRestart {
+		return fmt.Errorf("unable to restart nodes of kind '%s'", node.Kind)
+	}
+
 	s.closeNodeShells(node.Name)
 
 	if err := s.deploymentProvider.RestartNode(ctx, node.ContainerId); err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNodes(ctx, instance, *lab.InstanceName, true); err != nil {
+	if err := s.updateInstanceNode(ctx, instance, *lab.InstanceName, node, true); err != nil {
 		return err
 	}
+
+	go s.startNodeStartupListener(node, instance, lab)
 
 	s.notifyUpdate(*lab, statusMessage.Success(
 		"Lab Manager",
 		fmt.Sprintf("Node %s is restarting", node.Name),
-		"Restart of node has been issued", "nodeId", node.ContainerId, "labId", lab.UUID,
+		"Node has been restarted", "nodeId", node.ContainerId, "labId", lab.UUID,
 	))
 
 	return nil
@@ -1517,15 +1598,20 @@ func (s *labService) validateNodeCommand(
 		return nil, nil, nil, utils.ErrLabNotRunning
 	}
 
-	node, hasNode := lo.Find(instance.Nodes, func(node InstanceNode) bool {
-		return node.Name == *nodeName
-	})
+	var node *InstanceNode
 
-	if !hasNode {
+	for i := range instance.Nodes {
+		if instance.Nodes[i].Name == *nodeName {
+			node = &instance.Nodes[i]
+			break
+		}
+	}
+
+	if node == nil {
 		return nil, nil, nil, utils.ErrNodeNotFound
 	}
 
-	return lab, instance, &node, nil
+	return lab, instance, node, nil
 }
 
 func (s *labService) fetchShellsCommand(
@@ -1639,6 +1725,10 @@ func (s *labService) openShellCommand(
 			n, err := connection.Read(buf)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
+					s.openShellsMutex.Lock()
+					delete(s.openShells, shellId)
+					s.openShellsMutex.Unlock()
+
 					_ = s.closeShell(shellId, shellConfig, "User closed the shell")
 					break
 				}
@@ -1726,6 +1816,10 @@ func (s *labService) closeShellCommand(shellId *string, authUser *auth.Authentic
 		return utils.ErrNoAccessToShell
 	}
 
+	s.openShellsMutex.Lock()
+	delete(s.openShells, *shellId)
+	s.openShellsMutex.Unlock()
+
 	err := s.closeShell(*shellId, shell, "shell was closed by the user")
 	if err != nil {
 		log.Errorf("Failed to close shell: %s", err.Error())
@@ -1759,10 +1853,6 @@ func (s *labService) closeNodeShells(nodeName string) {
 }
 
 func (s *labService) closeShell(shellId string, shell *ShellConfig, reason string) error {
-	s.openShellsMutex.Lock()
-	delete(s.openShells, shellId)
-	s.openShellsMutex.Unlock()
-
 	s.shellCommandsNamespace.Send(ShellCommandData{
 		LabId:   shell.LabId,
 		Node:    shell.Node,
@@ -1847,7 +1937,7 @@ func getNodeKindConfigs(path string) map[string]NodeKindConfig {
 		return make(map[string]NodeKindConfig)
 	}
 
-	log.Infof("Loaded kind config file: %s", err)
+	log.Info("Loaded kind config file.", "file", path)
 
 	var configs map[string]NodeKindConfig
 	if err := yaml.Unmarshal(data, &configs); err != nil {
