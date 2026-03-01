@@ -10,15 +10,23 @@ export class NodeActionChecker {
   }
 
   public get canStart() {
-    return this.isInstanceRunning && this.node?.state === 'exited';
+    return (
+      this.isInstanceRunning &&
+      this.node?.canRestart &&
+      this.node?.state !== 'started'
+    );
   }
 
   public get canStop() {
-    return this.isInstanceRunning && this.node?.state === 'running';
+    return (
+      this.isInstanceRunning &&
+      this.node?.canRestart &&
+      this.node?.state !== 'exited'
+    );
   }
 
   public get canRestart() {
-    return this.isInstanceRunning && this.node?.state === 'running';
+    return this.isInstanceRunning && this.node?.canRestart;
   }
 
   public get canOpenTerminal() {

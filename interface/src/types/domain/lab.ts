@@ -61,6 +61,8 @@ export type InstanceNode = {
   containerName: string;
 
   interfaceCaptures: Record<string, string>;
+
+  canRestart: boolean;
 };
 
 export enum InstanceState {
