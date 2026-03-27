@@ -31,16 +31,30 @@
   height: 0
 
 .p-treenode-content
+  border: 1px transparent solid
+
   span.material-symbols-outlined
     margin-right: 8px
     color: rgba(255, 255, 255, 0.6)
 
-  &:hover, &.p-highlight
+  &.sb-explorer-bindfile-node,&.sb-explorer-topology-node
     .p-button-icon-only
-      opacity: 1
+      opacity: 0
 
-  .p-button-icon-only
-    opacity: 0
+      &:hover
+        border: unset
+
+    &:hover
+      border-color: var(--primary-color-border)
+
+      .p-button-icon-only
+        opacity: 1
+
+    &.p-highlight
+      background-color: var(--primary-color)
+
+      .p-button-icon-only
+        opacity: 1
 
   .sb-input
     width: 160px

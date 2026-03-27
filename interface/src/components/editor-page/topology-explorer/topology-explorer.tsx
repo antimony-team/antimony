@@ -89,6 +89,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       topologyTree.push({
         key: collection.id,
         label: collection.name,
+        className: 'sb-explorer-collection-node',
         icon: (
           <span className="material-symbols-outlined">
             {authUser.isAdmin || collection.publicWrite
@@ -103,6 +104,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
           label: topology.definition.getIn(['name']) as string,
+          className: 'sb-explorer-topology-node',
           icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files
           leaf: topology.bindFiles.length === 0,
@@ -111,6 +113,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           children: topology.bindFiles.map(bindFile => ({
             key: bindFile.id,
             label: bindFile.filePath,
+            className: 'sb-explorer-bindfile-node',
             icon: (
               <span className="material-symbols-outlined">description</span>
             ),

@@ -117,20 +117,10 @@
   padding: 0
   box-shadow: none
   outline: none
-  border: 1px solid transparent
-  transition: border-color 0.08s ease, background-color 0.08s ease
+  transition: background-color 0.08s ease
 
-  &.p-highlight
-    background-color: var(--primary-color)
-
-.p-treenode-leaf
-  .p-treenode-content
-    &:hover
-      border-color: var(--primary-color-border)
-      background-color: unset
-
-    &.p-highlight
-      background-color: var(--primary-color)
+  &:hover
+    background-color: unset
 
 .p-treenode-label
   text-wrap: nowrap

@@ -16,9 +16,10 @@ import {useSearchParams} from 'react-router';
 import TopologyEditor from './topology-editor/topology-editor';
 import TopologyExplorer from './topology-explorer/topology-explorer';
 
-const EditorPage: React.FC = observer(() => {
+const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
+  const [openTopology, setOpenTopology] = useState<Topology | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -27,6 +28,7 @@ const EditorPage: React.FC = observer(() => {
 
   const onTopologyOpen = useCallback(
     (topology: Topology) => {
+      setOpenTopology(topology);
       setSearchParams({t: topology.id});
     },
     [setSearchParams],
@@ -98,7 +100,7 @@ const EditorPage: React.FC = observer(() => {
         )}
       >
         <TopologyExplorer
-          selectedTopologyId={searchParams.get('t')}
+          selectedTopologyId={openTopology?.id}
           onTopologySelect={onSelectTopology}
           onTopologyDeploy={onDeployTopology}
         />
