@@ -289,10 +289,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     (bindFilePath: string) => {
       if (!openTopology) return;
 
-      const topology = topologyStore.lookup.get(openTopology.id);
-      if (!topology) return;
-
-      const bindFile = topology.bindFiles.find(
+      const bindFile = openTopology.bindFiles.find(
         file => file.filePath === bindFilePath,
       );
 

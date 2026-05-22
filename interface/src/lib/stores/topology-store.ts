@@ -15,7 +15,7 @@ import {
 } from '@sb/types/domain/topology';
 import {uuid4, YAMLDocument} from '@sb/types/types';
 import {validate} from 'jsonschema';
-import {action, observable, observe, toJS} from 'mobx';
+import {action, observable, observe} from 'mobx';
 import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
 
@@ -60,7 +60,7 @@ export class TopologyStore extends DataStore<
     for (const topologyOut of response.payload) {
       const existingTopology = this.lookup.get(topologyOut.id);
       if (existingTopology) {
-        this.assignExisting(existingTopology, topologyOut);
+        this.assignTopology(existingTopology, topologyOut);
         topologies.push(existingTopology);
       } else {
         const topology = this.parseTopology(topologyOut);
@@ -92,11 +92,7 @@ export class TopologyStore extends DataStore<
 
     if (this.lookup.has(id)) {
       const existingTopology = this.lookup.get(id)!;
-      console.log('Updating existing object: ', toJS(existingTopology));
-
-      this.assignExisting(existingTopology, body);
-
-      console.log('Updating existing object: ', toJS(existingTopology));
+      this.assignTopology(existingTopology, body);
     } else {
       await this.fetch();
     }
@@ -105,47 +101,57 @@ export class TopologyStore extends DataStore<
   }
 
   @action
-  protected assignExisting(
-    topology: Topology,
-    updated: TopologyOut | Partial<TopologyIn>,
+  public assignTopology(
+    target: Topology,
+    source: TopologyOut | Partial<TopologyIn> | Topology,
   ): void {
-    if (
-      updated.definition &&
-      topology.definitionString !== updated.definition
-    ) {
-      const definition = this.parseTopologyDefinition(updated.definition);
+    let updatedDefinition = null;
 
-      if (!definition) {
-        console.error('[NET] Failed to parse incoming topology: ', updated);
+    if (source.definition) {
+      // Definition can either be a string or a YAML document
+      if (typeof source.definition === 'string') {
+        if (target.definitionString !== source.definition) {
+          updatedDefinition = this.parseTopologyDefinition(source.definition);
+
+          if (!updatedDefinition) {
+            console.error('[NET] Failed to parse incoming topology: ', source);
+          }
+        }
       } else {
-        const metadata = this.manager.buildTopologyMetadata(definition);
-
-        topology.name = definition.get('name') as string;
-        topology.definition = definition;
-        topology.definitionString = updated.definition;
-        topology.connections = metadata.connections;
-        topology.connectionMap = metadata.connectionMap;
+        updatedDefinition =
+          source.definition as YAMLDocument<TopologyDefinition>;
       }
     }
 
-    if (updated.syncUrl !== undefined) {
-      topology.syncUrl = updated.syncUrl;
+    if (updatedDefinition) {
+      console.log('updated definition:', updatedDefinition);
+      const metadata = this.manager.buildTopologyMetadata(updatedDefinition);
+
+      target.name = updatedDefinition.get('name') as string;
+      target.definition = updatedDefinition;
+      target.definitionString = updatedDefinition.toString();
+      target.connections = metadata.connections;
+      target.connectionMap = metadata.connectionMap;
     }
 
-    if (updated.collectionId !== undefined) {
-      topology.collectionId = updated.collectionId;
+    if (source.syncUrl !== undefined) {
+      target.syncUrl = source.syncUrl;
     }
 
-    if ((updated as TopologyOut).creator) {
-      topology.creator = (updated as TopologyOut).creator;
+    if (source.collectionId !== undefined) {
+      target.collectionId = source.collectionId;
     }
 
-    if ((updated as TopologyOut).bindFiles) {
-      topology.bindFiles = (updated as TopologyOut).bindFiles;
+    if ((source as TopologyOut).creator) {
+      target.creator = (source as TopologyOut).creator;
     }
 
-    if ((updated as TopologyOut).lastDeployFailed) {
-      topology.lastDeployFailed = (updated as TopologyOut).lastDeployFailed;
+    if ((source as TopologyOut).bindFiles) {
+      target.bindFiles = (source as TopologyOut).bindFiles;
+    }
+
+    if ((source as TopologyOut).lastDeployFailed) {
+      target.lastDeployFailed = (source as TopologyOut).lastDeployFailed;
     }
   }
 

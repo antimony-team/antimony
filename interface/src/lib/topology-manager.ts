@@ -15,8 +15,7 @@ import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
 import {cloneDeep, isEqual} from 'lodash-es';
 import {isMap, YAMLMap, YAMLSeq} from 'yaml';
-import {runInAction, toJS} from 'mobx';
-import _ from 'lodash';
+import {runInAction} from 'mobx';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -67,13 +66,15 @@ export class TopologyManager {
   private isFileOpen: boolean = false;
   private openFileType: OpenFileType = OpenFileType.Topology;
 
-  // Working copy of the original topology.
   private editingTopology: Topology | null = null;
-  private originalDefinition: string | null = null;
 
-  // Working copy of the original bind file.
+  // Backup of the topology to restore when discarding edits.
+  private originalTopology: Topology | null = null;
+
   private editingBindFile: BindFile | null = null;
-  private originalBindFileContent: string | null = null;
+
+  // Backup of the bind file to restore when discarding edits.
+  private originalBindFile: BindFile | null = null;
 
   public readonly onTopologyOpen: Binding<Topology> = new Binding();
   public readonly onTopologyEdit: Binding<TopologyEditReport> = new Binding();
@@ -119,9 +120,11 @@ export class TopologyManager {
     });
 
     if (result.isOk()) {
-      const definitionString = this.editingTopology.definition.toString();
-      this.editingTopology.definitionString = definitionString;
-      this.originalDefinition = definitionString;
+      // const definitionString = this.editingTopology.definition.toString();
+      // this.editingTopology.definitionString = definitionString;
+      this.originalTopology = TopologyManager.cloneTopology(
+        this.editingTopology,
+      );
 
       this.onTopologyEdit.update({
         updatedTopology: this.editingTopology,
@@ -146,7 +149,10 @@ export class TopologyManager {
     );
 
     if (result.isOk()) {
-      this.originalBindFileContent = this.editingBindFile.content;
+      this.originalBindFile = TopologyManager.cloneBindFile(
+        this.editingBindFile,
+      );
+
       this.onBindFileEdit.update({
         updatedBindFile: this.editingBindFile,
         isEdited: false,
@@ -221,27 +227,42 @@ export class TopologyManager {
    * @param topology The topology to edit.
    */
   public openTopology(topology: Topology) {
+    this.restoreCurrentFile();
+
     this.isFileOpen = true;
     this.openFileType = OpenFileType.Topology;
 
-    this.editingTopology = TopologyManager.cloneTopology(topology);
-    this.originalDefinition = topology.definitionString;
+    this.editingTopology = topology;
+    this.originalTopology = TopologyManager.cloneTopology(topology);
 
     this.onTopologyOpen.update(this.editingTopology);
   }
 
   public openBindFile(bindFile: BindFile) {
-    console.log('open bind file, content:', bindFile.content);
+    this.restoreCurrentFile();
 
     this.isFileOpen = true;
     this.openFileType = OpenFileType.BindFile;
 
-    this.editingBindFile = _.cloneDeep(toJS(bindFile));
-    this.originalBindFileContent = bindFile.content.toString();
-
-    console.log('open bind file 2');
+    this.editingBindFile = bindFile;
+    this.originalBindFile = TopologyManager.cloneBindFile(bindFile);
 
     this.onBindFileOpen.update(this.editingBindFile);
+  }
+
+  private restoreCurrentFile() {
+    if (this.openFileType === OpenFileType.Topology) {
+      if (!this.editingTopology || !this.originalTopology) return;
+
+      this.topologyStore.assignTopology(
+        this.editingTopology,
+        this.originalTopology,
+      );
+    } else {
+      if (!this.editingBindFile) return;
+
+      Object.assign(this.editingBindFile, this.originalBindFile);
+    }
   }
 
   /**
@@ -251,10 +272,10 @@ export class TopologyManager {
     this.isFileOpen = false;
 
     this.editingTopology = null;
-    this.originalDefinition = null;
+    this.originalTopology = null;
 
     this.editingBindFile = null;
-    this.originalBindFileContent = null;
+    this.originalBindFile = null;
 
     this.onClose.update();
   }
@@ -275,7 +296,9 @@ export class TopologyManager {
 
     this.onTopologyEdit.update({
       updatedTopology: this.editingTopology,
-      isEdited: !isEqual(updatedTopology.toString(), this.originalDefinition),
+      isEdited:
+        updatedTopology.toString() !==
+        this.originalTopology?.definition.toString(),
       source,
     });
   }
@@ -290,7 +313,7 @@ export class TopologyManager {
 
     this.onBindFileEdit.update({
       updatedBindFile: this.editingBindFile,
-      isEdited: !isEqual(updatedBindFileContent, this.originalBindFileContent),
+      isEdited: updatedBindFileContent !== this.originalBindFile?.content,
       source,
     });
   }
@@ -414,22 +437,16 @@ export class TopologyManager {
    */
   public hasEdits() {
     if (this.openFileType === OpenFileType.Topology) {
-      if (!this.editingTopology || !this.originalDefinition) return false;
-
-      console.log('Editing: ', this.editingTopology.definition.toString());
-      console.log('Original: ', this.originalDefinition);
+      if (!this.editingTopology || !this.originalTopology) return false;
 
       return !isEqual(
         this.editingTopology.definition.toString(),
-        this.originalDefinition,
+        this.originalTopology.definition.toString(),
       );
     } else {
-      if (!this.editingBindFile) return false;
+      if (!this.editingBindFile || !this.originalBindFile) return false;
 
-      console.log('Editing bind file content: ', this.editingBindFile.content);
-      console.log('Original bind file content: ', this.originalBindFileContent);
-
-      return this.editingBindFile.content !== this.originalBindFileContent;
+      return this.editingBindFile.content !== this.originalBindFile.content;
     }
   }
 
@@ -658,6 +675,15 @@ export class TopologyManager {
    */
   private static writePosition(position: Position) {
     return ' pos=[' + position.x + ',' + position.y + ']';
+  }
+
+  private static cloneBindFile(bindFile: BindFile): BindFile {
+    return {
+      id: bindFile.id,
+      filePath: bindFile.filePath,
+      content: bindFile.content,
+      topologyId: bindFile.topologyId,
+    };
   }
 
   private static cloneTopology(topology: Topology): Topology {
