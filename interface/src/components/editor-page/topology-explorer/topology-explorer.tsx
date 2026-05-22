@@ -282,7 +282,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
           if (topologyStore.lookup.has(result.data.payload)) {
             const topology = topologyStore.lookup.get(result.data.payload)!;
-            topologyStore.manager.open(topology);
+            topologyStore.manager.openTopology(topology);
           }
         }
       });

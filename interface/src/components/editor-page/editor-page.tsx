@@ -15,6 +15,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import TopologyEditor from './topology-editor/topology-editor';
 import TopologyExplorer from './topology-explorer/topology-explorer';
+import {toJS} from 'mobx';
 
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
@@ -35,9 +36,10 @@ const EditorPage = observer(() => {
   );
 
   useEffect(() => {
-    topologyStore.manager.onOpen.register(onTopologyOpen);
+    topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
 
-    return () => topologyStore.manager.onOpen.unregister(onTopologyOpen);
+    return () =>
+      topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
   }, [topologyStore, onTopologyOpen]);
 
   useEffect(() => {
@@ -46,27 +48,11 @@ const EditorPage = observer(() => {
       topologyStore.lookup.has(searchParams.get('t')!) &&
       topologyStore.manager.editingTopologyId !== searchParams.get('t')
     ) {
-      topologyStore.manager.open(
+      topologyStore.manager.openTopology(
         topologyStore.lookup.get(searchParams.get('t')!)!,
       );
     }
   }, [searchParams, topologyStore.lookup]);
-
-  function onSelectTopology(id: string) {
-    if (!topologyStore.lookup.has(id)) return;
-
-    if (topologyStore.manager.hasEdits()) {
-      notificationStore.confirm({
-        message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
-        icon: 'pi pi-info-circle',
-        severity: 'warning',
-        onAccept: () => onSelectConfirm(id),
-      });
-    } else {
-      onSelectConfirm(id);
-    }
-  }
 
   function onDeployTopology(id: uuid4) {
     if (!topologyStore.lookup.has(id)) return;
@@ -78,10 +64,29 @@ const EditorPage = observer(() => {
     });
   }
 
-  function onSelectConfirm(id: string) {
-    if (!topologyStore.lookup.has(id)) return;
+  function openFile(id: string) {
+    if (topologyStore.manager.hasEdits()) {
+      notificationStore.confirm({
+        message: 'Discard unsaved changes?',
+        header: 'Unsaved Changes',
+        icon: 'pi pi-info-circle',
+        severity: 'warning',
+        onAccept: () => openFileConfirm(id),
+      });
+    } else {
+      openFileConfirm(id);
+    }
+  }
 
-    topologyStore.manager.open(topologyStore.lookup.get(id)!);
+  function openFileConfirm(id: string) {
+    console.log('open file:', id);
+    console.log('bind file lookup:', toJS(topologyStore.bindFileLookup));
+    if (topologyStore.lookup.has(id)) {
+      topologyStore.manager.openTopology(topologyStore.lookup.get(id)!);
+    } else if (topologyStore.bindFileLookup.has(id)) {
+      console.log('OPEN FILE CONFIGM');
+      topologyStore.manager.openBindFile(topologyStore.bindFileLookup.get(id)!);
+    }
   }
 
   return (
@@ -101,7 +106,7 @@ const EditorPage = observer(() => {
       >
         <TopologyExplorer
           selectedTopologyId={openTopology?.id}
-          onTopologySelect={onSelectTopology}
+          onTopologySelect={openFile}
           onTopologyDeploy={onDeployTopology}
         />
       </div>

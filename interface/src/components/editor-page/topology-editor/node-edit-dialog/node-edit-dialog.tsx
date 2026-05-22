@@ -127,7 +127,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     }
 
     if (nodeEditor) {
-      topologyStore.manager.apply(
+      topologyStore.manager.editTopology(
         nodeEditor.getTopology(),
         TopologyEditSource.NodeEditor,
       );

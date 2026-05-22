@@ -16,7 +16,7 @@ import {AntimonyTheme, MonacoOptions} from './monaco.conf';
 
 import * as monaco from 'monaco-editor';
 
-import {Topology} from '@sb/types/domain/topology';
+import {BindFile, Topology} from '@sb/types/domain/topology';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {
   useAuthUser,
@@ -24,6 +24,8 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {
+  BindFileEditReport,
+  BindFileEditSource,
   TopologyEditReport,
   TopologyEditSource,
   TopologyManager,
@@ -45,13 +47,12 @@ window.MonacoEnvironment = {
 
 interface MonacoWrapperProps {
   validationError: string | null;
+  showValidation: boolean;
   validationState: ValidationState;
 
   onSaveTopology: () => void;
   setContent: (content: string) => void;
-  setValidationError: (error: string | null) => void;
-
-  language: string;
+  setValidationError?: (error: string | null) => void;
 }
 
 export interface MonacoWrapperRef {
@@ -76,30 +77,43 @@ const MonacoWrapper = observer(
     const schemaStore = useSchemaStore();
     const topologyStore = useTopologyStore();
 
-    const onTopologyOpen = useCallback(
-      (topology: Topology) => {
-        setLastDeployFailed(topology.lastDeployFailed);
+    const onTopologyOpen = useCallback((topology: Topology) => {
+      /*
+       * Don't replace the current model if the topology ID has not changed.
+       * This happens whenever a topology is saved and reloaded automatically.
+       */
+      if (currentlyOpenTopology.current === topology.id) {
+        return;
+      }
 
-        /*
-         * Don't replace the current model if the topology ID has not changed.
-         * This happens whenever a topology is saved and reloaded automatically.
-         */
-        if (currentlyOpenTopology.current === topology.id) {
-          return;
-        }
+      setLastDeployFailed(topology.lastDeployFailed);
+      setReadOnly(!authUser.isAdmin && authUser.id !== topology.creator.id);
 
-        const readOnly =
-          !authUser.isAdmin && authUser.id !== topology.creator.id;
-        setReadOnly(readOnly);
-        editorRef.current?.updateOptions({readOnly: readOnly});
+      if (textModelRef.current) {
+        monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
+        textModelRef.current.setValue(topology.definition.toString());
+        currentlyOpenTopology.current = topology.id;
+      }
+    }, []);
 
-        if (textModelRef.current) {
-          textModelRef.current.setValue(topology.definition.toString());
-          currentlyOpenTopology.current = topology.id;
-        }
-      },
-      [hasLastDeployFailed],
-    );
+    const onBindFileOpen = useCallback((bindFile: BindFile) => {
+      console.log('on bind file open 1');
+      const topology = topologyStore.lookup.get(bindFile.topologyId);
+      if (!topology) return;
+
+      console.log('on bind file open 2');
+
+      setLastDeployFailed(topology.lastDeployFailed);
+      setReadOnly(!authUser.isAdmin && authUser.id !== topology.creator.id);
+
+      if (textModelRef.current) {
+        monaco.editor.setModelLanguage(textModelRef.current, 'text');
+        textModelRef.current.setValue(bindFile.content);
+        currentlyOpenTopology.current = null;
+
+        console.log('on bind file open 3');
+      }
+    }, []);
 
     const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
       if (
@@ -122,27 +136,59 @@ const MonacoWrapper = observer(
       }
     }, []);
 
+    const onBindFileEdit = useCallback((editReport: BindFileEditReport) => {
+      if (
+        !textModelRef.current ||
+        editReport.source === BindFileEditSource.TextEditor
+      ) {
+        return;
+      }
+
+      setContent(editReport.updatedBindFile.content);
+    }, []);
+
     useEffect(() => {
-      topologyStore.manager.onEdit.register(onTopologyEdit);
-      topologyStore.manager.onOpen.register(onTopologyOpen);
+      topologyStore.manager.onTopologyEdit.register(onTopologyEdit);
+      topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
 
-      if (textModelRef.current && topologyStore.manager.topology) {
-        textModelRef.current.setValue(
-          topologyStore.manager.topology.definition.toString(),
-        );
+      topologyStore.manager.onBindFileEdit.register(onBindFileEdit);
+      topologyStore.manager.onBindFileOpen.register(onBindFileOpen);
 
-        const readOnly =
-          !authUser.isAdmin &&
-          authUser.id !== topologyStore.manager.topology.creator.id;
-        setReadOnly(readOnly);
-        editorRef.current?.updateOptions({readOnly: readOnly});
+      if (textModelRef.current) {
+        if (topologyStore.manager.topology) {
+          textModelRef.current.setValue(
+            topologyStore.manager.topology.definition.toString(),
+          );
+
+          setReadOnly(
+            !authUser.isAdmin &&
+              authUser.id !== topologyStore.manager.topology.creator.id,
+          );
+        } else if (topologyStore.manager.bindFile) {
+          const bindFile = topologyStore.manager.bindFile;
+          const topology = topologyStore.lookup.get(bindFile.topologyId);
+
+          if (topology) {
+            textModelRef.current.setValue(bindFile.content);
+            setReadOnly(
+              !authUser.isAdmin && authUser.id !== topology.creator.id,
+            );
+          }
+        }
       }
 
       return () => {
-        topologyStore.manager.onEdit.unregister(onTopologyEdit);
-        topologyStore.manager.onOpen.unregister(onTopologyOpen);
+        topologyStore.manager.onTopologyEdit.unregister(onTopologyEdit);
+        topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
+
+        topologyStore.manager.onBindFileEdit.unregister(onBindFileEdit);
+        topologyStore.manager.onBindFileOpen.unregister(onBindFileOpen);
       };
     }, [onTopologyOpen, onTopologyEdit]);
+
+    useEffect(() => {
+      editorRef.current?.updateOptions({readOnly: isReadOnly});
+    }, [isReadOnly]);
 
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
@@ -195,6 +241,7 @@ const MonacoWrapper = observer(
     function initializeEditor() {
       if (!editorContainerRef.current || !schemaStore.clabSchema) return;
 
+      // if (props.language === 'yaml') {
       configureMonacoYaml(monaco, {
         enableSchemaRequest: false,
         schemas: [
@@ -206,24 +253,30 @@ const MonacoWrapper = observer(
         ],
       });
 
-      monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
-
       monaco.editor.onDidChangeMarkers(() => {
         const markers = monaco.editor.getModelMarkers({});
-        if (markers.length > 0) {
+        if (markers.length > 0 && props.setValidationError) {
           props.setValidationError(markers[0].message);
         }
       });
+      // }
+
+      monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
+
+      // console.log("[monaco init] ")
 
       textModelRef.current = monaco.editor.createModel(
-        topologyStore.manager.topology?.definition.toString() ?? '',
-        'yaml',
+        // topologyStore.manager.topology?.definition.toString() ?? '',
+        '',
+        // props.language,
+        'text',
         monaco.Uri.parse(schemaModelUri),
       );
 
       editorRef.current = monaco.editor.create(editorContainerRef.current, {
         model: textModelRef.current,
-        language: 'yaml',
+        // language: props.language,
+        language: 'text',
         theme: 'antimonyTheme',
         fontFamily: 'JetBrains Mono, monospace',
       });
@@ -279,27 +332,34 @@ const MonacoWrapper = observer(
               data-pr-tooltip={props.validationError ?? 'Schema Valid'}
               data-pr-position="right"
             >
-              <Choose>
-                <When
-                  condition={props.validationState === ValidationState.Error}
-                >
-                  <i
-                    className="pi pi-times"
-                    style={{color: 'var(--danger-color-text)'}}
-                  ></i>
-                </When>
-                <When
-                  condition={props.validationState === ValidationState.Working}
-                >
-                  <span>Validating...</span>
-                </When>
-                <Otherwise>
-                  <i
-                    className="pi pi-check"
-                    style={{color: 'var(--success-color-text)'}}
-                  ></i>
-                </Otherwise>
-              </Choose>
+              {props.showValidation && (
+                <Choose>
+                  <When
+                    condition={props.validationState === ValidationState.Error}
+                  >
+                    <i
+                      className="pi pi-times"
+                      style={{color: 'var(--danger-color-text)'}}
+                    />
+                  </When>
+                  <When
+                    condition={
+                      props.validationState === ValidationState.Working
+                    }
+                  >
+                    <i
+                      className="pi pi-spinner pi-spin"
+                      style={{color: 'var(--warning-color-text)'}}
+                    />
+                  </When>
+                  <Otherwise>
+                    <i
+                      className="pi pi-check"
+                      style={{color: 'var(--success-color-text)'}}
+                    />
+                  </Otherwise>
+                </Choose>
+              )}
               <Tooltip
                 className="sb-monaco-wrapper-error-tooltip"
                 target=".sb-monaco-wrapper-error"

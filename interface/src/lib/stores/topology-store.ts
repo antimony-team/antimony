@@ -67,15 +67,16 @@ export class TopologyStore extends DataStore<
         if (!topology) continue;
 
         topologies.push(topology);
+      }
 
-        for (const bindFile of topologyOut.bindFiles) {
-          bindFiles.push(bindFile);
-        }
+      for (const bindFile of topologyOut.bindFiles) {
+        bindFiles.push(bindFile);
       }
     }
 
     this.data = topologies;
     this.lookup = new Map(this.data.map(topology => [topology.id, topology]));
+    console.log('bind files: ', bindFiles);
     this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
   }
 
@@ -161,11 +162,11 @@ export class TopologyStore extends DataStore<
 
   public async updateBindFile(
     topologyId: string,
-    findFileId: string,
+    bindFileId: string,
     bindFile: BindFileIn,
   ) {
-    const result = await this.dataBinder.put<BindFileIn, void>(
-      `${this.resourcePath}/${topologyId}/files/${findFileId}`,
+    const result = await this.dataBinder.patch<BindFileIn, void>(
+      `${this.resourcePath}/${topologyId}/files/${bindFileId}`,
       bindFile,
     );
 
