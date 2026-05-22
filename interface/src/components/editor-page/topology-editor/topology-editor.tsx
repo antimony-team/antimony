@@ -476,7 +476,15 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
           </div>
         </div>
         <div className="sb-topology-editor-content">
-          <Splitter className="h-full" gutterSize={openTopology ? 4 : 0}>
+          <Splitter
+            className="h-full"
+            pt={{
+              gutter: {
+                style: {opacity: openTopology ? '1' : '0'},
+                className: 'sb-topology-editor-splitter-gutter',
+              },
+            }}
+          >
             <SplitterPanel size={50}>
               <MonacoWrapper
                 ref={monacoWrapperRef}
@@ -491,9 +499,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             </SplitterPanel>
             <SplitterPanel
               size={50}
+              className="sb-topology-editor-node-editor-panel"
               style={{
                 opacity: openTopology ? '1' : '0',
-                maxWidth: openTopology ? 'unset' : '0',
               }}
             >
               <SimulationConfigContext.Provider value={new SimulationConfig()}>
