@@ -30,6 +30,12 @@ import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
 import './topology-editor.sass';
 import {BindFile, Topology} from '@sb/types/domain/topology';
 import {observer} from 'mobx-react-lite';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+import {
+  SimulationConfig,
+  SimulationConfigContext,
+} from './node-editor/state/simulation-config';
+import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
 
 export enum ValidationState {
   Working,
@@ -470,44 +476,35 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
           </div>
         </div>
         <div className="sb-topology-editor-content">
-          {/*{openTopology && (*/}
-          {/*  <Splitter className="h-full">*/}
-          {/*    <SplitterPanel minSize={10} size={30}>*/}
-          {/*      <MonacoWrapper*/}
-          {/*        ref={monacoWrapperRef}*/}
-          {/*        validationError={validationError}*/}
-          {/*        validationState={validationState}*/}
-          {/*        language="yaml"*/}
-          {/*        setContent={onContentChange}*/}
-          {/*        onSaveTopology={onSaveTopology}*/}
-          {/*        setValidationError={onSetValidationError}*/}
-          {/*      />*/}
-          {/*    </SplitterPanel>*/}
-          {/*    <SplitterPanel minSize={10}>*/}
-          {/*      <SimulationConfigContext.Provider*/}
-          {/*        value={new SimulationConfig()}*/}
-          {/*      >*/}
-          {/*        <NodeEditor*/}
-          {/*          onAddNode={onAddNode}*/}
-          {/*          onEditNode={onEditNode}*/}
-          {/*          openTopology={openTopology!}*/}
-          {/*        />*/}
-          {/*      </SimulationConfigContext.Provider>*/}
-          {/*    </SplitterPanel>*/}
-          {/*  </Splitter>*/}
-          {/*)}*/}
-          {/*{openBindFile && (*/}
-          <MonacoWrapper
-            ref={monacoWrapperRef}
-            showValidation={showValidation}
-            validationError={''}
-            validationState={validationState}
-            setContent={onContentChange}
-            onSaveTopology={onSaveBindFile}
-            setValidationError={onSetValidationError}
-            onBindFileLinkClick={onBindFileLinkClick}
-          />
-          {/*)}*/}
+          <Splitter className="h-full" gutterSize={openTopology ? 4 : 0}>
+            <SplitterPanel size={50}>
+              <MonacoWrapper
+                ref={monacoWrapperRef}
+                showValidation={showValidation}
+                validationError={''}
+                validationState={validationState}
+                setContent={onContentChange}
+                onSaveTopology={onSaveBindFile}
+                setValidationError={onSetValidationError}
+                onBindFileLinkClick={onBindFileLinkClick}
+              />
+            </SplitterPanel>
+            <SplitterPanel
+              size={50}
+              style={{
+                opacity: openTopology ? '1' : '0',
+                maxWidth: openTopology ? 'unset' : '0',
+              }}
+            >
+              <SimulationConfigContext.Provider value={new SimulationConfig()}>
+                <NodeEditor
+                  onAddNode={onAddNode}
+                  onEditNode={onEditNode}
+                  openTopology={openTopology!}
+                />
+              </SimulationConfigContext.Provider>
+            </SplitterPanel>
+          </Splitter>
         </div>
       </div>
       <SyncOverlay
