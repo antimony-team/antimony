@@ -5,7 +5,7 @@ import LabEditDialog, {
 import './editor-page.sass';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {Topology} from '@sb/types/domain/topology';
+import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
 
 import {uuid4} from '@sb/types/types';
 
@@ -20,8 +20,7 @@ import {toJS} from 'mobx';
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
-  const [openTopology, setOpenTopology] = useState<Topology | null>(null);
-
+  const [openFile, setOpenFile] = useState<EditingFile | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const topologyStore = useTopologyStore();
@@ -29,42 +28,56 @@ const EditorPage = observer(() => {
 
   const onTopologyOpen = useCallback(
     (topology: Topology) => {
-      setOpenTopology(topology);
-      setSearchParams({t: topology.id});
+      setOpenFile(topology);
+      setSearchParams({f: topology.id});
+    },
+    [setSearchParams],
+  );
+
+  const onBindFileOpen = useCallback(
+    (bindFile: BindFile) => {
+      setOpenFile(bindFile);
+      setSearchParams({f: bindFile.id});
     },
     [setSearchParams],
   );
 
   useEffect(() => {
     topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
+    topologyStore.manager.onBindFileOpen.register(onBindFileOpen);
 
-    return () =>
+    return () => {
       topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
-  }, [topologyStore, onTopologyOpen]);
+      topologyStore.manager.onBindFileOpen.unregister(onBindFileOpen);
+    };
+  }, [topologyStore, onTopologyOpen, onBindFileOpen]);
 
   useEffect(() => {
-    if (
-      searchParams.has('t') &&
-      topologyStore.lookup.has(searchParams.get('t')!) &&
-      topologyStore.manager.editingTopologyId !== searchParams.get('t')
-    ) {
-      topologyStore.manager.openTopology(
-        topologyStore.lookup.get(searchParams.get('t')!)!,
+    if (!searchParams.has('f')) return;
+
+    const fileId = searchParams.get('f')!;
+    if (fileId === topologyStore.manager.editingFileId) return;
+
+    if (topologyStore.lookup.has(fileId)) {
+      topologyStore.manager.openTopology(topologyStore.lookup.get(fileId)!);
+    } else if (topologyStore.bindFileLookup.has(fileId)) {
+      topologyStore.manager.openBindFile(
+        topologyStore.bindFileLookup.get(fileId)!,
       );
     }
   }, [searchParams, topologyStore.lookup]);
 
-  function onDeployTopology(id: uuid4) {
-    if (!topologyStore.lookup.has(id)) return;
+  function onDeployTopology(topologyId: uuid4) {
+    if (!topologyStore.lookup.has(topologyId)) return;
 
     labEditDialogState.openWith({
       editingLab: null,
-      topologyId: id,
+      topologyId: topologyId,
       action: DialogAction.Add,
     });
   }
 
-  function openFile(id: string) {
+  function onOpenFile(id: string) {
     if (topologyStore.manager.hasEdits()) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
@@ -105,8 +118,8 @@ const EditorPage = observer(() => {
         )}
       >
         <TopologyExplorer
-          selectedTopologyId={openTopology?.id}
-          onTopologySelect={openFile}
+          selectedId={openFile?.id}
+          onFileSelect={onOpenFile}
           onTopologyDeploy={onDeployTopology}
         />
       </div>

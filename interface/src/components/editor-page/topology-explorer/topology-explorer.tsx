@@ -50,9 +50,9 @@ import ExplorerTreeNode, {
 } from './explorer-tree-node/explorer-tree-node';
 
 interface TopologyBrowserProps {
-  selectedTopologyId?: string | null;
+  selectedId?: string | null;
 
-  onTopologySelect: (id: uuid4) => void;
+  onFileSelect: (id: uuid4) => void;
   onTopologyDeploy: (id: uuid4) => void;
 }
 
@@ -158,7 +158,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onSelectionChange(e: TreeSelectionEvent) {
     if (e.value === null) return;
 
-    props.onTopologySelect(e.value as string);
+    props.onFileSelect(e.value as string);
   }
 
   function onDeleteCollection(id: string) {
@@ -356,7 +356,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onTopologyAdded(topologyId: string) {
     if (!topologyStore.lookup.has(topologyId)) return;
 
-    props.onTopologySelect(topologyId);
+    props.onFileSelect(topologyId);
 
     // Expand the newly created topology's collection node
     setNodeExpanded(topologyStore.lookup.get(topologyId)!.collectionId, true);
@@ -652,7 +652,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         selectionMode="single"
         onExpand={onNodeExpand}
         onCollapse={onNodeCollapse}
-        selectionKeys={props.selectedTopologyId}
+        selectionKeys={props.selectedId}
         nodeTemplate={node => (
           <ExplorerTreeNode
             node={node as ExplorerTreeNodeData}

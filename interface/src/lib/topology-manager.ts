@@ -93,8 +93,8 @@ export class TopologyManager {
     this.save = this.save.bind(this);
   }
 
-  public get editingTopologyId(): string | null {
-    return this.editingTopology?.id ?? null;
+  public get editingFileId(): string | null {
+    return this.editingTopology?.id ?? this.editingBindFile?.id ?? null;
   }
 
   public async save(): Promise<Result<DataResponse<void>> | null> {
@@ -111,17 +111,12 @@ export class TopologyManager {
     if (!this.editingTopology) return null;
 
     const result = await this.topologyStore.update(this.editingTopology.id, {
-      // collectionId: this.editingTopology.collectionId,
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition,
       ),
-      // syncUrl: this.editingTopology.syncUrl,
     });
 
     if (result.isOk()) {
-      // this.originalTopology = TopologyManager.cloneTodefinitionStringpology(
-      //   this.editingTopology,
-      // );
       const definitionString = this.editingTopology.definition.toString();
       this.editingTopology.definitionString = definitionString;
       this.originalDefinition = definitionString;
