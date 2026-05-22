@@ -51,6 +51,8 @@ interface MonacoWrapperProps {
   validationState: ValidationState;
 
   onSaveTopology: () => void;
+  onBindFileLinkClick: (bindFileName: string) => void;
+
   setContent: (content: string) => void;
   setValidationError?: (error: string | null) => void;
 }
@@ -253,6 +255,61 @@ const MonacoWrapper = observer(
         ],
       });
 
+      monaco.languages.registerLinkProvider(
+        {pattern: '**/*'},
+        {
+          provideLinks(model) {
+            const links = [];
+            const pathRegex = /(?<=-\s)[\w./\\-]+(?=:)/g;
+
+            // Find all binds sections in the topology
+            const bindsMatches = model.findMatches(
+              '^\\s*binds:\\s*$',
+              false,
+              true,
+              false,
+              null,
+              false,
+            );
+
+            for (const {range} of bindsMatches) {
+              let lineNum = range.startLineNumber + 1;
+
+              while (lineNum <= model.getLineCount()) {
+                const line = model.getLineContent(lineNum);
+                if (!/^\s*-\s/.test(line)) break;
+
+                let match;
+                pathRegex.lastIndex = 0;
+                while ((match = pathRegex.exec(line)) !== null) {
+                  links.push({
+                    range: new monaco.Range(
+                      lineNum,
+                      match.index + 1,
+                      lineNum,
+                      match.index + match[0].length + 1,
+                    ),
+                    tooltip: `Open ${match[0]}`,
+                  });
+                }
+                lineNum++;
+              }
+            }
+
+            return {links};
+          },
+
+          resolveLink(link) {
+            if (textModelRef.current) {
+              props.onBindFileLinkClick(
+                textModelRef.current!.getValueInRange(link.range),
+              );
+            }
+            return link;
+          },
+        },
+      );
+
       monaco.editor.onDidChangeMarkers(() => {
         const markers = monaco.editor.getModelMarkers({});
         if (markers.length > 0 && props.setValidationError) {
@@ -310,6 +367,8 @@ const MonacoWrapper = observer(
         props.setContent(textModelRef.current.getValue());
       }
     }
+
+    function onBindFileLinkClicked(bindFileName: string) {}
 
     return (
       <If condition={schemaStore.clabSchema}>

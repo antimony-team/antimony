@@ -149,8 +149,11 @@ export class TopologyStore extends DataStore<
     }
   }
 
-  public async addBindFile(topologyId: string, bindFile: BindFileIn) {
-    const result = await this.dataBinder.post<BindFileIn, void>(
+  public async addBindFile(
+    topologyId: string,
+    bindFile: BindFileIn,
+  ): Promise<Result<DataResponse<string>>> {
+    const result = await this.dataBinder.post<BindFileIn, string>(
       `${this.resourcePath}/${topologyId}/files`,
       bindFile,
     );

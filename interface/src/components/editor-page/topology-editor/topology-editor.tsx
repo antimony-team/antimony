@@ -65,7 +65,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const collectionStore = useCollectionStore();
   const schemaStore = useSchemaStore();
   const topologyStore = useTopologyStore();
-  const notificatioStore = useStatusMessages();
+  const notificationStore = useStatusMessages();
 
   const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
@@ -223,9 +223,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     if (result === null) {
       return;
     } else if (result.isErr()) {
-      notificatioStore.error(result.error.message, 'Failed to save bind file.');
+      notificationStore.error(
+        result.error.message,
+        'Failed to save bind file.',
+      );
     } else {
-      notificatioStore.success('Bind file has been saved!');
+      notificationStore.success('Bind file has been saved!');
     }
   }
 
@@ -233,7 +236,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     if (!hasPendingEdits) return;
 
     if (validationState !== ValidationState.Done) {
-      notificatioStore.warning(
+      notificationStore.warning(
         'Your schema is not valid.',
         'Failed to save topology.',
       );
@@ -244,9 +247,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     if (result === null) {
       return;
     } else if (result.isErr()) {
-      notificatioStore.error(result.error.message, 'Failed to save topology.');
+      notificationStore.error(result.error.message, 'Failed to save topology.');
     } else {
-      notificatioStore.success('Topology has been saved!');
+      notificationStore.success('Topology has been saved!');
     }
   }
 
@@ -279,6 +282,64 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       const bindFileName = bindFileNameParts[bindFileNameParts.length - 1];
 
       FileSaver.saveAs(blob, bindFileName);
+    }
+  }
+
+  function onBindFileLinkClick(bindFilePath: string) {
+    if (!openTopology) return;
+
+    const bindFile = openTopology.bindFiles.find(
+      file => file.filePath === bindFilePath,
+    );
+
+    if (topologyStore.manager.hasEdits()) {
+      notificationStore.confirm({
+        message: 'Discard unsaved changes?',
+        header: 'Unsaved Changes',
+        icon: 'pi pi-info-circle',
+        severity: 'warning',
+        onAccept: () => {
+          if (bindFile) {
+            topologyStore.manager.openBindFile(bindFile);
+          } else {
+            askToCreateBindFile(openTopology.id, bindFilePath);
+          }
+        },
+      });
+    } else {
+      if (bindFile) {
+        topologyStore.manager.openBindFile(bindFile);
+      } else {
+        askToCreateBindFile(openTopology.id, bindFilePath);
+      }
+    }
+  }
+
+  function askToCreateBindFile(topologyId: string, bindFilePath: string) {
+    notificationStore.confirm({
+      message: 'Do you want to create this file?',
+      header: 'File does not exist',
+      icon: 'pi pi-info-circle',
+      severity: 'info',
+      onAccept: () => createBindFile(topologyId, bindFilePath),
+    });
+  }
+
+  async function createBindFile(topologyId: string, bindFilePath: string) {
+    const result = await topologyStore.addBindFile(topologyId, {
+      filePath: bindFilePath,
+      content: '',
+    });
+
+    if (result.isErr()) {
+      notificationStore.error(
+        result.error.message,
+        'Failed to create bind file',
+      );
+    } else {
+      notificationStore.success('Bind file has been created successfully.');
+      const bindFile = topologyStore.bindFileLookup.get(result.data.payload);
+      topologyStore.manager.openBindFile(bindFile!);
     }
   }
 
@@ -441,6 +502,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             setContent={onContentChange}
             onSaveTopology={onSaveBindFile}
             setValidationError={onSetValidationError}
+            onBindFileLinkClick={onBindFileLinkClick}
           />
           {/*)}*/}
         </div>

@@ -564,7 +564,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
 
     if (
-      topologyStore.manager.editingTopologyId === topologyId &&
+      topologyStore.manager.editingFileId === topologyId &&
       topologyStore.manager.hasEdits()
     ) {
       notificationStore.confirm({
@@ -596,7 +596,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       setNodeExpanded(collectionId, true);
       saveNodeExpandKeys();
 
-      if (topologyStore.manager.editingTopologyId === topologyId) {
+      if (topologyStore.manager.editingFileId === topologyId) {
         topologyStore.manager.discardEdits();
       }
     }
