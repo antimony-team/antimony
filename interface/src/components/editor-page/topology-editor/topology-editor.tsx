@@ -59,7 +59,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   // Set to true if topology has pending changes and validation succeeded
   const [hasPendingEdits, setPendingEdits] = useState(false);
 
-  const [showValidation, setShowValidation] = useState(true);
+  const [validationEnabled, setValidationEnabled] = useState(true);
 
   const [isNodeEditDialogOpen, setNodeEditDialogOpen] = useState(false);
   const [openTopology, setOpenTopology] = useState<Topology | null>(null);
@@ -81,7 +81,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const onTopologyOpen = useCallback((topology: Topology) => {
     setOpenTopology(topology);
     setOpenBindFile(null);
-    setShowValidation(true);
+    setValidationEnabled(true);
   }, []);
 
   const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
@@ -92,7 +92,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const onBindFileOpen = useCallback((bindFile: BindFile) => {
     setOpenBindFile(bindFile);
     setOpenTopology(null);
-    setShowValidation(false);
+    setValidationEnabled(false);
   }, []);
 
   const onBindFileEdit = useCallback((editReport: BindFileEditReport) => {
@@ -222,28 +222,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     setNodeEditDialogOpen(true);
   }
 
-  async function onSaveBindFile() {
+  async function onSaveFile() {
     if (!hasPendingEdits) return;
 
-    const result = await topologyStore.manager.save();
-    if (result === null) {
-      return;
-    } else if (result.isErr()) {
+    if (validationEnabled && validationState !== ValidationState.Done) {
       notificationStore.error(
-        result.error.message,
-        'Failed to save bind file.',
-      );
-    } else {
-      notificationStore.success('Bind file has been saved!');
-    }
-  }
-
-  async function onSaveTopology() {
-    if (!hasPendingEdits) return;
-
-    if (validationState !== ValidationState.Done) {
-      notificationStore.warning(
-        'Your schema is not valid.',
+        'Your topology is not valid.',
         'Failed to save topology.',
       );
       return;
@@ -253,10 +237,10 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     if (result === null) {
       return;
     } else if (result.isErr()) {
-      notificationStore.error(result.error.message, 'Failed to save topology.');
-    } else {
-      notificationStore.success('Topology has been saved!');
-    }
+      notificationStore.error(result.error.message, 'Failed to save file.');
+    } /* else {
+      notificationStore.success('File has been saved!');
+    }*/
   }
 
   function onDeployTopoplogy() {
@@ -409,10 +393,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               size="large"
               icon="pi pi-save"
               disabled={
-                validationState !== ValidationState.Done || !hasPendingEdits
+                (validationEnabled &&
+                  validationState !== ValidationState.Done) ||
+                !hasPendingEdits
               }
               tooltip="Save"
-              onClick={onSaveTopology}
+              onClick={onSaveFile}
               tooltipOptions={{position: 'bottom', showDelay: 500}}
               pt={{
                 icon: {
@@ -488,11 +474,11 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             <SplitterPanel size={50}>
               <MonacoWrapper
                 ref={monacoWrapperRef}
-                showValidation={showValidation}
+                showValidation={validationEnabled}
                 validationError={''}
                 validationState={validationState}
                 setContent={onContentChange}
-                onSaveTopology={onSaveBindFile}
+                onSaveFile={onSaveFile}
                 setValidationError={onSetValidationError}
                 onBindFileLinkClick={onBindFileLinkClick}
               />

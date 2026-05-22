@@ -40,8 +40,51 @@ import ITextModel = monaco.editor.ITextModel;
 const schemaModelUri = 'inmemory://schema.yaml';
 
 window.MonacoEnvironment = {
-  getWorker() {
-    return new Worker(new URL('monaco-yaml/yaml.worker', import.meta.url));
+  getWorker(_, label) {
+    switch (label) {
+      case 'json':
+        return new Worker(
+          new URL(
+            'monaco-editor/esm/vs/language/json/json.worker.js',
+            import.meta.url,
+          ),
+        );
+      case 'css':
+      case 'scss':
+      case 'less':
+        return new Worker(
+          new URL(
+            'monaco-editor/esm/vs/language/css/css.worker.js',
+            import.meta.url,
+          ),
+        );
+      case 'html':
+      case 'handlebars':
+      case 'razor':
+        return new Worker(
+          new URL(
+            'monaco-editor/esm/vs/language/html/html.worker.js',
+            import.meta.url,
+          ),
+        );
+      case 'typescript':
+      case 'javascript':
+        return new Worker(
+          new URL(
+            'monaco-editor/esm/vs/language/typescript/ts.worker.js',
+            import.meta.url,
+          ),
+        );
+      case 'yaml':
+        return new Worker(new URL('monaco-yaml/yaml.worker', import.meta.url));
+      default:
+        return new Worker(
+          new URL(
+            'monaco-editor/esm/vs/editor/editor.worker.js',
+            import.meta.url,
+          ),
+        );
+    }
   },
 };
 
@@ -50,7 +93,7 @@ interface MonacoWrapperProps {
   showValidation: boolean;
   validationState: ValidationState;
 
-  onSaveTopology: () => void;
+  onSaveFile: () => void;
   onBindFileLinkClick: (bindFileName: string) => void;
 
   setContent: (content: string) => void;
@@ -109,7 +152,15 @@ const MonacoWrapper = observer(
       setReadOnly(!authUser.isAdmin && authUser.id !== topology.creator.id);
 
       if (textModelRef.current) {
-        monaco.editor.setModelLanguage(textModelRef.current, 'text');
+        const languages = monaco.languages.getLanguages();
+        const ext = '.' + bindFile.filePath.split('.').pop()?.toLowerCase();
+
+        const match = languages.find(lang => lang.extensions?.includes(ext));
+        const language = match?.id ?? 'text';
+
+        console.log('Bind file language: ', language);
+
+        monaco.editor.setModelLanguage(textModelRef.current, language);
         textModelRef.current.setValue(bindFile.content);
         currentlyOpenTopology.current = null;
 
@@ -210,7 +261,7 @@ const MonacoWrapper = observer(
 
         switch (event.key) {
           case 's':
-            props.onSaveTopology();
+            props.onSaveFile();
             event.preventDefault();
             break;
           case 'z':
@@ -367,8 +418,6 @@ const MonacoWrapper = observer(
         props.setContent(textModelRef.current.getValue());
       }
     }
-
-    function onBindFileLinkClicked(bindFileName: string) {}
 
     return (
       <If condition={schemaStore.clabSchema}>
