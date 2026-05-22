@@ -67,9 +67,11 @@ export class TopologyManager {
   private isFileOpen: boolean = false;
   private openFileType: OpenFileType = OpenFileType.Topology;
 
+  // Working copy of the original topology.
   private editingTopology: Topology | null = null;
   private originalDefinition: string | null = null;
 
+  // Working copy of the original bind file.
   private editingBindFile: BindFile | null = null;
   private originalBindFileContent: string | null = null;
 

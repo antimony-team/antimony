@@ -285,35 +285,41 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }
 
-  function onBindFileLinkClick(bindFilePath: string) {
-    if (!openTopology) return;
+  const onBindFileLinkClick = useCallback(
+    (bindFilePath: string) => {
+      if (!openTopology) return;
 
-    const bindFile = openTopology.bindFiles.find(
-      file => file.filePath === bindFilePath,
-    );
+      const topology = topologyStore.lookup.get(openTopology.id);
+      if (!topology) return;
 
-    if (topologyStore.manager.hasEdits()) {
-      notificationStore.confirm({
-        message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
-        icon: 'pi pi-info-circle',
-        severity: 'warning',
-        onAccept: () => {
-          if (bindFile) {
-            topologyStore.manager.openBindFile(bindFile);
-          } else {
-            askToCreateBindFile(openTopology.id, bindFilePath);
-          }
-        },
-      });
-    } else {
-      if (bindFile) {
-        topologyStore.manager.openBindFile(bindFile);
+      const bindFile = topology.bindFiles.find(
+        file => file.filePath === bindFilePath,
+      );
+
+      if (topologyStore.manager.hasEdits()) {
+        notificationStore.confirm({
+          message: 'Discard unsaved changes?',
+          header: 'Unsaved Changes',
+          icon: 'pi pi-info-circle',
+          severity: 'warning',
+          onAccept: () => {
+            if (bindFile) {
+              topologyStore.manager.openBindFile(bindFile);
+            } else {
+              askToCreateBindFile(openTopology.id, bindFilePath);
+            }
+          },
+        });
       } else {
-        askToCreateBindFile(openTopology.id, bindFilePath);
+        if (bindFile) {
+          topologyStore.manager.openBindFile(bindFile);
+        } else {
+          askToCreateBindFile(openTopology.id, bindFilePath);
+        }
       }
-    }
-  }
+    },
+    [openTopology],
+  );
 
   function askToCreateBindFile(topologyId: string, bindFilePath: string) {
     notificationStore.confirm({
