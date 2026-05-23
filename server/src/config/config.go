@@ -29,9 +29,13 @@ type (
 	}
 
 	CaptureConfig struct {
-		Enabled  bool     `yaml:"enabled"`
-		Cmd      string   `yaml:"cmd"`
-		Excluded []string `yaml:"excluded"`
+		Enabled            bool     `yaml:"enabled"`
+		SSHHost            string   `yaml:"sshHost"`
+		SSHPort            int      `yaml:"sshPort"`
+		EdgesharkHost      string   `yaml:"edgesharkHost"`
+		EdgesharkPort      int      `yaml:"edgesharkPort"`
+		SSHKeyPath         string   `yaml:"sshKeyPath"`
+		ExcludedInterfaces []string `yaml:"excludedInterfaces"`
 	}
 
 	AuthConfig struct {
@@ -120,9 +124,14 @@ func defaultConfig() *AntimonyConfig {
 			LocalFile: "./test.db",
 		},
 		Capture: CaptureConfig{
-			Enabled:  false,
-			Cmd:      "ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -",
-			Excluded: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
+			Enabled:       false,
+			SSHPort:       6969,
+			SSHHost:       "0.0.0.0",
+			EdgesharkHost: "localhost",
+			EdgesharkPort: 5001,
+			SSHKeyPath:    "./key",
+			//Cmd:      "ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -",
+			ExcludedInterfaces: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
 		},
 		FileSystem: FilesystemConfig{
 			Storage: "./storage/",

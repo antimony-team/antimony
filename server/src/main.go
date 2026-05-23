@@ -2,6 +2,7 @@ package main
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/capture"
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	_ "antimonyBackend/docs"
@@ -59,6 +60,7 @@ func main() {
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 	authManager := auth.CreateAuthManager(antimonyConfig)
 	storageManager := storage.CreateStorageManager(antimonyConfig)
+	captureService := capture.CreateService(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
 	socketManager := socket.CreateSocketManager(authManager)
@@ -102,6 +104,12 @@ func main() {
 	go labService.RunScheduler()
 	go labService.RunShellManager()
 	go labService.ListenToProviderEvents()
+
+	go func() {
+		if err := captureService.Start(); err != nil {
+			log.Errorf("Failed to start capture service: %s", err.Error())
+		}
+	}()
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()

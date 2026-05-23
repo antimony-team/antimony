@@ -112,7 +112,11 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 	return result, err
 }
 
-func (s *topologyService) GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*TopologyOut, error) {
+func (s *topologyService) GetByUuid(
+	ctx *gin.Context,
+	labId string,
+	authUser auth.AuthenticatedUser,
+) (*TopologyOut, error) {
 	var (
 		topology     *Topology
 		definition   string

@@ -1053,7 +1053,10 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 }
 
 func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
-	cmdTemplate := template.Must(template.New("msg").Parse(s.config.Capture.Cmd))
+	cmdTemplate := template.Must(template.New("msg").Parse(fmt.Sprintf(
+		"ssh -o StrictHostKeyChecking=no {{.ContainerName}}@<host> -p %d {{.InterfaceName}} | wireshark -k -i -",
+		s.config.Capture.SSHPort,
+	)))
 
 	var nodesOut []InstanceNode
 	ctx := context.Background()
@@ -1063,7 +1066,7 @@ func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
 
 		if s.config.Capture.Enabled {
 			interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
-			interfaces = utils.FilterList(interfaces, s.config.Capture.Excluded)
+			interfaces = utils.FilterList(interfaces, s.config.Capture.ExcludedInterfaces)
 
 			interfaceCaptures = make(map[string]string)
 
