@@ -332,9 +332,11 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }, [selectedNode, props.dialogState.state]);
 
     function copyCaptureToClipboard(capture: string) {
-      void navigator.clipboard.writeText(capture);
+      void navigator.clipboard.writeText(
+        capture.replace('<host>', window.location.hostname),
+      );
 
-      statusMessageStore.success('Command copied to clipboard!');
+      statusMessageStore.success('Capture command copied to clipboard!');
     }
 
     function onGraphClick(event: cytoscape.EventObject) {
