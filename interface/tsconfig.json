@@ -3,25 +3,20 @@
     "allowSyntheticDefaultImports": true,
     "noImplicitAny": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "strict": true,
     "target": "esnext",
     "allowJs": true,
+    "noEmit": true,
     "jsx": "react",
     "baseUrl": ".",
     "skipLibCheck": true,
-    "typeRoots": [
-      "node_modules/@types",
-    ],
+    "typeRoots": ["node_modules/@types"],
     "paths": {
-      "@sb/*": [
-        "src/*"
-      ]
+      "@sb/*": ["src/*"]
     }
   },
-  "include": [
-    "src/**/*"
-  ]
+  "include": ["src/**/*"]
 }

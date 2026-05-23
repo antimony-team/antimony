@@ -39,51 +39,33 @@ import {usePromiseWithResolvers} from '@sb/lib/utils/hooks';
 
 const schemaModelUri = 'inmemory://schema.yaml';
 
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import YamlWorker from 'monaco-yaml/yaml.worker?worker';
+
 window.MonacoEnvironment = {
   getWorker(_, label) {
     switch (label) {
       case 'json':
-        return new Worker(
-          new URL(
-            'monaco-editor/esm/vs/language/json/json.worker.js',
-            import.meta.url,
-          ),
-        );
+        return new JsonWorker();
       case 'css':
       case 'scss':
       case 'less':
-        return new Worker(
-          new URL(
-            'monaco-editor/esm/vs/language/css/css.worker.js',
-            import.meta.url,
-          ),
-        );
+        return new CssWorker();
       case 'html':
       case 'handlebars':
       case 'razor':
-        return new Worker(
-          new URL(
-            'monaco-editor/esm/vs/language/html/html.worker.js',
-            import.meta.url,
-          ),
-        );
+        return new HtmlWorker();
       case 'typescript':
       case 'javascript':
-        return new Worker(
-          new URL(
-            'monaco-editor/esm/vs/language/typescript/ts.worker.js',
-            import.meta.url,
-          ),
-        );
+        return new TsWorker();
       case 'yaml':
-        return new Worker(new URL('monaco-yaml/yaml.worker', import.meta.url));
+        return new YamlWorker();
       default:
-        return new Worker(
-          new URL(
-            'monaco-editor/esm/vs/editor/editor.worker.js',
-            import.meta.url,
-          ),
-        );
+        return new EditorWorker();
     }
   },
 };
