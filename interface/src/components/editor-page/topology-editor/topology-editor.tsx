@@ -3,7 +3,6 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
-import {Image} from 'primereact/image';
 import {Badge} from 'primereact/badge';
 import {Button} from 'primereact/button';
 
@@ -249,6 +248,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }*/
   }
 
+  function onDeployTopoplogy() {
+    if (!openTopology) return;
+
+    props.onTopologyDeploy(openTopology.id);
+  }
+
   function onDownload() {
     if (openTopology) {
       const topologyGroup = collectionStore.lookup.get(
@@ -337,28 +342,14 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }
 
-  function onAmogus() {
-    if (!amogusAudio.paused) return;
-    amogusAudio.volume = 0.1;
-    amogusAudio.play().catch(() => {});
-  }
-
-  if (!openTopology && !openBindFile) {
-    return (
-      <div className="sb-topology-editor-empty" onDoubleClick={onAmogus}>
-        <Image
-          src="/icons/among-us.svg"
-          width="350px"
-          alt="Nothing selected placeholder"
-        />
-        <span className="text-center">No topology selected</span>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className="sb-topology-editor-container">
+      <div
+        className="sb-topology-editor-container"
+        style={{
+          opacity: openTopology || openBindFile ? '1' : '0',
+        }}
+      >
         <div className="sb-topology-editor-toolbar">
           <div className="flex gap-2 justify-content-center left-tab">
             <Button
@@ -379,16 +370,16 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             />
           </div>
           <div className="flex gap-2">
-            {/*{openTopology && (*/}
-            {/*  <Button*/}
-            {/*    text*/}
-            {/*    icon="pi pi-sync"*/}
-            {/*    onClick={e => syncOverlayRef.current?.toggle(e)}*/}
-            {/*    tooltip="Sync Options"*/}
-            {/*    tooltipOptions={{position: 'bottom', showDelay: 500}}*/}
-            {/*    aria-label="Sync Options"*/}
-            {/*  />*/}
-            {/*)}*/}
+            {openTopology && (
+              <Button
+                text
+                icon="pi pi-sync"
+                onClick={e => syncOverlayRef.current?.toggle(e)}
+                tooltip="Sync Options"
+                tooltipOptions={{position: 'bottom', showDelay: 500}}
+                aria-label="Sync Options"
+              />
+            )}
             <Button
               text
               size="large"
@@ -424,22 +415,16 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             />
           </div>
           <div className="flex gap-2 justify-content-center">
-            {/*{openTopology && (*/}
-            {/*  <Button*/}
-            {/*    text*/}
-            {/*    icon="pi pi-play"*/}
-            {/*    severity="success"*/}
-            {/*    size="large"*/}
-            {/*    onClick={onDeployTopoplogy}*/}
-            {/*    tooltip="Deploy Topology"*/}
-            {/*    tooltipOptions={{*/}
-            {/*      position: 'bottom',*/}
-            {/*      showDelay: 500,*/}
-            {/*      showOnDisabled: true,*/}
-            {/*    }}*/}
-            {/*    aria-label="Deploy Topology"*/}
-            {/*  />*/}
-            {/*)}*/}
+            <If condition={openTopology}>
+              <Button
+                text
+                icon="pi pi-play"
+                severity="success"
+                size="large"
+                onClick={onDeployTopoplogy}
+                aria-label="Deploy Topology"
+              />
+            </If>
             <Choose>
               <When condition={props.isMaximized}>
                 <Button

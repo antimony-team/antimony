@@ -128,13 +128,11 @@ const EditorPage = observer(() => {
           'sb-admin-page-right-maximized': isMaximized,
         })}
       >
-        {/*<div className="font-bold height-100 sb-card overflow-y-auto overflow-x-hidden">*/}
         <TopologyEditor
           isMaximized={isMaximized}
           setMaximized={setMaximized}
           onTopologyDeploy={onDeployTopology}
         />
-        {/*</div>*/}
       </div>
       <LabEditDialog dialogState={labEditDialogState} />
     </>
