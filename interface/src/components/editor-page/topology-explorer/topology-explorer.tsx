@@ -103,7 +103,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         type: ExplorerTreeNodeType.Collection,
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
-          label: topology.definition.getIn(['name']) as string,
+          label: topology.name,
           className: 'sb-explorer-topology-node',
           icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files

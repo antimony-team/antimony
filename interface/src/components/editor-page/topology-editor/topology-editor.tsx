@@ -36,7 +36,6 @@ import {
   SimulationConfigContext,
 } from './node-editor/state/simulation-config';
 import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
-import {toJS} from 'mobx';
 
 export enum ValidationState {
   Working,
@@ -80,26 +79,19 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const syncOverlayRef = useRef<OverlayPanel>(null);
 
   const onTopologyOpen = useCallback((topology: Topology) => {
-    console.log('OPEN TOPOLOGY', toJS(topology));
     setOpenTopology(topology);
     setOpenBindFile(null);
     setValidationEnabled(true);
   }, []);
 
-  useEffect(() => {
-    console.log('Open topolocy2: ', openTopology);
-  });
-
   const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
     setPendingEdits(editReport.isEdited);
-    console.log('EDIT TOPOLOGY', toJS(editReport.updatedTopology));
     setOpenTopology(editReport.updatedTopology);
   }, []);
 
   const onBindFileOpen = useCallback((bindFile: BindFile) => {
     setOpenBindFile(bindFile);
-    console.log('OPEN BIND FILE, TOPOLOGY NULL');
-    // setOpenTopology(null);
+    setOpenTopology(null);
     setValidationEnabled(false);
   }, []);
 
@@ -109,8 +101,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   }, []);
 
   const onFileClose = useCallback(() => {
-    console.log('CLOSE FILE');
-    // setOpenTopology(null);
+    setOpenTopology(null);
     setOpenBindFile(null);
     setPendingEdits(false);
   }, []);
@@ -258,11 +249,6 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }*/
   }
 
-  function onDeployTopoplogy() {
-    if (!openTopology) return;
-    props.onTopologyDeploy(openTopology.id);
-  }
-
   function onDownload() {
     if (openTopology) {
       const topologyGroup = collectionStore.lookup.get(
@@ -292,16 +278,11 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   const onBindFileLinkClick = useCallback(
     (bindFilePath: string) => {
-      console.log('Open topolicy: ', openTopology);
       if (!openTopology) return;
-
-      console.log('Open link: ', bindFilePath);
 
       const bindFile = openTopology.bindFiles.find(
         file => file.filePath === bindFilePath,
       );
-
-      console.log('Bind file link: ', toJS(bindFile));
 
       if (topologyStore.manager.hasEdits()) {
         notificationStore.confirm({
@@ -327,44 +308,6 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     },
     [openTopology],
   );
-
-  // const onBindFileLinkClick = useCallback(
-  //   (bindFilePath: string) => {
-  //     console.log('Open topolicy: ', openTopology);
-  //     if (!openTopology) return;
-  //
-  //     console.log('Open link: ', bindFilePath);
-  //
-  //     const bindFile = openTopology.bindFiles.find(
-  //       file => file.filePath === bindFilePath,
-  //     );
-  //
-  //     console.log('Bind file link: ', toJS(bindFile));
-  //
-  //     if (topologyStore.manager.hasEdits()) {
-  //       notificationStore.confirm({
-  //         message: 'Discard unsaved changes?',
-  //         header: 'Unsaved Changes',
-  //         icon: 'pi pi-info-circle',
-  //         severity: 'warning',
-  //         onAccept: () => {
-  //           if (bindFile) {
-  //             topologyStore.manager.openBindFile(bindFile);
-  //           } else {
-  //             askToCreateBindFile(openTopology.id, bindFilePath);
-  //           }
-  //         },
-  //       });
-  //     } else {
-  //       if (bindFile) {
-  //         topologyStore.manager.openBindFile(bindFile);
-  //       } else {
-  //         askToCreateBindFile(openTopology.id, bindFilePath);
-  //       }
-  //     }
-  //   },
-  //   [openTopology],
-  // );
 
   function askToCreateBindFile(topologyId: string, bindFilePath: string) {
     notificationStore.confirm({
@@ -537,6 +480,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 validationState={validationState}
                 setContent={onContentChange}
                 onSaveFile={onSaveFile}
+                openTopology={openTopology}
+                openBindFile={openBindFile}
                 setValidationError={onSetValidationError}
                 onBindFileLinkClick={onBindFileLinkClick}
               />

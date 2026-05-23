@@ -8,7 +8,6 @@ import React, {
 } from 'react';
 
 import {toJS} from 'mobx';
-import {isEqual} from 'lodash-es';
 import {observer} from 'mobx-react-lite';
 import {Tooltip} from 'primereact/tooltip';
 import {configureMonacoYaml} from 'monaco-yaml';
@@ -36,6 +35,7 @@ import './monaco-wrapper.sass';
 
 import ICodeEditor = monaco.editor.ICodeEditor;
 import ITextModel = monaco.editor.ITextModel;
+import {usePromiseWithResolvers} from '@sb/lib/utils/hooks';
 
 const schemaModelUri = 'inmemory://schema.yaml';
 
@@ -98,6 +98,9 @@ interface MonacoWrapperProps {
 
   setContent: (content: string) => void;
   setValidationError?: (error: string | null) => void;
+
+  openTopology: Topology | null;
+  openBindFile: BindFile | null;
 }
 
 export interface MonacoWrapperRef {
@@ -115,58 +118,77 @@ const MonacoWrapper = observer(
     const textModelRef = useRef<ITextModel | null>(null);
     const editorRef = useRef<ICodeEditor | null>(null);
 
-    const currentlyOpenTopology = useRef<string | null>(null);
+    const currentlyOpenFileId = useRef<string | null>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
 
     const authUser = useAuthUser();
     const schemaStore = useSchemaStore();
     const topologyStore = useTopologyStore();
 
-    const onTopologyOpen = useCallback((topology: Topology) => {
+    const editorReadyPromise = usePromiseWithResolvers();
+
+    const onBindFileLinkClickRef = useRef(props.onBindFileLinkClick);
+    onBindFileLinkClickRef.current = props.onBindFileLinkClick;
+
+    useEffect(() => {
+      void onTopologyOpen();
+    }, [props.openTopology]);
+
+    useEffect(() => {
+      void onBindFileOpen();
+    }, [props.openBindFile]);
+
+    const onTopologyOpen = useCallback(async () => {
+      if (!props.openTopology) return;
+      await editorReadyPromise.promise;
+
       /*
        * Don't replace the current model if the topology ID has not changed.
        * This happens whenever a topology is saved and reloaded automatically.
        */
-      if (currentlyOpenTopology.current === topology.id) {
+      if (currentlyOpenFileId.current === props.openTopology.id) {
         return;
       }
 
-      setLastDeployFailed(topology.lastDeployFailed);
-      setReadOnly(!authUser.isAdmin && authUser.id !== topology.creator.id);
+      setLastDeployFailed(props.openTopology.lastDeployFailed);
+      setReadOnly(
+        !authUser.isAdmin && authUser.id !== props.openTopology.creator.id,
+      );
 
       if (textModelRef.current) {
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
-        textModelRef.current.setValue(topology.definition.toString());
-        currentlyOpenTopology.current = topology.id;
+        textModelRef.current.setValue(props.openTopology.definition.toString());
+        currentlyOpenFileId.current = props.openTopology.id;
       }
-    }, []);
+    }, [props.openTopology]);
 
-    const onBindFileOpen = useCallback((bindFile: BindFile) => {
-      console.log('on bind file open 1');
-      const topology = topologyStore.lookup.get(bindFile.topologyId);
+    const onBindFileOpen = useCallback(async () => {
+      if (!props.openBindFile) return;
+      await editorReadyPromise.promise;
+
+      if (currentlyOpenFileId.current === props.openBindFile.id) {
+        return;
+      }
+
+      const topology = topologyStore.lookup.get(props.openBindFile.topologyId);
       if (!topology) return;
-
-      console.log('on bind file open 2');
 
       setLastDeployFailed(topology.lastDeployFailed);
       setReadOnly(!authUser.isAdmin && authUser.id !== topology.creator.id);
 
       if (textModelRef.current) {
         const languages = monaco.languages.getLanguages();
-        const ext = '.' + bindFile.filePath.split('.').pop()?.toLowerCase();
+        const ext =
+          '.' + props.openBindFile.filePath.split('.').pop()?.toLowerCase();
 
         const match = languages.find(lang => lang.extensions?.includes(ext));
         const language = match?.id ?? 'text';
 
-        console.log('Bind file language: ', language);
-
         monaco.editor.setModelLanguage(textModelRef.current, language);
-        textModelRef.current.setValue(bindFile.content);
-        currentlyOpenTopology.current = null;
-
-        console.log('on bind file open 3');
+        textModelRef.current.setValue(props.openBindFile.content);
+        currentlyOpenFileId.current = props.openBindFile.id;
       }
-    }, []);
+    }, [props.openBindFile]);
 
     const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
       if (
@@ -184,7 +206,7 @@ const MonacoWrapper = observer(
       const updatedContentStripped = updatedContent.replaceAll(' ', '');
       const existingContentStripped = existingContent.replaceAll(' ', '');
 
-      if (!isEqual(updatedContentStripped, existingContentStripped)) {
+      if (updatedContentStripped !== existingContentStripped) {
         setContent(updatedContent);
       }
     }, []);
@@ -197,47 +219,22 @@ const MonacoWrapper = observer(
         return;
       }
 
-      setContent(editReport.updatedBindFile.content);
+      const existingContent = textModelRef.current.getValue();
+
+      if (existingContent !== editReport.updatedBindFile.content) {
+        setContent(editReport.updatedBindFile.content);
+      }
     }, []);
 
     useEffect(() => {
       topologyStore.manager.onTopologyEdit.register(onTopologyEdit);
-      topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
-
       topologyStore.manager.onBindFileEdit.register(onBindFileEdit);
-      topologyStore.manager.onBindFileOpen.register(onBindFileOpen);
-
-      if (textModelRef.current) {
-        if (topologyStore.manager.topology) {
-          textModelRef.current.setValue(
-            topologyStore.manager.topology.definition.toString(),
-          );
-
-          setReadOnly(
-            !authUser.isAdmin &&
-              authUser.id !== topologyStore.manager.topology.creator.id,
-          );
-        } else if (topologyStore.manager.bindFile) {
-          const bindFile = topologyStore.manager.bindFile;
-          const topology = topologyStore.lookup.get(bindFile.topologyId);
-
-          if (topology) {
-            textModelRef.current.setValue(bindFile.content);
-            setReadOnly(
-              !authUser.isAdmin && authUser.id !== topology.creator.id,
-            );
-          }
-        }
-      }
 
       return () => {
         topologyStore.manager.onTopologyEdit.unregister(onTopologyEdit);
-        topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
-
         topologyStore.manager.onBindFileEdit.unregister(onBindFileEdit);
-        topologyStore.manager.onBindFileOpen.unregister(onBindFileOpen);
       };
-    }, [onTopologyOpen, onTopologyEdit]);
+    }, []);
 
     useEffect(() => {
       editorRef.current?.updateOptions({readOnly: isReadOnly});
@@ -292,10 +289,13 @@ const MonacoWrapper = observer(
     }
 
     function initializeEditor() {
-      if (!editorContainerRef.current || !schemaStore.clabSchema) return;
+      if (!editorContainerRef.current || !schemaStore.clabSchema) {
+        console.error('Failed to initialize monaco editor');
+        return () => {};
+      }
 
       // if (props.language === 'yaml') {
-      configureMonacoYaml(monaco, {
+      const yamlPlugin = configureMonacoYaml(monaco, {
         enableSchemaRequest: false,
         schemas: [
           {
@@ -306,7 +306,7 @@ const MonacoWrapper = observer(
         ],
       });
 
-      monaco.languages.registerLinkProvider(
+      const bindFileLinkProvider = monaco.languages.registerLinkProvider(
         {pattern: '**/*'},
         {
           provideLinks(model) {
@@ -352,8 +352,8 @@ const MonacoWrapper = observer(
 
           resolveLink(link) {
             if (textModelRef.current) {
-              props.onBindFileLinkClick(
-                textModelRef.current!.getValueInRange(link.range),
+              onBindFileLinkClickRef.current!(
+                textModelRef.current.getValueInRange(link.range),
               );
             }
             return link;
@@ -361,7 +361,7 @@ const MonacoWrapper = observer(
         },
       );
 
-      monaco.editor.onDidChangeMarkers(() => {
+      const markerCallback = monaco.editor.onDidChangeMarkers(() => {
         const markers = monaco.editor.getModelMarkers({});
         if (markers.length > 0 && props.setValidationError) {
           props.setValidationError(markers[0].message);
@@ -371,19 +371,14 @@ const MonacoWrapper = observer(
 
       monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
 
-      // console.log("[monaco init] ")
-
       textModelRef.current = monaco.editor.createModel(
-        // topologyStore.manager.topology?.definition.toString() ?? '',
         '',
-        // props.language,
         'text',
         monaco.Uri.parse(schemaModelUri),
       );
 
       editorRef.current = monaco.editor.create(editorContainerRef.current, {
         model: textModelRef.current,
-        // language: props.language,
         language: 'text',
         theme: 'antimonyTheme',
         fontFamily: 'JetBrains Mono, monospace',
@@ -391,21 +386,30 @@ const MonacoWrapper = observer(
 
       editorRef.current.updateOptions(MonacoOptions);
       editorRef.current.onDidChangeModelContent(onContentChange);
+
+      return () => {
+        editorRef.current?.dispose();
+        textModelRef.current?.dispose();
+        yamlPlugin.dispose();
+        bindFileLinkProvider.dispose();
+        markerCallback.dispose();
+      };
     }
 
     useEffect(() => {
       if (!editorContainerRef.current) return;
 
-      initializeEditor();
+      const editorDisposable = initializeEditor();
 
       const resizeObserver = new ResizeObserver(() => {
         requestAnimationFrame(() => editorRef.current?.layout());
       });
       resizeObserver.observe(editorContainerRef.current);
 
+      editorReadyPromise.resolve();
+
       return () => {
-        editorRef.current?.dispose();
-        textModelRef.current?.dispose();
+        editorDisposable();
 
         textModelRef.current = null;
         editorRef.current = null;

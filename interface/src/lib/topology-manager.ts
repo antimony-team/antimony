@@ -97,7 +97,12 @@ export class TopologyManager {
   }
 
   public get editingFileId(): string | null {
-    return this.editingTopology?.id ?? this.editingBindFile?.id ?? null;
+    if (this.openFileType === OpenFileType.Topology) {
+      return this.editingTopology?.id ?? null;
+    } else if (this.openFileType === OpenFileType.BindFile) {
+      return this.editingBindFile?.id ?? null;
+    }
+    return null;
   }
 
   public async save(): Promise<Result<DataResponse<void>> | null> {
@@ -120,8 +125,8 @@ export class TopologyManager {
     });
 
     if (result.isOk()) {
-      // const definitionString = this.editingTopology.definition.toString();
-      // this.editingTopology.definitionString = definitionString;
+      // await this.topologyStore.fetchSingle(this.editingTopology.id);
+
       this.originalTopology = TopologyManager.cloneTopology(
         this.editingTopology,
       );
@@ -241,6 +246,8 @@ export class TopologyManager {
   public openBindFile(bindFile: BindFile) {
     this.restoreCurrentFile();
 
+    console.log('opening bind file testttt');
+
     this.isFileOpen = true;
     this.openFileType = OpenFileType.BindFile;
 
@@ -254,15 +261,11 @@ export class TopologyManager {
     if (this.openFileType === OpenFileType.Topology) {
       if (!this.editingTopology || !this.originalTopology) return;
 
-      this.topologyStore.assignTopology(
-        this.editingTopology,
-        this.originalTopology,
-      );
+      void this.topologyStore.fetchSingle(this.editingTopology.id);
     } else {
-      runInAction(() => {
-        if (!this.editingBindFile) return;
-        Object.assign(this.editingBindFile, this.originalBindFile);
-      });
+      if (!this.editingBindFile) return;
+
+      void this.topologyStore.fetchSingle(this.editingBindFile.topologyId);
     }
   }
 
