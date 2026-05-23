@@ -75,7 +75,7 @@ const SBDock: React.FC = observer(() => {
                 <span className="material-symbols-outlined">construction</span>
               }
               className={classNames('sb-dock-page-button', {
-                selected: window.location.hash === '#/editor',
+                selected: window.location.hash.includes('#/editor'),
               })}
               label="Topology Editor"
               onClick={() => navigate('/editor')}
