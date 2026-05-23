@@ -1940,7 +1940,7 @@ func getNodeKindConfigs(path string) map[string]NodeKindConfig {
 		return make(map[string]NodeKindConfig)
 	}
 
-	log.Info("Loaded kind config file.", "file", path)
+	log.Info("Loaded container kinds config file.", "file", path)
 
 	var configs map[string]NodeKindConfig
 	if err := yaml.Unmarshal(data, &configs); err != nil {
