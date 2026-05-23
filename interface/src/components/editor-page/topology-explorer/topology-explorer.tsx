@@ -50,9 +50,9 @@ import ExplorerTreeNode, {
 } from './explorer-tree-node/explorer-tree-node';
 
 interface TopologyBrowserProps {
-  selectedTopologyId?: string | null;
+  selectedId?: string | null;
 
-  onTopologySelect: (id: uuid4) => void;
+  onFileSelect: (id: uuid4) => void;
   onTopologyDeploy: (id: uuid4) => void;
 }
 
@@ -103,7 +103,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         type: ExplorerTreeNodeType.Collection,
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
-          label: topology.definition.getIn(['name']) as string,
+          label: topology.name,
           className: 'sb-explorer-topology-node',
           icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files
@@ -158,7 +158,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onSelectionChange(e: TreeSelectionEvent) {
     if (e.value === null) return;
 
-    props.onTopologySelect(e.value as string);
+    props.onFileSelect(e.value as string);
   }
 
   function onDeleteCollection(id: string) {
@@ -282,7 +282,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
           if (topologyStore.lookup.has(result.data.payload)) {
             const topology = topologyStore.lookup.get(result.data.payload)!;
-            topologyStore.manager.open(topology);
+            topologyStore.manager.openTopology(topology);
           }
         }
       });
@@ -356,7 +356,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onTopologyAdded(topologyId: string) {
     if (!topologyStore.lookup.has(topologyId)) return;
 
-    props.onTopologySelect(topologyId);
+    props.onFileSelect(topologyId);
 
     // Expand the newly created topology's collection node
     setNodeExpanded(topologyStore.lookup.get(topologyId)!.collectionId, true);
@@ -564,7 +564,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
 
     if (
-      topologyStore.manager.editingTopologyId === topologyId &&
+      topologyStore.manager.editingFileId === topologyId &&
       topologyStore.manager.hasEdits()
     ) {
       notificationStore.confirm({
@@ -596,7 +596,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       setNodeExpanded(collectionId, true);
       saveNodeExpandKeys();
 
-      if (topologyStore.manager.editingTopologyId === topologyId) {
+      if (topologyStore.manager.editingFileId === topologyId) {
         topologyStore.manager.discardEdits();
       }
     }
@@ -652,7 +652,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         selectionMode="single"
         onExpand={onNodeExpand}
         onCollapse={onNodeCollapse}
-        selectionKeys={props.selectedTopologyId}
+        selectionKeys={props.selectedId}
         nodeTemplate={node => (
           <ExplorerTreeNode
             node={node as ExplorerTreeNodeData}

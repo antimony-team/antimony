@@ -1,5 +1,5 @@
 import {action, observable} from 'mobx';
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 
 export enum DialogAction {
   Add,
@@ -50,4 +50,12 @@ export function useDialogState<T>(
     () => new DialogState<T>(defaultState, onClose, onOpen),
   );
   return dialogState;
+}
+
+export function usePromiseWithResolvers() {
+  const ref = useRef<PromiseWithResolvers<void> | null>(null);
+  if (ref.current === null) {
+    ref.current = Promise.withResolvers();
+  }
+  return ref.current;
 }

@@ -5,6 +5,7 @@ import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {
+  BindFile,
   NodeConnection,
   Topology,
   TopologyDefinition,
@@ -29,26 +30,64 @@ export type TopologyEditReport = {
   source: TopologyEditSource;
 };
 
+export type BindFileEditReport = {
+  updatedBindFile: BindFile;
+
+  // Whether the topology is different to the saved one
+  isEdited: boolean;
+
+  /*
+   * This field makes it so components can identify if an update comes from
+   * themselves or some other source and update accordingly.
+   */
+  source: BindFileEditSource;
+};
+
 export enum TopologyEditSource {
   NodeEditor,
   TextEditor,
   System,
 }
 
+export enum BindFileEditSource {
+  TextEditor,
+  System,
+}
+
+export enum OpenFileType {
+  Topology,
+  BindFile,
+}
+
 export class TopologyManager {
   private deviceStore: DeviceStore;
   private topologyStore: TopologyStore;
-  private editingTopology: Topology | null = null;
-  private originalDefinition: string | null = null;
 
-  public readonly onOpen: Binding<Topology> = new Binding();
+  private isFileOpen: boolean = false;
+  private openFileType: OpenFileType = OpenFileType.Topology;
+
+  private editingTopology: Topology | null = null;
+
+  // Backup of the topology to restore when discarding edits.
+  private originalTopology: Topology | null = null;
+
+  private editingBindFile: BindFile | null = null;
+
+  // Backup of the bind file to restore when discarding edits.
+  private originalBindFile: BindFile | null = null;
+
+  public readonly onTopologyOpen: Binding<Topology> = new Binding();
+  public readonly onTopologyEdit: Binding<TopologyEditReport> = new Binding();
+
+  public readonly onBindFileOpen: Binding<BindFile> = new Binding();
+  public readonly onBindFileEdit: Binding<BindFileEditReport> = new Binding();
+
   public readonly onClose: Binding<void> = new Binding();
-  public readonly onEdit: Binding<TopologyEditReport> = new Binding();
 
   constructor(topologyStore: TopologyStore, deviceStore: DeviceStore) {
     this.deviceStore = deviceStore;
     this.topologyStore = topologyStore;
-    this.onEdit.register(
+    this.onTopologyEdit.register(
       updateReport => (this.editingTopology = updateReport.updatedTopology),
     );
 
@@ -57,31 +96,42 @@ export class TopologyManager {
     this.save = this.save.bind(this);
   }
 
-  public get editingTopologyId(): string | null {
-    return this.editingTopology?.id ?? null;
+  public get editingFileId(): string | null {
+    if (this.openFileType === OpenFileType.Topology) {
+      return this.editingTopology?.id ?? null;
+    } else if (this.openFileType === OpenFileType.BindFile) {
+      return this.editingBindFile?.id ?? null;
+    }
+    return null;
   }
 
-  /**
-   * Submits the current topology to the API and resets the referenced saved
-   * topology to the current topology if the upload was successful.
-   */
   public async save(): Promise<Result<DataResponse<void>> | null> {
+    if (this.openFileType === OpenFileType.Topology) {
+      return this.saveTopology();
+    } else if (this.openFileType === OpenFileType.BindFile) {
+      return this.saveBindFile();
+    }
+
+    return null;
+  }
+
+  private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
     if (!this.editingTopology) return null;
 
     const result = await this.topologyStore.update(this.editingTopology.id, {
-      collectionId: this.editingTopology.collectionId,
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition,
       ),
-      syncUrl: this.editingTopology.syncUrl,
     });
 
     if (result.isOk()) {
-      // this.originalTopology = TopologyManager.cloneTopology(
-      //   this.editingTopology,
-      // );
-      this.originalDefinition = this.editingTopology.definitionString;
-      this.onEdit.update({
+      // await this.topologyStore.fetchSingle(this.editingTopology.id);
+
+      this.originalTopology = TopologyManager.cloneTopology(
+        this.editingTopology,
+      );
+
+      this.onTopologyEdit.update({
         updatedTopology: this.editingTopology,
         isEdited: false,
         source: TopologyEditSource.System,
@@ -91,15 +141,52 @@ export class TopologyManager {
     return result;
   }
 
-  public discardEdits() {
-    if (!this.editingTopology) return;
+  private async saveBindFile(): Promise<Result<DataResponse<void>> | null> {
+    if (!this.editingBindFile) return null;
 
-    this.onEdit.update({
-      // updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
-      updatedTopology: this.editingTopology,
-      isEdited: false,
-      source: TopologyEditSource.System,
-    });
+    const result = await this.topologyStore.updateBindFile(
+      this.editingBindFile.topologyId,
+      this.editingBindFile.id,
+      {
+        filePath: this.editingBindFile.filePath,
+        content: this.editingBindFile.content,
+      },
+    );
+
+    if (result.isOk()) {
+      this.originalBindFile = TopologyManager.cloneBindFile(
+        this.editingBindFile,
+      );
+
+      this.onBindFileEdit.update({
+        updatedBindFile: this.editingBindFile,
+        isEdited: false,
+        source: BindFileEditSource.System,
+      });
+    }
+
+    return result;
+  }
+
+  public discardEdits() {
+    if (this.openFileType === OpenFileType.Topology) {
+      if (!this.editingTopology) return;
+
+      this.onTopologyEdit.update({
+        // updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
+        updatedTopology: this.editingTopology,
+        isEdited: false,
+        source: TopologyEditSource.System,
+      });
+    } else if (this.openFileType === OpenFileType.BindFile) {
+      if (!this.editingBindFile) return;
+
+      this.onBindFileEdit.update({
+        updatedBindFile: this.editingBindFile,
+        isEdited: false,
+        source: BindFileEditSource.System,
+      });
+    }
   }
 
   public updateNodeLabels(
@@ -125,14 +212,18 @@ export class TopologyManager {
       }
     }
 
-    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
+    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   /**
    * Returns whether a topology is currently open.
    */
   public isOpen(): boolean {
-    return this.editingTopology !== null;
+    return this.isFileOpen;
+  }
+
+  public get currentFileType() {
+    return this.openFileType;
   }
 
   /**
@@ -140,32 +231,60 @@ export class TopologyManager {
    *
    * @param topology The topology to edit.
    */
-  public open(topology: Topology) {
-    // this.originalTopology = topology;
-    // this.editingTopology = TopologyManager.cloneTopology(topology);
-    this.originalDefinition = topology.definitionString;
-    this.editingTopology = topology;
+  public openTopology(topology: Topology) {
+    this.restoreCurrentFile();
 
-    this.onOpen.update(this.editingTopology);
+    this.isFileOpen = true;
+    this.openFileType = OpenFileType.Topology;
+
+    this.editingTopology = topology;
+    this.originalTopology = TopologyManager.cloneTopology(topology);
+
+    this.onTopologyOpen.update(this.editingTopology);
+  }
+
+  public openBindFile(bindFile: BindFile) {
+    this.restoreCurrentFile();
+
+    console.log('opening bind file testttt');
+
+    this.isFileOpen = true;
+    this.openFileType = OpenFileType.BindFile;
+
+    this.editingBindFile = bindFile;
+    this.originalBindFile = TopologyManager.cloneBindFile(bindFile);
+
+    this.onBindFileOpen.update(this.editingBindFile);
+  }
+
+  private restoreCurrentFile() {
+    if (this.openFileType === OpenFileType.Topology) {
+      if (!this.editingTopology || !this.originalTopology) return;
+
+      void this.topologyStore.fetchSingle(this.editingTopology.id);
+    } else {
+      if (!this.editingBindFile) return;
+
+      void this.topologyStore.fetchSingle(this.editingBindFile.topologyId);
+    }
   }
 
   /**
-   * Closes the current topology.
+   * Closes the currently opened file.
    */
   public close() {
+    this.isFileOpen = false;
+
     this.editingTopology = null;
-    this.originalDefinition = null;
+    this.originalTopology = null;
+
+    this.editingBindFile = null;
+    this.originalBindFile = null;
 
     this.onClose.update();
   }
 
-  /**
-   * Replaces the current topology with a new one and notifies all subscribers.
-   *
-   * @param updatedTopology The updated topology.
-   * @param source The source of the update.
-   */
-  public apply(
+  public editTopology(
     updatedTopology: YAMLDocument<TopologyDefinition>,
     source: TopologyEditSource,
   ) {
@@ -179,29 +298,50 @@ export class TopologyManager {
       this.editingTopology!.connectionMap = topologyMeta.connectionMap;
     });
 
-    this.onEdit.update({
+    this.onTopologyEdit.update({
       updatedTopology: this.editingTopology,
-      isEdited: !isEqual(updatedTopology.toString(), this.originalDefinition),
-      source: source,
+      isEdited:
+        updatedTopology.toString() !==
+        this.originalTopology?.definition.toString(),
+      source,
     });
   }
 
-  /**
-   * Removes all the nodes and links from the topology.
-   */
-  public clear() {
-    if (!this.editingTopology) return;
-    const updatedTopology = {
-      name: this.editingTopology.definition.toJS().name,
-      topology: {
-        nodes: {},
-      },
-    };
+  public editBindFile(
+    updatedBindFileContent: string,
+    source: BindFileEditSource,
+  ) {
+    if (!this.editingBindFile) return;
 
-    this.apply(
-      new YAMLDocument(updatedTopology),
-      TopologyEditSource.NodeEditor,
-    );
+    this.editingBindFile.content = updatedBindFileContent;
+
+    this.onBindFileEdit.update({
+      updatedBindFile: this.editingBindFile,
+      isEdited: updatedBindFileContent !== this.originalBindFile?.content,
+      source,
+    });
+  }
+
+  public clear() {
+    if (this.openFileType === OpenFileType.Topology) {
+      if (!this.editingTopology) return;
+
+      const updatedTopology = {
+        name: this.editingTopology.definition.toJS().name,
+        topology: {
+          nodes: {},
+        },
+      };
+
+      this.editTopology(
+        new YAMLDocument(updatedTopology),
+        TopologyEditSource.System,
+      );
+    } else if (this.openFileType === OpenFileType.BindFile) {
+      if (!this.editingBindFile) return;
+
+      this.editBindFile('', BindFileEditSource.System);
+    }
   }
 
   /**
@@ -220,7 +360,7 @@ export class TopologyManager {
     ]);
     if (!wasDeleted) return;
 
-    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
+    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   /**
@@ -264,7 +404,7 @@ export class TopologyManager {
       ],
     });
 
-    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
+    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   public disconnectNodes(nodeName1: string, nodeName2: string) {
@@ -293,22 +433,33 @@ export class TopologyManager {
       }
     }
 
-    this.apply(updatedTopology, TopologyEditSource.NodeEditor);
+    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   /**
    * Returns whether the currently open topology has been edited.
    */
   public hasEdits() {
-    if (!this.editingTopology || !this.originalDefinition) return false;
-    return !isEqual(
-      this.editingTopology.definition.toString(),
-      this.originalDefinition,
-    );
+    if (this.openFileType === OpenFileType.Topology) {
+      if (!this.editingTopology || !this.originalTopology) return false;
+
+      return !isEqual(
+        this.editingTopology.definition.toString(),
+        this.originalTopology.definition.toString(),
+      );
+    } else {
+      if (!this.editingBindFile || !this.originalBindFile) return false;
+
+      return this.editingBindFile.content !== this.originalBindFile.content;
+    }
   }
 
   public get topology() {
     return this.editingTopology;
+  }
+
+  public get bindFile() {
+    return this.editingBindFile;
   }
 
   public getNodeTooltip(nodeName: string) {
@@ -528,6 +679,15 @@ export class TopologyManager {
    */
   private static writePosition(position: Position) {
     return ' pos=[' + position.x + ',' + position.y + ']';
+  }
+
+  private static cloneBindFile(bindFile: BindFile): BindFile {
+    return {
+      id: bindFile.id,
+      filePath: bindFile.filePath,
+      content: bindFile.content,
+      topologyId: bindFile.topologyId,
+    };
   }
 
   private static cloneTopology(topology: Topology): Topology {
