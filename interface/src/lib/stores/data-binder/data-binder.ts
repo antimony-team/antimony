@@ -36,7 +36,9 @@ const SOCKETIO_CONFIG = {
 };
 
 export class DataBinder {
-  private readonly apiUrl = process.env.SB_API_SERVER_URL ?? 'localhost';
+  private readonly apiUrl = import.meta.env.SB_API_SERVER_URL ?? 'localhost';
+  private readonly socketUrl =
+    import.meta.env.SB_SOCKET_SERVER_URL ?? 'localhost';
 
   protected readonly fetchRetryTimer = 5000;
 
@@ -81,13 +83,25 @@ export class DataBinder {
     this.isNativeAuthEnabled = authConfig.native.enabled;
     this.useNativeAutoLogin = authConfig.native.allowEmpty;
 
+    if (this.isAuthDisabled) {
+      runInAction(() => {
+        this.isLoggedIn = true;
+        this.authUser = {
+          id: '',
+          isAdmin: true,
+          name: 'Admin',
+        };
+      });
+      return;
+    }
+
     if (Cookies.get('accessToken') !== undefined) {
       // If access token has been set previously, attempt to refresh token
       const refreshResult = await this.refreshToken();
 
       if (refreshResult.isOk()) {
         runInAction(() => (this.isLoggedIn = true));
-      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc()) {
+      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
         /*
          * Redirect to OpenID login if existing auth token is invalid, auth via
          * OpenID is enabled, and the user has previously logged in via OpenID.
@@ -120,7 +134,7 @@ export class DataBinder {
     runInAction(() => (this.isReady = true));
   }
 
-  public isAuthenticatedWithOidc(): boolean {
+  public get isAuthenticatedWithOidc() {
     return Cookies.get('authOidc') === 'true';
   }
 
@@ -136,6 +150,11 @@ export class DataBinder {
     }
   }
 
+  @computed
+  public get isAuthDisabled() {
+    return !this.isOpenIdAuthEnabled && !this.isNativeAuthEnabled;
+  }
+
   /**
    * Creates a socket and registers callbacks for a given subscription.
    * @param subscription
@@ -144,19 +163,25 @@ export class DataBinder {
   private connectSubscription(subscription: Subscription) {
     if (subscription.isAnonymous) {
       try {
-        subscription.socket = io(`/${subscription.namespace}`, SOCKETIO_CONFIG);
+        subscription.socket = io(
+          `${this.socketUrl}/${subscription.namespace}`,
+          SOCKETIO_CONFIG,
+        );
       } catch {
         subscription.socket?.close();
         return;
       }
     } else {
       try {
-        subscription.socket = io(`/${subscription.namespace}`, {
-          ...SOCKETIO_CONFIG,
-          auth: {
-            token: this.accessToken,
+        subscription.socket = io(
+          `${this.socketUrl}/${subscription.namespace}`,
+          {
+            ...SOCKETIO_CONFIG,
+            auth: {
+              token: this.accessToken,
+            },
           },
-        });
+        );
       } catch {
         subscription.socket?.close();
         return;
@@ -183,7 +208,7 @@ export class DataBinder {
             // Retry socket subscription if token was refreshed successfully
             this.connectSubscription(subscription);
           } else {
-            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc()) {
+            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
               this.loginWithOpenId();
             }
           }
@@ -362,7 +387,7 @@ export class DataBinder {
     if (response.status === 498) {
       const refreshResponse = await this.refreshToken();
       if (refreshResponse.isErr()) {
-        if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc()) {
+        if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
           this.loginWithOpenId();
           return refreshResponse;
         } else if (this.isNativeAuthEnabled && this.useNativeAutoLogin) {

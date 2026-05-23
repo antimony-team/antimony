@@ -1,9 +1,8 @@
-import {defineConfig, loadEnv} from 'vite';
+import {UserConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, process.cwd(), '');
+export default function baseConfig(mode: string): UserConfig {
   return {
     plugins: [react({babel: {babelrc: true}})],
     resolve: {
@@ -25,15 +24,12 @@ export default defineConfig(({mode}) => {
         },
       },
     },
-    build: {outDir: 'build', sourcemap: mode === 'development'},
+    build: {sourcemap: mode === 'development'},
     worker: {format: 'es'},
     optimizeDeps: {
       include: ['path-browserify', 'monaco-yaml', 'monaco-editor'],
     },
-    define: {
-      'process.env.SB_API_SERVER_URL': JSON.stringify(env.SB_API_SERVER_URL),
-      'process.env.SB_CLAB_SCHEMA_URL': JSON.stringify(env.SB_CLAB_SCHEMA_URL),
-      'process.env.NODE_ENV': JSON.stringify(mode),
-    },
+    envPrefix: 'SB_',
+    base: './',
   };
-});
+}

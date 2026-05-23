@@ -283,7 +283,7 @@ const MonacoWrapper = observer(
           {
             fileMatch: ['**/*.yaml'],
             schema: toJS(schemaStore.clabSchema),
-            uri: process.env.SB_CLAB_SCHEMA_URL!,
+            uri: import.meta.env.SB_CLAB_SCHEMA_URL!,
           },
         ],
       });
@@ -407,57 +407,63 @@ const MonacoWrapper = observer(
     }
 
     return (
-      <div className="h-full flex flex-column">
-        <If condition={isReadOnly}>
-          <div className="sb-monaco-wrapper-readonly">
-            <span>The current file is opened in read-only mode.</span>
+      <>
+        <div className="h-full flex flex-column">
+          <If condition={isReadOnly}>
+            <div className="sb-monaco-wrapper-readonly">
+              <span>The current file is opened in read-only mode.</span>
+            </div>
+          </If>
+          <If condition={hasLastDeployFailed}>
+            <div className="sb-monaco-wrapper-unsuccessful">
+              <span>
+                The last deployment of this topology was unsuccessful.
+              </span>
+            </div>
+          </If>
+          <div className="sb-monaco-wrapper">
+            <div
+              className="sb-monaco-wrapper-error"
+              data-pr-tooltip={props.validationError ?? 'Schema Valid'}
+              data-pr-position="right"
+            >
+              {props.showValidation && (
+                <Choose>
+                  <When
+                    condition={props.validationState === ValidationState.Error}
+                  >
+                    <i
+                      className="pi pi-times"
+                      style={{color: 'var(--danger-color-text)'}}
+                    />
+                  </When>
+                  <When
+                    condition={
+                      props.validationState === ValidationState.Working
+                    }
+                  >
+                    <i
+                      className="pi pi-spinner pi-spin"
+                      style={{color: 'var(--warning-color-text)'}}
+                    />
+                  </When>
+                  <Otherwise>
+                    <i
+                      className="pi pi-check"
+                      style={{color: 'var(--success-color-text)'}}
+                    />
+                  </Otherwise>
+                </Choose>
+              )}
+              <Tooltip
+                className="sb-monaco-wrapper-error-tooltip"
+                target=".sb-monaco-wrapper-error"
+              />
+            </div>
+            <div ref={editorContainerRef} style={{height: '100%'}}></div>
           </div>
-        </If>
-        <If condition={hasLastDeployFailed}>
-          <div className="sb-monaco-wrapper-unsuccessful">
-            <span>The last deployment of this topology was unsuccessful.</span>
-          </div>
-        </If>
-        <div className="sb-monaco-wrapper">
-          <div
-            className="sb-monaco-wrapper-error"
-            data-pr-tooltip={props.validationError ?? 'Schema Valid'}
-            data-pr-position="right"
-          >
-            {props.showValidation && (
-              <Choose>
-                <When
-                  condition={props.validationState === ValidationState.Error}
-                >
-                  <i
-                    className="pi pi-times"
-                    style={{color: 'var(--danger-color-text)'}}
-                  />
-                </When>
-                <When
-                  condition={props.validationState === ValidationState.Working}
-                >
-                  <i
-                    className="pi pi-spinner pi-spin"
-                    style={{color: 'var(--warning-color-text)'}}
-                  />
-                </When>
-                <Otherwise>
-                  <i
-                    className="pi pi-check"
-                    style={{color: 'var(--success-color-text)'}}
-                  />
-                </Otherwise>
-              </Choose>
-            )}
-            <Tooltip
-              className="sb-monaco-wrapper-error-tooltip"
-              target=".sb-monaco-wrapper-error"
-            />
-          </div>
-          <div ref={editorContainerRef} style={{height: '100%'}}></div>
         </div>
-      </div>
+      </>
     );
   }),
 );

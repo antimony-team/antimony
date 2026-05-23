@@ -27,6 +27,7 @@ export default [
       '.prettierrc.cjs',
       'start.js',
       'server/*',
+      'electron/*',
     ],
   },
   ...fixupConfigRules(

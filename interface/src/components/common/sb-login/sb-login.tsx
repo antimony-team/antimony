@@ -39,7 +39,7 @@ const SBLogin = observer(() => {
         password: {value: string};
       };
 
-      dataBinder
+      void dataBinder
         .loginNative({
           username: target.username.value,
           password: target.password.value,

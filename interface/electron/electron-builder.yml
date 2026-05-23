@@ -1,0 +1,20 @@
+appId: ch.antimony-team.antimony
+productName: Antimony
+copyright: MIT
+
+directories:
+  output: release
+  buildResources: dist
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+
+linux:
+  icon: dist/icons/favicon-dark.png
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Utility
+  artifactName: ${productName}-${version}-${arch}.AppImage

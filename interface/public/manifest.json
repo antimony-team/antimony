@@ -1,9 +1,0 @@
-{
-  "short_name": "Antimony",
-  "name": "Antimony",
-  "lang": "en",
-  "start_url": "/",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#ffffff"
-}

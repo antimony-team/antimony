@@ -48,7 +48,7 @@ const SBDock: React.FC = observer(() => {
       <div className="flex align-items-center gap-3">
         <div className="sb-logo-tab" onClick={() => navigate('/')}>
           <Image
-            src="/icons/favicon-dark.png"
+            src="./icons/favicon-dark.png"
             width="45px"
             alt="Antimony Logo"
           />
@@ -62,7 +62,8 @@ const SBDock: React.FC = observer(() => {
                 <span className="material-symbols-outlined">dashboard</span>
               }
               className={classNames('sb-dock-page-button', {
-                selected: window.location.pathname === '/',
+                selected:
+                  window.location.hash === '#/' || window.location.hash === '',
               })}
               label="Dashboard"
               onClick={() => navigate('/')}
@@ -74,7 +75,7 @@ const SBDock: React.FC = observer(() => {
                 <span className="material-symbols-outlined">construction</span>
               }
               className={classNames('sb-dock-page-button', {
-                selected: window.location.pathname === '/editor',
+                selected: window.location.hash === '#/editor',
               })}
               label="Topology Editor"
               onClick={() => navigate('/editor')}
@@ -126,8 +127,9 @@ const SBDock: React.FC = observer(() => {
         />
         <If
           condition={
-            !dataBinder.useNativeAutoLogin ||
-            dataBinder.isAuthenticatedWithOidc()
+            !dataBinder.isAuthDisabled &&
+            (!dataBinder.useNativeAutoLogin ||
+              dataBinder.isAuthenticatedWithOidc)
           }
         >
           <Button

@@ -6,6 +6,7 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
+  "main": "dist-electron/main.js",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@react-hook/resize-observer": "^2.0.2",
@@ -17,6 +18,7 @@
     "cytoscape": "^3.32.0",
     "cytoscape-cose-bilkent": "^4.1.0",
     "dayjs": "^1.11.13",
+    "esbuild": "^0.28.0",
     "file-saver": "^2.0.5",
     "highlight.js": "^11.11.1",
     "highlightjs-line-numbers.js": "^2.9.0",
@@ -44,6 +46,7 @@
     "react-monaco-editor": "^0.58.0",
     "react-router": "^7.12.0",
     "react-tooltip": "^5.29.0",
+    "serve-handler": "^6.1.7",
     "socket.io-client": "^4.8.1",
     "url": "^0.11.4",
     "uuid": "^11.1.0",
@@ -52,12 +55,14 @@
   },
   "scripts": {
     "start": "vite",
+    "lint": "gts lint '**/*.ts'",
+    "clean": "rm -rf ./dist/ ./dist-electron/ ./release/",
+    "compile": "tsc",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build",
     "build:docker": "docker build -t antimony-interface .",
-    "lint": "gts lint '**/*.ts'",
-    "clean": "rm -rf ./build/",
-    "compile": "tsc"
+    "build-electron:linux": "vite build --config electron/vite.config.ts && electron-builder --linux --config electron/electron-builder.yml",
+    "build-electron:win": "vite build --config electron/vite.config.ts && electron-builder --win --config electron/electron-builder.yml"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",
@@ -85,6 +90,8 @@
     "@typescript-eslint/parser": "^8.34.0",
     "@vitejs/plugin-react": "^4.3.4",
     "babel-plugin-jsx-control-statements": "^4.1.2",
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1",
     "eslint": "9.28.0",
     "eslint-import-resolver-typescript": "^4.4.3",
     "eslint-plugin-import": "^2.29.1",
@@ -97,6 +104,8 @@
     "prettier": "^3.5.3",
     "sass": "^1.89.2",
     "typescript": "^5.8.3",
-    "vite": "^8.0.5"
+    "vite": "^8.0.5",
+    "vite-plugin-electron": "^0.29.1",
+    "vite-plugin-electron-renderer": "^0.14.7"
   }
 }
