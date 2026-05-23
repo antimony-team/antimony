@@ -383,8 +383,9 @@ const MonacoWrapper = observer(
 
       const editorDisposable = initializeEditor();
 
-      const resizeObserver = new ResizeObserver(() => {
-        requestAnimationFrame(() => editorRef.current?.layout());
+      const resizeObserver = new ResizeObserver(entries => {
+        const {width, height} = entries[0].contentRect;
+        requestAnimationFrame(() => editorRef.current?.layout({width, height}));
       });
       resizeObserver.observe(editorContainerRef.current);
 
