@@ -22,9 +22,7 @@ export default [
   {
     ignores: [
       '**/build/',
-      'webpack.common.cjs',
-      'webpack.prod.cjs',
-      'webpack.dev.cjs',
+      'vite.config.ts',
       'eslint.config.js',
       '.prettierrc.cjs',
       'start.js',
@@ -76,6 +74,11 @@ export default [
       'unused-imports/no-unused-imports': 'error',
       'jsx-control-statements/jsx-jcs-no-undef': 'off',
       'no-control-regex': 'off',
+
+      // Vite query-suffix imports (e.g. `foo?worker`) confuse this rule —
+      // the resolver strips the query and inspects the underlying file,
+      // which has no default export. TypeScript covers the check via vite/client.
+      'import/default': 'off',
 
       'n/no-unsupported-features/node-builtins': [
         'off',

@@ -1,4 +1,4 @@
-import {defineConfig, loadEnv} from 'vite';
+import {defineConfig, loadEnv, UserConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
@@ -9,12 +9,6 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {'@sb': path.resolve(__dirname, 'src')},
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-    },
-    css: {
-      preprocessorOptions: {
-        sass: {api: 'modern-compiler'},
-        scss: {api: 'modern-compiler'},
-      },
     },
     server: {
       host: '0.0.0.0',
