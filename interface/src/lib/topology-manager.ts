@@ -246,8 +246,6 @@ export class TopologyManager {
   public openBindFile(bindFile: BindFile) {
     this.restoreCurrentFile();
 
-    console.log('opening bind file testttt');
-
     this.isFileOpen = true;
     this.openFileType = OpenFileType.BindFile;
 

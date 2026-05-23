@@ -6,7 +6,7 @@ import FileSaver from 'file-saver';
 import {Badge} from 'primereact/badge';
 import {Button} from 'primereact/button';
 
-import {uuid4} from '@sb/types/types';
+import {FetchState, uuid4} from '@sb/types/types';
 import {
   BindFileEditReport,
   BindFileEditSource,
@@ -458,18 +458,20 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             }}
           >
             <SplitterPanel size={50}>
-              <MonacoWrapper
-                ref={monacoWrapperRef}
-                showValidation={validationEnabled}
-                validationError={''}
-                validationState={validationState}
-                setContent={onContentChange}
-                onSaveFile={onSaveFile}
-                openTopology={openTopology}
-                openBindFile={openBindFile}
-                setValidationError={onSetValidationError}
-                onBindFileLinkClick={onBindFileLinkClick}
-              />
+              <If condition={schemaStore.fetchReport.state === FetchState.Done}>
+                <MonacoWrapper
+                  ref={monacoWrapperRef}
+                  showValidation={validationEnabled}
+                  validationError={''}
+                  validationState={validationState}
+                  setContent={onContentChange}
+                  onSaveFile={onSaveFile}
+                  openTopology={openTopology}
+                  openBindFile={openBindFile}
+                  setValidationError={onSetValidationError}
+                  onBindFileLinkClick={onBindFileLinkClick}
+                />
+              </If>
             </SplitterPanel>
             <SplitterPanel
               size={50}
