@@ -259,9 +259,10 @@ export class TopologyManager {
         this.originalTopology,
       );
     } else {
-      if (!this.editingBindFile) return;
-
-      Object.assign(this.editingBindFile, this.originalBindFile);
+      runInAction(() => {
+        if (!this.editingBindFile) return;
+        Object.assign(this.editingBindFile, this.originalBindFile);
+      });
     }
   }
 
