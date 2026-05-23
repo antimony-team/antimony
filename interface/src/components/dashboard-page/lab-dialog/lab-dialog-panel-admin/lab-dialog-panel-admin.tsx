@@ -74,6 +74,7 @@ const LabDialogPanelAdmin = (props: LabDialogPanelProps) => {
                 ? 'pi pi-sync pi-spin'
                 : 'pi pi-sync'
             }
+            severity="warning"
             label="Redeploy Lab"
             aria-label="Redeploy Lab"
             onClick={() => labStore.deployLab(props.lab)}
