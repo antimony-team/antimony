@@ -580,6 +580,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/topologies/:topologyId": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "topologies"
+                ],
+                "summary": "Get a specific topology by UUID",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-topology_TopologyOut"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "Access to the resource was denied. Details in the request body.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "The requested topology was not found.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
         "/topologies/{id}": {
             "delete": {
                 "security": [
@@ -1404,6 +1446,14 @@ const docTemplate = `{
             "properties": {
                 "payload": {
                     "type": "string"
+                }
+            }
+        },
+        "utils.OkResponse-topology_TopologyOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/topology.TopologyOut"
                 }
             }
         }

@@ -295,6 +295,11 @@ definitions:
       payload:
         type: string
     type: object
+  utils.OkResponse-topology_TopologyOut:
+    properties:
+      payload:
+        $ref: '#/definitions/topology.TopologyOut'
+    type: object
 info:
   contact:
     email: antimony@network.garden
@@ -651,6 +656,32 @@ paths:
       security:
       - BasicAuth: []
       summary: Create a new topology
+      tags:
+      - topologies
+  /topologies/:topologyId:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-topology_TopologyOut'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: Access to the resource was denied. Details in the request body.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: The requested topology was not found.
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Get a specific topology by UUID
       tags:
       - topologies
   /topologies/{id}:

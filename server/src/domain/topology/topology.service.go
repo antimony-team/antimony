@@ -17,6 +17,7 @@ import (
 type (
 	Service interface {
 		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error)
+		GetByUuid(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) (*TopologyOut, error)
 		Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error)
 		Update(ctx *gin.Context, req TopologyInPartial, topologyId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
@@ -74,6 +75,7 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 	} else {
 		topologies, err = s.topologyRepo.GetFromCollections(ctx, authUser.Collections)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +107,46 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			BindFiles:        bindFilesOut,
 			LastDeployFailed: topology.LastDeployFailed,
 		})
+	}
+
+	return result, err
+}
+
+func (s *topologyService) GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*TopologyOut, error) {
+	var (
+		topology     *Topology
+		definition   string
+		bindFilesOut []BindFileOut
+		err          error
+	)
+	if topology, err = s.topologyRepo.GetByUuid(ctx, labId); err != nil {
+		return nil, err
+	}
+
+	// Deny request if user doesn't have access to the specified topology (Return generic not found error)
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, topology.Collection.Name) {
+		return nil, utils.ErrUuidNotFound
+	}
+
+	bindFiles, err := s.topologyRepo.GetBindFileForTopology(ctx, topology.UUID)
+	if err != nil {
+		log.Errorf("Failed to get bind files for topology '%s': %s", topology.UUID, err.Error())
+		return nil, utils.ErrInvalidTopology
+	}
+
+	if definition, bindFilesOut, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
+		log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
+		return nil, utils.ErrInvalidTopology
+	}
+
+	result := &TopologyOut{
+		ID:               topology.UUID,
+		Definition:       definition,
+		SyncUrl:          topology.SyncUrl,
+		CollectionId:     topology.Collection.UUID,
+		Creator:          s.userRepo.UserToOut(topology.Creator),
+		BindFiles:        bindFilesOut,
+		LastDeployFailed: topology.LastDeployFailed,
 	}
 
 	return result, err

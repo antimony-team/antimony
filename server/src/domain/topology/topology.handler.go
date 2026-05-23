@@ -10,6 +10,7 @@ import (
 type (
 	Handler interface {
 		Get(ctx *gin.Context)
+		GetByUuid(ctx *gin.Context)
 		Create(ctx *gin.Context)
 		Update(ctx *gin.Context)
 		Delete(ctx *gin.Context)
@@ -46,6 +47,31 @@ func (h *topologyHandler) Get(ctx *gin.Context) {
 	}
 
 	result, err := h.topologyService.Get(ctx, authUser)
+	if err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.CreateOkResponse(result))
+}
+
+// @Summary	Get a specific topology by UUID
+// @Produce	json
+// @Tags		topologies
+// @Security	BasicAuth
+// @Success	200	{object}	utils.OkResponse[TopologyOut]
+// @Failure	401	{object}	nil					"The user isn't authorized"
+// @Failure	498	{object}	nil					"The provided access token is not valid"
+// @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
+// @Failure	404	{object}	utils.ErrorResponse	"The requested topology was not found."
+// @Router		/topologies/:topologyId [get]
+func (h *topologyHandler) GetByUuid(ctx *gin.Context) {
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+	}
+
+	result, err := h.topologyService.GetByUuid(ctx, ctx.Param("topologyId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
