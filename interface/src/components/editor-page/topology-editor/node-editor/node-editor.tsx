@@ -513,8 +513,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         updatedLabels['graph-geoCoordinateLat'] = geo.lat.toString();
         updatedLabels['graph-geoCoordinateLng'] = geo.lng.toString();
       } else {
-        updatedLabels['graph-posX'] = position.x;
-        updatedLabels['graph-posY'] = position.y;
+        updatedLabels['graph-posX'] = position.x.toString();
+        updatedLabels['graph-posY'] = position.y.toString();
       }
 
       updatedLabelMap.set(id, updatedLabels);
