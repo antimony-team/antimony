@@ -1,11 +1,9 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
 import LabDialogPanelAdmin from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-admin/lab-dialog-panel-admin';
 import LabDialogPanelProperties from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-properties/lab-dialog-panel-properties';
 import LogDialog, {
   LogDialogState,
 } from '@sb/components/dashboard-page/log-dialog/log-dialog';
-import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 
 import './lab-dialog.sass';
 import TerminalDialog, {
@@ -33,6 +31,9 @@ import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import {TooltipRefProps} from 'react-tooltip';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
+import {Button} from 'primereact/button';
+import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
+import classNames from 'classnames';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -410,59 +411,56 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       nodeDetailOverlay.current?.close();
     }
 
-    function onDialogDragStart() {
-      closeDetails();
-    }
-
-    function onDialogDragEnd() {
-      cyRef.current?.invalidateDimensions();
-    }
-
     return (
       <>
-        <SBDialog
-          isOpen={props.dialogState.isOpen}
-          onClose={onClose}
-          headerTitle={
-            <If condition={props.dialogState.state}>
+        <div
+          className={classNames('sb-card sb-lab-view', {
+            open: props.dialogState.isOpen,
+          })}
+        >
+          <If condition={props.dialogState.state}>
+            <div className="sb-lab-view-header">
+              <Button
+                text
+                icon="pi pi-arrow-left"
+                size="large"
+                onClick={() => props.dialogState.close()}
+                tooltip="Back"
+                tooltipOptions={{position: 'bottom', showDelay: 500}}
+                aria-label="Download"
+              />
               <StateIndicator lab={props.dialogState.state!} showText={false} />
               <span className="sb-lab-dialog-title-name">
                 {groupName + ' / '}
               </span>
-              <span>{props.dialogState.state!.name}</span>
-            </If>
-          }
-          hideButtons={true}
-          className="sb-lab-dialog"
-          draggable={true}
-          onDragStart={onDialogDragStart}
-          onDragEnd={onDialogDragEnd}
-        >
-          <If condition={props.dialogState.state}>
-            <div className="topology-graph-container" ref={containerRef}>
-              <LabDialogPanelProperties lab={props.dialogState.state!} />
-              <LabDialogPanelAdmin
-                lab={props.dialogState.state!}
-                onOpenLogs={onOpenLogs}
-                labelsHidden={hostsHidden}
-                setLabelsHidden={setHostsHidden}
-                onDestroyLabRequest={() =>
-                  props.onDestroyLabRequest(props.dialogState.state!)
-                }
-              />
-              <canvas ref={gridCanvasRef} className="grid-canvas" />
-              <CytoscapeComponent
-                className="cytoscape-container"
-                elements={elements}
-                cy={(cy: cytoscape.Core) => {
-                  cyRef.current = cy;
-                  initCytoscape(cy);
-                  // setIsCyReady(true);
-                }}
-              />
+              <span>{props.dialogState!.state?.name}</span>
+            </div>
+            <div className="sb-lab-view-content">
+              <div className="topology-graph-container" ref={containerRef}>
+                <LabDialogPanelProperties lab={props.dialogState.state!} />
+                <LabDialogPanelAdmin
+                  lab={props.dialogState.state!}
+                  onOpenLogs={onOpenLogs}
+                  labelsHidden={hostsHidden}
+                  setLabelsHidden={setHostsHidden}
+                  onDestroyLabRequest={() =>
+                    props.onDestroyLabRequest(props.dialogState.state!)
+                  }
+                />
+                <canvas ref={gridCanvasRef} className="grid-canvas" />
+                <CytoscapeComponent
+                  className="cytoscape-container"
+                  elements={elements}
+                  cy={(cy: cytoscape.Core) => {
+                    cyRef.current = cy;
+                    initCytoscape(cy);
+                    // setIsCyReady(true);
+                  }}
+                />
+              </div>
             </div>
           </If>
-        </SBDialog>
+        </div>
         <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
         <LogDialog dialogState={logDialogState} />
         <TerminalDialog dialogState={terminalDialogState} />
