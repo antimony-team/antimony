@@ -77,12 +77,8 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
   function onOpen() {
     if (!props.lab) return;
 
-    // setStart(0);
-
-    const now = Date.now() / 1000;
     bufferRef.current = [[], [], []];
     chartRef.current?.setData(bufferRef.current);
-    // chartRef.current.setData([displayTs, displayVs]);
 
     labStore.subscribeInterfaceEvents(props.lab.id, handleData);
   }
@@ -178,11 +174,8 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
     },
   };
 
-  // const [data, setData] = useState<[number[], number[]]>([[], []]);
   const bufferRef = useRef<[number[], number[], number[]]>([[], [], []]);
   const chartRef = useRef(null);
-  // const currentBucketRef = useRef({bucketTs: 0, sum: 0, count: 1});
-  // const latestTsRef = useRef(0);
 
   const handleData = useCallback(
     (data: InterfaceEventOut) => {
@@ -197,24 +190,13 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
         return;
       }
 
-      // const ts_sec = Date.parse(data.timestamp) / 1000;
-
       const ts_sec = Date.parse(data.timestamp) / 1000;
-      // latestTsRef.current = Math.max(latestTsRef.current, ts_sec);
 
-      // const bucketTs = Math.floor(ts_sec);
-      // const bucket = currentBucketRef.current;
       const txValue = parseInt(data.txBps);
       const rxValue = parseInt(data.rxBps);
 
       console.log('TX PACKETS', txValue);
       console.log('RX PACKETS', rxValue);
-
-      // if (bucket && bucket.bucketTs === bucketTs) {
-      //   bucket.sum += value;
-      //   bucket.count += 1;
-      //   return;
-      // }
 
       const [ts, txs, rxs] = bufferRef.current;
 
@@ -223,19 +205,11 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
         txs.push(txValue);
         rxs.push(rxValue);
       }
-      // if (bucket) {
+
       ts.push(ts_sec);
-      txs.push(txValue); // average, per earlier discussion
-      rxs.push(rxValue); // average, per earlier discussion
-      // }
+      txs.push(txValue);
+      rxs.push(rxValue);
 
-      // const cutoff = ts_sec - 20;
-      // while (ts.length && ts[0] < cutoff) {
-      //   ts.shift();
-      //   vs.shift();
-      // }
-
-      // currentBucketRef.current = {bucketTs, sum: value, count: 1};
       chartRef.current.setData([ts, txs, rxs]);
     },
     [props.nodeId],

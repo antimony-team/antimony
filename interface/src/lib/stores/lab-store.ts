@@ -133,14 +133,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   public subscribeInterfaceEvents(
     labId: string,
-    onEvent: (data: DataResponse<InterfaceEventOut>) => void,
+    onEvent: (data: InterfaceEventOut) => void,
   ) {
     this.dataBinder.subscribeNamespace(`interface-events/${labId}`, onEvent);
   }
 
   public unsubscribeInterfaceEvents(
     labId: string,
-    onEvent: (data: DataResponse<InterfaceEventOut>) => void,
+    onEvent: (data: InterfaceEventOut) => void,
   ) {
     this.dataBinder.unsubscribeNamespace(`interface-events/${labId}`, onEvent);
   }
