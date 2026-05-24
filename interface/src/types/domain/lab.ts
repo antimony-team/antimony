@@ -122,3 +122,21 @@ export enum LabCommand {
   OpenShell,
   CloseShell,
 }
+
+export type InterfaceEventOut = {
+  timestamp: string;
+  containerId: string;
+  ifName: string;
+  mac: string;
+  mtu: string;
+  origin: string;
+  rxBps: string;
+  rxBytes: string;
+  rxPackets: string;
+  rxPps: string;
+  state: string;
+  txBps: string;
+  txBytes: string;
+  txPackets: string;
+  type: string;
+};

@@ -48,6 +48,8 @@
     "react-tooltip": "^5.29.0",
     "serve-handler": "^6.1.7",
     "socket.io-client": "^4.8.1",
+    "uplot": "^1.6.32",
+    "uplot-react": "^1.2.4",
     "url": "^0.11.4",
     "uuid": "^11.1.0",
     "xterm-for-react": "^1.0.4",

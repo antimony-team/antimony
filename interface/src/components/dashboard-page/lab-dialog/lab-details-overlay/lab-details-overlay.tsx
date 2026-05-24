@@ -1,15 +1,21 @@
 import './lab-details-overlay.sass';
 import {If} from '@sb/types/control';
-import {Lab} from '@sb/types/domain/lab';
+import {InterfaceEventOut, Lab} from '@sb/types/domain/lab';
 
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
-import React, {useMemo} from 'react';
+import React, {useCallback, useMemo, useRef} from 'react';
 import {Tooltip, TooltipRefProps} from 'react-tooltip';
 import {Tooltip as PrimeTooltip} from 'primereact/tooltip';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {getNodeDisplayName} from '@sb/lib/utils/utils';
+import {useLabStore} from '@sb/lib/stores/root-store';
+
+import UplotReact from 'uplot-react';
+import uplot from 'uplot';
+
+import 'uplot/dist/uPlot.min.css';
 
 interface LabDetailsOverlayProps {
   overlayRef: React.RefObject<TooltipRefProps | null>;
@@ -32,6 +38,8 @@ const buttonTooltipOptions: TooltipOptions = {
 };
 
 const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
+  const labStore = useLabStore();
+
   const node = useMemo(() => {
     if (
       !props.nodeId ||
@@ -66,6 +74,173 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
     </span>
   );
 
+  function onOpen() {
+    if (!props.lab) return;
+
+    // setStart(0);
+
+    const now = Date.now() / 1000;
+    bufferRef.current = [[], [], []];
+    chartRef.current?.setData(bufferRef.current);
+    // chartRef.current.setData([displayTs, displayVs]);
+
+    labStore.subscribeInterfaceEvents(props.lab.id, handleData);
+  }
+
+  function onClose() {
+    if (!props.lab) return;
+
+    labStore.unsubscribeInterfaceEvents(props.lab.id, handleData);
+  }
+
+  const formatBps = v => {
+    if (v == null) return '';
+    const abs = Math.abs(v);
+    const fmt = n => n.toFixed(1).replace(/\.0$/, '');
+    if (abs >= 1e9) return fmt(v / 1e9) + ' Gbps';
+    if (abs >= 1e6) return fmt(v / 1e6) + ' Mbps';
+    if (abs >= 1e3) return fmt(v / 1e3) + ' Kbps';
+    return v.toFixed(0) + ' bps';
+  };
+
+  const options: uplot.Options = {
+    width: 800,
+    height: 300,
+    cursor: {
+      drag: {
+        x: false,
+        y: false,
+      },
+      points: {show: false},
+    },
+    padding: [null, 40, null, null],
+    scales: {
+      x: {
+        time: true,
+        range: () => {
+          const [ts] = bufferRef.current;
+          const end = ts.length ? ts[ts.length - 1] : Date.now() / 1000;
+          return [end - 20, end];
+        },
+      },
+      y: {
+        range: (_u, _min, max) => [0, max || 100],
+      },
+    },
+    axes: [
+      {
+        stroke: '#cdcbcb',
+        splits: (_u, _axisIdx, min, max) => [min, max],
+        values: (_u, ticks) => {
+          return ticks.map(t => new Date(t * 1000).toLocaleTimeString());
+        },
+      },
+      {
+        stroke: '#cdcbcb',
+        grid: {stroke: '#3d3d3d', width: 1},
+        values: (_u, ticks) => ticks.map(formatBps),
+        size: 80,
+      },
+    ],
+    series: [
+      {
+        value: (_u, t) => {
+          return t === null ? '--' : new Date(t * 1000).toLocaleTimeString();
+        },
+      },
+      {
+        label: 'TX',
+        stroke: '#f59e0b',
+        fill: 'rgba(245, 158, 11, 0.15)',
+        width: 2,
+        value: (_u, v) => (v === null ? '--' : formatBps(v)),
+      },
+      {
+        label: 'RX',
+        stroke: '#3b82f6',
+        fill: 'rgba(59, 130, 246, 0.15)',
+        width: 2,
+        value: (_u, v) => (v === null ? '--' : formatBps(v)),
+      },
+    ],
+    hooks: {
+      draw: [
+        u => {
+          const {ctx} = u;
+          const {left, top, width, height} = u.bbox;
+          ctx.save();
+          ctx.strokeStyle = '#3d3d3d';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(left, top, width, height);
+          ctx.restore();
+        },
+      ],
+    },
+  };
+
+  // const [data, setData] = useState<[number[], number[]]>([[], []]);
+  const bufferRef = useRef<[number[], number[], number[]]>([[], [], []]);
+  const chartRef = useRef(null);
+  // const currentBucketRef = useRef({bucketTs: 0, sum: 0, count: 1});
+  // const latestTsRef = useRef(0);
+
+  const handleData = useCallback(
+    (data: InterfaceEventOut) => {
+      if (!node) return;
+
+      if (data.ifName !== 'eth0') return;
+
+      console.log(data);
+
+      console.log(node.containerId);
+      if (data.containerId !== node.containerId) {
+        return;
+      }
+
+      // const ts_sec = Date.parse(data.timestamp) / 1000;
+
+      const ts_sec = Date.parse(data.timestamp) / 1000;
+      // latestTsRef.current = Math.max(latestTsRef.current, ts_sec);
+
+      // const bucketTs = Math.floor(ts_sec);
+      // const bucket = currentBucketRef.current;
+      const txValue = parseInt(data.txBps);
+      const rxValue = parseInt(data.rxBps);
+
+      console.log('TX PACKETS', txValue);
+      console.log('RX PACKETS', rxValue);
+
+      // if (bucket && bucket.bucketTs === bucketTs) {
+      //   bucket.sum += value;
+      //   bucket.count += 1;
+      //   return;
+      // }
+
+      const [ts, txs, rxs] = bufferRef.current;
+
+      if (ts.length === 0) {
+        ts.push(ts_sec - 20);
+        txs.push(txValue);
+        rxs.push(rxValue);
+      }
+      // if (bucket) {
+      ts.push(ts_sec);
+      txs.push(txValue); // average, per earlier discussion
+      rxs.push(rxValue); // average, per earlier discussion
+      // }
+
+      // const cutoff = ts_sec - 20;
+      // while (ts.length && ts[0] < cutoff) {
+      //   ts.shift();
+      //   vs.shift();
+      // }
+
+      // currentBucketRef.current = {bucketTs, sum: value, count: 1};
+      chartRef.current.setData([ts, txs, rxs]);
+    },
+    [props.nodeId],
+  );
+
   return (
     <Tooltip
       ref={props.overlayRef}
@@ -73,6 +248,8 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
       place="right"
       imperativeModeOnly={true}
       border="1px solid var(--primary-color-border)"
+      afterShow={onOpen}
+      afterHide={onClose}
     >
       <If condition={node !== null}>
         <div className="flex flex-column gap-1">
@@ -152,6 +329,15 @@ const LabDetailsOverlay = observer((props: LabDetailsOverlayProps) => {
             disabled={!nodeActionChecker.canStop}
             tooltip="Stop Node"
             tooltipOptions={buttonTooltipOptions}
+          />
+        </div>
+        <div className="lab-details-plot-container">
+          <UplotReact
+            options={options}
+            // data={data}
+            onCreate={chart => {
+              chartRef.current = chart;
+            }}
           />
         </div>
       </If>

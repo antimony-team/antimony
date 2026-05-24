@@ -13,6 +13,7 @@ import {
   Instance,
   InstanceOut,
   InstanceState,
+  InterfaceEventOut,
   Lab,
   LabCommand,
   LabCommandData,
@@ -22,7 +23,7 @@ import {
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
-import {action, computed, observable, observe, runInAction} from 'mobx';
+import {action, computed, observable, observe, runInAction, toJS} from 'mobx';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -48,6 +49,8 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
   private statusMessageStore: StatusMessageStore;
+
+  private interfaceEventSubscriptions: Map<string, Subscription> = new Map();
 
   constructor(
     rootStore: RootStore,
@@ -128,6 +131,20 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return Result.createOk(response);
   }
 
+  public subscribeInterfaceEvents(
+    labId: string,
+    onEvent: (data: DataResponse<InterfaceEventOut>) => void,
+  ) {
+    this.dataBinder.subscribeNamespace(`interface-events/${labId}`, onEvent);
+  }
+
+  public unsubscribeInterfaceEvents(
+    labId: string,
+    onEvent: (data: DataResponse<InterfaceEventOut>) => void,
+  ) {
+    this.dataBinder.unsubscribeNamespace(`interface-events/${labId}`, onEvent);
+  }
+
   public async deployLab(lab: Lab): Promise<Result<null>> {
     const result = await this.sendLabCommand({
       labId: lab.id,
@@ -140,6 +157,20 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         'Failed to deploy lab',
       );
     }
+
+    if (this.interfaceEventSubscriptions.has(lab.id)) {
+      this.dataBinder.unsubscribeNamespace(
+        `interface-events/${lab.id}`,
+        this.onLabInterfaceEvent.bind(this),
+      );
+    }
+
+    const subscription = this.dataBinder.subscribeNamespace(
+      `interface-events/${lab.id}`,
+      this.onLabInterfaceEvent.bind(this),
+    );
+
+    this.interfaceEventSubscriptions.set(lab.id, subscription);
 
     return result;
   }
@@ -230,6 +261,10 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     } else {
       void this.fetch();
     }
+  }
+
+  private onLabInterfaceEvent(data: DataResponse<InterfaceEventOut>) {
+    console.log('Lab event: ', toJS(data));
   }
 
   @action
