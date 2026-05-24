@@ -13,6 +13,7 @@ import (
 	"antimonyBackend/utils"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -49,6 +50,8 @@ type (
 		RunShellManager()
 
 		ListenToProviderEvents()
+
+		ListenToContainerlabEvents()
 	}
 
 	labService struct {
@@ -203,10 +206,72 @@ func (s *labService) RunShellManager() {
 	}
 }
 
+func (s *labService) ListenToContainerlabEvents() {
+	ctx := context.Background()
+
+	_ = s.deploymentProvider.RegisterEventListener(ctx, func(containerlabEvent deployment.ContainerlabEvent) {
+		var namespace socket.OutputNamespace[InterfaceEventOut]
+		var targetLabId *string
+
+		s.instancesMutex.Lock()
+		for labId, instance := range s.instances {
+			_, hasMatched := lo.Find(instance.Nodes, func(item InstanceNode) bool {
+				return item.ContainerId == containerlabEvent.ActorID
+			})
+
+			if hasMatched {
+				targetLabId = &labId
+				namespace = instance.InterfaceEventsNamespace
+				break
+			}
+		}
+		s.instancesMutex.Unlock()
+
+		if targetLabId == nil {
+			return
+		}
+
+		if containerlabEvent.Type == "container" {
+			//s.labUpdatesNamespace.Send(LabUpdateOut{
+			//	LabId: targetLabId,
+			//})
+			//return
+		} else if containerlabEvent.Type == "interface" {
+			var attributes deployment.InterfaceEventAttributes
+			if err := json.Unmarshal(containerlabEvent.Attributes, &attributes); err != nil {
+				log.Errorf("Failed to unmarshal interface event attributes: %s", err.Error())
+				return
+			}
+
+			if attributes.Ifname == "lo" {
+				return
+			}
+
+			namespace.Send(InterfaceEventOut{
+				Timestamp:   containerlabEvent.Timestamp,
+				ContainerId: containerlabEvent.ActorID,
+				Ifname:      attributes.Ifname,
+				MAC:         attributes.MAC,
+				MTU:         attributes.MTU,
+				Origin:      attributes.Origin,
+				RxBps:       attributes.RxBps,
+				RxBytes:     attributes.RxBytes,
+				RxPackets:   attributes.RxPackets,
+				RxPps:       attributes.RxPps,
+				State:       attributes.State,
+				TxBps:       attributes.TxBps,
+				TxBytes:     attributes.TxBytes,
+				TxPackets:   attributes.TxPackets,
+				Type:        attributes.Type,
+			})
+		}
+	})
+}
+
 func (s *labService) ListenToProviderEvents() {
 	ctx := context.Background()
 
-	err := s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
+	_ = s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
 		var targetLabId *string
 
 		s.instancesMutex.Lock()
@@ -228,10 +293,6 @@ func (s *labService) ListenToProviderEvents() {
 			})
 		}
 	})
-
-	if err != nil {
-		return
-	}
 }
 
 func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]LabOut, error) {
@@ -790,6 +851,15 @@ func (s *labService) deployLab(lab *Lab) error {
 	}
 
 	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, true, nil, "logs", lab.UUID)
+	interfaceEventsNamespace := socket.CreateOutputNamespace[InterfaceEventOut](
+		s.socketManager,
+		false,
+		false,
+		true,
+		nil,
+		"interface-events",
+		lab.UUID,
+	)
 	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
 
 	if err != nil {
@@ -804,7 +874,7 @@ func (s *labService) deployLab(lab *Lab) error {
 		return utils.ErrAntimony
 	}
 
-	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
+	instance := s.createInstance(logNamespace, interfaceEventsNamespace, runTopologyFile, runTopologyDefinition)
 	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
 
@@ -946,22 +1016,24 @@ func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
 
 func (s *labService) createInstance(
 	logNamespace socket.OutputNamespace[string],
+	interfaceEventsNamespace socket.OutputNamespace[InterfaceEventOut],
 	runTopologyFile string,
 	runTopologyDefinition string,
 ) *Instance {
 	runTopologyDefintionParsed, _ := s.schemaService.Parse(runTopologyDefinition)
 
 	return &Instance{
-		Deployed:          time.Now(),
-		LatestStateChange: time.Now(),
-		State:             InstanceStates.Deploying,
-		Recovered:         false,
-		Mutex:             sync.Mutex{},
-		DeploymentWorker:  nil,
-		LogNamespace:      logNamespace,
-		TopologyFile:      runTopologyFile,
-		NodeKinds:         s.extractNodeKinds(*runTopologyDefintionParsed),
-		NodeLabels:        s.extractNodeLabels(*runTopologyDefintionParsed),
+		Deployed:                 time.Now(),
+		LatestStateChange:        time.Now(),
+		State:                    InstanceStates.Deploying,
+		Recovered:                false,
+		Mutex:                    sync.Mutex{},
+		DeploymentWorker:         nil,
+		LogNamespace:             logNamespace,
+		InterfaceEventsNamespace: interfaceEventsNamespace,
+		TopologyFile:             runTopologyFile,
+		NodeKinds:                s.extractNodeKinds(*runTopologyDefintionParsed),
+		NodeLabels:               s.extractNodeLabels(*runTopologyDefintionParsed),
 	}
 }
 
@@ -1263,6 +1335,16 @@ func (s *labService) reviveLabs() {
 				s.socketManager, false, true, true, nil, "logs", lab.UUID,
 			)
 
+			interfaceEventsNamespace := socket.CreateOutputNamespace[InterfaceEventOut](
+				s.socketManager,
+				false,
+				false,
+				true,
+				nil,
+				"interface-events",
+				lab.UUID,
+			)
+
 			// Create log namespaces for each container in the lab
 			for _, container := range containers {
 				containerLogNamespace := socket.CreateOutputNamespace[string](
@@ -1295,15 +1377,16 @@ func (s *labService) reviveLabs() {
 			})
 
 			instance := &Instance{
-				State:             InstanceStates.Running,
-				Nodes:             instanceNodes,
-				Deployed:          time.Now(),
-				LatestStateChange: time.Now(),
-				Recovered:         true,
-				TopologyFile:      s.storageManager.GetRunTopologyFile(lab.UUID),
-				LogNamespace:      logNamespace,
-				NodeLabels:        nodeLabels,
-				NodeKinds:         nodeKinds,
+				State:                    InstanceStates.Running,
+				Nodes:                    instanceNodes,
+				Deployed:                 time.Now(),
+				LatestStateChange:        time.Now(),
+				Recovered:                true,
+				TopologyFile:             s.storageManager.GetRunTopologyFile(lab.UUID),
+				LogNamespace:             logNamespace,
+				InterfaceEventsNamespace: interfaceEventsNamespace,
+				NodeLabels:               nodeLabels,
+				NodeKinds:                nodeKinds,
 			}
 
 			for i := range instanceNodes {

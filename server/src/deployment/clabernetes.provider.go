@@ -176,6 +176,13 @@ func (p *ClabernetesProvider) RegisterListener(ctx context.Context, onUpdate fun
 	return nil
 }
 
+func (p *ClabernetesProvider) RegisterEventListener(
+	ctx context.Context,
+	onUpdate func(containerlabEvent ContainerlabEvent),
+) error {
+	return nil
+}
+
 func (p *ClabernetesProvider) StreamContainerLogs(
 	ctx context.Context,
 	topologyFile string,

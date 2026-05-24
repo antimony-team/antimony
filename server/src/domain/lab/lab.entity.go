@@ -72,9 +72,10 @@ type Instance struct {
 	// Recovered Whether the instance has been recovered after an Antimony restart
 	Recovered bool
 
-	TopologyFile       string
-	TopologyDefinition string
-	LogNamespace       socket.OutputNamespace[string]
+	TopologyFile             string
+	TopologyDefinition       string
+	LogNamespace             socket.OutputNamespace[string]
+	InterfaceEventsNamespace socket.OutputNamespace[InterfaceEventOut]
 
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
@@ -218,4 +219,22 @@ type NodeKindConfig struct {
 	SSHUsername *string `yaml:"sshUsername"`
 	SSHPassword *string `yaml:"sshPassword"`
 	CanRestart  *bool   `yaml:"canRestart"`
+}
+
+type InterfaceEventOut struct {
+	Timestamp   time.Time `json:"timestamp"`
+	ContainerId string    `json:"containerId"`
+	Ifname      string    `json:"ifName"`
+	MAC         string    `json:"mac"`
+	MTU         string    `json:"mtu"`
+	Origin      string    `json:"origin"`
+	RxBps       string    `json:"rxBps"`
+	RxBytes     string    `json:"rxBytes"`
+	RxPackets   string    `json:"rxPackets"`
+	RxPps       string    `json:"rxPps"`
+	State       string    `json:"state"`
+	TxBps       string    `json:"txBps"`
+	TxBytes     string    `json:"txBytes"`
+	TxPackets   string    `json:"txPackets"`
+	Type        string    `json:"type"`
 }

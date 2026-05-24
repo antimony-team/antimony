@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -232,6 +233,42 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 			}
 		}
 	}
+}
+
+func (p *ContainerlabProvider) RegisterEventListener(
+	ctx context.Context,
+	onUpdate func(containerlabEvent ContainerlabEvent),
+) error {
+	cmd := exec.CommandContext(ctx, "containerlab", "events", "--format", "json", "--interface-stats")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+
+	log.Infof("[EVENTS] Starting event listener")
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		var output ContainerlabEvent
+		rawOutput := scanner.Text()
+		err := json.Unmarshal([]byte(rawOutput), &output)
+		if err != nil {
+			log.Errorf("[EVENTS] Failed to parse event: %s", err.Error())
+		} else {
+			onUpdate(output)
+		}
+	}
+
+	//runClabCommand(cmd, func(output string) {
+	//	log.Infof("[EVENTS] Received: %s", output)
+	//}, nil)
+
+	return nil
 }
 
 func (p *ContainerlabProvider) StreamContainerLogs(

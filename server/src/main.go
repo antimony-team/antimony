@@ -103,7 +103,8 @@ func main() {
 
 	go labService.RunScheduler()
 	go labService.RunShellManager()
-	go labService.ListenToProviderEvents()
+	//go labService.ListenToProviderEvents()
+	go labService.ListenToContainerlabEvents()
 
 	go func() {
 		if err := captureService.Start(); err != nil {
