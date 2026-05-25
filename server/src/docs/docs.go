@@ -209,6 +209,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/config": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "config"
+                ],
+                "summary": "Get the server configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "The user doesn't have access to the resource",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
         "/devices": {
             "get": {
                 "security": [
@@ -1266,6 +1302,31 @@ const docTemplate = `{
                 }
             }
         },
+        "serverConfig.ServerConfigOut": {
+            "type": "object",
+            "properties": {
+                "capture": {
+                    "$ref": "#/definitions/serverConfig.captureConfigOut"
+                }
+            }
+        },
+        "serverConfig.captureConfigOut": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "excludedInterfaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "port": {
+                    "type": "integer"
+                }
+            }
+        },
         "topology.BindFileIn": {
             "type": "object",
             "required": [
@@ -1414,6 +1475,17 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/lab.LabOut"
+                    }
+                }
+            }
+        },
+        "utils.OkResponse-array_serverConfig_ServerConfigOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/serverConfig.ServerConfigOut"
                     }
                 }
             }

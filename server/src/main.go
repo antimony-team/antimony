@@ -10,6 +10,7 @@ import (
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
+	"antimonyBackend/domain/serverConfig"
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
@@ -70,6 +71,9 @@ func main() {
 	)
 
 	var (
+		serverConfigService = serverConfig.CreateService(antimonyConfig)
+		serverConfigHandler = serverConfig.CreateHandler(serverConfigService)
+
 		devicesService = device.CreateService(antimonyConfig)
 		devicesHandler = device.CreateHandler(devicesService)
 
@@ -124,6 +128,7 @@ func main() {
 	device.RegisterRoutes(webServer, devicesHandler, authManager)
 	topology.RegisterRoutes(webServer, topologyHandler, authManager)
 	collection.RegisterRoutes(webServer, collectionHandler, authManager)
+	serverConfig.RegisterRoutes(webServer, serverConfigHandler, authManager)
 
 	// Register Socket.IO endpoints in web server
 	c := socketio.DefaultServerOptions()

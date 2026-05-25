@@ -177,6 +177,22 @@ definitions:
       topologyId:
         type: string
     type: object
+  serverConfig.ServerConfigOut:
+    properties:
+      capture:
+        $ref: '#/definitions/serverConfig.captureConfigOut'
+    type: object
+  serverConfig.captureConfigOut:
+    properties:
+      enabled:
+        type: boolean
+      excludedInterfaces:
+        items:
+          type: string
+        type: array
+      port:
+        type: integer
+    type: object
   topology.BindFileIn:
     properties:
       content:
@@ -274,6 +290,13 @@ definitions:
       payload:
         items:
           $ref: '#/definitions/lab.LabOut'
+        type: array
+    type: object
+  utils.OkResponse-array_serverConfig_ServerConfigOut:
+    properties:
+      payload:
+        items:
+          $ref: '#/definitions/serverConfig.ServerConfigOut'
         type: array
     type: object
   utils.OkResponse-array_topology_TopologyOut:
@@ -430,6 +453,28 @@ paths:
       summary: Update an existing collection
       tags:
       - collections
+  /config:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: The user doesn't have access to the resource
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Get the server configuration
+      tags:
+      - config
   /devices:
     get:
       produces:
