@@ -209,7 +209,6 @@ func (s *labService) ListenToContainerlabEvents() {
 
 	_ = s.deploymentProvider.RegisterEventListener(ctx, func(containerlabEvent deployment.ContainerlabEvent) {
 		var targetLabId *string
-		var targetInstance *Instance
 		var targetNode *InstanceNode
 
 		s.instancesMutex.Lock()
@@ -220,7 +219,6 @@ func (s *labService) ListenToContainerlabEvents() {
 
 			if hasMatched {
 				targetLabId = &labId
-				targetInstance = instance
 				targetNode = &node
 				break
 			}
@@ -237,6 +235,7 @@ func (s *labService) ListenToContainerlabEvents() {
 			//})
 			//return
 		} else if containerlabEvent.Type == "interface" {
+			var hasNamespace bool
 			var namespace socket.OutputNamespace[InterfaceEventOut]
 			var attributes deployment.InterfaceEventAttributes
 
@@ -245,26 +244,10 @@ func (s *labService) ListenToContainerlabEvents() {
 				return
 			}
 
-			targetInstance.Mutex.Lock()
-			var hasNamespace bool
-			// Create interface events namespace for node and interface if it doesn't exist yet
+			// Ignore event if event namespace doesn't exist for source interface
 			if namespace, hasNamespace = targetNode.InterfaceEventsNamespaceMap[attributes.Ifname]; !hasNamespace {
-				namespace = socket.CreateOutputNamespace[InterfaceEventOut](
-					s.socketManager,
-					false,
-					&socket.BacklogConfig{
-						Capacity: 20,
-						Kind:     utils.RingKindValue,
-					},
-					true,
-					nil,
-					"interface-events",
-					containerlabEvent.ActorID,
-					attributes.Ifname,
-				)
-				targetNode.InterfaceEventsNamespaceMap[attributes.Ifname] = namespace
+				return
 			}
-			targetInstance.Mutex.Unlock()
 
 			namespace.Send(InterfaceEventOut{
 				Timestamp:   containerlabEvent.Timestamp,
@@ -1035,13 +1018,60 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	}
 }
 
+func (s *labService) getInterfaceEventNamespace(
+	node *InstanceNode,
+	ifName string,
+) socket.OutputNamespace[InterfaceEventOut] {
+	var hasNamespace bool
+	var namespace socket.OutputNamespace[InterfaceEventOut]
+
+	if namespace, hasNamespace = node.InterfaceEventsNamespaceMap[ifName]; !hasNamespace {
+		namespace = socket.CreateOutputNamespace[InterfaceEventOut](
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: 20,
+				Kind:     utils.RingKindValue,
+			},
+			true,
+			nil,
+			"interface-events",
+			node.ContainerId,
+			ifName,
+		)
+		node.InterfaceEventsNamespaceMap[ifName] = namespace
+	}
+
+	return namespace
+}
+
 func (s *labService) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *Lab) {
 	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
 	interfaces = utils.FilterList(interfaces, s.config.Capture.ExcludedInterfaces)
 
 	instance.Mutex.Lock()
+
+	for _, interfaceName := range interfaces {
+		if _, hasNamespace := node.InterfaceEventsNamespaceMap[interfaceName]; !hasNamespace {
+			node.InterfaceEventsNamespaceMap[interfaceName] = socket.CreateOutputNamespace[InterfaceEventOut](
+				s.socketManager,
+				false,
+				&socket.BacklogConfig{
+					Capacity: 20,
+					Kind:     utils.RingKindValue,
+				},
+				true,
+				nil,
+				"interface-events",
+				node.ContainerId,
+				interfaceName,
+			)
+		}
+	}
+
 	node.State = deployment.NodeStates.Running
 	node.Interfaces = interfaces
+
 	instance.Mutex.Unlock()
 
 	s.labUpdatesNamespace.Send(LabUpdateOut{
@@ -1275,6 +1305,7 @@ func (s *labService) containerToInstanceNode(
 		State:                       nodeState,
 		ContainerId:                 container.ContainerId,
 		ContainerName:               container.Name,
+		Interfaces:                  make([]string, 0),
 		InterfaceEventsNamespaceMap: make(map[string]socket.OutputNamespace[InterfaceEventOut]),
 		CanRestart:                  canRestart,
 	}
