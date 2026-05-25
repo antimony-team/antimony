@@ -1118,7 +1118,7 @@
                 "containerId": {
                     "type": "string"
                 },
-                "containnerName": {
+                "containerName": {
                     "type": "string"
                 },
                 "interfaceCaptures": {
@@ -1127,6 +1127,10 @@
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "interfaceEventsNamespaceMap": {
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "ipv4": {
                     "type": "string"

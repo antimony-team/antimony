@@ -72,10 +72,9 @@ type Instance struct {
 	// Recovered Whether the instance has been recovered after an Antimony restart
 	Recovered bool
 
-	TopologyFile             string
-	TopologyDefinition       string
-	LogNamespace             socket.OutputNamespace[string]
-	InterfaceEventsNamespace socket.OutputNamespace[InterfaceEventOut]
+	TopologyFile       string
+	TopologyDefinition string
+	LogNamespace       socket.OutputNamespace[string]
 
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
@@ -103,7 +102,9 @@ type InstanceNode struct {
 	IPv6          string               `json:"ipv6"`
 	State         deployment.NodeState `json:"state"`
 	ContainerId   string               `json:"containerId"`
-	ContainerName string               `json:"containnerName"`
+	ContainerName string               `json:"containerName"`
+
+	InterfaceEventsNamespaceMap map[string]socket.OutputNamespace[InterfaceEventOut]
 
 	// TODO(kian): Implement properly
 	InterfaceCaptures map[string]string `json:"interfaceCaptures"`

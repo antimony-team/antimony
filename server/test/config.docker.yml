@@ -27,6 +27,10 @@ capture:
   edgesharkPort: 5001
   sshKeyPath: ./key
   excludedInterfaces: [ "lo", "gway-2800", "monit_in", "mgmt0-0" ]
+streaming:
+  containerLogBacklog: 1000
+  clabLogBacklog: 1000
+  shellLinesBacklog: 1000
 filesystem:
   storage: ./storage/
   run: ./run/

@@ -1126,7 +1126,7 @@ const docTemplate = `{
                 "containerId": {
                     "type": "string"
                 },
-                "containnerName": {
+                "containerName": {
                     "type": "string"
                 },
                 "interfaceCaptures": {
@@ -1135,6 +1135,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "interfaceEventsNamespaceMap": {
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "ipv4": {
                     "type": "string"

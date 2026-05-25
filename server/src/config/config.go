@@ -15,6 +15,7 @@ type (
 		Shell        ShellConfig      `yaml:"shell"`
 		Database     DatabaseConfig   `yaml:"database"`
 		Capture      CaptureConfig    `yaml:"capture"`
+		Streaming    StreamingConfig  `yaml:"streaming"`
 		FileSystem   FilesystemConfig `yaml:"fileSystem"`
 		Containerlab ClabConfig       `yaml:"containerlab"`
 	}
@@ -36,6 +37,12 @@ type (
 		EdgesharkPort      int      `yaml:"edgesharkPort"`
 		SSHKeyPath         string   `yaml:"sshKeyPath"`
 		ExcludedInterfaces []string `yaml:"excludedInterfaces"`
+	}
+
+	StreamingConfig struct {
+		ContainerLogBacklog int `yaml:"containerLogBacklog"`
+		ClabLogBacklog      int `yaml:"clabLogBacklog"`
+		ShellLinesBacklog   int `yaml:"shellLinesBacklog"`
 	}
 
 	AuthConfig struct {
@@ -124,14 +131,18 @@ func defaultConfig() *AntimonyConfig {
 			LocalFile: "./test.db",
 		},
 		Capture: CaptureConfig{
-			Enabled:       false,
-			SSHPort:       6969,
-			SSHHost:       "0.0.0.0",
-			EdgesharkHost: "localhost",
-			EdgesharkPort: 5001,
-			SSHKeyPath:    "./key",
-			//Cmd:      "ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -",
+			Enabled:            false,
+			SSHPort:            6969,
+			SSHHost:            "0.0.0.0",
+			EdgesharkHost:      "localhost",
+			EdgesharkPort:      5001,
+			SSHKeyPath:         "./key",
 			ExcludedInterfaces: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
+		},
+		Streaming: StreamingConfig{
+			ContainerLogBacklog: 1000,
+			ClabLogBacklog:      1000,
+			ShellLinesBacklog:   1000,
 		},
 		FileSystem: FilesystemConfig{
 			Storage: "./storage/",

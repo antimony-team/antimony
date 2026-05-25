@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -23,11 +24,19 @@ type (
 		// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
 		Send(msg O)
 
+		SendBulk(msgs []O)
+
 		// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
 		SendTo(msg O, receivers []string)
 
+		// SendTo Sends multiple messages to a set of user IDs. This only works in authenticated namespaces.
+		SendBulkTo(msgs []O, receivers []string)
+
 		// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
 		SendToAdmins(msg O)
+
+		// SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
+		SendBulkToAdmins(msgs []O)
 
 		// ClearBacklog Removes all messages from the backlog
 		ClearBacklog()
@@ -52,9 +61,8 @@ type (
 		onData DataInputHandler[I]
 
 		// The backlog of previously sent messages
-		backlog      []O
+		backlog      utils.Ring[O]
 		backlogMutex sync.Mutex
-		useBacklog   bool
 
 		namespaceName string
 		namespace     socketio.NamespaceInterface
@@ -67,20 +75,29 @@ type (
 		onResponse func(response utils.OkResponse[any]),
 		onError func(response utils.ErrorResponse),
 	)
+
+	BacklogConfig struct {
+		Capacity int
+		Kind     utils.RingKind
+	}
 )
 
 // CreateIONamespace Creates a new socket.io namespace for a given socket manager.
 // The namespace can be anonymous, meaning that users don't need to authenticate themselves when connecting.
 // In anonymous namespaces, NamespaceManager.SendTo and NamespaceManager.SendToAdmins aren't available.
 //
-// If a backlog is used, new clients will receive all previously sent messages via the 'backlog' event upon connecting.
+// If a backlog config is specified, newly connecting clients will immediately receive previously sent messages stored
+// in the backlog ring buffer via the 'backlog' event.
 //
 // Optionally, one can provide a onData callback which is called whenever a client sends a 'data' event in the namespace.
 // The namespace path will be concatenated with slashes to form the namespace name (e.g. [foo, bar] -> /foo/bar).
+//
+// If useRawOutput is set to true, output data will be sent as is, without any wrapping. This also means that bulk
+// messages will be sent as a single message, without individual wrapping.
 func CreateIONamespace[I any, O any](
 	socketManager SocketManager,
 	isAnonymous bool,
-	useBacklog bool,
+	backlogConfig *BacklogConfig,
 	useRawOutput bool,
 	onData DataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
@@ -96,16 +113,20 @@ func CreateIONamespace[I any, O any](
 		useRawInput = false
 	}
 
+	var backlog utils.Ring[O]
+	if backlogConfig != nil {
+		backlog = utils.CreateRing[O](backlogConfig.Kind, backlogConfig.Capacity)
+	}
+
 	manager := &namespaceManager[I, O]{
 		connectedClients:      make([]*SocketConnectedUser, 0),
 		connectedClientsMap:   make(map[string]*SocketConnectedUser),
 		connectedClientsMutex: sync.Mutex{},
 		socketManager:         socketManager,
-		backlog:               make([]O, 0),
+		backlog:               backlog,
 		backlogMutex:          sync.Mutex{},
 		onData:                onData,
 		isAnonymous:           isAnonymous,
-		useBacklog:            useBacklog,
 		useRawOutput:          useRawOutput,
 		useRawInput:           useRawInput,
 	}
@@ -125,7 +146,7 @@ func CreateIONamespace[I any, O any](
 func CreateInputNamespace[I any](
 	socketManager SocketManager,
 	isAnonymous bool,
-	useBacklog bool,
+	backlogConfig *BacklogConfig,
 	onData DataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
@@ -133,17 +154,18 @@ func CreateInputNamespace[I any](
 	return CreateIONamespace[I, any](
 		socketManager,
 		isAnonymous,
-		useBacklog,
+		backlogConfig,
 		true,
 		onData,
 		accessGroup,
-		namespacePath...)
+		namespacePath...,
+	)
 }
 
 func CreateOutputNamespace[O any](
 	socketManager SocketManager,
 	isAnonymous bool,
-	useBacklog bool,
+	backlogConfig *BacklogConfig,
 	useRawOutput bool,
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
@@ -151,16 +173,17 @@ func CreateOutputNamespace[O any](
 	return CreateIONamespace[any, O](
 		socketManager,
 		isAnonymous,
-		useBacklog,
+		backlogConfig,
 		useRawOutput,
 		nil,
 		accessGroup,
-		namespacePath...)
+		namespacePath...,
+	)
 }
 
 func (m *namespaceManager[I, O]) ClearBacklog() {
 	m.backlogMutex.Lock()
-	m.backlog = make([]O, 0)
+	m.backlog.Clear()
 	m.backlogMutex.Unlock()
 }
 
@@ -168,9 +191,12 @@ func (m *namespaceManager[I, O]) Send(msg O) {
 	m.sendTo(msg, m.connectedClients)
 }
 
+func (m *namespaceManager[I, O]) SendBulk(msgs []O) {
+	m.sendBulkTo(msgs, m.connectedClients)
+}
+
 func (m *namespaceManager[I, O]) SendTo(msg O, receivers []string) {
 	if m.isAnonymous {
-		log.Errorf("Server is trying to send an addressed socket message in an anonymous namespace. Aborting.")
 		return
 	}
 
@@ -182,9 +208,21 @@ func (m *namespaceManager[I, O]) SendTo(msg O, receivers []string) {
 	}))
 }
 
+func (m *namespaceManager[I, O]) SendBulkTo(msgs []O, receivers []string) {
+	if m.isAnonymous {
+		return
+	}
+
+	m.sendBulkTo(msgs, lo.FilterMap(receivers, func(userId string, _ int) (*SocketConnectedUser, bool) {
+		if client, ok := m.connectedClientsMap[userId]; ok {
+			return client, true
+		}
+		return nil, false
+	}))
+}
+
 func (m *namespaceManager[I, O]) SendToAdmins(msg O) {
 	if m.isAnonymous {
-		log.Errorf("Server is trying to send an addressed socket message in an anonymous namespace. Aborting.")
 		return
 	}
 
@@ -193,10 +231,20 @@ func (m *namespaceManager[I, O]) SendToAdmins(msg O) {
 	}))
 }
 
+func (m *namespaceManager[I, O]) SendBulkToAdmins(msgs []O) {
+	if m.isAnonymous {
+		return
+	}
+
+	m.sendBulkTo(msgs, lo.Filter(m.connectedClients, func(client *SocketConnectedUser, _ int) bool {
+		return client.IsAdmin
+	}))
+}
+
 func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*SocketConnectedUser) {
-	if m.useBacklog {
+	if m.backlog != nil {
 		m.backlogMutex.Lock()
-		m.backlog = append(m.backlog, msg)
+		m.backlog.Add(msg)
 		m.backlogMutex.Unlock()
 	}
 
@@ -209,7 +257,33 @@ func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*SocketConnectedUser)
 		}
 
 		if err != nil {
-			log.Warnf("Failed to emit socket message to client : %s", err.Error())
+			log.Warnf("[SOCK] Failed to emit socket message to client : %s", err.Error())
+		}
+	}
+}
+
+func (m *namespaceManager[I, O]) sendBulkTo(msgs []O, receivers []*SocketConnectedUser) {
+	if m.backlog != nil {
+		m.backlogMutex.Lock()
+		m.backlog.AddMany(msgs)
+		m.backlogMutex.Unlock()
+	}
+
+	for _, client := range receivers {
+		var err error
+		if m.useRawOutput {
+			// Send all messages in a single emit, as for the client it doesn't matter in raw streams
+			err = client.socket.Emit("data", msgs)
+			fmt.Printf("Sending bulk raw data to client %v\n", msgs)
+		} else {
+			fmt.Printf("Sending bulk not raw data to client %v\n", msgs)
+			for _, msg := range msgs {
+				err = client.socket.Emit("data", utils.CreateSocketOkResponse[any](msg))
+			}
+		}
+
+		if err != nil {
+			log.Warnf("[SOCK] Failed to emit socket message to client : %s", err.Error())
 		}
 	}
 }
@@ -218,7 +292,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 	client, ok := clients[0].(*socketio.Socket)
 
 	if !ok {
-		log.Errorf("Received invalid connection: %+v", clients)
+		log.Errorf("[SOCK] Received invalid connection: %+v", clients)
 		return
 	}
 
@@ -233,7 +307,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 		m.connectedClientsMutex.Unlock()
 
 		_ = client.On("disconnect", func(clients ...any) {
-			log.Info("Anonymous user disconnected from socket namespace", "namespace", m.namespaceName)
+			log.Info("[SOCK] Anonymous user disconnected from socket namespace", "namespace", m.namespaceName)
 
 			if i := slices.Index(m.connectedClients, socketClient); i > -1 {
 				m.connectedClientsMutex.Lock()
@@ -242,7 +316,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 			}
 		})
 
-		log.Info("Anonymous user connected to socket namespace", "namespace", m.namespaceName)
+		log.Info("[SOCK] Anonymous user connected to socket namespace", "namespace", m.namespaceName)
 		return
 	}
 
@@ -269,7 +343,13 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 	})
 
 	_ = client.On("disconnect", func(clients ...any) {
-		log.Info("User disconnected from socket namespace", "namespace", m.namespaceName, "user", authUser.UserId)
+		log.Info(
+			"[SOCK] User disconnected from socket namespace",
+			"namespace",
+			m.namespaceName,
+			"user",
+			authUser.UserId,
+		)
 
 		m.connectedClientsMutex.Lock()
 		if i := slices.Index(m.connectedClients, socketClient); i > -1 {
@@ -279,11 +359,11 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 		m.connectedClientsMutex.Unlock()
 	})
 
-	log.Info("User connected to socket namespace", "namespace", m.namespaceName, "user", authUser.UserId)
+	log.Info("[SOCK] User connected to socket namespace", "namespace", m.namespaceName, "user", authUser.UserId)
 
 	// Immediately send backlog to user if backlog is used in namespace
-	if m.useBacklog {
-		_ = client.Emit("backlog", m.backlog)
+	if m.backlog != nil {
+		_ = client.Emit("backlog", m.backlog.Items())
 	}
 }
 

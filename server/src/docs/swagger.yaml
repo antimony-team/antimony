@@ -81,12 +81,15 @@ definitions:
         type: boolean
       containerId:
         type: string
-      containnerName:
+      containerName:
         type: string
       interfaceCaptures:
         additionalProperties:
           type: string
         description: 'TODO(kian): Implement properly'
+        type: object
+      interfaceEventsNamespaceMap:
+        additionalProperties: {}
         type: object
       ipv4:
         type: string

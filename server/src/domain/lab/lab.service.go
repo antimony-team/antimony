@@ -91,7 +91,7 @@ type (
 		Connection       io.ReadWriteCloser
 		ConnectionCancel context.CancelFunc
 		LastInteraction  int64
-		DataNamespace    socket.IONamespace[string, string]
+		DataNamespace    socket.IONamespace[string, byte]
 	}
 )
 
@@ -146,13 +146,13 @@ func CreateService(
 		statusMessageNamespace: statusMessageNamespace,
 	}
 	labService.labCommandsNamespace = socket.CreateInputNamespace[LabCommandData](
-		socketManager, false, false, labService.handleLabCommand, nil, "lab-commands",
+		socketManager, false, nil, labService.handleLabCommand, nil, "lab-commands",
 	)
 	labService.labUpdatesNamespace = socket.CreateOutputNamespace[LabUpdateOut](
-		socketManager, false, false, false, nil, "lab-updates",
+		socketManager, false, nil, false, nil, "lab-updates",
 	)
 	labService.shellCommandsNamespace = socket.CreateOutputNamespace[ShellCommandData](
-		socketManager, false, false, false, nil, "shell-commands",
+		socketManager, false, nil, false, nil, "shell-commands",
 	)
 
 	labService.reviveLabs()
@@ -210,24 +210,26 @@ func (s *labService) ListenToContainerlabEvents() {
 	ctx := context.Background()
 
 	_ = s.deploymentProvider.RegisterEventListener(ctx, func(containerlabEvent deployment.ContainerlabEvent) {
-		var namespace socket.OutputNamespace[InterfaceEventOut]
 		var targetLabId *string
+		var targetInstance *Instance
+		var targetNode *InstanceNode
 
 		s.instancesMutex.Lock()
 		for labId, instance := range s.instances {
-			_, hasMatched := lo.Find(instance.Nodes, func(item InstanceNode) bool {
+			node, hasMatched := lo.Find(instance.Nodes, func(item InstanceNode) bool {
 				return item.ContainerId == containerlabEvent.ActorID
 			})
 
 			if hasMatched {
 				targetLabId = &labId
-				namespace = instance.InterfaceEventsNamespace
+				targetInstance = instance
+				targetNode = &node
 				break
 			}
 		}
 		s.instancesMutex.Unlock()
-
 		if targetLabId == nil {
+			fmt.Printf("Ignoring event for unknown lab: %s\n", containerlabEvent.ActorID)
 			return
 		}
 
@@ -237,15 +239,34 @@ func (s *labService) ListenToContainerlabEvents() {
 			//})
 			//return
 		} else if containerlabEvent.Type == "interface" {
+			var namespace socket.OutputNamespace[InterfaceEventOut]
 			var attributes deployment.InterfaceEventAttributes
+
 			if err := json.Unmarshal(containerlabEvent.Attributes, &attributes); err != nil {
 				log.Errorf("Failed to unmarshal interface event attributes: %s", err.Error())
 				return
 			}
 
-			if attributes.Ifname == "lo" {
-				return
+			targetInstance.Mutex.Lock()
+			var hasNamespace bool
+			// Create interface events namespace for node and interface if it doesn't exist yet
+			if namespace, hasNamespace = targetNode.InterfaceEventsNamespaceMap[attributes.Ifname]; !hasNamespace {
+				namespace = socket.CreateOutputNamespace[InterfaceEventOut](
+					s.socketManager,
+					false,
+					&socket.BacklogConfig{
+						Capacity: 20,
+						Kind:     utils.RingKindValue,
+					},
+					true,
+					nil,
+					"interface-events",
+					containerlabEvent.ActorID,
+					attributes.Ifname,
+				)
+				targetNode.InterfaceEventsNamespaceMap[attributes.Ifname] = namespace
 			}
+			targetInstance.Mutex.Unlock()
 
 			namespace.Send(InterfaceEventOut{
 				Timestamp:   containerlabEvent.Timestamp,
@@ -689,7 +710,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 
 	streamClabOutput(instance.LogNamespace, output)
 
-	// Only report errors if the worker has not been cancelled
+	// Only report errors if the worker has not been canceled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
@@ -724,7 +745,16 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	instance.Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: s.config.Streaming.ContainerLogBacklog,
+				Kind:     utils.RingKindValue,
+			},
+			true, nil,
+			"logs",
+			lab.UUID,
+			node.ContainerId,
 		)
 		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 			containerLogNamespace.Send(data)
@@ -850,16 +880,19 @@ func (s *labService) deployLab(lab *Lab) error {
 		return utils.ErrLabIsDeploying
 	}
 
-	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, true, nil, "logs", lab.UUID)
-	interfaceEventsNamespace := socket.CreateOutputNamespace[InterfaceEventOut](
+	logNamespace := socket.CreateOutputNamespace[string](
 		s.socketManager,
 		false,
-		false,
+		&socket.BacklogConfig{
+			Capacity: s.config.Streaming.ClabLogBacklog,
+			Kind:     utils.RingKindValue,
+		},
 		true,
 		nil,
-		"interface-events",
+		"logs",
 		lab.UUID,
 	)
+
 	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
 
 	if err != nil {
@@ -874,7 +907,7 @@ func (s *labService) deployLab(lab *Lab) error {
 		return utils.ErrAntimony
 	}
 
-	instance := s.createInstance(logNamespace, interfaceEventsNamespace, runTopologyFile, runTopologyDefinition)
+	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
 	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
 
@@ -918,7 +951,7 @@ func (s *labService) deployLab(lab *Lab) error {
 		go s.startNodeStartupListener(&instanceNodes[i], instance, lab)
 	}
 
-	// Only report errors if the deployment worker has not been cancelled
+	// Only report errors if the deployment worker has not been canceled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Warning("Lab Manager",
 			fmt.Sprintf("Failed to get info of lab '%s' (%s)", lab.Name, lab.Topology.Name),
@@ -932,7 +965,17 @@ func (s *labService) deployLab(lab *Lab) error {
 	instance.Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: s.config.Streaming.ContainerLogBacklog,
+				Kind:     utils.RingKindValue,
+			},
+			true,
+			nil,
+			"logs",
+			lab.UUID,
+			node.ContainerId,
 		)
 		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 			containerLogNamespace.Send(data)
@@ -1016,24 +1059,22 @@ func (s *labService) setTopologyDeployStatus(lab Lab, wasSuccessful bool) {
 
 func (s *labService) createInstance(
 	logNamespace socket.OutputNamespace[string],
-	interfaceEventsNamespace socket.OutputNamespace[InterfaceEventOut],
 	runTopologyFile string,
 	runTopologyDefinition string,
 ) *Instance {
 	runTopologyDefintionParsed, _ := s.schemaService.Parse(runTopologyDefinition)
 
 	return &Instance{
-		Deployed:                 time.Now(),
-		LatestStateChange:        time.Now(),
-		State:                    InstanceStates.Deploying,
-		Recovered:                false,
-		Mutex:                    sync.Mutex{},
-		DeploymentWorker:         nil,
-		LogNamespace:             logNamespace,
-		InterfaceEventsNamespace: interfaceEventsNamespace,
-		TopologyFile:             runTopologyFile,
-		NodeKinds:                s.extractNodeKinds(*runTopologyDefintionParsed),
-		NodeLabels:               s.extractNodeLabels(*runTopologyDefintionParsed),
+		Deployed:          time.Now(),
+		LatestStateChange: time.Now(),
+		State:             InstanceStates.Deploying,
+		Recovered:         false,
+		Mutex:             sync.Mutex{},
+		DeploymentWorker:  nil,
+		LogNamespace:      logNamespace,
+		TopologyFile:      runTopologyFile,
+		NodeKinds:         s.extractNodeKinds(*runTopologyDefintionParsed),
+		NodeLabels:        s.extractNodeLabels(*runTopologyDefintionParsed),
 	}
 }
 
@@ -1259,14 +1300,15 @@ func (s *labService) containerToInstanceNode(
 	}
 
 	return InstanceNode{
-		Name:          nodeName,
-		Kind:          nodeKind,
-		IPv4:          container.IPv4Address,
-		IPv6:          container.IPv6Address,
-		State:         nodeState,
-		ContainerId:   container.ContainerId,
-		ContainerName: container.Name,
-		CanRestart:    canRestart,
+		Name:                        nodeName,
+		Kind:                        nodeKind,
+		IPv4:                        container.IPv4Address,
+		IPv6:                        container.IPv6Address,
+		State:                       nodeState,
+		ContainerId:                 container.ContainerId,
+		ContainerName:               container.Name,
+		InterfaceEventsNamespaceMap: make(map[string]socket.OutputNamespace[InterfaceEventOut]),
+		CanRestart:                  canRestart,
 	}
 }
 
@@ -1332,23 +1374,32 @@ func (s *labService) reviveLabs() {
 		if containers, ok := result[*lab.InstanceName]; ok {
 			// Lab is currently running
 			logNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager, false, true, true, nil, "logs", lab.UUID,
-			)
-
-			interfaceEventsNamespace := socket.CreateOutputNamespace[InterfaceEventOut](
 				s.socketManager,
 				false,
-				false,
+				&socket.BacklogConfig{
+					Capacity: s.config.Streaming.ClabLogBacklog,
+					Kind:     utils.RingKindValue,
+				},
 				true,
 				nil,
-				"interface-events",
+				"logs",
 				lab.UUID,
 			)
 
 			// Create log namespaces for each container in the lab
 			for _, container := range containers {
 				containerLogNamespace := socket.CreateOutputNamespace[string](
-					s.socketManager, false, true, true, nil, "logs", lab.UUID, container.ContainerId,
+					s.socketManager,
+					false,
+					&socket.BacklogConfig{
+						Capacity: s.config.Streaming.ContainerLogBacklog,
+						Kind:     utils.RingKindValue,
+					},
+					true,
+					nil,
+					"logs",
+					lab.UUID,
+					container.ContainerId,
 				)
 				err := s.deploymentProvider.StreamContainerLogs(
 					ctx, "", container.ContainerId, func(data string) {
@@ -1377,16 +1428,15 @@ func (s *labService) reviveLabs() {
 			})
 
 			instance := &Instance{
-				State:                    InstanceStates.Running,
-				Nodes:                    instanceNodes,
-				Deployed:                 time.Now(),
-				LatestStateChange:        time.Now(),
-				Recovered:                true,
-				TopologyFile:             s.storageManager.GetRunTopologyFile(lab.UUID),
-				LogNamespace:             logNamespace,
-				InterfaceEventsNamespace: interfaceEventsNamespace,
-				NodeLabels:               nodeLabels,
-				NodeKinds:                nodeKinds,
+				State:             InstanceStates.Running,
+				Nodes:             instanceNodes,
+				Deployed:          time.Now(),
+				LatestStateChange: time.Now(),
+				Recovered:         true,
+				TopologyFile:      s.storageManager.GetRunTopologyFile(lab.UUID),
+				LogNamespace:      logNamespace,
+				NodeLabels:        nodeLabels,
+				NodeKinds:         nodeKinds,
 			}
 
 			for i := range instanceNodes {
@@ -1783,10 +1833,13 @@ func (s *labService) openShellCommand(
 	shellId := utils.GenerateUuid()
 	accessGroup := []*auth.AuthenticatedUser{authUser}
 
-	dataNamespace := socket.CreateIONamespace[string, string](
+	dataNamespace := socket.CreateIONamespace[string, byte](
 		s.socketManager,
 		false,
-		true,
+		&socket.BacklogConfig{
+			Capacity: s.config.Streaming.ClabLogBacklog,
+			Kind:     utils.RingKindByte,
+		},
 		true,
 		s.handleShellData(shellId),
 		&accessGroup,
@@ -1833,7 +1886,7 @@ func (s *labService) openShellCommand(
 				break
 			}
 
-			dataNamespace.Send(string(buf[:n]))
+			dataNamespace.SendBulk(buf[:n])
 		}
 	}()
 
