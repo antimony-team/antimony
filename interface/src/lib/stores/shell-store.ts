@@ -24,7 +24,7 @@ export class ShellStore {
     new ObservableMap();
 
   private readonly labCommandsSubscription: Subscription;
-  public readonly onData: Binding<string> = new Binding();
+  public readonly onData: Binding<ArrayBuffer> = new Binding();
 
   private currentDataSubscription: Subscription | null = null;
 
@@ -44,7 +44,7 @@ export class ShellStore {
     this.dataBinder.subscribeNamespace('shell-commands', this.handleControl);
   }
 
-  private handleData(data: string) {
+  private handleData(data: ArrayBuffer) {
     this.onData.update(data);
   }
 

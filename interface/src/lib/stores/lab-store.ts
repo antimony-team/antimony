@@ -132,17 +132,25 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public subscribeInterfaceEvents(
-    labId: string,
+    containerId: string,
+    ifName: string,
     onEvent: (data: InterfaceEventOut) => void,
   ) {
-    this.dataBinder.subscribeNamespace(`interface-events/${labId}`, onEvent);
+    this.dataBinder.subscribeNamespace(
+      `interface-events/${containerId}/${ifName}`,
+      onEvent,
+    );
   }
 
   public unsubscribeInterfaceEvents(
-    labId: string,
+    containerId: string,
+    ifName: string,
     onEvent: (data: InterfaceEventOut) => void,
   ) {
-    this.dataBinder.unsubscribeNamespace(`interface-events/${labId}`, onEvent);
+    this.dataBinder.unsubscribeNamespace(
+      `interface-events/${containerId}/${ifName}`,
+      onEvent,
+    );
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {

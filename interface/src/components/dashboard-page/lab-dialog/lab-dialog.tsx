@@ -1,4 +1,4 @@
-import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
+// import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
 import LabDialogPanelAdmin from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-admin/lab-dialog-panel-admin';
 import LabDialogPanelProperties from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-properties/lab-dialog-panel-properties';
 import LogDialog, {
@@ -22,18 +22,19 @@ import {drawGraphGrid, generateGraph} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
-import cytoscape, {NodeSingular} from 'cytoscape';
+import cytoscape from 'cytoscape';
 import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import {TooltipRefProps} from 'react-tooltip';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {Button} from 'primereact/button';
 import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 import classNames from 'classnames';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+import LabDialogDrawer from '@sb/components/dashboard-page/lab-dialog/lab-dialog-drawer/lab-dialog-drawer';
 
 interface LabDialogProps {
   dialogState: DialogState<Lab>;
@@ -57,7 +58,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const topologyStore = useTopologyStore();
     const statusMessageStore = useStatusMessages();
 
-    const nodeDetailOverlay = useRef<TooltipRefProps>(null);
+    // const nodeDetailOverlay = useRef<TooltipRefProps>(null);
 
     const groupName = useMemo(() => {
       if (!props.dialogState.state) return;
@@ -89,7 +90,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
 
-      closeDetails();
+      // closeDetails();
 
       const mouseEvent = event.originalEvent as unknown as MouseEvent;
       mouseEvent.preventDefault();
@@ -123,32 +124,32 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           target.id(),
         );
 
-        if (node && nodeDetailOverlay.current) {
-          if (nodeDetailOverlay.current.isOpen) {
-            nodeDetailOverlay.current.close();
-          } else {
-            const position = (target as NodeSingular).renderedPosition();
-            const canvasPosition =
-              gridCanvasRef.current!.getBoundingClientRect();
-
-            const nodeWidth = 30;
-            const offset = nodeWidth * cyRef.current!.zoom();
-
-            nodeDetailOverlay.current!.open({
-              position: {
-                x: position.x + canvasPosition!.x + offset,
-                y: position.y + canvasPosition!.y,
-              },
-            });
-          }
-        }
+        // if (node && nodeDetailOverlay.current) {
+        //   if (nodeDetailOverlay.current.isOpen) {
+        //     nodeDetailOverlay.current.close();
+        //   } else {
+        //     const position = (target as NodeSingular).renderedPosition();
+        //     const canvasPosition =
+        //       gridCanvasRef.current!.getBoundingClientRect();
+        //
+        //     const nodeWidth = 30;
+        //     const offset = nodeWidth * cyRef.current!.zoom();
+        //
+        //     nodeDetailOverlay.current!.open({
+        //       position: {
+        //         x: position.x + canvasPosition!.x + offset,
+        //         y: position.y + canvasPosition!.y,
+        //       },
+        //     });
+        //   }
+        // }
       } else {
-        closeDetails();
+        // closeDetails();
       }
     }
 
     function onZoom() {
-      closeDetails();
+      // closeDetails();
     }
 
     function onNodeStart() {
@@ -188,7 +189,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function onOpenLogs() {
-      closeDetails();
+      // closeDetails();
 
       const instance = props.dialogState.state!.instance!;
 
@@ -201,7 +202,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function onOpenTerminal() {
-      closeDetails();
+      // closeDetails();
 
       if (
         !selectedNode ||
@@ -341,17 +342,17 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function onGraphClick(event: cytoscape.EventObject) {
-      if (
-        event.target === cyRef.current &&
-        nodeContextMenuRef.current !== null
-      ) {
-        nodeDetailOverlay.current!.close();
-      }
+      // if (
+      //   event.target === cyRef.current &&
+      //   nodeContextMenuRef.current !== null
+      // ) {
+      //   nodeDetailOverlay.current!.close();
+      // }
     }
 
-    function onMouseDown() {
-      closeDetails();
-    }
+    // function onMouseDown() {
+    //   closeDetails();
+    // }
 
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
@@ -362,7 +363,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       cy.on('render', drawGridOverlay);
       cy.on('tap', onGraphClick);
       cy.on('zoom', onZoom);
-      cy.on('mousedown', onMouseDown);
+      // cy.on('mousedown', onMouseDown);
       cy.style().fromJson(topologyStyle).update();
 
       cy.nodes().lock();
@@ -407,9 +408,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       cyRef.current.fit(undefined, 120);
     }
 
-    function closeDetails() {
-      nodeDetailOverlay.current?.close();
-    }
+    // function closeDetails() {
+    //   nodeDetailOverlay.current?.close();
+    // }
 
     return (
       <>
@@ -436,6 +437,26 @@ const LabDialog: React.FC<LabDialogProps> = observer(
               <span>{props.dialogState!.state?.name}</span>
             </div>
             <div className="sb-lab-view-content">
+              <div className="sb-lab-view-drawer-container">
+                <Splitter className="h-full">
+                  <SplitterPanel className="sb-lab-view-drawer-decoy"></SplitterPanel>
+                  <SplitterPanel
+                    size={30}
+                    minSize={30}
+                    className="sb-lab-view-drawer"
+                  >
+                    <LabDialogDrawer
+                      lab={props.dialogState.state}
+                      nodeName={selectedNode}
+                      onOpenTerminal={onOpenTerminal}
+                      onOpenLogs={onOpenLogs}
+                      onNodeStart={onNodeStart}
+                      onNodeStop={onNodeStop}
+                      onNodeRestart={onNodeRestart}
+                    />
+                  </SplitterPanel>
+                </Splitter>
+              </div>
               <div className="topology-graph-container" ref={containerRef}>
                 <LabDialogPanelProperties lab={props.dialogState.state!} />
                 <LabDialogPanelAdmin
@@ -464,16 +485,16 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
         <LogDialog dialogState={logDialogState} />
         <TerminalDialog dialogState={terminalDialogState} />
-        <LabDetailsOverlay
-          overlayRef={nodeDetailOverlay}
-          lab={props.dialogState.state}
-          nodeId={selectedNode}
-          onOpenTerminal={onOpenTerminal}
-          onOpenLogs={onOpenLogs}
-          onNodeStart={onNodeStart}
-          onNodeStop={onNodeStop}
-          onNodeRestart={onNodeRestart}
-        />
+        {/*<LabDetailsOverlay*/}
+        {/*  overlayRef={nodeDetailOverlay}*/}
+        {/*  lab={props.dialogState.state}*/}
+        {/*  nodeId={selectedNode}*/}
+        {/*  onOpenTerminal={onOpenTerminal}*/}
+        {/*  onOpenLogs={onOpenLogs}*/}
+        {/*  onNodeStart={onNodeStart}*/}
+        {/*  onNodeStop={onNodeStop}*/}
+        {/*  onNodeRestart={onNodeRestart}*/}
+        {/*/>*/}
       </>
     );
   },
