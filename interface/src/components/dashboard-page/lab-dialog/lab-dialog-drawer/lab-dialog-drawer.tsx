@@ -2,9 +2,16 @@ import './lab-dialog-drawer.sass';
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import {InstanceNode, InterfaceEventOut, Lab} from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
-import {useLabStore} from '@sb/lib/stores/root-store';
+import {
+  useLabStore,
+  useServerConfig,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
 import uPlot from 'uplot';
-import {getNodeDisplayName} from '@sb/lib/utils/utils';
+import {
+  getInterfaceCaptureCommand,
+  getNodeDisplayName,
+} from '@sb/lib/utils/utils';
 import {Divider} from 'primereact/divider';
 import {Button} from 'primereact/button';
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
@@ -27,6 +34,8 @@ interface LabDialogDrawer {
 
 const LabDialogDrawer = (props: LabDialogDrawer) => {
   const labStore = useLabStore();
+  const serverConfig = useServerConfig();
+  const statusMessageStore = useStatusMessages();
 
   const wrapperRef = useRef(null);
   const widthRef = useRef(800);
@@ -69,23 +78,22 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     } else {
       openNodeRef.current = node;
 
-      const nodeInterfaces = Object.keys(node.interfaceCaptures);
       trafficBuffersRef.current = new Map(
-        nodeInterfaces.map(ifName => [ifName, [[], [], []]]),
+        node.interfaces.map(ifName => [ifName, [[], [], []]]),
       );
 
-      Object.keys(node.interfaceCaptures).forEach(ifName => {
+      for (const ifName of node.interfaces) {
         labStore.subscribeInterfaceEvents(node.containerId, ifName, handleData);
-      });
+      }
     }
   }, [node]);
 
   function unsubscribeFromNode(node: InstanceNode | null) {
     if (!node) return;
 
-    Object.keys(node.interfaceCaptures).forEach(ifName => {
+    for (const ifName of node.interfaces) {
       labStore.unsubscribeInterfaceEvents(node.containerId, ifName, handleData);
-    });
+    }
   }
 
   function onResizeDrawer(entries: ResizeObserverEntry[]) {
@@ -192,8 +200,6 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     (data: InterfaceEventOut) => {
       if (!node || data.containerId !== node.containerId) return;
 
-      console.log('Node data:', data);
-
       const ts_sec = Date.parse(data.timestamp) / 1000;
 
       const [ts, txs, rxs] = trafficBuffersRef.current.get(data.ifName)!;
@@ -218,6 +224,20 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     },
     [node],
   );
+
+  function copyCaptureToClipboard(ifName: string) {
+    if (!node) return;
+
+    const cmd = getInterfaceCaptureCommand(
+      node.containerName,
+      ifName,
+      window.location.hostname,
+      serverConfig.capture.port,
+    );
+    void navigator.clipboard.writeText(cmd);
+
+    statusMessageStore.success('Capture command copied to clipboard!');
+  }
 
   return (
     <div className="lab-dialog-drawer-content" ref={wrapperRef}>
@@ -251,7 +271,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
               <div className="flex gap-1">
                 <span className="property-title">Interfaces:</span>
                 <span className="property-value">
-                  {Object.keys(node!.interfaceCaptures).join(', ')}
+                  {node!.interfaces.join(', ')}
                 </span>
               </div>
             </div>
@@ -278,7 +298,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
               />
             </div>
           </div>
-          {Object.keys(node!.interfaceCaptures).map(ifname => (
+          {node!.interfaces.map(ifname => (
             <div style={{position: 'relative'}}>
               <Divider />
               <div className="lab-details-plot-title">{ifname}</div>
@@ -295,7 +315,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
                 outlined
                 icon="pi pi-eye"
                 label="Start Capture"
-                onClick={() => {}}
+                onClick={() => copyCaptureToClipboard(ifname)}
                 aria-label="Submit"
               />
             </div>

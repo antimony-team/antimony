@@ -59,8 +59,7 @@ export type InstanceNode = {
   webSSH: string;
   containerId: string;
   containerName: string;
-
-  interfaceCaptures: Record<string, string>;
+  interfaces: string[];
 
   canRestart: boolean;
 };

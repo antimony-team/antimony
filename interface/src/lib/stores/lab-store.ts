@@ -50,8 +50,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   private topologyStore: TopologyStore;
   private statusMessageStore: StatusMessageStore;
 
-  private interfaceEventSubscriptions: Map<string, Subscription> = new Map();
-
   constructor(
     rootStore: RootStore,
     dataBinder: DataBinder,
@@ -165,20 +163,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         'Failed to deploy lab',
       );
     }
-
-    if (this.interfaceEventSubscriptions.has(lab.id)) {
-      this.dataBinder.unsubscribeNamespace(
-        `interface-events/${lab.id}`,
-        this.onLabInterfaceEvent.bind(this),
-      );
-    }
-
-    const subscription = this.dataBinder.subscribeNamespace(
-      `interface-events/${lab.id}`,
-      this.onLabInterfaceEvent.bind(this),
-    );
-
-    this.interfaceEventSubscriptions.set(lab.id, subscription);
 
     return result;
   }

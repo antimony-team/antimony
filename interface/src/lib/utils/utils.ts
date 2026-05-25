@@ -288,3 +288,12 @@ export function isValidURL(url: string) {
     return false;
   }
 }
+
+export function getInterfaceCaptureCommand(
+  containerName: string,
+  ifName: string,
+  serverHost: string,
+  serverPort: number,
+) {
+  return `ssh -o StrictHostKeyChecking=no ${containerName}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
+}

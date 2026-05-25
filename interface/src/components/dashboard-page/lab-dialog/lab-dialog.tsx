@@ -19,7 +19,11 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {DialogState, useDialogState} from '@sb/lib/utils/hooks';
-import {drawGraphGrid, generateGraph} from '@sb/lib/utils/utils';
+import {
+  drawGraphGrid,
+  generateGraph,
+  getInterfaceCaptureCommand,
+} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
@@ -309,17 +313,16 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         },
       ];
 
-      if (serverConfig.capture.enabled && node?.interfaceCaptures) {
-        const interfaceCaptures = Object.entries(node.interfaceCaptures);
-        if (interfaceCaptures.length > 0) {
+      if (serverConfig.capture.enabled && node) {
+        if (node.interfaces.length > 0) {
           entries.push({separator: true});
         }
 
-        for (const [iface, capture] of interfaceCaptures) {
+        for (const ifName of node.interfaces) {
           entries.push({
-            label: 'Open Capture for ' + iface,
+            label: 'Open Capture for ' + ifName,
             icon: 'pi pi-eye',
-            command: () => copyCaptureToClipboard(capture),
+            command: () => copyCaptureToClipboard(node.containerName, ifName),
           });
         }
       }
@@ -335,10 +338,14 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       return entries;
     }, [selectedNode, props.dialogState.state]);
 
-    function copyCaptureToClipboard(capture: string) {
-      void navigator.clipboard.writeText(
-        capture.replace('<host>', window.location.hostname),
+    function copyCaptureToClipboard(containerName: string, ifName: string) {
+      const cmd = getInterfaceCaptureCommand(
+        containerName,
+        ifName,
+        window.location.hostname,
+        serverConfig.capture.port,
       );
+      void navigator.clipboard.writeText(cmd);
 
       statusMessageStore.success('Capture command copied to clipboard!');
     }
