@@ -75,7 +75,7 @@ definitions:
       name:
         type: string
     type: object
-  lab.InstanceNode:
+  lab.InstanceNodeOut:
     properties:
       canRestart:
         type: boolean
@@ -83,14 +83,10 @@ definitions:
         type: string
       containerName:
         type: string
-      interfaceCaptures:
-        additionalProperties:
+      interfaces:
+        items:
           type: string
-        description: 'TODO(kian): Implement properly'
-        type: object
-      interfaceEventsNamespaceMap:
-        additionalProperties: {}
-        type: object
+        type: array
       ipv4:
         type: string
       ipv6:
@@ -112,7 +108,7 @@ definitions:
         type: string
       nodes:
         items:
-          $ref: '#/definitions/lab.InstanceNode'
+          $ref: '#/definitions/lab.InstanceNodeOut'
         type: array
       recovered:
         type: boolean

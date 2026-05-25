@@ -11,12 +11,10 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"net/netip"
 	"os"
@@ -999,10 +997,12 @@ func (s *labService) deployLab(lab *Lab) error {
 // startNodeStartupListener Starts a blocking listener that waits until the localhost SSH service responds or the container is stopped
 func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *Lab) {
 	ctx := context.Background()
+
+	// We can't use Go's built-in SSH service here as it responds differently to when the sevrer is not reachable.
 	cmd := []string{
 		"bash", "-c", `
 		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost 2> /dev/null; do
-			sleep 5
+			sleep 2
 		done
 	`}
 
@@ -1012,14 +1012,7 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 		// If bash or ssh can't be found, just treat the node as started as there is no other
 		// way to listen to whether the node is started.
 		if strings.Contains(err.Error(), "exit code 127") {
-			instance.Mutex.Lock()
-			node.State = deployment.NodeStates.Running
-			instance.Mutex.Unlock()
-
-			s.labUpdatesNamespace.Send(LabUpdateOut{
-				LabId: &lab.UUID,
-			})
-
+			s.onNodeStarted(ctx, instance, node, lab)
 			return
 		}
 
@@ -1037,16 +1030,23 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	buf := make([]byte, 1024)
 	_, err = connection.Read(buf)
 
-	// Set the instance state to running if the SSH process responded
 	if err == nil {
-		instance.Mutex.Lock()
-		node.State = deployment.NodeStates.Running
-		instance.Mutex.Unlock()
-
-		s.labUpdatesNamespace.Send(LabUpdateOut{
-			LabId: &lab.UUID,
-		})
+		s.onNodeStarted(ctx, instance, node, lab)
 	}
+}
+
+func (s *labService) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *Lab) {
+	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
+	interfaces = utils.FilterList(interfaces, s.config.Capture.ExcludedInterfaces)
+
+	instance.Mutex.Lock()
+	node.State = deployment.NodeStates.Running
+	node.Interfaces = interfaces
+	instance.Mutex.Unlock()
+
+	s.labUpdatesNamespace.Send(LabUpdateOut{
+		LabId: &lab.UUID,
+	})
 }
 
 // setTopologyDeployStatus Sets the LastDeployFailed flag in the lab's topology
@@ -1165,52 +1165,20 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 	}
 }
 
-func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
-	cmdTemplate := template.Must(template.New("msg").Parse(fmt.Sprintf(
-		"ssh -o StrictHostKeyChecking=no {{.ContainerName}}@<host> -p %d {{.InterfaceName}} | wireshark -k -i -",
-		s.config.Capture.SSHPort,
-	)))
-
-	var nodesOut []InstanceNode
-	ctx := context.Background()
-
-	for _, node := range nodes {
-		var interfaceCaptures map[string]string
-
-		if s.config.Capture.Enabled {
-			interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
-			interfaces = utils.FilterList(interfaces, s.config.Capture.ExcludedInterfaces)
-
-			interfaceCaptures = make(map[string]string)
-
-			for _, interfaceName := range interfaces {
-				var buf bytes.Buffer
-				_ = cmdTemplate.Execute(&buf, struct {
-					ContainerName string
-					InterfaceName string
-				}{
-					ContainerName: node.ContainerName,
-					InterfaceName: interfaceName,
-				})
-
-				interfaceCaptures[interfaceName] = buf.String()
-			}
+func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNodeOut {
+	return lo.Map(nodes, func(node InstanceNode, _ int) InstanceNodeOut {
+		return InstanceNodeOut{
+			Name:          node.Name,
+			Kind:          node.Kind,
+			IPv4:          node.IPv4,
+			IPv6:          node.IPv6,
+			State:         node.State,
+			ContainerId:   node.ContainerId,
+			ContainerName: node.ContainerName,
+			Interfaces:    node.Interfaces,
+			CanRestart:    node.CanRestart,
 		}
-
-		nodesOut = append(nodesOut, InstanceNode{
-			Name:              node.Name,
-			Kind:              node.Kind,
-			IPv4:              node.IPv4,
-			IPv6:              node.IPv6,
-			State:             node.State,
-			ContainerId:       node.ContainerId,
-			ContainerName:     node.ContainerName,
-			InterfaceCaptures: interfaceCaptures,
-			CanRestart:        node.CanRestart,
-		})
-	}
-
-	return nodesOut
+	})
 }
 
 func (s *labService) updateInstanceNode(
@@ -1245,7 +1213,7 @@ func (s *labService) updateInstanceNode(
 	node.State = updatedNode.State
 	node.IPv4 = updatedNode.IPv4
 	node.IPv6 = updatedNode.IPv6
-	node.InterfaceCaptures = updatedNode.InterfaceCaptures
+	node.Interfaces = updatedNode.Interfaces
 	instance.Mutex.Unlock()
 
 	return nil

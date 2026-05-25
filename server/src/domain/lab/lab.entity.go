@@ -87,12 +87,12 @@ type Instance struct {
 }
 
 type InstanceOut struct {
-	Name              string         `json:"name"`
-	Deployed          time.Time      `json:"deployed"`
-	State             InstanceState  `json:"state"`
-	LatestStateChange time.Time      `json:"latestStateChange"`
-	Nodes             []InstanceNode `json:"nodes"`
-	Recovered         bool           `json:"recovered"`
+	Name              string            `json:"name"`
+	Deployed          time.Time         `json:"deployed"`
+	State             InstanceState     `json:"state"`
+	LatestStateChange time.Time         `json:"latestStateChange"`
+	Nodes             []InstanceNodeOut `json:"nodes"`
+	Recovered         bool              `json:"recovered"`
 }
 
 type InstanceNode struct {
@@ -103,11 +103,22 @@ type InstanceNode struct {
 	State         deployment.NodeState `json:"state"`
 	ContainerId   string               `json:"containerId"`
 	ContainerName string               `json:"containerName"`
+	Interfaces    []string             `json:"interfaces"`
 
 	InterfaceEventsNamespaceMap map[string]socket.OutputNamespace[InterfaceEventOut]
 
-	// TODO(kian): Implement properly
-	InterfaceCaptures map[string]string `json:"interfaceCaptures"`
+	CanRestart bool `json:"canRestart"`
+}
+
+type InstanceNodeOut struct {
+	Name          string               `json:"name"`
+	Kind          string               `json:"kind"`
+	IPv4          string               `json:"ipv4"`
+	IPv6          string               `json:"ipv6"`
+	State         deployment.NodeState `json:"state"`
+	ContainerId   string               `json:"containerId"`
+	ContainerName string               `json:"containerName"`
+	Interfaces    []string             `json:"interfaces"`
 
 	CanRestart bool `json:"canRestart"`
 }

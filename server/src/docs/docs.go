@@ -1153,7 +1153,7 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.InstanceNode": {
+        "lab.InstanceNodeOut": {
             "type": "object",
             "properties": {
                 "canRestart": {
@@ -1165,16 +1165,11 @@ const docTemplate = `{
                 "containerName": {
                     "type": "string"
                 },
-                "interfaceCaptures": {
-                    "description": "TODO(kian): Implement properly",
-                    "type": "object",
-                    "additionalProperties": {
+                "interfaces": {
+                    "type": "array",
+                    "items": {
                         "type": "string"
                     }
-                },
-                "interfaceEventsNamespaceMap": {
-                    "type": "object",
-                    "additionalProperties": {}
                 },
                 "ipv4": {
                     "type": "string"
@@ -1208,7 +1203,7 @@ const docTemplate = `{
                 "nodes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/lab.InstanceNode"
+                        "$ref": "#/definitions/lab.InstanceNodeOut"
                     }
                 },
                 "recovered": {
