@@ -14,6 +14,7 @@ import {
   useCollectionStore,
   useDeviceStore,
   useLabStore,
+  useServerConfig,
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
@@ -52,6 +53,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const logDialogState = useDialogState<LogDialogState>();
     const terminalDialogState = useDialogState<TerminalDialogState>();
 
+    const serverConfig = useServerConfig();
     const collectionStore = useCollectionStore();
     const deviceStore = useDeviceStore();
     const labStore = useLabStore();
@@ -307,7 +309,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         },
       ];
 
-      if (node?.interfaceCaptures) {
+      if (serverConfig.capture.enabled && node?.interfaceCaptures) {
         const interfaceCaptures = Object.entries(node.interfaceCaptures);
         if (interfaceCaptures.length > 0) {
           entries.push({separator: true});
