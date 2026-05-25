@@ -1,5 +1,5 @@
 import './lab-dialog-drawer.sass';
-import React, {useCallback, useEffect, useMemo, useRef} from 'react';
+import React, {useEffect, useMemo, useRef} from 'react';
 import {InstanceNode, InterfaceEventOut, Lab} from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
 import {
@@ -44,9 +44,6 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     new Map(),
   );
 
-  // Reference of the last opened node used for unsubscribing when closing the drawer
-  const openNodeRef = useRef<InstanceNode | null>(null);
-
   const node = useMemo(() => {
     if (!props.lab?.instance || !props.nodeName) return null;
     return props.lab.instance.nodes.find(n => n.name === props.nodeName)!;
@@ -73,11 +70,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
   useEffect(() => {
     if (!props.lab) return;
 
-    if (!node) {
-      unsubscribeFromNode(openNodeRef.current);
-    } else {
-      openNodeRef.current = node;
-
+    if (node) {
       trafficBuffersRef.current = new Map(
         node.interfaces.map(ifName => [ifName, [[], [], []]]),
       );
@@ -86,6 +79,8 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
         labStore.subscribeInterfaceEvents(node.containerId, ifName, handleData);
       }
     }
+
+    return () => unsubscribeFromNode(node);
   }, [node]);
 
   function unsubscribeFromNode(node: InstanceNode | null) {
@@ -196,34 +191,31 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     };
   }
 
-  const handleData = useCallback(
-    (data: InterfaceEventOut) => {
-      if (!node || data.containerId !== node.containerId) return;
+  function handleData(data: InterfaceEventOut) {
+    if (!node || data.containerId !== node.containerId) return;
 
-      const ts_sec = Date.parse(data.timestamp) / 1000;
+    const ts_sec = Date.parse(data.timestamp) / 1000;
 
-      const [ts, txs, rxs] = trafficBuffersRef.current.get(data.ifName)!;
+    const [ts, txs, rxs] = trafficBuffersRef.current.get(data.ifName)!;
 
-      const txValue = parseInt(data.txBps);
-      const rxValue = parseInt(data.rxBps);
+    const txValue = parseInt(data.txBps);
+    const rxValue = parseInt(data.rxBps);
 
-      // Add initial point to draw line to the left side when graph is empty
-      if (ts.length === 0) {
-        ts.push(ts_sec - 20);
-        txs.push(txValue);
-        rxs.push(rxValue);
-      }
-
-      ts.push(ts_sec);
+    // Add initial point to draw line to the left side when graph is empty
+    if (ts.length === 0) {
+      ts.push(ts_sec - 20);
       txs.push(txValue);
       rxs.push(rxValue);
+    }
 
-      if (trafficChartsRef.current.has(data.ifName)) {
-        trafficChartsRef.current.get(data.ifName)!.setData([ts, txs, rxs]);
-      }
-    },
-    [node],
-  );
+    ts.push(ts_sec);
+    txs.push(txValue);
+    rxs.push(rxValue);
+
+    if (trafficChartsRef.current.has(data.ifName)) {
+      trafficChartsRef.current.get(data.ifName)!.setData([ts, txs, rxs]);
+    }
+  }
 
   function copyCaptureToClipboard(ifName: string) {
     if (!node) return;
@@ -248,27 +240,27 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
           </div>
           <div className="flex flex-row gap-4 justify-content-between">
             <div className="flex flex-column gap-1">
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Container ID:</span>
                 <SBCopyableProperty value={node!.containerId} />
               </div>
 
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Container Name:</span>
                 <SBCopyableProperty value={node!.containerName} />
               </div>
 
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Mgmt IPv4:</span>
                 <SBCopyableProperty value={node!.ipv4} />
               </div>
 
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Mgmt IPv6:</span>
                 <SBCopyableProperty value={node!.ipv6} />
               </div>
 
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Interfaces:</span>
                 <span className="property-value">
                   {node!.interfaces.join(', ')}
@@ -298,8 +290,8 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
               />
             </div>
           </div>
-          {node!.interfaces.map(ifname => (
-            <div style={{position: 'relative'}}>
+          {node!.interfaces.map((ifname, i) => (
+            <div style={{position: 'relative'}} key={i}>
               <Divider />
               <div className="lab-details-plot-title">{ifname}</div>
               <UplotReact

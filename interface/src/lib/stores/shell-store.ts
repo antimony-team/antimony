@@ -169,6 +169,20 @@ export class ShellStore {
     );
   }
 
+  @action
+  public unsubscribeShell() {
+    if (!this.currentShell) return;
+
+    if (this.currentDataSubscription) {
+      this.dataBinder.unsubscribeNamespace(
+        `shells/${this.currentShell.id}`,
+        this.handleData,
+      );
+    }
+
+    this.currentShell = null;
+  }
+
   public sendData(data: string) {
     if (!this.currentDataSubscription) return;
 

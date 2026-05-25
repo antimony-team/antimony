@@ -233,8 +233,6 @@ export class DataBinder {
 
     subscription.onDataCallbacks.forEach(callback => {
       subscription.socket!.on('backlog', data => {
-        console.log('backlog received:', data);
-
         if (data instanceof ArrayBuffer) {
           callback(data);
         } else {
@@ -326,6 +324,15 @@ export class DataBinder {
   ) {
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
+      // console.log('namespace callbacks: ', subscription.onDataCallbacks);
+      //
+      // console.log(
+      //   'namespace callbacks has unsubscriber: ',
+      //   subscription.onDataCallbacks.has(onData),
+      // );
+      //
+      // console.log('unsubscriber: ', onData);
+
       subscription.onDataCallbacks.delete(onData as (data: unknown) => void);
       if (onConnect) subscription.onConnectCallbacks.delete(onConnect);
       if (onDisconnect) subscription.onDisconnectCallbacks.delete(onDisconnect);

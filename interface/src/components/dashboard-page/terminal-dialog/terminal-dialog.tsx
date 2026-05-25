@@ -172,6 +172,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
   function onClose() {
     shellStore.onData.unregister(onData);
+    shellStore.unsubscribeShell();
 
     props.dialogState.close();
   }
