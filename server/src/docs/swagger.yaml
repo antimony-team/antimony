@@ -54,6 +54,17 @@ definitions:
       publicWrite:
         type: boolean
     type: object
+  deployment.NodeInterface:
+    properties:
+      address:
+        type: string
+      mtu:
+        type: integer
+      name:
+        type: string
+      state:
+        type: string
+    type: object
   deployment.NodeState:
     enum:
     - starting
@@ -85,7 +96,7 @@ definitions:
         type: string
       interfaces:
         items:
-          type: string
+          $ref: '#/definitions/deployment.NodeInterface'
         type: array
       ipv4:
         type: string

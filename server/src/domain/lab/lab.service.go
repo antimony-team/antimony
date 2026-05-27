@@ -12,7 +12,6 @@ import (
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -47,9 +46,9 @@ type (
 
 		RunShellManager()
 
-		ListenToProviderEvents()
+		RunNodeStatsReader()
 
-		ListenToContainerlabEvents()
+		ListenToProviderEvents()
 	}
 
 	labService struct {
@@ -67,6 +66,9 @@ type (
 
 		defaultSshAuth  []ssh.AuthMethod
 		nodeKindConfigs map[string]NodeKindConfig
+
+		monitoredInstances      []*Instance
+		monitoredInstancesMutex sync.Mutex
 
 		labRepo                Repository
 		userRepo               user.Repository
@@ -204,70 +206,47 @@ func (s *labService) RunShellManager() {
 	}
 }
 
-func (s *labService) ListenToContainerlabEvents() {
+func (s *labService) RunNodeStatsReader() {
 	ctx := context.Background()
 
-	_ = s.deploymentProvider.RegisterEventListener(ctx, func(containerlabEvent deployment.ContainerlabEvent) {
-		var targetLabId *string
-		var targetNode *InstanceNode
+	for {
+		monitoredInstances := make([]*Instance, len(s.monitoredInstances))
+		s.monitoredInstancesMutex.Lock()
+		copy(monitoredInstances, s.monitoredInstances)
+		s.monitoredInstancesMutex.Unlock()
 
-		s.instancesMutex.Lock()
-		for labId, instance := range s.instances {
-			node, hasMatched := lo.Find(instance.Nodes, func(item InstanceNode) bool {
-				return item.ContainerId == containerlabEvent.ActorID
-			})
+		for _, instance := range monitoredInstances {
+			for _, node := range instance.Nodes {
+				stats, err := s.deploymentProvider.ReadNodeStats(ctx, node.ContainerId)
+				if err != nil {
+					log.Errorf("Failed to read stats for node '%s': %s", node.ContainerId, err.Error())
+					continue
+				}
 
-			if hasMatched {
-				targetLabId = &labId
-				targetNode = &node
-				break
+				if node.StatsNamespace == nil {
+					continue
+				}
+
+				node.StatsNamespace.Send(NodeStatsOut{
+					Timestamp:   time.Now(),
+					CPUUsage:    float32(stats.CPUUsagePercent),
+					MemoryUsage: float32(stats.MemoryUsage),
+					MemoryLimit: float32(stats.MemoryLimit),
+					Interfaces: lo.MapValues(
+						stats.Interfaces,
+						func(i deployment.NodeInterfaceStats, key string) NodeInterfaceStatsOut {
+							return NodeInterfaceStatsOut{
+								RxBps: i.RxBps,
+								TxBps: i.TxBps,
+							}
+						},
+					),
+				})
 			}
 		}
-		s.instancesMutex.Unlock()
-		if targetLabId == nil {
-			fmt.Printf("Ignoring event for unknown lab: %s\n", containerlabEvent.ActorID)
-			return
-		}
 
-		if containerlabEvent.Type == "container" {
-			//s.labUpdatesNamespace.Send(LabUpdateOut{
-			//	LabId: targetLabId,
-			//})
-			//return
-		} else if containerlabEvent.Type == "interface" {
-			var hasNamespace bool
-			var namespace socket.OutputNamespace[InterfaceEventOut]
-			var attributes deployment.InterfaceEventAttributes
-
-			if err := json.Unmarshal(containerlabEvent.Attributes, &attributes); err != nil {
-				log.Errorf("Failed to unmarshal interface event attributes: %s", err.Error())
-				return
-			}
-
-			// Ignore event if event namespace doesn't exist for source interface
-			if namespace, hasNamespace = targetNode.InterfaceEventsNamespaceMap[attributes.Ifname]; !hasNamespace {
-				return
-			}
-
-			namespace.Send(InterfaceEventOut{
-				Timestamp:   containerlabEvent.Timestamp,
-				ContainerId: containerlabEvent.ActorID,
-				Ifname:      attributes.Ifname,
-				MAC:         attributes.MAC,
-				MTU:         attributes.MTU,
-				Origin:      attributes.Origin,
-				RxBps:       attributes.RxBps,
-				RxBytes:     attributes.RxBytes,
-				RxPackets:   attributes.RxPackets,
-				RxPps:       attributes.RxPps,
-				State:       attributes.State,
-				TxBps:       attributes.TxBps,
-				TxBytes:     attributes.TxBytes,
-				TxPackets:   attributes.TxPackets,
-				Type:        attributes.Type,
-			})
-		}
-	})
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func (s *labService) ListenToProviderEvents() {
@@ -892,6 +871,10 @@ func (s *labService) deployLab(lab *Lab) error {
 	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
 
+	s.monitoredInstancesMutex.Lock()
+	s.monitoredInstances = append(s.monitoredInstances, instance)
+	s.monitoredInstancesMutex.Unlock()
+
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
@@ -1018,56 +1001,69 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	}
 }
 
-func (s *labService) getInterfaceEventNamespace(
-	node *InstanceNode,
-	ifName string,
-) socket.OutputNamespace[InterfaceEventOut] {
-	var hasNamespace bool
-	var namespace socket.OutputNamespace[InterfaceEventOut]
-
-	if namespace, hasNamespace = node.InterfaceEventsNamespaceMap[ifName]; !hasNamespace {
-		namespace = socket.CreateOutputNamespace[InterfaceEventOut](
-			s.socketManager,
-			false,
-			&socket.BacklogConfig{
-				Capacity: 20,
-				Kind:     utils.RingKindValue,
-			},
-			true,
-			nil,
-			"interface-events",
-			node.ContainerId,
-			ifName,
-		)
-		node.InterfaceEventsNamespaceMap[ifName] = namespace
-	}
-
-	return namespace
-}
+//func (s *labService) getInterfaceEventNamespace(
+//	node *InstanceNode,
+//	ifName string,
+//) socket.OutputNamespace[InterfaceEventOut] {
+//	var hasNamespace bool
+//	var namespace socket.OutputNamespace[InterfaceEventOut]
+//
+//	if namespace, hasNamespace = node.InterfaceEventsNamespaceMap[ifName]; !hasNamespace {
+//		namespace = socket.CreateOutputNamespace[InterfaceEventOut](
+//			s.socketManager,
+//			false,
+//			&socket.BacklogConfig{
+//				Capacity: 20,
+//				Kind:     utils.RingKindValue,
+//			},
+//			true,
+//			nil,
+//			"interface-events",
+//			node.ContainerId,
+//			ifName,
+//		)
+//		node.InterfaceEventsNamespaceMap[ifName] = namespace
+//	}
+//
+//	return namespace
+//}
 
 func (s *labService) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *Lab) {
 	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
-	interfaces = utils.FilterList(interfaces, s.config.Capture.ExcludedInterfaces)
+	//interfaces = utils.FilterList(interfaces, s.config.Capture.ExcludedInterfaces)
 
 	instance.Mutex.Lock()
 
-	for _, interfaceName := range interfaces {
-		if _, hasNamespace := node.InterfaceEventsNamespaceMap[interfaceName]; !hasNamespace {
-			node.InterfaceEventsNamespaceMap[interfaceName] = socket.CreateOutputNamespace[InterfaceEventOut](
-				s.socketManager,
-				false,
-				&socket.BacklogConfig{
-					Capacity: 20,
-					Kind:     utils.RingKindValue,
-				},
-				true,
-				nil,
-				"interface-events",
-				node.ContainerId,
-				interfaceName,
-			)
-		}
-	}
+	node.StatsNamespace = socket.CreateOutputNamespace[NodeStatsOut](
+		s.socketManager,
+		false,
+		&socket.BacklogConfig{
+			Capacity: 20,
+			Kind:     utils.RingKindValue,
+		},
+		true,
+		nil,
+		"stats",
+		node.ContainerId,
+	)
+
+	//for _, interfaceName := range interfaces {
+	//	if _, hasNamespace := node.InterfaceEventsNamespaceMap[interfaceName]; !hasNamespace {
+	//		node.InterfaceEventsNamespaceMap[interfaceName] = socket.CreateOutputNamespace[InterfaceEventOut](
+	//			s.socketManager,
+	//			false,
+	//			&socket.BacklogConfig{
+	//				Capacity: 20,
+	//				Kind:     utils.RingKindValue,
+	//			},
+	//			true,
+	//			nil,
+	//			"interface-events",
+	//			node.ContainerId,
+	//			interfaceName,
+	//		)
+	//	}
+	//}
 
 	node.State = deployment.NodeStates.Running
 	node.Interfaces = interfaces
@@ -1298,16 +1294,17 @@ func (s *labService) containerToInstanceNode(
 	}
 
 	return InstanceNode{
-		Name:                        nodeName,
-		Kind:                        nodeKind,
-		IPv4:                        container.IPv4Address,
-		IPv6:                        container.IPv6Address,
-		State:                       nodeState,
-		ContainerId:                 container.ContainerId,
-		ContainerName:               container.Name,
-		Interfaces:                  make([]string, 0),
-		InterfaceEventsNamespaceMap: make(map[string]socket.OutputNamespace[InterfaceEventOut]),
-		CanRestart:                  canRestart,
+		Name:           nodeName,
+		Kind:           nodeKind,
+		IPv4:           container.IPv4Address,
+		IPv6:           container.IPv6Address,
+		State:          nodeState,
+		ContainerId:    container.ContainerId,
+		ContainerName:  container.Name,
+		Interfaces:     make([]deployment.NodeInterface, 0),
+		StatsNamespace: nil,
+		//InterfaceEventsNamespaceMap: make(map[string]socket.OutputNamespace[InterfaceEventOut]),
+		CanRestart: canRestart,
 	}
 }
 
@@ -1447,6 +1444,10 @@ func (s *labService) reviveLabs() {
 			s.instancesMutex.Lock()
 			s.instances[lab.UUID] = instance
 			s.instancesMutex.Unlock()
+
+			s.monitoredInstancesMutex.Lock()
+			s.monitoredInstances = append(s.monitoredInstances, instance)
+			s.monitoredInstancesMutex.Unlock()
 
 			s.labDestructionSchedule.Schedule(&lab)
 		}

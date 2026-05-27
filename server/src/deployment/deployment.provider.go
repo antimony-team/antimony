@@ -19,13 +19,15 @@ type DeploymentProvider interface {
 	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
 	RegisterEventListener(ctx context.Context, onUpdate func(containerlabEvent ContainerlabEvent)) error
 
+	ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error)
+
 	StartNode(ctx context.Context, containerId string) error
 	StopNode(ctx context.Context, containerId string) error
 	RestartNode(ctx context.Context, containerId string) error
 
 	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
 
-	GetInterfaces(ctx context.Context, containerId string) ([]string, error)
+	GetInterfaces(ctx context.Context, containerId string) ([]NodeInterface, error)
 }
 
 type InspectOutput = map[string][]InspectContainer
@@ -71,6 +73,13 @@ type ContainerlabEvent struct {
 	Attributes  json.RawMessage `json:"attributes"`
 }
 
+type NodeInterface struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
+	MTU     int    `json:"mtu"`
+	State   string `json:"state"`
+}
+
 type InterfaceEventAttributes struct {
 	ID              string `json:"id"`
 	Ifname          string `json:"ifname"`
@@ -90,4 +99,25 @@ type InterfaceEventAttributes struct {
 	TxBytes         string `json:"tx_bytes"`
 	TxPackets       string `json:"tx_packets"`
 	Type            string `json:"type"`
+}
+
+type NodeStats struct {
+	Timestamp time.Time
+
+	CPUUsage        uint64
+	SystemUsage     uint64
+	CPUUsagePercent float64
+
+	MemoryUsage uint64
+	MemoryLimit uint64
+
+	Interfaces map[string]NodeInterfaceStats
+}
+
+type NodeInterfaceStats struct {
+	RxBytes uint64
+	TxBytes uint64
+
+	RxBps int
+	TxBps int
 }

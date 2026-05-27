@@ -1123,6 +1123,23 @@ const docTemplate = `{
                 }
             }
         },
+        "deployment.NodeInterface": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "mtu": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
         "deployment.NodeState": {
             "type": "string",
             "enum": [
@@ -1168,7 +1185,7 @@ const docTemplate = `{
                 "interfaces": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/deployment.NodeInterface"
                     }
                 },
                 "ipv4": {

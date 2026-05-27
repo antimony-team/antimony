@@ -96,29 +96,29 @@ type InstanceOut struct {
 }
 
 type InstanceNode struct {
-	Name          string               `json:"name"`
-	Kind          string               `json:"kind"`
-	IPv4          string               `json:"ipv4"`
-	IPv6          string               `json:"ipv6"`
-	State         deployment.NodeState `json:"state"`
-	ContainerId   string               `json:"containerId"`
-	ContainerName string               `json:"containerName"`
-	Interfaces    []string             `json:"interfaces"`
+	Name          string                     `json:"name"`
+	Kind          string                     `json:"kind"`
+	IPv4          string                     `json:"ipv4"`
+	IPv6          string                     `json:"ipv6"`
+	State         deployment.NodeState       `json:"state"`
+	ContainerId   string                     `json:"containerId"`
+	ContainerName string                     `json:"containerName"`
+	Interfaces    []deployment.NodeInterface `json:"interfaces"`
 
-	InterfaceEventsNamespaceMap map[string]socket.OutputNamespace[InterfaceEventOut]
+	StatsNamespace socket.OutputNamespace[NodeStatsOut]
 
 	CanRestart bool `json:"canRestart"`
 }
 
 type InstanceNodeOut struct {
-	Name          string               `json:"name"`
-	Kind          string               `json:"kind"`
-	IPv4          string               `json:"ipv4"`
-	IPv6          string               `json:"ipv6"`
-	State         deployment.NodeState `json:"state"`
-	ContainerId   string               `json:"containerId"`
-	ContainerName string               `json:"containerName"`
-	Interfaces    []string             `json:"interfaces"`
+	Name          string                     `json:"name"`
+	Kind          string                     `json:"kind"`
+	IPv4          string                     `json:"ipv4"`
+	IPv6          string                     `json:"ipv6"`
+	State         deployment.NodeState       `json:"state"`
+	ContainerId   string                     `json:"containerId"`
+	ContainerName string                     `json:"containerName"`
+	Interfaces    []deployment.NodeInterface `json:"interfaces"`
 
 	CanRestart bool `json:"canRestart"`
 }
@@ -249,4 +249,19 @@ type InterfaceEventOut struct {
 	TxBytes     string    `json:"txBytes"`
 	TxPackets   string    `json:"txPackets"`
 	Type        string    `json:"type"`
+}
+
+type NodeStatsOut struct {
+	Timestamp time.Time `json:"timestamp"`
+
+	CPUUsage    float32 `json:"cpuPercent"`
+	MemoryUsage float32 `json:"memoryUsage"`
+	MemoryLimit float32 `json:"memoryLimit"`
+
+	Interfaces map[string]NodeInterfaceStatsOut `json:"interfaces"`
+}
+
+type NodeInterfaceStatsOut struct {
+	RxBps int `json:"rxBps"`
+	TxBps int `json:"txBps"`
 }
