@@ -85,6 +85,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
         node.interfaces.map(iface => [iface.name, [[], [], []]]),
       );
       cpuUsageBufferRef.current = [[], []];
+      memoryUsageBufferRef.current = [[], []];
 
       labStore.subscribeNodeStats(node.containerId, handleData);
     }
@@ -175,7 +176,12 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
       series: [
         {
           value: (_u, t) => {
-            return t === null ? '--' : new Date(t * 1000).toLocaleTimeString();
+            const [ys] = memoryUsageBufferRef.current;
+            const lastValue = ys[ys.length - 1];
+            const value = t === null ? lastValue : t;
+            return value !== undefined
+              ? new Date(value * 1000).toLocaleTimeString()
+              : '--';
           },
         },
         {
@@ -183,7 +189,12 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
           stroke: '#3fcfad',
           fill: 'rgba(63, 207, 173, 0.15)',
           width: 2,
-          value: (_u, v) => (v === null ? '--' : formatBytes(v)),
+          value: (_u, v) => {
+            const [, ts] = memoryUsageBufferRef.current;
+            const lastValue = ts[ts.length - 1];
+            const value = v === null ? lastValue : v;
+            return value !== undefined ? formatBytes(value) : '--';
+          },
         },
       ],
       hooks: {
@@ -246,7 +257,12 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
       series: [
         {
           value: (_u, t) => {
-            return t === null ? '--' : new Date(t * 1000).toLocaleTimeString();
+            const [ys] = cpuUsageBufferRef.current;
+            const lastValue = ys[ys.length - 1];
+            const value = t === null ? lastValue : t;
+            return value !== undefined
+              ? new Date(value * 1000).toLocaleTimeString()
+              : '--';
           },
         },
         {
@@ -254,7 +270,12 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
           stroke: '#3fcfad',
           fill: 'rgba(63, 207, 173, 0.15)',
           width: 2,
-          value: (_u, v) => (v === null ? '--' : `${v * 100}%`),
+          value: (_u, v) => {
+            const [, ts] = cpuUsageBufferRef.current;
+            const lastValue = ts[ts.length - 1];
+            const value = v === null ? lastValue : v;
+            return value !== undefined ? `${(value * 100).toFixed(1)}%` : '--';
+          },
         },
       ],
       hooks: {
@@ -317,7 +338,12 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
       series: [
         {
           value: (_u, t) => {
-            return t === null ? '--' : new Date(t * 1000).toLocaleTimeString();
+            const [ys] = trafficBuffersRef.current.get(ifName)!;
+            const lastValue = ys[ys.length - 1];
+            const value = t === null ? lastValue : t;
+            return value !== undefined
+              ? new Date(value * 1000).toLocaleTimeString()
+              : '--';
           },
         },
         {
@@ -325,14 +351,24 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
           stroke: '#f59e0b',
           fill: 'rgba(245, 158, 11, 0.15)',
           width: 2,
-          value: (_u, v) => (v === null ? '--' : formatBps(v)),
+          value: (_u, v) => {
+            const [, tsx] = trafficBuffersRef.current.get(ifName)!;
+            const lastValue = tsx[tsx.length - 1];
+            const value = v === null ? lastValue : v;
+            return value !== undefined ? formatBps(value) : '--';
+          },
         },
         {
           label: 'RX',
           stroke: '#3b82f6',
           fill: 'rgba(59, 130, 246, 0.15)',
           width: 2,
-          value: (_u, v) => (v === null ? '--' : formatBps(v)),
+          value: (_u, v) => {
+            const [, , rsx] = trafficBuffersRef.current.get(ifName)!;
+            const lastValue = rsx[rsx.length - 1];
+            const value = v === null ? lastValue : v;
+            return value !== undefined ? formatBps(value) : '--';
+          },
         },
       ],
       hooks: {
