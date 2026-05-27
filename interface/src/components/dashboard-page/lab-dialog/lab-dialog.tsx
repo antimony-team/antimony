@@ -80,10 +80,15 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const graphInitiallyFitted = useRef(false);
 
     useEffect(() => {
-      if (isCyReady && cyRef.current) {
+      // Reset selected node when lab changes
+      setSelectedNode(null);
+    }, [props.lab]);
+
+    useEffect(() => {
+      if (isCyReady && cyRef.current && props.lab) {
         initCytoscape(cyRef.current);
       }
-    }, [isCyReady]);
+    }, [isCyReady, props.lab]);
 
     const elements = useMemo(() => {
       if (!props.lab) return [];
@@ -99,8 +104,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
     function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
-
-      // closeDetails();
 
       const mouseEvent = event.originalEvent as unknown as MouseEvent;
       mouseEvent.preventDefault();
@@ -326,11 +329,12 @@ const LabDialog: React.FC<LabDialogProps> = observer(
           entries.push({separator: true});
         }
 
-        for (const ifName of node.interfaces) {
+        for (const iface of node.interfaces) {
           entries.push({
-            label: 'Open Capture for ' + ifName,
+            label: 'Open Capture for ' + iface.name,
             icon: 'pi pi-eye',
-            command: () => copyCaptureToClipboard(node.containerName, ifName),
+            command: () =>
+              copyCaptureToClipboard(node.containerName, iface.name),
           });
         }
       }
@@ -433,110 +437,111 @@ const LabDialog: React.FC<LabDialogProps> = observer(
             open: props.lab,
           })}
         >
-          <If condition={props.lab}>
-            <div className="sb-lab-view-header">
-              <Button
-                text
-                icon="pi pi-arrow-left"
-                size="large"
-                onClick={() => props.onClose()}
-                tooltip="Back"
-                tooltipOptions={{position: 'bottom', showDelay: 500}}
-                aria-label="Download"
-              />
+          <div className="sb-lab-view-header">
+            <Button
+              text
+              icon="pi pi-arrow-left"
+              size="large"
+              onClick={() => props.onClose()}
+              tooltip="Back"
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Download"
+            />
+            <If condition={props.lab}>
               <StateIndicator lab={props.lab!} showText={false} />
-              <span className="sb-lab-dialog-title-name">
-                {groupName + ' / '}
-              </span>
-              <span>{props.lab!.name}</span>
-              <div className="flex-grow-1" />
-              <div className="sb-lab-view-header-buttons">
-                <Choose>
-                  <When condition={!props.lab!.instance}>
-                    <Button
-                      outlined
-                      icon="pi pi-play"
-                      label="Deploy Now"
-                      aria-label="Deploy Now"
-                      severity="success"
-                      onClick={() => labStore.deployLab(props.lab!)}
-                    />
-                  </When>
-                  <Otherwise>
-                    <Button
-                      outlined
-                      icon={
-                        props.lab!.state === InstanceState.Deploying
-                          ? 'pi pi-sync pi-spin'
-                          : 'pi pi-sync'
-                      }
-                      severity="warning"
-                      aria-label="Redeploy Lab"
-                      onClick={() => labStore.deployLab(props.lab!)}
-                      disabled={props.lab!.state === InstanceState.Deploying}
-                      tooltip={
-                        props.lab!.state === InstanceState.Deploying
-                          ? 'Lab is currently being deployed.'
-                          : ''
-                      }
-                      tooltipOptions={{
-                        showOnDisabled: true,
-                      }}
-                    />
-                    <Button
-                      outlined
-                      icon="pi pi-power-off"
-                      aria-label={
-                        props.lab!.state === InstanceState.Scheduled
-                          ? 'Delete Lab'
-                          : 'Destroy Lab'
-                      }
-                      severity="danger"
-                      onClick={props.onDestroyLabRequest}
-                      disabled={props.lab!.state === InstanceState.Inactive}
-                    />
-                  </Otherwise>
-                </Choose>
-              </div>
+            </If>
+            <span className="sb-lab-dialog-title-name">
+              {groupName + ' / '}
+            </span>
+            <span>{props.lab?.name}</span>
+            <div className="flex-grow-1" />
+            <div className="sb-lab-view-header-buttons">
+              <Choose>
+                <When condition={!props.lab?.instance}>
+                  <Button
+                    outlined
+                    icon="pi pi-play"
+                    label="Deploy Now"
+                    aria-label="Deploy Now"
+                    severity="success"
+                    onClick={() => labStore.deployLab(props.lab!)}
+                  />
+                </When>
+                <Otherwise>
+                  <Button
+                    outlined
+                    icon={
+                      props.lab?.state === InstanceState.Deploying
+                        ? 'pi pi-sync pi-spin'
+                        : 'pi pi-sync'
+                    }
+                    severity="warning"
+                    aria-label="Redeploy Lab"
+                    onClick={() => labStore.deployLab(props.lab!)}
+                    disabled={props.lab?.state === InstanceState.Deploying}
+                    tooltip={
+                      props.lab?.state === InstanceState.Deploying
+                        ? 'Lab is currently being deployed.'
+                        : ''
+                    }
+                    tooltipOptions={{
+                      showOnDisabled: true,
+                    }}
+                  />
+                  <Button
+                    outlined
+                    icon="pi pi-power-off"
+                    aria-label={
+                      props.lab!.state === InstanceState.Scheduled
+                        ? 'Delete Lab'
+                        : 'Destroy Lab'
+                    }
+                    severity="danger"
+                    onClick={props.onDestroyLabRequest}
+                    disabled={props.lab!.state === InstanceState.Inactive}
+                  />
+                </Otherwise>
+              </Choose>
             </div>
-            <div className="sb-lab-view-content">
-              <div className="sb-lab-view-drawer-container">
-                <Splitter
-                  className="h-full"
-                  pt={{
-                    gutter: {
-                      style: {
-                        opacity:
-                          selectedNode && props.lab?.instance?.nodes.length
-                            ? '1'
-                            : '0',
-                      },
-                      className: 'sb-lab-view-drawer-gutter',
+          </div>
+          <div className="sb-lab-view-content">
+            <div className="sb-lab-view-drawer-container">
+              <Splitter
+                className="h-full"
+                pt={{
+                  gutter: {
+                    style: {
+                      opacity:
+                        selectedNode && props.lab?.instance?.nodes.length
+                          ? '1'
+                          : '0',
                     },
-                  }}
+                    className: 'sb-lab-view-drawer-gutter',
+                  },
+                }}
+              >
+                <SplitterPanel className="sb-lab-view-drawer-decoy"></SplitterPanel>
+                <SplitterPanel
+                  size={30}
+                  minSize={30}
+                  className={classNames('sb-lab-view-drawer', {
+                    closed: !selectedNode || !props.lab?.instance?.nodes.length,
+                  })}
                 >
-                  <SplitterPanel className="sb-lab-view-drawer-decoy"></SplitterPanel>
-                  <SplitterPanel
-                    size={30}
-                    minSize={30}
-                    className={classNames('sb-lab-view-drawer', {
-                      closed:
-                        !selectedNode || !props.lab?.instance?.nodes.length,
-                    })}
-                  >
-                    <LabDialogDrawer
-                      lab={props.lab}
-                      nodeName={selectedNode}
-                      onOpenTerminal={onOpenTerminal}
-                      onOpenLogs={onOpenLogs}
-                      onNodeStart={onNodeStart}
-                      onNodeStop={onNodeStop}
-                      onNodeRestart={onNodeRestart}
-                    />
-                  </SplitterPanel>
-                </Splitter>
-              </div>
-              <div className="topology-graph-container" ref={containerRef}>
+                  <LabDialogDrawer
+                    lab={props.lab}
+                    nodeName={selectedNode}
+                    onOpenTerminal={onOpenTerminal}
+                    onOpenLogs={onOpenLogs}
+                    onNodeStart={onNodeStart}
+                    onNodeStop={onNodeStop}
+                    onNodeRestart={onNodeRestart}
+                  />
+                </SplitterPanel>
+              </Splitter>
+            </div>
+            <div className="topology-graph-container" ref={containerRef}>
+              <If condition={props.lab}>
                 <LabDialogPanelProperties lab={props.lab!} />
                 <LabDialogPanelAdmin
                   lab={props.lab!}
@@ -548,18 +553,18 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                   }
                 />
                 <canvas ref={gridCanvasRef} className="grid-canvas" />
-                <CytoscapeComponent
-                  className="cytoscape-container"
-                  elements={elements}
-                  cy={(cy: cytoscape.Core) => {
-                    cyRef.current = cy;
-                    // initCytoscape(cy);
-                    setIsCyReady(true);
-                  }}
-                />
-              </div>
+              </If>
+              <CytoscapeComponent
+                className="cytoscape-container"
+                elements={elements}
+                cy={(cy: cytoscape.Core) => {
+                  cyRef.current = cy;
+                  // initCytoscape(cy);
+                  setIsCyReady(true);
+                }}
+              />
             </div>
-          </If>
+          </div>
         </div>
         <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
         <LogDialog dialogState={logDialogState} />

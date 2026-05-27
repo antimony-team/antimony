@@ -519,7 +519,8 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
                     quick_reference_all
                   </span>
                 }
-                label="Open Terminal"
+                label="Show Logs"
+                aria-label="Show Logs"
                 outlined
                 onClick={props.onOpenLogs}
                 disabled={!nodeActionChecker!.canShowLogs}
@@ -528,7 +529,8 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
                 icon={
                   <span className="material-symbols-outlined">terminal</span>
                 }
-                label="Show Logs"
+                label="Open Terminal"
+                aria-label="Open Terminal"
                 outlined
                 onClick={props.onOpenTerminal}
                 disabled={!nodeActionChecker!.canOpenTerminal}
