@@ -1034,36 +1034,22 @@ func (s *labService) onNodeStarted(ctx context.Context, instance *Instance, node
 
 	instance.Mutex.Lock()
 
-	node.StatsNamespace = socket.CreateOutputNamespace[NodeStatsOut](
-		s.socketManager,
-		false,
-		&socket.BacklogConfig{
-			Capacity: 20,
-			Kind:     utils.RingKindValue,
-		},
-		true,
-		nil,
-		"stats",
-		node.ContainerId,
-	)
-
-	//for _, interfaceName := range interfaces {
-	//	if _, hasNamespace := node.InterfaceEventsNamespaceMap[interfaceName]; !hasNamespace {
-	//		node.InterfaceEventsNamespaceMap[interfaceName] = socket.CreateOutputNamespace[InterfaceEventOut](
-	//			s.socketManager,
-	//			false,
-	//			&socket.BacklogConfig{
-	//				Capacity: 20,
-	//				Kind:     utils.RingKindValue,
-	//			},
-	//			true,
-	//			nil,
-	//			"interface-events",
-	//			node.ContainerId,
-	//			interfaceName,
-	//		)
-	//	}
-	//}
+	if node.StatsNamespace == nil {
+		node.StatsNamespace = socket.CreateOutputNamespace[NodeStatsOut](
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: 20,
+				Kind:     utils.RingKindValue,
+			},
+			true,
+			nil,
+			"stats",
+			node.ContainerId,
+		)
+	} else {
+		node.StatsNamespace.ClearBacklog()
+	}
 
 	node.State = deployment.NodeStates.Running
 	node.Interfaces = interfaces
