@@ -1,6 +1,6 @@
 import './lab-dialog-drawer.sass';
 import React, {useEffect, useMemo, useRef} from 'react';
-import {InstanceNode, InterfaceEventOut, Lab} from '@sb/types/domain/lab';
+import {Lab, NodeInterfaceStatsOut, NodeStatsOut} from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
 import {
   useLabStore,
@@ -39,18 +39,28 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
 
   const wrapperRef = useRef(null);
   const widthRef = useRef(800);
+  const cpuUsageChartRef = useRef<uPlot | null>(null);
+  const memoryUsageChartRef = useRef<uPlot | null>(null);
   const trafficChartsRef = useRef<Map<string, uPlot | null>>(new Map());
+
   const trafficBuffersRef = useRef<Map<string, [number[], number[], number[]]>>(
     new Map(),
   );
+  const cpuUsageBufferRef = useRef<[number[], number[]]>([[], []]);
+  const memoryUsageBufferRef = useRef<[number[], number[]]>([[], []]);
+  const memoryTotalRef = useRef<number>(0);
 
   const node = useMemo(() => {
-    if (!props.lab?.instance || !props.nodeName) return null;
+    if (!props.lab?.instance || !props.nodeName) {
+      return null;
+    }
     return props.lab.instance.nodes.find(n => n.name === props.nodeName)!;
   }, [props.lab, props.nodeName]);
 
   const nodeActionChecker = useMemo(() => {
-    if (!props.lab?.instance || !node) return null;
+    if (!props.lab?.instance || !node) {
+      return null;
+    }
     return new NodeActionChecker(props.lab.instance, node);
   }, [props.lab, node]);
 
@@ -72,37 +82,33 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
 
     if (node) {
       trafficBuffersRef.current = new Map(
-        node.interfaces.map(ifName => [ifName, [[], [], []]]),
+        node.interfaces.map(iface => [iface.name, [[], [], []]]),
       );
+      cpuUsageBufferRef.current = [[], []];
 
-      for (const ifName of node.interfaces) {
-        labStore.subscribeInterfaceEvents(node.containerId, ifName, handleData);
-      }
+      labStore.subscribeNodeStats(node.containerId, handleData);
     }
 
-    return () => unsubscribeFromNode(node);
+    return () => {
+      if (!node) return;
+      labStore.unsubscribeNodeStats(node.containerId, handleData);
+    };
   }, [node]);
-
-  function unsubscribeFromNode(node: InstanceNode | null) {
-    if (!node) return;
-
-    for (const ifName of node.interfaces) {
-      labStore.unsubscribeInterfaceEvents(node.containerId, ifName, handleData);
-    }
-  }
 
   function onResizeDrawer(entries: ResizeObserverEntry[]) {
     const {width} = entries[0].contentRect;
     widthRef.current = width;
     trafficChartsRef.current.entries().forEach(([ifName, chart]) => {
       if (!chart) return;
-      chart.setSize({width, height: 250});
+      chart.setSize({width, height: 200});
       chart.setData(trafficBuffersRef.current.get(ifName)!);
     });
+    cpuUsageChartRef.current?.setSize({width: width / 2, height: 200});
+    memoryUsageChartRef.current?.setSize({width: width / 2, height: 200});
   }
 
   function formatBps(v: number | null) {
-    if (!v) return '';
+    if (v === null) return '';
 
     const abs = Math.abs(v);
     const fmt = (n: number) => n.toFixed(1).replace(/\.0$/, '');
@@ -113,7 +119,161 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     return v.toFixed(0) + ' bps';
   }
 
-  function getPlotOptions(ifName: string): uPlot.Options {
+  function formatBytes(v: number | null) {
+    if (v === null) return '';
+
+    const abs = Math.abs(v);
+    const fmt = (n: number) => n.toFixed(1).replace(/\.0$/, '');
+    if (abs >= 1024 ** 4) return fmt(v / 1024 ** 4) + ' TB';
+    if (abs >= 1024 ** 3) return fmt(v / 1024 ** 3) + ' GB';
+    if (abs >= 1024 ** 2) return fmt(v / 1024 ** 2) + ' MB';
+    if (abs >= 1024) return fmt(v / 1024) + ' KB';
+    return v.toFixed(0) + ' B';
+  }
+
+  function getMemoryUsagePlotOptions(): uPlot.Options {
+    return {
+      width: 800,
+      height: 200,
+      cursor: {
+        drag: {
+          x: false,
+          y: false,
+        },
+        points: {show: false},
+      },
+      padding: [null, 70, null, null],
+      scales: {
+        x: {
+          time: true,
+          range: () => {
+            if (!cpuUsageBufferRef.current) return [0, 1];
+            const [ts] = cpuUsageBufferRef.current;
+            const end = ts.length ? ts[ts.length - 1] : Date.now() / 1000;
+            return [end - 20, end];
+          },
+        },
+        y: {
+          range: (_u, _min, max) => [0, max * 1.8 || 100],
+        },
+      },
+      axes: [
+        {
+          stroke: '#cdcbcb',
+          splits: (_u, _axisIdx, min, max) => [min, max],
+          values: (_u, ticks) => {
+            return ticks.map(t => new Date(t * 1000).toLocaleTimeString());
+          },
+        },
+        {
+          stroke: '#cdcbcb',
+          grid: {stroke: '#3d3d3d', width: 1},
+          values: (_u, ticks) => ticks.map(n => formatBytes(n)),
+          size: 65,
+        },
+      ],
+      series: [
+        {
+          value: (_u, t) => {
+            return t === null ? '--' : new Date(t * 1000).toLocaleTimeString();
+          },
+        },
+        {
+          label: 'Usage',
+          stroke: '#3fcfad',
+          fill: 'rgba(63, 207, 173, 0.15)',
+          width: 2,
+          value: (_u, v) => (v === null ? '--' : formatBytes(v)),
+        },
+      ],
+      hooks: {
+        draw: [
+          u => {
+            const {ctx} = u;
+            const {left, top, width, height} = u.bbox;
+            ctx.save();
+            ctx.strokeStyle = '#3d3d3d';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(left, top, width, height);
+            ctx.restore();
+          },
+        ],
+      },
+    };
+  }
+
+  function getCPUPlotOptions(): uPlot.Options {
+    return {
+      width: 800,
+      height: 200,
+      cursor: {
+        drag: {
+          x: false,
+          y: false,
+        },
+        points: {show: false},
+      },
+      padding: [null, 55, null, null],
+      scales: {
+        x: {
+          time: true,
+          range: () => {
+            if (!cpuUsageBufferRef.current) return [0, 1];
+            const [ts] = cpuUsageBufferRef.current;
+            const end = ts.length ? ts[ts.length - 1] : Date.now() / 1000;
+            return [end - 20, end];
+          },
+        },
+        y: {
+          range: () => [0, 1],
+        },
+      },
+      axes: [
+        {
+          stroke: '#cdcbcb',
+          splits: (_u, _axisIdx, min, max) => [min, max],
+          values: (_u, ticks) => {
+            return ticks.map(t => new Date(t * 1000).toLocaleTimeString());
+          },
+        },
+        {
+          stroke: '#cdcbcb',
+          grid: {stroke: '#3d3d3d', width: 1},
+          values: (_u, ticks) => ticks.map(n => `${n * 100}%`),
+          size: 80,
+        },
+      ],
+      series: [
+        {
+          value: (_u, t) => {
+            return t === null ? '--' : new Date(t * 1000).toLocaleTimeString();
+          },
+        },
+        {
+          label: 'Usage',
+          stroke: '#3fcfad',
+          fill: 'rgba(63, 207, 173, 0.15)',
+          width: 2,
+          value: (_u, v) => (v === null ? '--' : `${v * 100}%`),
+        },
+      ],
+      hooks: {
+        draw: [
+          u => {
+            const {ctx} = u;
+            const {left, top, width, height} = u.bbox;
+            ctx.save();
+            ctx.strokeStyle = '#3d3d3d';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(left, top, width, height);
+            ctx.restore();
+          },
+        ],
+      },
+    };
+  }
+
+  function getNetworkPlotOptions(ifName: string): uPlot.Options {
     return {
       width: 800,
       height: 250,
@@ -191,30 +351,79 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     };
   }
 
-  function handleData(data: InterfaceEventOut) {
-    if (!node || data.containerId !== node.containerId) return;
+  function handleData(data: NodeStatsOut) {
+    if (!node) return;
 
     const ts_sec = Date.parse(data.timestamp) / 1000;
 
-    const [ts, txs, rxs] = trafficBuffersRef.current.get(data.ifName)!;
+    addCpuUsageData(data, ts_sec);
+    addMemoryUsageData(data, ts_sec);
 
-    const txValue = parseInt(data.txBps);
-    const rxValue = parseInt(data.rxBps);
+    for (const ifName in data.interfaces) {
+      addInterfaceData(ifName, data.interfaces[ifName], ts_sec);
+    }
+  }
 
-    // Add initial point to draw line to the left side when graph is empty
+  function addCpuUsageData(data: NodeStatsOut, currentSeconds: number) {
+    if (!cpuUsageChartRef.current) return;
+
+    const [ts, tx] = cpuUsageBufferRef.current;
+
+    // Add initial point to draw line to the bottom when graph is not yet filled
     if (ts.length === 0) {
-      ts.push(ts_sec - 20);
-      txs.push(txValue);
-      rxs.push(rxValue);
+      ts.push(currentSeconds - 1);
+      tx.push(0);
     }
 
-    ts.push(ts_sec);
+    ts.push(currentSeconds);
+    tx.push(data.cpuPercent);
+
+    cpuUsageChartRef.current.setData([ts, tx]);
+  }
+
+  function addMemoryUsageData(data: NodeStatsOut, currentSeconds: number) {
+    if (!memoryUsageChartRef.current) return;
+
+    const [ts, tx] = memoryUsageBufferRef.current;
+
+    // Add initial point to draw line to the bottom when graph is not yet filled
+    if (ts.length === 0) {
+      ts.push(currentSeconds - 1);
+      tx.push(0);
+    }
+
+    memoryTotalRef.current = data.memoryLimit;
+
+    ts.push(currentSeconds);
+    tx.push(data.memoryUsage);
+
+    memoryUsageChartRef.current.setData([ts, tx]);
+  }
+
+  function addInterfaceData(
+    ifName: string,
+    data: NodeInterfaceStatsOut,
+    currentSeconds: number,
+  ) {
+    if (!trafficBuffersRef.current.has(ifName)) return;
+
+    const [ts, txs, rxs] = trafficBuffersRef.current.get(ifName)!;
+
+    const txValue = data.txBps;
+    const rxValue = data.rxBps;
+
+    // Add initial point to draw line to the bottom when graph is not yet filled
+    if (ts.length === 0) {
+      ts.push(currentSeconds - 1);
+      txs.push(0);
+      rxs.push(0);
+    }
+
+    ts.push(currentSeconds);
     txs.push(txValue);
     rxs.push(rxValue);
 
-    if (trafficChartsRef.current.has(data.ifName)) {
-      trafficChartsRef.current.get(data.ifName)!.setData([ts, txs, rxs]);
-    }
+    trafficChartsRef.current.get(ifName)!.setData([ts, txs, rxs]);
   }
 
   function copyCaptureToClipboard(ifName: string) {
@@ -263,7 +472,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
               <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Interfaces:</span>
                 <span className="property-value">
-                  {node!.interfaces.join(', ')}
+                  {node!.interfaces.map(iface => iface.name).join(', ')}
                 </span>
               </div>
             </div>
@@ -290,15 +499,39 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
               />
             </div>
           </div>
-          {node!.interfaces.map((ifname, i) => (
+          <div className="flex mt-4">
+            <div>
+              <div className="lab-details-plot-title">CPU Usage</div>
+              <UplotReact
+                options={getCPUPlotOptions()}
+                onCreate={chart => {
+                  cpuUsageChartRef.current = chart;
+                  chart.setSize({width: widthRef.current / 2, height: 200});
+                }}
+                data={[]}
+              />
+            </div>
+            <div>
+              <div className="lab-details-plot-title">Memory Usage</div>
+              <UplotReact
+                options={getMemoryUsagePlotOptions()}
+                onCreate={chart => {
+                  memoryUsageChartRef.current = chart;
+                  chart.setSize({width: widthRef.current / 2, height: 200});
+                }}
+                data={[]}
+              />
+            </div>
+          </div>
+          {node!.interfaces.map((iface, i) => (
             <div style={{position: 'relative'}} key={i}>
               <Divider />
-              <div className="lab-details-plot-title">{ifname}</div>
+              <div className="lab-details-plot-title">{iface.name}</div>
               <UplotReact
-                options={getPlotOptions(ifname)}
+                options={getNetworkPlotOptions(iface.name)}
                 onCreate={chart => {
-                  trafficChartsRef.current.set(ifname, chart);
-                  chart.setSize({width: widthRef.current, height: 250});
+                  trafficChartsRef.current.set(iface.name, chart);
+                  chart.setSize({width: widthRef.current, height: 200});
                 }}
                 data={[]}
               />
@@ -307,7 +540,7 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
                 outlined
                 icon="pi pi-eye"
                 label="Start Capture"
-                onClick={() => copyCaptureToClipboard(ifname)}
+                onClick={() => copyCaptureToClipboard(iface.name)}
                 aria-label="Submit"
               />
             </div>

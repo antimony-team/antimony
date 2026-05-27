@@ -20,6 +20,7 @@ import {
   LabIn,
   LabOut,
   LabUpdateOut,
+  NodeStatsOut,
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
@@ -129,26 +130,18 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return Result.createOk(response);
   }
 
-  public subscribeInterfaceEvents(
+  public subscribeNodeStats(
     containerId: string,
-    ifName: string,
-    onEvent: (data: InterfaceEventOut) => void,
+    onEvent: (data: NodeStatsOut) => void,
   ) {
-    this.dataBinder.subscribeNamespace(
-      `interface-events/${containerId}/${ifName}`,
-      onEvent,
-    );
+    this.dataBinder.subscribeNamespace(`stats/${containerId}`, onEvent);
   }
 
-  public unsubscribeInterfaceEvents(
+  public unsubscribeNodeStats(
     containerId: string,
-    ifName: string,
-    onEvent: (data: InterfaceEventOut) => void,
+    onEvent: (data: NodeStatsOut) => void,
   ) {
-    this.dataBinder.unsubscribeNamespace(
-      `interface-events/${containerId}/${ifName}`,
-      onEvent,
-    );
+    this.dataBinder.unsubscribeNamespace(`stats/${containerId}`, onEvent);
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {

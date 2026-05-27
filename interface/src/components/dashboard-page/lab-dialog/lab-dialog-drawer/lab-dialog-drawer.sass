@@ -1,11 +1,16 @@
 .lab-dialog-drawer-content
   position: relative
   height: 100%
+  width: 100%
+  display: flex
+  flex-direction: column
 
 .lab-dialog-drawer-content-inner
   padding: 12px
-  height: 100%
-  margin-bottom: -57px
+  //margin-bottom: -57px
+  overflow-x: hidden
+  overflow-y: auto
+  flex-grow: 1
 
   .p-button
     margin-top: 8px
@@ -43,7 +48,6 @@
       gap: 8px
 
 .lab-dialog-drawer-control-buttons
-  position: absolute
   bottom: 0
   right: 0
   left: 0
@@ -52,6 +56,7 @@
   flex-direction: row
   margin-top: 12px
   gap: 12px
+  background-color: var(--secondary-color)
 
   .p-button
     flex: 1

@@ -18,14 +18,14 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {DialogState, useDialogState} from '@sb/lib/utils/hooks';
+import {useDialogState} from '@sb/lib/utils/hooks';
 import {
   drawGraphGrid,
   generateGraph,
   getInterfaceCaptureCommand,
 } from '@sb/lib/utils/utils';
-import {If} from '@sb/types/control';
-import {Lab} from '@sb/types/domain/lab';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import cytoscape from 'cytoscape';
 import {ExpandLines} from 'iconoir-react';
@@ -42,7 +42,8 @@ import {Splitter, SplitterPanel} from 'primereact/splitter';
 import LabDialogDrawer from '@sb/components/dashboard-page/lab-dialog/lab-dialog-drawer/lab-dialog-drawer';
 
 interface LabDialogProps {
-  dialogState: DialogState<Lab>;
+  lab: Lab | null;
+  onClose: () => void;
   onDestroyLabRequest: (lab: Lab) => void;
 }
 
@@ -57,6 +58,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const logDialogState = useDialogState<LogDialogState>();
     const terminalDialogState = useDialogState<TerminalDialogState>();
 
+    const [isCyReady, setIsCyReady] = useState<boolean>(false);
+
     const serverConfig = useServerConfig();
     const collectionStore = useCollectionStore();
     const deviceStore = useDeviceStore();
@@ -67,31 +70,32 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     // const nodeDetailOverlay = useRef<TooltipRefProps>(null);
 
     const groupName = useMemo(() => {
-      if (!props.dialogState.state) return;
+      if (!props.lab) return;
 
-      const collectionId = props.dialogState.state.collectionId;
+      const collectionId = props.lab.collectionId;
       if (!collectionStore.lookup.has(collectionId)) return;
-
       return collectionStore.lookup.get(collectionId)!.name;
-    }, [props.dialogState.state, collectionStore.lookup]);
+    }, [props.lab, collectionStore.lookup]);
 
     const graphInitiallyFitted = useRef(false);
 
+    useEffect(() => {
+      if (isCyReady && cyRef.current) {
+        initCytoscape(cyRef.current);
+      }
+    }, [isCyReady]);
+
     const elements = useMemo(() => {
-      if (!props.dialogState.state) return [];
+      if (!props.lab) return [];
 
       return generateGraph(
-        props.dialogState.state.topologyDefinition,
+        props.lab.topologyDefinition,
         deviceStore,
         topologyStore.manager,
-        props.dialogState.state.instance,
+        props.lab.instance,
         hostsHidden,
       );
-    }, [
-      props.dialogState.state?.topologyDefinition,
-      props.dialogState.state?.instance,
-      hostsHidden,
-    ]);
+    }, [props.lab?.topologyDefinition, props.lab?.instance, hostsHidden]);
 
     function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
@@ -122,13 +126,17 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
     function onNodeClick(event: cytoscape.EventObject) {
       const target = event.target;
+      if (target === cyRef.current) {
+        onGraphClick(event);
+        return;
+      }
 
       if (target.isNode && target.isNode()) {
         setSelectedNode(target.id());
 
-        const node = props.dialogState.state?.instance?.nodeMap.get(
-          target.id(),
-        );
+        // cyRef.current!.selec
+
+        const node = props.lab?.instance?.nodeMap.get(target.id());
 
         // if (node && nodeDetailOverlay.current) {
         //   if (nodeDetailOverlay.current.isOpen) {
@@ -161,46 +169,46 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function onNodeStart() {
       if (
         !selectedNode ||
-        !props.dialogState.state?.instance ||
-        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+        !props.lab?.instance ||
+        !props.lab.instance.nodeMap.has(selectedNode)
       ) {
         return;
       }
 
-      void labStore.startNode(props.dialogState.state, selectedNode);
+      void labStore.startNode(props.lab, selectedNode);
     }
 
     function onNodeStop() {
       if (
         !selectedNode ||
-        !props.dialogState.state?.instance ||
-        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+        !props.lab?.instance ||
+        !props.lab.instance.nodeMap.has(selectedNode)
       ) {
         return;
       }
 
-      void labStore.stopNode(props.dialogState.state, selectedNode);
+      void labStore.stopNode(props.lab, selectedNode);
     }
 
     function onNodeRestart() {
       if (
         !selectedNode ||
-        !props.dialogState.state?.instance ||
-        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+        !props.lab?.instance ||
+        !props.lab.instance.nodeMap.has(selectedNode)
       ) {
         return;
       }
 
-      void labStore.restartNode(props.dialogState.state, selectedNode);
+      void labStore.restartNode(props.lab, selectedNode);
     }
 
     function onOpenLogs() {
       // closeDetails();
 
-      const instance = props.dialogState.state!.instance!;
+      const instance = props.lab!.instance!;
 
       logDialogState.openWith({
-        lab: props.dialogState.state!,
+        lab: props.lab!,
         source: selectedNode
           ? instance.nodeMap.get(selectedNode)?.containerId
           : undefined,
@@ -212,14 +220,14 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
       if (
         !selectedNode ||
-        !props.dialogState.state?.instance ||
-        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+        !props.lab?.instance ||
+        !props.lab.instance.nodeMap.has(selectedNode)
       ) {
         return;
       }
 
       terminalDialogState.openWith({
-        lab: props.dialogState.state!,
+        lab: props.lab!,
         node: selectedNode,
       });
     }
@@ -227,13 +235,13 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function openWebSsh() {
       if (
         !selectedNode ||
-        !props.dialogState.state?.instance ||
-        !props.dialogState.state.instance.nodeMap.has(selectedNode)
+        !props.lab?.instance ||
+        !props.lab.instance.nodeMap.has(selectedNode)
       ) {
         return;
       }
 
-      const instance = props.dialogState.state.instance;
+      const instance = props.lab.instance;
       const webSshUrl = instance.nodeMap.get(selectedNode)!.webSSH;
 
       window.open(webSshUrl, '_blank');
@@ -259,9 +267,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         return graphContextMenuModel;
       }
 
-      const instance = props.dialogState.state?.instance;
+      const instance = props.lab?.instance;
 
-      if (!cyRef.current || !props.dialogState.state || !instance) {
+      if (!cyRef.current || !props.lab || !instance) {
         return undefined;
       }
 
@@ -336,7 +344,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       }
 
       return entries;
-    }, [selectedNode, props.dialogState.state]);
+    }, [selectedNode, props.lab]);
 
     function copyCaptureToClipboard(containerName: string, ifName: string) {
       const cmd = getInterfaceCaptureCommand(
@@ -351,6 +359,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     function onGraphClick(event: cytoscape.EventObject) {
+      setSelectedNode(null);
       // if (
       //   event.target === cyRef.current &&
       //   nodeContextMenuRef.current !== null
@@ -366,11 +375,11 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
       cy.maxZoom(10);
+      console.log('initCytoscape');
 
-      cy.on('tap', 'node', onNodeClick);
+      cy.on('tap', onNodeClick);
       cy.on('cxttap', onGraphContext);
       cy.on('render', drawGridOverlay);
-      cy.on('tap', onGraphClick);
       cy.on('zoom', onZoom);
       // cy.on('mousedown', onMouseDown);
       cy.style().fromJson(topologyStyle).update();
@@ -386,18 +395,18 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     }
 
     useEffect(() => {
-      if (!props.dialogState.state) return;
+      if (!props.lab) return;
 
       if (logDialogState.isOpen) {
-        if (!props.dialogState.state.instance) {
+        if (!props.lab.instance) {
           logDialogState.close();
         } else {
           logDialogState.openWith({
-            lab: props.dialogState.state,
+            lab: props.lab,
           });
         }
       }
-    }, [props.dialogState.state]);
+    }, [props.lab]);
 
     function onClose() {
       // Close child dialogs before closing lab dialog itself
@@ -407,7 +416,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         terminalDialogState.close();
       } else {
         graphInitiallyFitted.current = false;
-        props.dialogState.close();
+        // props.dialogState.close();
       }
     }
 
@@ -417,45 +426,106 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       cyRef.current.fit(undefined, 120);
     }
 
-    // function closeDetails() {
-    //   nodeDetailOverlay.current?.close();
-    // }
-
     return (
       <>
         <div
           className={classNames('sb-card sb-lab-view', {
-            open: props.dialogState.isOpen,
+            open: props.lab,
           })}
         >
-          <If condition={props.dialogState.state}>
+          <If condition={props.lab}>
             <div className="sb-lab-view-header">
               <Button
                 text
                 icon="pi pi-arrow-left"
                 size="large"
-                onClick={() => props.dialogState.close()}
+                onClick={() => props.onClose()}
                 tooltip="Back"
                 tooltipOptions={{position: 'bottom', showDelay: 500}}
                 aria-label="Download"
               />
-              <StateIndicator lab={props.dialogState.state!} showText={false} />
+              <StateIndicator lab={props.lab!} showText={false} />
               <span className="sb-lab-dialog-title-name">
                 {groupName + ' / '}
               </span>
-              <span>{props.dialogState!.state?.name}</span>
+              <span>{props.lab!.name}</span>
+              <div className="flex-grow-1" />
+              <div className="sb-lab-view-header-buttons">
+                <Choose>
+                  <When condition={!props.lab!.instance}>
+                    <Button
+                      outlined
+                      icon="pi pi-play"
+                      label="Deploy Now"
+                      aria-label="Deploy Now"
+                      severity="success"
+                      onClick={() => labStore.deployLab(props.lab!)}
+                    />
+                  </When>
+                  <Otherwise>
+                    <Button
+                      outlined
+                      icon={
+                        props.lab!.state === InstanceState.Deploying
+                          ? 'pi pi-sync pi-spin'
+                          : 'pi pi-sync'
+                      }
+                      severity="warning"
+                      aria-label="Redeploy Lab"
+                      onClick={() => labStore.deployLab(props.lab!)}
+                      disabled={props.lab!.state === InstanceState.Deploying}
+                      tooltip={
+                        props.lab!.state === InstanceState.Deploying
+                          ? 'Lab is currently being deployed.'
+                          : ''
+                      }
+                      tooltipOptions={{
+                        showOnDisabled: true,
+                      }}
+                    />
+                    <Button
+                      outlined
+                      icon="pi pi-power-off"
+                      aria-label={
+                        props.lab!.state === InstanceState.Scheduled
+                          ? 'Delete Lab'
+                          : 'Destroy Lab'
+                      }
+                      severity="danger"
+                      onClick={props.onDestroyLabRequest}
+                      disabled={props.lab!.state === InstanceState.Inactive}
+                    />
+                  </Otherwise>
+                </Choose>
+              </div>
             </div>
             <div className="sb-lab-view-content">
               <div className="sb-lab-view-drawer-container">
-                <Splitter className="h-full">
+                <Splitter
+                  className="h-full"
+                  pt={{
+                    gutter: {
+                      style: {
+                        opacity:
+                          selectedNode && props.lab?.instance?.nodes.length
+                            ? '1'
+                            : '0',
+                      },
+                      className: 'sb-lab-view-drawer-gutter',
+                    },
+                  }}
+                >
                   <SplitterPanel className="sb-lab-view-drawer-decoy"></SplitterPanel>
                   <SplitterPanel
                     size={30}
                     minSize={30}
-                    className="sb-lab-view-drawer"
+                    className={classNames('sb-lab-view-drawer', {
+                      closed:
+                        !selectedNode || !props.lab?.instance?.nodes.length,
+                    })}
                   >
                     <LabDialogDrawer
-                      lab={props.dialogState.state}
+                      lab={props.lab}
                       nodeName={selectedNode}
                       onOpenTerminal={onOpenTerminal}
                       onOpenLogs={onOpenLogs}
@@ -467,14 +537,14 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                 </Splitter>
               </div>
               <div className="topology-graph-container" ref={containerRef}>
-                <LabDialogPanelProperties lab={props.dialogState.state!} />
+                <LabDialogPanelProperties lab={props.lab!} />
                 <LabDialogPanelAdmin
-                  lab={props.dialogState.state!}
+                  lab={props.lab!}
                   onOpenLogs={onOpenLogs}
                   labelsHidden={hostsHidden}
                   setLabelsHidden={setHostsHidden}
                   onDestroyLabRequest={() =>
-                    props.onDestroyLabRequest(props.dialogState.state!)
+                    props.onDestroyLabRequest(props.lab!)
                   }
                 />
                 <canvas ref={gridCanvasRef} className="grid-canvas" />
@@ -483,8 +553,8 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                   elements={elements}
                   cy={(cy: cytoscape.Core) => {
                     cyRef.current = cy;
-                    initCytoscape(cy);
-                    // setIsCyReady(true);
+                    // initCytoscape(cy);
+                    setIsCyReady(true);
                   }}
                 />
               </div>
@@ -494,16 +564,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
         <LogDialog dialogState={logDialogState} />
         <TerminalDialog dialogState={terminalDialogState} />
-        {/*<LabDetailsOverlay*/}
-        {/*  overlayRef={nodeDetailOverlay}*/}
-        {/*  lab={props.dialogState.state}*/}
-        {/*  nodeId={selectedNode}*/}
-        {/*  onOpenTerminal={onOpenTerminal}*/}
-        {/*  onOpenLogs={onOpenLogs}*/}
-        {/*  onNodeStart={onNodeStart}*/}
-        {/*  onNodeStop={onNodeStop}*/}
-        {/*  onNodeRestart={onNodeRestart}*/}
-        {/*/>*/}
       </>
     );
   },

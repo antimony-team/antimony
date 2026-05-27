@@ -59,9 +59,16 @@ export type InstanceNode = {
   webSSH: string;
   containerId: string;
   containerName: string;
-  interfaces: string[];
+  interfaces: NodeInterface[];
 
   canRestart: boolean;
+};
+
+export type NodeInterface = {
+  name: string;
+  address: string;
+  mtu: number;
+  state: string;
 };
 
 export enum InstanceState {
@@ -73,6 +80,19 @@ export enum InstanceState {
   Inactive = -1,
   Scheduled = -2,
 }
+
+export type NodeStatsOut = {
+  timestamp: string;
+  cpuPercent: number;
+  memoryUsage: number;
+  memoryLimit: number;
+  interfaces: Record<string, NodeInterfaceStatsOut>;
+};
+
+export type NodeInterfaceStatsOut = {
+  rxBps: number;
+  txBps: number;
+};
 
 export const InstanceStates = Object.values(InstanceState).filter(
   instance => typeof instance === 'number',
@@ -121,21 +141,3 @@ export enum LabCommand {
   OpenShell,
   CloseShell,
 }
-
-export type InterfaceEventOut = {
-  timestamp: string;
-  containerId: string;
-  ifName: string;
-  mac: string;
-  mtu: string;
-  origin: string;
-  rxBps: string;
-  rxBytes: string;
-  rxPackets: string;
-  rxPps: string;
-  state: string;
-  txBps: string;
-  txBytes: string;
-  txPackets: string;
-  type: string;
-};

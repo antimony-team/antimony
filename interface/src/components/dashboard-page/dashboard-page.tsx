@@ -15,7 +15,6 @@ import {
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {Choose, Otherwise, When} from '@sb/types/control';
 import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
-import {FetchState} from '@sb/types/types';
 import classNames from 'classnames';
 
 import {observer} from 'mobx-react-lite';
@@ -33,12 +32,6 @@ import LabDialog from '@sb/components/dashboard-page/lab-dialog/lab-dialog';
 const DashboardPage: React.FC = observer(() => {
   const [currentPage, setCurrentPage] = useState<number>(0);
 
-  const labDialogState = useDialogState<Lab>(
-    null,
-    onCloseLabDialog,
-    onOpenLabDialog,
-  );
-
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,6 +40,8 @@ const DashboardPage: React.FC = observer(() => {
   const searchQueryFieldRef = useRef<HTMLInputElement>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const [openLab, setOpenLab] = useState<Lab | null>(null);
 
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
@@ -71,26 +66,24 @@ const DashboardPage: React.FC = observer(() => {
     calculatePageSize();
   });
 
-  useEffect(() => {
-    // If the lab dialog is open during refresh, refresh lab too
-    if (labDialogState.state && labDialogState.isOpen) {
-      if (labStore.lookup.has(labDialogState.state.id)) {
-        labDialogState.openWith(labStore.lookup.get(labDialogState.state.id)!);
-      }
-    }
-  }, [labStore.data]);
+  // useEffect(() => {
+  //   // If the lab dialog is open during refresh, refresh lab too
+  //   if (labDialogState.state && labDialogState.isOpen) {
+  //     if (labStore.lookup.has(labDialogState.state.id)) {
+  //       labDialogState.openWith(labStore.lookup.get(labDialogState.state.id)!);
+  //     }
+  //   }
+  // }, [labStore.data]);
 
   useEffect(() => {
     calculatePageSize();
   }, [calculatePageSize, labStore.totalEntries]);
 
   useEffect(() => {
-    if (
-      labDialogState.state === null &&
-      searchParams.has('l') &&
-      labStore.lookup.has(searchParams.get('l')!)
-    ) {
-      labDialogState.openWith(labStore.lookup.get(searchParams.get('l')!)!);
+    if (searchParams.has('l') && labStore.lookup.has(searchParams.get('l')!)) {
+      setOpenLab(labStore.lookup.get(searchParams.get('l')!)!);
+    } else {
+      setOpenLab(null);
     }
   }, [labStore.lookup, searchParams, setSearchParams]);
 
@@ -104,12 +97,11 @@ const DashboardPage: React.FC = observer(() => {
     }, 100);
   }
 
-  function onCloseLabDialog() {
+  function onCloseLabView() {
     setSearchParams('');
   }
 
-  function onOpenLabDialog(lab: Lab | null) {
-    if (!lab) return;
+  function onOpenLabView(lab: Lab) {
     setSearchParams({l: lab.id});
   }
 
@@ -122,9 +114,9 @@ const DashboardPage: React.FC = observer(() => {
     });
   }
 
-  if (labStore.fetchReport.state !== FetchState.Done) {
-    return <></>;
-  }
+  // if (labStore.fetchReport.state !== FetchState.Done) {
+  //   return <></>;
+  // }
 
   return (
     <>
@@ -139,7 +131,9 @@ const DashboardPage: React.FC = observer(() => {
         <Otherwise>
           <div className="height-100 width-100 sb-card sb-dashboard-container">
             <LabDialog
-              dialogState={labDialogState}
+              lab={openLab}
+              onClose={onCloseLabView}
+              // dialogState={onCloseLabView}
               onDestroyLabRequest={onDestroyLabRequest}
             />
             <div className="height-100 overflow-y-hidden overflow-x-hidden sb-labs-container sb-card">
@@ -203,7 +197,7 @@ const DashboardPage: React.FC = observer(() => {
                       <LabEntry
                         key={i}
                         lab={lab}
-                        onOpenLab={() => labDialogState.openWith(lab)}
+                        onOpenLab={() => onOpenLabView(lab)}
                         onRescheduleLab={() =>
                           labEditDialogState.openWith({
                             editingLab: lab,

@@ -141,6 +141,7 @@ export function generateGraph(
         image: deviceStore.getNodeIcon(node),
         shape: deviceStore.getNodeShape(node),
       },
+      selectable: true,
       position: position,
       classes: 'topology-node',
     });
