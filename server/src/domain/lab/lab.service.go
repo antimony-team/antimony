@@ -967,7 +967,7 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	// We can't use Go's built-in SSH service here as it responds differently to when the sevrer is not reachable.
 	cmd := []string{
 		"bash", "-c", `
-		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost 2> /dev/null; do
+		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost; do
 			sleep 2
 		done
 	`}
@@ -1246,18 +1246,19 @@ func (s *labService) getNodesFromInspect(
 	containers := inspectOutput[instanceName]
 
 	return lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
-		return s.containerToInstanceNode(container, instance.NodeKinds)
+		return s.containerToInstanceNode(container, instanceName, instance.NodeKinds)
 	}), nil
 }
 
 func (s *labService) containerToInstanceNode(
 	container deployment.InspectContainer,
+	instanceName string,
 	nodeKinds map[string]string,
 ) InstanceNode {
 	var ok bool
 
-	nodeNameParts := strings.Split(container.Name, "-")
-	nodeName := nodeNameParts[len(nodeNameParts)-1]
+	prefix := fmt.Sprintf("clab-%s-", instanceName)
+	nodeName := strings.TrimPrefix(container.Name, prefix)
 
 	var nodeKind string
 	canRestart := false
@@ -1406,7 +1407,7 @@ func (s *labService) reviveLabs() {
 			}
 
 			instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
-				return s.containerToInstanceNode(container, nodeKinds)
+				return s.containerToInstanceNode(container, *lab.InstanceName, nodeKinds)
 			})
 
 			instance := &Instance{
