@@ -436,6 +436,9 @@ export class TopologyManager {
 
   /**
    * Returns whether the currently open topology has been edited.
+   *
+   * Edit means that the editing topology has been changed, but these changes
+   * have not yet been saved and synced with the server.
    */
   public hasEdits() {
     if (this.openFileType === OpenFileType.Topology) {

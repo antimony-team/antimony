@@ -48,6 +48,7 @@ import ExplorerTreeNode, {
   ExplorerTreeNodeData,
   ExplorerTreeNodeType,
 } from './explorer-tree-node/explorer-tree-node';
+import {TreeNode} from 'primereact/treenode';
 
 interface TopologyBrowserProps {
   selectedId?: string | null;
@@ -110,24 +111,62 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           leaf: topology.bindFiles.length === 0,
           selectable: true,
           type: ExplorerTreeNodeType.Topology,
-          children: topology.bindFiles.map(bindFile => ({
-            key: bindFile.id,
-            label: bindFile.filePath,
-            className: 'sb-explorer-bindfile-node',
-            icon: (
-              <span className="material-symbols-outlined">description</span>
-            ),
-            droppable: false,
-            leaf: true,
-            selectable: true,
-            type: ExplorerTreeNodeType.BindFile,
-          })),
+          children: generateTreeForBindFiles(topology),
         })),
       });
     }
 
     return topologyTree;
   }, [collectionStore.data, topologyStore.data]);
+
+  function generateTreeForBindFiles(topology: Topology) {
+    const bindFileNode: Partial<TreeNode> = {children: []};
+
+    for (const bindFile of topology.bindFiles) {
+      const partParts = bindFile.filePath.split('/').filter(Boolean);
+      let current = bindFileNode;
+
+      partParts.forEach((part, i) => {
+        const isFile = i === partParts.length - 1;
+        let child = current.children!.find(c => c.label === part);
+
+        if (!child) {
+          if (isFile) {
+            child = {
+              key: bindFile.id,
+              label: part,
+              className: 'sb-explorer-bindfile-node',
+              icon: (
+                <span className="material-symbols-outlined">description</span>
+              ),
+              droppable: false,
+              leaf: true,
+              selectable: true,
+              type: ExplorerTreeNodeType.BindFile,
+            };
+          } else {
+            child = {
+              key: part,
+              label: part,
+              className: 'sb-explorer-bindfile-directory-node',
+              icon: <span className="material-symbols-outlined">folder</span>,
+              droppable: false,
+              leaf: false,
+              selectable: false,
+              type: ExplorerTreeNodeType.BindFileDirectory,
+              children: [],
+            };
+          }
+
+          current.children!.push(child!);
+        }
+
+        if (!isFile) current = child!;
+      });
+    }
+
+    return bindFileNode.children;
+  }
 
   useEffect(() => {
     saveNodeExpandKeys();

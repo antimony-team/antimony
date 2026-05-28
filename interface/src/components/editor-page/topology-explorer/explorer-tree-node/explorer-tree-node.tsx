@@ -43,6 +43,7 @@ export enum ExplorerTreeNodeType {
   Collection,
   Topology,
   BindFile,
+  BindFileDirectory,
 }
 
 const NodeButtonProps = {
@@ -151,6 +152,18 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
   }
 
   function onDeleteBindFile(event: MouseEvent<HTMLButtonElement>) {
+    props.onDeleteBindFile(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onEditBindFileDirectory(event: MouseEvent<HTMLButtonElement>) {
+    const directoryName = props.node.key as string;
+    props.onEditBindFile(props.node.key as uuid4);
+    event.stopPropagation();
+  }
+
+  function onDeleteBindFileDirectory(event: MouseEvent<HTMLButtonElement>) {
+    const directoryName = props.node.key as string;
     props.onDeleteBindFile(props.node.key as uuid4);
     event.stopPropagation();
   }
@@ -292,6 +305,38 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
               }
               onClick={onDeleteBindFile}
               aria-label="Delete File"
+              // disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+          </When>
+          <When
+            condition={
+              props.node.type === ExplorerTreeNodeType.BindFileDirectory
+            }
+          >
+            <Button
+              icon="pi pi-pen-to-square"
+              severity="secondary"
+              tooltip={
+                !isWritable
+                  ? 'No permissions to edit directory'
+                  : 'Edit Directory'
+              }
+              onClick={onEditBindFileDirectory}
+              aria-label="Edit Directory"
+              // disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+            <Button
+              icon="pi pi-trash"
+              severity="danger"
+              tooltip={
+                !isWritable
+                  ? 'No permissions to delete directory'
+                  : 'Delete Directory'
+              }
+              onClick={onDeleteBindFileDirectory}
+              aria-label="Delete Directory"
               // disabled={!isWritable}
               {...NodeButtonProps}
             />
