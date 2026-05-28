@@ -669,8 +669,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   async function onArchiveUpload(topologyId: uuid4, file: File) {
     const topology = topologyStore.lookup.get(topologyId)!;
 
-    console.log('ARCHIVE UPLOAD');
-
     archiveUploadState.openWith({
       topology,
       file,
@@ -690,6 +688,15 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         return file;
       }),
     );
+
+    const bindFiles = files.map(file => {
+      if (file.filePath.startsWith(`${topology.name}/`)) {
+        file.filePath = file.filePath.substring(topology.name.length + 1);
+      }
+      return file;
+    });
+
+    void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
   }
 
   if (topologyStore.fetchReport.state === FetchState.Pending) {

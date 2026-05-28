@@ -15,6 +15,7 @@ import {ArchiveReader, libarchiveWasm} from 'libarchive-wasm';
 import wasmUrl from 'libarchive-wasm/dist/libarchive.wasm?url';
 import {ProgressSpinner} from 'primereact/progressspinner';
 import {formatBytes} from '@sb/lib/utils/utils';
+import {Message} from 'primereact/message';
 
 export interface ArchiveUploadDialogState {
   topology: Topology;
@@ -30,6 +31,7 @@ export interface ArchiveUploadFile {
   filePath: string;
   size: number;
   content: string;
+  exists: boolean;
 }
 
 export interface ArchiveUploadFileNode {
@@ -63,8 +65,6 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
   }
 
   useEffect(() => {
-    console.log('ArchiveUploadDialog ISOPEN:', props.dialogState.isOpen);
-
     if (!props.dialogState.isOpen) return;
     setDoneLoading(false);
     void readArchive().then(() => setDoneLoading(true));
@@ -88,6 +88,24 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
         if (entry.getFiletype() !== 'File') continue;
         const pathname = entry.getPathname();
 
+        let actualPath = pathname;
+        let exists = false;
+        if (
+          actualPath.startsWith(`${props.dialogState.state!.topology.name}/`)
+        ) {
+          actualPath = actualPath.substring(
+            props.dialogState.state!.topology.name.length + 1,
+          );
+        }
+
+        if (
+          props.dialogState.state!.topology.bindFiles.find(
+            file => file.filePath === actualPath,
+          )
+        ) {
+          exists = true;
+        }
+
         // if (pathname.startsWith(`${props.dialogState.state.topology.name}/`)) {
         //   pathname = pathname.substring(
         //     props.dialogState.state.topology.name.length + 1,
@@ -101,6 +119,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
           filePath: pathname,
           size: entry.getSize(),
           content: new TextDecoder().decode(entry.readData()),
+          exists: exists,
         });
       }
     } catch (err) {
@@ -231,6 +250,13 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
               <span>{props.node.label}</span>
             </Otherwise>
           </Choose>
+          <If condition={props.node.file?.exists}>
+            <Message
+              className="sb-mini-message"
+              severity="error"
+              text="File exists"
+            />
+          </If>
           <div className="flex-grow-1"></div>
           <Choose>
             <When condition={props.node.children?.length}>
@@ -275,26 +301,22 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
         </div>
         <Choose>
           <When condition={fileNodes.length > 0}>
-            <Choose>
-              <When condition={isDoneLoading}>
-                <div className="sb-archive-upload-dialog-files">
-                  {fileNodes.map((node, i) => (
-                    <FileTreeNode
-                      key={i}
-                      node={node}
-                      level={0}
-                      topology={props.dialogState.state!.topology}
-                    />
-                  ))}
-                </div>
-              </When>
-              <Otherwise>
-                <div className="sb-archive-upload-loader">
-                  <span>Reading Archive...</span>
-                  <ProgressSpinner />
-                </div>
-              </Otherwise>
-            </Choose>
+            <div className="sb-archive-upload-dialog-files">
+              {fileNodes.map((node, i) => (
+                <FileTreeNode
+                  key={i}
+                  node={node}
+                  level={0}
+                  topology={props.dialogState.state!.topology}
+                />
+              ))}
+            </div>
+          </When>
+          <When condition={!isDoneLoading}>
+            <div className="sb-archive-upload-loader">
+              <span>Reading Archive...</span>
+              <ProgressSpinner />
+            </div>
           </When>
           <Otherwise>
             <div className="sb-archive-upload-empty">Archive is empty</div>

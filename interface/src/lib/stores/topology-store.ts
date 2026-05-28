@@ -18,6 +18,7 @@ import {validate} from 'jsonschema';
 import {action, observable, observe, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
+import {ArchiveUploadFile} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -126,6 +127,48 @@ export class TopologyStore extends DataStore<
         }
       }
     }
+  }
+
+  public async uploadArchiveFiles(
+    topologyId: string,
+    files: ArchiveUploadFile[],
+  ): Promise<void> {
+    for (const file of files) {
+      let result: Result<DataResponse<string>>;
+
+      if (file.exists) {
+        const existing = this.bindFileLookup
+          .values()
+          .find(bindFile => bindFile.filePath === file.filePath);
+
+        result = await this.dataBinder.patch<BindFileIn, string>(
+          `${this.resourcePath}/${topologyId}/files/${existing!.id}`,
+          {
+            filePath: file.filePath,
+            content: file.content,
+          },
+        );
+      } else {
+        result = await this.dataBinder.post<BindFileIn, string>(
+          `${this.resourcePath}/${topologyId}/files`,
+          {
+            filePath: file.filePath,
+            content: file.content,
+          },
+        );
+      }
+      //
+      // if (!result.isOk()) {
+      //   console.error(
+      //     'Failed to add bind file: ',
+      //     bindFile,
+      //     ' Error: ',
+      //     result,
+      //   );
+      // }
+    }
+
+    await this.fetchSingle(topologyId);
   }
 
   public async addBindFile(

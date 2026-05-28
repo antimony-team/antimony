@@ -182,7 +182,6 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    console.log('FILES: ', event.target.files);
     if (!file) return;
 
     props.onArchiveUpload(props.node.key as uuid4, file);
