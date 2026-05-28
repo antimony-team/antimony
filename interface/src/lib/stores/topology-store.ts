@@ -132,7 +132,7 @@ export class TopologyStore extends DataStore<
   public async uploadArchiveFiles(
     topologyId: string,
     files: ArchiveUploadFile[],
-  ): Promise<void> {
+  ): Promise<Result<void>> {
     for (const file of files) {
       let result: Result<DataResponse<string>>;
 
@@ -157,18 +157,14 @@ export class TopologyStore extends DataStore<
           },
         );
       }
-      //
-      // if (!result.isOk()) {
-      //   console.error(
-      //     'Failed to add bind file: ',
-      //     bindFile,
-      //     ' Error: ',
-      //     result,
-      //   );
-      // }
+
+      if (result.isErr()) {
+        return result;
+      }
     }
 
     await this.fetchSingle(topologyId);
+    return Result.createOk(undefined);
   }
 
   public async addBindFile(
