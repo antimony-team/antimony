@@ -233,7 +233,11 @@ export class DataBinder {
 
     subscription.onDataCallbacks.forEach(callback => {
       subscription.socket!.on('backlog', data => {
-        for (const msg of data) callback(msg);
+        if (data instanceof ArrayBuffer) {
+          callback(data);
+        } else {
+          for (const msg of data) callback(msg);
+        }
       });
       subscription.socket!.on('data', callback);
     });
@@ -242,8 +246,8 @@ export class DataBinder {
   /**
    * Subscribes to a socket.io namespace and optionally registers a callback.
    *
-   * Directly connects to the namespace if subscription is anonymous or the user
-   * is already logged in.
+   * Directly connects to the namespace if the subscription is anonymous or the
+   * user is already logged in.
    * @param namespace The name of the namespace.
    * @param onData Optional callback that is called when data is received from the namespace.
    * @param onConnect  Optional callback that is called when the connection is established.
@@ -320,6 +324,15 @@ export class DataBinder {
   ) {
     if (this.subscriptions.has(namespace)) {
       const subscription = this.subscriptions.get(namespace)!;
+      // console.log('namespace callbacks: ', subscription.onDataCallbacks);
+      //
+      // console.log(
+      //   'namespace callbacks has unsubscriber: ',
+      //   subscription.onDataCallbacks.has(onData),
+      // );
+      //
+      // console.log('unsubscriber: ', onData);
+
       subscription.onDataCallbacks.delete(onData as (data: unknown) => void);
       if (onConnect) subscription.onConnectCallbacks.delete(onConnect);
       if (onDisconnect) subscription.onDisconnectCallbacks.delete(onDisconnect);

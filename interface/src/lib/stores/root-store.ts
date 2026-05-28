@@ -11,9 +11,11 @@ import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
 
 export class RootStore {
   _dataBinder: DataBinder;
+  _serverConfigStore: ServerConfigStore;
   _topologyStore: TopologyStore;
   _labStore: LabStore;
   _calendarLabStore: LabStore;
@@ -30,6 +32,8 @@ export class RootStore {
     this._dataBinder = new DataBinder();
 
     this._statusMessagesStore = new StatusMessageStore(this);
+
+    this._serverConfigStore = new ServerConfigStore(this);
 
     this._schemaStore = new SchemaStore(this);
     this._deviceStore = new DeviceStore(this);
@@ -62,6 +66,7 @@ export class RootStore {
   public get fetchState() {
     return combinedFetchState(
       this._topologyStore.fetchReport.state,
+      this._serverConfigStore.fetchReport.state,
       this._labStore.fetchReport.state,
       this._deviceStore.fetchReport.state,
       this._collectionStore.fetchReport.state,
@@ -83,6 +88,10 @@ export const useDataBinder = () => {
 
 export const useAuthUser = () => {
   return useContext(RootStoreContext)._dataBinder.authUser;
+};
+
+export const useServerConfig = () => {
+  return useContext(RootStoreContext)._serverConfigStore.config;
 };
 
 export const useTopologyStore = () => {

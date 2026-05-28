@@ -1,3 +1,69 @@
+.sb-lab-view
+  z-index: 100
+  position: absolute
+  display: flex
+  flex-direction: column
+  height: 100%
+  width: 100%
+  background-color: var(--secondary-color)
+  transform: translateX(100px)
+  opacity: 0
+  transition: opacity 0.2s ease-in, transform 0.2s ease-in-out
+  pointer-events: none
+
+  &.open
+    opacity: 1
+    pointer-events: all
+    transform: translateX(0px)
+
+  .sb-lab-view-header
+    display: flex
+    background-color: var(--header-color)
+    border-radius: 6px 6px 0 0
+    align-items: center
+    gap: 8px
+
+    .p-button:not(.p-button-outlined)
+      padding: 8px
+      margin: 8px
+      width: 40px
+
+  .sb-lab-view-header-buttons
+    margin-right: 8px
+    display: flex
+    gap: 8px
+
+    .p-button
+      padding: 8px 16px
+
+  .sb-lab-view-content
+    flex-grow: 1
+    position: relative
+
+    .sb-lab-view-drawer-container
+      position: absolute
+      z-index: 10000
+      width: 100%
+      height: 100%
+      pointer-events: none
+
+      .p-splitter-gutter
+        pointer-events: all
+
+      .sb-lab-view-drawer
+        background-color: var(--secondary-color)
+        pointer-events: all
+
+        &.closed
+          opacity: 0
+          pointer-events: none
+
+      .sb-lab-view-drawer,.sb-lab-view-drawer-gutter
+        transition: opacity 0.12s ease-in-out
+
+      .sb-lab-view-drawer-decoy
+        pointer-events: none
+
 .topology-graph-container
   display: flex
   height: 100%

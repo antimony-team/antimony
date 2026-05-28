@@ -59,10 +59,16 @@ export type InstanceNode = {
   webSSH: string;
   containerId: string;
   containerName: string;
-
-  interfaceCaptures: Record<string, string>;
+  interfaces: NodeInterface[];
 
   canRestart: boolean;
+};
+
+export type NodeInterface = {
+  name: string;
+  address: string;
+  mtu: number;
+  state: string;
 };
 
 export enum InstanceState {
@@ -74,6 +80,19 @@ export enum InstanceState {
   Inactive = -1,
   Scheduled = -2,
 }
+
+export type NodeStatsOut = {
+  timestamp: string;
+  cpuPercent: number;
+  memoryUsage: number;
+  memoryLimit: number;
+  interfaces: Record<string, NodeInterfaceStatsOut>;
+};
+
+export type NodeInterfaceStatsOut = {
+  rxBps: number;
+  txBps: number;
+};
 
 export const InstanceStates = Object.values(InstanceState).filter(
   instance => typeof instance === 'number',

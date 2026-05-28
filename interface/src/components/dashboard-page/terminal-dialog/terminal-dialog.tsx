@@ -40,6 +40,8 @@ interface TerminalTab {
   expired: boolean;
 }
 
+const decoder = new TextDecoder('utf-8');
+
 const TerminalDialog = observer((props: TerminalDialogProps) => {
   const labStore = useLabStore();
   const shellStore = useShellStore();
@@ -53,8 +55,10 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   const newTabAnchor = useRef<TabPanel>(null);
   const resetBeforeNextUpdate = useRef(false);
 
-  const onData = useCallback((data: string) => {
+  const onData = useCallback((dataRaw: ArrayBuffer) => {
     if (!termRef.current) return;
+
+    let data = decoder.decode(dataRaw, {stream: true});
 
     if (resetBeforeNextUpdate.current) {
       termRef.current.reset();
@@ -168,6 +172,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
   function onClose() {
     shellStore.onData.unregister(onData);
+    shellStore.unsubscribeShell();
 
     props.dialogState.close();
   }

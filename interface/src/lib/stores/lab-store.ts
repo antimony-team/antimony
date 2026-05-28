@@ -13,16 +13,18 @@ import {
   Instance,
   InstanceOut,
   InstanceState,
+  InterfaceEventOut,
   Lab,
   LabCommand,
   LabCommandData,
   LabIn,
   LabOut,
   LabUpdateOut,
+  NodeStatsOut,
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
-import {action, computed, observable, observe, runInAction} from 'mobx';
+import {action, computed, observable, observe, runInAction, toJS} from 'mobx';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -128,6 +130,20 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return Result.createOk(response);
   }
 
+  public subscribeNodeStats(
+    containerId: string,
+    onEvent: (data: NodeStatsOut) => void,
+  ) {
+    this.dataBinder.subscribeNamespace(`stats/${containerId}`, onEvent);
+  }
+
+  public unsubscribeNodeStats(
+    containerId: string,
+    onEvent: (data: NodeStatsOut) => void,
+  ) {
+    this.dataBinder.unsubscribeNamespace(`stats/${containerId}`, onEvent);
+  }
+
   public async deployLab(lab: Lab): Promise<Result<null>> {
     const result = await this.sendLabCommand({
       labId: lab.id,
@@ -230,6 +246,10 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     } else {
       void this.fetch();
     }
+  }
+
+  private onLabInterfaceEvent(data: DataResponse<InterfaceEventOut>) {
+    console.log('Lab event: ', toJS(data));
   }
 
   @action

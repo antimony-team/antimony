@@ -141,6 +141,7 @@ export function generateGraph(
         image: deviceStore.getNodeIcon(node),
         shape: deviceStore.getNodeShape(node),
       },
+      selectable: true,
       position: position,
       classes: 'topology-node',
     });
@@ -287,4 +288,13 @@ export function isValidURL(url: string) {
   } catch {
     return false;
   }
+}
+
+export function getInterfaceCaptureCommand(
+  containerName: string,
+  ifName: string,
+  serverHost: string,
+  serverPort: number,
+) {
+  return `ssh -o StrictHostKeyChecking=no ${containerName}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
 }
