@@ -49,6 +49,10 @@ import ExplorerTreeNode, {
   ExplorerTreeNodeType,
 } from './explorer-tree-node/explorer-tree-node';
 import {TreeNode} from 'primereact/treenode';
+import ArchiveUploadDialog, {
+  ArchiveUploadDialogState,
+  ArchiveUploadFile,
+} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
 
 interface TopologyBrowserProps {
   selectedId?: string | null;
@@ -63,6 +67,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const editBindFileState = useDialogState<BindFileEditDialogState>(null);
   const editCollectionState = useDialogState<CollectionEditDialogState>(null);
   const editTopologyState = useDialogState<TopologyEditDialogState>(null);
+  const archiveUploadState = useDialogState<ArchiveUploadDialogState>(null);
 
   const [contextMenuModel, setContextMenuModel] = useState<MenuItem[]>();
 
@@ -661,6 +666,32 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
   }
 
+  async function onArchiveUpload(topologyId: uuid4, file: File) {
+    const topology = topologyStore.lookup.get(topologyId)!;
+
+    console.log('ARCHIVE UPLOAD');
+
+    archiveUploadState.openWith({
+      topology,
+      file,
+    });
+  }
+
+  function onArchiveUploadConfirm(
+    topology: Topology,
+    files: ArchiveUploadFile[],
+  ) {
+    console.log(
+      'UPLOADING FILES:',
+      files.map(file => {
+        if (file.filePath.startsWith(`${topology.name}/`)) {
+          file.filePath = file.filePath.substring(topology.name.length + 1);
+        }
+        return file;
+      }),
+    );
+  }
+
   if (topologyStore.fetchReport.state === FetchState.Pending) {
     return <></>;
   }
@@ -705,6 +736,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             onAddBindFile={onAddBindFile}
             onEditBindFile={onEditBindFile}
             onDeleteBindFile={onDeleteBindFileRequest}
+            onArchiveUpload={onArchiveUpload}
           />
         )}
         onContextMenu={onContextMenuTree}
@@ -723,6 +755,10 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       <BindFileEditDialog
         key={editBindFileState.state?.editingBindingFile?.id}
         dialogState={editBindFileState}
+      />
+      <ArchiveUploadDialog
+        dialogState={archiveUploadState}
+        onApply={onArchiveUploadConfirm}
       />
       <SBConfirm />
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />

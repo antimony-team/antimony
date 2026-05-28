@@ -11,7 +11,7 @@ import {uuid4} from '@sb/types/types';
 import {Button} from 'primereact/button';
 import {Tooltip} from 'primereact/tooltip';
 import {TreeNode} from 'primereact/treenode';
-import React, {MouseEvent, useMemo} from 'react';
+import React, {MouseEvent, useMemo, useRef} from 'react';
 
 import './explorer-tree-node.sass';
 
@@ -33,6 +33,8 @@ interface ExplorerTreeNodeProps {
   // Bind file functions
   onEditBindFile: (bindFileId: uuid4) => void;
   onDeleteBindFile: (bindFileId: uuid4) => void;
+
+  onArchiveUpload: (topologyId: uuid4, file: File) => void;
 }
 
 export interface ExplorerTreeNodeData extends TreeNode {
@@ -168,6 +170,26 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
     event.stopPropagation();
   }
 
+  function onUploadBindFileArchive(
+    event: React.ChangeEvent<HTMLButtonElement>,
+  ) {
+    event.stopPropagation();
+    if (!fileUploadInputRef.current) return;
+
+    fileUploadInputRef.current.value = '';
+    fileUploadInputRef.current.click();
+  }
+
+  async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    console.log('FILES: ', event.target.files);
+    if (!file) return;
+
+    props.onArchiveUpload(props.node.key as uuid4, file);
+  }
+
+  const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <div className="sb-explorer-node">
       <Tooltip target=".tree-node" />
@@ -218,6 +240,26 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
           </When>
           {/* Topology */}
           <When condition={props.node.type === ExplorerTreeNodeType.Topology}>
+            <input
+              ref={fileUploadInputRef}
+              type="file"
+              accept=".zip,.tar,.gz,.tgz,.7z,.rar,.bz2"
+              style={{display: 'none'}}
+              // onInput={handleFile}
+              onChange={handleFile}
+            />
+            <Button
+              icon="pi pi-upload"
+              tooltip={
+                !isWritable
+                  ? 'No permission to add file to topology'
+                  : 'Upload Files'
+              }
+              onClick={onUploadBindFileArchive}
+              aria-label="Upload Bind File Archive"
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
             <Button
               icon="pi pi-plus"
               severity="success"

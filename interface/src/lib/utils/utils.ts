@@ -298,3 +298,15 @@ export function getInterfaceCaptureCommand(
 ) {
   return `ssh -o StrictHostKeyChecking=no ${containerName}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
 }
+
+export function formatBytes(v: number | null) {
+  if (v === null) return '';
+
+  const abs = Math.abs(v);
+  const fmt = (n: number) => n.toFixed(1).replace(/\.0$/, '');
+  if (abs >= 1024 ** 4) return fmt(v / 1024 ** 4) + ' TB';
+  if (abs >= 1024 ** 3) return fmt(v / 1024 ** 3) + ' GB';
+  if (abs >= 1024 ** 2) return fmt(v / 1024 ** 2) + ' MB';
+  if (abs >= 1024) return fmt(v / 1024) + ' KB';
+  return v.toFixed(0) + ' B';
+}
