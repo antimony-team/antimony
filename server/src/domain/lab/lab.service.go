@@ -215,7 +215,7 @@ func (s *labService) RunNodeStatsReader() {
 		copy(monitoredInstances, s.monitoredInstances)
 		s.monitoredInstancesMutex.Unlock()
 
-		for _, instance := range monitoredInstances {
+		for _, instance := range s.monitoredInstances {
 			for _, node := range instance.Nodes {
 				stats, err := s.deploymentProvider.ReadNodeStats(ctx, node.ContainerId)
 				if err != nil {
@@ -601,10 +601,17 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	instance.LogNamespace.ClearBacklog()
 	instance.LogNamespace = nil
 
+	s.monitoredInstancesMutex.Lock()
+	if i := slices.Index(s.monitoredInstances, instance); i != -1 {
+		s.monitoredInstances = slices.Delete(s.monitoredInstances, i, i+1)
+	}
+	s.monitoredInstancesMutex.Unlock()
+
 	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
 	s.instancesMutex.Unlock()
+
 	s.labUpdatesNamespace.Send(LabUpdateOut{
 		LabId: &lab.UUID,
 	})
