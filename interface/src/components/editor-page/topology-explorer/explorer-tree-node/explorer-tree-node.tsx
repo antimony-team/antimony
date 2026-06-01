@@ -41,6 +41,7 @@ interface ExplorerTreeNodeProps {
 
 export interface ExplorerTreeNodeData extends TreeNode {
   type: ExplorerTreeNodeType;
+  children?: ExplorerTreeNodeData[];
 }
 
 export enum ExplorerTreeNodeType {
@@ -87,7 +88,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
   }, [authUser, collectionStore.data, topologyStore.data]);
 
   const isWritable = useMemo(() => {
-    // if (authUser.isAdmin) return true;
+    if (authUser.isAdmin) return true;
 
     if (props.node.type === ExplorerTreeNodeType.Collection) {
       return collectionStore.lookup.get(props.node.key as string)?.publicWrite;

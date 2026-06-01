@@ -1,11 +1,7 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {
-  useAuthUser,
-  useStatusMessages,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
+import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {BindFile} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
@@ -13,8 +9,7 @@ import {ErrorCodes} from '@sb/types/error-codes';
 import {isEqual} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
-import {SelectItem} from 'primereact/selectitem';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 
 import './bind-file-edit-dialog.sass';
 
@@ -49,8 +44,6 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
     topologyId: props.dialogState.state?.owningTopologyId ?? '',
   });
 
-  const authUser = useAuthUser();
-
   const bindFileNameRef = useRef<SBInputRef>(null);
 
   const topologyStore = useTopologyStore();
@@ -71,19 +64,10 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
     }
   }, [props.dialogState.isOpen]);
 
-  const topologyOptions: SelectItem[] = useMemo(() => {
-    return topologyStore.data
-      .filter(
-        topology => authUser.isAdmin || topology.creator.id === authUser.id,
-      )
-      .map(topology => ({
-        label: (topology.definition.get('name') as string) ?? '',
-        value: topology.id,
-      }));
-  }, [topologyStore.data]);
-
   async function onFilePathSubmit(filePath: string, isImplicit: boolean) {
-    editingBindFile.filePath = filePath;
+    runInAction(() => {
+      editingBindFile.filePath = filePath;
+    });
     if (!isImplicit) void onSubmit();
   }
 

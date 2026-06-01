@@ -236,6 +236,9 @@ export class TopologyManager {
     this.isFileOpen = true;
     this.openFileType = OpenFileType.Topology;
 
+    this.editingBindFile = null;
+    this.originalBindFile = null;
+
     this.editingTopology = topology;
     this.originalTopology = TopologyManager.cloneTopology(topology);
 
@@ -247,6 +250,9 @@ export class TopologyManager {
 
     this.isFileOpen = true;
     this.openFileType = OpenFileType.BindFile;
+
+    this.editingTopology = null;
+    this.originalTopology = null;
 
     this.editingBindFile = bindFile;
     this.originalBindFile = TopologyManager.cloneBindFile(bindFile);
