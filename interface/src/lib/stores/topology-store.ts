@@ -170,13 +170,14 @@ export class TopologyStore extends DataStore<
   public async addBindFile(
     topologyId: string,
     bindFile: BindFileIn,
+    skipFetch: boolean = false,
   ): Promise<Result<DataResponse<string>>> {
     const result = await this.dataBinder.post<BindFileIn, string>(
       `${this.resourcePath}/${topologyId}/files`,
       bindFile,
     );
 
-    if (result.isOk()) await this.fetchSingle(topologyId);
+    if (result.isOk() && !skipFetch) await this.fetchSingle(topologyId);
 
     return result;
   }
@@ -184,24 +185,29 @@ export class TopologyStore extends DataStore<
   public async updateBindFile(
     topologyId: string,
     bindFileId: string,
-    bindFile: BindFileIn,
+    bindFile: Partial<BindFileIn>,
+    skipFetch: boolean = false,
   ) {
     const result = await this.dataBinder.patch<BindFileIn, void>(
       `${this.resourcePath}/${topologyId}/files/${bindFileId}`,
       bindFile,
     );
 
-    if (result.isOk()) await this.fetchSingle(topologyId);
+    if (result.isOk() && !skipFetch) await this.fetchSingle(topologyId);
 
     return result;
   }
 
-  public async deleteBindFile(topologyId: string, bindFileId: string) {
+  public async deleteBindFile(
+    topologyId: string,
+    bindFileId: string,
+    skipFetch: boolean = false,
+  ) {
     const result = await this.dataBinder.delete<void>(
       `${this.resourcePath}/${topologyId}/files/${bindFileId}`,
     );
 
-    if (result.isOk()) await this.fetchSingle(topologyId);
+    if (result.isOk() && !skipFetch) await this.fetchSingle(topologyId);
 
     return result;
   }

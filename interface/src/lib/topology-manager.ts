@@ -125,8 +125,6 @@ export class TopologyManager {
     });
 
     if (result.isOk()) {
-      // await this.topologyStore.fetchSingle(this.editingTopology.id);
-
       this.originalTopology = TopologyManager.cloneTopology(
         this.editingTopology,
       );
@@ -148,7 +146,6 @@ export class TopologyManager {
       this.editingBindFile.topologyId,
       this.editingBindFile.id,
       {
-        filePath: this.editingBindFile.filePath,
         content: this.editingBindFile.content,
       },
     );
@@ -170,19 +167,21 @@ export class TopologyManager {
 
   public discardEdits() {
     if (this.openFileType === OpenFileType.Topology) {
-      if (!this.editingTopology) return;
+      if (!this.editingTopology || !this.originalTopology) return;
 
       this.onTopologyEdit.update({
-        // updatedTopology: TopologyManager.cloneTopology(this.editingTopology),
-        updatedTopology: this.editingTopology,
+        updatedTopology: this.originalTopology,
         isEdited: false,
         source: TopologyEditSource.System,
       });
     } else if (this.openFileType === OpenFileType.BindFile) {
-      if (!this.editingBindFile) return;
+      if (!this.editingBindFile || !this.originalBindFile) return;
+
+      console.log('DISCARDING BIND FILE EDITS');
+      this.editingBindFile.content = this.originalBindFile.content;
 
       this.onBindFileEdit.update({
-        updatedBindFile: this.editingBindFile,
+        updatedBindFile: this.originalBindFile,
         isEdited: false,
         source: BindFileEditSource.System,
       });
