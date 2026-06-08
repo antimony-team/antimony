@@ -27,7 +27,7 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import {Paginator} from 'primereact/paginator';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useSearchParams} from 'react-router';
-import LabDialog from '@sb/components/dashboard-page/lab-dialog/lab-dialog';
+import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
 
 const DashboardPage: React.FC = observer(() => {
   const [currentPage, setCurrentPage] = useState<number>(0);
@@ -130,7 +130,7 @@ const DashboardPage: React.FC = observer(() => {
         {/*</When>*/}
         <Otherwise>
           <div className="height-100 width-100 sb-card sb-dashboard-container">
-            <LabDialog
+            <LabView
               lab={openLab}
               onClose={onCloseLabView}
               // dialogState={onCloseLabView}

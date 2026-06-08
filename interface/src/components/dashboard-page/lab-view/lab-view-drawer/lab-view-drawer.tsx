@@ -1,4 +1,4 @@
-import './lab-dialog-drawer.sass';
+import './lab-view-drawer.sass';
 import React, {useEffect, useMemo, useRef} from 'react';
 import {Lab, NodeInterfaceStatsOut, NodeStatsOut} from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
@@ -21,7 +21,7 @@ import {If} from '@sb/types/control';
 
 import 'uplot/dist/uPlot.min.css';
 
-interface LabDialogDrawer {
+interface LabViewDrawer {
   lab: Lab | null;
   nodeName: string | null;
 
@@ -33,7 +33,7 @@ interface LabDialogDrawer {
   onNodeRestart: () => void;
 }
 
-const LabDialogDrawer = (props: LabDialogDrawer) => {
+const LabDialogDrawer = (props: LabViewDrawer) => {
   const labStore = useLabStore();
   const serverConfig = useServerConfig();
   const statusMessageStore = useStatusMessages();
