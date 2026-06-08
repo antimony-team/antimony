@@ -79,15 +79,20 @@ services:
       - SB_NATIVE_USERNAME=admin
       - SB_NATIVE_PASSWORD=admin
       - SB_DATABASE_PASSWORD=antimony
+    pid: host
     privileged: true
     network_mode: host
     command: -config=./config.yml
     volumes:
       - ./config.yml:/app/config.yml
+      - ./kinds.conf.yml:/app/kinds.conf.yml
       - ./mnt/db:/app/db
       - ./mnt/storage:/app/storage/
       - ./mnt/run:/app/run/
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/netns:/var/run/netns
+      - /var/lib/docker:/var/lib/docker
+      - $HOME/.docker/config.json:/root/.docker/config.json
     depends_on:
       database:
         condition: service_healthy
