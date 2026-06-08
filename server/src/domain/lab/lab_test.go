@@ -33,11 +33,20 @@ type mockNamespaceManager[T any] struct {
 func (m *mockNamespaceManager[T]) Send(msg T) {
 	m.Called(msg)
 }
+func (m *mockNamespaceManager[T]) SendBulk(msgs []T) {
+	m.Called(msgs)
+}
 func (m *mockNamespaceManager[T]) SendTo(msg T, receivers []string) {
 	m.Called(msg, receivers)
 }
+func (m *mockNamespaceManager[T]) SendBulkTo(msgs []T, receivers []string) {
+	m.Called(msgs, receivers)
+}
 func (m *mockNamespaceManager[T]) SendToAdmins(msg T) {
 	m.Called(msg)
+}
+func (m *mockNamespaceManager[T]) SendBulkToAdmins(msgs []T) {
+	m.Called(msgs)
 }
 func (m *mockNamespaceManager[T]) Broadcast(msg T) {
 	m.Called(msg)
@@ -222,9 +231,28 @@ func (m *MockDeploymentProvider) StreamContainerLogs(
 func (m *MockDeploymentProvider) GetInterfaces(
 	ctx context.Context,
 	containerId string,
-) ([]string, error) {
+) ([]deployment.NodeInterface, error) {
 	args := m.Called(ctx, containerId)
-	return make([]string, 1), args.Error(0)
+	return make([]deployment.NodeInterface, 1), args.Error(0)
+}
+
+func (m *MockDeploymentProvider) RegisterEventListener(
+	ctx context.Context,
+	onUpdate func(containerlabEvent deployment.ContainerlabEvent),
+) error {
+	args := m.Called(ctx, onUpdate)
+	return args.Error(0)
+}
+
+func (m *MockDeploymentProvider) ReadNodeStats(
+	ctx context.Context,
+	containerId string,
+) (*deployment.NodeStats, error) {
+	args := m.Called(ctx, containerId)
+	if val := args.Get(0); val != nil {
+		return val.(*deployment.NodeStats), args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 type mockLabRepo struct {
@@ -266,11 +294,20 @@ type mockStatusNamespace struct {
 func (m *mockStatusNamespace) Send(msg statusMessage.StatusMessage) {
 	m.Called(msg)
 }
+func (m *mockStatusNamespace) SendBulk(msgs []statusMessage.StatusMessage) {
+	m.Called(msgs)
+}
 func (m *mockStatusNamespace) SendTo(msg statusMessage.StatusMessage, receivers []string) {
 	m.Called(msg, receivers)
 }
+func (m *mockStatusNamespace) SendBulkTo(msgs []statusMessage.StatusMessage, receivers []string) {
+	m.Called(msgs, receivers)
+}
 func (m *mockStatusNamespace) SendToAdmins(msg statusMessage.StatusMessage) {
 	m.Called(msg)
+}
+func (m *mockStatusNamespace) SendBulkToAdmins(msgs []statusMessage.StatusMessage) {
+	m.Called(msgs)
 }
 func (m *mockStatusNamespace) ClearBacklog() {
 	m.Called()
@@ -283,11 +320,20 @@ type mockLabUpdateNamespace struct {
 func (m *mockLabUpdateNamespace) Send(msg LabUpdateOut) {
 	m.Called(msg)
 }
+func (m *mockLabUpdateNamespace) SendBulk(msgs []LabUpdateOut) {
+	m.Called(msgs)
+}
 func (m *mockLabUpdateNamespace) SendTo(msg LabUpdateOut, receivers []string) {
 	m.Called(msg, receivers)
 }
+func (m *mockLabUpdateNamespace) SendBulkTo(msgs []LabUpdateOut, receivers []string) {
+	m.Called(msgs, receivers)
+}
 func (m *mockLabUpdateNamespace) SendToAdmins(msg LabUpdateOut) {
 	m.Called(msg)
+}
+func (m *mockLabUpdateNamespace) SendBulkToAdmins(msgs []LabUpdateOut) {
+	m.Called(msgs)
 }
 func (m *mockLabUpdateNamespace) Broadcast(msg LabUpdateOut) {
 	m.Called(msg)
@@ -488,6 +534,13 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 	labDestructionSchedule := &emptySchedule{}
 
 	svc := &labService{
+		config: &config.AntimonyConfig{
+			Streaming: config.StreamingConfig{
+				ClabLogBacklog:      100,
+				ContainerLogBacklog: 100,
+				ShellLinesBacklog:   100,
+			},
+		},
 		labRepo:                labRepo,
 		storageManager:         storageManager,
 		deploymentProvider:     mockDeployment,
@@ -634,6 +687,13 @@ func TestInitSchedule(t *testing.T) {
 			schemaService.On("Parse", mock.Anything).Return(&parsed, nil)
 
 			svc := &labService{
+				config: &config.AntimonyConfig{
+					Streaming: config.StreamingConfig{
+						ClabLogBacklog:      100,
+						ContainerLogBacklog: 100,
+						ShellLinesBacklog:   100,
+					},
+				},
 				labRepo:                mockLabRepo,
 				storageManager:         mockStorage,
 				deploymentProvider:     mockDeployment,
@@ -1231,6 +1291,13 @@ func TestRedeployLab(t *testing.T) {
 				Return([]topology.BindFile{}, nil)
 			mockTopologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 			svc := &labService{
+				config: &config.AntimonyConfig{
+					Streaming: config.StreamingConfig{
+						ClabLogBacklog:      100,
+						ContainerLogBacklog: 100,
+						ShellLinesBacklog:   100,
+					},
+				},
 				deploymentProvider:     f.deploymentProvider,
 				statusMessageNamespace: f.statusNamespace,
 				labUpdatesNamespace:    mockLabUpdatesNs,
@@ -1393,6 +1460,13 @@ func TestDeployLab(t *testing.T) {
 			tt.setup(f, a)
 
 			svc := &labService{
+				config: &config.AntimonyConfig{
+					Streaming: config.StreamingConfig{
+						ClabLogBacklog:      100,
+						ContainerLogBacklog: 100,
+						ShellLinesBacklog:   100,
+					},
+				},
 				deploymentProvider:     f.deploymentProvider,
 				storageManager:         f.storageManager,
 				statusMessageNamespace: f.statusNamespace,
@@ -1476,7 +1550,7 @@ func TestInstanceToOut(t *testing.T) {
 func TestContainerToInstanceNode(t *testing.T) {
 	svc := &labService{}
 	container := deployment.InspectContainer{
-		Name:        "lab-node1",
+		Name:        "clab-lab-instance-node1",
 		IPv4Address: "192.168.1.1",
 		IPv6Address: "fe80::1",
 		State:       deployment.NodeStates.Running,
@@ -1487,7 +1561,7 @@ func TestContainerToInstanceNode(t *testing.T) {
 		"node1": "nokia_srlinux",
 	}
 
-	node := svc.containerToInstanceNode(container, nodeKinds)
+	node := svc.containerToInstanceNode(container, "lab-instance", nodeKinds)
 
 	assert.Equal(t, "node1", node.Name)
 	assert.Equal(t, "nokia_srlinux", node.Kind)
@@ -1495,7 +1569,7 @@ func TestContainerToInstanceNode(t *testing.T) {
 	assert.Equal(t, "fe80::1", node.IPv6)
 	assert.Equal(t, deployment.NodeStates.Starting, node.State)
 	assert.Equal(t, "abc123", node.ContainerId)
-	assert.Equal(t, "lab-node1", node.ContainerName)
+	assert.Equal(t, "clab-lab-instance-node1", node.ContainerName)
 }
 
 func TestNotifyUpdate(t *testing.T) {
@@ -1522,10 +1596,13 @@ func TestNotifyUpdate(t *testing.T) {
 
 type fakeNamespace[T any] struct{}
 
-func (n *fakeNamespace[T]) Send(msg T)                       {}
-func (n *fakeNamespace[T]) SendTo(msg T, receivers []string) {}
-func (n *fakeNamespace[T]) SendToAdmins(msg T)               {}
-func (n *fakeNamespace[T]) ClearBacklog()                    {}
+func (n *fakeNamespace[T]) Send(msg T)                             {}
+func (n *fakeNamespace[T]) SendBulk(msgs []T)                      {}
+func (n *fakeNamespace[T]) SendTo(msg T, receivers []string)       {}
+func (n *fakeNamespace[T]) SendBulkTo(msgs []T, receivers []string) {}
+func (n *fakeNamespace[T]) SendToAdmins(msg T)                     {}
+func (n *fakeNamespace[T]) SendBulkToAdmins(msgs []T)              {}
+func (n *fakeNamespace[T]) ClearBacklog()                          {}
 
 func TestHandleLabCommand(t *testing.T) {
 	type fields struct {
@@ -1736,6 +1813,13 @@ func TestHandleLabCommand(t *testing.T) {
 			topologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 
 			svc := &labService{
+				config: &config.AntimonyConfig{
+					Streaming: config.StreamingConfig{
+						ClabLogBacklog:      100,
+						ContainerLogBacklog: 100,
+						ShellLinesBacklog:   100,
+					},
+				},
 				labRepo:                f.labRepo,
 				storageManager:         f.storageManager,
 				topologyRepo:           topologyRepo,
@@ -2310,11 +2394,16 @@ type recordNamespaceManager struct {
 func (m *recordNamespaceManager) Send(msg string) {
 	m.msgs = append(m.msgs, msg)
 }
-func (m *recordNamespaceManager) SendTo(msg string, receivers []string) {}
-func (m *recordNamespaceManager) SendToAdmins(msg string)               {}
-func (m *recordNamespaceManager) Broadcast(data string)                 {}
-func (m *recordNamespaceManager) Register(_ func(string)) func()        { return func() {} }
-func (m *recordNamespaceManager) ClearBacklog()                         {}
+func (m *recordNamespaceManager) SendBulk(msgs []string) {
+	m.msgs = append(m.msgs, msgs...)
+}
+func (m *recordNamespaceManager) SendTo(msg string, receivers []string)        {}
+func (m *recordNamespaceManager) SendBulkTo(msgs []string, receivers []string) {}
+func (m *recordNamespaceManager) SendToAdmins(msg string)                      {}
+func (m *recordNamespaceManager) SendBulkToAdmins(msgs []string)               {}
+func (m *recordNamespaceManager) Broadcast(data string)                        {}
+func (m *recordNamespaceManager) Register(_ func(string)) func()               { return func() {} }
+func (m *recordNamespaceManager) ClearBacklog()                                {}
 
 func TestStreamClabOutput_SanitizesAndSendsLines(t *testing.T) {
 	ns := &recordNamespaceManager{}

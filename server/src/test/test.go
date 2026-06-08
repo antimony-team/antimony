@@ -410,8 +410,22 @@ func (p *MockDeploymentProvider) StreamContainerLogs(
 func (m *MockDeploymentProvider) GetInterfaces(
 	ctx context.Context,
 	containerId string,
-) ([]string, error) {
-	return make([]string, 0), nil
+) ([]deployment.NodeInterface, error) {
+	return make([]deployment.NodeInterface, 0), nil
+}
+
+func (p *MockDeploymentProvider) RegisterEventListener(
+	ctx context.Context,
+	onUpdate func(containerlabEvent deployment.ContainerlabEvent),
+) error {
+	return nil
+}
+
+func (p *MockDeploymentProvider) ReadNodeStats(
+	ctx context.Context,
+	containerId string,
+) (*deployment.NodeStats, error) {
+	return nil, nil
 }
 
 func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
@@ -467,7 +481,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	socketManager := socket.CreateSocketManager(authManager)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, false, nil, "status-messages",
+		socketManager, false, nil, false, nil, "status-messages",
 	)
 
 	userRepo := user.CreateRepository(db)
