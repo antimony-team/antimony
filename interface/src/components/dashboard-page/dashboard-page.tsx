@@ -66,24 +66,18 @@ const DashboardPage: React.FC = observer(() => {
     calculatePageSize();
   });
 
-  // useEffect(() => {
-  //   // If the lab dialog is open during refresh, refresh lab too
-  //   if (labDialogState.state && labDialogState.isOpen) {
-  //     if (labStore.lookup.has(labDialogState.state.id)) {
-  //       labDialogState.openWith(labStore.lookup.get(labDialogState.state.id)!);
-  //     }
-  //   }
-  // }, [labStore.data]);
-
   useEffect(() => {
     calculatePageSize();
   }, [calculatePageSize, labStore.totalEntries]);
 
   useEffect(() => {
     if (searchParams.has('l') && labStore.lookup.has(searchParams.get('l')!)) {
-      setOpenLab(labStore.lookup.get(searchParams.get('l')!)!);
+      const openLab = labStore.lookup.get(searchParams.get('l')!)!;
+      setOpenLab(openLab);
+      document.title = `Antimony | ${openLab.name}`;
     } else {
       setOpenLab(null);
+      document.title = 'Antimony | Dashboard';
     }
   }, [labStore.lookup, searchParams]);
 

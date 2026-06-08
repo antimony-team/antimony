@@ -9,7 +9,6 @@ import {Choose, If, When} from '@sb/types/control';
 import {uuid4} from '@sb/types/types';
 
 import {Button} from 'primereact/button';
-import {Tooltip} from 'primereact/tooltip';
 import {TreeNode} from 'primereact/treenode';
 import React, {MouseEvent, useEffect, useMemo, useRef} from 'react';
 
@@ -216,7 +215,6 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
 
   return (
     <div className="sb-explorer-node">
-      <Tooltip target=".tree-node" />
       <span
         className="tree-node p-treenode-label"
         data-pr-position="right"
