@@ -171,22 +171,25 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
     void labStore.restartNode(props.lab, selectedNode);
   }
 
-  function onOpenLogs() {
-    // closeDetails();
+  function onOpenContainerlabLogs() {
+    logDialogState.openWith({
+      lab: props.lab!,
+      source: '-1',
+    });
+  }
 
+  function onOpenLogs() {
     const instance = props.lab!.instance!;
 
     logDialogState.openWith({
       lab: props.lab!,
       source: selectedNode
-        ? instance.nodeMap.get(selectedNode)?.containerId
-        : undefined,
+        ? instance.nodeMap.get(selectedNode)!.containerId
+        : '-1',
     });
   }
 
   function onOpenTerminal() {
-    // closeDetails();
-
     if (
       !selectedNode ||
       !props.lab?.instance ||
@@ -355,6 +358,7 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
       } else {
         logDialogState.openWith({
           lab: props.lab,
+          source: '-1',
         });
       }
     }
@@ -411,7 +415,7 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
                   }
                   label="Show Logs"
                   aria-label="Show Logs"
-                  onClick={onOpenLogs}
+                  onClick={onOpenContainerlabLogs}
                 />
                 <Button
                   outlined
