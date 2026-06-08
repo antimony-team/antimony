@@ -17,7 +17,7 @@ import {Divider} from 'primereact/divider';
 import {Button} from 'primereact/button';
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
-import {If} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 
 import 'uplot/dist/uPlot.min.css';
 
@@ -400,8 +400,9 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       tx.push(0);
     }
 
+    // We clamp the CPU percentage to 100% to prevent weird spikes when restarting
     ts.push(currentSeconds);
-    tx.push(data.cpuPercent);
+    tx.push(Math.min(data.cpuPercent, 1));
 
     cpuUsageChartRef.current.setData([ts, tx]);
   }
@@ -497,7 +498,12 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Interfaces:</span>
                 <span className="property-value">
-                  {node!.interfaces.map(iface => iface.name).join(', ')}
+                  <Choose>
+                    <When condition={node!.interfaces.length}>
+                      {node!.interfaces.map(iface => iface.name).join(', ')}
+                    </When>
+                    <Otherwise>N/A</Otherwise>
+                  </Choose>
                 </span>
               </div>
             </div>

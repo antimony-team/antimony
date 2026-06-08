@@ -76,7 +76,7 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
 
   useEffect(() => {
     // Reset selected node when lab changes
-    setSelectedNode(null);
+    // setSelectedNode(null);
   }, [props.lab]);
 
   useEffect(() => {
