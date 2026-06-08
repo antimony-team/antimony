@@ -75,7 +75,10 @@ const ErrorPage = (props: ErrorPageProps) => {
         </When>
         <When condition={error}>
           <div className="sb-error-stack-content">{error!.stack}</div>
-          <Button label="Take me back!" onClick={() => navigate('/')} />
+          <Button
+            label="Take me back!"
+            onClick={() => window.location.reload()}
+          />
         </When>
       </Choose>
     </div>

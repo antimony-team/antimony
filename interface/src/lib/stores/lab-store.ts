@@ -13,7 +13,6 @@ import {
   Instance,
   InstanceOut,
   InstanceState,
-  InterfaceEventOut,
   Lab,
   LabCommand,
   LabCommandData,
@@ -24,7 +23,7 @@ import {
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
-import {action, computed, observable, observe, runInAction, toJS} from 'mobx';
+import {action, computed, observable, observe, runInAction} from 'mobx';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -238,18 +237,11 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private onLabUpdate(data: DataResponse<LabUpdateOut>) {
-    const lab = this.lookup.get(data.payload.labId);
-    console.log('Received lab update for lab', data.payload.labId, 'lab:', lab);
-
     if (data.payload.labId && this.lookup.has(data.payload.labId)) {
       void this.fetchSingle(data.payload.labId);
     } else {
       void this.fetch();
     }
-  }
-
-  private onLabInterfaceEvent(data: DataResponse<InterfaceEventOut>) {
-    console.log('Lab event: ', toJS(data));
   }
 
   @action
@@ -326,7 +318,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         ? input.instance.state
         : endTime &&
             endTime >= dayjs(new Date()).toDate() &&
-            startTime >= dayjs(new Date()).subtract(2, 'minutes').toDate()
+            startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate()
           ? InstanceState.Scheduled
           : InstanceState.Inactive,
       instance: this.parseInstance(input.instance),

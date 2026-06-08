@@ -121,11 +121,11 @@ export function generateGraph(
 
     let label;
 
-    if (!omitLabels && instance) {
+    if (!omitLabels) {
       label = getNodeDisplayName(
         nodeName,
         instance,
-        instance.nodeMap.get(nodeName),
+        instance?.nodeMap.get(nodeName),
       );
     } else {
       label = '';
@@ -169,6 +169,8 @@ export function getNodeDisplayName(
   instance?: Instance | null,
   node?: InstanceNode | null,
 ) {
+  if (!instance) return nodeName;
+
   if (node?.state === 'running') {
     return `🟢 ${nodeName}`;
   } else if (

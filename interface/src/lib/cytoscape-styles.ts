@@ -44,7 +44,6 @@ export const topologyStyle = [
     style: {
       label: 'data(label)',
       'z-index': 9999,
-      transform: 'translateY(-20px)',
     },
   },
   {

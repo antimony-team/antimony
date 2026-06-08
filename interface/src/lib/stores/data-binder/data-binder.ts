@@ -36,9 +36,10 @@ const SOCKETIO_CONFIG = {
 };
 
 export class DataBinder {
-  private readonly apiUrl = import.meta.env.SB_API_SERVER_URL ?? 'localhost';
+  private readonly apiUrl =
+    import.meta.env.SB_API_SERVER_URL ?? window.location.host;
   private readonly socketUrl =
-    import.meta.env.SB_SOCKET_SERVER_URL ?? 'localhost';
+    import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.host;
 
   protected readonly fetchRetryTimer = 5000;
 

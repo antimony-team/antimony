@@ -85,7 +85,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const contextMenuTarget = useRef<string | null>(null);
 
   const topologyTree = useMemo(() => {
-    if (topologyStore.data.length === 0) return [];
+    if (collectionStore.data.length === 0) return [];
 
     const topologyTree: ExplorerTreeNodeData[] = [];
     const topologiesByCollection = new Map<string, Topology[]>();

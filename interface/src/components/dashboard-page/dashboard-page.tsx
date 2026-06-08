@@ -85,7 +85,7 @@ const DashboardPage: React.FC = observer(() => {
     } else {
       setOpenLab(null);
     }
-  }, [labStore.lookup, searchParams, setSearchParams]);
+  }, [labStore.lookup, searchParams]);
 
   function handleSearchChange(value: string) {
     if (typingTimeoutRef.current) {

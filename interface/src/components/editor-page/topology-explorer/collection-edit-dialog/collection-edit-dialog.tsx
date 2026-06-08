@@ -66,7 +66,7 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
   }, [props.dialogState.isOpen]);
 
   async function onNameChange(name: string, isImplicit: boolean) {
-    editingCollection.name = name;
+    runInAction(() => (editingCollection.name = name));
     if (!isImplicit) void onSubmit();
   }
 

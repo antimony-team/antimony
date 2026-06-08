@@ -1,5 +1,4 @@
 // import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
-import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
 import LogDialog, {
   LogDialogState,
 } from '@sb/components/dashboard-page/log-dialog/log-dialog';
@@ -31,15 +30,16 @@ import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
-import CytoscapeComponent from 'react-cytoscapejs';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {Button} from 'primereact/button';
 import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 import classNames from 'classnames';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
-import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
 
 import './lab-view.sass';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
+import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
+import CytoscapeComponent from 'react-cytoscapejs';
 
 interface LabDialogProps {
   lab: Lab | null;
@@ -325,7 +325,6 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
   function initCytoscape(cy: cytoscape.Core) {
     cy.minZoom(0.3);
     cy.maxZoom(10);
-    console.log('initCytoscape');
 
     cy.on('tap', onNodeClick);
     cy.on('cxttap', onGraphContext);
@@ -388,18 +387,6 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
           <span>{props.lab?.name}</span>
           <div className="flex-grow-1" />
           <div className="sb-lab-view-header-buttons">
-            <Button
-              outlined
-              icon={
-                <span className="material-symbols-outlined">
-                  quick_reference_all
-                </span>
-              }
-              label="Show Logs"
-              aria-label="Show Logs"
-              onClick={onOpenLogs}
-              disabled={!props.lab?.instance}
-            />
             <Choose>
               <When condition={!props.lab?.instance}>
                 <Button
@@ -415,6 +402,17 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
                 <Button
                   outlined
                   icon={
+                    <span className="material-symbols-outlined">
+                      quick_reference_all
+                    </span>
+                  }
+                  label="Show Logs"
+                  aria-label="Show Logs"
+                  onClick={onOpenLogs}
+                />
+                <Button
+                  outlined
+                  icon={
                     props.lab?.state === InstanceState.Deploying
                       ? 'pi pi-sync pi-spin'
                       : 'pi pi-sync'
@@ -423,11 +421,6 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
                   aria-label="Redeploy Lab"
                   onClick={() => labStore.deployLab(props.lab!)}
                   disabled={props.lab?.state === InstanceState.Deploying}
-                  tooltip={
-                    props.lab?.state === InstanceState.Deploying
-                      ? 'Lab is currently being deployed.'
-                      : ''
-                  }
                   tooltipOptions={{
                     showOnDisabled: true,
                   }}
