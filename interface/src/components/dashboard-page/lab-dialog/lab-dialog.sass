@@ -36,6 +36,10 @@
     .p-button
       padding: 8px 16px
 
+      &:first-child
+        gap: 8px
+        margin-right: 16px
+
   .sb-lab-view-content
     flex-grow: 1
     position: relative
@@ -113,7 +117,7 @@
 
 .sb-lab-dialog-panel
   position: absolute
-  background-color: var(--overlay-color)
+  background-color: var(--secondary-color)
   border: 1px solid var(--primary-color-border)
   z-index: 10
   border-radius: 4px

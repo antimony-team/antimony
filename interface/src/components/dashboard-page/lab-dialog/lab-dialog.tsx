@@ -1,5 +1,4 @@
 // import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
-import LabDialogPanelAdmin from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-admin/lab-dialog-panel-admin';
 import LabDialogPanelProperties from '@sb/components/dashboard-page/lab-dialog/lab-dialog-panel-properties/lab-dialog-panel-properties';
 import LogDialog, {
   LogDialogState,
@@ -52,7 +51,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const cyRef = useRef<cytoscape.Core | null>(null);
     const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [hostsHidden, setHostsHidden] = useState(false);
+    // const [hostsHidden, setHostsHidden] = useState(false);
     const nodeContextMenuRef = useRef<ContextMenu | null>(null);
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const logDialogState = useDialogState<LogDialogState>();
@@ -67,8 +66,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
     const topologyStore = useTopologyStore();
     const statusMessageStore = useStatusMessages();
 
-    // const nodeDetailOverlay = useRef<TooltipRefProps>(null);
-
     const groupName = useMemo(() => {
       if (!props.lab) return;
 
@@ -76,8 +73,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       if (!collectionStore.lookup.has(collectionId)) return;
       return collectionStore.lookup.get(collectionId)!.name;
     }, [props.lab, collectionStore.lookup]);
-
-    const graphInitiallyFitted = useRef(false);
 
     useEffect(() => {
       // Reset selected node when lab changes
@@ -98,9 +93,9 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         deviceStore,
         topologyStore.manager,
         props.lab.instance,
-        hostsHidden,
+        false,
       );
-    }, [props.lab?.topologyDefinition, props.lab?.instance, hostsHidden]);
+    }, [props.lab?.topologyDefinition, props.lab?.instance]);
 
     function onGraphContext(event: cytoscape.EventObject) {
       if (!nodeContextMenuRef.current || !cyRef.current) return;
@@ -129,44 +124,12 @@ const LabDialog: React.FC<LabDialogProps> = observer(
 
     function onNodeClick(event: cytoscape.EventObject) {
       const target = event.target;
-      if (target === cyRef.current) {
-        onGraphClick(event);
-        return;
-      }
 
-      if (target.isNode && target.isNode()) {
+      if (target.hasClass && target.hasClass('topology-node')) {
         setSelectedNode(target.id());
-
-        // cyRef.current!.selec
-
-        const node = props.lab?.instance?.nodeMap.get(target.id());
-
-        // if (node && nodeDetailOverlay.current) {
-        //   if (nodeDetailOverlay.current.isOpen) {
-        //     nodeDetailOverlay.current.close();
-        //   } else {
-        //     const position = (target as NodeSingular).renderedPosition();
-        //     const canvasPosition =
-        //       gridCanvasRef.current!.getBoundingClientRect();
-        //
-        //     const nodeWidth = 30;
-        //     const offset = nodeWidth * cyRef.current!.zoom();
-        //
-        //     nodeDetailOverlay.current!.open({
-        //       position: {
-        //         x: position.x + canvasPosition!.x + offset,
-        //         y: position.y + canvasPosition!.y,
-        //       },
-        //     });
-        //   }
-        // }
       } else {
-        // closeDetails();
+        setSelectedNode(null);
       }
-    }
-
-    function onZoom() {
-      // closeDetails();
     }
 
     function onNodeStart() {
@@ -362,20 +325,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       statusMessageStore.success('Capture command copied to clipboard!');
     }
 
-    function onGraphClick(event: cytoscape.EventObject) {
-      setSelectedNode(null);
-      // if (
-      //   event.target === cyRef.current &&
-      //   nodeContextMenuRef.current !== null
-      // ) {
-      //   nodeDetailOverlay.current!.close();
-      // }
-    }
-
-    // function onMouseDown() {
-    //   closeDetails();
-    // }
-
     function initCytoscape(cy: cytoscape.Core) {
       cy.minZoom(0.3);
       cy.maxZoom(10);
@@ -384,7 +333,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
       cy.on('tap', onNodeClick);
       cy.on('cxttap', onGraphContext);
       cy.on('render', drawGridOverlay);
-      cy.on('zoom', onZoom);
+      // cy.on('zoom', onZoom);
       // cy.on('mousedown', onMouseDown);
       cy.style().fromJson(topologyStyle).update();
 
@@ -411,18 +360,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
         }
       }
     }, [props.lab]);
-
-    function onClose() {
-      // Close child dialogs before closing lab dialog itself
-      if (logDialogState.isOpen) {
-        logDialogState.close();
-      } else if (terminalDialogState.isOpen) {
-        terminalDialogState.close();
-      } else {
-        graphInitiallyFitted.current = false;
-        // props.dialogState.close();
-      }
-    }
 
     function onFitGraph() {
       if (!cyRef.current) return;
@@ -456,6 +393,18 @@ const LabDialog: React.FC<LabDialogProps> = observer(
             <span>{props.lab?.name}</span>
             <div className="flex-grow-1" />
             <div className="sb-lab-view-header-buttons">
+              <Button
+                outlined
+                icon={
+                  <span className="material-symbols-outlined">
+                    quick_reference_all
+                  </span>
+                }
+                label="Show Logs"
+                aria-label="Show Logs"
+                onClick={onOpenLogs}
+                disabled={!props.lab?.instance}
+              />
               <Choose>
                 <When condition={!props.lab?.instance}>
                   <Button
@@ -497,7 +446,7 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                         : 'Destroy Lab'
                     }
                     severity="danger"
-                    onClick={props.onDestroyLabRequest}
+                    onClick={() => props.onDestroyLabRequest(props.lab!)}
                     disabled={props.lab!.state === InstanceState.Inactive}
                   />
                 </Otherwise>
@@ -543,15 +492,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
             <div className="topology-graph-container" ref={containerRef}>
               <If condition={props.lab}>
                 <LabDialogPanelProperties lab={props.lab!} />
-                <LabDialogPanelAdmin
-                  lab={props.lab!}
-                  onOpenLogs={onOpenLogs}
-                  labelsHidden={hostsHidden}
-                  setLabelsHidden={setHostsHidden}
-                  onDestroyLabRequest={() =>
-                    props.onDestroyLabRequest(props.lab!)
-                  }
-                />
                 <canvas ref={gridCanvasRef} className="grid-canvas" />
               </If>
               <CytoscapeComponent
@@ -559,7 +499,6 @@ const LabDialog: React.FC<LabDialogProps> = observer(
                 elements={elements}
                 cy={(cy: cytoscape.Core) => {
                   cyRef.current = cy;
-                  // initCytoscape(cy);
                   setIsCyReady(true);
                 }}
               />
