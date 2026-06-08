@@ -982,8 +982,8 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	connection, err := s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, cmd)
 	if err != nil {
 		// Error code 127 means that the command was not found.
-		// If bash or ssh can't be found, just treat the node as started as there is no other
-		// way to listen to whether the node is started.
+		// If bash or ssh can't be found, just treat the node as started as there is no service running inside
+		// the node that we have to wait for anyway.
 		if strings.Contains(err.Error(), "exit code 127") {
 			s.onNodeStarted(ctx, instance, node, lab)
 			return
