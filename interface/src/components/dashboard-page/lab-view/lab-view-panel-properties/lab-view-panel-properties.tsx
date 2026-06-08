@@ -24,7 +24,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   const navigate = useNavigate();
 
   function onGotoTopology() {
-    void navigate(`/editor?t=${topology?.id}`);
+    void navigate(`/editor?f=${topology?.id}`);
   }
 
   return (

@@ -13,7 +13,7 @@ export class NodeActionChecker {
     return (
       this.isInstanceRunning &&
       this.node?.canRestart &&
-      this.node?.state !== 'started'
+      this.node?.state !== 'running'
     );
   }
 
@@ -26,7 +26,11 @@ export class NodeActionChecker {
   }
 
   public get canRestart() {
-    return this.isInstanceRunning && this.node?.canRestart;
+    return (
+      this.isInstanceRunning &&
+      this.node?.canRestart &&
+      this.node?.state !== 'exited'
+    );
   }
 
   public get canOpenTerminal() {

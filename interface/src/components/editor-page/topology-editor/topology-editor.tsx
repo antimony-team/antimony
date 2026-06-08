@@ -1,6 +1,6 @@
 import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
 import {Badge} from 'primereact/badge';
@@ -72,7 +72,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const topologyStore = useTopologyStore();
   const notificationStore = useStatusMessages();
 
-  const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
+  // const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
@@ -114,12 +114,24 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   }, [topologyStore.lookup]);
 
   useEffect(() => {
-    if (hasPendingEdits || validationState !== ValidationState.Done) {
-      document.title = 'Antimony*';
-    } else {
-      document.title = 'Antimony';
+    if (!openTopology && !openBindFile) {
+      document.title = 'Antimony | Editor';
+      return;
     }
-  }, [hasPendingEdits, validationState]);
+
+    let tabTitle = 'Antimony';
+    if (openTopology?.name) {
+      tabTitle += ` | ${openTopology.name}`;
+    } else if (openBindFile?.filePath) {
+      tabTitle += ` | ${openBindFile.filePath}`;
+    }
+
+    if (hasPendingEdits) {
+      tabTitle += '*';
+    }
+
+    document.title = tabTitle;
+  }, [hasPendingEdits, openTopology, openBindFile]);
 
   useBeforeUnload(ev => {
     if (hasPendingEdits || validationState !== ValidationState.Done) {
@@ -243,9 +255,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       return;
     } else if (result.isErr()) {
       notificationStore.error(result.error.message, 'Failed to save file.');
-    } /* else {
-      notificationStore.success('File has been saved!');
-    }*/
+    }
   }
 
   function onDeployTopoplogy() {

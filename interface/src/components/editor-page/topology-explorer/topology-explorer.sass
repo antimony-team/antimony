@@ -8,7 +8,7 @@
   .p-tree-header
     border-bottom: 1px solid var(--primary-color-border)
     margin: -8px -8px 0 -8px
-    padding: 8px 8px 0 8px
+    padding: 8px 8px 1px 8px
 
   .p-tree-container
     margin-top: 8px
@@ -48,8 +48,6 @@
         border: unset
 
     &:hover
-      border-color: var(--primary-color-border)
-
       .p-button-icon-only
         opacity: 1
 
@@ -58,6 +56,10 @@
 
       .p-button-icon-only
         opacity: 1
+
+  &.sb-explorer-bindfile-node, &.sb-explorer-topology-node
+    &:hover
+      border-color: var(--primary-color-border)
 
   .sb-input
     width: 160px

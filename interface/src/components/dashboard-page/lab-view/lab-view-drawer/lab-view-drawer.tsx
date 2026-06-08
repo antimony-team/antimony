@@ -17,9 +17,10 @@ import {Divider} from 'primereact/divider';
 import {Button} from 'primereact/button';
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
-import {If} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 
 import 'uplot/dist/uPlot.min.css';
+import {Message} from 'primereact/message';
 
 interface LabViewDrawer {
   lab: Lab | null;
@@ -400,8 +401,9 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       tx.push(0);
     }
 
+    // We clamp the CPU percentage to 100% to prevent weird spikes when restarting
     ts.push(currentSeconds);
-    tx.push(data.cpuPercent);
+    tx.push(Math.min(data.cpuPercent, 1));
 
     cpuUsageChartRef.current.setData([ts, tx]);
   }
@@ -497,7 +499,12 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Interfaces:</span>
                 <span className="property-value">
-                  {node!.interfaces.map(iface => iface.name).join(', ')}
+                  <Choose>
+                    <When condition={node!.interfaces.length}>
+                      {node!.interfaces.map(iface => iface.name).join(', ')}
+                    </When>
+                    <Otherwise>N/A</Otherwise>
+                  </Choose>
                 </span>
               </div>
             </div>
@@ -508,8 +515,8 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                     quick_reference_all
                   </span>
                 }
-                label="Show Logs"
-                aria-label="Show Logs"
+                label="Node Logs"
+                aria-label="Node Logs"
                 outlined
                 onClick={props.onOpenLogs}
                 disabled={!nodeActionChecker!.canShowLogs}
@@ -574,30 +581,38 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
           ))}
         </div>
         <div className="lab-dialog-drawer-control-buttons">
-          <Button
-            icon="pi pi-play"
-            severity="success"
-            label="Start"
-            outlined
-            onClick={props.onNodeStart}
-            disabled={!nodeActionChecker!.canStart}
-          />
-          <Button
-            icon="pi pi-sync"
-            severity="warning"
-            label="Restart"
-            outlined
-            onClick={props.onNodeRestart}
-            disabled={!nodeActionChecker!.canRestart}
-          />
-          <Button
-            icon="pi pi-power-off"
-            severity="danger"
-            label="Shutdown"
-            outlined
-            onClick={props.onNodeStop}
-            disabled={!nodeActionChecker!.canStop}
-          />
+          <If condition={!node?.canRestart}>
+            <Message
+              severity="info"
+              text={`Nodes with kind '${node?.kind}' can't be manually started`}
+            />
+          </If>
+          <div className="flex gap-2">
+            <Button
+              icon="pi pi-play"
+              severity="success"
+              label="Start"
+              outlined
+              onClick={props.onNodeStart}
+              disabled={!nodeActionChecker!.canStart}
+            />
+            <Button
+              icon="pi pi-sync"
+              severity="warning"
+              label="Restart"
+              outlined
+              onClick={props.onNodeRestart}
+              disabled={!nodeActionChecker!.canRestart}
+            />
+            <Button
+              icon="pi pi-power-off"
+              severity="danger"
+              label="Shutdown"
+              outlined
+              onClick={props.onNodeStop}
+              disabled={!nodeActionChecker!.canStop}
+            />
+          </div>
         </div>
       </If>
     </div>

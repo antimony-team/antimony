@@ -15,7 +15,6 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import TopologyEditor from './topology-editor/topology-editor';
 import TopologyExplorer from './topology-explorer/topology-explorer';
-import {toJS} from 'mobx';
 
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
@@ -56,7 +55,6 @@ const EditorPage = observer(() => {
     if (!searchParams.has('f')) return;
 
     const fileId = searchParams.get('f')!;
-    if (fileId === topologyStore.manager.editingFileId) return;
 
     if (topologyStore.lookup.has(fileId)) {
       topologyStore.manager.openTopology(topologyStore.lookup.get(fileId)!);
@@ -92,12 +90,9 @@ const EditorPage = observer(() => {
   }
 
   function openFileConfirm(id: string) {
-    console.log('open file:', id);
-    console.log('bind file lookup:', toJS(topologyStore.bindFileLookup));
     if (topologyStore.lookup.has(id)) {
       topologyStore.manager.openTopology(topologyStore.lookup.get(id)!);
     } else if (topologyStore.bindFileLookup.has(id)) {
-      console.log('OPEN FILE CONFIGM');
       topologyStore.manager.openBindFile(topologyStore.bindFileLookup.get(id)!);
     }
   }

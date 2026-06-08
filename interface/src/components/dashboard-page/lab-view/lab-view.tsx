@@ -76,7 +76,7 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
 
   useEffect(() => {
     // Reset selected node when lab changes
-    setSelectedNode(null);
+    // setSelectedNode(null);
   }, [props.lab]);
 
   useEffect(() => {
@@ -110,12 +110,15 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
       return;
     }
 
+    // Ignore node and group context event if lab is not currently started
+    if (!props.lab?.instance) return;
+
     // Ignore context events on group nodes
     if (event.target.hasClass('drawn-shape')) {
       return;
     }
 
-    if (event.target.isNode) {
+    if (event.target.hasClass('topology-node')) {
       const nodeId = event.target.id();
       setSelectedNode(nodeId);
       nodeContextMenuRef.current.show(mouseEvent);
@@ -168,22 +171,25 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
     void labStore.restartNode(props.lab, selectedNode);
   }
 
-  function onOpenLogs() {
-    // closeDetails();
+  function onOpenContainerlabLogs() {
+    logDialogState.openWith({
+      lab: props.lab!,
+      source: '-1',
+    });
+  }
 
+  function onOpenLogs() {
     const instance = props.lab!.instance!;
 
     logDialogState.openWith({
       lab: props.lab!,
       source: selectedNode
-        ? instance.nodeMap.get(selectedNode)?.containerId
-        : undefined,
+        ? instance.nodeMap.get(selectedNode)!.containerId
+        : '-1',
     });
   }
 
   function onOpenTerminal() {
-    // closeDetails();
-
     if (
       !selectedNode ||
       !props.lab?.instance ||
@@ -352,6 +358,7 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
       } else {
         logDialogState.openWith({
           lab: props.lab,
+          source: '-1',
         });
       }
     }
@@ -406,9 +413,9 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
                       quick_reference_all
                     </span>
                   }
-                  label="Show Logs"
-                  aria-label="Show Logs"
-                  onClick={onOpenLogs}
+                  label="Containerlab Logs"
+                  aria-label="Containerlab Logs"
+                  onClick={onOpenContainerlabLogs}
                 />
                 <Button
                   outlined

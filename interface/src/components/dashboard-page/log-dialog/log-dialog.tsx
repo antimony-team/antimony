@@ -14,12 +14,14 @@ import charmbraceletLogLanguage from '@sb/lib/utils/charmbracelet-log.language';
 
 import hljs from 'highlight.js';
 import {Skeleton} from 'primereact/skeleton';
+import {runInAction} from 'mobx';
+import {Image} from 'primereact/image';
 
 export interface LogDialogState {
   lab: Lab;
 
   // Container ID of the docker container or -1 for containerlab logs.
-  source?: string;
+  source: string;
 }
 
 interface LogDialogProps {
@@ -32,10 +34,7 @@ hljs.registerLanguage('charmbracelet-log', charmbraceletLogLanguage);
 const LogDialog = observer((props: LogDialogProps) => {
   const [lines, setLines] = useState<string[] | null>(null);
 
-  const [logSource, setLogSource] = useState<string | number>(
-    props.dialogState.state?.source ?? -1,
-  );
-
+  const logSourceChangedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const dataBinder = useDataBinder();
@@ -59,12 +58,23 @@ const LogDialog = observer((props: LogDialogProps) => {
         })
         .join('\n');
     }
-    if (logSource === -1) {
+    if (props.dialogState.state?.source === '-1') {
       return hljs.highlight(content, {language: 'charmbracelet-log'}).value;
     } else {
       return hljs.highlight(content, {language: 'container-log'}).value;
     }
   }, [lines]);
+
+  // Reset log source to containerlab logs if instance is restarted
+  useEffect(() => {
+    if (!props.dialogState.state?.lab.instance?.nodes.length) {
+      if (props.dialogState.state) {
+        runInAction(() => {
+          props.dialogState.state!.source = '-1';
+        });
+      }
+    }
+  }, [props.dialogState.state?.lab.instance]);
 
   const skeleton = useMemo(() => {
     const generateWidth = () => Math.random() * (60 - 15) + 15;
@@ -84,20 +94,16 @@ const LogDialog = observer((props: LogDialogProps) => {
       return '';
     }
 
-    if (logSource === -1) {
+    if (props.dialogState.state.source === '-1') {
       return 'Containerlab';
     } else {
-      return props.dialogState.state.lab.instance.nodes.find(
-        node => node.containerId === logSource,
-      )!.name;
+      return (
+        props.dialogState.state.lab.instance.nodes.find(
+          node => node.containerId === props.dialogState.state!.source,
+        )?.name ?? 'Unknown'
+      );
     }
-  }, [props.dialogState.state, logSource]);
-
-  useEffect(() => {
-    if (!props.dialogState.state || !props.dialogState.isOpen) return;
-
-    setLogSource(props.dialogState.state.source ?? -1);
-  }, [props.dialogState.state?.source, props.dialogState.isOpen]);
+  }, [props.dialogState.state?.source]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -109,17 +115,17 @@ const LogDialog = observer((props: LogDialogProps) => {
     if (!props.dialogState.state) return;
 
     const namespace =
-      logSource === -1
+      props.dialogState.state.source === '-1'
         ? `logs/${props.dialogState.state.lab.id}`
-        : `logs/${props.dialogState.state.lab.id}/${logSource}`;
+        : `logs/${props.dialogState.state.lab.id}/${props.dialogState.state.source}`;
 
-    setLines(null);
+    logSourceChangedRef.current = true;
     dataBinder.subscribeNamespace(namespace, onLogs, onSocketConnect);
 
     return () => {
       dataBinder.unsubscribeNamespace(namespace, onLogs);
     };
-  }, [props.dialogState.state, props.dialogState.isOpen, logSource]);
+  }, [props.dialogState.state?.source, props.dialogState.isOpen]);
 
   function onSocketConnect() {
     setLines([]);
@@ -129,9 +135,9 @@ const LogDialog = observer((props: LogDialogProps) => {
     if (!props.dialogState.state) return;
 
     const namespace =
-      logSource === -1
+      props.dialogState.state.source === '-1'
         ? `logs/${props.dialogState.state.lab.id}`
-        : `logs/${props.dialogState.state.lab.id}/${logSource}`;
+        : `logs/${props.dialogState.state.lab.id}/${props.dialogState.state.source}`;
 
     dataBinder.unsubscribeNamespace(namespace, onLogs);
 
@@ -139,6 +145,12 @@ const LogDialog = observer((props: LogDialogProps) => {
   }
 
   function onLogs(data: string) {
+    if (logSourceChangedRef.current) {
+      setLines([data]);
+      logSourceChangedRef.current = false;
+      return;
+    }
+
     setLines(lines => [...(lines ?? []), data]);
   }
 
@@ -150,14 +162,21 @@ const LogDialog = observer((props: LogDialogProps) => {
     return [
       {
         label: 'Containerlab',
-        value: -1,
+        value: '-1',
       },
       ...nodes.map(node => ({
         label: node.containerName,
         value: node.containerId,
       })),
     ];
-  }, [props.dialogState.state]);
+  }, [props.dialogState.state?.lab]);
+
+  function onLogSourceChange(value: string) {
+    runInAction(() => {
+      if (!props.dialogState.state) return;
+      props.dialogState.state!.source = value;
+    });
+  }
 
   return (
     <SBDialog
@@ -184,7 +203,7 @@ const LogDialog = observer((props: LogDialogProps) => {
               <Choose>
                 <When
                   condition={
-                    logSource === -1 &&
+                    props.dialogState.state!.source === '-1' &&
                     props.dialogState.state!.lab.instance!.recovered
                   }
                 >
@@ -208,8 +227,14 @@ const LogDialog = observer((props: LogDialogProps) => {
       <SBDropdown
         id="log-selector"
         icon={option => {
-          if (option.value === -1) {
-            return <span className="material-symbols-outlined">terminal</span>;
+          if (option.value === '-1') {
+            return (
+              <Image
+                src="/icons/clab-icon.png"
+                width="18px"
+                style={{paddingLeft: '2.3px', paddingRight: '1px'}}
+              />
+            );
           } else {
             return (
               <span className="material-symbols-outlined">deployed_code</span>
@@ -219,9 +244,9 @@ const LogDialog = observer((props: LogDialogProps) => {
         hasFilter={(logSources && logSources.length > 10) ?? false}
         useSelectTemplate={true}
         useItemTemplate={true}
-        value={logSource}
+        value={props.dialogState.state?.source}
         options={logSources}
-        onValueSubmit={setLogSource}
+        onValueSubmit={onLogSourceChange}
       />
     </SBDialog>
   );
