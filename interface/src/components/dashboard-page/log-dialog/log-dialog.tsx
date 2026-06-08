@@ -87,9 +87,11 @@ const LogDialog = observer((props: LogDialogProps) => {
     if (logSource === -1) {
       return 'Containerlab';
     } else {
-      return props.dialogState.state.lab.instance.nodes.find(
-        node => node.containerId === logSource,
-      )!.name;
+      return (
+        props.dialogState.state.lab.instance.nodes.find(
+          node => node.containerId === logSource,
+        )?.name ?? 'Unknown'
+      );
     }
   }, [props.dialogState.state, logSource]);
 
