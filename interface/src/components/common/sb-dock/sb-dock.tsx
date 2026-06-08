@@ -43,6 +43,8 @@ const SBDock: React.FC = observer(() => {
     showDelay: 500,
   };
 
+  const windowLocation = window.location.hash.split('?')[0];
+
   return (
     <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
       <div className="flex align-items-center gap-3">
@@ -62,8 +64,7 @@ const SBDock: React.FC = observer(() => {
                 <span className="material-symbols-outlined">dashboard</span>
               }
               className={classNames('sb-dock-page-button', {
-                selected:
-                  window.location.hash === '#/' || window.location.hash === '',
+                selected: windowLocation === '#/' || windowLocation === '',
               })}
               label="Dashboard"
               onClick={() => navigate('/')}
@@ -75,7 +76,7 @@ const SBDock: React.FC = observer(() => {
                 <span className="material-symbols-outlined">construction</span>
               }
               className={classNames('sb-dock-page-button', {
-                selected: window.location.hash.includes('#/editor'),
+                selected: windowLocation === '#/editor',
               })}
               label="Topology Editor"
               onClick={() => navigate('/editor')}
