@@ -2,6 +2,7 @@ package main
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/capture"
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	_ "antimonyBackend/docs"
@@ -9,6 +10,7 @@ import (
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
+	"antimonyBackend/domain/serverConfig"
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
@@ -59,15 +61,19 @@ func main() {
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 	authManager := auth.CreateAuthManager(antimonyConfig)
 	storageManager := storage.CreateStorageManager(antimonyConfig)
+	captureService := capture.CreateService(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
 	socketManager := socket.CreateSocketManager(authManager)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
-		socketManager, false, false, false, nil, "status-messages",
+		socketManager, false, nil, false, nil, "status-messages",
 	)
 
 	var (
+		serverConfigService = serverConfig.CreateService(antimonyConfig)
+		serverConfigHandler = serverConfig.CreateHandler(serverConfigService)
+
 		devicesService = device.CreateService(antimonyConfig)
 		devicesHandler = device.CreateHandler(devicesService)
 
@@ -102,6 +108,13 @@ func main() {
 	go labService.RunScheduler()
 	go labService.RunShellManager()
 	go labService.ListenToProviderEvents()
+	go labService.RunNodeStatsReader()
+
+	go func() {
+		if err := captureService.Start(); err != nil {
+			log.Errorf("Failed to start capture service: %s", err.Error())
+		}
+	}()
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
@@ -115,6 +128,7 @@ func main() {
 	device.RegisterRoutes(webServer, devicesHandler, authManager)
 	topology.RegisterRoutes(webServer, topologyHandler, authManager)
 	collection.RegisterRoutes(webServer, collectionHandler, authManager)
+	serverConfig.RegisterRoutes(webServer, serverConfigHandler, authManager)
 
 	// Register Socket.IO endpoints in web server
 	c := socketio.DefaultServerOptions()

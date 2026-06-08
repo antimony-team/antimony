@@ -77,26 +77,8 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 	isOpenIdEnabled := config.Auth.EnableOpenID
 	isNativeEnabled := config.Auth.EnableNative
 
-	if !isNativeEnabled && !isOpenIdEnabled {
-		log.Fatal(
-			"Please enable at least one authentication method.",
-			"native",
-			isNativeEnabled,
-			"openid",
-			isOpenIdEnabled,
-		)
-	}
-
 	nativeUsername := os.Getenv("SB_NATIVE_USERNAME")
 	nativePassword := os.Getenv("SB_NATIVE_PASSWORD")
-	emptyCredentials := false
-
-	if isNativeEnabled && (nativeUsername == "" || nativePassword == "") {
-		emptyCredentials = true
-		log.Warn("Native authentication is enabled but username or password are empty!")
-	} else {
-		log.Info("Native authentication is enabled.", "username", nativeUsername)
-	}
 
 	authConfig := AuthConfig{
 		OpenId: OpenIdAuthConfig{
@@ -104,7 +86,7 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 		},
 		Native: NativeAuthConfig{
 			Enabled:    isNativeEnabled,
-			AllowEmpty: emptyCredentials,
+			AllowEmpty: isNativeEnabled && (nativeUsername == "" || nativePassword == ""),
 		},
 	}
 
@@ -119,18 +101,24 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 		nativePassword:     nativePassword,
 	}
 
+	if !isNativeEnabled && !isOpenIdEnabled {
+		log.Warn("[CAUTION] No authentication method is enabled. Server will be accessible to anyone.")
+		authManager.CreateNativeUser()
+	}
+
 	if isNativeEnabled {
-		authManager.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
-			UserId:      NativeUserID,
-			IsAdmin:     true,
-			Collections: make([]string, 0),
+		if nativeUsername == "" || nativePassword == "" {
+			log.Warn("[CAUTION] Native authentication is enabled but username or password are empty!")
+		} else {
+			log.Info("Native authentication is enabled.", "username", nativeUsername)
 		}
+		authManager.CreateNativeUser()
 	}
 
 	if isOpenIdEnabled {
 		provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
 		if err != nil {
-			log.Fatalf("Failed to connect to OpenID provider: %s", err.Error())
+			log.Fatalf("[AUTH] Failed to connect to OpenID provider: %s", err.Error())
 		} else {
 			authManager.provider = *provider
 			authManager.oauth2Config = oauth2.Config{
@@ -144,6 +132,14 @@ func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
 	}
 
 	return authManager
+}
+
+func (m *authManager) CreateNativeUser() {
+	m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
+		UserId:      NativeUserID,
+		IsAdmin:     true,
+		Collections: make([]string, 0),
+	}
 }
 
 func (m *authManager) RefreshAccessToken(authToken string) (string, error) {
@@ -170,6 +166,17 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 			err         error
 		)
 
+		// Allow everyone if no auth method is enabled
+		if !m.authConfig.Native.Enabled && !m.authConfig.OpenId.Enabled {
+			ctx.Set("authUser", AuthenticatedUser{
+				UserId:      NativeUserID,
+				IsAdmin:     true,
+				Collections: make([]string, 0),
+			})
+			ctx.Next()
+			return
+		}
+
 		accessToken, err = ctx.Cookie("accessToken")
 		if err != nil {
 			ctx.JSON(utils.CreateErrorResponse(utils.ErrUnauthorized))
@@ -180,7 +187,6 @@ func (m *authManager) AuthenticatorMiddleware() gin.HandlerFunc {
 		if user, err = m.AuthenticateUser(accessToken); err != nil {
 			ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 			ctx.Abort()
-			return
 		} else {
 			ctx.Set("authUser", *user)
 			ctx.Next()

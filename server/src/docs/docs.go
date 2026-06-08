@@ -209,6 +209,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/config": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "config"
+                ],
+                "summary": "Get the server configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "The user doesn't have access to the resource",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
         "/devices": {
             "get": {
                 "security": [
@@ -570,6 +606,48 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Access to the resource was denied. Details in the request body.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
+        "/topologies/:topologyId": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "topologies"
+                ],
+                "summary": "Get a specific topology by UUID",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-topology_TopologyOut"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "Access to the resource was denied. Details in the request body.",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "The requested topology was not found.",
                         "schema": {
                             "$ref": "#/definitions/utils.ErrorResponse"
                         }
@@ -1045,6 +1123,23 @@ const docTemplate = `{
                 }
             }
         },
+        "deployment.NodeInterface": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "mtu": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
         "deployment.NodeState": {
             "type": "string",
             "enum": [
@@ -1075,7 +1170,7 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.InstanceNode": {
+        "lab.InstanceNodeOut": {
             "type": "object",
             "properties": {
                 "canRestart": {
@@ -1084,14 +1179,13 @@ const docTemplate = `{
                 "containerId": {
                     "type": "string"
                 },
-                "containnerName": {
+                "containerName": {
                     "type": "string"
                 },
-                "interfaceCaptures": {
-                    "description": "TODO(kian): Implement properly",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
+                "interfaces": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/deployment.NodeInterface"
                     }
                 },
                 "ipv4": {
@@ -1126,7 +1220,7 @@ const docTemplate = `{
                 "nodes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/lab.InstanceNode"
+                        "$ref": "#/definitions/lab.InstanceNodeOut"
                     }
                 },
                 "recovered": {
@@ -1217,6 +1311,31 @@ const docTemplate = `{
                 },
                 "topologyId": {
                     "type": "string"
+                }
+            }
+        },
+        "serverConfig.ServerConfigOut": {
+            "type": "object",
+            "properties": {
+                "capture": {
+                    "$ref": "#/definitions/serverConfig.captureConfigOut"
+                }
+            }
+        },
+        "serverConfig.captureConfigOut": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "excludedInterfaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "port": {
+                    "type": "integer"
                 }
             }
         },
@@ -1372,6 +1491,17 @@ const docTemplate = `{
                 }
             }
         },
+        "utils.OkResponse-array_serverConfig_ServerConfigOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/serverConfig.ServerConfigOut"
+                    }
+                }
+            }
+        },
         "utils.OkResponse-array_topology_TopologyOut": {
             "type": "object",
             "properties": {
@@ -1404,6 +1534,14 @@ const docTemplate = `{
             "properties": {
                 "payload": {
                     "type": "string"
+                }
+            }
+        },
+        "utils.OkResponse-topology_TopologyOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/topology.TopologyOut"
                 }
             }
         }

@@ -9,9 +9,9 @@ import (
 func GetProvider(config *config.AntimonyConfig) DeploymentProvider {
 	if config.General.Provider == "clabernetes" {
 		log.Info("Using the Clabernetes deployment provider.")
-		return &ClabernetesProvider{}
+		return CreateClabernetesProvider()
 	}
 
 	log.Info("Using the Containerlab deployment provider.")
-	return &ContainerlabProvider{}
+	return CreateContainerlabProvider()
 }

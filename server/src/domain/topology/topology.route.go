@@ -11,6 +11,7 @@ func RegisterRoutes(route *gin.Engine, handler Handler, authManager auth.AuthMan
 	{
 		routes.GET("", handler.Get)
 		routes.POST("", handler.Create)
+		routes.GET("/:topologyId", handler.GetByUuid)
 		routes.PATCH("/:topologyId", handler.Update)
 		routes.DELETE("/:topologyId", handler.Delete)
 

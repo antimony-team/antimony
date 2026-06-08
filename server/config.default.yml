@@ -1,58 +1,89 @@
 general:
   # The provider that will be used to deploy nodes [containerlab, clabernetes].
+  # Note: The clabernetes provider is not yet implemented and will be available in a future release.
   # Default: containerlab
   provider: containerlab
 server:
-  # Default: 127.0.0.1
+  # The host to which the antimony server will be bound.
+  # Default: 0.0.0.0
   host: 0.0.0.0
+  # The port to which the antimony server will be bound.
   # Default: 3000
   port: 3000
 auth:
   # Whether to enable the native admin login. Username and password have to be set via env variables.
   # Default: true
   enableNative: true
-  # Whether to enable authentication via OpenID connect.
+  # Whether to enable authentication via OpenID Connect.
   # Default: false
   enableOpenId: false
   # Default: ""
   openIdIssuer: ""
   # Default: ""
   openIdClientId: ""
-  # Users in these OpenID groups are granted admin privileges.
+  # A list of OpenID groups that are considered admin groups.
   # Default: []
-  openIdAdminGroups: []
+  openIdAdminGroups: [ ]
 shell:
-  # How many shells a user can have open at the same time.
+  # The maximum number of shells a user can have open at the same time.
   # Default: 20
   userLimit: 20
-  # How long the server will wait before closing inactive shells (in seconds).
-  # Default: 1800
+  # The maximum number of seconds a shell can be idle before it is closed.
+  # Default: 1800 (30 minutes)
   timeout: 1800
 database:
+  # The host to connect to the postgres database.
   # Default: 127.0.0.1
   host: 127.0.0.1
+  # The port to connect to the postgres database.
   # Default: 5432
   port: 5432
+  # The name of the postgres database.
   # Default: antimony
   database: antimony
+  # The user to connect to the postgres database.
   # Default: antimony
   user: antimony
   # The DB file that is used if the local database flag is set.
-  # Default: ./antimony.db
+  # Default: ./db/antimony.db
   localFile: ./db/antimony.db
 capture:
-  # Whether interface traffic capture is enabled.
+  # Whether the interface traffic capture SSH server is enabled.
+  # Default: no
   enabled: no
-  # The command that is used to initiate the packetflix capture streaming by the client.
-  # The variables 'ContainerName' and 'InterfaceName' will be replaced with the container name and interface name.
-  cmd: ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -
-  # Interfaces that are excluded from traffic capture.
-  excluded: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
+  # The host to which the capture server will be bound.
+  # Default: 0.0.0.0
+  sshHost: 0.0.0.0
+  # The port to which the capture server will be bound.
+  # Default: 6969
+  sshPort: 6969
+  # The path to the SSH key that is used to authenticate the traffic capture SSH server.
+  # Default: ./key
+  sshKeyPath: ./key
+  # The host of the edgeshark server.
+  # Default: localhost
+  edgesharkHost: localhost
+  # The port of the edgeshark server.
+  # Default: 5001
+  edgesharkPort: 5001
+  # Interfaces that are excluded from traffic capture and monitoring.
+  # Default: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
+  excludedInterfaces: [ "lo", "gway-2800", "monit_in", "mgmt0-0" ]
+streaming:
+  # The maximum number of container log entries that will be kept in memory.
+  # Default: 1000
+  containerLogBacklog: 1000
+  # The maximum number of containerlab log entries that will be kept in memory.
+  # Default: 1000
+  clabLogBacklog: 1000
+  # The maximum number of lines that will be kept in memory for an open shell (scrollback buffer).
+  # Default: 1000
+  shellLinesBacklog: 1000
 filesystem:
-  # Topology definition files will be stored in this directory.
+  # The directory in which all topology definition files will be stored.
   # Default: ./storage/
   storage: ./storage/
-  # Runtime lab files will be stored in this directory.
+  # The directory in which all runtime lab files will be stored.
   # Default: ./run/
   run: ./run/
 containerlab:

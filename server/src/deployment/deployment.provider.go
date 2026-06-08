@@ -2,7 +2,9 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"time"
 )
 
 type DeploymentProvider interface {
@@ -15,6 +17,9 @@ type DeploymentProvider interface {
 	ExecInteractive(ctx context.Context, containerId string, cmd []string) (io.ReadWriteCloser, error)
 
 	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
+	RegisterEventListener(ctx context.Context, onUpdate func(containerlabEvent ContainerlabEvent)) error
+
+	ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error)
 
 	StartNode(ctx context.Context, containerId string) error
 	StopNode(ctx context.Context, containerId string) error
@@ -22,7 +27,7 @@ type DeploymentProvider interface {
 
 	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
 
-	GetInterfaces(ctx context.Context, containerId string) ([]string, error)
+	GetInterfaces(ctx context.Context, containerId string) ([]NodeInterface, error)
 }
 
 type InspectOutput = map[string][]InspectContainer
@@ -56,4 +61,63 @@ var NodeStates = struct {
 	Starting: starting,
 	Running:  running,
 	Exited:   exited,
+}
+
+type ContainerlabEvent struct {
+	Timestamp   time.Time       `json:"timestamp"`
+	Type        string          `json:"type"`
+	Action      string          `json:"action"`
+	ActorID     string          `json:"actor_id"`
+	ActorName   string          `json:"actor_name"`
+	ActorFullID string          `json:"actor_full_id"`
+	Attributes  json.RawMessage `json:"attributes"`
+}
+
+type NodeInterface struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
+	MTU     int    `json:"mtu"`
+	State   string `json:"state"`
+}
+
+type InterfaceEventAttributes struct {
+	ID              string `json:"id"`
+	Ifname          string `json:"ifname"`
+	Index           string `json:"index"`
+	IntervalSeconds string `json:"interval_seconds"`
+	Lab             string `json:"lab"`
+	MAC             string `json:"mac"`
+	MTU             string `json:"mtu"`
+	Name            string `json:"name"`
+	Origin          string `json:"origin"`
+	RxBps           string `json:"rx_bps"`
+	RxBytes         string `json:"rx_bytes"`
+	RxPackets       string `json:"rx_packets"`
+	RxPps           string `json:"rx_pps"`
+	State           string `json:"state"`
+	TxBps           string `json:"tx_bps"`
+	TxBytes         string `json:"tx_bytes"`
+	TxPackets       string `json:"tx_packets"`
+	Type            string `json:"type"`
+}
+
+type NodeStats struct {
+	Timestamp time.Time
+
+	CPUUsage        uint64
+	SystemUsage     uint64
+	CPUUsagePercent float64
+
+	MemoryUsage uint64
+	MemoryLimit uint64
+
+	Interfaces map[string]NodeInterfaceStats
+}
+
+type NodeInterfaceStats struct {
+	RxBytes uint64
+	TxBytes uint64
+
+	RxBps int
+	TxBps int
 }

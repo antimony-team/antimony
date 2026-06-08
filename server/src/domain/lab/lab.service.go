@@ -11,11 +11,9 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"net/netip"
 	"os"
@@ -48,6 +46,8 @@ type (
 
 		RunShellManager()
 
+		RunNodeStatsReader()
+
 		ListenToProviderEvents()
 	}
 
@@ -66,6 +66,9 @@ type (
 
 		defaultSshAuth  []ssh.AuthMethod
 		nodeKindConfigs map[string]NodeKindConfig
+
+		monitoredInstances      []*Instance
+		monitoredInstancesMutex sync.Mutex
 
 		labRepo                Repository
 		userRepo               user.Repository
@@ -88,7 +91,7 @@ type (
 		Connection       io.ReadWriteCloser
 		ConnectionCancel context.CancelFunc
 		LastInteraction  int64
-		DataNamespace    socket.IONamespace[string, string]
+		DataNamespace    socket.IONamespace[string, byte]
 	}
 )
 
@@ -143,13 +146,13 @@ func CreateService(
 		statusMessageNamespace: statusMessageNamespace,
 	}
 	labService.labCommandsNamespace = socket.CreateInputNamespace[LabCommandData](
-		socketManager, false, false, labService.handleLabCommand, nil, "lab-commands",
+		socketManager, false, nil, labService.handleLabCommand, nil, "lab-commands",
 	)
 	labService.labUpdatesNamespace = socket.CreateOutputNamespace[LabUpdateOut](
-		socketManager, false, false, false, nil, "lab-updates",
+		socketManager, false, nil, false, nil, "lab-updates",
 	)
 	labService.shellCommandsNamespace = socket.CreateOutputNamespace[ShellCommandData](
-		socketManager, false, false, false, nil, "shell-commands",
+		socketManager, false, nil, false, nil, "shell-commands",
 	)
 
 	labService.reviveLabs()
@@ -203,10 +206,53 @@ func (s *labService) RunShellManager() {
 	}
 }
 
+func (s *labService) RunNodeStatsReader() {
+	ctx := context.Background()
+
+	for {
+		monitoredInstances := make([]*Instance, len(s.monitoredInstances))
+		s.monitoredInstancesMutex.Lock()
+		copy(monitoredInstances, s.monitoredInstances)
+		s.monitoredInstancesMutex.Unlock()
+
+		for _, instance := range s.monitoredInstances {
+			for _, node := range instance.Nodes {
+				stats, err := s.deploymentProvider.ReadNodeStats(ctx, node.ContainerId)
+				if err != nil {
+					log.Errorf("Failed to read stats for node '%s': %s", node.ContainerId, err.Error())
+					continue
+				}
+
+				if node.StatsNamespace == nil {
+					continue
+				}
+
+				node.StatsNamespace.Send(NodeStatsOut{
+					Timestamp:   time.Now(),
+					CPUUsage:    float32(stats.CPUUsagePercent),
+					MemoryUsage: float32(stats.MemoryUsage),
+					MemoryLimit: float32(stats.MemoryLimit),
+					Interfaces: lo.MapValues(
+						stats.Interfaces,
+						func(i deployment.NodeInterfaceStats, key string) NodeInterfaceStatsOut {
+							return NodeInterfaceStatsOut{
+								RxBps: i.RxBps,
+								TxBps: i.TxBps,
+							}
+						},
+					),
+				})
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+}
+
 func (s *labService) ListenToProviderEvents() {
 	ctx := context.Background()
 
-	err := s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
+	_ = s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
 		var targetLabId *string
 
 		s.instancesMutex.Lock()
@@ -228,10 +274,6 @@ func (s *labService) ListenToProviderEvents() {
 			})
 		}
 	})
-
-	if err != nil {
-		return
-	}
 }
 
 func (s *labService) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]LabOut, error) {
@@ -559,10 +601,17 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	instance.LogNamespace.ClearBacklog()
 	instance.LogNamespace = nil
 
+	s.monitoredInstancesMutex.Lock()
+	if i := slices.Index(s.monitoredInstances, instance); i != -1 {
+		s.monitoredInstances = slices.Delete(s.monitoredInstances, i, i+1)
+	}
+	s.monitoredInstancesMutex.Unlock()
+
 	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
 	s.instancesMutex.Unlock()
+
 	s.labUpdatesNamespace.Send(LabUpdateOut{
 		LabId: &lab.UUID,
 	})
@@ -628,7 +677,7 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 
 	streamClabOutput(instance.LogNamespace, output)
 
-	// Only report errors if the worker has not been cancelled
+	// Only report errors if the worker has not been canceled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Error(
 			"Lab Manager",
@@ -663,7 +712,16 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 	instance.Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: s.config.Streaming.ContainerLogBacklog,
+				Kind:     utils.RingKindValue,
+			},
+			true, nil,
+			"logs",
+			lab.UUID,
+			node.ContainerId,
 		)
 		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 			containerLogNamespace.Send(data)
@@ -789,7 +847,19 @@ func (s *labService) deployLab(lab *Lab) error {
 		return utils.ErrLabIsDeploying
 	}
 
-	logNamespace := socket.CreateOutputNamespace[string](s.socketManager, false, true, true, nil, "logs", lab.UUID)
+	logNamespace := socket.CreateOutputNamespace[string](
+		s.socketManager,
+		false,
+		&socket.BacklogConfig{
+			Capacity: s.config.Streaming.ClabLogBacklog,
+			Kind:     utils.RingKindValue,
+		},
+		true,
+		nil,
+		"logs",
+		lab.UUID,
+	)
+
 	runTopologyFile, runTopologyDefinition, err := s.createLabEnvironment(lab)
 
 	if err != nil {
@@ -807,6 +877,10 @@ func (s *labService) deployLab(lab *Lab) error {
 	instance := s.createInstance(logNamespace, runTopologyFile, runTopologyDefinition)
 	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
+
+	s.monitoredInstancesMutex.Lock()
+	s.monitoredInstances = append(s.monitoredInstances, instance)
+	s.monitoredInstancesMutex.Unlock()
 
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
@@ -848,7 +922,7 @@ func (s *labService) deployLab(lab *Lab) error {
 		go s.startNodeStartupListener(&instanceNodes[i], instance, lab)
 	}
 
-	// Only report errors if the deployment worker has not been cancelled
+	// Only report errors if the deployment worker has not been canceled
 	if err != nil && instance.DeploymentWorker.Context.Err() == nil {
 		s.updateStateAndNotify(*lab, InstanceStates.Failed, statusMessage.Warning("Lab Manager",
 			fmt.Sprintf("Failed to get info of lab '%s' (%s)", lab.Name, lab.Topology.Name),
@@ -862,7 +936,17 @@ func (s *labService) deployLab(lab *Lab) error {
 	instance.Nodes = instanceNodes
 	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager, false, true, true, nil, "logs", lab.UUID, node.ContainerId,
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: s.config.Streaming.ContainerLogBacklog,
+				Kind:     utils.RingKindValue,
+			},
+			true,
+			nil,
+			"logs",
+			lab.UUID,
+			node.ContainerId,
 		)
 		err := s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
 			containerLogNamespace.Send(data)
@@ -886,10 +970,12 @@ func (s *labService) deployLab(lab *Lab) error {
 // startNodeStartupListener Starts a blocking listener that waits until the localhost SSH service responds or the container is stopped
 func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *Lab) {
 	ctx := context.Background()
+
+	// We can't use Go's built-in SSH service here as it responds differently to when the sevrer is not reachable.
 	cmd := []string{
 		"bash", "-c", `
-		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost 2> /dev/null; do
-			sleep 5
+		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost; do
+			sleep 2
 		done
 	`}
 
@@ -899,14 +985,7 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 		// If bash or ssh can't be found, just treat the node as started as there is no other
 		// way to listen to whether the node is started.
 		if strings.Contains(err.Error(), "exit code 127") {
-			instance.Mutex.Lock()
-			node.State = deployment.NodeStates.Running
-			instance.Mutex.Unlock()
-
-			s.labUpdatesNamespace.Send(LabUpdateOut{
-				LabId: &lab.UUID,
-			})
-
+			s.onNodeStarted(ctx, instance, node, lab)
 			return
 		}
 
@@ -924,16 +1003,41 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	buf := make([]byte, 1024)
 	_, err = connection.Read(buf)
 
-	// Set the instance state to running if the SSH process responded
 	if err == nil {
-		instance.Mutex.Lock()
-		node.State = deployment.NodeStates.Running
-		instance.Mutex.Unlock()
-
-		s.labUpdatesNamespace.Send(LabUpdateOut{
-			LabId: &lab.UUID,
-		})
+		s.onNodeStarted(ctx, instance, node, lab)
 	}
+}
+
+func (s *labService) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *Lab) {
+	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
+
+	instance.Mutex.Lock()
+
+	if node.StatsNamespace == nil {
+		node.StatsNamespace = socket.CreateOutputNamespace[NodeStatsOut](
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: 20,
+				Kind:     utils.RingKindValue,
+			},
+			true,
+			nil,
+			"stats",
+			node.ContainerId,
+		)
+	} else {
+		node.StatsNamespace.ClearBacklog()
+	}
+
+	node.State = deployment.NodeStates.Running
+	node.Interfaces = interfaces
+
+	instance.Mutex.Unlock()
+
+	s.labUpdatesNamespace.Send(LabUpdateOut{
+		LabId: &lab.UUID,
+	})
 }
 
 // setTopologyDeployStatus Sets the LastDeployFailed flag in the lab's topology
@@ -1052,49 +1156,20 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 	}
 }
 
-func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNode {
-	cmdTemplate := template.Must(template.New("msg").Parse(s.config.Capture.Cmd))
-
-	var nodesOut []InstanceNode
-	ctx := context.Background()
-
-	for _, node := range nodes {
-		var interfaceCaptures map[string]string
-
-		if s.config.Capture.Enabled {
-			interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
-			interfaces = utils.FilterList(interfaces, s.config.Capture.Excluded)
-
-			interfaceCaptures = make(map[string]string)
-
-			for _, interfaceName := range interfaces {
-				var buf bytes.Buffer
-				_ = cmdTemplate.Execute(&buf, struct {
-					ContainerName string
-					InterfaceName string
-				}{
-					ContainerName: node.ContainerName,
-					InterfaceName: interfaceName,
-				})
-
-				interfaceCaptures[interfaceName] = buf.String()
-			}
+func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNodeOut {
+	return lo.Map(nodes, func(node InstanceNode, _ int) InstanceNodeOut {
+		return InstanceNodeOut{
+			Name:          node.Name,
+			Kind:          node.Kind,
+			IPv4:          node.IPv4,
+			IPv6:          node.IPv6,
+			State:         node.State,
+			ContainerId:   node.ContainerId,
+			ContainerName: node.ContainerName,
+			Interfaces:    node.Interfaces,
+			CanRestart:    node.CanRestart,
 		}
-
-		nodesOut = append(nodesOut, InstanceNode{
-			Name:              node.Name,
-			Kind:              node.Kind,
-			IPv4:              node.IPv4,
-			IPv6:              node.IPv6,
-			State:             node.State,
-			ContainerId:       node.ContainerId,
-			ContainerName:     node.ContainerName,
-			InterfaceCaptures: interfaceCaptures,
-			CanRestart:        node.CanRestart,
-		})
-	}
-
-	return nodesOut
+	})
 }
 
 func (s *labService) updateInstanceNode(
@@ -1129,7 +1204,7 @@ func (s *labService) updateInstanceNode(
 	node.State = updatedNode.State
 	node.IPv4 = updatedNode.IPv4
 	node.IPv6 = updatedNode.IPv6
-	node.InterfaceCaptures = updatedNode.InterfaceCaptures
+	node.Interfaces = updatedNode.Interfaces
 	instance.Mutex.Unlock()
 
 	return nil
@@ -1150,18 +1225,19 @@ func (s *labService) getNodesFromInspect(
 	containers := inspectOutput[instanceName]
 
 	return lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
-		return s.containerToInstanceNode(container, instance.NodeKinds)
+		return s.containerToInstanceNode(container, instanceName, instance.NodeKinds)
 	}), nil
 }
 
 func (s *labService) containerToInstanceNode(
 	container deployment.InspectContainer,
+	instanceName string,
 	nodeKinds map[string]string,
 ) InstanceNode {
 	var ok bool
 
-	nodeNameParts := strings.Split(container.Name, "-")
-	nodeName := nodeNameParts[len(nodeNameParts)-1]
+	prefix := fmt.Sprintf("clab-%s-", instanceName)
+	nodeName := strings.TrimPrefix(container.Name, prefix)
 
 	var nodeKind string
 	canRestart := false
@@ -1184,14 +1260,17 @@ func (s *labService) containerToInstanceNode(
 	}
 
 	return InstanceNode{
-		Name:          nodeName,
-		Kind:          nodeKind,
-		IPv4:          container.IPv4Address,
-		IPv6:          container.IPv6Address,
-		State:         nodeState,
-		ContainerId:   container.ContainerId,
-		ContainerName: container.Name,
-		CanRestart:    canRestart,
+		Name:           nodeName,
+		Kind:           nodeKind,
+		IPv4:           container.IPv4Address,
+		IPv6:           container.IPv6Address,
+		State:          nodeState,
+		ContainerId:    container.ContainerId,
+		ContainerName:  container.Name,
+		Interfaces:     make([]deployment.NodeInterface, 0),
+		StatsNamespace: nil,
+		//InterfaceEventsNamespaceMap: make(map[string]socket.OutputNamespace[InterfaceEventOut]),
+		CanRestart: canRestart,
 	}
 }
 
@@ -1257,13 +1336,32 @@ func (s *labService) reviveLabs() {
 		if containers, ok := result[*lab.InstanceName]; ok {
 			// Lab is currently running
 			logNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager, false, true, true, nil, "logs", lab.UUID,
+				s.socketManager,
+				false,
+				&socket.BacklogConfig{
+					Capacity: s.config.Streaming.ClabLogBacklog,
+					Kind:     utils.RingKindValue,
+				},
+				true,
+				nil,
+				"logs",
+				lab.UUID,
 			)
 
 			// Create log namespaces for each container in the lab
 			for _, container := range containers {
 				containerLogNamespace := socket.CreateOutputNamespace[string](
-					s.socketManager, false, true, true, nil, "logs", lab.UUID, container.ContainerId,
+					s.socketManager,
+					false,
+					&socket.BacklogConfig{
+						Capacity: s.config.Streaming.ContainerLogBacklog,
+						Kind:     utils.RingKindValue,
+					},
+					true,
+					nil,
+					"logs",
+					lab.UUID,
+					container.ContainerId,
 				)
 				err := s.deploymentProvider.StreamContainerLogs(
 					ctx, "", container.ContainerId, func(data string) {
@@ -1288,7 +1386,7 @@ func (s *labService) reviveLabs() {
 			}
 
 			instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
-				return s.containerToInstanceNode(container, nodeKinds)
+				return s.containerToInstanceNode(container, *lab.InstanceName, nodeKinds)
 			})
 
 			instance := &Instance{
@@ -1312,6 +1410,10 @@ func (s *labService) reviveLabs() {
 			s.instancesMutex.Lock()
 			s.instances[lab.UUID] = instance
 			s.instancesMutex.Unlock()
+
+			s.monitoredInstancesMutex.Lock()
+			s.monitoredInstances = append(s.monitoredInstances, instance)
+			s.monitoredInstancesMutex.Unlock()
 
 			s.labDestructionSchedule.Schedule(&lab)
 		}
@@ -1697,10 +1799,13 @@ func (s *labService) openShellCommand(
 	shellId := utils.GenerateUuid()
 	accessGroup := []*auth.AuthenticatedUser{authUser}
 
-	dataNamespace := socket.CreateIONamespace[string, string](
+	dataNamespace := socket.CreateIONamespace[string, byte](
 		s.socketManager,
 		false,
-		true,
+		&socket.BacklogConfig{
+			Capacity: s.config.Streaming.ClabLogBacklog,
+			Kind:     utils.RingKindByte,
+		},
 		true,
 		s.handleShellData(shellId),
 		&accessGroup,
@@ -1747,7 +1852,7 @@ func (s *labService) openShellCommand(
 				break
 			}
 
-			dataNamespace.Send(string(buf[:n]))
+			dataNamespace.SendBulk(buf[:n])
 		}
 	}()
 
@@ -1937,7 +2042,7 @@ func getNodeKindConfigs(path string) map[string]NodeKindConfig {
 		return make(map[string]NodeKindConfig)
 	}
 
-	log.Info("Loaded kind config file.", "file", path)
+	log.Info("Loaded container kinds config file.", "file", path)
 
 	var configs map[string]NodeKindConfig
 	if err := yaml.Unmarshal(data, &configs); err != nil {

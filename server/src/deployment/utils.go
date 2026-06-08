@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/charmbracelet/log"
 )
@@ -62,4 +64,12 @@ func streamOutput(pipe io.Reader, onLog func(data string)) {
 	if err := scanner.Err(); err != nil {
 		return
 	}
+}
+
+func readFileOrEmpty(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }

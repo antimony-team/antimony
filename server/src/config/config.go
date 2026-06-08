@@ -4,69 +4,78 @@ import (
 	"os"
 
 	"github.com/charmbracelet/log"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
-type (
-	AntimonyConfig struct {
-		General      GeneralConfig    `yaml:"general"`
-		Server       ServerConfig     `yaml:"server"`
-		Auth         AuthConfig       `yaml:"auth"`
-		Shell        ShellConfig      `yaml:"shell"`
-		Database     DatabaseConfig   `yaml:"database"`
-		Capture      CaptureConfig    `yaml:"capture"`
-		FileSystem   FilesystemConfig `yaml:"fileSystem"`
-		Containerlab ClabConfig       `yaml:"containerlab"`
-	}
+type AntimonyConfig struct {
+	General      GeneralConfig    `yaml:"general"`
+	Server       ServerConfig     `yaml:"server"`
+	Auth         AuthConfig       `yaml:"auth"`
+	Shell        ShellConfig      `yaml:"shell"`
+	Database     DatabaseConfig   `yaml:"database"`
+	Capture      CaptureConfig    `yaml:"capture"`
+	Streaming    StreamingConfig  `yaml:"streaming"`
+	FileSystem   FilesystemConfig `yaml:"fileSystem"`
+	Containerlab ClabConfig       `yaml:"containerlab"`
+}
 
-	GeneralConfig struct {
-		Provider string `yaml:"provider"`
-	}
+type GeneralConfig struct {
+	Provider string `yaml:"provider"`
+}
 
-	ServerConfig struct {
-		Host string `yaml:"host"`
-		Port uint   `yaml:"port"`
-	}
+type ServerConfig struct {
+	Host string `yaml:"host"`
+	Port uint   `yaml:"port"`
+}
 
-	CaptureConfig struct {
-		Enabled  bool     `yaml:"enabled"`
-		Cmd      string   `yaml:"cmd"`
-		Excluded []string `yaml:"excluded"`
-	}
+type CaptureConfig struct {
+	Enabled            bool     `yaml:"enabled"`
+	SSHHost            string   `yaml:"sshHost"`
+	SSHPort            int      `yaml:"sshPort"`
+	EdgesharkHost      string   `yaml:"edgesharkHost"`
+	EdgesharkPort      int      `yaml:"edgesharkPort"`
+	SSHKeyPath         string   `yaml:"sshKeyPath"`
+	ExcludedInterfaces []string `yaml:"excludedInterfaces"`
+}
 
-	AuthConfig struct {
-		EnableNative       bool     `yaml:"enableNative"`
-		EnableOpenID       bool     `yaml:"enableOpenId"`
-		OpenIdIssuer       string   `yaml:"openIdIssuer"`
-		OpenIdClientID     string   `yaml:"openIdClientId"`
-		OpenIdRedirectHost string   `yaml:"openIdRedirectHost"`
-		OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
-	}
+type StreamingConfig struct {
+	ContainerLogBacklog int `yaml:"containerLogBacklog"`
+	ClabLogBacklog      int `yaml:"clabLogBacklog"`
+	ShellLinesBacklog   int `yaml:"shellLinesBacklog"`
+}
 
-	ShellConfig struct {
-		UserLimit int   `yaml:"userLimit"`
-		Timeout   int64 `yaml:"timeout"`
-	}
+type AuthConfig struct {
+	EnableNative       bool     `yaml:"enableNative"`
+	EnableOpenID       bool     `yaml:"enableOpenId"`
+	OpenIdIssuer       string   `yaml:"openIdIssuer"`
+	OpenIdClientID     string   `yaml:"openIdClientId"`
+	OpenIdRedirectHost string   `yaml:"openIdRedirectHost"`
+	OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
+}
 
-	DatabaseConfig struct {
-		Host      string `yaml:"host"`
-		User      string `yaml:"user"`
-		Database  string `yaml:"database"`
-		Port      uint   `yaml:"port"`
-		LocalFile string `yaml:"localFile"`
-	}
+type ShellConfig struct {
+	UserLimit int   `yaml:"userLimit"`
+	Timeout   int64 `yaml:"timeout"`
+}
 
-	FilesystemConfig struct {
-		Storage string `yaml:"storage"`
-		Run     string `yaml:"run"`
-	}
+type DatabaseConfig struct {
+	Host      string `yaml:"host"`
+	User      string `yaml:"user"`
+	Database  string `yaml:"database"`
+	Port      uint   `yaml:"port"`
+	LocalFile string `yaml:"localFile"`
+}
 
-	ClabConfig struct {
-		SchemaUrl      string `yaml:"schemaUrl"`
-		SchemaFallback string `yaml:"schemaFallback"`
-		DeviceConfig   string `yaml:"deviceConfig"`
-	}
-)
+type FilesystemConfig struct {
+	Storage string `yaml:"storage"`
+	Run     string `yaml:"run"`
+}
+
+type ClabConfig struct {
+	SchemaUrl      string `yaml:"schemaUrl"`
+	SchemaFallback string `yaml:"schemaFallback"`
+	DeviceConfig   string `yaml:"deviceConfig"`
+}
 
 func Load(fileName string) *AntimonyConfig {
 	config := defaultConfig()
@@ -120,9 +129,18 @@ func defaultConfig() *AntimonyConfig {
 			LocalFile: "./test.db",
 		},
 		Capture: CaptureConfig{
-			Enabled:  false,
-			Cmd:      "ssh -o StrictHostKeyChecking=no capture@localhost {{.ContainerName}} {{.InterfaceName}} | wireshark -k -i -",
-			Excluded: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
+			Enabled:            false,
+			SSHPort:            6969,
+			SSHHost:            "0.0.0.0",
+			EdgesharkHost:      "localhost",
+			EdgesharkPort:      5001,
+			SSHKeyPath:         "./key",
+			ExcludedInterfaces: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
+		},
+		Streaming: StreamingConfig{
+			ContainerLogBacklog: 1000,
+			ClabLogBacklog:      1000,
+			ShellLinesBacklog:   1000,
 		},
 		FileSystem: FilesystemConfig{
 			Storage: "./storage/",

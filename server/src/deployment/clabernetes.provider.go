@@ -17,6 +17,10 @@ type TopologyMeta struct {
 
 type ClabernetesProvider struct{}
 
+func CreateClabernetesProvider() *ClabernetesProvider {
+	return &ClabernetesProvider{}
+}
+
 func (p *ClabernetesProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
@@ -176,6 +180,17 @@ func (p *ClabernetesProvider) RegisterListener(ctx context.Context, onUpdate fun
 	return nil
 }
 
+func (p *ClabernetesProvider) RegisterEventListener(
+	ctx context.Context,
+	onUpdate func(containerlabEvent ContainerlabEvent),
+) error {
+	return nil
+}
+
+func (p *ClabernetesProvider) ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error) {
+	return &NodeStats{}, nil
+}
+
 func (p *ClabernetesProvider) StreamContainerLogs(
 	ctx context.Context,
 	topologyFile string,
@@ -214,6 +229,6 @@ func getTopologyName(topologyFile string, onLog func(string)) string {
 func (p *ClabernetesProvider) GetInterfaces(
 	ctx context.Context,
 	containerId string,
-) ([]string, error) {
+) ([]NodeInterface, error) {
 	return nil, nil
 }

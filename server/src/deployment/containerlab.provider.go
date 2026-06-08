@@ -1,13 +1,15 @@
 package deployment
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -15,10 +17,17 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 )
 
-type ContainerlabProvider struct{}
+type ContainerlabProvider struct {
+	containerStatsCache map[string]*NodeStats
+}
+
+func CreateContainerlabProvider() *ContainerlabProvider {
+	return &ContainerlabProvider{
+		containerStatsCache: make(map[string]*NodeStats),
+	}
+}
 
 func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
@@ -234,6 +243,38 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 	}
 }
 
+func (p *ContainerlabProvider) RegisterEventListener(
+	ctx context.Context,
+	onUpdate func(containerlabEvent ContainerlabEvent),
+) error {
+	cmd := exec.CommandContext(ctx, "containerlab", "events", "--format", "json", "--interface-stats")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+
+	log.Infof("[EVENTS] Starting event listener")
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		var output ContainerlabEvent
+		rawOutput := scanner.Text()
+		err := json.Unmarshal([]byte(rawOutput), &output)
+		if err != nil {
+			log.Errorf("[EVENTS] Failed to parse event: %s", err.Error())
+		} else {
+			onUpdate(output)
+		}
+	}
+
+	return nil
+}
+
 func (p *ContainerlabProvider) StreamContainerLogs(
 	ctx context.Context,
 	_ string,
@@ -267,7 +308,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 func (p *ContainerlabProvider) GetInterfaces(
 	ctx context.Context,
 	containerId string,
-) ([]string, error) {
+) ([]NodeInterface, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
@@ -280,38 +321,110 @@ func (p *ContainerlabProvider) GetInterfaces(
 		return nil, fmt.Errorf("failed to inspect container %q: %w", containerId, err)
 	}
 
-	// Execute `ip -j link show` inside the container to get all interfaces
-	execConfig := container.ExecOptions{
-		Cmd:          []string{"ls", "/sys/class/net"},
-		AttachStdout: true,
-		AttachStderr: true,
+	if info.State == nil || info.State.Pid == 0 {
+		return make([]NodeInterface, 0), fmt.Errorf("container %s has no PID (not running?)", containerId)
 	}
 
-	execID, err := cli.ContainerExecCreate(ctx, info.ID, execConfig)
+	containerPid := info.State.Pid
+	base := fmt.Sprintf("/proc/%d/root/sys/class/net", containerPid)
+	entries, err := os.ReadDir(base)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create exec: %w", err)
+		return nil, fmt.Errorf("read %s: %w", base, err)
 	}
 
-	hr, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
+	var result []NodeInterface
+	for _, e := range entries {
+		name := e.Name()
+		if name == "lo" {
+			continue
+		}
+		dir := filepath.Join(base, name)
+
+		mtu, _ := strconv.Atoi(readFileOrEmpty(filepath.Join(dir, "mtu")))
+		result = append(result, NodeInterface{
+			Name:    name,
+			Address: readFileOrEmpty(filepath.Join(dir, "address")),
+			MTU:     mtu,
+			State:   readFileOrEmpty(filepath.Join(dir, "operstate")),
+		})
+	}
+
+	return result, nil
+}
+
+func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("failed to attach exec: %w", err)
+		return nil, err
 	}
-	defer hr.Close()
+	defer closeDockerClient(cli)
 
-	var buf bytes.Buffer
-	if _, err := stdcopy.StdCopy(&buf, &buf, hr.Reader); err != nil {
+	resp, err := cli.ContainerStatsOneShot(ctx, containerId)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var stats container.StatsResponse
+	err = json.NewDecoder(resp.Body).Decode(&stats)
+	if err != nil {
 		return nil, err
 	}
 
-	var interfaces []string
-	for _, iface := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
-		iface = strings.TrimSpace(iface)
-		if iface != "" {
-			interfaces = append(interfaces, iface)
+	prevStats, hasPrevStats := p.containerStatsCache[containerId]
+	var timeElapsed float64
+	var prevCpuUsage, prevSystemUsage uint64
+
+	if hasPrevStats {
+		prevCpuUsage = prevStats.CPUUsage
+		prevSystemUsage = prevStats.SystemUsage
+		timeElapsed = time.Since(prevStats.Timestamp).Seconds()
+	}
+
+	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - prevCpuUsage)
+	systemDelta := float64(stats.CPUStats.SystemUsage - prevSystemUsage)
+	cpuPercent := 0.0
+	if systemDelta > 0 && cpuDelta > 0 {
+		cpuPercent = (cpuDelta / systemDelta) * float64(stats.CPUStats.OnlineCPUs) * 100.0
+	}
+
+	interfaces := make(map[string]NodeInterfaceStats)
+
+	for ifName, ifStats := range stats.Networks {
+		var rxBps, txBps int
+		var prevRxBytes, prevTxBytes uint64
+
+		if hasPrevStats {
+			if prevIfaceStates, ok := prevStats.Interfaces[ifName]; ok {
+				prevRxBytes = prevIfaceStates.RxBytes
+				prevTxBytes = prevIfaceStates.TxBytes
+			}
+
+			rxBps = int(float64(ifStats.RxBytes-prevRxBytes) / timeElapsed)
+			txBps = int(float64(ifStats.TxBytes-prevTxBytes) / timeElapsed)
+		}
+
+		interfaces[ifName] = NodeInterfaceStats{
+			RxBytes: ifStats.RxBytes,
+			TxBytes: ifStats.TxBytes,
+			RxBps:   rxBps,
+			TxBps:   txBps,
 		}
 	}
 
-	return interfaces, nil
+	nodeStats := &NodeStats{
+		Timestamp:       time.Now(),
+		CPUUsage:        stats.CPUStats.CPUUsage.TotalUsage,
+		SystemUsage:     stats.CPUStats.SystemUsage,
+		CPUUsagePercent: cpuPercent,
+		MemoryUsage:     stats.MemoryStats.Usage - stats.MemoryStats.Stats["cache"],
+		MemoryLimit:     stats.MemoryStats.Limit,
+		Interfaces:      interfaces,
+	}
+
+	p.containerStatsCache[containerId] = nodeStats
+
+	return nodeStats, nil
 }
 
 func closeDockerClient(client *client.Client) {

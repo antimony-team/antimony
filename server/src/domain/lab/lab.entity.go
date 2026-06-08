@@ -87,25 +87,38 @@ type Instance struct {
 }
 
 type InstanceOut struct {
-	Name              string         `json:"name"`
-	Deployed          time.Time      `json:"deployed"`
-	State             InstanceState  `json:"state"`
-	LatestStateChange time.Time      `json:"latestStateChange"`
-	Nodes             []InstanceNode `json:"nodes"`
-	Recovered         bool           `json:"recovered"`
+	Name              string            `json:"name"`
+	Deployed          time.Time         `json:"deployed"`
+	State             InstanceState     `json:"state"`
+	LatestStateChange time.Time         `json:"latestStateChange"`
+	Nodes             []InstanceNodeOut `json:"nodes"`
+	Recovered         bool              `json:"recovered"`
 }
 
 type InstanceNode struct {
-	Name          string               `json:"name"`
-	Kind          string               `json:"kind"`
-	IPv4          string               `json:"ipv4"`
-	IPv6          string               `json:"ipv6"`
-	State         deployment.NodeState `json:"state"`
-	ContainerId   string               `json:"containerId"`
-	ContainerName string               `json:"containnerName"`
+	Name          string                     `json:"name"`
+	Kind          string                     `json:"kind"`
+	IPv4          string                     `json:"ipv4"`
+	IPv6          string                     `json:"ipv6"`
+	State         deployment.NodeState       `json:"state"`
+	ContainerId   string                     `json:"containerId"`
+	ContainerName string                     `json:"containerName"`
+	Interfaces    []deployment.NodeInterface `json:"interfaces"`
 
-	// TODO(kian): Implement properly
-	InterfaceCaptures map[string]string `json:"interfaceCaptures"`
+	StatsNamespace socket.OutputNamespace[NodeStatsOut]
+
+	CanRestart bool `json:"canRestart"`
+}
+
+type InstanceNodeOut struct {
+	Name          string                     `json:"name"`
+	Kind          string                     `json:"kind"`
+	IPv4          string                     `json:"ipv4"`
+	IPv6          string                     `json:"ipv6"`
+	State         deployment.NodeState       `json:"state"`
+	ContainerId   string                     `json:"containerId"`
+	ContainerName string                     `json:"containerName"`
+	Interfaces    []deployment.NodeInterface `json:"interfaces"`
 
 	CanRestart bool `json:"canRestart"`
 }
@@ -218,4 +231,37 @@ type NodeKindConfig struct {
 	SSHUsername *string `yaml:"sshUsername"`
 	SSHPassword *string `yaml:"sshPassword"`
 	CanRestart  *bool   `yaml:"canRestart"`
+}
+
+type InterfaceEventOut struct {
+	Timestamp   time.Time `json:"timestamp"`
+	ContainerId string    `json:"containerId"`
+	Ifname      string    `json:"ifName"`
+	MAC         string    `json:"mac"`
+	MTU         string    `json:"mtu"`
+	Origin      string    `json:"origin"`
+	RxBps       string    `json:"rxBps"`
+	RxBytes     string    `json:"rxBytes"`
+	RxPackets   string    `json:"rxPackets"`
+	RxPps       string    `json:"rxPps"`
+	State       string    `json:"state"`
+	TxBps       string    `json:"txBps"`
+	TxBytes     string    `json:"txBytes"`
+	TxPackets   string    `json:"txPackets"`
+	Type        string    `json:"type"`
+}
+
+type NodeStatsOut struct {
+	Timestamp time.Time `json:"timestamp"`
+
+	CPUUsage    float32 `json:"cpuPercent"`
+	MemoryUsage float32 `json:"memoryUsage"`
+	MemoryLimit float32 `json:"memoryLimit"`
+
+	Interfaces map[string]NodeInterfaceStatsOut `json:"interfaces"`
+}
+
+type NodeInterfaceStatsOut struct {
+	RxBps int `json:"rxBps"`
+	TxBps int `json:"txBps"`
 }
