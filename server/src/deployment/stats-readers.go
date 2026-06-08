@@ -172,7 +172,6 @@ func (r *statsReader) invalidate(id string) {
 func (r *statsReader) resolveCgroup(
 	pid int,
 ) (*ContainerCGroup, error) {
-
 	// /proc/<pid>/cgroup gives us the exact path, regardless of systemd vs. cgroupfs driver.
 	controllers, unified, err := parseProcCgroup(pid)
 	if err != nil {
@@ -197,12 +196,14 @@ func (r *statsReader) resolveCgroup(
 	return cg, nil
 }
 
-func parseProcCgroup(pid int) (controllers map[string]string, unified string, err error) {
+func parseProcCgroup(pid int) (map[string]string, string, error) {
+	var unified string
+
 	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
 	if err != nil {
 		return nil, "", err
 	}
-	controllers = make(map[string]string)
+	controllers := make(map[string]string)
 	for _, line := range strings.Split(string(b), "\n") {
 		parts := strings.SplitN(line, ":", 3)
 		if len(parts) != 3 {
@@ -230,11 +231,13 @@ func (r *statsReader) readCPUUsage(cg *ContainerCGroup) (uint64, error) {
 	return readUint(cg.cpuFile)
 }
 
-func (r *statsReader) readMemory(cg *ContainerCGroup) (usage, limit uint64, err error) {
+func (r *statsReader) readMemory(cg *ContainerCGroup) (uint64, uint64, error) {
 	cur, err := readUint(cg.memCurrent)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	var usage, limit uint64
 
 	var inactiveFile uint64
 	if r.isCgroupV2 {
