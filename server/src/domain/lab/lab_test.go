@@ -1596,13 +1596,13 @@ func TestNotifyUpdate(t *testing.T) {
 
 type fakeNamespace[T any] struct{}
 
-func (n *fakeNamespace[T]) Send(msg T)                             {}
-func (n *fakeNamespace[T]) SendBulk(msgs []T)                      {}
-func (n *fakeNamespace[T]) SendTo(msg T, receivers []string)       {}
+func (n *fakeNamespace[T]) Send(msg T)                              {}
+func (n *fakeNamespace[T]) SendBulk(msgs []T)                       {}
+func (n *fakeNamespace[T]) SendTo(msg T, receivers []string)        {}
 func (n *fakeNamespace[T]) SendBulkTo(msgs []T, receivers []string) {}
-func (n *fakeNamespace[T]) SendToAdmins(msg T)                     {}
-func (n *fakeNamespace[T]) SendBulkToAdmins(msgs []T)              {}
-func (n *fakeNamespace[T]) ClearBacklog()                          {}
+func (n *fakeNamespace[T]) SendToAdmins(msg T)                      {}
+func (n *fakeNamespace[T]) SendBulkToAdmins(msgs []T)               {}
+func (n *fakeNamespace[T]) ClearBacklog()                           {}
 
 func TestHandleLabCommand(t *testing.T) {
 	type fields struct {

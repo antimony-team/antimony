@@ -188,7 +188,7 @@ func (p *ClabernetesProvider) RegisterEventListener(
 }
 
 func (p *ClabernetesProvider) ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error) {
-	return nil, nil
+	return &NodeStats{}, nil
 }
 
 func (p *ClabernetesProvider) StreamContainerLogs(

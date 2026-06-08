@@ -425,7 +425,7 @@ func (p *MockDeploymentProvider) ReadNodeStats(
 	ctx context.Context,
 	containerId string,
 ) (*deployment.NodeStats, error) {
-	return nil, nil
+	return &deployment.NodeStats{}, nil
 }
 
 func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {

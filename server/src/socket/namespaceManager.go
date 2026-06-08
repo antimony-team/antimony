@@ -5,7 +5,6 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -274,9 +273,7 @@ func (m *namespaceManager[I, O]) sendBulkTo(msgs []O, receivers []*SocketConnect
 		if m.useRawOutput {
 			// Send all messages in a single emit, as for the client it doesn't matter in raw streams
 			err = client.socket.Emit("data", msgs)
-			fmt.Printf("Sending bulk raw data to client %v\n", msgs)
 		} else {
-			fmt.Printf("Sending bulk not raw data to client %v\n", msgs)
 			for _, msg := range msgs {
 				err = client.socket.Emit("data", utils.CreateSocketOkResponse[any](msg))
 			}

@@ -272,10 +272,6 @@ func (p *ContainerlabProvider) RegisterEventListener(
 		}
 	}
 
-	//runClabCommand(cmd, func(output string) {
-	//	log.Infof("[EVENTS] Received: %s", output)
-	//}, nil)
-
 	return nil
 }
 
@@ -354,37 +350,6 @@ func (p *ContainerlabProvider) GetInterfaces(
 	}
 
 	return result, nil
-
-	// Execute `ip -j link show` inside the container to get all interfaces
-	//execConfig := container.ExecOptions{
-	//	Cmd:          []string{"ls", "/sys/class/net"},
-	//	AttachStdout: true,
-	//	AttachStderr: true,
-	//}
-	//
-	//execID, err := cli.ContainerExecCreate(ctx, info.ID, execConfig)
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed to create exec: %w", err)
-	//}
-	//
-	//hr, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed to attach exec: %w", err)
-	//}
-	//defer hr.Close()
-	//
-	//var buf bytes.Buffer
-	//if _, err := stdcopy.StdCopy(&buf, &buf, hr.Reader); err != nil {
-	//	return nil, err
-	//}
-	//
-	//var interfaces []string
-	//for _, iface := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
-	//	iface = strings.TrimSpace(iface)
-	//	if iface != "" {
-	//		interfaces = append(interfaces, iface)
-	//	}
-	//}
 }
 
 func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error) {

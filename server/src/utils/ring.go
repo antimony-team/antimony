@@ -5,7 +5,7 @@ import "bytes"
 type (
 	RingKind int
 
-	/// Ring a ring buffer that stores elements and evicts the oldest elements when full.
+	// Ring a ring buffer that stores elements and evicts the oldest elements when full.
 	Ring[T any] interface {
 		Add(item T)
 		AddMany(items []T)
@@ -14,14 +14,14 @@ type (
 		Len() int
 	}
 
-	/// ValueRing a ring buffer that stores values. capacity is defined as the number of items that can be stored.
+	// ValueRing a ring buffer that stores values. capacity is defined as the number of items that can be stored.
 	ValueRing[T any] struct {
 		buf  []T
 		head int
 		size int
 	}
 
-	/// ByteRing a ring buffer that stores single bytes. capacity is defined as the number of lines that can be stored.
+	// ByteRing a ring buffer that stores single bytes. capacity is defined as the number of lines that can be stored.
 	ByteRing struct {
 		buf      []byte
 		lines    int
@@ -39,7 +39,11 @@ const (
 func CreateRing[O any](kind RingKind, capacity int) Ring[O] {
 	switch kind {
 	case RingKindByte:
-		return any(CreateByteRing(capacity)).(Ring[O])
+		r, ok := any(CreateByteRing(capacity)).(Ring[O])
+		if !ok {
+			panic("CreateRing: RingKindByte requires O = byte")
+		}
+		return r
 	default:
 		return CreateValueRing[O](capacity)
 	}
@@ -67,7 +71,7 @@ func (r *ValueRing[T]) AddMany(items []T) {
 
 func (r *ValueRing[T]) Items() []T {
 	out := make([]T, r.size)
-	for i := 0; i < r.size; i++ {
+	for i := range r.size {
 		out[i] = r.buf[(r.head+i)%len(r.buf)]
 	}
 	return out
