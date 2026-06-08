@@ -1,0 +1,51 @@
+.sb-archive-upload-dialog-title
+  font-size: 20px
+  font-weight: 400
+  margin-bottom: 24px
+
+  :first-child
+    font-weight: 600
+    margin-right: 4px
+
+  :last-child
+    opacity: 0.7
+
+.sb-archive-upload-loader
+  display: flex
+  overflow: hidden
+  flex-direction: column
+  align-items: center
+  gap: 8px
+
+  span
+    font-style: italic
+
+.sb-archive-upload-dialog-files
+  display: flex
+  flex-direction: column
+  max-height: 60vh
+  min-width: 500px
+  border-top: 1px solid var(--primary-color-border)
+
+  .sb-archive-upload-dialog-file
+    user-select: none
+    cursor: pointer
+
+    .sb-archive-upload-dialog-file-content
+      border-bottom: 1px solid var(--primary-color-border)
+      display: flex
+      gap: 12px
+      align-items: center
+      padding: 12px
+
+      >span:last-child
+        opacity: 0.6
+
+    .sb-archive-upload-dialog-file-label-prefix
+      opacity: 0.6
+
+.sb-archive-upload-empty
+  font-size: 20px
+  font-style: italic
+  opacity: 0.8
+  text-align: center

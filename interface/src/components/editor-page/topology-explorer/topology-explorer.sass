@@ -22,7 +22,7 @@
     width: 2rem
     height: 2rem
     padding: 0
-    transition: opacity 0.08s ease
+    transition: opacity 0.1s ease
 
     &:hover
       filter: brightness(1.2) !important
@@ -31,16 +31,33 @@
   height: 0
 
 .p-treenode-content
+  border: 1px transparent solid
+
   span.material-symbols-outlined
     margin-right: 8px
     color: rgba(255, 255, 255, 0.6)
 
-  &:hover, &.p-highlight
-    .p-button-icon-only
-      opacity: 1
+  &.sb-explorer-bindfile-node, &.sb-explorer-bindfile-directory-node
+    height: 35px
 
-  .p-button-icon-only
-    opacity: 0
+  &.sb-explorer-bindfile-node, &.sb-explorer-topology-node, &.sb-explorer-collection-node, &.sb-explorer-bindfile-directory-node
+    .p-button-icon-only
+      opacity: 0
+
+      &:hover
+        border: unset
+
+    &:hover
+      border-color: var(--primary-color-border)
+
+      .p-button-icon-only
+        opacity: 1
+
+    &.p-highlight
+      background-color: var(--primary-color)
+
+      .p-button-icon-only
+        opacity: 1
 
   .sb-input
     width: 160px

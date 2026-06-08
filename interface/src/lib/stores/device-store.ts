@@ -4,6 +4,8 @@ import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {TopologyNode} from '@sb/types/domain/topology';
 
 export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
+  private readonly iconCacheMap = new Map<string, HTMLImageElement>();
+
   protected get resourcePath(): string {
     return '/devices';
   }
@@ -14,13 +16,22 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
   }
 
   public getNodeIcon(node?: TopologyNode | null): string {
-    let iconPath = '/icons/nodes/client.svg';
+    let iconPath = './icons/nodes/client.svg';
     const icon = node?.labels?.['graph-icon'];
     if (icon !== undefined) {
       if (NodeIconMap.has(icon)) {
-        iconPath = `/icons/nodes/${NodeIconMap.get(icon)!}.svg`;
+        iconPath = `./icons/nodes/${NodeIconMap.get(icon)!}.svg`;
       }
     }
+
+    // Preload icon explicitly so it's available for cytoscape to use
+    if (!this.iconCacheMap.has(iconPath)) {
+      const img = new Image();
+      img.src = iconPath;
+      img.crossOrigin = 'anonymous';
+      this.iconCacheMap.set(iconPath, img);
+    }
+
     return iconPath;
   }
 

@@ -5,16 +5,16 @@ import dayjs from 'dayjs';
 
 import {Button} from 'primereact/button';
 
-import './lab-dialog-panel-properties.sass';
 import {Tooltip} from 'primereact/tooltip';
 import React from 'react';
 import {useNavigate} from 'react-router';
+import './lab-view-panel-properties.sass';
 
 interface LabDialogPanelProps {
   lab: Lab;
 }
 
-const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
+const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
 
@@ -24,7 +24,7 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
   const navigate = useNavigate();
 
   function onGotoTopology() {
-    navigate(`/editor?t=${topology?.id}`);
+    void navigate(`/editor?t=${topology?.id}`);
   }
 
   return (
@@ -111,4 +111,4 @@ const LabDialogPanelProperties = (props: LabDialogPanelProps) => {
   );
 };
 
-export default LabDialogPanelProperties;
+export default LabViewPanelProperties;

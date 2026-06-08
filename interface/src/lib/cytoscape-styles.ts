@@ -35,7 +35,8 @@ export const topologyStyle = [
       'border-color': '#00bcd4',
       'border-width': 2,
       'border-opacity': 1,
-      padding: 20,
+      'text-margin-y': 6,
+      padding: 16,
     },
   },
   {
@@ -43,6 +44,7 @@ export const topologyStyle = [
     style: {
       label: 'data(label)',
       'z-index': 9999,
+      transform: 'translateY(-20px)',
     },
   },
   {

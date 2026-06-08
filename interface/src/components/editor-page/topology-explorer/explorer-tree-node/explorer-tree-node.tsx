@@ -11,7 +11,7 @@ import {uuid4} from '@sb/types/types';
 import {Button} from 'primereact/button';
 import {Tooltip} from 'primereact/tooltip';
 import {TreeNode} from 'primereact/treenode';
-import React, {MouseEvent, useMemo} from 'react';
+import React, {MouseEvent, useEffect, useMemo, useRef} from 'react';
 
 import './explorer-tree-node.sass';
 
@@ -33,16 +33,22 @@ interface ExplorerTreeNodeProps {
   // Bind file functions
   onEditBindFile: (bindFileId: uuid4) => void;
   onDeleteBindFile: (bindFileId: uuid4) => void;
+  onEditBindFileDirectory: (topologyId: uuid4, filePath: string) => void;
+  onDeleteBindFileDirectory: (topologyId: uuid4, filePath: string) => void;
+
+  onArchiveUpload: (topologyId: uuid4, file: File) => void;
 }
 
 export interface ExplorerTreeNodeData extends TreeNode {
   type: ExplorerTreeNodeType;
+  children?: ExplorerTreeNodeData[];
 }
 
 export enum ExplorerTreeNodeType {
   Collection,
   Topology,
   BindFile,
+  BindFileDirectory,
 }
 
 const NodeButtonProps = {
@@ -50,6 +56,15 @@ const NodeButtonProps = {
   rounded: true,
   tooltipOptions: SBTooltipOptions,
 };
+
+/**
+ * Convention for explorer tree node keys:
+ *
+ * Collection: collectionId
+ * Topology: topologyId
+ * BindFile: bindFileId
+ * BindFileDirectory: topologyId-path/to/bind.file
+ */
 
 const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
   const authUser = useAuthUser();
@@ -78,19 +93,30 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
     if (props.node.type === ExplorerTreeNodeType.Collection) {
       return collectionStore.lookup.get(props.node.key as string)?.publicWrite;
     } else if (props.node.type === ExplorerTreeNodeType.Topology) {
-      const creator = topologyStore.lookup.get(
-        props.node.key as string,
-      )?.creator;
-      return creator?.id === authUser.id;
+      const topologyId = props.node.key as string;
+      const creator = topologyStore.lookup.get(topologyId)!.creator;
+
+      return creator.id === authUser.id;
     } else if (props.node.type === ExplorerTreeNodeType.BindFile) {
       const topologyId = topologyStore.bindFileLookup.get(
-        props.node.key as string,
+        props.node.key as uuid4,
       )!.topologyId;
-      const creator = topologyStore.lookup.get(topologyId)?.creator;
-      return creator && creator.id === authUser.id;
+      const creator = topologyStore.lookup.get(topologyId)!.creator;
+
+      return creator.id === authUser.id;
+    } else if (props.node.type === ExplorerTreeNodeType.BindFileDirectory) {
+      const topologyId = (props.node.key as string).slice(0, 36);
+
+      const creator = topologyStore.lookup.get(topologyId)!.creator;
+      return creator.id === authUser.id;
     }
     return false;
   }, [authUser, collectionStore.data, topologyStore.data]);
+
+  // Make sure that if the node is not writable, it cannot be dragged
+  useEffect(() => {
+    props.node.draggable = isWritable;
+  }, [isWritable, props.node]);
 
   const isDeployable = useMemo(() => {
     if (props.node.type !== ExplorerTreeNodeType.Topology) {
@@ -155,6 +181,39 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
     event.stopPropagation();
   }
 
+  function onEditBindFileDirectory(event: MouseEvent<HTMLButtonElement>) {
+    const topologyId = (props.node.key as uuid4).slice(0, 36);
+    const filePath = (props.node.key as string).slice(37);
+
+    props.onEditBindFileDirectory(topologyId, filePath);
+    event.stopPropagation();
+  }
+
+  function onDeleteBindFileDirectory(event: MouseEvent<HTMLButtonElement>) {
+    const topologyId = (props.node.key as uuid4).slice(0, 36);
+    const filePath = (props.node.key as string).slice(37);
+
+    props.onDeleteBindFileDirectory(topologyId, filePath);
+    event.stopPropagation();
+  }
+
+  function onUploadBindFileArchive(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (!fileUploadInputRef.current) return;
+
+    fileUploadInputRef.current.value = '';
+    fileUploadInputRef.current.click();
+  }
+
+  async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    props.onArchiveUpload(props.node.key as uuid4, file);
+  }
+
+  const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <div className="sb-explorer-node">
       <Tooltip target=".tree-node" />
@@ -205,6 +264,26 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
           </When>
           {/* Topology */}
           <When condition={props.node.type === ExplorerTreeNodeType.Topology}>
+            <input
+              ref={fileUploadInputRef}
+              type="file"
+              accept=".zip,.tar,.gz,.tgz,.7z,.rar,.bz2"
+              style={{display: 'none'}}
+              // onInput={handleFile}
+              onChange={handleFile}
+            />
+            <Button
+              icon="pi pi-upload"
+              tooltip={
+                !isWritable
+                  ? 'No permission to add file to topology'
+                  : 'Upload Files'
+              }
+              onClick={onUploadBindFileArchive}
+              aria-label="Upload Bind File Archive"
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
             <Button
               icon="pi pi-plus"
               severity="success"
@@ -281,7 +360,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
               }
               onClick={onEditBindFile}
               aria-label="Edit File"
-              // disabled={!isWritable}
+              disabled={!isWritable}
               {...NodeButtonProps}
             />
             <Button
@@ -292,7 +371,39 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
               }
               onClick={onDeleteBindFile}
               aria-label="Delete File"
-              // disabled={!isWritable}
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+          </When>
+          <When
+            condition={
+              props.node.type === ExplorerTreeNodeType.BindFileDirectory
+            }
+          >
+            <Button
+              icon="pi pi-pen-to-square"
+              severity="secondary"
+              tooltip={
+                !isWritable
+                  ? 'No permissions to edit directory'
+                  : 'Edit Directory'
+              }
+              onClick={onEditBindFileDirectory}
+              aria-label="Edit Directory"
+              disabled={!isWritable}
+              {...NodeButtonProps}
+            />
+            <Button
+              icon="pi pi-trash"
+              severity="danger"
+              tooltip={
+                !isWritable
+                  ? 'No permissions to delete directory'
+                  : 'Delete Directory'
+              }
+              onClick={onDeleteBindFileDirectory}
+              aria-label="Delete Directory"
+              disabled={!isWritable}
               {...NodeButtonProps}
             />
           </When>

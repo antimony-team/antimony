@@ -1,12 +1,7 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {
-  useAuthUser,
-  useStatusMessages,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
+import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {BindFile} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
@@ -14,8 +9,7 @@ import {ErrorCodes} from '@sb/types/error-codes';
 import {isEqual} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
-import {SelectItem} from 'primereact/selectitem';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 
 import './bind-file-edit-dialog.sass';
 
@@ -50,8 +44,6 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
     topologyId: props.dialogState.state?.owningTopologyId ?? '',
   });
 
-  const authUser = useAuthUser();
-
   const bindFileNameRef = useRef<SBInputRef>(null);
 
   const topologyStore = useTopologyStore();
@@ -72,59 +64,11 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
     }
   }, [props.dialogState.isOpen]);
 
-  const topologyOptions: SelectItem[] = useMemo(() => {
-    return topologyStore.data
-      .filter(
-        topology => authUser.isAdmin || topology.creator.id === authUser.id,
-      )
-      .map(topology => ({
-        label: (topology.definition.get('name') as string) ?? '',
-        value: topology.id,
-      }));
-  }, [topologyStore.data]);
-
   async function onFilePathSubmit(filePath: string, isImplicit: boolean) {
-    editingBindFile.filePath = filePath;
+    runInAction(() => {
+      editingBindFile.filePath = filePath;
+    });
     if (!isImplicit) void onSubmit();
-  }
-
-  async function moveBindFile(
-    originalBindFile: BindFile,
-    editingBindFile: BindFileEdit,
-  ) {
-    const deleteResult = await topologyStore.deleteBindFile(
-      originalBindFile.topologyId,
-      originalBindFile.id,
-    );
-
-    if (deleteResult.isErr()) {
-      notificationStore.error(
-        deleteResult.error.message,
-        'Failed to move bind file',
-      );
-      return;
-    }
-
-    const addResult = await topologyStore.addBindFile(
-      editingBindFile.topologyId,
-      {
-        filePath: editingBindFile.filePath,
-        content: '',
-      },
-    );
-
-    if (addResult.isErr()) {
-      if (addResult.error.code === ErrorCodes.ErrorBindFileExists) {
-        bindFileNameRef.current?.setValidationError(
-          'A file with that name already exists in that topology.',
-        );
-      } else {
-        notificationStore.error(addResult.error.message, 'Failed to move file');
-      }
-    } else {
-      notificationStore.success('File has been moved successfully.');
-      props.dialogState.close();
-    }
   }
 
   async function onSubmit() {
@@ -138,15 +82,6 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
     if (props.dialogState.state.action === DialogAction.Edit) {
       if (isEqual(originalBindFile, editingBindFile)) {
         props.dialogState.close();
-        return;
-      }
-
-      // If topology ID has changed, delete old file and create new with same content
-      if (originalBindFile.topologyId !== editingBindFile.topologyId) {
-        void moveBindFile(
-          props.dialogState.state.editingBindingFile!,
-          editingBindFile,
-        );
         return;
       }
 
@@ -204,7 +139,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       case DialogAction.Add:
         return 'Add File';
       case DialogAction.Edit:
-        return 'Edit File';
+        return 'Rename File';
       case DialogAction.Duplicate:
         return 'Duplicate File';
     }
@@ -230,20 +165,6 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
           label="File Path"
         />
       </div>
-      <SBDropdown
-        id="edit-topology-file"
-        label="Topology"
-        icon={<span className="material-symbols-outlined">network_node</span>}
-        hasFilter={false}
-        useSelectTemplate={true}
-        useItemTemplate={true}
-        value={editingBindFile.topologyId}
-        options={topologyOptions}
-        emptyMessage="No topologies found"
-        onValueSubmit={collectionId =>
-          (editingBindFile.topologyId = collectionId)
-        }
-      />
     </SBDialog>
   );
 });

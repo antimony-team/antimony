@@ -26,6 +26,8 @@ interface SBDialogProps {
   onCancel?: () => void;
   onSubmit?: () => void;
 
+  canSubmit?: boolean;
+
   cancelLabel?: string;
   submitLabel?: string;
 
@@ -94,9 +96,13 @@ const SBDialog = (props: SBDialogProps) => {
           <Button
             icon="pi pi-check"
             label={props.submitLabel ?? 'Submit'}
-            onClick={() => props.onSubmit?.call(null)}
+            onClick={() => {
+              console.log('ON SUBMIT BUTTON');
+              props.onSubmit?.call(null);
+            }}
             className="w-8rem"
             aria-label="Submit"
+            disabled={props.canSubmit === false}
           />
         </div>
       </If>

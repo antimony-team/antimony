@@ -94,3 +94,6 @@ src/**/*.js
 .css.map
 
 build/
+release/
+dist-electron/
+dist/

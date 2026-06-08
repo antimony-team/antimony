@@ -15,9 +15,10 @@ import {
 } from '@sb/types/domain/topology';
 import {uuid4, YAMLDocument} from '@sb/types/types';
 import {validate} from 'jsonschema';
-import {action, observable, observe, toJS} from 'mobx';
+import {action, observable, observe, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
+import {ArchiveUploadFile} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -60,17 +61,17 @@ export class TopologyStore extends DataStore<
     for (const topologyOut of response.payload) {
       const existingTopology = this.lookup.get(topologyOut.id);
       if (existingTopology) {
-        this.assignExisting(existingTopology, topologyOut);
+        this.updateTopologyValues(existingTopology, topologyOut);
         topologies.push(existingTopology);
       } else {
         const topology = this.parseTopology(topologyOut);
         if (!topology) continue;
 
         topologies.push(topology);
+      }
 
-        for (const bindFile of topologyOut.bindFiles) {
-          bindFiles.push(bindFile);
-        }
+      for (const bindFile of topologyOut.bindFiles) {
+        bindFiles.push(bindFile);
       }
     }
 
@@ -89,99 +90,168 @@ export class TopologyStore extends DataStore<
       return result;
     }
 
-    if (this.lookup.has(id)) {
-      const existingTopology = this.lookup.get(id)!;
-      console.log('Updating existing object: ', toJS(existingTopology));
-
-      this.assignExisting(existingTopology, body);
-
-      console.log('Updating existing object: ', toJS(existingTopology));
-    } else {
-      await this.fetch();
-    }
+    await this.fetchSingle(id);
 
     return result;
   }
 
-  @action
-  protected assignExisting(
-    topology: Topology,
-    updated: TopologyOut | Partial<TopologyIn>,
-  ): void {
-    if (
-      updated.definition &&
-      topology.definitionString !== updated.definition
-    ) {
-      const definition = this.parseTopologyDefinition(updated.definition);
+  public async fetchSingle(topologyId: string) {
+    const response = await this.rootStore._dataBinder.get<TopologyOut>(
+      this.resourcePath + '/' + topologyId,
+    );
 
-      if (!definition) {
-        console.error('[NET] Failed to parse incoming topology: ', updated);
+    if (response.isOk()) {
+      const topologyOut = response.data.payload;
+
+      const existingTopology = this.lookup.get(topologyOut.id);
+      if (existingTopology) {
+        this.updateTopologyValues(existingTopology, topologyOut);
+        runInAction(() => {
+          this.data = [...this.data];
+        });
       } else {
-        const metadata = this.manager.buildTopologyMetadata(definition);
-
-        topology.name = definition.get('name') as string;
-        topology.definition = definition;
-        topology.definitionString = updated.definition;
-        topology.connections = metadata.connections;
-        topology.connectionMap = metadata.connectionMap;
+        runInAction(() => {
+          this.data = [...this.data, this.parseTopology(topologyOut)!];
+        });
       }
-    }
 
-    if (updated.syncUrl !== undefined) {
-      topology.syncUrl = updated.syncUrl;
-    }
-
-    if (updated.collectionId !== undefined) {
-      topology.collectionId = updated.collectionId;
-    }
-
-    if ((updated as TopologyOut).creator) {
-      topology.creator = (updated as TopologyOut).creator;
-    }
-
-    if ((updated as TopologyOut).bindFiles) {
-      topology.bindFiles = (updated as TopologyOut).bindFiles;
-    }
-
-    if ((updated as TopologyOut).lastDeployFailed) {
-      topology.lastDeployFailed = (updated as TopologyOut).lastDeployFailed;
+      for (const bindFile of topologyOut.bindFiles) {
+        if (this.bindFileLookup.has(bindFile.id)) {
+          runInAction(() => {
+            Object.assign(this.bindFileLookup.get(bindFile.id)!, bindFile);
+          });
+        } else {
+          runInAction(() => {
+            this.bindFileLookup.set(bindFile.id, bindFile);
+          });
+        }
+      }
     }
   }
 
-  public async addBindFile(topologyId: string, bindFile: BindFileIn) {
-    const result = await this.dataBinder.post<BindFileIn, void>(
+  public async uploadArchiveFiles(
+    topologyId: string,
+    files: ArchiveUploadFile[],
+  ): Promise<Result<void>> {
+    for (const file of files) {
+      let result: Result<DataResponse<string>>;
+
+      if (file.exists) {
+        const existing = this.bindFileLookup
+          .values()
+          .find(bindFile => bindFile.filePath === file.filePath);
+
+        result = await this.dataBinder.patch<BindFileIn, string>(
+          `${this.resourcePath}/${topologyId}/files/${existing!.id}`,
+          {
+            filePath: file.filePath,
+            content: file.content,
+          },
+        );
+      } else {
+        result = await this.dataBinder.post<BindFileIn, string>(
+          `${this.resourcePath}/${topologyId}/files`,
+          {
+            filePath: file.filePath,
+            content: file.content,
+          },
+        );
+      }
+
+      if (result.isErr()) {
+        return result;
+      }
+    }
+
+    await this.fetchSingle(topologyId);
+    return Result.createOk(undefined);
+  }
+
+  public async addBindFile(
+    topologyId: string,
+    bindFile: BindFileIn,
+    skipFetch: boolean = false,
+  ): Promise<Result<DataResponse<string>>> {
+    const result = await this.dataBinder.post<BindFileIn, string>(
       `${this.resourcePath}/${topologyId}/files`,
       bindFile,
     );
 
-    if (result.isOk()) await this.fetch();
+    if (result.isOk() && !skipFetch) await this.fetchSingle(topologyId);
 
     return result;
   }
 
   public async updateBindFile(
     topologyId: string,
-    findFileId: string,
-    bindFile: BindFileIn,
+    bindFileId: string,
+    bindFile: Partial<BindFileIn>,
+    skipFetch: boolean = false,
   ) {
-    const result = await this.dataBinder.put<BindFileIn, void>(
-      `${this.resourcePath}/${topologyId}/files/${findFileId}`,
+    const result = await this.dataBinder.patch<BindFileIn, void>(
+      `${this.resourcePath}/${topologyId}/files/${bindFileId}`,
       bindFile,
     );
 
-    if (result.isOk()) await this.fetch();
+    if (result.isOk() && !skipFetch) await this.fetchSingle(topologyId);
 
     return result;
   }
 
-  public async deleteBindFile(topologyId: string, bindFileId: string) {
+  public async deleteBindFile(
+    topologyId: string,
+    bindFileId: string,
+    skipFetch: boolean = false,
+  ) {
     const result = await this.dataBinder.delete<void>(
       `${this.resourcePath}/${topologyId}/files/${bindFileId}`,
     );
 
-    if (result.isOk()) await this.fetch();
+    if (result.isOk() && !skipFetch) await this.fetchSingle(topologyId);
 
     return result;
+  }
+
+  @action
+  private updateTopologyValues(
+    target: Topology,
+    source: TopologyOut | Partial<TopologyIn>,
+  ) {
+    if (source.definition) {
+      const updatedDefinition = this.parseTopologyDefinition(source.definition);
+
+      if (updatedDefinition) {
+        const metadata = this.manager.buildTopologyMetadata(updatedDefinition);
+
+        target.name = updatedDefinition.get('name') as string;
+        target.definition = updatedDefinition;
+        target.definitionString = updatedDefinition.toString();
+        target.connections = metadata.connections;
+        target.connectionMap = metadata.connectionMap;
+      } else {
+        console.error('[NET] Failed to parse incoming topology: ', source);
+      }
+    }
+
+    if (source.syncUrl !== undefined) {
+      target.syncUrl = source.syncUrl;
+    }
+
+    if (source.collectionId !== undefined) {
+      target.collectionId = source.collectionId;
+    }
+
+    if ((source as TopologyOut).creator) {
+      target.creator = (source as TopologyOut).creator;
+    }
+
+    if ((source as TopologyOut).bindFiles) {
+      target.bindFiles = (source as TopologyOut).bindFiles;
+    }
+
+    if ((source as TopologyOut).lastDeployFailed) {
+      target.lastDeployFailed = (source as TopologyOut).lastDeployFailed;
+    }
   }
 
   private parseTopology(input: TopologyOut): Topology | null {

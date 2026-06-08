@@ -18,8 +18,8 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {Topology} from '@sb/types/domain/topology';
+import {If} from '@sb/types/control';
+import {BindFile, Topology} from '@sb/types/domain/topology';
 import {FetchState, uuid4} from '@sb/types/types';
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
@@ -48,20 +48,31 @@ import ExplorerTreeNode, {
   ExplorerTreeNodeData,
   ExplorerTreeNodeType,
 } from './explorer-tree-node/explorer-tree-node';
+import ArchiveUploadDialog, {
+  ArchiveUploadDialogState,
+  ArchiveUploadFile,
+} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
+import {TopologyEditSource} from '@sb/lib/topology-manager';
+import BindFileDirectoryEditDialog, {
+  BindFileDirectoryEditDialogState,
+} from '@sb/components/editor-page/topology-explorer/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
 
 interface TopologyBrowserProps {
-  selectedTopologyId?: string | null;
+  selectedId?: string | null;
 
-  onTopologySelect: (id: uuid4) => void;
+  onFileSelect: (id: uuid4) => void;
   onTopologyDeploy: (id: uuid4) => void;
 }
 
 const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const [expandedKeys, setExpandedKeys] = useState<TreeExpandedKeysType>({});
 
-  const editBindFileState = useDialogState<BindFileEditDialogState>(null);
   const editCollectionState = useDialogState<CollectionEditDialogState>(null);
   const editTopologyState = useDialogState<TopologyEditDialogState>(null);
+  const archiveUploadState = useDialogState<ArchiveUploadDialogState>(null);
+  const editBindFileState = useDialogState<BindFileEditDialogState>(null);
+  const editBindFileDirectoryState =
+    useDialogState<BindFileDirectoryEditDialogState>(null);
 
   const [contextMenuModel, setContextMenuModel] = useState<MenuItem[]>();
 
@@ -74,6 +85,8 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const contextMenuTarget = useRef<string | null>(null);
 
   const topologyTree = useMemo(() => {
+    if (topologyStore.data.length === 0) return [];
+
     const topologyTree: ExplorerTreeNodeData[] = [];
     const topologiesByCollection = new Map<string, Topology[]>();
 
@@ -89,6 +102,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       topologyTree.push({
         key: collection.id,
         label: collection.name,
+        className: 'sb-explorer-collection-node',
         icon: (
           <span className="material-symbols-outlined">
             {authUser.isAdmin || collection.publicWrite
@@ -102,29 +116,88 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         type: ExplorerTreeNodeType.Collection,
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
-          label: topology.definition.getIn(['name']) as string,
+          label: topology.name,
+          className: 'sb-explorer-topology-node',
           icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files
           leaf: topology.bindFiles.length === 0,
           selectable: true,
           type: ExplorerTreeNodeType.Topology,
-          children: topology.bindFiles.map(bindFile => ({
-            key: bindFile.id,
-            label: bindFile.filePath,
-            icon: (
-              <span className="material-symbols-outlined">description</span>
-            ),
-            droppable: false,
-            leaf: true,
-            selectable: true,
-            type: ExplorerTreeNodeType.BindFile,
-          })),
+          children: generateTreeForBindFiles(topology),
         })),
       });
     }
 
     return topologyTree;
   }, [collectionStore.data, topologyStore.data]);
+
+  function generateTreeForBindFiles(topology: Topology) {
+    const bindFileNode: Partial<ExplorerTreeNodeData> = {children: []};
+
+    for (const bindFile of topology.bindFiles) {
+      const partParts = bindFile.filePath.split('/').filter(Boolean);
+      let current = bindFileNode;
+
+      partParts.forEach((part, i) => {
+        const isFile = i === partParts.length - 1;
+        let child = current.children!.find(c => c.label === part);
+
+        if (!child) {
+          if (isFile) {
+            child = {
+              key: bindFile.id,
+              label: part,
+              className: 'sb-explorer-bindfile-node',
+              icon: (
+                <span className="material-symbols-outlined">description</span>
+              ),
+              droppable: false,
+              leaf: true,
+              selectable: true,
+              type: ExplorerTreeNodeType.BindFile,
+            };
+          } else {
+            child = {
+              key: `${topology.id}-${partParts.slice(0, i + 1).join('/')}`,
+              label: part,
+              className: 'sb-explorer-bindfile-directory-node',
+              icon: <span className="material-symbols-outlined">folder</span>,
+              droppable: true,
+              leaf: false,
+              selectable: false,
+              type: ExplorerTreeNodeType.BindFileDirectory,
+              children: [],
+            };
+          }
+
+          current.children!.push(child!);
+        }
+
+        if (!isFile) current = child!;
+      });
+    }
+
+    sortBindFileTree(bindFileNode);
+    return bindFileNode.children;
+  }
+
+  function sortBindFileTree(node: Partial<ExplorerTreeNodeData>) {
+    if (!node.children) return;
+
+    node.children.sort((a, b) => {
+      if (a.children && !b.children) {
+        return -1;
+      } else if (b.children && !a.children) {
+        return 1;
+      } else {
+        return a.label!.localeCompare(b.label!);
+      }
+    });
+
+    for (const child of node.children) {
+      sortBindFileTree(child);
+    }
+  }
 
   useEffect(() => {
     saveNodeExpandKeys();
@@ -155,43 +228,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onSelectionChange(e: TreeSelectionEvent) {
     if (e.value === null) return;
 
-    props.onTopologySelect(e.value as string);
-  }
-
-  function onDeleteCollection(id: string) {
-    void collectionStore.delete(id).then(result => {
-      if (result.isErr()) {
-        notificationStore.error(
-          result.error.message,
-          'Failed to delete collection',
-        );
-      } else {
-        notificationStore.success('Collection has been deleted.');
-      }
-    });
-  }
-
-  function onDeleteTopology(id: string) {
-    void topologyStore.delete(id).then(result => {
-      if (result.isErr()) {
-        notificationStore.error(
-          result.error.message,
-          'Failed to delete topology',
-        );
-      } else {
-        notificationStore.success('Topology has been deleted.');
-      }
-    });
-  }
-
-  function onDeleteBindFile(id: string, topologyId: string) {
-    void topologyStore.deleteBindFile(topologyId, id).then(result => {
-      if (result.isErr()) {
-        notificationStore.error(result.error.message, 'Failed to delete file');
-      } else {
-        notificationStore.success('File has been deleted.');
-      }
-    });
+    props.onFileSelect(e.value as string);
   }
 
   function onAddBindFile(topologyId: string) {
@@ -202,15 +239,72 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     });
   }
 
-  function onEditBindFile(id: string) {
-    if (!topologyStore.bindFileLookup.has(id)) return;
+  function onEditBindFile(bindFileId: uuid4) {
+    if (!topologyStore.bindFileLookup.has(bindFileId)) return;
 
-    const bindFile = topologyStore.bindFileLookup.get(id)!;
+    const bindFile = topologyStore.bindFileLookup.get(bindFileId)!;
     editBindFileState.openWith({
       editingBindingFile: bindFile,
       owningTopologyId: bindFile.topologyId,
       action: DialogAction.Edit,
     });
+  }
+
+  function onEditBindFileDirectory(topologyId: uuid4, filePath: string) {
+    const topology = topologyStore.lookup.get(topologyId)!;
+
+    editBindFileDirectoryState.openWith({
+      topology: topology,
+      filePath: filePath,
+    });
+  }
+
+  function onDeleteBindFileDirectory(topologyId: uuid4, filePath: string) {
+    const topology = topologyStore.lookup.get(topologyId)!;
+
+    const filesToDelete = topology.bindFiles.filter(file =>
+      file.filePath.startsWith(filePath),
+    );
+
+    notificationStore.confirm({
+      header: `Delete directory "./${filePath}"?`,
+      content: (
+        <div className="sb-confirm-list">
+          <span>The following files will be deleted as well:</span>
+          <ul>
+            {filesToDelete.map(file => (
+              <li>{file.filePath}</li>
+            ))}
+          </ul>
+          <Message severity="warn" text="This action cannot be undone!" />
+        </div>
+      ),
+      icon: 'pi pi-exclamation-triangle',
+      severity: 'danger',
+      onAccept: () => {
+        void onDeleteBindFileDirectoryConfirm(topology, filesToDelete);
+      },
+    });
+  }
+
+  async function onDeleteBindFileDirectoryConfirm(
+    topology: Topology,
+    bindFiles: BindFile[],
+  ) {
+    for (const bindFile of bindFiles) {
+      const result = await topologyStore.deleteBindFile(
+        topology.id,
+        bindFile.id,
+        true,
+      );
+
+      if (result.isErr()) {
+        notificationStore.error(result.error.message, 'Failed to delete file');
+        return;
+      }
+    }
+
+    await topologyStore.fetchSingle(topology.id);
   }
 
   function onAddCollection() {
@@ -229,6 +323,57 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     });
   }
 
+  function onDeleteCollection(collectionId: string) {
+    if (!collectionStore.lookup.has(collectionId)) return;
+
+    const childTopologies = topologyStore.data.filter(
+      topology => topology.collectionId === collectionId,
+    );
+
+    notificationStore.confirm({
+      header: `Delete Collection "${collectionStore.lookup.get(collectionId)!.name}"?`,
+      content: (
+        <If condition={childTopologies.length > 0}>
+          <div className="sb-confirm-list">
+            <span>The following topologies will be deleted:</span>
+            <ul>
+              {childTopologies.map(topology => (
+                <li>{topology.definition.get('name') as string}</li>
+              ))}
+            </ul>
+            <Message severity="warn" text="This action cannot be undone!" />
+          </div>
+        </If>
+      ),
+      icon: 'pi pi-exclamation-triangle',
+      severity: 'danger',
+      onAccept: () => onDeleteCollectionConfirm(collectionId),
+    });
+  }
+
+  async function onDeleteCollectionConfirm(collectionId: string) {
+    const result = await collectionStore.delete(collectionId);
+
+    if (result.isErr()) {
+      notificationStore.error(
+        result.error.message,
+        'Failed to delete collection',
+      );
+    } else {
+      notificationStore.success('Collection has been deleted.');
+
+      // Close editor if topology in collection or bind file belonging to topology in collection is currently being edited
+      if (
+        topologyStore.manager.topology?.collectionId === collectionId ||
+        (topologyStore.manager.bindFile &&
+          topologyStore.lookup.get(topologyStore.manager.bindFile.topologyId)
+            ?.collectionId === collectionId)
+      ) {
+        topologyStore.manager.close();
+      }
+    }
+  }
+
   function onAddTopology(collectionId: uuid4 | null) {
     if (!collectionId || !collectionStore.lookup.has(collectionId)) return;
 
@@ -239,21 +384,32 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     });
   }
 
-  function onDuplicateTopologyRequest(topologyId: string) {
+  function onEditTopology(topologyId: string) {
+    if (!topologyStore.lookup.has(topologyId)) return;
+
+    const topology = topologyStore.lookup.get(topologyId)!;
+    editTopologyState.openWith({
+      editingTopology: topology,
+      collectionId: topology.collectionId,
+      action: DialogAction.Edit,
+    });
+  }
+
+  function onDuplicateTopology(topologyId: string) {
     if (topologyStore.manager.hasEdits()) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
         header: 'Unsaved Changes',
         icon: 'pi pi-info-circle',
         severity: 'warning',
-        onAccept: () => onDuplicateTopology(topologyId),
+        onAccept: () => onDuplicateTopologyConfirm(topologyId),
       });
     } else {
-      onDuplicateTopology(topologyId);
+      onDuplicateTopologyConfirm(topologyId);
     }
   }
 
-  function onDuplicateTopology(topologyId: string) {
+  function onDuplicateTopologyConfirm(topologyId: string) {
     if (!topologyStore.lookup.has(topologyId)) return;
 
     const topology = topologyStore.lookup.get(topologyId)!;
@@ -279,85 +435,92 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
           if (topologyStore.lookup.has(result.data.payload)) {
             const topology = topologyStore.lookup.get(result.data.payload)!;
-            topologyStore.manager.open(topology);
+            topologyStore.manager.openTopology(topology);
           }
         }
       });
   }
 
-  function onEditTopology(topologyId: string) {
-    if (!topologyStore.lookup.has(topologyId)) return;
-
-    const topology = topologyStore.lookup.get(topologyId)!;
-    editTopologyState.openWith({
-      editingTopology: topology,
-      collectionId: topology.collectionId,
-      action: DialogAction.Edit,
-    });
-  }
-
-  function onDeleteCollectionRequest(id: string) {
-    if (!collectionStore.lookup.has(id)) return;
-
-    const childTopologies = topologyStore.data.filter(
-      topology => topology.collectionId === id,
-    );
-
-    notificationStore.confirm({
-      header: `Delete Collection "${collectionStore.lookup.get(id)!.name}"?`,
-      content: (
-        <Choose>
-          <When condition={childTopologies.length > 0}>
-            <div className="sb-confirm-list">
-              <span>The following topologies will be deleted as well</span>
-              <ul>
-                {childTopologies.map(topology => (
-                  <li>{topology.definition.get('name') as string}</li>
-                ))}
-              </ul>
-              <Message severity="warn" text="This action cannot be undone!" />
-            </div>
-          </When>
-          <Otherwise>{'This action cannot be undone!'}</Otherwise>
-        </Choose>
-      ),
-      icon: 'pi pi-exclamation-triangle',
-      severity: 'danger',
-      onAccept: () => onDeleteCollection(id),
-    });
-  }
-
-  function onDeleteTopologyRequest(id: string) {
+  function onDeleteTopology(id: string) {
     const topology = topologyStore.lookup.get(id)!;
     notificationStore.confirm({
       header: `Delete Topology "${topology.definition.get('name')}"?`,
-      message: 'This action cannot be undone!',
+      content: (
+        <div className="sb-confirm-list">
+          <If condition={topology.bindFiles.length > 0}>
+            <span>The following files will be deleted as well:</span>
+            <ul>
+              {topology.bindFiles.map(bindFile => (
+                <li>{bindFile.filePath}</li>
+              ))}
+            </ul>
+            <Message severity="warn" text="This action cannot be undone!" />
+          </If>
+        </div>
+      ),
       icon: 'pi pi-exclamation-triangle',
       severity: 'danger',
-      onAccept: () => onDeleteTopology(id),
+      onAccept: () => onDeleteTopologyConfirm(id),
     });
   }
 
-  function onDeleteBindFileRequest(id: string) {
-    const bindFile = topologyStore.bindFileLookup.get(id)!;
+  async function onDeleteTopologyConfirm(topologyId: string) {
+    const result = await topologyStore.delete(topologyId);
 
-    notificationStore.confirm({
-      header: `Delete File "${bindFile.filePath}"?`,
-      message: 'This action cannot be undone!',
-      icon: 'pi pi-exclamation-triangle',
-      severity: 'danger',
-      onAccept: () => onDeleteBindFile(id, bindFile.topologyId),
-    });
+    if (result.isErr()) {
+      notificationStore.error(
+        result.error.message,
+        'Failed to delete topology',
+      );
+    } else {
+      notificationStore.success('Topology has been deleted.');
+
+      // Close editor if topology or bind file belonging to topology is currently being edited
+      if (
+        topologyStore.manager.editingFileId === topologyId ||
+        topologyStore.manager.bindFile?.topologyId === topologyId
+      ) {
+        topologyStore.manager.close();
+      }
+    }
   }
 
   function onTopologyAdded(topologyId: string) {
     if (!topologyStore.lookup.has(topologyId)) return;
 
-    props.onTopologySelect(topologyId);
+    props.onFileSelect(topologyId);
 
     // Expand the newly created topology's collection node
     setNodeExpanded(topologyStore.lookup.get(topologyId)!.collectionId, true);
     saveNodeExpandKeys();
+  }
+
+  function onDeleteBindFile(bindFileId: string) {
+    const bindFile = topologyStore.bindFileLookup.get(bindFileId)!;
+
+    notificationStore.confirm({
+      header: `Delete File "${bindFile.filePath}"?`,
+      icon: 'pi pi-exclamation-triangle',
+      severity: 'danger',
+      onAccept: () => onDeleteBindFileConfirm(bindFileId, bindFile.topologyId),
+    });
+  }
+
+  async function onDeleteBindFileConfirm(
+    bindFileId: string,
+    topologyId: string,
+  ) {
+    const result = await topologyStore.deleteBindFile(topologyId, bindFileId);
+
+    if (result.isErr()) {
+      notificationStore.error(result.error.message, 'Failed to delete file');
+    } else {
+      notificationStore.success('File has been deleted.');
+    }
+
+    if (topologyStore.manager.editingFileId === bindFileId) {
+      topologyStore.manager.close();
+    }
   }
 
   function onContextMenu(e: MouseEvent<HTMLDivElement>) {
@@ -390,7 +553,14 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       contextMenuEntries = getTopologyContextMenu(e.node.key as string);
     } else if (nodeType === ExplorerTreeNodeType.Collection) {
       contextMenuEntries = getCollectionContextMenu(e.node.key as string);
+    } else if (nodeType === ExplorerTreeNodeType.BindFile) {
+      contextMenuEntries = getBindFileContextMenu(e.node.key as string);
+    } else if (nodeType === ExplorerTreeNodeType.BindFileDirectory) {
+      contextMenuEntries = getBindFileDirectoryContextMenu(
+        e.node.key as string,
+      );
     } else {
+      e.originalEvent.stopPropagation();
       return;
     }
 
@@ -401,16 +571,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
   }
 
-  const onEditTopologyContext = () => {
-    if (!contextMenuTarget.current) return;
-    onEditTopology(contextMenuTarget.current ?? undefined);
-  };
-
-  const onDuplicateTopologyContext = () => {
-    if (!contextMenuTarget.current) return;
-    onDuplicateTopologyRequest(contextMenuTarget.current ?? undefined);
-  };
-
   const onEditCollectionContext = () => {
     if (!contextMenuTarget.current) return;
     onEditCollection(contextMenuTarget.current ?? undefined);
@@ -418,12 +578,22 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   const onDeleteCollectionContext = () => {
     if (!contextMenuTarget.current) return;
-    onDeleteCollectionRequest(contextMenuTarget.current);
+    onDeleteCollection(contextMenuTarget.current);
   };
 
   const onAddTopologyContext = () => {
     if (!contextMenuTarget.current) return;
     void onAddTopology(contextMenuTarget.current);
+  };
+
+  const onEditTopologyContext = () => {
+    if (!contextMenuTarget.current) return;
+    onEditTopology(contextMenuTarget.current ?? undefined);
+  };
+
+  const onDuplicateTopologyContext = () => {
+    if (!contextMenuTarget.current) return;
+    onDuplicateTopology(contextMenuTarget.current ?? undefined);
   };
 
   const onDeployTopologyContext = () => {
@@ -433,7 +603,31 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   const onDeleteTopologyContext = () => {
     if (!contextMenuTarget.current) return;
-    onDeleteTopologyRequest(contextMenuTarget.current);
+    onDeleteTopology(contextMenuTarget.current);
+  };
+
+  const onEditBindFileContext = () => {
+    if (!contextMenuTarget.current) return;
+    onEditBindFile(contextMenuTarget.current ?? undefined);
+  };
+
+  const onDeleteBindFileContext = () => {
+    if (!contextMenuTarget.current) return;
+    onDeleteBindFile(contextMenuTarget.current);
+  };
+
+  const onEditBindFileDirectoryContext = () => {
+    if (!contextMenuTarget.current) return;
+    const topologyId = contextMenuTarget.current.slice(0, 36);
+    const filePath = contextMenuTarget.current.slice(37);
+    onEditBindFileDirectory(topologyId, filePath);
+  };
+
+  const onDeleteBindFileDirectoryContext = () => {
+    if (!contextMenuTarget.current) return;
+    const topologyId = contextMenuTarget.current.slice(0, 36);
+    const filePath = contextMenuTarget.current.slice(37);
+    onDeleteBindFileDirectory(topologyId, filePath);
   };
 
   const getContainerContextMenu = useCallback(() => {
@@ -460,7 +654,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
       const entries = [];
 
-      if (collection.publicWrite) {
+      if (collection.publicWrite || authUser.isAdmin) {
         entries.push({
           id: 'create',
           label: 'Add Topology',
@@ -511,6 +705,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           id: 'create',
           label: 'Deploy',
           icon: 'pi pi-play',
+          className: 'sb-menuitem-success',
           command: onDeployTopologyContext,
         });
       }
@@ -518,13 +713,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       if (authUser.isAdmin || topology.creator.id === authUser.id) {
         entries.push(
           {
-            id: 'create',
+            id: 'edit',
             label: 'Edit Topology',
             icon: 'pi pi-file-edit',
             command: onEditTopologyContext,
           },
           {
-            id: 'create',
+            id: 'duplicate',
             label: 'Duplicate Topology',
             icon: 'pi pi-clone',
             command: onDuplicateTopologyContext,
@@ -547,11 +742,77 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     [authUser, collectionStore.lookup, topologyStore.lookup],
   );
 
+  const getBindFileContextMenu = useCallback(
+    (bindFileId: string) => {
+      const bindFile = topologyStore.bindFileLookup.get(bindFileId)!;
+      const topology = topologyStore.lookup.get(bindFile.topologyId)!;
+
+      const entries = [];
+
+      if (authUser.isAdmin || topology.creator.id === authUser.id) {
+        entries.push(
+          {
+            id: 'edit',
+            label: 'Edit File',
+            icon: 'pi pi-file-edit',
+            command: onEditBindFileContext,
+          },
+          {
+            separator: true,
+          },
+          {
+            id: 'delete',
+            label: 'Delete File',
+            icon: 'pi pi-trash',
+            className: 'sb-menuitem-danger',
+            command: onDeleteBindFileContext,
+          },
+        );
+      }
+
+      return entries;
+    },
+    [authUser, collectionStore.lookup, topologyStore.lookup],
+  );
+
+  const getBindFileDirectoryContextMenu = useCallback(
+    (bindFileDirectoryKey: string) => {
+      const topologyId = bindFileDirectoryKey.slice(0, 36);
+      const topology = topologyStore.lookup.get(topologyId)!;
+
+      const entries = [];
+
+      if (authUser.isAdmin || topology.creator.id === authUser.id) {
+        entries.push(
+          {
+            id: 'edit',
+            label: 'Edit Directory',
+            icon: 'pi pi-file-edit',
+            command: onEditBindFileDirectoryContext,
+          },
+          {
+            separator: true,
+          },
+          {
+            id: 'delete',
+            label: 'Delete Directory',
+            icon: 'pi pi-trash',
+            className: 'sb-menuitem-danger',
+            command: onDeleteBindFileDirectoryContext,
+          },
+        );
+      }
+
+      return entries;
+    },
+    [authUser, collectionStore.lookup, topologyStore.lookup],
+  );
+
   async function moveTopologyToCollection(
     topologyId: string,
     collectionId: string,
   ) {
-    const topology = topologyStore.lookup.get(topologyId);
+    const topology = topologyStore.lookup.get(topologyId)!;
     if (!authUser.isAdmin && topology?.creator.id !== authUser.id) {
       notificationStore.error(
         'You do not have permissions to move this topology',
@@ -560,28 +821,10 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
-    if (
-      topologyStore.manager.editingTopologyId === topologyId &&
-      topologyStore.manager.hasEdits()
-    ) {
-      notificationStore.confirm({
-        message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
-        icon: 'pi pi-info-circle',
-        severity: 'warning',
-        onAccept: () =>
-          moveTopologyToCollectionConfirm(topologyId, collectionId),
-      });
-    } else {
-      void moveTopologyToCollectionConfirm(topologyId, collectionId);
-    }
-  }
+    // We need to make a backup of the topology before moving it and restore
+    // it afterward, as the update and single fetch will overwrite it.
+    const topologyBackup = topology.definition;
 
-  async function moveTopologyToCollectionConfirm(
-    topologyId: string,
-    collectionId: string,
-  ) {
-    const topology = topologyStore.lookup.get(topologyId)!;
     const result = await topologyStore.update(topology.id, {
       collectionId: collectionId,
     });
@@ -589,17 +832,200 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (result.isErr()) {
       notificationStore.error(result.error.message, 'Failed to move topology');
     } else {
+      topologyStore.manager.editTopology(
+        topologyBackup,
+        TopologyEditSource.System,
+      );
+
       // If the move was successful, expand the target collection node
       setNodeExpanded(collectionId, true);
       saveNodeExpandKeys();
-
-      if (topologyStore.manager.editingTopologyId === topologyId) {
-        topologyStore.manager.discardEdits();
-      }
     }
   }
 
-  function moveBindFileToTopology(bindFileId: string, topologyId: string) {}
+  /**
+   * Moves a bind file to the root of a specified topology.
+   *
+   * If the bind file moves to a new topology and the bind file is currently
+   * being edited, a dialog will appear.
+   */
+  function moveBindFileToTopology(bindFileId: uuid4, topologyId: string) {
+    const bindFile = topologyStore.bindFileLookup.get(bindFileId)!;
+    const targetTopology = topologyStore.lookup.get(topologyId)!;
+
+    // Ignore when bind file is already at the root of the target topology
+    if (
+      bindFile.topologyId === topologyId &&
+      !bindFile.filePath.includes('/')
+    ) {
+      return;
+    }
+
+    if (!authUser.isAdmin && targetTopology.creator.id !== authUser.id) {
+      notificationStore.error(
+        `You do not have permissions to move a file to '${targetTopology.name}'`,
+        'Unable to move file',
+      );
+      return;
+    }
+
+    // We have to check whether the bind file already exists in the target topology's root
+    const bindFileName = bindFile.filePath.split('/').pop()!;
+    if (targetTopology.bindFiles.find(file => file.filePath === bindFileName)) {
+      notificationStore.error(
+        `A file with that name already exists in '${targetTopology.name}'`,
+        'Unable to move file',
+      );
+      return;
+    }
+
+    if (
+      bindFile.topologyId !== topologyId &&
+      topologyStore.manager.editingFileId === bindFileId &&
+      topologyStore.manager.hasEdits()
+    ) {
+      notificationStore.confirm({
+        message: 'Discard unsaved changes?',
+        header: 'Unsaved Changes',
+        icon: 'pi pi-info-circle',
+        severity: 'warning',
+        onAccept: () => moveBindFileToTopologyConfirm(bindFile, targetTopology),
+      });
+    } else {
+      void moveBindFileToTopologyConfirm(bindFile, targetTopology);
+    }
+  }
+
+  async function moveBindFileToTopologyConfirm(
+    bindFile: BindFile,
+    topology: Topology,
+    placeAtRoot: boolean = true,
+  ) {
+    let fileName = bindFile.filePath;
+
+    if (placeAtRoot) {
+      // We have to strip all parent directories from the file's path to place the file at the root of the topology
+      fileName = bindFile.filePath.split('/').slice(-1).join('/');
+    }
+
+    // If the bind file is already in the target topology, we can just edit the contents
+    if (bindFile.topologyId === topology.id) {
+      const result = await topologyStore.updateBindFile(
+        topology.id,
+        bindFile.id,
+        {
+          content: bindFile.content,
+          filePath: fileName,
+        },
+      );
+
+      if (result.isErr()) {
+        notificationStore.error(result.error.message, 'Failed to move file');
+      }
+
+      return;
+    }
+
+    // Discard edits before we move the file to a new topology
+    topologyStore.manager.discardEdits();
+
+    // Add bind file to target topology
+    const addResult = await topologyStore.addBindFile(
+      topology.id,
+      {
+        content: bindFile.content,
+        filePath: fileName,
+      },
+      true,
+    );
+
+    if (addResult.isErr()) {
+      notificationStore.error(addResult.error.message, 'Failed to move file');
+      return;
+    }
+
+    // Remove bind file from current topology
+    const deleteResult = await topologyStore.deleteBindFile(
+      bindFile.topologyId,
+      bindFile.id,
+    );
+
+    await topologyStore.fetchSingle(topology.id);
+
+    if (deleteResult.isErr()) {
+      notificationStore.error(
+        deleteResult.error.message,
+        'Failed to move file',
+      );
+      return;
+    }
+
+    // Open moved bind file in topology editor
+    topologyStore.manager.openBindFile(
+      topologyStore.bindFileLookup.get(addResult.data.payload)!,
+    );
+  }
+
+  /**
+   * Moves a bind file to a new directory in the same topology.
+   */
+  async function moveBindFileToDirectory(
+    bindFileId: uuid4,
+    targetDirectory: string,
+  ) {
+    const sourceBindFile = topologyStore.bindFileLookup.get(bindFileId)!;
+
+    const targetTopologyId = targetDirectory.slice(0, 36);
+    const targetTopology = topologyStore.lookup.get(targetTopologyId)!;
+    const targetFilePath = targetDirectory.slice(37);
+
+    const newFilePath = `${targetFilePath}/${sourceBindFile.filePath.split('/').slice(-1)}`;
+
+    if (targetTopologyId === sourceBindFile.topologyId) {
+      const result = await topologyStore.updateBindFile(
+        sourceBindFile.topologyId,
+        sourceBindFile.id,
+        {
+          content: sourceBindFile.content,
+          filePath: newFilePath,
+        },
+      );
+
+      if (result.isErr()) {
+        notificationStore.error(result.error.message, 'Failed to move file');
+      }
+
+      return;
+    }
+
+    if (
+      topologyStore.manager.editingFileId === bindFileId &&
+      topologyStore.manager.hasEdits()
+    ) {
+      notificationStore.confirm({
+        message: 'Discard unsaved changes?',
+        header: 'Unsaved Changes',
+        icon: 'pi pi-info-circle',
+        severity: 'warning',
+        onAccept: () => {
+          // We need to discard edits here already because we are creating a new object
+          topologyStore.manager.discardEdits();
+
+          void moveBindFileToTopologyConfirm(
+            {...sourceBindFile, filePath: newFilePath},
+            targetTopology,
+            false,
+          );
+        },
+      });
+    } else {
+      void moveBindFileToTopologyConfirm(
+        {...sourceBindFile, filePath: newFilePath},
+        targetTopology,
+        false,
+      );
+    }
+  }
 
   function onNodeDrop(e: TreeDragDropEvent) {
     if (e.dropNode === null || e.dragNode === null) return;
@@ -615,8 +1041,47 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       }
     } else if (dragNode.type === ExplorerTreeNodeType.BindFile) {
       if (dropNode.type === ExplorerTreeNodeType.Topology) {
+        moveBindFileToTopology(dragNode.key as uuid4, dropNode.key as uuid4);
+      } else if (dropNode.type === ExplorerTreeNodeType.BindFileDirectory) {
+        void moveBindFileToDirectory(
+          dragNode.key as uuid4,
+          dropNode.key as string,
+        );
       }
     }
+  }
+
+  async function onArchiveUpload(topologyId: uuid4, file: File) {
+    const topology = topologyStore.lookup.get(topologyId)!;
+
+    archiveUploadState.openWith({
+      topology,
+      file,
+    });
+  }
+
+  function onArchiveUploadConfirm(
+    topology: Topology,
+    files: ArchiveUploadFile[],
+  ) {
+    console.log(
+      'UPLOADING FILES:',
+      files.map(file => {
+        if (file.filePath.startsWith(`${topology.name}/`)) {
+          file.filePath = file.filePath.substring(topology.name.length + 1);
+        }
+        return file;
+      }),
+    );
+
+    const bindFiles = files.map(file => {
+      if (file.filePath.startsWith(`${topology.name}/`)) {
+        file.filePath = file.filePath.substring(topology.name.length + 1);
+      }
+      return file;
+    });
+
+    void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
   }
 
   if (topologyStore.fetchReport.state === FetchState.Pending) {
@@ -649,20 +1114,23 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         selectionMode="single"
         onExpand={onNodeExpand}
         onCollapse={onNodeCollapse}
-        selectionKeys={props.selectedTopologyId}
+        selectionKeys={props.selectedId}
         nodeTemplate={node => (
           <ExplorerTreeNode
             node={node as ExplorerTreeNodeData}
             onEditCollection={onEditCollection}
-            onDeleteCollection={onDeleteCollectionRequest}
+            onDeleteCollection={onDeleteCollection}
             onAddTopology={onAddTopology}
             onEditTopology={onEditTopology}
-            onDuplicateTopology={onDuplicateTopologyRequest}
+            onDuplicateTopology={onDuplicateTopology}
             onDeployTopology={props.onTopologyDeploy}
-            onDeleteTopology={onDeleteTopologyRequest}
+            onDeleteTopology={onDeleteTopology}
             onAddBindFile={onAddBindFile}
             onEditBindFile={onEditBindFile}
-            onDeleteBindFile={onDeleteBindFileRequest}
+            onEditBindFileDirectory={onEditBindFileDirectory}
+            onDeleteBindFileDirectory={onDeleteBindFileDirectory}
+            onDeleteBindFile={onDeleteBindFile}
+            onArchiveUpload={onArchiveUpload}
           />
         )}
         onContextMenu={onContextMenuTree}
@@ -681,6 +1149,14 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       <BindFileEditDialog
         key={editBindFileState.state?.editingBindingFile?.id}
         dialogState={editBindFileState}
+      />
+      <BindFileDirectoryEditDialog
+        key={editBindFileDirectoryState.state?.filePath}
+        dialogState={editBindFileDirectoryState}
+      />
+      <ArchiveUploadDialog
+        dialogState={archiveUploadState}
+        onApply={onArchiveUploadConfirm}
       />
       <SBConfirm />
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />

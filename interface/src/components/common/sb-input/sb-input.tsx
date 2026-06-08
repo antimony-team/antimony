@@ -21,7 +21,7 @@ import './sb-input.sass';
 
 export interface SBInputRef {
   setValidationError: (msg: string) => void;
-  input: RefObject<HTMLInputElement>;
+  input: RefObject<HTMLInputElement | null>;
 }
 
 interface SBInputProps {
@@ -125,8 +125,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
         className="sb-input-validation-tooltip"
       />
       <InputText
-        /* Not sure why we have to do this, but this works. */
-        ref={inputFieldRef as unknown as RefObject<InputText>}
+        ref={inputFieldRef}
         data-tooltip-id={inputId}
         onClick={onSingleClick}
         onDoubleClick={onEnterEditing}

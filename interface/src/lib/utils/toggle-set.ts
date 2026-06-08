@@ -8,4 +8,14 @@ export class ToggleSet<T> extends Set<T> {
 
     return this;
   }
+
+  public toggleExplicit(key: T, isIn: boolean) {
+    if (isIn) {
+      this.add(key);
+    } else {
+      this.delete(key);
+    }
+
+    return this;
+  }
 }

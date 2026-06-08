@@ -86,9 +86,6 @@
     height: 0.75rem
     min-width: unset
 
-  .material-symbols-outlined
-    margin-right: 6px
-
 .p-tooltip
   transition: opacity 0.2s ease-in-out !important
   opacity: 0 !important
@@ -117,20 +114,10 @@
   padding: 0
   box-shadow: none
   outline: none
-  border: 1px solid transparent
-  transition: border-color 0.08s ease, background-color 0.08s ease
+  transition: background-color 0.08s ease
 
-  &.p-highlight
-    background-color: var(--primary-color)
-
-.p-treenode-leaf
-  .p-treenode-content
-    &:hover
-      border-color: var(--primary-color-border)
-      background-color: unset
-
-    &.p-highlight
-      background-color: var(--primary-color)
+  &:hover
+    background-color: unset
 
 .p-treenode-label
   text-wrap: nowrap
@@ -301,6 +288,14 @@
     &:hover
       .p-menuitem-text,.p-menuitem-icon
         color: var(--danger-color-text)
+
+  &.sb-menuitem-success
+    .p-menuitem-text,.p-menuitem-icon
+      color: var(--success-color-text)
+
+    &:hover
+      .p-menuitem-text,.p-menuitem-icon
+        color: var(--success-color-text)
 
 .p-menuitem-content
   background-color: unset
