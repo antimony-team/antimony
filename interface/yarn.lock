@@ -5391,6 +5391,11 @@ levn@^0.4.1:
     prelude-ls "^1.2.1"
     type-check "~0.4.0"
 
+libarchive-wasm@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/libarchive-wasm/-/libarchive-wasm-1.2.0.tgz#92fd37e045654e790b17d8d9eabe55de8eb41087"
+  integrity sha512-aunFn8oL9VwGRj+brRvdOv8BRUD4Ea1WxJW45IdiuXE2Vp/m/X+M1UxSU+yPzXfc1mPPC8AARaflg/CtF11u8g==
+
 lightningcss-android-arm64@1.32.0:
   version "1.32.0"
   resolved "https://registry.yarnpkg.com/lightningcss-android-arm64/-/lightningcss-android-arm64-1.32.0.tgz#f033885116dfefd9c6f54787523e3514b61e1968"

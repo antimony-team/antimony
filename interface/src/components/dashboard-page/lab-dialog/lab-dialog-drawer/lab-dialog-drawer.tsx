@@ -9,6 +9,7 @@ import {
 } from '@sb/lib/stores/root-store';
 import uPlot from 'uplot';
 import {
+  formatBytes,
   getInterfaceCaptureCommand,
   getNodeDisplayName,
 } from '@sb/lib/utils/utils';
@@ -118,18 +119,6 @@ const LabDialogDrawer = (props: LabDialogDrawer) => {
     if (abs >= 1e3) return fmt(v / 1e3) + ' Kbps';
 
     return v.toFixed(0) + ' bps';
-  }
-
-  function formatBytes(v: number | null) {
-    if (v === null) return '';
-
-    const abs = Math.abs(v);
-    const fmt = (n: number) => n.toFixed(1).replace(/\.0$/, '');
-    if (abs >= 1024 ** 4) return fmt(v / 1024 ** 4) + ' TB';
-    if (abs >= 1024 ** 3) return fmt(v / 1024 ** 3) + ' GB';
-    if (abs >= 1024 ** 2) return fmt(v / 1024 ** 2) + ' MB';
-    if (abs >= 1024) return fmt(v / 1024) + ' KB';
-    return v.toFixed(0) + ' B';
   }
 
   function getMemoryUsagePlotOptions(): uPlot.Options {
