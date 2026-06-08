@@ -20,6 +20,7 @@ import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 
 import 'uplot/dist/uPlot.min.css';
+import {Message} from 'primereact/message';
 
 interface LabViewDrawer {
   lab: Lab | null;
@@ -514,8 +515,8 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                     quick_reference_all
                   </span>
                 }
-                label="Show Logs"
-                aria-label="Show Logs"
+                label="Node Logs"
+                aria-label="Node Logs"
                 outlined
                 onClick={props.onOpenLogs}
                 disabled={!nodeActionChecker!.canShowLogs}
@@ -580,30 +581,38 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
           ))}
         </div>
         <div className="lab-dialog-drawer-control-buttons">
-          <Button
-            icon="pi pi-play"
-            severity="success"
-            label="Start"
-            outlined
-            onClick={props.onNodeStart}
-            disabled={!nodeActionChecker!.canStart}
-          />
-          <Button
-            icon="pi pi-sync"
-            severity="warning"
-            label="Restart"
-            outlined
-            onClick={props.onNodeRestart}
-            disabled={!nodeActionChecker!.canRestart}
-          />
-          <Button
-            icon="pi pi-power-off"
-            severity="danger"
-            label="Shutdown"
-            outlined
-            onClick={props.onNodeStop}
-            disabled={!nodeActionChecker!.canStop}
-          />
+          <If condition={!node?.canRestart}>
+            <Message
+              severity="info"
+              text={`Nodes with kind '${node?.kind}' can't be manually started`}
+            />
+          </If>
+          <div className="flex gap-2">
+            <Button
+              icon="pi pi-play"
+              severity="success"
+              label="Start"
+              outlined
+              onClick={props.onNodeStart}
+              disabled={!nodeActionChecker!.canStart}
+            />
+            <Button
+              icon="pi pi-sync"
+              severity="warning"
+              label="Restart"
+              outlined
+              onClick={props.onNodeRestart}
+              disabled={!nodeActionChecker!.canRestart}
+            />
+            <Button
+              icon="pi pi-power-off"
+              severity="danger"
+              label="Shutdown"
+              outlined
+              onClick={props.onNodeStop}
+              disabled={!nodeActionChecker!.canStop}
+            />
+          </div>
         </div>
       </If>
     </div>

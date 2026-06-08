@@ -15,6 +15,7 @@ import charmbraceletLogLanguage from '@sb/lib/utils/charmbracelet-log.language';
 import hljs from 'highlight.js';
 import {Skeleton} from 'primereact/skeleton';
 import {runInAction} from 'mobx';
+import {Image} from 'primereact/image';
 
 export interface LogDialogState {
   lab: Lab;
@@ -226,8 +227,14 @@ const LogDialog = observer((props: LogDialogProps) => {
       <SBDropdown
         id="log-selector"
         icon={option => {
-          if (option.value === -1) {
-            return <span className="material-symbols-outlined">terminal</span>;
+          if (option.value === '-1') {
+            return (
+              <Image
+                src="/icons/clab-icon.png"
+                width="18px"
+                style={{paddingLeft: '2.3px', paddingRight: '1px'}}
+              />
+            );
           } else {
             return (
               <span className="material-symbols-outlined">deployed_code</span>

@@ -413,8 +413,8 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
                       quick_reference_all
                     </span>
                   }
-                  label="Show Logs"
-                  aria-label="Show Logs"
+                  label="Containerlab Logs"
+                  aria-label="Containerlab Logs"
                   onClick={onOpenContainerlabLogs}
                 />
                 <Button
