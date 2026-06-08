@@ -32,6 +32,8 @@ hljs.registerLanguage('charmbracelet-log', charmbraceletLogLanguage);
 const LogDialog = observer((props: LogDialogProps) => {
   const [lines, setLines] = useState<string[] | null>(null);
 
+  const logSourceChangedRef = useRef(false);
+
   const [logSource, setLogSource] = useState<string | number>(
     props.dialogState.state?.source ?? -1,
   );
@@ -115,7 +117,7 @@ const LogDialog = observer((props: LogDialogProps) => {
         ? `logs/${props.dialogState.state.lab.id}`
         : `logs/${props.dialogState.state.lab.id}/${logSource}`;
 
-    setLines(null);
+    logSourceChangedRef.current = true;
     dataBinder.subscribeNamespace(namespace, onLogs, onSocketConnect);
 
     return () => {
@@ -141,6 +143,12 @@ const LogDialog = observer((props: LogDialogProps) => {
   }
 
   function onLogs(data: string) {
+    if (logSourceChangedRef.current) {
+      setLines([data]);
+      logSourceChangedRef.current = false;
+      return;
+    }
+
     setLines(lines => [...(lines ?? []), data]);
   }
 
