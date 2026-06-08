@@ -6,7 +6,8 @@
 #                 Default: "admin"
 #   sshPassword - The password used to authenticate the SSH connection.
 #                 If not specified, SSH key authentication will be used instead.
-#   canRestart - Whether the node can be manually stopped and started.
+#   canRestart - Whether the node can be manually stopped and started. This is false
+#                by default because most instances' services cannot be restarted easily (e.g., SRLinux).
 #                Default: false
 #
 # Example:

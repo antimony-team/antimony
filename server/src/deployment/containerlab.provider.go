@@ -20,12 +20,20 @@ import (
 )
 
 type ContainerlabProvider struct {
-	containerStatsCache map[string]*NodeStats
+	client *client.Client
+
+	statsReader StatsReader
 }
 
 func CreateContainerlabProvider() *ContainerlabProvider {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.Fatalf("Failed to create docker client: %s", err.Error())
+	}
+
 	return &ContainerlabProvider{
-		containerStatsCache: make(map[string]*NodeStats),
+		client:      cli,
+		statsReader: CreateStatsReader(),
 	}
 }
 
@@ -123,12 +131,6 @@ func (p *ContainerlabProvider) ExecInteractive(
 	containerId string,
 	cmd []string,
 ) (io.ReadWriteCloser, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, err
-	}
-	defer closeDockerClient(cli)
-
 	execConfig := container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdin:  true,
@@ -137,19 +139,19 @@ func (p *ContainerlabProvider) ExecInteractive(
 		Tty:          true,
 	}
 
-	containerExec, err := cli.ContainerExecCreate(ctx, containerId, execConfig)
+	containerExec, err := p.client.ContainerExecCreate(ctx, containerId, execConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	hr, err := cli.ContainerExecAttach(ctx, containerExec.ID, container.ExecAttachOptions{Tty: true})
+	hr, err := p.client.ContainerExecAttach(ctx, containerExec.ID, container.ExecAttachOptions{Tty: true})
 	if err != nil {
 		return nil, err
 	}
 
 	time.Sleep(20 * time.Millisecond)
 
-	inspect, err := cli.ContainerExecInspect(ctx, containerExec.ID)
+	inspect, err := p.client.ContainerExecInspect(ctx, containerExec.ID)
 	if err != nil {
 		hr.Close()
 		return nil, err
@@ -168,13 +170,7 @@ func (p *ContainerlabProvider) ExecInteractive(
 }
 
 func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer closeDockerClient(cli)
-
-	if err := cli.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
+	if err := p.client.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
 		return err
 	}
 
@@ -182,14 +178,8 @@ func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string
 }
 
 func (p *ContainerlabProvider) StopNode(ctx context.Context, containerId string) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer closeDockerClient(cli)
-
 	timeout := int(10 * time.Second)
-	if err := cli.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
+	if err := p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
 		return err
 	}
 
@@ -197,14 +187,8 @@ func (p *ContainerlabProvider) StopNode(ctx context.Context, containerId string)
 }
 
 func (p *ContainerlabProvider) RestartNode(ctx context.Context, containerId string) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer closeDockerClient(cli)
-
 	timeout := int(10 * time.Second)
-	if err := cli.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
+	if err := p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
 		return err
 	}
 
@@ -212,12 +196,6 @@ func (p *ContainerlabProvider) RestartNode(ctx context.Context, containerId stri
 }
 
 func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer closeDockerClient(cli)
-
 	eventFilter := filters.NewArgs()
 	eventFilter.Add("type", "container")
 	eventFilter.Add("event", "start")
@@ -226,7 +204,7 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 	eventFilter.Add("event", "destroy")
 	eventFilter.Add("event", "create")
 
-	channel, errs := cli.Events(ctx, events.ListOptions{
+	channel, errs := p.client.Events(ctx, events.ListOptions{
 		Filters: eventFilter,
 	})
 
@@ -281,21 +259,15 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 	containerId string,
 	onLog func(data string),
 ) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer closeDockerClient(cli)
-
 	logOptions := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
-		Timestamps: false,
+		Timestamps: true,
 		Tail:       "all",
 	}
 
-	out, err := cli.ContainerLogs(ctx, containerId, logOptions)
+	out, err := p.client.ContainerLogs(ctx, containerId, logOptions)
 	if err != nil {
 		return err
 	}
@@ -309,14 +281,8 @@ func (p *ContainerlabProvider) GetInterfaces(
 	ctx context.Context,
 	containerId string,
 ) ([]NodeInterface, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, err
-	}
-	defer closeDockerClient(cli)
-
 	// Inspect the container
-	info, err := cli.ContainerInspect(ctx, containerId)
+	info, err := p.client.ContainerInspect(ctx, containerId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %q: %w", containerId, err)
 	}
@@ -353,80 +319,14 @@ func (p *ContainerlabProvider) GetInterfaces(
 }
 
 func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	insp, err := p.client.ContainerInspect(ctx, containerId)
 	if err != nil {
 		return nil, err
 	}
-	defer closeDockerClient(cli)
-
-	resp, err := cli.ContainerStatsOneShot(ctx, containerId)
-	if err != nil {
-		return nil, err
+	if insp.State == nil || insp.State.Pid <= 0 {
+		return nil, fmt.Errorf("container %s is not running", containerId)
 	}
-	defer resp.Body.Close()
+	pid := insp.State.Pid
 
-	var stats container.StatsResponse
-	err = json.NewDecoder(resp.Body).Decode(&stats)
-	if err != nil {
-		return nil, err
-	}
-
-	prevStats, hasPrevStats := p.containerStatsCache[containerId]
-	var timeElapsed float64
-	var prevCpuUsage, prevSystemUsage uint64
-
-	if hasPrevStats {
-		prevCpuUsage = prevStats.CPUUsage
-		prevSystemUsage = prevStats.SystemUsage
-		timeElapsed = time.Since(prevStats.Timestamp).Seconds()
-	}
-
-	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - prevCpuUsage)
-	systemDelta := float64(stats.CPUStats.SystemUsage - prevSystemUsage)
-	cpuPercent := 0.0
-	if systemDelta > 0 && cpuDelta > 0 {
-		cpuPercent = (cpuDelta / systemDelta) * float64(stats.CPUStats.OnlineCPUs) * 100.0
-	}
-
-	interfaces := make(map[string]NodeInterfaceStats)
-
-	for ifName, ifStats := range stats.Networks {
-		var rxBps, txBps int
-		var prevRxBytes, prevTxBytes uint64
-
-		if hasPrevStats {
-			if prevIfaceStates, ok := prevStats.Interfaces[ifName]; ok {
-				prevRxBytes = prevIfaceStates.RxBytes
-				prevTxBytes = prevIfaceStates.TxBytes
-			}
-
-			rxBps = int(float64(ifStats.RxBytes-prevRxBytes) / timeElapsed)
-			txBps = int(float64(ifStats.TxBytes-prevTxBytes) / timeElapsed)
-		}
-
-		interfaces[ifName] = NodeInterfaceStats{
-			RxBytes: ifStats.RxBytes,
-			TxBytes: ifStats.TxBytes,
-			RxBps:   rxBps,
-			TxBps:   txBps,
-		}
-	}
-
-	nodeStats := &NodeStats{
-		Timestamp:       time.Now(),
-		CPUUsage:        stats.CPUStats.CPUUsage.TotalUsage,
-		SystemUsage:     stats.CPUStats.SystemUsage,
-		CPUUsagePercent: cpuPercent,
-		MemoryUsage:     stats.MemoryStats.Usage - stats.MemoryStats.Stats["cache"],
-		MemoryLimit:     stats.MemoryStats.Limit,
-		Interfaces:      interfaces,
-	}
-
-	p.containerStatsCache[containerId] = nodeStats
-
-	return nodeStats, nil
-}
-
-func closeDockerClient(client *client.Client) {
-	_ = client.Close()
+	return p.statsReader.ReadStats(containerId, pid)
 }
