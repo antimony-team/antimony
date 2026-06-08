@@ -63,7 +63,7 @@
     "compile": "tsc",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build",
-    "build:docker": "docker build -t antimony-interface .",
+    "build:docker": "docker build -t antimony-interface . --file docker/Dockerfile",
     "build-electron:linux": "vite build --config electron/vite.config.ts && electron-builder --linux --config electron/electron-builder.yml",
     "build-electron:win": "vite build --config electron/vite.config.ts && electron-builder --win --config electron/electron-builder.yml"
   },
