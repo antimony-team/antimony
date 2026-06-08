@@ -625,6 +625,9 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 }
 
 func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
+	instance.Mutex.Lock()
+	defer instance.Mutex.Unlock()
+
 	// We have to ensure that the instance isn't already being deployed
 	if instance.State == InstanceStates.Deploying {
 		s.notifyUpdate(*lab,
@@ -647,9 +650,6 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 		return utils.ErrLabIsDeploying
 	}
 
-	instance.Mutex.Lock()
-	defer instance.Mutex.Unlock()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	instance.DeploymentWorker = &utils.Worker{
 		Context: ctx,
@@ -662,8 +662,9 @@ func (s *labService) redeployLab(lab *Lab, instance *Instance) error {
 		s.closeNodeShells(node.Name)
 	}
 
-	// Remove old nodes from instance
 	instance.Nodes = make([]InstanceNode, 0)
+	instance.Recovered = false
+	instance.Deployed = time.Now()
 
 	s.updateStateAndNotify(*lab, InstanceStates.Deploying, statusMessage.Info(
 		"Lab Manager",
