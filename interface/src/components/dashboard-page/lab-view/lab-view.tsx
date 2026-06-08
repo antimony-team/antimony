@@ -110,12 +110,15 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
       return;
     }
 
+    // Ignore node and group context event if lab is not currently started
+    if (!props.lab?.instance) return;
+
     // Ignore context events on group nodes
     if (event.target.hasClass('drawn-shape')) {
       return;
     }
 
-    if (event.target.isNode) {
+    if (event.target.hasClass('topology-node')) {
       const nodeId = event.target.id();
       setSelectedNode(nodeId);
       nodeContextMenuRef.current.show(mouseEvent);
