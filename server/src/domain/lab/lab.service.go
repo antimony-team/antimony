@@ -215,7 +215,7 @@ func (s *labService) RunNodeStatsReader() {
 		copy(monitoredInstances, s.monitoredInstances)
 		s.monitoredInstancesMutex.Unlock()
 
-		for _, instance := range monitoredInstances {
+		for _, instance := range s.monitoredInstances {
 			for _, node := range instance.Nodes {
 				stats, err := s.deploymentProvider.ReadNodeStats(ctx, node.ContainerId)
 				if err != nil {
@@ -601,10 +601,17 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	instance.LogNamespace.ClearBacklog()
 	instance.LogNamespace = nil
 
+	s.monitoredInstancesMutex.Lock()
+	if i := slices.Index(s.monitoredInstances, instance); i != -1 {
+		s.monitoredInstances = slices.Delete(s.monitoredInstances, i, i+1)
+	}
+	s.monitoredInstancesMutex.Unlock()
+
 	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
 	s.instancesMutex.Unlock()
+
 	s.labUpdatesNamespace.Send(LabUpdateOut{
 		LabId: &lab.UUID,
 	})
@@ -967,7 +974,7 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 	// We can't use Go's built-in SSH service here as it responds differently to when the sevrer is not reachable.
 	cmd := []string{
 		"bash", "-c", `
-		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost 2> /dev/null; do
+		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost; do
 			sleep 2
 		done
 	`}
@@ -1246,18 +1253,19 @@ func (s *labService) getNodesFromInspect(
 	containers := inspectOutput[instanceName]
 
 	return lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
-		return s.containerToInstanceNode(container, instance.NodeKinds)
+		return s.containerToInstanceNode(container, instanceName, instance.NodeKinds)
 	}), nil
 }
 
 func (s *labService) containerToInstanceNode(
 	container deployment.InspectContainer,
+	instanceName string,
 	nodeKinds map[string]string,
 ) InstanceNode {
 	var ok bool
 
-	nodeNameParts := strings.Split(container.Name, "-")
-	nodeName := nodeNameParts[len(nodeNameParts)-1]
+	prefix := fmt.Sprintf("clab-%s-", instanceName)
+	nodeName := strings.TrimPrefix(container.Name, prefix)
 
 	var nodeKind string
 	canRestart := false
@@ -1406,7 +1414,7 @@ func (s *labService) reviveLabs() {
 			}
 
 			instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
-				return s.containerToInstanceNode(container, nodeKinds)
+				return s.containerToInstanceNode(container, *lab.InstanceName, nodeKinds)
 			})
 
 			instance := &Instance{
