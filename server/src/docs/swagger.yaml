@@ -86,7 +86,7 @@ definitions:
       name:
         type: string
     type: object
-  lab.InstanceNodeOut:
+  lab.InstanceNode:
     properties:
       canRestart:
         type: boolean
@@ -119,7 +119,7 @@ definitions:
         type: string
       nodes:
         items:
-          $ref: '#/definitions/lab.InstanceNodeOut'
+          $ref: '#/definitions/lab.InstanceNode'
         type: array
       recovered:
         type: boolean

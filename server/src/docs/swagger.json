@@ -1162,7 +1162,7 @@
                 }
             }
         },
-        "lab.InstanceNodeOut": {
+        "lab.InstanceNode": {
             "type": "object",
             "properties": {
                 "canRestart": {
@@ -1212,7 +1212,7 @@
                 "nodes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/lab.InstanceNodeOut"
+                        "$ref": "#/definitions/lab.InstanceNode"
                     }
                 },
                 "recovered": {

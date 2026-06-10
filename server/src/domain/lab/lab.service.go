@@ -1084,25 +1084,9 @@ func (s *labService) instanceToOut(instance *Instance) *InstanceOut {
 		Deployed:          instance.Deployed,
 		State:             instance.State,
 		LatestStateChange: instance.LatestStateChange,
-		Nodes:             s.nodesToOut(instance.Nodes),
+		Nodes:             instance.Nodes,
 		Recovered:         instance.Recovered,
 	}
-}
-
-func (s *labService) nodesToOut(nodes []InstanceNode) []InstanceNodeOut {
-	return lo.Map(nodes, func(node InstanceNode, _ int) InstanceNodeOut {
-		return InstanceNodeOut{
-			Name:          node.Name,
-			Kind:          node.Kind,
-			IPv4:          node.IPv4,
-			IPv6:          node.IPv6,
-			State:         node.State,
-			ContainerId:   node.ContainerId,
-			ContainerName: node.ContainerName,
-			Interfaces:    node.Interfaces,
-			CanRestart:    node.CanRestart,
-		}
-	})
 }
 
 func (s *labService) updateInstanceNode(

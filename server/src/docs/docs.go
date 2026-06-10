@@ -1170,7 +1170,7 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.InstanceNodeOut": {
+        "lab.InstanceNode": {
             "type": "object",
             "properties": {
                 "canRestart": {
@@ -1220,7 +1220,7 @@ const docTemplate = `{
                 "nodes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/lab.InstanceNodeOut"
+                        "$ref": "#/definitions/lab.InstanceNode"
                     }
                 },
                 "recovered": {
