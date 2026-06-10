@@ -105,8 +105,6 @@ type InstanceNode struct {
 	ContainerName string                     `json:"containerName"`
 	Interfaces    []deployment.NodeInterface `json:"interfaces"`
 
-	StatsNamespace socket.OutputNamespace[NodeStatsOut]
-
 	CanRestart bool `json:"canRestart"`
 }
 
@@ -249,19 +247,4 @@ type InterfaceEventOut struct {
 	TxBytes     string    `json:"txBytes"`
 	TxPackets   string    `json:"txPackets"`
 	Type        string    `json:"type"`
-}
-
-type NodeStatsOut struct {
-	Timestamp time.Time `json:"timestamp"`
-
-	CPUUsage    float32 `json:"cpuPercent"`
-	MemoryUsage float32 `json:"memoryUsage"`
-	MemoryLimit float32 `json:"memoryLimit"`
-
-	Interfaces map[string]NodeInterfaceStatsOut `json:"interfaces"`
-}
-
-type NodeInterfaceStatsOut struct {
-	RxBps int `json:"rxBps"`
-	TxBps int `json:"txBps"`
 }

@@ -8,6 +8,7 @@ import (
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/nodemonitor"
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
@@ -43,12 +44,6 @@ type (
 
 		// RunScheduler Starts looping through all scheduled labs and waits to deploy them
 		RunScheduler()
-
-		RunShellManager()
-
-		RunNodeStatsReader()
-
-		ListenToProviderEvents()
 	}
 
 	labService struct {
@@ -67,8 +62,7 @@ type (
 		defaultSshAuth  []ssh.AuthMethod
 		nodeKindConfigs map[string]NodeKindConfig
 
-		monitoredInstances      []*Instance
-		monitoredInstancesMutex sync.Mutex
+		nodeMonitor nodemonitor.NodeMonitor
 
 		labRepo                Repository
 		userRepo               user.Repository
@@ -125,6 +119,8 @@ func CreateService(
 		},
 	)
 
+	nodeMonitor := nodemonitor.CreateNodeMonitor(socketManager, deploymentProvider)
+
 	labService := &labService{
 		config:                 config,
 		labRepo:                labRepo,
@@ -134,6 +130,7 @@ func CreateService(
 		topologyService:        topologyService,
 		labDeploymentSchedule:  deploymentSchedule,
 		labDestructionSchedule: destructionSchedule,
+		nodeMonitor:            nodeMonitor,
 		nodeKindConfigs:        getNodeKindConfigs("./kinds.conf.yml"),
 		openShells:             make(map[string]*ShellConfig),
 		openShellsMutex:        sync.Mutex{},
@@ -160,6 +157,11 @@ func CreateService(
 		LabId: nil,
 	})
 
+	go labService.registerProviderEventListener()
+
+	go labService.nodeMonitor.Run()
+	go labService.runShellManager()
+
 	return labService
 }
 
@@ -184,7 +186,7 @@ func (s *labService) RunScheduler() {
 	}
 }
 
-func (s *labService) RunShellManager() {
+func (s *labService) runShellManager() {
 	for {
 		s.openShellsMutex.Lock()
 		for shellId, shell := range s.openShells {
@@ -206,50 +208,7 @@ func (s *labService) RunShellManager() {
 	}
 }
 
-func (s *labService) RunNodeStatsReader() {
-	ctx := context.Background()
-
-	for {
-		monitoredInstances := make([]*Instance, len(s.monitoredInstances))
-		s.monitoredInstancesMutex.Lock()
-		copy(monitoredInstances, s.monitoredInstances)
-		s.monitoredInstancesMutex.Unlock()
-
-		for _, instance := range s.monitoredInstances {
-			for _, node := range instance.Nodes {
-				stats, err := s.deploymentProvider.ReadNodeStats(ctx, node.ContainerId)
-				if err != nil {
-					log.Errorf("Failed to read stats for node '%s': %s", node.ContainerId, err.Error())
-					continue
-				}
-
-				if node.StatsNamespace == nil {
-					continue
-				}
-
-				node.StatsNamespace.Send(NodeStatsOut{
-					Timestamp:   time.Now(),
-					CPUUsage:    float32(stats.CPUUsagePercent),
-					MemoryUsage: float32(stats.MemoryUsage),
-					MemoryLimit: float32(stats.MemoryLimit),
-					Interfaces: lo.MapValues(
-						stats.Interfaces,
-						func(i deployment.NodeInterfaceStats, key string) NodeInterfaceStatsOut {
-							return NodeInterfaceStatsOut{
-								RxBps: i.RxBps,
-								TxBps: i.TxBps,
-							}
-						},
-					),
-				})
-			}
-		}
-
-		time.Sleep(1 * time.Second)
-	}
-}
-
-func (s *labService) ListenToProviderEvents() {
+func (s *labService) registerProviderEventListener() {
 	ctx := context.Background()
 
 	_ = s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
@@ -601,12 +560,6 @@ func (s *labService) destroyLab(lab *Lab, instance *Instance) error {
 	instance.LogNamespace.ClearBacklog()
 	instance.LogNamespace = nil
 
-	s.monitoredInstancesMutex.Lock()
-	if i := slices.Index(s.monitoredInstances, instance); i != -1 {
-		s.monitoredInstances = slices.Delete(s.monitoredInstances, i, i+1)
-	}
-	s.monitoredInstancesMutex.Unlock()
-
 	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
@@ -879,10 +832,6 @@ func (s *labService) deployLab(lab *Lab) error {
 	s.instances[lab.UUID] = instance
 	s.instancesMutex.Unlock()
 
-	s.monitoredInstancesMutex.Lock()
-	s.monitoredInstances = append(s.monitoredInstances, instance)
-	s.monitoredInstancesMutex.Unlock()
-
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
@@ -1012,28 +961,11 @@ func (s *labService) startNodeStartupListener(node *InstanceNode, instance *Inst
 func (s *labService) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *Lab) {
 	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
 
+	s.nodeMonitor.AddNode(node.ContainerId)
+
 	instance.Mutex.Lock()
-
-	if node.StatsNamespace == nil {
-		node.StatsNamespace = socket.CreateOutputNamespace[NodeStatsOut](
-			s.socketManager,
-			false,
-			&socket.BacklogConfig{
-				Capacity: 20,
-				Kind:     utils.RingKindValue,
-			},
-			true,
-			nil,
-			"stats",
-			node.ContainerId,
-		)
-	} else {
-		node.StatsNamespace.ClearBacklog()
-	}
-
 	node.State = deployment.NodeStates.Running
 	node.Interfaces = interfaces
-
 	instance.Mutex.Unlock()
 
 	s.labUpdatesNamespace.Send(LabUpdateOut{
@@ -1261,17 +1193,15 @@ func (s *labService) containerToInstanceNode(
 	}
 
 	return InstanceNode{
-		Name:           nodeName,
-		Kind:           nodeKind,
-		IPv4:           container.IPv4Address,
-		IPv6:           container.IPv6Address,
-		State:          nodeState,
-		ContainerId:    container.ContainerId,
-		ContainerName:  container.Name,
-		Interfaces:     make([]deployment.NodeInterface, 0),
-		StatsNamespace: nil,
-		//InterfaceEventsNamespaceMap: make(map[string]socket.OutputNamespace[InterfaceEventOut]),
-		CanRestart: canRestart,
+		Name:          nodeName,
+		Kind:          nodeKind,
+		IPv4:          container.IPv4Address,
+		IPv6:          container.IPv6Address,
+		State:         nodeState,
+		ContainerId:   container.ContainerId,
+		ContainerName: container.Name,
+		Interfaces:    make([]deployment.NodeInterface, 0),
+		CanRestart:    canRestart,
 	}
 }
 
@@ -1411,10 +1341,6 @@ func (s *labService) reviveLabs() {
 			s.instancesMutex.Lock()
 			s.instances[lab.UUID] = instance
 			s.instancesMutex.Unlock()
-
-			s.monitoredInstancesMutex.Lock()
-			s.monitoredInstances = append(s.monitoredInstances, instance)
-			s.monitoredInstancesMutex.Unlock()
 
 			s.labDestructionSchedule.Schedule(&lab)
 		}
