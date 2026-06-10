@@ -16,9 +16,9 @@ type (
 	NodeStats struct {
 		Timestamp time.Time `json:"timestamp"`
 
-		CPUUsage    float32 `json:"cpuUsage"`
-		MemoryUsage float32 `json:"memoryUsage"`
-		MemoryLimit float32 `json:"memoryLimit" json:"memoryLimit"`
+		CPUUsagePercent float32 `json:"cpuPercent"`
+		MemoryUsage     float32 `json:"memoryUsage"`
+		MemoryLimit     float32 `json:"memoryLimit"`
 
 		Interfaces map[string]NodeInterfaceStats `json:"interfaces"`
 	}
@@ -81,10 +81,10 @@ func (m *nodeMonitor) Run() {
 			}
 
 			namespace.Send(NodeStats{
-				Timestamp:   time.Now(),
-				CPUUsage:    float32(stats.CPUUsagePercent),
-				MemoryUsage: float32(stats.MemoryUsage),
-				MemoryLimit: float32(stats.MemoryLimit),
+				Timestamp:       time.Now(),
+				CPUUsagePercent: float32(stats.CPUUsagePercent),
+				MemoryUsage:     float32(stats.MemoryUsage),
+				MemoryLimit:     float32(stats.MemoryLimit),
 				Interfaces: lo.MapValues(
 					stats.Interfaces,
 					func(i deployment.NodeInterfaceStats, key string) NodeInterfaceStats {
