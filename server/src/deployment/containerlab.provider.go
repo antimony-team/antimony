@@ -327,6 +327,7 @@ func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId st
 		return nil, fmt.Errorf("container %s is not running", containerId)
 	}
 	pid := insp.State.Pid
+	fullContainerId := insp.ID
 
-	return p.statsReader.ReadStats(containerId, pid)
+	return p.statsReader.ReadStats(fullContainerId, pid)
 }

@@ -51,7 +51,8 @@ tasks:
       - mkdir -p ./storage
       - mkdir -p ./run
       - cp -r ../data/ ./
-      - cp -r ../test/config.docker.yml ./
+      - cp ../test/config.docker.yml ./
+      - cp ../test/kinds.conf.yml ./
       - DOCKER_HOST=unix:///var/run/docker.sock docker run
           -e SB_NATIVE_USERNAME=admin
           -e SB_NATIVE_PASSWORD=admin
@@ -63,8 +64,9 @@ tasks:
           -v ./kinds.conf.yml:/app/kinds.conf.yml
           -v /var/run/docker.sock:/var/run/docker.sock
           -v /var/run/netns:/var/run/netns
-          -v  /var/lib/docker:/var/lib/docker
+          -v /var/lib/docker:/var/lib/docker
           -p 3000:3000
+          --cgroupns=host
           --privileged
           --network host
           --user root

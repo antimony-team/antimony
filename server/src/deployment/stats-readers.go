@@ -26,11 +26,9 @@ type (
 
 	StatsReader interface {
 		ReadStats(containerId string, pid int) (*NodeStats, error)
-		IsCgroupV2() bool
 	}
 
 	statsReader struct {
-		isCgroupV2        bool
 		systemMemoryTotal uint64
 
 		containerStatsCache map[string]*NodeStats
@@ -55,8 +53,11 @@ func CreateStatsReader() StatsReader {
 		log.Fatalf("Failed to read total system memory: %v", err)
 	}
 
+	if _, err = os.Stat("/sys/fs/cgroup/cgroup.controllers"); err != nil {
+		log.Fatalf("CGroupV1 is not supported, please upgrade to CGroupV2: %v", err)
+	}
+
 	return &statsReader{
-		isCgroupV2:        isCgroupV2(),
 		systemMemoryTotal: systemMemoryTotal,
 
 		containerStatsCache: make(map[string]*NodeStats),
@@ -70,40 +71,38 @@ func CreateStatsReader() StatsReader {
 	}
 }
 
-func (r *statsReader) ReadStats(containerId string, pid int) (*NodeStats, error) {
+func (r *statsReader) ReadStats(fullContainerId string, pid int) (*NodeStats, error) {
 	r.statsMutex.Lock()
-	cg := r.cgroupCache[containerId]
-	prev := r.containerStatsCache[containerId]
+	cg := r.cgroupCache[fullContainerId]
+	prev := r.containerStatsCache[fullContainerId]
 	r.statsMutex.Unlock()
 
 	if cg == nil {
-		var err error
-		if cg, err = r.resolveCgroup(pid); err != nil {
-			return nil, err
-		}
+		cg = r.createCGroup(fullContainerId, pid)
+
 		r.statsMutex.Lock()
-		r.cgroupCache[containerId] = cg
+		r.cgroupCache[fullContainerId] = cg
 		r.statsMutex.Unlock()
 	}
 
 	cpuNs, err := r.readCPUUsage(cg)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			r.invalidate(containerId)
+			r.invalidate(fullContainerId)
 		}
 		return nil, err
 	}
 	memUsage, memLimit, err := r.readMemory(cg)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			r.invalidate(containerId)
+			r.invalidate(fullContainerId)
 		}
 		return nil, err
 	}
 	netCounters, err := r.readNetDev(cg.pid)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			r.invalidate(containerId)
+			r.invalidate(fullContainerId)
 		}
 		return nil, err
 	}
@@ -152,14 +151,10 @@ func (r *statsReader) ReadStats(containerId string, pid int) (*NodeStats, error)
 	}
 
 	r.statsMutex.Lock()
-	r.containerStatsCache[containerId] = nodeStats
+	r.containerStatsCache[fullContainerId] = nodeStats
 	r.statsMutex.Unlock()
 
 	return nodeStats, nil
-}
-
-func (r *statsReader) IsCgroupV2() bool {
-	return r.isCgroupV2
 }
 
 func (r *statsReader) invalidate(id string) {
@@ -169,66 +164,27 @@ func (r *statsReader) invalidate(id string) {
 	r.statsMutex.Unlock()
 }
 
-func (r *statsReader) resolveCgroup(
+func (r *statsReader) createCGroup(
+	fullContainerId string,
 	pid int,
-) (*ContainerCGroup, error) {
-	// /proc/<pid>/cgroup gives us the exact path, regardless of systemd vs. cgroupfs driver.
-	controllers, unified, err := parseProcCgroup(pid)
-	if err != nil {
-		return nil, err
-	}
+) *ContainerCGroup {
+	base := filepath.Join("/sys/fs/cgroup/system.slice", fmt.Sprintf("docker-%s.scope", fullContainerId))
 
-	cg := &ContainerCGroup{pid: pid}
-	if r.IsCgroupV2() {
-		base := filepath.Join("/sys/fs/cgroup", unified)
-		cg.cpuFile = filepath.Join(base, "cpu.stat")
-		cg.memCurrent = filepath.Join(base, "memory.current")
-		cg.memStat = filepath.Join(base, "memory.stat")
-		cg.memMax = filepath.Join(base, "memory.max")
-	} else {
-		cpuPath, memPath := controllers["cpuacct"], controllers["memory"]
-		cg.cpuFile = filepath.Join("/sys/fs/cgroup/cpu,cpuacct", cpuPath, "cpuacct.usage")
-		cg.memCurrent = filepath.Join("/sys/fs/cgroup/memory", memPath, "memory.usage_in_bytes")
-		cg.memStat = filepath.Join("/sys/fs/cgroup/memory", memPath, "memory.stat")
-		cg.memMax = filepath.Join("/sys/fs/cgroup/memory", memPath, "memory.limit_in_bytes")
+	return &ContainerCGroup{
+		pid:        pid,
+		cpuFile:    filepath.Join(base, "cpu.stat"),
+		memCurrent: filepath.Join(base, "memory.current"),
+		memStat:    filepath.Join(base, "memory.stat"),
+		memMax:     filepath.Join(base, "memory.max"),
 	}
-
-	return cg, nil
-}
-
-func parseProcCgroup(pid int) (map[string]string, string, error) {
-	var unified string
-
-	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
-	if err != nil {
-		return nil, "", err
-	}
-	controllers := make(map[string]string)
-	for _, line := range strings.Split(string(b), "\n") {
-		parts := strings.SplitN(line, ":", 3)
-		if len(parts) != 3 {
-			continue
-		}
-		if parts[0] == "0" && parts[1] == "" {
-			unified = parts[2]
-			continue
-		}
-		for _, c := range strings.Split(parts[1], ",") {
-			controllers[c] = parts[2]
-		}
-	}
-	return controllers, unified, nil
 }
 
 func (r *statsReader) readCPUUsage(cg *ContainerCGroup) (uint64, error) {
-	if r.isCgroupV2 {
-		usec, err := readKeyedUint(cg.cpuFile, "usage_usec")
-		if err != nil {
-			return 0, err
-		}
-		return usec * 1000, nil
+	usec, err := readKeyedUint(cg.cpuFile, "usage_usec")
+	if err != nil {
+		return 0, err
 	}
-	return readUint(cg.cpuFile)
+	return usec * 1000, nil
 }
 
 func (r *statsReader) readMemory(cg *ContainerCGroup) (uint64, uint64, error) {
@@ -240,32 +196,28 @@ func (r *statsReader) readMemory(cg *ContainerCGroup) (uint64, uint64, error) {
 	var usage, limit uint64
 
 	var inactiveFile uint64
-	if r.isCgroupV2 {
-		inactiveFile, _ = readKeyedUint(cg.memStat, "inactive_file")
-	} else {
-		inactiveFile, _ = readKeyedUint(cg.memStat, "total_inactive_file")
-	}
+	inactiveFile, _ = readKeyedUint(cg.memStat, "inactive_file")
 	if inactiveFile <= cur {
 		usage = cur - inactiveFile
 	} else {
 		usage = cur
 	}
 
-	if limit, err = r.readMemoryMax(cg.memMax, r.isCgroupV2); err != nil {
+	if limit, err = r.readMemoryMax(cg.memMax); err != nil {
 		return 0, 0, err
 	}
 
 	return usage, limit, nil
 }
 
-func (r *statsReader) readMemoryMax(path string, v2 bool) (uint64, error) {
+func (r *statsReader) readMemoryMax(path string) (uint64, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
 	}
 
 	s := strings.TrimSpace(string(b))
-	if v2 && s == "max" {
+	if s == "max" {
 		return r.systemMemoryTotal, nil
 	}
 
@@ -398,9 +350,4 @@ func readKeyedUint(path, key string) (uint64, error) {
 	}
 
 	return 0, nil
-}
-
-func isCgroupV2() bool {
-	_, err := os.Stat("/sys/fs/cgroup/cgroup.controllers")
-	return err == nil
 }

@@ -3,7 +3,7 @@ name: antimonyBackend
 services:
   database:
     container_name: database
-    image: postgres
+    image: postgres:18
     restart: always
     shm_size: 128mb
     environment:
