@@ -59,12 +59,14 @@ func main() {
 	}
 
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
-	authManager := auth.CreateAuthManager(antimonyConfig)
-	storageManager := storage.CreateStorageManager(antimonyConfig)
-	captureService := capture.CreateService(antimonyConfig)
 
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
+
+	authManager := auth.CreateAuthManager(antimonyConfig)
 	socketManager := socket.CreateSocketManager(authManager)
+	storageManager := storage.CreateStorageManager(antimonyConfig)
+	deploymentProvider := deployment.GetProvider(antimonyConfig)
+	captureService := capture.CreateService(antimonyConfig, deploymentProvider)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
 		socketManager, false, nil, false, nil, "status-messages",
@@ -83,8 +85,6 @@ func main() {
 		userRepository = user.CreateRepository(db)
 		userService    = user.CreateService(userRepository, authManager)
 		userHandler    = user.CreateHandler(userService)
-
-		deploymentProvider = deployment.GetProvider(antimonyConfig)
 
 		collectionRepository = collection.CreateRepository(db)
 		collectionService    = collection.CreateService(collectionRepository, userRepository)
@@ -108,7 +108,7 @@ func main() {
 	go labService.RunScheduler()
 
 	go func() {
-		if err := captureService.Start(); err != nil {
+		if err := captureService.StartServer(); err != nil {
 			log.Errorf("Failed to start capture service: %s", err.Error())
 		}
 	}()

@@ -49,8 +49,8 @@ database:
   localFile: ./db/antimony.db
 capture:
   # Whether the interface traffic capture SSH server is enabled.
-  # Default: no
-  enabled: no
+  # Default: yes
+  enabled: yes
   # The host to which the capture server will be bound.
   # Default: 0.0.0.0
   sshHost: 0.0.0.0
@@ -60,12 +60,6 @@ capture:
   # The path to the SSH key that is used to authenticate the traffic capture SSH server.
   # Default: ./key
   sshKeyPath: ./key
-  # The host of the edgeshark server.
-  # Default: localhost
-  edgesharkHost: localhost
-  # The port of the edgeshark server.
-  # Default: 5001
-  edgesharkPort: 5001
   # Interfaces that are excluded from traffic capture and monitoring.
   # Default: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
   excludedInterfaces: [ "lo", "gway-2800", "monit_in", "mgmt0-0" ]

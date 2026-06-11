@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"time"
+
+	"github.com/google/gopacket/afpacket"
 )
 
 type DeploymentProvider interface {
@@ -20,6 +22,8 @@ type DeploymentProvider interface {
 	RegisterEventListener(ctx context.Context, onUpdate func(containerlabEvent ContainerlabEvent)) error
 
 	ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error)
+
+	OpenCapture(ctx context.Context, containerId string, interfaceName string) (*afpacket.TPacket, error)
 
 	StartNode(ctx context.Context, containerId string) error
 	StopNode(ctx context.Context, containerId string) error

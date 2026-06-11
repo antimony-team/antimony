@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/google/gopacket/afpacket"
 	"gopkg.in/yaml.v3"
 )
 
@@ -162,6 +163,14 @@ func (p *ClabernetesProvider) ExecOnNode(
 	namespace := getTopologyName(topologyFile, onLog)
 	cmd := exec.CommandContext(ctx, "kubectl", "exec", "-n", namespace, "-i", nodeLabel, "--", content)
 	runClabCommand(cmd, onLog, onDone)
+}
+
+func (p *ClabernetesProvider) OpenCapture(
+	ctx context.Context,
+	containerId string,
+	interfaceName string,
+) (*afpacket.TPacket, error) {
+	return nil, nil
 }
 
 func (p *ClabernetesProvider) StartNode(ctx context.Context, containerId string) error {

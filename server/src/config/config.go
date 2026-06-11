@@ -32,8 +32,6 @@ type CaptureConfig struct {
 	Enabled            bool     `yaml:"enabled"`
 	SSHHost            string   `yaml:"sshHost"`
 	SSHPort            int      `yaml:"sshPort"`
-	EdgesharkHost      string   `yaml:"edgesharkHost"`
-	EdgesharkPort      int      `yaml:"edgesharkPort"`
 	SSHKeyPath         string   `yaml:"sshKeyPath"`
 	ExcludedInterfaces []string `yaml:"excludedInterfaces"`
 }
@@ -129,11 +127,9 @@ func defaultConfig() *AntimonyConfig {
 			LocalFile: "./test.db",
 		},
 		Capture: CaptureConfig{
-			Enabled:            false,
+			Enabled:            true,
 			SSHPort:            6969,
 			SSHHost:            "0.0.0.0",
-			EdgesharkHost:      "localhost",
-			EdgesharkPort:      5001,
 			SSHKeyPath:         "./key",
 			ExcludedInterfaces: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
 		},

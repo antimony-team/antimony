@@ -2,49 +2,79 @@ package capture
 
 import (
 	"antimonyBackend/config"
+	"antimonyBackend/deployment"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
-	"net"
-	"net/url"
 	"os"
-	"strconv"
-	"strings"
+	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/gliderlabs/ssh"
-	"github.com/gorilla/websocket"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/afpacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 )
 
 type (
+	// Service is a service that allows clients to connect via SSH and capture network traffic from a provided
+	// container's interface.
+	//
+	// SSH connection string: ssh://<container-id>@<host> -p <port> <interface-name>
 	Service interface {
-		Start() error
+		StartServer() error
 	}
 
-	captureSpec struct {
-		Name              string   `json:"name"`
-		Type              string   `json:"type"`
-		NetworkInterfaces []string `json:"network-interfaces,omitempty"`
+	captureStream struct {
+		key    string
+		source *afpacket.TPacket
+
+		mutex     sync.RWMutex
+		receivers map[*captureReceiver]struct{}
+
+		done      chan struct{}
+		closeOnce sync.Once
+	}
+
+	capturePacket struct {
+		ci   gopacket.CaptureInfo
+		data []byte
+	}
+
+	captureReceiver struct {
+		ch chan capturePacket
 	}
 
 	captureService struct {
 		captureConfig *config.CaptureConfig
+
+		openStreams      map[string]*captureStream
+		openStreamsMutex sync.Mutex
+
+		deploymentProvider deployment.DeploymentProvider
 	}
 )
 
-func CreateService(config *config.AntimonyConfig) Service {
+func CreateService(
+	config *config.AntimonyConfig,
+	deploymentProvider deployment.DeploymentProvider,
+) Service {
 	return &captureService{
 		captureConfig: &config.Capture,
+
+		deploymentProvider: deploymentProvider,
+
+		openStreams:      make(map[string]*captureStream),
+		openStreamsMutex: sync.Mutex{},
 	}
 }
 
-func (s *captureService) Start() error {
+func (s *captureService) StartServer() error {
 	if err := ensureHostKey("./key"); err != nil {
 		log.Fatalf("preparing host key: %v", err)
 	}
@@ -59,6 +89,160 @@ func (s *captureService) Start() error {
 	}
 
 	return srv.ListenAndServe()
+}
+
+func (s *captureService) subscribe(
+	ctx context.Context,
+	containerId string,
+	interfaceName string,
+) (*captureStream, *captureReceiver, error) {
+	captureKey := containerId + "/" + interfaceName
+
+	s.openStreamsMutex.Lock()
+
+	stream, ok := s.openStreams[captureKey]
+	if !ok {
+		src, err := s.deploymentProvider.OpenCapture(ctx, containerId, interfaceName)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		stream = &captureStream{
+			key:       captureKey,
+			source:    src,
+			receivers: make(map[*captureReceiver]struct{}),
+			done:      make(chan struct{}),
+		}
+		s.openStreams[captureKey] = stream
+
+		go s.processStream(stream)
+	}
+
+	s.openStreamsMutex.Unlock()
+
+	receiver := &captureReceiver{ch: make(chan capturePacket, 1024)}
+
+	stream.mutex.Lock()
+	stream.receivers[receiver] = struct{}{}
+	stream.mutex.Unlock()
+
+	return stream, receiver, nil
+}
+
+func (s *captureService) unsubscribe(containerId string, interfaceName string, receiver *captureReceiver) {
+	captureKey := containerId + "/" + interfaceName
+
+	s.openStreamsMutex.Lock()
+	stream, ok := s.openStreams[captureKey]
+	if !ok {
+		s.openStreamsMutex.Unlock()
+		return
+	}
+
+	stream.mutex.Lock()
+	delete(stream.receivers, receiver)
+	empty := len(stream.receivers) == 0
+	stream.mutex.Unlock()
+
+	if empty {
+		delete(s.openStreams, captureKey)
+	}
+	s.openStreamsMutex.Unlock()
+
+	if empty {
+		stream.shutdown()
+	}
+}
+
+// stream is reading packets from a client's receiver channel and sending them into the client's SSH session
+func (s *captureService) stream(sess ssh.Session, stream *captureStream, receiver *captureReceiver) error {
+	w := pcapgo.NewWriter(sess)
+
+	// When the client first connects, we write the pcap header to the SSH session once
+	if err := w.WriteFileHeader(65536, layers.LinkTypeEthernet); err != nil {
+		return err
+	}
+
+	ctx := sess.Context()
+	for {
+		select {
+		case p := <-receiver.ch:
+			if err := w.WritePacket(p.ci, p.data); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			// The SSH session is closed by the client or the connection is interrupted
+			return ctx.Err()
+		case <-stream.done:
+			// The stream ends because the container stopped or the connection is interrupted
+			return nil
+		}
+	}
+}
+
+// processStream is reading packets from the capture source and forwarding them into the client receiver channels
+func (s *captureService) processStream(stream *captureStream) {
+	defer s.captureEnded(stream)
+
+	for {
+		data, ci, err := stream.source.ReadPacketData()
+		if err != nil {
+			// The stream ends because the container stopped or the connection is interrupted
+			return
+		}
+
+		p := capturePacket{ci: ci, data: data}
+		stream.mutex.RLock()
+		for r := range stream.receivers {
+			select {
+			case r.ch <- p:
+			default:
+			}
+		}
+		stream.mutex.RUnlock()
+	}
+}
+
+// captureEnded is called when a stream ends because the container stopped or the connection is interrupted
+func (s *captureService) captureEnded(stream *captureStream) {
+	// Remove the entry from the map only if it hasn't been removed yet.
+	s.openStreamsMutex.Lock()
+	if s.openStreams[stream.key] == stream {
+		delete(s.openStreams, stream.key)
+	}
+	s.openStreamsMutex.Unlock()
+
+	stream.shutdown()
+}
+
+func (s *captureService) makeSessionHandler() ssh.Handler {
+	return func(sess ssh.Session) {
+		container := sess.User()
+
+		args := sess.Command()
+		if len(args) == 0 {
+			_, _ = fmt.Fprint(sess.Stderr(), "missing interface argument(s)")
+			_ = sess.Exit(2)
+			return
+		}
+
+		c, r, err := s.subscribe(sess.Context(), container, args[0])
+		if err != nil {
+			return
+		}
+		defer s.unsubscribe(container, args[0], r)
+
+		_ = s.stream(sess, c, r)
+	}
+}
+
+func (s *captureStream) shutdown() {
+	s.closeOnce.Do(func() {
+		close(s.done)
+		if s.source != nil {
+			s.source.Close()
+		}
+	})
 }
 
 func ensureHostKey(path string) error {
@@ -78,91 +262,4 @@ func ensureHostKey(path string) error {
 	}
 	block := &pem.Block{Type: "PRIVATE KEY", Bytes: keyBytes}
 	return os.WriteFile(path, pem.EncodeToMemory(block), 0o600)
-}
-
-func (s *captureService) makeSessionHandler() ssh.Handler {
-	return func(sess ssh.Session) {
-		container := sess.User()
-
-		args := sess.Command()
-		if len(args) == 0 {
-			_, _ = fmt.Fprint(sess.Stderr(), "missing interface argument(s)")
-			_ = sess.Exit(2)
-			return
-		}
-
-		err := s.streamCapture(sess.Context(), sess, container, args)
-
-		switch {
-		case err == nil, errors.Is(err, context.Canceled), errors.Is(err, io.EOF):
-			log.Printf("capture end:   container=%q remote=%s (clean)",
-				container, sess.RemoteAddr())
-			_ = sess.Exit(0)
-		default:
-			log.Printf("capture end:   container=%q remote=%s err=%v",
-				container, sess.RemoteAddr(), err)
-			_, _ = fmt.Fprintf(sess.Stderr(), "capture error: %v\n", err)
-			_ = sess.Exit(1)
-		}
-	}
-}
-
-func (s *captureService) streamCapture(ctx context.Context, w io.Writer, container string, ifaces []string) error {
-	spec := captureSpec{
-		Name: container,
-		Type: "docker",
-	}
-	if len(ifaces) > 0 {
-		spec.NetworkInterfaces = ifaces
-	}
-	specBytes, err := json.Marshal(spec)
-	if err != nil {
-		return fmt.Errorf("build capture spec: %w", err)
-	}
-
-	u, _ := url.Parse(fmt.Sprintf(
-		"ws://%s/capture",
-		net.JoinHostPort(s.captureConfig.EdgesharkHost, strconv.Itoa(s.captureConfig.EdgesharkPort)),
-	))
-
-	u.Path = "/capture"
-	q := u.Query()
-	q.Set("container", string(specBytes))
-	if len(ifaces) > 0 {
-		q.Set("nif", strings.Join(ifaces, "/"))
-	}
-	u.RawQuery = q.Encode()
-
-	dialer := *websocket.DefaultDialer
-	dialer.Subprotocols = []string{"kubevirtiface"}
-
-	conn, _, err := dialer.DialContext(ctx, u.String(), nil)
-	if err != nil {
-		return fmt.Errorf("dial packetflix: %w", err)
-	}
-	defer conn.Close()
-
-	go func() {
-		<-ctx.Done()
-		_ = conn.Close()
-	}()
-
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				return nil
-			}
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			return fmt.Errorf("websocket read: %w", err)
-		}
-		if len(data) == 0 {
-			continue
-		}
-		if _, err := w.Write(data); err != nil {
-			return fmt.Errorf("write to ssh client: %w", err)
-		}
-	}
 }

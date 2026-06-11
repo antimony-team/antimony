@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	afpacket "github.com/google/gopacket/afpacket"
+	"github.com/vishvananda/netns"
 )
 
 type ContainerlabProvider struct {
@@ -167,6 +170,27 @@ func (p *ContainerlabProvider) ExecInteractive(
 	}
 
 	return hr.Conn, nil
+}
+
+func (p *ContainerlabProvider) OpenCapture(
+	ctx context.Context,
+	containerId string,
+	interfaceName string,
+) (*afpacket.TPacket, error) {
+	info, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return nil, fmt.Errorf("inspect %q: %w", containerId, err)
+	}
+	if info.State == nil || info.State.Pid == 0 {
+		return nil, fmt.Errorf("container %q is not running", containerId)
+	}
+
+	tp, err := openCaptureInNetns(info.State.Pid, interfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("open capture on %q/%s: %w", containerId, interfaceName, err)
+	}
+
+	return tp, nil
 }
 
 func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string) error {
@@ -330,4 +354,43 @@ func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId st
 	fullContainerId := insp.ID
 
 	return p.statsReader.ReadStats(fullContainerId, pid)
+}
+
+func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
+	runtime.LockOSThread()
+
+	orig, err := netns.Get()
+	if err != nil {
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("get current netns: %w", err)
+	}
+
+	targetNs, err := netns.GetFromPid(pid)
+	if err != nil {
+		_ = orig.Close()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("get netns for pid %d: %w", pid, err)
+	}
+	defer targetNs.Close()
+
+	if err := netns.Set(targetNs); err != nil {
+		_ = orig.Close()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("enter target netns: %w", err)
+	}
+
+	tp, err := afpacket.NewTPacket(afpacket.OptInterface(interfaceName))
+
+	if revertErr := netns.Set(orig); revertErr != nil {
+		_ = orig.Close()
+		if tp != nil {
+			tp.Close()
+		}
+		runtime.Goexit()
+	}
+
+	_ = orig.Close()
+	runtime.UnlockOSThread()
+
+	return tp, err
 }
