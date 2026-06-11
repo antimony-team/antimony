@@ -36,14 +36,14 @@ type TopologyInPartial struct {
 	CollectionId *string `json:"collectionId"`
 }
 
-type TopologyOut struct {
-	ID               string        `json:"id"`
-	Definition       string        `json:"definition"`
-	SyncUrl          string        `json:"syncUrl"`
-	CollectionId     string        `json:"collectionId"`
-	Creator          user.UserOut  `json:"creator"`
-	BindFiles        []BindFileOut `json:"bindFiles"`
-	LastDeployFailed bool          `json:"lastDeployFailed"`
+type TopologyFull struct {
+	ID               string
+	Definition       string
+	SyncUrl          string
+	Collection       collection.Collection
+	Creator          user.User
+	BindFiles        []BindFileFull
+	LastDeployFailed bool
 }
 
 type BindFile struct {
@@ -54,6 +54,13 @@ type BindFile struct {
 	TopologyID uint     `gorm:"not null"`
 }
 
+type BindFileFull struct {
+	ID       string
+	FilePath string
+	Content  string
+	Topology Topology
+}
+
 type BindFileIn struct {
 	Content  *string `json:"content"  binding:"required"`
 	FilePath *string `json:"filePath" binding:"required"`
@@ -62,11 +69,4 @@ type BindFileIn struct {
 type BindFileInPartial struct {
 	Content  *string `json:"content"`
 	FilePath *string `json:"filePath"`
-}
-
-type BindFileOut struct {
-	ID         string `json:"id"`
-	Content    string `json:"content"`
-	FilePath   string `json:"filePath"`
-	TopologyId string `json:"topologyId"`
 }

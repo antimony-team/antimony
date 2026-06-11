@@ -10,7 +10,7 @@ import (
 
 type (
 	Service interface {
-		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]CollectionOut, error)
+		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Collection, error)
 		Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error)
 		Update(ctx *gin.Context, req CollectionInPartial, collectionId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error
@@ -29,7 +29,7 @@ func CreateService(collectionRepo Repository, userRepo user.Repository) Service 
 	}
 }
 
-func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]CollectionOut, error) {
+func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
 	var (
 		collections []Collection
 		err         error
@@ -40,22 +40,8 @@ func (u *collectionService) Get(ctx *gin.Context, authUser auth.AuthenticatedUse
 	} else {
 		collections, err = u.collectionRepo.GetByNames(ctx, authUser.Collections)
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	result := make([]CollectionOut, len(collections))
-	for i, collection := range collections {
-		result[i] = CollectionOut{
-			ID:           collection.UUID,
-			Name:         collection.Name,
-			PublicWrite:  collection.PublicWrite,
-			PublicDeploy: collection.PublicDeploy,
-			Creator:      u.userRepo.UserToOut(collection.Creator),
-		}
-	}
-
-	return result, err
+	return collections, err
 }
 
 func (u *collectionService) Create(

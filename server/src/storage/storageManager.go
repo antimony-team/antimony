@@ -24,6 +24,7 @@ type (
 
 		CreateRunEnvironment(topologyId string, labId string, topologyDefinition string, topologyFilePath *string) error
 		DeleteRunEnvironment(labId string) error
+		GetRunEnvironment(labId string, content *string) (*string, error)
 	}
 
 	storageManager struct {
@@ -82,6 +83,17 @@ func (s *storageManager) GetRunTopologyFile(labId string) string {
 
 func (s *storageManager) ReadRunTopologyDefinition(labId string, content *string) error {
 	return s.readRun(getRunDefinitionFilePath(labId), content)
+}
+
+func (s *storageManager) GetRunEnvironment(labId string, content *string) (*string, error) {
+	filePath := getRunDefinitionFilePath(labId)
+
+	if err := s.readRun(filePath, content); err != nil {
+		return nil, err
+	}
+
+	runTopologyPath := filepath.Join(s.runPath, filePath)
+	return &runTopologyPath, nil
 }
 
 func (s *storageManager) ReadTopology(topologyId string, content *string) error {

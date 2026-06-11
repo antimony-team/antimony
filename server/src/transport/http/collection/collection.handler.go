@@ -2,9 +2,12 @@ package collection
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/domain/collection"
+	"antimonyBackend/transport"
 	"antimonyBackend/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type (
@@ -16,11 +19,11 @@ type (
 	}
 
 	collectionHandler struct {
-		collectionService Service
+		collectionService collection.Service
 	}
 )
 
-func CreateHandler(collectionService Service) Handler {
+func CreateHandler(collectionService collection.Service) Handler {
 	return &collectionHandler{
 		collectionService: collectionService,
 	}
@@ -30,7 +33,7 @@ func CreateHandler(collectionService Service) Handler {
 // @Produce	json
 // @Tags		collections
 // @Security	BasicAuth
-// @Success	200	{object}	utils.OkResponse[[]collection.CollectionOut]
+// @Success	200	{object}	utils.OkResponse[[]transport.CollectionOut]
 // @Failure	401	{object}	nil					"The user isn't authorized"
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
@@ -41,13 +44,17 @@ func (h *collectionHandler) Get(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	result, err := h.collectionService.Get(ctx, authUser)
+	collections, err := h.collectionService.Get(ctx, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 
-	ctx.JSON(utils.CreateOkResponse(result))
+	collectionsOut := lo.Map(collections, func(collection collection.Collection, _ int) *transport.CollectionOut {
+		return transport.CollectionToOut(&collection)
+	})
+
+	ctx.JSON(utils.CreateOkResponse(collectionsOut))
 }
 
 // @Summary	Create a new collection
@@ -67,7 +74,7 @@ func (h *collectionHandler) Create(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := CollectionIn{}
+	payload := collection.CollectionIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
@@ -101,7 +108,7 @@ func (h *collectionHandler) Update(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := CollectionInPartial{}
+	payload := collection.CollectionInPartial{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return

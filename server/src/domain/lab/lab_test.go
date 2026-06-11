@@ -2254,7 +2254,7 @@ func TestDestroyLabCommand(t *testing.T) {
 				instances: f.instances,
 			}
 
-			err := svc.destroyLabCommand(t.Context(), a.labId, a.authUser)
+			err := svc.DestroyLabCommand(t.Context(), a.labId, a.authUser)
 			if tt.expectErr != nil {
 				require.Error(t, err, tt.expectErr.Error())
 			} else {
@@ -2358,7 +2358,7 @@ func TestDeployLabCommand(t *testing.T) {
 				svc.instances["lab123"] = &Instance{}
 			}
 
-			err := svc.deployLabCommand(t.Context(), a.labId, a.authUser)
+			err := svc.DeployLabCommand(t.Context(), a.labId, a.authUser)
 
 			if tt.expectErr != nil {
 				require.EqualError(t, err, tt.expectErr.Error())

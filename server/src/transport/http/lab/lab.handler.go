@@ -2,9 +2,14 @@ package lab
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/domain/lab"
+	"antimonyBackend/runtime/instance"
+	"antimonyBackend/transport"
 	"antimonyBackend/utils"
+	"slices"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type (
@@ -17,13 +22,15 @@ type (
 	}
 
 	labHandler struct {
-		labService Service
+		labService      lab.Service
+		instanceService instance.Service
 	}
 )
 
-func CreateHandler(labService Service) Handler {
+func CreateHandler(labService lab.Service, instanceService instance.Service) Handler {
 	return &labHandler{
-		labService: labService,
+		labService:      labService,
+		instanceService: instanceService,
 	}
 }
 
@@ -31,7 +38,7 @@ func CreateHandler(labService Service) Handler {
 // @Produce	json
 // @Tags		labs
 // @Security	BasicAuth
-// @Success	200	{object}	utils.OkResponse[[]lab.LabOut]
+// @Success	200	{object}	utils.OkResponse[[]transport.LabOut]
 // @Failure	401	{object}	nil					"The user isn't authorized"
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
@@ -42,26 +49,48 @@ func (h *labHandler) Get(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	var labFilter LabFilter
+	var labFilter lab.LabFilter
 	if err := ctx.BindQuery(&labFilter); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 
-	result, err := h.labService.Get(ctx, labFilter, authUser)
+	resultLabs, err := h.labService.Get(ctx, labFilter, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 
-	ctx.JSON(utils.CreateOkResponse(result))
+	labsOut := lo.FilterMap(resultLabs, func(lab lab.Lab, _ int) (*transport.LabOut, bool) {
+		if len(labFilter.StateFilter) > 0 {
+			instanceState := instance.InstanceStates.Inactive
+
+			labInstance := h.instanceService.GetInstance(lab.UUID)
+			if labInstance != nil {
+				instanceState = labInstance.State
+			}
+
+			// TODO(kian): Somehow fix this dependency issue
+			/* else if s.labDeploymentSchedule.IsScheduled(lab.UUID) {
+				instanceState = instance.InstanceStates.Scheduled
+			}*/
+
+			if !slices.Contains(labFilter.StateFilter, int(instanceState)) {
+				return nil, false
+			}
+		}
+
+		return transport.LabToOut(&lab, h.instanceService.GetInstance(lab.UUID)), true
+	})
+
+	ctx.JSON(utils.CreateOkResponse(labsOut))
 }
 
 // @Summary	Get a specific lab by UUIDp
 // @Produce	json
 // @Tags		labs
 // @Security	BasicAuth
-// @Success	200	{object}	utils.OkResponse[LabOut]
+// @Success	200	{object}	utils.OkResponse[transport.LabOut]
 // @Failure	401	{object}	nil					"The user isn't authorized"
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
@@ -73,13 +102,16 @@ func (h *labHandler) GetByUuid(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	result, err := h.labService.GetByUuid(ctx, ctx.Param("labId"), authUser)
+	resultLab, err := h.labService.GetByUuid(ctx, ctx.Param("labId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 
-	ctx.JSON(utils.CreateOkResponse(result))
+	ctx.JSON(utils.CreateOkResponse(transport.LabToOut(
+		resultLab,
+		h.instanceService.GetInstance(resultLab.UUID),
+	)))
 }
 
 // @Summary	Create a new lab
@@ -99,7 +131,7 @@ func (h *labHandler) Create(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := LabIn{}
+	payload := lab.LabIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
@@ -133,7 +165,7 @@ func (h *labHandler) Update(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := LabInPartial{}
+	payload := lab.LabInPartial{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return

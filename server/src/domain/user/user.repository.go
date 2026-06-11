@@ -15,8 +15,6 @@ type (
 
 		Create(ctx context.Context, user *User) error
 		Update(ctx context.Context, user *User) error
-
-		UserToOut(user User) UserOut
 	}
 
 	userRepository struct {
@@ -76,11 +74,4 @@ func (r *userRepository) Create(ctx context.Context, user *User) error {
 	}
 
 	return nil
-}
-
-func (r *userRepository) UserToOut(user User) UserOut {
-	return UserOut{
-		ID:   user.UUID,
-		Name: user.Name,
-	}
 }

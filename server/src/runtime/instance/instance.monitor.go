@@ -1,4 +1,4 @@
-package nodemonitor
+package instance
 
 import (
 	"antimonyBackend/deployment"

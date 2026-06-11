@@ -1,6 +1,7 @@
 package serverConfig
 
 import (
+	"antimonyBackend/domain/serverConfig"
 	"antimonyBackend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -12,11 +13,11 @@ type (
 	}
 
 	configHandler struct {
-		configService Service
+		configService serverConfig.Service
 	}
 )
 
-func CreateHandler(configService Service) Handler {
+func CreateHandler(configService serverConfig.Service) Handler {
 	return &configHandler{
 		configService: configService,
 	}
@@ -26,7 +27,7 @@ func CreateHandler(configService Service) Handler {
 // @Produce	json
 // @Tags		config
 // @Security	BasicAuth
-// @Success	200	{object}	utils.OkResponse[[]serverConfig.ServerConfigOut]
+// @Success	200	{object}	utils.OkResponse[[]serverConfig.ServerConfig]
 // @Failure	401	{object}	nil							"The user isn't authorized"
 // @Failure	498	{object}	nil							"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse[string]	"The user doesn't have access to the resource"

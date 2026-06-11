@@ -13,6 +13,12 @@ import (
 	"antimonyBackend/domain/user"
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
+	collection2 "antimonyBackend/transport/http/collection"
+	device2 "antimonyBackend/transport/http/device"
+	lab2 "antimonyBackend/transport/http/lab"
+	schema2 "antimonyBackend/transport/http/schema"
+	topology2 "antimonyBackend/transport/http/topology"
+	user2 "antimonyBackend/transport/http/user"
 	"antimonyBackend/utils"
 	"context"
 	"io"
@@ -486,31 +492,31 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	userRepo := user.CreateRepository(db)
 	userService := user.CreateService(userRepo, authManager)
-	userHandler := user.CreateHandler(userService)
+	userHandler := user2.CreateHandler(userService)
 
-	devicesHandler := device.CreateHandler(devicesService)
+	devicesHandler := device2.CreateHandler(devicesService)
 
-	schemaHandler := schema.CreateHandler(schemaService)
+	schemaHandler := schema2.CreateHandler(schemaService)
 
 	mockProvider := &MockDeploymentProvider{}
 
 	collectionRepo := collection.CreateRepository(db)
 	collectionService := collection.CreateService(collectionRepo, userRepo)
-	collectionHandler := collection.CreateHandler(collectionService)
+	collectionHandler := collection2.CreateHandler(collectionService)
 
 	topologyRepository := topology.CreateRepository(db)
 	topologyService := topology.CreateService(
 		topologyRepository, userRepo, collectionRepo,
 		schemaService, storageManager,
 	)
-	topologyHandler := topology.CreateHandler(topologyService)
+	topologyHandler := topology2.CreateHandler(topologyService)
 
 	labRepository := lab.CreateRepository(db)
 	labService := lab.CreateService(
 		cfg, labRepository, userRepo, topologyRepository, schemaService,
 		topologyService, storageManager, socketManager, statusMessageNamespace, mockProvider,
 	)
-	labHandler := lab.CreateHandler(labService)
+	labHandler := lab2.CreateHandler(labService)
 
 	addAuthenticatedUsers(authManager)
 
@@ -526,11 +532,11 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 
 	// Setup Gin + register routes with real middleware
 	router := gin.Default()
-	collection.RegisterRoutes(router, collectionHandler, authManager)
-	device.RegisterRoutes(router, devicesHandler, authManager)
-	topology.RegisterRoutes(router, topologyHandler, authManager)
-	schema.RegisterRoutes(router, schemaHandler)
-	user.RegisterRoutes(router, userHandler)
-	lab.RegisterRoutes(router, labHandler, authManager)
+	collection2.RegisterRoutes(router, collectionHandler, authManager)
+	device2.RegisterRoutes(router, devicesHandler, authManager)
+	topology2.RegisterRoutes(router, topologyHandler, authManager)
+	schema2.RegisterRoutes(router, schemaHandler)
+	user2.RegisterRoutes(router, userHandler)
+	lab2.RegisterRoutes(router, labHandler, authManager)
 	return router, authManager, db
 }

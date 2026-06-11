@@ -1,0 +1,105 @@
+package scheduler
+
+import (
+	"antimonyBackend/config"
+	"antimonyBackend/domain/lab"
+	"antimonyBackend/runtime/instance"
+	"antimonyBackend/utils"
+	"time"
+)
+
+type (
+	Scheduler interface {
+		Run()
+	}
+
+	scheduler struct {
+		config *config.AntimonyConfig
+
+		instanceService instance.Service
+
+		deploymentSchedule  utils.Schedule[lab.Lab]
+		destructionSchedule utils.Schedule[lab.Lab]
+	}
+)
+
+func CreateScheduler(
+	config *config.AntimonyConfig,
+	instanceService instance.Service,
+	labEventBus utils.EventBus[*lab.Lab],
+) Scheduler {
+	deploymentSchedule := utils.CreateSchedule[lab.Lab](
+		func(lab lab.Lab) string {
+			return lab.UUID
+		},
+		func(lab lab.Lab) *time.Time {
+			return &lab.StartTime
+		},
+	)
+
+	destructionSchedule := utils.CreateSchedule[lab.Lab](
+		func(lab lab.Lab) string {
+			return lab.UUID
+		},
+		func(lab lab.Lab) *time.Time {
+			return lab.EndTime
+		},
+	)
+
+	scheduler := &scheduler{
+		config: config,
+
+		instanceService: instanceService,
+
+		deploymentSchedule:  deploymentSchedule,
+		destructionSchedule: destructionSchedule,
+	}
+
+	labEventBus.Subscribe("lab.created", scheduler.onLabCreated)
+	labEventBus.Subscribe("lab.moved", scheduler.onLabMoved)
+	labEventBus.Subscribe("lab.deleted", scheduler.onLabDeleted)
+	labEventBus.Subscribe("lab.manually-deployed", scheduler.onLabManuallyDeployed)
+
+	return scheduler
+}
+
+func (s *scheduler) Run() {
+	for {
+		if deployLab := s.deploymentSchedule.TryPop(); deployLab != nil {
+			go func() {
+				s.instanceService.DeployLab(deployLab)
+			}()
+
+			// Schedule the destruction of the lab
+			s.destructionSchedule.Schedule(deployLab)
+		}
+
+		if deployLab := s.destructionSchedule.TryPop(); deployLab != nil {
+			go func() {
+				s.instanceService.DestroyLab(deployLab)
+			}()
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func (s *scheduler) onLabCreated(lab *lab.Lab) {
+	s.deploymentSchedule.Schedule(lab)
+	s.destructionSchedule.Schedule(lab)
+}
+
+func (s *scheduler) onLabDeleted(lab *lab.Lab) {
+	s.deploymentSchedule.Remove(lab.UUID)
+	s.destructionSchedule.Remove(lab.UUID)
+}
+
+func (s *scheduler) onLabMoved(lab *lab.Lab) {
+	s.deploymentSchedule.Reschedule(lab)
+	s.destructionSchedule.Reschedule(lab)
+}
+
+func (s *scheduler) onLabManuallyDeployed(lab *lab.Lab) {
+	s.deploymentSchedule.Remove(lab.UUID)
+	s.destructionSchedule.Schedule(lab)
+}

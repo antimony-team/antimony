@@ -2,9 +2,12 @@ package topology
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/domain/topology"
+	"antimonyBackend/transport"
 	"antimonyBackend/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type (
@@ -21,11 +24,11 @@ type (
 	}
 
 	topologyHandler struct {
-		topologyService Service
+		topologyService topology.Service
 	}
 )
 
-func CreateHandler(topologyService Service) Handler {
+func CreateHandler(topologyService topology.Service) Handler {
 	return &topologyHandler{
 		topologyService: topologyService,
 	}
@@ -35,7 +38,7 @@ func CreateHandler(topologyService Service) Handler {
 // @Produce	json
 // @Tags		topologies
 // @Security	BasicAuth
-// @Success	200	{object}	utils.OkResponse[[]topology.TopologyOut]
+// @Success	200	{object}	utils.OkResponse[[]transport.TopologyOut]
 // @Failure	401	{object}	nil					"The user isn't authorized"
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
@@ -46,20 +49,24 @@ func (h *topologyHandler) Get(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	result, err := h.topologyService.Get(ctx, authUser)
+	topologiesFull, err := h.topologyService.Get(ctx, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 
-	ctx.JSON(utils.CreateOkResponse(result))
+	topologiesOut := lo.Map(topologiesFull, func(topology topology.TopologyFull, _ int) transport.TopologyOut {
+		return *transport.TopologyToOut(&topology)
+	})
+
+	ctx.JSON(utils.CreateOkResponse(topologiesOut))
 }
 
 // @Summary	Get a specific topology by UUID
 // @Produce	json
 // @Tags		topologies
 // @Security	BasicAuth
-// @Success	200	{object}	utils.OkResponse[TopologyOut]
+// @Success	200	{object}	utils.OkResponse[transport.TopologyOut]
 // @Failure	401	{object}	nil					"The user isn't authorized"
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
@@ -71,13 +78,13 @@ func (h *topologyHandler) GetByUuid(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	result, err := h.topologyService.GetByUuid(ctx, ctx.Param("topologyId"), authUser)
+	topologyFull, err := h.topologyService.GetByUuid(ctx, ctx.Param("topologyId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
 
-	ctx.JSON(utils.CreateOkResponse(result))
+	ctx.JSON(utils.CreateOkResponse(*transport.TopologyToOut(topologyFull)))
 }
 
 // @Summary	Create a new topology
@@ -97,7 +104,7 @@ func (h *topologyHandler) Create(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := TopologyIn{}
+	payload := topology.TopologyIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
@@ -131,7 +138,7 @@ func (h *topologyHandler) Update(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := TopologyInPartial{}
+	payload := topology.TopologyInPartial{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
@@ -188,7 +195,7 @@ func (h *topologyHandler) CreateBindFile(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := BindFileIn{}
+	payload := topology.BindFileIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return
@@ -221,7 +228,7 @@ func (h *topologyHandler) UpdateBindFile(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	payload := BindFileInPartial{}
+	payload := topology.BindFileInPartial{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateValidationError(err))
 		return

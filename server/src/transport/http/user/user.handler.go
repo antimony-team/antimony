@@ -1,6 +1,7 @@
 package user
 
 import (
+	user2 "antimonyBackend/domain/user"
 	"antimonyBackend/utils"
 	"net/http"
 
@@ -18,11 +19,11 @@ type (
 	}
 
 	userHandler struct {
-		userService Service
+		userService user2.Service
 	}
 )
 
-func CreateHandler(userService Service) Handler {
+func CreateHandler(userService user2.Service) Handler {
 	return &userHandler{
 		userService: userService,
 	}
@@ -38,7 +39,7 @@ func CreateHandler(userService Service) Handler {
 // @Param		request	body		CredentialsIn	true	"The native credentials"
 // @Router		/users/login/native [post]
 func (h *userHandler) LoginNative(ctx *gin.Context) {
-	payload := CredentialsIn{}
+	payload := user2.CredentialsIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrInvalidCredentials))
 		return

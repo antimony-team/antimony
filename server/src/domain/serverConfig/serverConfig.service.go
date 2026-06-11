@@ -6,7 +6,7 @@ import (
 
 type (
 	Service interface {
-		GetServerConfig() ServerConfigOut
+		GetServerConfig() ServerConfig
 	}
 
 	configService struct {
@@ -20,9 +20,9 @@ func CreateService(config *config.AntimonyConfig) Service {
 	}
 }
 
-func (s *configService) GetServerConfig() ServerConfigOut {
-	return ServerConfigOut{
-		CaptureConfig: captureConfigOut{
+func (s *configService) GetServerConfig() ServerConfig {
+	return ServerConfig{
+		CaptureConfig: CaptureConfig{
 			Enabled:            s.config.Capture.Enabled,
 			Port:               s.config.Capture.SSHPort,
 			ExcludedInterfaces: s.config.Capture.ExcludedInterfaces,

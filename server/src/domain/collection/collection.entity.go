@@ -27,11 +27,3 @@ type CollectionInPartial struct {
 	PublicWrite  *bool   `json:"publicWrite"`
 	PublicDeploy *bool   `json:"publicDeploy"`
 }
-
-type CollectionOut struct {
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	PublicWrite  bool         `json:"publicWrite"`
-	PublicDeploy bool         `json:"publicDeploy"`
-	Creator      user.UserOut `json:"creator"`
-}

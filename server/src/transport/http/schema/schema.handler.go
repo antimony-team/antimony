@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"antimonyBackend/domain/schema"
 	"antimonyBackend/utils"
 	"encoding/json"
 
@@ -13,11 +14,11 @@ type (
 	}
 
 	schemaHandler struct {
-		schemaService Service
+		schemaService schema.Service
 	}
 )
 
-func CreateHandler(schemaService Service) Handler {
+func CreateHandler(schemaService schema.Service) Handler {
 	return &schemaHandler{
 		schemaService: schemaService,
 	}

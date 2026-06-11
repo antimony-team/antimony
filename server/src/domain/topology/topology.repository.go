@@ -31,7 +31,6 @@ type (
 			topologyId string,
 			excludeString string,
 		) (bool, error)
-		BindFileToOut(bindFile BindFile, content string) BindFileOut
 	}
 
 	topologyRepository struct {
@@ -209,15 +208,6 @@ func (r *topologyRepository) DeleteBindFile(ctx context.Context, bindFile *BindF
 	}
 
 	return nil
-}
-
-func (r *topologyRepository) BindFileToOut(bindFile BindFile, content string) BindFileOut {
-	return BindFileOut{
-		ID:         bindFile.UUID,
-		FilePath:   bindFile.FilePath,
-		Content:    content,
-		TopologyId: bindFile.Topology.UUID,
-	}
 }
 
 func (r *topologyRepository) DoesBindFilePathExist(

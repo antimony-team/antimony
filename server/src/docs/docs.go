@@ -37,7 +37,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_collection_CollectionOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_transport_CollectionOut"
                         }
                     },
                     "401": {
@@ -227,7 +227,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_serverConfig_ServerConfig"
                         }
                     },
                     "401": {
@@ -299,7 +299,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_lab_LabOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_transport_LabOut"
                         }
                     },
                     "401": {
@@ -383,7 +383,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-lab_LabOut"
+                            "$ref": "#/definitions/utils.OkResponse-transport_LabOut"
                         }
                     },
                     "401": {
@@ -550,7 +550,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_topology_TopologyOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_transport_TopologyOut"
                         }
                     },
                     "401": {
@@ -634,7 +634,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-topology_TopologyOut"
+                            "$ref": "#/definitions/utils.OkResponse-transport_TopologyOut"
                         }
                     },
                     "401": {
@@ -1103,26 +1103,6 @@ const docTemplate = `{
                 }
             }
         },
-        "collection.CollectionOut": {
-            "type": "object",
-            "properties": {
-                "creator": {
-                    "$ref": "#/definitions/user.UserOut"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "publicDeploy": {
-                    "type": "boolean"
-                },
-                "publicWrite": {
-                    "type": "boolean"
-                }
-            }
-        },
         "deployment.NodeInterface": {
             "type": "object",
             "properties": {
@@ -1170,7 +1150,7 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.InstanceNode": {
+        "instance.InstanceNode": {
             "type": "object",
             "properties": {
                 "canRestart": {
@@ -1205,33 +1185,7 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.InstanceOut": {
-            "type": "object",
-            "properties": {
-                "deployed": {
-                    "type": "string"
-                },
-                "latestStateChange": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "nodes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/lab.InstanceNode"
-                    }
-                },
-                "recovered": {
-                    "type": "boolean"
-                },
-                "state": {
-                    "$ref": "#/definitions/lab.InstanceState"
-                }
-            }
-        },
-        "lab.InstanceState": {
+        "instance.InstanceState": {
             "type": "integer",
             "enum": [
                 0,
@@ -1273,56 +1227,7 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.LabOut": {
-            "type": "object",
-            "properties": {
-                "collectionId": {
-                    "type": "string"
-                },
-                "creator": {
-                    "$ref": "#/definitions/user.UserOut"
-                },
-                "endTime": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "instance": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/lab.InstanceOut"
-                        }
-                    ],
-                    "x-nullable": true
-                },
-                "instanceName": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "name": {
-                    "type": "string"
-                },
-                "startTime": {
-                    "type": "string"
-                },
-                "topologyDefinition": {
-                    "type": "string"
-                },
-                "topologyId": {
-                    "type": "string"
-                }
-            }
-        },
-        "serverConfig.ServerConfigOut": {
-            "type": "object",
-            "properties": {
-                "capture": {
-                    "$ref": "#/definitions/serverConfig.captureConfigOut"
-                }
-            }
-        },
-        "serverConfig.captureConfigOut": {
+        "serverConfig.CaptureConfig": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -1339,6 +1244,14 @@ const docTemplate = `{
                 }
             }
         },
+        "serverConfig.ServerConfig": {
+            "type": "object",
+            "properties": {
+                "capture": {
+                    "$ref": "#/definitions/serverConfig.CaptureConfig"
+                }
+            }
+        },
         "topology.BindFileIn": {
             "type": "object",
             "required": [
@@ -1350,23 +1263,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "filePath": {
-                    "type": "string"
-                }
-            }
-        },
-        "topology.BindFileOut": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "filePath": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "topologyId": {
                     "type": "string"
                 }
             }
@@ -1390,20 +1286,124 @@ const docTemplate = `{
                 }
             }
         },
-        "topology.TopologyOut": {
+        "transport.BindFileOut": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "filePath": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "topologyId": {
+                    "type": "string"
+                }
+            }
+        },
+        "transport.CollectionOut": {
+            "type": "object",
+            "properties": {
+                "creator": {
+                    "$ref": "#/definitions/transport.UserOut"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "publicDeploy": {
+                    "type": "boolean"
+                },
+                "publicWrite": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "transport.InstanceOut": {
+            "type": "object",
+            "properties": {
+                "deployed": {
+                    "type": "string"
+                },
+                "latestStateChange": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/instance.InstanceNode"
+                    }
+                },
+                "recovered": {
+                    "type": "boolean"
+                },
+                "state": {
+                    "$ref": "#/definitions/instance.InstanceState"
+                }
+            }
+        },
+        "transport.LabOut": {
+            "type": "object",
+            "properties": {
+                "collectionId": {
+                    "type": "string"
+                },
+                "creator": {
+                    "$ref": "#/definitions/transport.UserOut"
+                },
+                "endTime": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instance": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/transport.InstanceOut"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "instanceName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string"
+                },
+                "startTime": {
+                    "type": "string"
+                },
+                "topologyDefinition": {
+                    "type": "string"
+                },
+                "topologyId": {
+                    "type": "string"
+                }
+            }
+        },
+        "transport.TopologyOut": {
             "type": "object",
             "properties": {
                 "bindFiles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/topology.BindFileOut"
+                        "$ref": "#/definitions/transport.BindFileOut"
                     }
                 },
                 "collectionId": {
                     "type": "string"
                 },
                 "creator": {
-                    "$ref": "#/definitions/user.UserOut"
+                    "$ref": "#/definitions/transport.UserOut"
                 },
                 "definition": {
                     "type": "string"
@@ -1419,6 +1419,17 @@ const docTemplate = `{
                 }
             }
         },
+        "transport.UserOut": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "user.CredentialsIn": {
             "type": "object",
             "properties": {
@@ -1426,17 +1437,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.UserOut": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "name": {
                     "type": "string"
                 }
             }
@@ -1458,17 +1458,6 @@ const docTemplate = `{
                 "payload": {}
             }
         },
-        "utils.OkResponse-array_collection_CollectionOut": {
-            "type": "object",
-            "properties": {
-                "payload": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/collection.CollectionOut"
-                    }
-                }
-            }
-        },
         "utils.OkResponse-array_device_DeviceConfig": {
             "type": "object",
             "properties": {
@@ -1480,35 +1469,46 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-array_lab_LabOut": {
+        "utils.OkResponse-array_serverConfig_ServerConfig": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/lab.LabOut"
+                        "$ref": "#/definitions/serverConfig.ServerConfig"
                     }
                 }
             }
         },
-        "utils.OkResponse-array_serverConfig_ServerConfigOut": {
+        "utils.OkResponse-array_transport_CollectionOut": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/serverConfig.ServerConfigOut"
+                        "$ref": "#/definitions/transport.CollectionOut"
                     }
                 }
             }
         },
-        "utils.OkResponse-array_topology_TopologyOut": {
+        "utils.OkResponse-array_transport_LabOut": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/topology.TopologyOut"
+                        "$ref": "#/definitions/transport.LabOut"
+                    }
+                }
+            }
+        },
+        "utils.OkResponse-array_transport_TopologyOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/transport.TopologyOut"
                     }
                 }
             }
@@ -1521,14 +1521,6 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-lab_LabOut": {
-            "type": "object",
-            "properties": {
-                "payload": {
-                    "$ref": "#/definitions/lab.LabOut"
-                }
-            }
-        },
         "utils.OkResponse-string": {
             "type": "object",
             "properties": {
@@ -1537,11 +1529,19 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-topology_TopologyOut": {
+        "utils.OkResponse-transport_LabOut": {
             "type": "object",
             "properties": {
                 "payload": {
-                    "$ref": "#/definitions/topology.TopologyOut"
+                    "$ref": "#/definitions/transport.LabOut"
+                }
+            }
+        },
+        "utils.OkResponse-transport_TopologyOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/transport.TopologyOut"
                 }
             }
         }

@@ -7,6 +7,7 @@ import (
 	"antimonyBackend/domain/user"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"context"
 	"slices"
 
 	"github.com/charmbracelet/log"
@@ -16,8 +17,8 @@ import (
 
 type (
 	Service interface {
-		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error)
-		GetByUuid(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) (*TopologyOut, error)
+		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyFull, error)
+		GetByUuid(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) (*TopologyFull, error)
 		Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error)
 		Update(ctx *gin.Context, req TopologyInPartial, topologyId string, authUser auth.AuthenticatedUser) error
 		Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error
@@ -36,7 +37,9 @@ type (
 		) error
 		DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error
 
-		LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error)
+		LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileFull, error)
+
+		SetLastDeployFailed(ctx context.Context, topology *Topology, hasFailed bool)
 	}
 
 	topologyService struct {
@@ -64,7 +67,7 @@ func CreateService(
 	}
 }
 
-func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyOut, error) {
+func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyFull, error) {
 	var (
 		topologies []Topology
 		err        error
@@ -79,12 +82,11 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]TopologyOut, 0)
+	result := make([]TopologyFull, 0)
 	for _, topology := range topologies {
 		var (
-			definition   string
-			bindFilesOut []BindFileOut
-			err          error
+			definition    string
+			bindFilesFull []BindFileFull
 		)
 
 		bindFiles, err := s.topologyRepo.GetBindFileForTopology(ctx, topology.UUID)
@@ -93,18 +95,18 @@ func (s *topologyService) Get(ctx *gin.Context, authUser auth.AuthenticatedUser)
 			continue
 		}
 
-		if definition, bindFilesOut, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
+		if definition, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}
 
-		result = append(result, TopologyOut{
+		result = append(result, TopologyFull{
 			ID:               topology.UUID,
 			Definition:       definition,
 			SyncUrl:          topology.SyncUrl,
-			CollectionId:     topology.Collection.UUID,
-			Creator:          s.userRepo.UserToOut(topology.Creator),
-			BindFiles:        bindFilesOut,
+			Collection:       topology.Collection,
+			Creator:          topology.Creator,
+			BindFiles:        bindFilesFull,
 			LastDeployFailed: topology.LastDeployFailed,
 		})
 	}
@@ -116,12 +118,12 @@ func (s *topologyService) GetByUuid(
 	ctx *gin.Context,
 	labId string,
 	authUser auth.AuthenticatedUser,
-) (*TopologyOut, error) {
+) (*TopologyFull, error) {
 	var (
-		topology     *Topology
-		definition   string
-		bindFilesOut []BindFileOut
-		err          error
+		topology      *Topology
+		definition    string
+		bindFilesFull []BindFileFull
+		err           error
 	)
 	if topology, err = s.topologyRepo.GetByUuid(ctx, labId); err != nil {
 		return nil, err
@@ -138,18 +140,18 @@ func (s *topologyService) GetByUuid(
 		return nil, utils.ErrInvalidTopology
 	}
 
-	if definition, bindFilesOut, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
+	if definition, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
 		log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 		return nil, utils.ErrInvalidTopology
 	}
 
-	result := &TopologyOut{
+	result := &TopologyFull{
 		ID:               topology.UUID,
 		Definition:       definition,
 		SyncUrl:          topology.SyncUrl,
-		CollectionId:     topology.Collection.UUID,
-		Creator:          s.userRepo.UserToOut(topology.Creator),
-		BindFiles:        bindFilesOut,
+		Collection:       topology.Collection,
+		Creator:          topology.Creator,
+		BindFiles:        bindFilesFull,
 		LastDeployFailed: topology.LastDeployFailed,
 	}
 
@@ -430,7 +432,7 @@ func (s *topologyService) saveTopology(topologyId string, definition string) err
 	return nil
 }
 
-func (s *topologyService) LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileOut, error) {
+func (s *topologyService) LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileFull, error) {
 	var definition string
 
 	if err := s.storageManager.ReadTopology(topologyId, &definition); err != nil {
@@ -438,29 +440,43 @@ func (s *topologyService) LoadTopology(topologyId string, bindFiles []BindFile) 
 		return "", nil, err
 	}
 
-	bindFilesOut := make([]BindFileOut, 0)
+	bindFilesFull := make([]BindFileFull, 0)
 	for _, bindFile := range bindFiles {
 		bindFileOut, err := s.loadBindFile(topologyId, bindFile)
 		if err != nil {
 			return "", nil, err
 		}
 
-		bindFilesOut = append(bindFilesOut, *bindFileOut)
+		bindFilesFull = append(bindFilesFull, *bindFileOut)
 	}
 
-	return definition, bindFilesOut, nil
+	return definition, bindFilesFull, nil
 }
 
-func (s *topologyService) loadBindFile(topologyId string, bindFile BindFile) (*BindFileOut, error) {
+func (s *topologyService) SetLastDeployFailed(ctx context.Context, topology *Topology, hasFailed bool) {
+	topology.LastDeployFailed = hasFailed
+	err := s.topologyRepo.Update(ctx, topology)
+
+	if err != nil {
+		log.Error("Failed to set last deployment failed on topology", "topo", topology.UUID)
+	}
+}
+
+func (s *topologyService) loadBindFile(topologyId string, bindFile BindFile) (*BindFileFull, error) {
 	var fileContent string
 	if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
 		log.Errorf("Failed to read bind file '%s' for '%s': %s", bindFile.FilePath, topologyId, err.Error())
 		return nil, err
 	}
 
-	bindFileOut := s.topologyRepo.BindFileToOut(bindFile, fileContent)
+	bindFileFull := &BindFileFull{
+		ID:       bindFile.UUID,
+		FilePath: bindFile.FilePath,
+		Content:  fileContent,
+		Topology: bindFile.Topology,
+	}
 
-	return &bindFileOut, nil
+	return bindFileFull, nil
 }
 
 func (s *topologyService) removeBindFile(topologyId string, filePath string) error {

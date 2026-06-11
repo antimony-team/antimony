@@ -14,8 +14,17 @@ import (
 	"antimonyBackend/domain/statusMessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/runtime/instance"
+	"antimonyBackend/runtime/scheduler"
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
+	collectiontransport "antimonyBackend/transport/http/collection"
+	devicetransport "antimonyBackend/transport/http/device"
+	labtransport "antimonyBackend/transport/http/lab"
+	schematransport "antimonyBackend/transport/http/schema"
+	serverConfig2 "antimonyBackend/transport/http/serverConfig"
+	topologytransport "antimonyBackend/transport/http/topology"
+	usertransport "antimonyBackend/transport/http/user"
 	"antimonyBackend/utils"
 	"fmt"
 	"os"
@@ -68,44 +77,61 @@ func main() {
 	deploymentProvider := deployment.GetProvider(antimonyConfig)
 	captureService := capture.CreateService(antimonyConfig, deploymentProvider)
 
+	labEventBus := utils.CreateEventBus[*lab.Lab]()
+
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
 		socketManager, false, nil, false, nil, "status-messages",
 	)
 
+	// Repository layer components
 	var (
-		serverConfigService = serverConfig.CreateService(antimonyConfig)
-		serverConfigHandler = serverConfig.CreateHandler(serverConfigService)
-
-		devicesService = device.CreateService(antimonyConfig)
-		devicesHandler = device.CreateHandler(devicesService)
-
-		schemaService = schema.CreateService(antimonyConfig)
-		schemaHandler = schema.CreateHandler(schemaService)
-
-		userRepository = user.CreateRepository(db)
-		userService    = user.CreateService(userRepository, authManager)
-		userHandler    = user.CreateHandler(userService)
-
+		userRepository       = user.CreateRepository(db)
 		collectionRepository = collection.CreateRepository(db)
-		collectionService    = collection.CreateService(collectionRepository, userRepository)
-		collectionHandler    = collection.CreateHandler(collectionService)
-
-		topologyRepository = topology.CreateRepository(db)
-		topologyService    = topology.CreateService(
-			topologyRepository, userRepository, collectionRepository,
-			schemaService, storageManager,
-		)
-		topologyHandler = topology.CreateHandler(topologyService)
-
-		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(
-			antimonyConfig, labRepository, userRepository, topologyRepository, schemaService,
-			topologyService, storageManager, socketManager, statusMessageNamespace, deploymentProvider,
-		)
-		labHandler = lab.CreateHandler(labService)
+		topologyRepository   = topology.CreateRepository(db)
+		labRepository        = lab.CreateRepository(db)
 	)
 
-	go labService.RunScheduler()
+	// Service layer components
+	var (
+		serverConfigService = serverConfig.CreateService(antimonyConfig)
+		devicesService      = device.CreateService(antimonyConfig)
+		schemaService       = schema.CreateService(antimonyConfig)
+		userService         = user.CreateService(userRepository, authManager)
+		collectionService   = collection.CreateService(collectionRepository, userRepository)
+		topologyService     = topology.CreateService(
+			topologyRepository, userRepository, collectionRepository, schemaService, storageManager,
+		)
+		labService = lab.CreateService(
+			antimonyConfig, labRepository, userRepository, topologyRepository, schemaService,
+			topologyService, storageManager, labEventBus, statusMessageNamespace,
+		)
+	)
+
+	// Runtime services and components
+	var (
+		instanceService = instance.CreateService(
+			antimonyConfig, schemaService, labRepository, topologyService, storageManager,
+			socketManager, labEventBus, statusMessageNamespace, deploymentProvider,
+		)
+		_ = instance.CreateHandler(instanceService, socketManager)
+
+		labScheduler = scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
+	)
+
+	labService.SetRuntimeInfo(instanceService)
+
+	// HTTP Handlers
+	var (
+		serverConfigHandler = serverConfig2.CreateHandler(serverConfigService)
+		devicesHandler      = devicetransport.CreateHandler(devicesService)
+		schemaHandler       = schematransport.CreateHandler(schemaService)
+		userHandler         = usertransport.CreateHandler(userService)
+		collectionHandler   = collectiontransport.CreateHandler(collectionService)
+		topologyHandler     = topologytransport.CreateHandler(topologyService)
+		labHandler          = labtransport.CreateHandler(labService, instanceService)
+	)
+
+	go labScheduler.Run()
 
 	go func() {
 		if err := captureService.StartServer(); err != nil {
@@ -117,15 +143,15 @@ func main() {
 	webServer := gin.Default()
 
 	// Public endpoints
-	user.RegisterRoutes(webServer, userHandler)
-	schema.RegisterRoutes(webServer, schemaHandler)
+	usertransport.RegisterRoutes(webServer, userHandler)
+	schematransport.RegisterRoutes(webServer, schemaHandler)
 
 	// Authenticated endpoints
-	lab.RegisterRoutes(webServer, labHandler, authManager)
-	device.RegisterRoutes(webServer, devicesHandler, authManager)
-	topology.RegisterRoutes(webServer, topologyHandler, authManager)
-	collection.RegisterRoutes(webServer, collectionHandler, authManager)
-	serverConfig.RegisterRoutes(webServer, serverConfigHandler, authManager)
+	labtransport.RegisterRoutes(webServer, labHandler, authManager)
+	devicetransport.RegisterRoutes(webServer, devicesHandler, authManager)
+	topologytransport.RegisterRoutes(webServer, topologyHandler, authManager)
+	collectiontransport.RegisterRoutes(webServer, collectionHandler, authManager)
+	serverConfig2.RegisterRoutes(webServer, serverConfigHandler, authManager)
 
 	// Register Socket.IO endpoints in web server
 	c := socketio.DefaultServerOptions()

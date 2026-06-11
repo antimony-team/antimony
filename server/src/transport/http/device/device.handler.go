@@ -1,6 +1,7 @@
 package device
 
 import (
+	"antimonyBackend/domain/device"
 	"antimonyBackend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -12,11 +13,11 @@ type (
 	}
 
 	deviceHandler struct {
-		deviceService Service
+		deviceService device.Service
 	}
 )
 
-func CreateHandler(deviceService Service) Handler {
+func CreateHandler(deviceService device.Service) Handler {
 	return &deviceHandler{
 		deviceService: deviceService,
 	}

@@ -61,7 +61,7 @@ func TestGetTopologies(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
-	var result utils.OkResponse[[]topology.TopologyOut]
+	var result utils.OkResponse[[]topology.TopologyFull]
 	err = json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 
@@ -90,7 +90,7 @@ func TestGetTopologies_UserWithAccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
-	var result utils.OkResponse[[]topology.TopologyOut]
+	var result utils.OkResponse[[]topology.TopologyFull]
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 
@@ -119,7 +119,7 @@ func TestGetTopologies_UserWithoutAccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
-	var result utils.OkResponse[[]topology.TopologyOut]
+	var result utils.OkResponse[[]topology.TopologyFull]
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 	assert.Empty(t, result.Payload)

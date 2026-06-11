@@ -41,19 +41,6 @@ definitions:
       publicWrite:
         type: boolean
     type: object
-  collection.CollectionOut:
-    properties:
-      creator:
-        $ref: '#/definitions/user.UserOut'
-      id:
-        type: string
-      name:
-        type: string
-      publicDeploy:
-        type: boolean
-      publicWrite:
-        type: boolean
-    type: object
   deployment.NodeInterface:
     properties:
       address:
@@ -86,7 +73,7 @@ definitions:
       name:
         type: string
     type: object
-  lab.InstanceNode:
+  instance.InstanceNode:
     properties:
       canRestart:
         type: boolean
@@ -109,24 +96,7 @@ definitions:
       state:
         $ref: '#/definitions/deployment.NodeState'
     type: object
-  lab.InstanceOut:
-    properties:
-      deployed:
-        type: string
-      latestStateChange:
-        type: string
-      name:
-        type: string
-      nodes:
-        items:
-          $ref: '#/definitions/lab.InstanceNode'
-        type: array
-      recovered:
-        type: boolean
-      state:
-        $ref: '#/definitions/lab.InstanceState'
-    type: object
-  lab.InstanceState:
+  instance.InstanceState:
     enum:
     - 0
     - 1
@@ -158,38 +128,7 @@ definitions:
     - startTime
     - topologyId
     type: object
-  lab.LabOut:
-    properties:
-      collectionId:
-        type: string
-      creator:
-        $ref: '#/definitions/user.UserOut'
-      endTime:
-        type: string
-      id:
-        type: string
-      instance:
-        allOf:
-        - $ref: '#/definitions/lab.InstanceOut'
-        x-nullable: true
-      instanceName:
-        type: string
-        x-nullable: true
-      name:
-        type: string
-      startTime:
-        type: string
-      topologyDefinition:
-        type: string
-      topologyId:
-        type: string
-    type: object
-  serverConfig.ServerConfigOut:
-    properties:
-      capture:
-        $ref: '#/definitions/serverConfig.captureConfigOut'
-    type: object
-  serverConfig.captureConfigOut:
+  serverConfig.CaptureConfig:
     properties:
       enabled:
         type: boolean
@@ -200,6 +139,11 @@ definitions:
       port:
         type: integer
     type: object
+  serverConfig.ServerConfig:
+    properties:
+      capture:
+        $ref: '#/definitions/serverConfig.CaptureConfig'
+    type: object
   topology.BindFileIn:
     properties:
       content:
@@ -209,17 +153,6 @@ definitions:
     required:
     - content
     - filePath
-    type: object
-  topology.BindFileOut:
-    properties:
-      content:
-        type: string
-      filePath:
-        type: string
-      id:
-        type: string
-      topologyId:
-        type: string
     type: object
   topology.TopologyIn:
     properties:
@@ -234,16 +167,83 @@ definitions:
     - definition
     - syncUrl
     type: object
-  topology.TopologyOut:
+  transport.BindFileOut:
+    properties:
+      content:
+        type: string
+      filePath:
+        type: string
+      id:
+        type: string
+      topologyId:
+        type: string
+    type: object
+  transport.CollectionOut:
+    properties:
+      creator:
+        $ref: '#/definitions/transport.UserOut'
+      id:
+        type: string
+      name:
+        type: string
+      publicDeploy:
+        type: boolean
+      publicWrite:
+        type: boolean
+    type: object
+  transport.InstanceOut:
+    properties:
+      deployed:
+        type: string
+      latestStateChange:
+        type: string
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/instance.InstanceNode'
+        type: array
+      recovered:
+        type: boolean
+      state:
+        $ref: '#/definitions/instance.InstanceState'
+    type: object
+  transport.LabOut:
+    properties:
+      collectionId:
+        type: string
+      creator:
+        $ref: '#/definitions/transport.UserOut'
+      endTime:
+        type: string
+      id:
+        type: string
+      instance:
+        allOf:
+        - $ref: '#/definitions/transport.InstanceOut'
+        x-nullable: true
+      instanceName:
+        type: string
+        x-nullable: true
+      name:
+        type: string
+      startTime:
+        type: string
+      topologyDefinition:
+        type: string
+      topologyId:
+        type: string
+    type: object
+  transport.TopologyOut:
     properties:
       bindFiles:
         items:
-          $ref: '#/definitions/topology.BindFileOut'
+          $ref: '#/definitions/transport.BindFileOut'
         type: array
       collectionId:
         type: string
       creator:
-        $ref: '#/definitions/user.UserOut'
+        $ref: '#/definitions/transport.UserOut'
       definition:
         type: string
       id:
@@ -253,18 +253,18 @@ definitions:
       syncUrl:
         type: string
     type: object
+  transport.UserOut:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   user.CredentialsIn:
     properties:
       password:
         type: string
       username:
-        type: string
-    type: object
-  user.UserOut:
-    properties:
-      id:
-        type: string
-      name:
         type: string
     type: object
   utils.ErrorResponse:
@@ -278,13 +278,6 @@ definitions:
     properties:
       payload: {}
     type: object
-  utils.OkResponse-array_collection_CollectionOut:
-    properties:
-      payload:
-        items:
-          $ref: '#/definitions/collection.CollectionOut'
-        type: array
-    type: object
   utils.OkResponse-array_device_DeviceConfig:
     properties:
       payload:
@@ -292,25 +285,32 @@ definitions:
           $ref: '#/definitions/device.DeviceConfig'
         type: array
     type: object
-  utils.OkResponse-array_lab_LabOut:
+  utils.OkResponse-array_serverConfig_ServerConfig:
     properties:
       payload:
         items:
-          $ref: '#/definitions/lab.LabOut'
+          $ref: '#/definitions/serverConfig.ServerConfig'
         type: array
     type: object
-  utils.OkResponse-array_serverConfig_ServerConfigOut:
+  utils.OkResponse-array_transport_CollectionOut:
     properties:
       payload:
         items:
-          $ref: '#/definitions/serverConfig.ServerConfigOut'
+          $ref: '#/definitions/transport.CollectionOut'
         type: array
     type: object
-  utils.OkResponse-array_topology_TopologyOut:
+  utils.OkResponse-array_transport_LabOut:
     properties:
       payload:
         items:
-          $ref: '#/definitions/topology.TopologyOut'
+          $ref: '#/definitions/transport.LabOut'
+        type: array
+    type: object
+  utils.OkResponse-array_transport_TopologyOut:
+    properties:
+      payload:
+        items:
+          $ref: '#/definitions/transport.TopologyOut'
         type: array
     type: object
   utils.OkResponse-auth_AuthConfig:
@@ -318,20 +318,20 @@ definitions:
       payload:
         $ref: '#/definitions/auth.AuthConfig'
     type: object
-  utils.OkResponse-lab_LabOut:
-    properties:
-      payload:
-        $ref: '#/definitions/lab.LabOut'
-    type: object
   utils.OkResponse-string:
     properties:
       payload:
         type: string
     type: object
-  utils.OkResponse-topology_TopologyOut:
+  utils.OkResponse-transport_LabOut:
     properties:
       payload:
-        $ref: '#/definitions/topology.TopologyOut'
+        $ref: '#/definitions/transport.LabOut'
+    type: object
+  utils.OkResponse-transport_TopologyOut:
+    properties:
+      payload:
+        $ref: '#/definitions/transport.TopologyOut'
     type: object
 info:
   contact:
@@ -349,7 +349,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_collection_CollectionOut'
+            $ref: '#/definitions/utils.OkResponse-array_transport_CollectionOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -468,7 +468,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut'
+            $ref: '#/definitions/utils.OkResponse-array_serverConfig_ServerConfig'
         "401":
           description: The user isn't authorized
         "403":
@@ -512,7 +512,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_lab_LabOut'
+            $ref: '#/definitions/utils.OkResponse-array_transport_LabOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -564,7 +564,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-lab_LabOut'
+            $ref: '#/definitions/utils.OkResponse-transport_LabOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -669,7 +669,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_topology_TopologyOut'
+            $ref: '#/definitions/utils.OkResponse-array_transport_TopologyOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -721,7 +721,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-topology_TopologyOut'
+            $ref: '#/definitions/utils.OkResponse-transport_TopologyOut'
         "401":
           description: The user isn't authorized
         "403":
