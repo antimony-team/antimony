@@ -300,7 +300,7 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
         entries.push({
           label: 'Open Capture for ' + iface.name,
           icon: 'pi pi-eye',
-          command: () => copyCaptureToClipboard(node.containerName, iface.name),
+          command: () => copyCaptureToClipboard(node.containerId, iface.name),
         });
       }
     }
@@ -316,9 +316,9 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
     return entries;
   }, [selectedNode, props.lab]);
 
-  function copyCaptureToClipboard(containerName: string, ifName: string) {
+  function copyCaptureToClipboard(containerId: string, ifName: string) {
     const cmd = getInterfaceCaptureCommand(
-      containerName,
+      containerId,
       ifName,
       window.location.hostname,
       serverConfig.capture.port,

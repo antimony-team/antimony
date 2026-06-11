@@ -1,6 +1,6 @@
 import './lab-view-drawer.sass';
 import React, {useEffect, useMemo, useRef} from 'react';
-import {Lab, NodeInterfaceStatsOut, NodeStatsOut} from '@sb/types/domain/lab';
+import {Lab, NodeInterfaceStats, NodeStats} from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
 import {
   useLabStore,
@@ -377,7 +377,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     };
   }
 
-  function handleData(data: NodeStatsOut) {
+  function handleData(data: NodeStats) {
     if (!node) return;
 
     const ts_sec = Date.parse(data.timestamp) / 1000;
@@ -390,7 +390,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     }
   }
 
-  function addCpuUsageData(data: NodeStatsOut, currentSeconds: number) {
+  function addCpuUsageData(data: NodeStats, currentSeconds: number) {
     if (!cpuUsageChartRef.current) return;
 
     const [ts, tx] = cpuUsageBufferRef.current;
@@ -408,7 +408,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     cpuUsageChartRef.current.setData([ts, tx]);
   }
 
-  function addMemoryUsageData(data: NodeStatsOut, currentSeconds: number) {
+  function addMemoryUsageData(data: NodeStats, currentSeconds: number) {
     if (!memoryUsageChartRef.current) return;
 
     const [ts, tx] = memoryUsageBufferRef.current;
@@ -429,7 +429,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
 
   function addInterfaceData(
     ifName: string,
-    data: NodeInterfaceStatsOut,
+    data: NodeInterfaceStats,
     currentSeconds: number,
   ) {
     if (!trafficBuffersRef.current.has(ifName)) return;
@@ -457,7 +457,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     if (!node) return;
 
     const cmd = getInterfaceCaptureCommand(
-      node.containerName,
+      node.containerId,
       ifName,
       window.location.hostname,
       serverConfig.capture.port,

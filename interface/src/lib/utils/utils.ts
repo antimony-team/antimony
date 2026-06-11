@@ -293,12 +293,12 @@ export function isValidURL(url: string) {
 }
 
 export function getInterfaceCaptureCommand(
-  containerName: string,
+  containerId: string,
   ifName: string,
   serverHost: string,
   serverPort: number,
 ) {
-  return `ssh -o StrictHostKeyChecking=no ${containerName}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
+  return `ssh -o StrictHostKeyChecking=no ${containerId}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
 }
 
 export function formatBytes(v: number | null) {

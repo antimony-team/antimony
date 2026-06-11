@@ -82,15 +82,15 @@ export enum InstanceState {
   Scheduled = -2,
 }
 
-export type NodeStatsOut = {
+export type NodeStats = {
   timestamp: string;
   cpuPercent: number;
   memoryUsage: number;
   memoryLimit: number;
-  interfaces: Record<string, NodeInterfaceStatsOut>;
+  interfaces: Record<string, NodeInterfaceStats>;
 };
 
-export type NodeInterfaceStatsOut = {
+export type NodeInterfaceStats = {
   rxBps: number;
   txBps: number;
 };

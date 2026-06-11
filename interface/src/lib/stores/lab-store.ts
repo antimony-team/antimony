@@ -19,7 +19,7 @@ import {
   LabIn,
   LabOut,
   LabUpdateOut,
-  NodeStatsOut,
+  NodeStats,
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
@@ -131,14 +131,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   public subscribeNodeStats(
     containerId: string,
-    onEvent: (data: NodeStatsOut) => void,
+    onEvent: (data: NodeStats) => void,
   ) {
     this.dataBinder.subscribeNamespace(`stats/${containerId}`, onEvent);
   }
 
   public unsubscribeNodeStats(
     containerId: string,
-    onEvent: (data: NodeStatsOut) => void,
+    onEvent: (data: NodeStats) => void,
   ) {
     this.dataBinder.unsubscribeNamespace(`stats/${containerId}`, onEvent);
   }
