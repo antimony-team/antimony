@@ -7,7 +7,7 @@ tasks:
     dir: '.'
     cmds:
       - sudo rm -rf ./build/
-      - sudo rm -rf ./docker/
+      - sudo rm -rf ./clabernetes/
 
   lint:
     dir: './src'
@@ -41,19 +41,19 @@ tasks:
 
   build-docker:
     cmds:
-      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend .
+      - DOCKER_HOST=unix:///var/run/clabernetes.sock clabernetes build -t antimony-backend .
 
   run-docker:
-    dir: './docker'
+    dir: './clabernetes'
     cmds:
-      - task: build-docker
+      - task: build-clabernetes
       - mkdir -p ./db
       - mkdir -p ./storage
       - mkdir -p ./run
       - cp -r ../data/ ./
-      - cp ../test/config.docker.yml ./
+      - cp ../test/config.clabernetes.yml ./
       - cp ../test/kinds.conf.yml ./
-      - DOCKER_HOST=unix:///var/run/docker.sock docker run
+      - DOCKER_HOST=unix:///var/run/clabernetes.sock clabernetes run
           -e SB_NATIVE_USERNAME=admin
           -e SB_NATIVE_PASSWORD=admin
           -v ./db/:/app/db/
@@ -62,9 +62,9 @@ tasks:
           -v ./data:/app/data/
           -v ./config.yml:/app/config.yml
           -v ./kinds.conf.yml:/app/kinds.conf.yml
-          -v /var/run/docker.sock:/var/run/docker.sock
+          -v /var/run/clabernetes.sock:/var/run/clabernetes.sock
           -v /var/run/netns:/var/run/netns
-          -v /var/lib/docker:/var/lib/docker
+          -v /var/lib/clabernetes:/var/lib/clabernetes
           -p 3000:3000
           --privileged
           --network host

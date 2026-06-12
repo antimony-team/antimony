@@ -128,7 +128,7 @@ definitions:
     - startTime
     - topologyId
     type: object
-  serverConfig.CaptureConfig:
+  serverconfig.CaptureConfig:
     properties:
       enabled:
         type: boolean
@@ -139,10 +139,10 @@ definitions:
       port:
         type: integer
     type: object
-  serverConfig.ServerConfig:
+  serverconfig.ServerConfig:
     properties:
       capture:
-        $ref: '#/definitions/serverConfig.CaptureConfig'
+        $ref: '#/definitions/serverconfig.CaptureConfig'
     type: object
   topology.BindFileIn:
     properties:
@@ -282,11 +282,11 @@ definitions:
           $ref: '#/definitions/device.DeviceConfig'
         type: array
     type: object
-  utils.OkResponse-array_serverConfig_ServerConfig:
+  utils.OkResponse-array_serverconfig_ServerConfig:
     properties:
       payload:
         items:
-          $ref: '#/definitions/serverConfig.ServerConfig'
+          $ref: '#/definitions/serverconfig.ServerConfig'
         type: array
     type: object
   utils.OkResponse-array_transport_CollectionOut:
@@ -465,7 +465,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_serverConfig_ServerConfig'
+            $ref: '#/definitions/utils.OkResponse-array_serverconfig_ServerConfig'
         "401":
           description: The user isn't authorized
         "403":

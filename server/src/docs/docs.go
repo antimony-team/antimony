@@ -227,7 +227,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_serverConfig_ServerConfig"
+                            "$ref": "#/definitions/utils.OkResponse-array_serverconfig_ServerConfig"
                         }
                     },
                     "401": {
@@ -1227,7 +1227,7 @@ const docTemplate = `{
                 }
             }
         },
-        "serverConfig.CaptureConfig": {
+        "serverconfig.CaptureConfig": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -1244,11 +1244,11 @@ const docTemplate = `{
                 }
             }
         },
-        "serverConfig.ServerConfig": {
+        "serverconfig.ServerConfig": {
             "type": "object",
             "properties": {
                 "capture": {
-                    "$ref": "#/definitions/serverConfig.CaptureConfig"
+                    "$ref": "#/definitions/serverconfig.CaptureConfig"
                 }
             }
         },
@@ -1465,13 +1465,13 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-array_serverConfig_ServerConfig": {
+        "utils.OkResponse-array_serverconfig_ServerConfig": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/serverConfig.ServerConfig"
+                        "$ref": "#/definitions/serverconfig.ServerConfig"
                     }
                 }
             }

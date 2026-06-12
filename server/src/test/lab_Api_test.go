@@ -444,7 +444,7 @@ func TestDeleteLab_NotFound(t *testing.T) {
 }
 
 // helpers
-func getValidAccessToken(authManager auth.AuthManager, userId string) string {
+func getValidAccessToken(authManager auth.Manager, userId string) string {
 	authUser, _ := authManager.AuthenticateUser(mustToken(authManager.CreateAuthToken(userId)))
 	token, _ := authManager.CreateAccessToken(*authUser)
 	return token

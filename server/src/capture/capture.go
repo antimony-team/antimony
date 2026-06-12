@@ -30,33 +30,33 @@ type (
 		Start() error
 	}
 
-	captureStream struct {
+	server struct {
+		captureConfig *config.CaptureConfig
+
+		openStreams      map[string]*stream
+		openStreamsMutex sync.Mutex
+
+		deploymentProvider deployment.DeploymentProvider
+	}
+
+	stream struct {
 		key    string
 		source *afpacket.TPacket
 
 		mutex     sync.RWMutex
-		receivers map[*captureReceiver]struct{}
+		receivers map[*receiver]struct{}
 
 		done      chan struct{}
 		closeOnce sync.Once
 	}
 
-	capturePacket struct {
+	receiver struct {
+		ch chan packet
+	}
+
+	packet struct {
 		ci   gopacket.CaptureInfo
 		data []byte
-	}
-
-	captureReceiver struct {
-		ch chan capturePacket
-	}
-
-	captureServer struct {
-		captureConfig *config.CaptureConfig
-
-		openStreams      map[string]*captureStream
-		openStreamsMutex sync.Mutex
-
-		deploymentProvider deployment.DeploymentProvider
 	}
 )
 
@@ -64,17 +64,17 @@ func CreateServer(
 	config *config.AntimonyConfig,
 	deploymentProvider deployment.DeploymentProvider,
 ) Server {
-	return &captureServer{
+	return &server{
 		captureConfig: &config.Capture,
 
 		deploymentProvider: deploymentProvider,
 
-		openStreams:      make(map[string]*captureStream),
+		openStreams:      make(map[string]*stream),
 		openStreamsMutex: sync.Mutex{},
 	}
 }
 
-func (s *captureServer) Start() error {
+func (s *server) Start() error {
 	if err := ensureHostKey("./key"); err != nil {
 		log.Fatalf("preparing host key: %v", err)
 	}
@@ -91,45 +91,45 @@ func (s *captureServer) Start() error {
 	return srv.ListenAndServe()
 }
 
-func (s *captureServer) subscribe(
+func (s *server) subscribe(
 	ctx context.Context,
 	containerId string,
 	interfaceName string,
-) (*captureStream, *captureReceiver, error) {
+) (*stream, *receiver, error) {
 	captureKey := containerId + "/" + interfaceName
 
 	s.openStreamsMutex.Lock()
 
-	stream, ok := s.openStreams[captureKey]
+	captureStream, ok := s.openStreams[captureKey]
 	if !ok {
 		src, err := s.deploymentProvider.OpenCapture(ctx, containerId, interfaceName)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		stream = &captureStream{
+		captureStream = &stream{
 			key:       captureKey,
 			source:    src,
-			receivers: make(map[*captureReceiver]struct{}),
+			receivers: make(map[*receiver]struct{}),
 			done:      make(chan struct{}),
 		}
-		s.openStreams[captureKey] = stream
+		s.openStreams[captureKey] = captureStream
 
-		go s.processStream(stream)
+		go s.processStream(captureStream)
 	}
 
 	s.openStreamsMutex.Unlock()
 
-	receiver := &captureReceiver{ch: make(chan capturePacket, 1024)}
+	receiver := &receiver{ch: make(chan packet, 1024)}
 
-	stream.mutex.Lock()
-	stream.receivers[receiver] = struct{}{}
-	stream.mutex.Unlock()
+	captureStream.mutex.Lock()
+	captureStream.receivers[receiver] = struct{}{}
+	captureStream.mutex.Unlock()
 
-	return stream, receiver, nil
+	return captureStream, receiver, nil
 }
 
-func (s *captureServer) unsubscribe(containerId string, interfaceName string, receiver *captureReceiver) {
+func (s *server) unsubscribe(containerId string, interfaceName string, receiver *receiver) {
 	captureKey := containerId + "/" + interfaceName
 
 	s.openStreamsMutex.Lock()
@@ -155,7 +155,7 @@ func (s *captureServer) unsubscribe(containerId string, interfaceName string, re
 }
 
 // stream is reading packets from a client's receiver channel and sending them into the client's SSH session
-func (s *captureServer) stream(sess ssh.Session, stream *captureStream, receiver *captureReceiver) error {
+func (s *server) stream(sess ssh.Session, stream *stream, receiver *receiver) error {
 	w := pcapgo.NewWriter(sess)
 
 	// When the client first connects, we write the pcap header to the SSH session once
@@ -181,7 +181,7 @@ func (s *captureServer) stream(sess ssh.Session, stream *captureStream, receiver
 }
 
 // processStream is reading packets from the capture source and forwarding them into the client receiver channels
-func (s *captureServer) processStream(stream *captureStream) {
+func (s *server) processStream(stream *stream) {
 	defer s.captureEnded(stream)
 
 	for {
@@ -191,7 +191,7 @@ func (s *captureServer) processStream(stream *captureStream) {
 			return
 		}
 
-		p := capturePacket{ci: ci, data: data}
+		p := packet{ci: ci, data: data}
 		stream.mutex.RLock()
 		for r := range stream.receivers {
 			select {
@@ -204,7 +204,7 @@ func (s *captureServer) processStream(stream *captureStream) {
 }
 
 // captureEnded is called when a stream ends because the container stopped or the connection is interrupted
-func (s *captureServer) captureEnded(stream *captureStream) {
+func (s *server) captureEnded(stream *stream) {
 	// Remove the entry from the map only if it hasn't been removed yet.
 	s.openStreamsMutex.Lock()
 	if s.openStreams[stream.key] == stream {
@@ -215,7 +215,7 @@ func (s *captureServer) captureEnded(stream *captureStream) {
 	stream.shutdown()
 }
 
-func (s *captureServer) makeSessionHandler() ssh.Handler {
+func (s *server) makeSessionHandler() ssh.Handler {
 	return func(sess ssh.Session) {
 		container := sess.User()
 
@@ -236,7 +236,7 @@ func (s *captureServer) makeSessionHandler() ssh.Handler {
 	}
 }
 
-func (s *captureStream) shutdown() {
+func (s *stream) shutdown() {
 	s.closeOnce.Do(func() {
 		close(s.done)
 		if s.source != nil {

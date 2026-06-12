@@ -1,4 +1,4 @@
-name: Build docker image and publish
+name: Build clabernetes image and publish
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
       - name: set up qemu
         uses: docker/setup-qemu-action@v3
 
-      - name: set up docker buildx
+      - name: set up clabernetes buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry

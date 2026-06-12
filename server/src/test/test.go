@@ -8,7 +8,7 @@ import (
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
-	"antimonyBackend/domain/statusMessage"
+	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/socket"
@@ -36,7 +36,7 @@ import (
 func ptr(t time.Time) *time.Time { return &t }
 
 //nolint:funlen
-func GenerateTestData(db *gorm.DB, storage storage.StorageManager) {
+func GenerateTestData(db *gorm.DB, storage storage.Manager) {
 	user1 := user.User{
 		UUID: "test-user-id1",
 		Sub:  "doesntmatter",
@@ -238,19 +238,19 @@ topology:
   links:
     - endpoints: ["node1:e1-1", "node2:e1-1"]`
 
-func writeTopologyFile(topologyId string, content string, storage storage.StorageManager) {
+func writeTopologyFile(topologyId string, content string, storage storage.Manager) {
 	if err := storage.WriteTopology(topologyId, content); err != nil {
 		log.Fatalf("Failed to write test topology: %s", err.Error())
 	}
 }
 
-func writeBindFile(topologyId string, filePath string, content string, storage storage.StorageManager) {
+func writeBindFile(topologyId string, filePath string, content string, storage storage.Manager) {
 	if err := storage.WriteBindFile(topologyId, filePath, content); err != nil {
 		log.Fatalf("Failed to write test topology bind file: %s", err.Error())
 	}
 }
 
-func addAuthenticatedUsers(authManager auth.AuthManager) {
+func addAuthenticatedUsers(authManager auth.Manager) {
 	var err error
 
 	_, err = authManager.RegisterTestUser(auth.AuthenticatedUser{
@@ -434,7 +434,7 @@ func (p *MockDeploymentProvider) ReadNodeStats(
 	return &deployment.NodeStats{}, nil
 }
 
-func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
+func SetupTestServer(t *testing.T) (*gin.Engine, auth.Manager, *gorm.DB) {
 	gin.SetMode(gin.TestMode)
 
 	// Set environment variables
@@ -486,7 +486,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	// Init repos, services, handlers
 	socketManager := socket.CreateManager(authManager)
 
-	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
+	statusMessageNamespace := socket.CreateOutputNamespace[statusmessage.Message](
 		socketManager, false, nil, false, nil, "status-messages",
 	)
 

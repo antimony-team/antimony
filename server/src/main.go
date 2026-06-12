@@ -10,8 +10,8 @@ import (
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
-	"antimonyBackend/domain/serverConfig"
-	"antimonyBackend/domain/statusMessage"
+	"antimonyBackend/domain/serverconfig"
+	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/runtime/instance"
@@ -22,7 +22,7 @@ import (
 	devicetransport "antimonyBackend/transport/http/device"
 	labtransport "antimonyBackend/transport/http/lab"
 	schematransport "antimonyBackend/transport/http/schema"
-	serverconfigtransport "antimonyBackend/transport/http/serverConfig"
+	serverconfigtransport "antimonyBackend/transport/http/serverconfig"
 	topologytransport "antimonyBackend/transport/http/topology"
 	usertransport "antimonyBackend/transport/http/user"
 	"antimonyBackend/utils"
@@ -88,7 +88,7 @@ func main() {
 
 	// Global socket namespaces
 	var (
-		statusMessageNamespace = socket.CreateOutputNamespace[statusMessage.StatusMessage](
+		statusMessageNamespace = socket.CreateOutputNamespace[statusmessage.Message](
 			socketManager, false, nil, false, nil, "status-messages",
 		)
 	)
@@ -105,7 +105,7 @@ func main() {
 	var (
 		devicesService      = device.CreateService(antimonyConfig)
 		schemaService       = schema.CreateService(antimonyConfig)
-		serverConfigService = serverConfig.CreateService(antimonyConfig)
+		serverConfigService = serverconfig.CreateService(antimonyConfig)
 		userService         = user.CreateService(userRepository, authManager)
 		collectionService   = collection.CreateService(collectionRepository, userRepository)
 
@@ -178,9 +178,9 @@ func main() {
 }
 
 func createWebServer(
-	authManager auth.AuthManager,
-	socketManager socket.SocketManager,
-	serverConfigService serverConfig.Service,
+	authManager auth.Manager,
+	socketManager socket.Manager,
+	serverConfigService serverconfig.Service,
 	devicesService device.Service,
 	schemaService schema.Service,
 	userService user.Service,
@@ -229,10 +229,10 @@ func createRuntime(
 	labRepo lab.Repository,
 	labService lab.Service,
 	topologyService topology.Service,
-	storageManager storage.StorageManager,
-	socketManager socket.SocketManager,
+	storageManager storage.Manager,
+	socketManager socket.Manager,
 	labEventBus utils.EventBus[*lab.Lab],
-	statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage],
+	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
 	deploymentProvider deployment.DeploymentProvider,
 ) instance.Service {
 	instanceService := instance.CreateService(

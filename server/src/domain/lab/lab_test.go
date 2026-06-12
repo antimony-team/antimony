@@ -5,7 +5,7 @@ import (
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/statusMessage"
+	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
 	antimonySocket "antimonyBackend/socket"
@@ -291,22 +291,22 @@ type mockStatusNamespace struct {
 	mock.Mock
 }
 
-func (m *mockStatusNamespace) Send(msg statusMessage.StatusMessage) {
+func (m *mockStatusNamespace) Send(msg statusmessage.Message) {
 	m.Called(msg)
 }
-func (m *mockStatusNamespace) SendBulk(msgs []statusMessage.StatusMessage) {
+func (m *mockStatusNamespace) SendBulk(msgs []statusmessage.Message) {
 	m.Called(msgs)
 }
-func (m *mockStatusNamespace) SendTo(msg statusMessage.StatusMessage, receivers []string) {
+func (m *mockStatusNamespace) SendTo(msg statusmessage.Message, receivers []string) {
 	m.Called(msg, receivers)
 }
-func (m *mockStatusNamespace) SendBulkTo(msgs []statusMessage.StatusMessage, receivers []string) {
+func (m *mockStatusNamespace) SendBulkTo(msgs []statusmessage.Message, receivers []string) {
 	m.Called(msgs, receivers)
 }
-func (m *mockStatusNamespace) SendToAdmins(msg statusMessage.StatusMessage) {
+func (m *mockStatusNamespace) SendToAdmins(msg statusmessage.Message) {
 	m.Called(msg)
 }
-func (m *mockStatusNamespace) SendBulkToAdmins(msgs []statusMessage.StatusMessage) {
+func (m *mockStatusNamespace) SendBulkToAdmins(msgs []statusmessage.Message) {
 	m.Called(msgs)
 }
 func (m *mockStatusNamespace) ClearBacklog() {
@@ -533,7 +533,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 
 	labDestructionSchedule := &emptySchedule{}
 
-	svc := &labService{
+	svc := &service{
 		config: &config.AntimonyConfig{
 			Streaming: config.StreamingConfig{
 				ClabLogBacklog:      100,
@@ -547,7 +547,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		schemaService:          schemaService,
 		topologyRepo:           topologyRepo,
 		socketManager:          antimonySocket.CreateManager(nil),
-		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
+		statusMessageNamespace: &fakeNamespace[statusmessage.Message]{},
 		labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 		labDeploymentSchedule:  mockDeploymentSchedule,
 		labDestructionSchedule: labDestructionSchedule,
@@ -686,7 +686,7 @@ func TestInitSchedule(t *testing.T) {
 			})
 			schemaService.On("Parse", mock.Anything).Return(&parsed, nil)
 
-			svc := &labService{
+			svc := &service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -699,7 +699,7 @@ func TestInitSchedule(t *testing.T) {
 				deploymentProvider:     mockDeployment,
 				schemaService:          schemaService,
 				socketManager:          antimonySocket.CreateManager(nil),
-				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
+				statusMessageNamespace: &fakeNamespace[statusmessage.Message]{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  mockDeploymentSchedule,
 				labDestructionSchedule: &emptySchedule{},
@@ -746,7 +746,7 @@ func TestInitSchedule(t *testing.T) {
 
 func TestRenameTopology(t *testing.T) {
 	type fields struct {
-		storageManager storage.StorageManager
+		storageManager storage.Manager
 	}
 	type args struct {
 		topologyId            string
@@ -837,7 +837,7 @@ func TestRenameTopology(t *testing.T) {
 			mockSM := tt.fields.storageManager.(*mockStorageManager)
 			tt.mockSetup(mockSM)
 
-			svc := &labService{storageManager: mockSM}
+			svc := &service{storageManager: mockSM}
 			err := svc.renameTopology(tt.args.topologyId, tt.args.topologyName, tt.args.runTopologyDefinition)
 
 			if tt.expectErr {
@@ -974,7 +974,7 @@ func TestCreateLabEnvironment(t *testing.T) {
 			args := &args{}
 			tt.setup(&fields, args)
 
-			svc := &labService{
+			svc := &service{
 				labRepo:        fields.labRepo,
 				storageManager: fields.storageManager,
 			}
@@ -1123,7 +1123,7 @@ func TestDestroyLab(t *testing.T) {
 			mockLabUpdatesNs := &mockLabUpdateNamespace{}
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
 
-			svc := &labService{
+			svc := &service{
 				deploymentProvider:     f.deploymentProvider,
 				statusMessageNamespace: f.statusNamespace,
 				storageManager:         f.storageManager,
@@ -1290,7 +1290,7 @@ func TestRedeployLab(t *testing.T) {
 			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).
 				Return([]topology.BindFile{}, nil)
 			mockTopologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
-			svc := &labService{
+			svc := &service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -1339,7 +1339,7 @@ func TestDeployLab(t *testing.T) {
 		deploymentProvider *MockDeploymentProvider
 		statusNamespace    *mockStatusNamespace
 		storageManager     *mockStorageManager
-		socketManager      antimonySocket.SocketManager
+		socketManager      antimonySocket.Manager
 	}
 	type args struct {
 		lab Lab
@@ -1459,7 +1459,7 @@ func TestDeployLab(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &labService{
+			svc := &service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -1522,7 +1522,7 @@ func TestDeployLab(t *testing.T) {
 }
 
 func TestInstanceToOut(t *testing.T) {
-	svc := &labService{}
+	svc := &service{}
 
 	t.Run("returns nil when input is nil", func(t *testing.T) {
 		result := svc.instanceToOut(nil)
@@ -1548,7 +1548,7 @@ func TestInstanceToOut(t *testing.T) {
 }
 
 func TestContainerToInstanceNode(t *testing.T) {
-	svc := &labService{}
+	svc := &service{}
 	container := deployment.InspectContainer{
 		Name:        "clab-lab-instance-node1",
 		IPv4Address: "192.168.1.1",
@@ -1576,13 +1576,13 @@ func TestNotifyUpdate(t *testing.T) {
 	mockStatusNs := &mockStatusNamespace{}
 	mockLabNs := &mockLabUpdateNamespace{}
 
-	svc := &labService{
+	svc := &service{
 		statusMessageNamespace: mockStatusNs,
 		labUpdatesNamespace:    mockLabNs,
 	}
 
 	lab := Lab{UUID: "lab123"}
-	msg := statusMessage.Info("test", "body", "summary")
+	msg := statusmessage.Info("test", "body", "summary")
 
 	mockStatusNs.On("Send", mock.Anything).Once()
 	labId := "lab123"
@@ -1609,7 +1609,7 @@ func TestHandleLabCommand(t *testing.T) {
 		labRepo                *mockLabRepo
 		storageManager         *mockStorageManager
 		deployment             *MockDeploymentProvider
-		socketManager          antimonySocket.SocketManager
+		socketManager          antimonySocket.Manager
 		labDestructionSchedule *mockSchedule
 	}
 	type args struct {
@@ -1812,7 +1812,7 @@ func TestHandleLabCommand(t *testing.T) {
 			topologyRepo := &mockTopologyRepo{}
 			topologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 
-			svc := &labService{
+			svc := &service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -1824,7 +1824,7 @@ func TestHandleLabCommand(t *testing.T) {
 				storageManager:         f.storageManager,
 				topologyRepo:           topologyRepo,
 				deploymentProvider:     f.deployment,
-				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
+				statusMessageNamespace: &fakeNamespace[statusmessage.Message]{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  &mockSchedule{},
 				labDestructionSchedule: f.labDestructionSchedule,
@@ -1916,7 +1916,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 	type fields struct {
 		labRepo       *mockLabRepo
 		deployment    *MockDeploymentProvider
-		socketManager antimonySocket.SocketManager
+		socketManager antimonySocket.Manager
 	}
 	type args struct {
 		cmd      LabCommand
@@ -2100,7 +2100,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &labService{
+			svc := &service{
 				config: &config.AntimonyConfig{
 					Shell: config.ShellConfig{
 						UserLimit: 10,
@@ -2112,7 +2112,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 				storageManager:         &mockStorageManager{},
 				topologyRepo:           &mockTopologyRepo{},
 				socketManager:          f.socketManager,
-				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
+				statusMessageNamespace: &fakeNamespace[statusmessage.Message]{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  &mockSchedule{},
 				labDestructionSchedule: &mockSchedule{},
@@ -2249,7 +2249,7 @@ func TestDestroyLabCommand(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &labService{
+			svc := &service{
 				labRepo:   f.labRepo,
 				instances: f.instances,
 			}
@@ -2280,7 +2280,7 @@ func TestDeployLabCommand(t *testing.T) {
 		name      string
 		setup     func(f *fields, a *args)
 		expectErr error
-		validate  func(t *testing.T, svc *labService, a *args)
+		validate  func(t *testing.T, svc *service, a *args)
 	}{
 		{
 			name: "returns error when labRepo.GetByUuid fails",
@@ -2291,7 +2291,7 @@ func TestDeployLabCommand(t *testing.T) {
 					Return(nil, errors.New("fetch failed"))
 			},
 			expectErr: errors.New("fetch failed"),
-			validate: func(t *testing.T, svc *labService, a *args) {
+			validate: func(t *testing.T, svc *service, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 			},
 		},
@@ -2307,7 +2307,7 @@ func TestDeployLabCommand(t *testing.T) {
 					}, nil)
 			},
 			expectErr: utils.ErrNoDeployAccessToLab,
-			validate: func(t *testing.T, svc *labService, a *args) {
+			validate: func(t *testing.T, svc *service, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 			},
 		},
@@ -2328,7 +2328,7 @@ func TestDeployLabCommand(t *testing.T) {
 			},
 
 			expectErr: utils.ErrLabIsDeploying,
-			validate: func(t *testing.T, svc *labService, a *args) {
+			validate: func(t *testing.T, svc *service, a *args) {
 				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 				assert.NotNil(t, svc.instances["lab123"], "expected lab123 to exist in instances")
 			},
@@ -2343,7 +2343,7 @@ func TestDeployLabCommand(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &labService{
+			svc := &service{
 				storageManager:         &mockStorageManager{},
 				deploymentProvider:     &MockDeploymentProvider{},
 				topologyRepo:           &mockTopologyRepo{},
@@ -2351,7 +2351,7 @@ func TestDeployLabCommand(t *testing.T) {
 				instances:              map[string]*Instance{},
 				labDeploymentSchedule:  &mockSchedule{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
-				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
+				statusMessageNamespace: &fakeNamespace[statusmessage.Message]{},
 			}
 
 			if tt.name == "returns error if redeploy is not allowed" {
@@ -2374,14 +2374,14 @@ func TestDeployLabCommand(t *testing.T) {
 }
 
 func TestStopNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
-	service := &labService{}
+	service := &service{}
 	err := service.stopNodeCommand(t.Context(), "some-lab", nil, nil)
 	require.Error(t, err)
 	assert.Equal(t, utils.ErrNodeNotFound, err)
 }
 
 func TestStartNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
-	service := &labService{}
+	service := &service{}
 	err := service.startNodeCommand(t.Context(), "some-lab", nil, nil)
 	require.Error(t, err)
 	assert.Equal(t, utils.ErrNodeNotFound, err)

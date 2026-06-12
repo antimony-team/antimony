@@ -17,7 +17,7 @@ services:
       retries: 10
     volumes:
       - ./.db:/var/lib/postgresql/data
-      - ./test/postgres:/docker-entrypoint-initdb.d/
+      - ./test/postgres:/clabernetes-entrypoint-initdb.d/
     ports:
       - "5432:5432"
   keycloak-server:

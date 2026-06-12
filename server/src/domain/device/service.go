@@ -1,0 +1,52 @@
+package device
+
+import (
+	"antimonyBackend/config"
+	"encoding/json"
+	"io"
+	"os"
+
+	"github.com/charmbracelet/log"
+)
+
+type (
+	Service interface {
+		Get() []DeviceConfig
+	}
+
+	service struct {
+		devices []DeviceConfig
+	}
+)
+
+func CreateService(config *config.AntimonyConfig) Service {
+	deviceConfig := make([]DeviceConfig, 0)
+
+	if deviceConfigFile, err := os.Open(config.Containerlab.DeviceConfig); err != nil {
+		log.Error("Failed to open device config file", "file", config.Containerlab.DeviceConfig)
+	} else if fileData, err := io.ReadAll(deviceConfigFile); err != nil {
+		log.Error(
+			"Failed to read device config file",
+			"file",
+			config.Containerlab.DeviceConfig,
+			"err",
+			err.Error(),
+		)
+	} else if err := json.Unmarshal(fileData, &deviceConfig); err != nil {
+		log.Error(
+			"Failed to parse device config file",
+			"file",
+			config.Containerlab.DeviceConfig,
+			"err",
+			err.Error(),
+		)
+	}
+
+	return &service{
+		devices: deviceConfig,
+	}
+}
+
+func (s *service) Get() []DeviceConfig {
+	return s.devices
+}
