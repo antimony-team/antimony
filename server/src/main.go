@@ -95,17 +95,17 @@ func main() {
 
 	// Domain repository layer components
 	var (
-		userRepository       = user.CreateRepository(db)
-		collectionRepository = collection.CreateRepository(db)
-		topologyRepository   = topology.CreateRepository(db)
 		labRepository        = lab.CreateRepository(db)
+		userRepository       = user.CreateRepository(db)
+		topologyRepository   = topology.CreateRepository(db)
+		collectionRepository = collection.CreateRepository(db)
 	)
 
 	// Domain service layer components
 	var (
-		serverConfigService = serverConfig.CreateService(antimonyConfig)
 		devicesService      = device.CreateService(antimonyConfig)
 		schemaService       = schema.CreateService(antimonyConfig)
+		serverConfigService = serverConfig.CreateService(antimonyConfig)
 		userService         = user.CreateService(userRepository, authManager)
 		collectionService   = collection.CreateService(collectionRepository, userRepository)
 
