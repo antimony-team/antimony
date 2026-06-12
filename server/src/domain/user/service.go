@@ -10,36 +10,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	Service interface {
-		GetByUuid(ctx context.Context, userId string) (*User, error)
-		GetAuthCodeURL(stateToken string) (string, error)
-		LoginNative(req CredentialsIn) (string, string, error)
-		IsTokenValid(accessToken string) bool
-		RefreshAccessToken(authToken string) (string, error)
-		AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error)
-		GetAuthConfig() auth.AuthConfig
-	}
+type Service struct {
+	repo        *Repository
+	authManager *auth.Manager
+}
 
-	service struct {
-		userRepo    Repository
-		authManager auth.Manager
-	}
-)
-
-func CreateService(userRepo Repository, authManager auth.Manager) Service {
-	userService := &service{
-		userRepo:    userRepo,
+func CreateService(repo *Repository, authManager *auth.Manager) *Service {
+	userService := &Service{
+		repo:        repo,
 		authManager: authManager,
 	}
 
-	if _, err := userRepo.GetByUuid(context.Background(), auth.NativeUserID); errors.Is(err, utils.ErrUuidNotFound) {
+	if _, err := repo.GetByUuid(context.Background(), auth.NativeUserID); errors.Is(err, utils.ErrUuidNotFound) {
 		nativeUser := &User{
 			UUID: auth.NativeUserID,
 			Sub:  "Admin",
 			Name: "Admin",
 		}
-		if err := userRepo.Create(context.Background(), nativeUser); err != nil {
+		if err := repo.Create(context.Background(), nativeUser); err != nil {
 			log.Fatal("Failed to register native user in database")
 		}
 	}
@@ -47,28 +35,28 @@ func CreateService(userRepo Repository, authManager auth.Manager) Service {
 	return userService
 }
 
-func (s *service) IsTokenValid(accessToken string) bool {
+func (s *Service) IsTokenValid(accessToken string) bool {
 	_, err := s.authManager.AuthenticateUser(accessToken)
 	return err == nil
 }
 
-func (s *service) RefreshAccessToken(authToken string) (string, error) {
+func (s *Service) RefreshAccessToken(authToken string) (string, error) {
 	return s.authManager.RefreshAccessToken(authToken)
 }
 
-func (s *service) GetByUuid(ctx context.Context, userId string) (*User, error) {
-	return s.userRepo.GetByUuid(ctx, userId)
+func (s *Service) GetByUuid(ctx context.Context, userId string) (*User, error) {
+	return s.repo.GetByUuid(ctx, userId)
 }
 
-func (s *service) LoginNative(req CredentialsIn) (string, string, error) {
+func (s *Service) LoginNative(req CredentialsIn) (string, string, error) {
 	return s.authManager.LoginNative(req.Username, req.Password)
 }
 
-func (s *service) GetAuthCodeURL(stateToken string) (string, error) {
+func (s *Service) GetAuthCodeURL(stateToken string) (string, error) {
 	return s.authManager.GetAuthCodeURL(stateToken)
 }
 
-func (s *service) AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error) {
+func (s *Service) AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error) {
 	authUser, err := s.authManager.AuthenticateWithCode(
 		authCode,
 		func(userSub string, userProfile string) (string, error) {
@@ -78,7 +66,7 @@ func (s *service) AuthenticateWithCode(ctx *gin.Context, authCode string) (strin
 				err        error
 			)
 
-			if user, userExists, err = s.userRepo.GetBySub(ctx, userSub); err != nil {
+			if user, userExists, err = s.repo.GetBySub(ctx, userSub); err != nil {
 				return "", err
 			}
 
@@ -89,11 +77,11 @@ func (s *service) AuthenticateWithCode(ctx *gin.Context, authCode string) (strin
 					Sub:  userSub,
 					Name: userProfile,
 				}
-				err = s.userRepo.Create(ctx, user)
+				err = s.repo.Create(ctx, user)
 			} else {
 				// Update the name of the user in case it has changed
 				user.Name = userProfile
-				err = s.userRepo.Update(ctx, user)
+				err = s.repo.Update(ctx, user)
 			}
 
 			return user.UUID, err
@@ -112,6 +100,6 @@ func (s *service) AuthenticateWithCode(ctx *gin.Context, authCode string) (strin
 	}
 }
 
-func (s *service) GetAuthConfig() auth.AuthConfig {
+func (s *Service) GetAuthConfig() auth.AuthConfig {
 	return s.authManager.GetAuthConfig()
 }

@@ -14,72 +14,71 @@ import (
 	socketio "github.com/zishang520/socket.io/socket"
 )
 
-type (
-	// IONamespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
-	//
-	// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
-	// to provide a valid access token which will be used to authenticate them via auth.Manager.
-	IONamespace[I any, O any] interface {
-		// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
-		Send(msg O)
+// IONamespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
+//
+// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
+// to provide a valid access token which will be used to authenticate them via auth.Manager.
+type IONamespace[I any, O any] interface {
+	// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
+	Send(msg O)
 
-		SendBulk(msgs []O)
+	SendBulk(msgs []O)
 
-		// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
-		SendTo(msg O, receivers []string)
+	// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
+	SendTo(msg O, receivers []string)
 
-		// SendTo Sends multiple messages to a set of user IDs. This only works in authenticated namespaces.
-		SendBulkTo(msgs []O, receivers []string)
+	// SendTo Sends multiple messages to a set of user IDs. This only works in authenticated namespaces.
+	SendBulkTo(msgs []O, receivers []string)
 
-		// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
-		SendToAdmins(msg O)
+	// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
+	SendToAdmins(msg O)
 
-		// SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
-		SendBulkToAdmins(msgs []O)
+	// SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
+	SendBulkToAdmins(msgs []O)
 
-		// ClearBacklog Removes all messages from the backlog
-		ClearBacklog()
-	}
+	// ClearBacklog Removes all messages from the backlog
+	ClearBacklog()
+}
 
-	InputNamespace[I any]  = IONamespace[I, any]
-	OutputNamespace[O any] = IONamespace[any, O]
+type InputNamespace[I any] = IONamespace[I, any]
 
-	namespaceManager[I any, O any] struct {
-		// A list of all connected clients, authenticated and anonymous clients
-		connectedClients []*ConnectedUser
+type OutputNamespace[O any] = IONamespace[any, O]
 
-		// A map of all connected authenticated clients indexed by their user ID
-		connectedClientsMap   map[string]*ConnectedUser
-		connectedClientsMutex sync.Mutex
+type namespaceManager[I any, O any] struct {
+	// A list of all connected clients, authenticated and anonymous clients
+	connectedClients []*ConnectedUser
 
-		useRawInput   bool
-		useRawOutput  bool
-		isAnonymous   bool
-		socketManager Manager
+	// A map of all connected authenticated clients indexed by their user ID
+	connectedClientsMap   map[string]*ConnectedUser
+	connectedClientsMutex sync.Mutex
 
-		onData DataInputHandler[I]
+	useRawInput   bool
+	useRawOutput  bool
+	isAnonymous   bool
+	socketManager *Manager
 
-		// The backlog of previously sent messages
-		backlog      utils.Ring[O]
-		backlogMutex sync.Mutex
+	onData DataInputHandler[I]
 
-		namespaceName string
-		namespace     socketio.NamespaceInterface
-	}
+	// The backlog of previously sent messages
+	backlog      utils.Ring[O]
+	backlogMutex sync.Mutex
 
-	DataInputHandler[I any] func(
-		ct context.Context,
-		data *I,
-		authUser *auth.AuthenticatedUser,
-		onResponse func(response utils.OkResponse[any]),
-		onError func(response utils.ErrorResponse),
-	)
+	namespaceName string
+	namespace     socketio.NamespaceInterface
+}
 
-	BacklogConfig struct {
-		Capacity int
-		Kind     utils.RingKind
-	}
+type DataInputHandler[I any] func(
+	ct context.Context,
+	data *I,
+	authUser *auth.AuthenticatedUser,
+	onResponse func(response utils.OkResponse[any]),
+	onError func(response utils.ErrorResponse),
 )
+
+type BacklogConfig struct {
+	Capacity int
+	Kind     utils.RingKind
+}
 
 // CreateIONamespace Creates a new socket.io namespace for a given socket manager.
 // The namespace can be anonymous, meaning that users don't need to authenticate themselves when connecting.
@@ -94,7 +93,7 @@ type (
 // If useRawOutput is set to true, output data will be sent as is, without any wrapping. This also means that bulk
 // messages will be sent as a single message, without individual wrapping.
 func CreateIONamespace[I any, O any](
-	socketManager Manager,
+	socketManager *Manager,
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
 	useRawOutput bool,
@@ -117,7 +116,7 @@ func CreateIONamespace[I any, O any](
 		backlog = utils.CreateRing[O](backlogConfig.Kind, backlogConfig.Capacity)
 	}
 
-	manager := &namespaceManager[I, O]{
+	namespace := &namespaceManager[I, O]{
 		connectedClients:      make([]*ConnectedUser, 0),
 		connectedClientsMap:   make(map[string]*ConnectedUser),
 		connectedClientsMutex: sync.Mutex{},
@@ -130,20 +129,20 @@ func CreateIONamespace[I any, O any](
 		useRawInput:           useRawInput,
 	}
 
-	manager.namespaceName = "/" + strings.Join(namespacePath, "/")
-	manager.namespace = socketManager.Server().Of(manager.namespaceName, nil)
+	namespace.namespaceName = "/" + strings.Join(namespacePath, "/")
+	namespace.namespace = socketManager.Server().Of(namespace.namespaceName, nil)
 
 	if !isAnonymous {
-		manager.namespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
+		namespace.namespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
 	}
 
-	_ = manager.namespace.On("connection", manager.handleConnection)
+	_ = namespace.namespace.On("connection", namespace.handleConnection)
 
-	return manager
+	return namespace
 }
 
 func CreateInputNamespace[I any](
-	socketManager Manager,
+	socketManager *Manager,
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
 	onData DataInputHandler[I],
@@ -162,7 +161,7 @@ func CreateInputNamespace[I any](
 }
 
 func CreateOutputNamespace[O any](
-	socketManager Manager,
+	socketManager *Manager,
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
 	useRawOutput bool,

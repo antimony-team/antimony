@@ -8,46 +8,30 @@ import (
 	socketio "github.com/zishang520/socket.io/socket"
 )
 
-type (
-	// Manager Represents a wrapper around the socket.io objects and also manages all authenticated users.
-	Manager interface {
-		// Server A reference to the underlying socket.io server.
-		Server() *socketio.Server
+// socket.Manager Represents a wrapper around the socket.io objects and also manages all authenticated users.
+type Manager struct {
+	server      *socketio.Server
+	users       map[string]auth.AuthenticatedUser
+	usersMutex  sync.Mutex
+	authManager *auth.Manager
+}
 
-		// GetAuthUser Returns an auth user by access token. This can be used by namespace managers to identify
-		// an authenticated user sending a message or connecting to a namespace for the first time.
-		GetAuthUser(accessToken string) *auth.AuthenticatedUser
-
-		// SocketAuthenticatorMiddleware A middleware function that can be used for authenticated namespaces.
-		// Optionally, a group of users that have access to the namespace can be specified. If the list is nil,
-		// all authenticated users will have access to the namespace.
-		SocketAuthenticatorMiddleware(
-			accessGroup *[]*auth.AuthenticatedUser,
-		) func(s *socketio.Socket, next func(*socketio.ExtendedError))
-	}
-
-	manager struct {
-		server      *socketio.Server
-		users       map[string]auth.AuthenticatedUser
-		usersMutex  *sync.Mutex
-		authManager auth.Manager
-	}
-)
-
-func CreateManager(authManager auth.Manager) Manager {
+func CreateManager(authManager *auth.Manager) *Manager {
 	server := socketio.NewServer(nil, nil)
 
-	manager := &manager{
+	manager := &Manager{
 		server:      server,
 		users:       make(map[string]auth.AuthenticatedUser),
-		usersMutex:  &sync.Mutex{},
+		usersMutex:  sync.Mutex{},
 		authManager: authManager,
 	}
 
 	return manager
 }
 
-func (m *manager) GetAuthUser(accessToken string) *auth.AuthenticatedUser {
+// GetAuthUser Returns an auth user by access token. This can be used by namespace managers to identify
+// an authenticated user sending a message or connecting to a namespace for the first time.
+func (m *Manager) GetAuthUser(accessToken string) *auth.AuthenticatedUser {
 	m.usersMutex.Lock()
 	defer m.usersMutex.Unlock()
 
@@ -57,11 +41,15 @@ func (m *manager) GetAuthUser(accessToken string) *auth.AuthenticatedUser {
 	return nil
 }
 
-func (m *manager) Server() *socketio.Server {
+// Server A reference to the underlying socket.io server.
+func (m *Manager) Server() *socketio.Server {
 	return m.server
 }
 
-func (m *manager) SocketAuthenticatorMiddleware(
+// SocketAuthenticatorMiddleware A middleware function that can be used for authenticated namespaces.
+// Optionally, a group of users that have access to the namespace can be specified. If the list is nil,
+// all authenticated users will have access to the namespace.
+func (m *Manager) SocketAuthenticatorMiddleware(
 	accessGroup *[]*auth.AuthenticatedUser,
 ) func(s *socketio.Socket, next func(*socketio.ExtendedError)) {
 	return func(s *socketio.Socket, next func(*socketio.ExtendedError)) {
@@ -97,7 +85,7 @@ func (m *manager) SocketAuthenticatorMiddleware(
 	}
 }
 
-func (m *manager) parseHandshake(handshake *socketio.Handshake) *string {
+func (m *Manager) parseHandshake(handshake *socketio.Handshake) *string {
 	authMap, ok := handshake.Auth.(map[string]any)
 	if !ok {
 		return nil

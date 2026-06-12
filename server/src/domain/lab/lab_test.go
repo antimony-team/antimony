@@ -533,7 +533,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 
 	labDestructionSchedule := &emptySchedule{}
 
-	svc := &service{
+	svc := &Service{
 		config: &config.AntimonyConfig{
 			Streaming: config.StreamingConfig{
 				ClabLogBacklog:      100,
@@ -541,7 +541,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 				ShellLinesBacklog:   100,
 			},
 		},
-		labRepo:                labRepo,
+		repo:                   labRepo,
 		storageManager:         storageManager,
 		deploymentProvider:     mockDeployment,
 		schemaService:          schemaService,
@@ -686,7 +686,7 @@ func TestInitSchedule(t *testing.T) {
 			})
 			schemaService.On("Parse", mock.Anything).Return(&parsed, nil)
 
-			svc := &service{
+			svc := &Service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -694,7 +694,7 @@ func TestInitSchedule(t *testing.T) {
 						ShellLinesBacklog:   100,
 					},
 				},
-				labRepo:                mockLabRepo,
+				repo:                   mockLabRepo,
 				storageManager:         mockStorage,
 				deploymentProvider:     mockDeployment,
 				schemaService:          schemaService,
@@ -837,7 +837,7 @@ func TestRenameTopology(t *testing.T) {
 			mockSM := tt.fields.storageManager.(*mockStorageManager)
 			tt.mockSetup(mockSM)
 
-			svc := &service{storageManager: mockSM}
+			svc := &Service{storageManager: mockSM}
 			err := svc.renameTopology(tt.args.topologyId, tt.args.topologyName, tt.args.runTopologyDefinition)
 
 			if tt.expectErr {
@@ -974,8 +974,8 @@ func TestCreateLabEnvironment(t *testing.T) {
 			args := &args{}
 			tt.setup(&fields, args)
 
-			svc := &service{
-				labRepo:        fields.labRepo,
+			svc := &Service{
+				repo:           fields.labRepo,
 				storageManager: fields.storageManager,
 			}
 
@@ -1123,7 +1123,7 @@ func TestDestroyLab(t *testing.T) {
 			mockLabUpdatesNs := &mockLabUpdateNamespace{}
 			mockLabUpdatesNs.On("Send", mock.Anything).Maybe()
 
-			svc := &service{
+			svc := &Service{
 				deploymentProvider:     f.deploymentProvider,
 				statusMessageNamespace: f.statusNamespace,
 				storageManager:         f.storageManager,
@@ -1290,7 +1290,7 @@ func TestRedeployLab(t *testing.T) {
 			mockTopologyRepo.On("GetBindFileForTopology", mock.Anything, mock.Anything).
 				Return([]topology.BindFile{}, nil)
 			mockTopologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
-			svc := &service{
+			svc := &Service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -1459,7 +1459,7 @@ func TestDeployLab(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &service{
+			svc := &Service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -1472,7 +1472,7 @@ func TestDeployLab(t *testing.T) {
 				statusMessageNamespace: f.statusNamespace,
 				labUpdatesNamespace:    mockLabUpdatesNs,
 				socketManager:          f.socketManager,
-				labRepo:                labRepo,
+				repo:                   labRepo,
 				topologyRepo:           topoRepo,
 				schemaService:          schemaService,
 				instances:              make(map[string]*Instance),
@@ -1522,7 +1522,7 @@ func TestDeployLab(t *testing.T) {
 }
 
 func TestInstanceToOut(t *testing.T) {
-	svc := &service{}
+	svc := &Service{}
 
 	t.Run("returns nil when input is nil", func(t *testing.T) {
 		result := svc.instanceToOut(nil)
@@ -1548,7 +1548,7 @@ func TestInstanceToOut(t *testing.T) {
 }
 
 func TestContainerToInstanceNode(t *testing.T) {
-	svc := &service{}
+	svc := &Service{}
 	container := deployment.InspectContainer{
 		Name:        "clab-lab-instance-node1",
 		IPv4Address: "192.168.1.1",
@@ -1576,7 +1576,7 @@ func TestNotifyUpdate(t *testing.T) {
 	mockStatusNs := &mockStatusNamespace{}
 	mockLabNs := &mockLabUpdateNamespace{}
 
-	svc := &service{
+	svc := &Service{
 		statusMessageNamespace: mockStatusNs,
 		labUpdatesNamespace:    mockLabNs,
 	}
@@ -1812,7 +1812,7 @@ func TestHandleLabCommand(t *testing.T) {
 			topologyRepo := &mockTopologyRepo{}
 			topologyRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 
-			svc := &service{
+			svc := &Service{
 				config: &config.AntimonyConfig{
 					Streaming: config.StreamingConfig{
 						ClabLogBacklog:      100,
@@ -1820,7 +1820,7 @@ func TestHandleLabCommand(t *testing.T) {
 						ShellLinesBacklog:   100,
 					},
 				},
-				labRepo:                f.labRepo,
+				repo:                   f.labRepo,
 				storageManager:         f.storageManager,
 				topologyRepo:           topologyRepo,
 				deploymentProvider:     f.deployment,
@@ -2100,14 +2100,14 @@ func TestHandleNewLabCommands(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &service{
+			svc := &Service{
 				config: &config.AntimonyConfig{
 					Shell: config.ShellConfig{
 						UserLimit: 10,
 						Timeout:   60,
 					},
 				},
-				labRepo:                f.labRepo,
+				repo:                   f.labRepo,
 				deploymentProvider:     f.deployment,
 				storageManager:         &mockStorageManager{},
 				topologyRepo:           &mockTopologyRepo{},
@@ -2249,8 +2249,8 @@ func TestDestroyLabCommand(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &service{
-				labRepo:   f.labRepo,
+			svc := &Service{
+				repo:      f.labRepo,
 				instances: f.instances,
 			}
 
@@ -2280,7 +2280,7 @@ func TestDeployLabCommand(t *testing.T) {
 		name      string
 		setup     func(f *fields, a *args)
 		expectErr error
-		validate  func(t *testing.T, svc *service, a *args)
+		validate  func(t *testing.T, svc *Service, a *args)
 	}{
 		{
 			name: "returns error when labRepo.GetByUuid fails",
@@ -2291,8 +2291,8 @@ func TestDeployLabCommand(t *testing.T) {
 					Return(nil, errors.New("fetch failed"))
 			},
 			expectErr: errors.New("fetch failed"),
-			validate: func(t *testing.T, svc *service, a *args) {
-				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
+			validate: func(t *testing.T, svc *Service, a *args) {
+				svc.repo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 			},
 		},
 		{
@@ -2307,8 +2307,8 @@ func TestDeployLabCommand(t *testing.T) {
 					}, nil)
 			},
 			expectErr: utils.ErrNoDeployAccessToLab,
-			validate: func(t *testing.T, svc *service, a *args) {
-				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
+			validate: func(t *testing.T, svc *Service, a *args) {
+				svc.repo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 			},
 		},
 		{
@@ -2328,8 +2328,8 @@ func TestDeployLabCommand(t *testing.T) {
 			},
 
 			expectErr: utils.ErrLabIsDeploying,
-			validate: func(t *testing.T, svc *service, a *args) {
-				svc.labRepo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
+			validate: func(t *testing.T, svc *Service, a *args) {
+				svc.repo.(*mockLabRepo).AssertCalled(t, "GetByUuid", mock.Anything, a.labId)
 				assert.NotNil(t, svc.instances["lab123"], "expected lab123 to exist in instances")
 			},
 		},
@@ -2343,11 +2343,11 @@ func TestDeployLabCommand(t *testing.T) {
 			a := &args{}
 			tt.setup(f, a)
 
-			svc := &service{
+			svc := &Service{
 				storageManager:         &mockStorageManager{},
 				deploymentProvider:     &MockDeploymentProvider{},
 				topologyRepo:           &mockTopologyRepo{},
-				labRepo:                f.labRepo,
+				repo:                   f.labRepo,
 				instances:              map[string]*Instance{},
 				labDeploymentSchedule:  &mockSchedule{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
@@ -2374,14 +2374,14 @@ func TestDeployLabCommand(t *testing.T) {
 }
 
 func TestStopNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
-	service := &service{}
+	service := &Service{}
 	err := service.stopNodeCommand(t.Context(), "some-lab", nil, nil)
 	require.Error(t, err)
 	assert.Equal(t, utils.ErrNodeNotFound, err)
 }
 
 func TestStartNodeCommand_NodeNil_ShouldReturnError(t *testing.T) {
-	service := &service{}
+	service := &Service{}
 	err := service.startNodeCommand(t.Context(), "some-lab", nil, nil)
 	require.Error(t, err)
 	assert.Equal(t, utils.ErrNodeNotFound, err)

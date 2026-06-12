@@ -19,61 +19,42 @@ import (
 
 const NativeUserID = "00000000-0000-0000-0000-00000000000"
 
-type (
-	Manager interface {
-		CreateAuthToken(userId string) (string, error)
-		CreateAccessToken(authUser AuthenticatedUser) (string, error)
-		AuthenticateUser(tokenString string) (*AuthenticatedUser, error)
-		LoginNative(username string, password string) (string, string, error)
-		GetAuthCodeURL(stateToken string) (string, error)
-		AuthenticateWithCode(
-			authCode string,
-			userSubToIdMapper func(userSub string, userProfile string) (string, error),
-		) (*AuthenticatedUser, error)
-		AuthenticatorMiddleware() gin.HandlerFunc
-		RefreshAccessToken(authToken string) (string, error)
-		RegisterTestUser(authUser AuthenticatedUser) (string, error)
+type Manager struct {
+	config             *config.AntimonyConfig
+	authenticatedUsers map[string]*AuthenticatedUser
+	oauth2Config       oauth2.Config
+	provider           oidc.Provider
+	oidcSecret         string
+	jwtSecret          []byte
+	adminGroups        []string
+	authConfig         AuthConfig
+	nativeUsername     string
+	nativePassword     string
+}
 
-		GetAuthConfig() AuthConfig
-	}
+type AuthenticatedUser struct {
+	// The UUID of the user
+	UserId string
+	// List of the names of collections that the user has access to
+	Collections []string
+	IsAdmin     bool
+}
 
-	manager struct {
-		config             *config.AntimonyConfig
-		authenticatedUsers map[string]*AuthenticatedUser
-		oauth2Config       oauth2.Config
-		provider           oidc.Provider
-		oidcSecret         string
-		jwtSecret          []byte
-		adminGroups        []string
-		authConfig         AuthConfig
-		nativeUsername     string
-		nativePassword     string
-	}
+type AuthConfig struct {
+	OpenId OpenIdAuthConfig `json:"openId"`
+	Native NativeAuthConfig `json:"native"`
+}
 
-	AuthenticatedUser struct {
-		// The UUID of the user
-		UserId string
-		// List of the names of collections that the user has access to
-		Collections []string
-		IsAdmin     bool
-	}
+type OpenIdAuthConfig struct {
+	Enabled bool `json:"enabled"`
+}
 
-	AuthConfig struct {
-		OpenId OpenIdAuthConfig `json:"openId"`
-		Native NativeAuthConfig `json:"native"`
-	}
+type NativeAuthConfig struct {
+	Enabled    bool `json:"enabled"`
+	AllowEmpty bool `json:"allowEmpty"`
+}
 
-	OpenIdAuthConfig struct {
-		Enabled bool `json:"enabled"`
-	}
-
-	NativeAuthConfig struct {
-		Enabled    bool `json:"enabled"`
-		AllowEmpty bool `json:"allowEmpty"`
-	}
-)
-
-func CreateManager(config *config.AntimonyConfig) Manager {
+func CreateManager(config *config.AntimonyConfig) *Manager {
 	isOpenIdEnabled := config.Auth.EnableOpenID
 	isNativeEnabled := config.Auth.EnableNative
 
@@ -90,7 +71,7 @@ func CreateManager(config *config.AntimonyConfig) Manager {
 		},
 	}
 
-	authManager := &manager{
+	authManager := &Manager{
 		config:             config,
 		authenticatedUsers: make(map[string]*AuthenticatedUser),
 		adminGroups:        config.Auth.OpenIdAdminGroups,
@@ -134,7 +115,7 @@ func CreateManager(config *config.AntimonyConfig) Manager {
 	return authManager
 }
 
-func (m *manager) CreateNativeUser() {
+func (m *Manager) CreateNativeUser() {
 	m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
 		UserId:      NativeUserID,
 		IsAdmin:     true,
@@ -142,7 +123,7 @@ func (m *manager) CreateNativeUser() {
 	}
 }
 
-func (m *manager) RefreshAccessToken(authToken string) (string, error) {
+func (m *Manager) RefreshAccessToken(authToken string) (string, error) {
 	var (
 		authUser       *AuthenticatedUser
 		newAccessToken string
@@ -158,7 +139,7 @@ func (m *manager) RefreshAccessToken(authToken string) (string, error) {
 	}
 }
 
-func (m *manager) AuthenticatorMiddleware() gin.HandlerFunc {
+func (m *Manager) AuthenticatorMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var (
 			accessToken string
@@ -194,7 +175,7 @@ func (m *manager) AuthenticatorMiddleware() gin.HandlerFunc {
 	}
 }
 
-func (m *manager) AuthenticateWithCode(
+func (m *Manager) AuthenticateWithCode(
 	authCode string,
 	userSubToIdMapper func(userSub string, userProfile string) (string, error),
 ) (*AuthenticatedUser, error) {
@@ -254,7 +235,7 @@ func (m *manager) AuthenticateWithCode(
 
 	return authenticatedUser, nil
 }
-func (m *manager) GetAuthCodeURL(stateToken string) (string, error) {
+func (m *Manager) GetAuthCodeURL(stateToken string) (string, error) {
 	if !m.authConfig.OpenId.Enabled {
 		return "", utils.ErrOpenIDAuthDisabledError
 	}
@@ -262,7 +243,7 @@ func (m *manager) GetAuthCodeURL(stateToken string) (string, error) {
 	return m.oauth2Config.AuthCodeURL(stateToken), nil
 }
 
-func (m *manager) LoginNative(username string, password string) (string, string, error) {
+func (m *Manager) LoginNative(username string, password string) (string, string, error) {
 	var (
 		authToken   string
 		accessToken string
@@ -286,7 +267,7 @@ func (m *manager) LoginNative(username string, password string) (string, string,
 	return "", "", utils.ErrInvalidCredentials
 }
 
-func (m *manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, error) {
+func (m *Manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, error) {
 	if token, err := jwt.Parse(tokenString, m.tokenParser); err != nil {
 		return nil, utils.ErrTokenInvalid
 	} else if tokenClaims, ok := token.Claims.(jwt.MapClaims); !ok {
@@ -307,7 +288,7 @@ func (m *manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, erro
 	}
 }
 
-func (m *manager) CreateAuthToken(userId string) (string, error) {
+func (m *Manager) CreateAuthToken(userId string) (string, error) {
 	sbToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"id":  userId,
 		"nbf": time.Now().Unix(),
@@ -317,7 +298,7 @@ func (m *manager) CreateAuthToken(userId string) (string, error) {
 	return sbToken.SignedString(m.jwtSecret)
 }
 
-func (m *manager) CreateAccessToken(authUser AuthenticatedUser) (string, error) {
+func (m *Manager) CreateAccessToken(authUser AuthenticatedUser) (string, error) {
 	sbToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"id":      authUser.UserId,
 		"isAdmin": authUser.IsAdmin,
@@ -328,7 +309,7 @@ func (m *manager) CreateAccessToken(authUser AuthenticatedUser) (string, error) 
 	return sbToken.SignedString(m.jwtSecret)
 }
 
-func (m *manager) tokenParser(token *jwt.Token) (interface{}, error) {
+func (m *Manager) tokenParser(token *jwt.Token) (interface{}, error) {
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 		return nil, utils.ErrTokenInvalid
 	}
@@ -336,11 +317,11 @@ func (m *manager) tokenParser(token *jwt.Token) (interface{}, error) {
 	return m.jwtSecret, nil
 }
 
-func (m *manager) RegisterTestUser(user AuthenticatedUser) (string, error) {
+func (m *Manager) RegisterTestUser(user AuthenticatedUser) (string, error) {
 	m.authenticatedUsers[user.UserId] = &user
 	return user.UserId, nil
 }
 
-func (m *manager) GetAuthConfig() AuthConfig {
+func (m *Manager) GetAuthConfig() AuthConfig {
 	return m.authConfig
 }

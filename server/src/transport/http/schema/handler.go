@@ -8,19 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	Handler interface {
-		Get(ctx *gin.Context)
-	}
+type Handler struct {
+	service *schema.Service
+}
 
-	handler struct {
-		schemaService schema.Service
-	}
-)
-
-func CreateHandler(schemaService schema.Service) Handler {
-	return &handler{
-		schemaService: schemaService,
+func CreateHandler(service *schema.Service) *Handler {
+	return &Handler{
+		service: service,
 	}
 }
 
@@ -29,9 +23,9 @@ func CreateHandler(schemaService schema.Service) Handler {
 // @Tags		schema
 // @Success	200	{object}	utils.OkResponse[any]	"The schema as JSON object"
 // @Router		/schema [get]
-func (h *handler) Get(ctx *gin.Context) {
+func (h *Handler) Get(ctx *gin.Context) {
 	var schemaObj any
-	if err := json.Unmarshal([]byte(h.schemaService.Get()), &schemaObj); err != nil {
+	if err := json.Unmarshal([]byte(h.service.Get()), &schemaObj); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

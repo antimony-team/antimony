@@ -3,12 +3,7 @@ package utils
 import "sync"
 
 type (
-	EventBus[T any] interface {
-		Publish(topic string, value T)
-		Subscribe(topic string, handler func(T)) func()
-	}
-
-	eventBus[T any] struct {
+	EventBus[T any] struct {
 		mutex sync.RWMutex
 
 		nextId uint64
@@ -17,15 +12,15 @@ type (
 	}
 )
 
-func CreateEventBus[T any]() EventBus[T] {
-	return &eventBus[T]{
+func CreateEventBus[T any]() *EventBus[T] {
+	return &EventBus[T]{
 		mutex:       sync.RWMutex{},
 		nextId:      0,
 		subscribers: make(map[string]map[uint64]func(T), 0),
 	}
 }
 
-func (b *eventBus[T]) Publish(topic string, value T) {
+func (b *EventBus[T]) Publish(topic string, value T) {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -36,7 +31,7 @@ func (b *eventBus[T]) Publish(topic string, value T) {
 	}
 }
 
-func (b *eventBus[T]) Subscribe(topic string, handler func(T)) func() {
+func (b *EventBus[T]) Subscribe(topic string, handler func(T)) func() {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 

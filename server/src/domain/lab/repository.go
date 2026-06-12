@@ -8,28 +8,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type (
-	Repository interface {
-		GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error)
-		GetByUuid(ctx context.Context, labId string) (*Lab, error)
+type Repository struct {
+	db *gorm.DB
+}
 
-		Create(ctx context.Context, lab *Lab) error
-		Update(ctx context.Context, lab *Lab) error
-		Delete(ctx context.Context, lab *Lab) error
-	}
-
-	repository struct {
-		db *gorm.DB
-	}
-)
-
-func CreateRepository(db *gorm.DB) Repository {
-	return &repository{
+func CreateRepository(db *gorm.DB) *Repository {
+	return &Repository{
 		db: db,
 	}
 }
 
-func (r *repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error) {
+func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error) {
 	var labs []Lab
 	query := r.db.WithContext(ctx).
 		Preload("Topology.Collection").
@@ -71,7 +60,7 @@ func (r *repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 	return labs, nil
 }
 
-func (r *repository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
+func (r *Repository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
 	var lab Lab
 	result := r.db.WithContext(ctx).
 		Preload("Topology.Collection").
@@ -91,7 +80,7 @@ func (r *repository) GetByUuid(ctx context.Context, labId string) (*Lab, error) 
 	return &lab, nil
 }
 
-func (r *repository) Create(ctx context.Context, lab *Lab) error {
+func (r *Repository) Create(ctx context.Context, lab *Lab) error {
 	if err := r.db.WithContext(ctx).Create(lab).Error; err != nil {
 		log.Errorf("[DB] Failed to create lab. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -100,7 +89,7 @@ func (r *repository) Create(ctx context.Context, lab *Lab) error {
 	return nil
 }
 
-func (r *repository) Update(ctx context.Context, lab *Lab) error {
+func (r *Repository) Update(ctx context.Context, lab *Lab) error {
 	if err := r.db.WithContext(ctx).Save(lab).Error; err != nil {
 		log.Errorf("[DB] Failed to update lab. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -109,7 +98,7 @@ func (r *repository) Update(ctx context.Context, lab *Lab) error {
 	return nil
 }
 
-func (r *repository) Delete(ctx context.Context, lab *Lab) error {
+func (r *Repository) Delete(ctx context.Context, lab *Lab) error {
 	if err := r.db.WithContext(ctx).Delete(lab).Error; err != nil {
 		log.Errorf("[DB] Failed to delete lab. Error: %s", err.Error())
 		return utils.ErrDatabaseError

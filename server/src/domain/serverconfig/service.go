@@ -4,23 +4,17 @@ import (
 	"antimonyBackend/config"
 )
 
-type (
-	Service interface {
-		GetServerConfig() ServerConfig
-	}
+type Service struct {
+	config *config.AntimonyConfig
+}
 
-	service struct {
-		config *config.AntimonyConfig
-	}
-)
-
-func CreateService(config *config.AntimonyConfig) Service {
-	return &service{
+func CreateService(config *config.AntimonyConfig) *Service {
+	return &Service{
 		config: config,
 	}
 }
 
-func (s *service) GetServerConfig() ServerConfig {
+func (s *Service) GetServerConfig() ServerConfig {
 	return ServerConfig{
 		CaptureConfig: CaptureConfig{
 			Enabled:            s.config.Capture.Enabled,

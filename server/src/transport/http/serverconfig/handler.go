@@ -8,18 +8,14 @@ import (
 )
 
 type (
-	Handler interface {
-		Get(ctx *gin.Context)
-	}
-
-	handler struct {
-		configService serverconfig.Service
+	Handler struct {
+		service *serverconfig.Service
 	}
 )
 
-func CreateHandler(configService serverconfig.Service) Handler {
-	return &handler{
-		configService: configService,
+func CreateHandler(service *serverconfig.Service) *Handler {
+	return &Handler{
+		service: service,
 	}
 }
 
@@ -32,6 +28,6 @@ func CreateHandler(configService serverconfig.Service) Handler {
 // @Failure	498	{object}	nil							"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse[string]	"The user doesn't have access to the resource"
 // @Router		/config [get]
-func (h *handler) Get(ctx *gin.Context) {
-	ctx.JSON(utils.CreateOkResponse(h.configService.GetServerConfig()))
+func (h *Handler) Get(ctx *gin.Context) {
+	ctx.JSON(utils.CreateOkResponse(h.service.GetServerConfig()))
 }

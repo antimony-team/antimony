@@ -12,24 +12,14 @@ import (
 	"github.com/samber/lo"
 )
 
-type (
-	Handler interface {
-		Get(ctx *gin.Context)
-		GetByUuid(ctx *gin.Context)
-		Create(ctx *gin.Context)
-		Update(ctx *gin.Context)
-		Delete(ctx *gin.Context)
-	}
+type Handler struct {
+	service         *lab.Service
+	instanceService *instance.Service
+}
 
-	handler struct {
-		labService      lab.Service
-		instanceService instance.Service
-	}
-)
-
-func CreateHandler(labService lab.Service, instanceService instance.Service) Handler {
-	return &handler{
-		labService:      labService,
+func CreateHandler(service *lab.Service, instanceService *instance.Service) *Handler {
+	return &Handler{
+		service:         service,
 		instanceService: instanceService,
 	}
 }
@@ -43,7 +33,7 @@ func CreateHandler(labService lab.Service, instanceService instance.Service) Han
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
 // @Router		/labs [get]
-func (h *handler) Get(ctx *gin.Context) {
+func (h *Handler) Get(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -55,7 +45,7 @@ func (h *handler) Get(ctx *gin.Context) {
 		return
 	}
 
-	resultLabs, err := h.labService.Get(ctx, labFilter, authUser)
+	resultLabs, err := h.service.Get(ctx, labFilter, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -96,13 +86,13 @@ func (h *handler) Get(ctx *gin.Context) {
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
 // @Failure	404	{object}	utils.ErrorResponse	"The requested lab was not found."
 // @Router		/labs/:labId [get]
-func (h *handler) GetByUuid(ctx *gin.Context) {
+func (h *Handler) GetByUuid(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	resultLab, err := h.labService.GetByUuid(ctx, ctx.Param("labId"), authUser)
+	resultLab, err := h.service.GetByUuid(ctx, ctx.Param("labId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -125,7 +115,7 @@ func (h *handler) GetByUuid(ctx *gin.Context) {
 // @Failure	403		{object}	utils.ErrorResponse			"Access to the resource was denied. Details in the request body."
 // @Param		request	body		lab.LabIn					true	"The lab"
 // @Router		/labs [post]
-func (h *handler) Create(ctx *gin.Context) {
+func (h *Handler) Create(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -137,7 +127,7 @@ func (h *handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.labService.Create(ctx, payload, authUser)
+	result, err := h.service.Create(ctx, payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -159,7 +149,7 @@ func (h *handler) Create(ctx *gin.Context) {
 // @Param		request	body		lab.LabIn			true	"The lab with updated values"
 // @Param		id		path		string				true	"The ID of the lab to edit"
 // @Router		/labs/{id} [put]
-func (h *handler) Update(ctx *gin.Context) {
+func (h *Handler) Update(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -171,7 +161,7 @@ func (h *handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.labService.Update(ctx, payload, ctx.Param("labId"), authUser); err != nil {
+	if err := h.service.Update(ctx, payload, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -190,13 +180,13 @@ func (h *handler) Update(ctx *gin.Context) {
 // @Failure	422	{object}	utils.ErrorResponse	"The request was invalid. Details in the response body."
 // @Param		id	path		string				true	"The ID of the lab to delete"
 // @Router		/labs/{id} [delete]
-func (h *handler) Delete(ctx *gin.Context) {
+func (h *Handler) Delete(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	if err := h.labService.Delete(ctx, ctx.Param("labId"), authUser); err != nil {
+	if err := h.service.Delete(ctx, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

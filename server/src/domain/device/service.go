@@ -10,19 +10,17 @@ import (
 )
 
 type (
-	Service interface {
-		Get() []DeviceConfig
-	}
-
-	service struct {
+	Service struct {
 		devices []DeviceConfig
 	}
 )
 
-func CreateService(config *config.AntimonyConfig) Service {
+func CreateService(config *config.AntimonyConfig) *Service {
 	deviceConfig := make([]DeviceConfig, 0)
 
-	if deviceConfigFile, err := os.Open(config.Containerlab.DeviceConfig); err != nil {
+	deviceConfigFile, err := os.Open(config.Containerlab.DeviceConfig)
+
+	if err != nil {
 		log.Error("Failed to open device config file", "file", config.Containerlab.DeviceConfig)
 	} else if fileData, err := io.ReadAll(deviceConfigFile); err != nil {
 		log.Error(
@@ -42,11 +40,15 @@ func CreateService(config *config.AntimonyConfig) Service {
 		)
 	}
 
-	return &service{
+	if deviceConfigFile != nil {
+		_ = deviceConfigFile.Close()
+	}
+
+	return &Service{
 		devices: deviceConfig,
 	}
 }
 
-func (s *service) Get() []DeviceConfig {
+func (s *Service) Get() []DeviceConfig {
 	return s.devices
 }

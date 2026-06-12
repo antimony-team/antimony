@@ -24,34 +24,24 @@ import (
 const ShellTimeout = 60
 
 type (
-	Service interface {
-		Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]Lab, error)
-		GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*Lab, error)
-		Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error)
-		Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error
-		Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error
-
-		SetRuntimeInfo(runtimeInfo RuntimeInfo)
-	}
-
 	RuntimeInfo interface {
 		IsRunning(labId string) bool
 		CanDelete(labId string) bool
 	}
 
-	service struct {
+	Service struct {
 		config *config.AntimonyConfig
 
-		labRepo         Repository
-		userRepo        user.Repository
-		topologyRepo    topology.Repository
-		schemaService   schema.Service
-		topologyService topology.Service
-		storageManager  storage.Manager
+		repo            *Repository
+		userRepo        *user.Repository
+		topologyRepo    *topology.Repository
+		schemaService   *schema.Service
+		topologyService *topology.Service
+		storageManager  *storage.Manager
 
 		runtimeInfo RuntimeInfo
 
-		labEventBus utils.EventBus[*Lab]
+		labEventBus *utils.EventBus[*Lab]
 
 		statusMessageNamespace socket.OutputNamespace[statusmessage.Message]
 	}
@@ -59,18 +49,18 @@ type (
 
 func CreateService(
 	config *config.AntimonyConfig,
-	labRepo Repository,
-	userRepo user.Repository,
-	topologyRepo topology.Repository,
-	schemaService schema.Service,
-	topologyService topology.Service,
-	storageManager storage.Manager,
-	labEventBus utils.EventBus[*Lab],
+	repo *Repository,
+	userRepo *user.Repository,
+	topologyRepo *topology.Repository,
+	schemaService *schema.Service,
+	topologyService *topology.Service,
+	storageManager *storage.Manager,
+	labEventBus *utils.EventBus[*Lab],
 	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
-) Service {
-	labService := &service{
+) *Service {
+	labService := &Service{
 		config:                 config,
-		labRepo:                labRepo,
+		repo:                   repo,
 		userRepo:               userRepo,
 		topologyRepo:           topologyRepo,
 		schemaService:          schemaService,
@@ -84,13 +74,13 @@ func CreateService(
 	return labService
 }
 
-func (s *service) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]Lab, error) {
+func (s *Service) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]Lab, error) {
 	var (
 		labs []Lab
 		err  error
 	)
 
-	if labs, err = s.labRepo.GetAll(ctx, &labFilter); err != nil {
+	if labs, err = s.repo.GetAll(ctx, &labFilter); err != nil {
 		return nil, err
 	}
 
@@ -99,12 +89,12 @@ func (s *service) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Authe
 	}), nil
 }
 
-func (s *service) GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*Lab, error) {
+func (s *Service) GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*Lab, error) {
 	var (
 		lab *Lab
 		err error
 	)
-	if lab, err = s.labRepo.GetByUuid(ctx, labId); err != nil {
+	if lab, err = s.repo.GetByUuid(ctx, labId); err != nil {
 		return nil, err
 	}
 
@@ -116,7 +106,7 @@ func (s *service) GetByUuid(ctx *gin.Context, labId string, authUser auth.Authen
 	return lab, err
 }
 
-func (s *service) Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error) {
+func (s *Service) Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error) {
 	labTopology, err := s.topologyRepo.GetByUuid(ctx, *req.TopologyId)
 	if err != nil {
 		return "", err
@@ -160,7 +150,7 @@ func (s *service) Create(ctx *gin.Context, req LabIn, authUser auth.Authenticate
 
 	lab.InstanceName = instanceName
 
-	if err := s.labRepo.Create(ctx, lab); err != nil {
+	if err := s.repo.Create(ctx, lab); err != nil {
 		return "", err
 	}
 
@@ -173,8 +163,8 @@ func (s *service) Create(ctx *gin.Context, req LabIn, authUser auth.Authenticate
 	return labUuid, nil
 }
 
-func (s *service) Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error {
-	lab, err := s.labRepo.GetByUuid(ctx, labId)
+func (s *Service) Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error {
+	lab, err := s.repo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
 	}
@@ -208,7 +198,7 @@ func (s *service) Update(ctx *gin.Context, req LabInPartial, labId string, authU
 		lab.Name = *req.Name
 	}
 
-	if err := s.labRepo.Update(ctx, lab); err != nil {
+	if err := s.repo.Update(ctx, lab); err != nil {
 		return err
 	}
 
@@ -219,8 +209,8 @@ func (s *service) Update(ctx *gin.Context, req LabInPartial, labId string, authU
 	return nil
 }
 
-func (s *service) Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error {
-	lab, err := s.labRepo.GetByUuid(ctx, labId)
+func (s *Service) Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error {
+	lab, err := s.repo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
 	}
@@ -253,14 +243,14 @@ func (s *service) Delete(ctx *gin.Context, labId string, authUser auth.Authentic
 	// Publish that a lab has been deleted for the scheduler
 	s.labEventBus.Publish("lab.deleted", lab)
 
-	return s.labRepo.Delete(ctx, lab)
+	return s.repo.Delete(ctx, lab)
 }
 
-func (s *service) SetRuntimeInfo(runtimeInfo RuntimeInfo) {
+func (s *Service) SetRuntimeInfo(runtimeInfo RuntimeInfo) {
 	s.runtimeInfo = runtimeInfo
 }
 
-func (s *service) createLabEnvironment(lab *Lab) (string, error) {
+func (s *Service) createLabEnvironment(lab *Lab) (string, error) {
 	var (
 		runTopologyName       string
 		runTopologyDefinition string
@@ -288,7 +278,7 @@ func (s *service) createLabEnvironment(lab *Lab) (string, error) {
 }
 
 // Read a topology, changes its name, and returns the re-marshaled output.
-func (s *service) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
+func (s *Service) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
 	var (
 		topologyRaw        string
 		topologyDefinition = make(map[interface{}]interface{})

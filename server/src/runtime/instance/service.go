@@ -31,32 +31,7 @@ import (
 )
 
 type (
-	Service interface {
-		lab.RuntimeInfo
-
-		DeployLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error
-		DestroyLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error
-
-		DeployLab(lab *lab.Lab) error
-		DestroyLab(lab *lab.Lab) error
-
-		StartNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error
-		StopNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error
-		RestartNodeCommand(ctx context.Context, labId string, nodeId *string, authUser *auth.AuthenticatedUser) error
-
-		FetchShellsCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) ([]ShellData, error)
-		OpenShellCommand(
-			ctx context.Context,
-			labId string,
-			nodeName *string,
-			authUser *auth.AuthenticatedUser,
-		) (string, error)
-		CloseShellCommand(shellId *string, authUser *auth.AuthenticatedUser) error
-
-		GetInstance(labId string) *Instance
-	}
-
-	service struct {
+	Service struct {
 		config *config.AntimonyConfig
 
 		// Map of currently active instances indexed by lab ID.
@@ -70,16 +45,18 @@ type (
 		defaultSshAuth  []ssh.AuthMethod
 		nodeKindConfigs map[string]NodeKindConfig
 
-		nodeMonitor Monitor
+		monitor *Monitor
 
-		schemaService      schema.Service
-		labRepo            lab.Repository
-		topologyService    topology.Service
-		storageManager     storage.Manager
+		labRepo         *lab.Repository
+		schemaService   *schema.Service
+		topologyService *topology.Service
+
+		storageManager *storage.Manager
+		socketManager  *socket.Manager
+
 		deploymentProvider deployment.DeploymentProvider
-		socketManager      socket.Manager
 
-		labEventBus utils.EventBus[*lab.Lab]
+		labEventBus *utils.EventBus[*lab.Lab]
 
 		updatesNamespace socket.OutputNamespace[InstanceUpdate]
 
@@ -100,23 +77,23 @@ type (
 
 func CreateService(
 	config *config.AntimonyConfig,
-	schemaService schema.Service,
-	labRepo lab.Repository,
-	topologyService topology.Service,
-	storageManager storage.Manager,
-	socketManager socket.Manager,
-	labEventBus utils.EventBus[*lab.Lab],
+	schemaService *schema.Service,
+	labRepo *lab.Repository,
+	topologyService *topology.Service,
+	storageManager *storage.Manager,
+	socketManager *socket.Manager,
+	labEventBus *utils.EventBus[*lab.Lab],
 	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
 	deploymentProvider deployment.DeploymentProvider,
-) Service {
-	nodeMonitor := CreateMonitor(socketManager, deploymentProvider)
+) *Service {
+	monitor := CreateMonitor(socketManager, deploymentProvider)
 
-	service := &service{
+	service := &Service{
 		config:                 config,
 		labRepo:                labRepo,
 		schemaService:          schemaService,
 		topologyService:        topologyService,
-		nodeMonitor:            nodeMonitor,
+		monitor:                monitor,
 		nodeKindConfigs:        getNodeKindConfigs("./kinds.conf.yml"),
 		openShells:             make(map[string]*ShellConfig),
 		openShellsMutex:        sync.Mutex{},
@@ -144,7 +121,7 @@ func CreateService(
 
 	go service.registerProviderEventListener()
 
-	go service.nodeMonitor.Run()
+	go service.monitor.Run()
 	go service.runShellManager()
 
 	return service
@@ -163,7 +140,7 @@ func CreateService(
  * Lab (manually) redeployed -> Leave everything as-is
  */
 
-func (s *service) DeployLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
+func (s *Service) DeployLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
 	instanceLab, err := s.validateLabCommand(ctx, labId, authUser)
 	if err != nil {
 		return err
@@ -195,7 +172,7 @@ func (s *service) DeployLabCommand(ctx context.Context, labId string, authUser *
 	return nil
 }
 
-func (s *service) DestroyLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
+func (s *Service) DestroyLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
 	instanceLab, err := s.validateLabCommand(ctx, labId, authUser)
 	if err != nil {
 		return err
@@ -210,7 +187,7 @@ func (s *service) DestroyLabCommand(ctx context.Context, labId string, authUser 
 	return nil
 }
 
-func (s *service) StartNodeCommand(
+func (s *Service) StartNodeCommand(
 	ctx context.Context,
 	labId string,
 	nodeId *string,
@@ -251,7 +228,7 @@ func (s *service) StartNodeCommand(
 	return nil
 }
 
-func (s *service) StopNodeCommand(
+func (s *Service) StopNodeCommand(
 	ctx context.Context,
 	labId string,
 	nodeName *string,
@@ -289,7 +266,7 @@ func (s *service) StopNodeCommand(
 	return nil
 }
 
-func (s *service) RestartNodeCommand(
+func (s *Service) RestartNodeCommand(
 	ctx context.Context,
 	labId string,
 	nodeId *string,
@@ -325,7 +302,7 @@ func (s *service) RestartNodeCommand(
 	return nil
 }
 
-func (s *service) validateLabCommand(
+func (s *Service) validateLabCommand(
 	ctx context.Context,
 	labId string,
 	authUser *auth.AuthenticatedUser,
@@ -343,7 +320,7 @@ func (s *service) validateLabCommand(
 	return instanceLab, nil
 }
 
-func (s *service) validateNodeCommand(
+func (s *Service) validateNodeCommand(
 	ctx context.Context,
 	labId string,
 	nodeName *string,
@@ -388,7 +365,7 @@ func (s *service) validateNodeCommand(
 	return instanceLab, instance, node, nil
 }
 
-func (s *service) runShellManager() {
+func (s *Service) runShellManager() {
 	for {
 		s.openShellsMutex.Lock()
 		for shellId, shell := range s.openShells {
@@ -410,7 +387,7 @@ func (s *service) runShellManager() {
 	}
 }
 
-func (s *service) registerProviderEventListener() {
+func (s *Service) registerProviderEventListener() {
 	ctx := context.Background()
 
 	_ = s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
@@ -438,14 +415,14 @@ func (s *service) registerProviderEventListener() {
 	})
 }
 
-func (s *service) GetInstance(labId string) *Instance {
+func (s *Service) GetInstance(labId string) *Instance {
 	s.instancesMutex.Lock()
 	defer s.instancesMutex.Unlock()
 
 	return s.instances[labId]
 }
 
-func (s *service) DestroyLab(lab *lab.Lab) error {
+func (s *Service) DestroyLab(lab *lab.Lab) error {
 	s.instancesMutex.Lock()
 	instance, hasInstance := s.instances[lab.UUID]
 	s.instancesMutex.Unlock()
@@ -511,7 +488,7 @@ func (s *service) DestroyLab(lab *lab.Lab) error {
 	return nil
 }
 
-func (s *service) redeployLab(lab *lab.Lab, instance *Instance) error {
+func (s *Service) redeployLab(lab *lab.Lab, instance *Instance) error {
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
 
@@ -628,7 +605,7 @@ func (s *service) redeployLab(lab *lab.Lab, instance *Instance) error {
 	return nil
 }
 
-func (s *service) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
+func (s *Service) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
 	authMethods := s.defaultSshAuth
 
 	sshUsername := "admin"
@@ -714,7 +691,7 @@ func (s *sshReadWriteCloser) Close() error {
 	return s.client.Close()
 }
 
-func (s *service) DeployLab(lab *lab.Lab) error {
+func (s *Service) DeployLab(lab *lab.Lab) error {
 	// We have to ensure that the instance is only created once
 	s.instancesMutex.Lock()
 
@@ -864,8 +841,8 @@ func (s *service) DeployLab(lab *lab.Lab) error {
 	return nil
 }
 
-// startNodeStartupListener Starts a blocking listener that waits until the localhost SSH service responds or the container is stopped
-func (s *service) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *lab.Lab) {
+// startNodeStartupListener Starts a blocking listener that waits until the localhost SSH Service responds or the container is stopped
+func (s *Service) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *lab.Lab) {
 	ctx := context.Background()
 
 	// We can't use Go's built-in SSH service here as it responds differently to when the sevrer is not reachable.
@@ -905,10 +882,10 @@ func (s *service) startNodeStartupListener(node *InstanceNode, instance *Instanc
 	}
 }
 
-func (s *service) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *lab.Lab) {
+func (s *Service) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *lab.Lab) {
 	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
 
-	s.nodeMonitor.AddNode(node.ContainerId)
+	s.monitor.AddNode(node.ContainerId)
 
 	instance.Mutex.Lock()
 	node.State = deployment.NodeStates.Running
@@ -920,7 +897,7 @@ func (s *service) onNodeStarted(ctx context.Context, instance *Instance, node *I
 	})
 }
 
-func (s *service) createInstance(
+func (s *Service) createInstance(
 	logNamespace socket.OutputNamespace[string],
 	runTopologyFile string,
 	runTopologyDefinition string,
@@ -941,7 +918,7 @@ func (s *service) createInstance(
 	}
 }
 
-func (s *service) extractNodeLabels(topologyDefinition any) map[string]map[string]string {
+func (s *Service) extractNodeLabels(topologyDefinition any) map[string]map[string]string {
 	result := make(map[string]map[string]string)
 
 	topologyMap, ok := topologyDefinition.(map[string]any)
@@ -979,7 +956,7 @@ func (s *service) extractNodeLabels(topologyDefinition any) map[string]map[strin
 	return result
 }
 
-func (s *service) extractNodeKinds(topologyDefinition any) map[string]string {
+func (s *Service) extractNodeKinds(topologyDefinition any) map[string]string {
 	result := make(map[string]string)
 
 	topologyMap, ok := topologyDefinition.(map[string]any)
@@ -1014,7 +991,7 @@ func (s *service) extractNodeKinds(topologyDefinition any) map[string]string {
 	return result
 }
 
-func (s *service) updateInstanceNode(
+func (s *Service) updateInstanceNode(
 	ctx context.Context,
 	instance *Instance,
 	instanceName string,
@@ -1052,7 +1029,7 @@ func (s *service) updateInstanceNode(
 	return nil
 }
 
-func (s *service) getNodesFromInspect(
+func (s *Service) getNodesFromInspect(
 	ctx context.Context,
 	instance *Instance,
 	instanceName string,
@@ -1071,7 +1048,7 @@ func (s *service) getNodesFromInspect(
 	}), nil
 }
 
-func (s *service) containerToInstanceNode(
+func (s *Service) containerToInstanceNode(
 	container deployment.InspectContainer,
 	instanceName string,
 	nodeKinds map[string]string,
@@ -1114,7 +1091,7 @@ func (s *service) containerToInstanceNode(
 	}
 }
 
-func (s *service) notifyUpdate(lab lab.Lab, message *statusmessage.Message) {
+func (s *Service) notifyUpdate(lab lab.Lab, message *statusmessage.Message) {
 	s.updatesNamespace.Send(InstanceUpdate{
 		LabId: &lab.UUID,
 	})
@@ -1127,7 +1104,7 @@ func (s *service) notifyUpdate(lab lab.Lab, message *statusmessage.Message) {
 // updateStateAndNotify Updates the state of a lab and sends various notification updates.
 // If the status message is set, all users will receive the status message.
 // If the log namespace is set, the log content of the status message is also sent to the provided namespace.
-func (s *service) updateStateAndNotify(
+func (s *Service) updateStateAndNotify(
 	lab *lab.Lab,
 	instance *Instance,
 	state InstanceState,
@@ -1154,7 +1131,7 @@ func (s *service) updateStateAndNotify(
 
 // reviveInstances runs whenever the application is started and attempts to restore instances from running containers
 // and database entries. Labs that have not yet been started and have a start time in the future will be scheduled by the scheduler.
-func (s *service) reviveInstances() {
+func (s *Service) reviveInstances() {
 	ctx := context.Background()
 
 	savedLabs, err := s.labRepo.GetAll(ctx, nil)
@@ -1262,7 +1239,7 @@ func (s *service) reviveInstances() {
 	}
 }
 
-func (s *service) FetchShellsCommand(
+func (s *Service) FetchShellsCommand(
 	ctx context.Context,
 	labId string,
 	authUser *auth.AuthenticatedUser,
@@ -1292,7 +1269,7 @@ func (s *service) FetchShellsCommand(
 	return userShells, nil
 }
 
-func (s *service) OpenShellCommand(
+func (s *Service) OpenShellCommand(
 	ctx context.Context,
 	labId string,
 	nodeName *string,
@@ -1409,7 +1386,7 @@ func (s *service) OpenShellCommand(
 	return shellId, nil
 }
 
-func (s *service) CloseShellCommand(shellId *string, authUser *auth.AuthenticatedUser) error {
+func (s *Service) CloseShellCommand(shellId *string, authUser *auth.AuthenticatedUser) error {
 	if shellId == nil {
 		return utils.ErrInvalidSocketRequest
 	}
@@ -1442,7 +1419,7 @@ func (s *service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 	return nil
 }
 
-func (s *service) openNodeShell(ctx context.Context, node InstanceNode) (io.ReadWriteCloser, error) {
+func (s *Service) openNodeShell(ctx context.Context, node InstanceNode) (io.ReadWriteCloser, error) {
 	var host string
 	var connection io.ReadWriteCloser
 	var err error
@@ -1483,7 +1460,7 @@ func (s *service) openNodeShell(ctx context.Context, node InstanceNode) (io.Read
 	return s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/sh"})
 }
 
-func (s *service) closeNodeShells(nodeName string) {
+func (s *Service) closeNodeShells(nodeName string) {
 	var removeShellIds []string
 
 	s.openShellsMutex.Lock()
@@ -1503,7 +1480,7 @@ func (s *service) closeNodeShells(nodeName string) {
 	s.openShellsMutex.Unlock()
 }
 
-func (s *service) closeShell(shellId string, shell *ShellConfig, reason string) error {
+func (s *Service) closeShell(shellId string, shell *ShellConfig, reason string) error {
 	s.shellCommandsNamespace.Send(ShellCommandData{
 		LabId:   shell.LabId,
 		Node:    shell.Node,
@@ -1517,7 +1494,7 @@ func (s *service) closeShell(shellId string, shell *ShellConfig, reason string) 
 	return shell.Connection.Close()
 }
 
-func (s *service) handleShellData(
+func (s *Service) handleShellData(
 	shellId string,
 ) func(
 	ctx context.Context,
@@ -1642,7 +1619,7 @@ func getSshKeyAuth() []ssh.AuthMethod {
 	return signers
 }
 
-func (s *service) IsRunning(labId string) bool {
+func (s *Service) IsRunning(labId string) bool {
 	s.instancesMutex.Lock()
 	defer s.instancesMutex.Unlock()
 
@@ -1651,7 +1628,7 @@ func (s *service) IsRunning(labId string) bool {
 	return hasInstance
 }
 
-func (s *service) CanDelete(labId string) bool {
+func (s *Service) CanDelete(labId string) bool {
 	s.instancesMutex.Lock()
 	defer s.instancesMutex.Unlock()
 

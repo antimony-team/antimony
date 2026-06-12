@@ -8,26 +8,20 @@ import (
 	"time"
 )
 
-type (
-	Scheduler interface {
-		Run()
-	}
+type Scheduler struct {
+	config *config.AntimonyConfig
 
-	scheduler struct {
-		config *config.AntimonyConfig
+	instanceService *instance.Service
 
-		instanceService instance.Service
-
-		deploymentSchedule  utils.Schedule[lab.Lab]
-		destructionSchedule utils.Schedule[lab.Lab]
-	}
-)
+	deploymentSchedule  *utils.Schedule[lab.Lab]
+	destructionSchedule *utils.Schedule[lab.Lab]
+}
 
 func CreateScheduler(
 	config *config.AntimonyConfig,
-	instanceService instance.Service,
-	labEventBus utils.EventBus[*lab.Lab],
-) Scheduler {
+	instanceService *instance.Service,
+	labEventBus *utils.EventBus[*lab.Lab],
+) *Scheduler {
 	deploymentSchedule := utils.CreateSchedule[lab.Lab](
 		func(lab lab.Lab) string {
 			return lab.UUID
@@ -46,7 +40,7 @@ func CreateScheduler(
 		},
 	)
 
-	scheduler := &scheduler{
+	scheduler := &Scheduler{
 		config: config,
 
 		instanceService: instanceService,
@@ -64,7 +58,7 @@ func CreateScheduler(
 	return scheduler
 }
 
-func (s *scheduler) Run() {
+func (s *Scheduler) Run() {
 	for {
 		if deployLab := s.deploymentSchedule.TryPop(); deployLab != nil {
 			go func() {
@@ -85,26 +79,26 @@ func (s *scheduler) Run() {
 	}
 }
 
-func (s *scheduler) onLabCreated(lab *lab.Lab) {
+func (s *Scheduler) onLabCreated(lab *lab.Lab) {
 	s.deploymentSchedule.Schedule(lab)
 	s.destructionSchedule.Schedule(lab)
 }
 
-func (s *scheduler) onLabDeleted(lab *lab.Lab) {
+func (s *Scheduler) onLabDeleted(lab *lab.Lab) {
 	s.deploymentSchedule.Remove(lab.UUID)
 	s.destructionSchedule.Remove(lab.UUID)
 }
 
-func (s *scheduler) onLabMoved(lab *lab.Lab) {
+func (s *Scheduler) onLabMoved(lab *lab.Lab) {
 	s.deploymentSchedule.Reschedule(lab)
 	s.destructionSchedule.Reschedule(lab)
 }
 
-func (s *scheduler) onLabManuallyDeployed(lab *lab.Lab) {
+func (s *Scheduler) onLabManuallyDeployed(lab *lab.Lab) {
 	s.deploymentSchedule.Remove(lab.UUID)
 	s.destructionSchedule.Schedule(lab)
 }
 
-func (s *scheduler) onLabRestored(lab *lab.Lab) {
+func (s *Scheduler) onLabRestored(lab *lab.Lab) {
 	s.destructionSchedule.Schedule(lab)
 }

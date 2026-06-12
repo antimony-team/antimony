@@ -9,42 +9,17 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type (
-	Repository interface {
-		GetAll(ctx context.Context) ([]Topology, error)
-		GetByUuid(ctx context.Context, topologyId string) (*Topology, error)
-		GetByName(ctx context.Context, topologyName string, collectionId string) ([]Topology, error)
-		GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error)
+type Repository struct {
+	db *gorm.DB
+}
 
-		Create(ctx context.Context, topology *Topology) error
-		Update(ctx context.Context, topology *Topology) error
-		Delete(ctx context.Context, topology *Topology) error
-
-		GetBindFileByUuid(ctx context.Context, bindFileId string) (*BindFile, error)
-		GetBindFileForTopology(ctx context.Context, topologyId string) ([]BindFile, error)
-		CreateBindFile(ctx context.Context, bindFile *BindFile) error
-		UpdateBindFile(ctx context.Context, bindFile *BindFile) error
-		DeleteBindFile(ctx context.Context, bindFile *BindFile) error
-		DoesBindFilePathExist(
-			ctx context.Context,
-			bindFilePath string,
-			topologyId string,
-			excludeString string,
-		) (bool, error)
-	}
-
-	repository struct {
-		db *gorm.DB
-	}
-)
-
-func CreateRepository(db *gorm.DB) Repository {
-	return &repository{
+func CreateRepository(db *gorm.DB) *Repository {
+	return &Repository{
 		db: db,
 	}
 }
 
-func (r *repository) GetAll(ctx context.Context) ([]Topology, error) {
+func (r *Repository) GetAll(ctx context.Context) ([]Topology, error) {
 	var topologies []Topology
 	result := r.db.WithContext(ctx).
 		Preload(clause.Associations).
@@ -58,7 +33,7 @@ func (r *repository) GetAll(ctx context.Context) ([]Topology, error) {
 	return topologies, nil
 }
 
-func (r *repository) GetByUuid(ctx context.Context, topologyId string) (*Topology, error) {
+func (r *Repository) GetByUuid(ctx context.Context, topologyId string) (*Topology, error) {
 	var topology Topology
 	result := r.db.WithContext(ctx).Where("uuid = ?", topologyId).
 		Preload("Collection").
@@ -77,7 +52,7 @@ func (r *repository) GetByUuid(ctx context.Context, topologyId string) (*Topolog
 	return &topology, nil
 }
 
-func (r *repository) GetByName(
+func (r *Repository) GetByName(
 	ctx context.Context,
 	topologyName string,
 	collectionId string,
@@ -101,7 +76,7 @@ func (r *repository) GetByName(
 	return topologies, nil
 }
 
-func (r *repository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error) {
+func (r *Repository) GetFromCollections(ctx context.Context, collectionNames []string) ([]Topology, error) {
 	var topologies []Topology
 	result := r.db.WithContext(ctx).
 		Preload(clause.Associations).
@@ -121,7 +96,7 @@ func (r *repository) GetFromCollections(ctx context.Context, collectionNames []s
 	return topologies, nil
 }
 
-func (r *repository) Create(ctx context.Context, topology *Topology) error {
+func (r *Repository) Create(ctx context.Context, topology *Topology) error {
 	if err := r.db.WithContext(ctx).Create(topology).Error; err != nil {
 		log.Errorf("[DB] Failed to create topology. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -130,7 +105,7 @@ func (r *repository) Create(ctx context.Context, topology *Topology) error {
 	return nil
 }
 
-func (r *repository) Update(ctx context.Context, topology *Topology) error {
+func (r *Repository) Update(ctx context.Context, topology *Topology) error {
 	if err := r.db.WithContext(ctx).Save(topology).Error; err != nil {
 		log.Errorf("[DB] Failed to update topology. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -139,7 +114,7 @@ func (r *repository) Update(ctx context.Context, topology *Topology) error {
 	return nil
 }
 
-func (r *repository) Delete(ctx context.Context, topology *Topology) error {
+func (r *Repository) Delete(ctx context.Context, topology *Topology) error {
 	if err := r.db.WithContext(ctx).Delete(topology).Error; err != nil {
 		log.Errorf("[DB] Failed to delete topology. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -148,7 +123,7 @@ func (r *repository) Delete(ctx context.Context, topology *Topology) error {
 	return nil
 }
 
-func (r *repository) GetBindFileByUuid(ctx context.Context, bindFileId string) (*BindFile, error) {
+func (r *Repository) GetBindFileByUuid(ctx context.Context, bindFileId string) (*BindFile, error) {
 	var bindFile BindFile
 	result := r.db.WithContext(ctx).
 		Preload("Topology").
@@ -167,7 +142,7 @@ func (r *repository) GetBindFileByUuid(ctx context.Context, bindFileId string) (
 	return &bindFile, nil
 }
 
-func (r *repository) GetBindFileForTopology(ctx context.Context, topologyId string) ([]BindFile, error) {
+func (r *Repository) GetBindFileForTopology(ctx context.Context, topologyId string) ([]BindFile, error) {
 	var bindFiles []BindFile
 	result := r.db.WithContext(ctx).
 		Preload("Topology").
@@ -183,7 +158,7 @@ func (r *repository) GetBindFileForTopology(ctx context.Context, topologyId stri
 	return bindFiles, nil
 }
 
-func (r *repository) CreateBindFile(ctx context.Context, bindFile *BindFile) error {
+func (r *Repository) CreateBindFile(ctx context.Context, bindFile *BindFile) error {
 	if err := r.db.WithContext(ctx).Create(bindFile).Error; err != nil {
 		log.Errorf("[DB] Failed to create bind file. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -192,7 +167,7 @@ func (r *repository) CreateBindFile(ctx context.Context, bindFile *BindFile) err
 	return nil
 }
 
-func (r *repository) UpdateBindFile(ctx context.Context, bindFile *BindFile) error {
+func (r *Repository) UpdateBindFile(ctx context.Context, bindFile *BindFile) error {
 	if err := r.db.WithContext(ctx).Save(bindFile).Error; err != nil {
 		log.Errorf("[DB] Failed to update bind file. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -201,7 +176,7 @@ func (r *repository) UpdateBindFile(ctx context.Context, bindFile *BindFile) err
 	return nil
 }
 
-func (r *repository) DeleteBindFile(ctx context.Context, bindFile *BindFile) error {
+func (r *Repository) DeleteBindFile(ctx context.Context, bindFile *BindFile) error {
 	if err := r.db.WithContext(ctx).Delete(bindFile).Error; err != nil {
 		log.Errorf("[DB] Failed to update delete file. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -210,7 +185,7 @@ func (r *repository) DeleteBindFile(ctx context.Context, bindFile *BindFile) err
 	return nil
 }
 
-func (r *repository) DoesBindFilePathExist(
+func (r *Repository) DoesBindFilePathExist(
 	ctx context.Context,
 	bindFilePath, topologyId, excludeUUID string,
 ) (bool, error) {

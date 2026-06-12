@@ -14,32 +14,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type (
-	Service interface {
-		Get() string
-		Parse(data string) (*any, error)
-	}
+type Service struct {
+	schemaString *string
+	clabSchema   *jsonschema.Schema
+}
 
-	schemaService struct {
-		schemaString *string
-		clabSchema   *jsonschema.Schema
-	}
-)
-
-func CreateService(config *config.AntimonyConfig) Service {
+func CreateService(config *config.AntimonyConfig) *Service {
 	schema, schemaString := loadSchema(config)
 
-	return &schemaService{
+	return &Service{
 		schemaString: schemaString,
 		clabSchema:   schema,
 	}
 }
 
-func (u *schemaService) Get() string {
+func (u *Service) Get() string {
 	return *u.schemaString
 }
 
-func (u *schemaService) Parse(data string) (*any, error) {
+func (u *Service) Parse(data string) (*any, error) {
 	var obj any
 
 	if err := yaml.Unmarshal([]byte(data), &obj); err != nil {

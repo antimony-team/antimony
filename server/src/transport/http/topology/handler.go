@@ -10,27 +10,13 @@ import (
 	"github.com/samber/lo"
 )
 
-type (
-	Handler interface {
-		Get(ctx *gin.Context)
-		GetByUuid(ctx *gin.Context)
-		Create(ctx *gin.Context)
-		Update(ctx *gin.Context)
-		Delete(ctx *gin.Context)
+type Handler struct {
+	service *topology.Service
+}
 
-		CreateBindFile(ctx *gin.Context)
-		UpdateBindFile(ctx *gin.Context)
-		DeleteBindFile(ctx *gin.Context)
-	}
-
-	handler struct {
-		topologyService topology.Service
-	}
-)
-
-func CreateHandler(topologyService topology.Service) Handler {
-	return &handler{
-		topologyService: topologyService,
+func CreateHandler(service *topology.Service) *Handler {
+	return &Handler{
+		service: service,
 	}
 }
 
@@ -43,13 +29,13 @@ func CreateHandler(topologyService topology.Service) Handler {
 // @Failure	498	{object}	nil					"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
 // @Router		/topologies [get]
-func (h *handler) Get(ctx *gin.Context) {
+func (h *Handler) Get(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	topologiesFull, err := h.topologyService.Get(ctx, authUser)
+	topologiesFull, err := h.service.Get(ctx, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -72,13 +58,13 @@ func (h *handler) Get(ctx *gin.Context) {
 // @Failure	403	{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
 // @Failure	404	{object}	utils.ErrorResponse	"The requested topology was not found."
 // @Router		/topologies/:topologyId [get]
-func (h *handler) GetByUuid(ctx *gin.Context) {
+func (h *Handler) GetByUuid(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	topologyFull, err := h.topologyService.GetByUuid(ctx, ctx.Param("topologyId"), authUser)
+	topologyFull, err := h.service.GetByUuid(ctx, ctx.Param("topologyId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -98,7 +84,7 @@ func (h *handler) GetByUuid(ctx *gin.Context) {
 // @Failure	403		{object}	utils.ErrorResponse			"Access to the resource was denied. Details in the request body."
 // @Param		request	body		topology.TopologyIn			true	"The topology"
 // @Router		/topologies [post]
-func (h *handler) Create(ctx *gin.Context) {
+func (h *Handler) Create(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -110,7 +96,7 @@ func (h *handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.topologyService.Create(ctx, payload, authUser)
+	result, err := h.service.Create(ctx, payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -132,7 +118,7 @@ func (h *handler) Create(ctx *gin.Context) {
 // @Param		request	body		topology.TopologyIn	true	"The topology with updated values"
 // @Param		id		path		string				true	"The ID of the topology to edit"
 // @Router		/topologies/{id} [patch]
-func (h *handler) Update(ctx *gin.Context) {
+func (h *Handler) Update(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -144,7 +130,7 @@ func (h *handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.topologyService.Update(ctx, payload, ctx.Param("topologyId"), authUser); err != nil {
+	if err := h.service.Update(ctx, payload, ctx.Param("topologyId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -163,13 +149,13 @@ func (h *handler) Update(ctx *gin.Context) {
 // @Failure	422	{object}	utils.ErrorResponse	"The request was invalid. Details in the response body."
 // @Param		id	path		string				true	"The ID of the topology to delete"
 // @Router		/topologies/{id} [delete]
-func (h *handler) Delete(ctx *gin.Context) {
+func (h *Handler) Delete(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	if err := h.topologyService.Delete(ctx, ctx.Param("topologyId"), authUser); err != nil {
+	if err := h.service.Delete(ctx, ctx.Param("topologyId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -189,7 +175,7 @@ func (h *handler) Delete(ctx *gin.Context) {
 // @Param		request		body		topology.BindFileIn			true	"The bind file"
 // @Param		topologyId	path		string						true	"The ID of the topology the bind file should belong to"
 // @Router		/topologies/{topologyId}/files [post]
-func (h *handler) CreateBindFile(ctx *gin.Context) {
+func (h *Handler) CreateBindFile(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -201,7 +187,7 @@ func (h *handler) CreateBindFile(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.topologyService.CreateBindFile(ctx, ctx.Param("topologyId"), payload, authUser)
+	result, err := h.service.CreateBindFile(ctx, ctx.Param("topologyId"), payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -222,7 +208,7 @@ func (h *handler) CreateBindFile(ctx *gin.Context) {
 // @Param		topologyId	path		string				true	"The ID of the topology the bind file belongs to"
 // @Param		bindFileId	path		string				true	"The ID of the bind file to edit"
 // @Router		/topologies/{topologyId}/files/{bindFileId} [patch]
-func (h *handler) UpdateBindFile(ctx *gin.Context) {
+func (h *Handler) UpdateBindFile(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
@@ -234,7 +220,7 @@ func (h *handler) UpdateBindFile(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.topologyService.UpdateBindFile(ctx, payload, ctx.Param("fileId"), authUser); err != nil {
+	if err := h.service.UpdateBindFile(ctx, payload, ctx.Param("fileId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -254,13 +240,13 @@ func (h *handler) UpdateBindFile(ctx *gin.Context) {
 // @Param		topologyId	path		string				true	"The ID of the topology the bind file belongs to"
 // @Param		bindFileId	path		string				true	"The ID of the bind file to delete"
 // @Router		/topologies/{topologyId}/files/{bindFileId} [delete]
-func (h *handler) DeleteBindFile(ctx *gin.Context) {
+func (h *Handler) DeleteBindFile(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	if err := h.topologyService.DeleteBindFile(ctx, ctx.Param("fileId"), authUser); err != nil {
+	if err := h.service.DeleteBindFile(ctx, ctx.Param("fileId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

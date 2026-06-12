@@ -8,43 +8,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	Service interface {
-		Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Collection, error)
-		Create(ctx *gin.Context, req CollectionIn, authUser auth.AuthenticatedUser) (string, error)
-		Update(ctx *gin.Context, req CollectionInPartial, collectionId string, authUser auth.AuthenticatedUser) error
-		Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error
-	}
+type Service struct {
+	repo     *Repository
+	userRepo *user.Repository
+}
 
-	service struct {
-		userRepo       user.Repository
-		collectionRepo Repository
-	}
-)
-
-func CreateService(collectionRepo Repository, userRepo user.Repository) Service {
-	return &service{
-		userRepo:       userRepo,
-		collectionRepo: collectionRepo,
+func CreateService(repo *Repository, userRepo *user.Repository) *Service {
+	return &Service{
+		repo:     repo,
+		userRepo: userRepo,
 	}
 }
 
-func (u *service) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
+func (u *Service) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
 	var (
 		collections []Collection
 		err         error
 	)
 
 	if authUser.IsAdmin {
-		collections, err = u.collectionRepo.GetAll(ctx)
+		collections, err = u.repo.GetAll(ctx)
 	} else {
-		collections, err = u.collectionRepo.GetByNames(ctx, authUser.Collections)
+		collections, err = u.repo.GetByNames(ctx, authUser.Collections)
 	}
 
 	return collections, err
 }
 
-func (u *service) Create(
+func (u *Service) Create(
 	ctx *gin.Context,
 	req CollectionIn,
 	authUser auth.AuthenticatedUser,
@@ -55,7 +46,7 @@ func (u *service) Create(
 	}
 
 	// Don't allow duplicate collection names
-	if nameExists, err := u.collectionRepo.DoesNameExist(ctx, *req.Name); err != nil {
+	if nameExists, err := u.repo.DoesNameExist(ctx, *req.Name); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrCollectionExists
@@ -68,7 +59,7 @@ func (u *service) Create(
 		return "", err
 	}
 
-	return newUuid, u.collectionRepo.Create(ctx, &Collection{
+	return newUuid, u.repo.Create(ctx, &Collection{
 		UUID:         newUuid,
 		Name:         *req.Name,
 		PublicWrite:  *req.PublicWrite,
@@ -77,13 +68,13 @@ func (u *service) Create(
 	})
 }
 
-func (u *service) Update(
+func (u *Service) Update(
 	ctx *gin.Context,
 	req CollectionInPartial,
 	collectionId string,
 	authUser auth.AuthenticatedUser,
 ) error {
-	collection, err := u.collectionRepo.GetByUuid(ctx, collectionId)
+	collection, err := u.repo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
 	}
@@ -96,7 +87,7 @@ func (u *service) Update(
 	if req.Name != nil {
 		// Don't allow duplicate collection names
 		if collection.Name != *req.Name {
-			if nameExists, err := u.collectionRepo.DoesNameExist(ctx, *req.Name); err != nil {
+			if nameExists, err := u.repo.DoesNameExist(ctx, *req.Name); err != nil {
 				return err
 			} else if nameExists {
 				return utils.ErrCollectionExists
@@ -114,11 +105,11 @@ func (u *service) Update(
 		collection.PublicDeploy = *req.PublicDeploy
 	}
 
-	return u.collectionRepo.Update(ctx, collection)
+	return u.repo.Update(ctx, collection)
 }
 
-func (u *service) Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error {
-	collection, err := u.collectionRepo.GetByUuid(ctx, collectionId)
+func (u *Service) Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error {
+	collection, err := u.repo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
 	}
@@ -128,5 +119,5 @@ func (u *service) Delete(ctx *gin.Context, collectionId string, authUser auth.Au
 		return utils.ErrNoWriteAccessToCollection
 	}
 
-	return u.collectionRepo.Delete(ctx, collection)
+	return u.repo.Delete(ctx, collection)
 }

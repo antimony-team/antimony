@@ -7,19 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	Handler interface {
-		Get(ctx *gin.Context)
-	}
+type Handler struct {
+	service *device.Service
+}
 
-	handler struct {
-		deviceService device.Service
-	}
-)
-
-func CreateHandler(deviceService device.Service) Handler {
-	return &handler{
-		deviceService: deviceService,
+func CreateHandler(service *device.Service) *Handler {
+	return &Handler{
+		service: service,
 	}
 }
 
@@ -32,6 +26,6 @@ func CreateHandler(deviceService device.Service) Handler {
 // @Failure	498	{object}	nil							"The provided access token is not valid"
 // @Failure	403	{object}	utils.ErrorResponse[string]	"The user doesn't have access to the resource"
 // @Router		/devices [get]
-func (h *handler) Get(ctx *gin.Context) {
-	ctx.JSON(utils.CreateOkResponse(h.deviceService.Get()))
+func (h *Handler) Get(ctx *gin.Context) {
+	ctx.JSON(utils.CreateOkResponse(h.service.Get()))
 }

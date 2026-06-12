@@ -178,16 +178,16 @@ func main() {
 }
 
 func createWebServer(
-	authManager auth.Manager,
-	socketManager socket.Manager,
-	serverConfigService serverconfig.Service,
-	devicesService device.Service,
-	schemaService schema.Service,
-	userService user.Service,
-	collectionService collection.Service,
-	topologyService topology.Service,
-	labService lab.Service,
-	instanceService instance.Service,
+	authManager *auth.Manager,
+	socketManager *socket.Manager,
+	serverConfigService *serverconfig.Service,
+	devicesService *device.Service,
+	schemaService *schema.Service,
+	userService *user.Service,
+	collectionService *collection.Service,
+	topologyService *topology.Service,
+	labService *lab.Service,
+	instanceService *instance.Service,
 ) *gin.Engine {
 	var (
 		labHandler          = labtransport.CreateHandler(labService, instanceService)
@@ -225,16 +225,16 @@ func createWebServer(
 
 func createRuntime(
 	config *config.AntimonyConfig,
-	schemaService schema.Service,
-	labRepo lab.Repository,
-	labService lab.Service,
-	topologyService topology.Service,
-	storageManager storage.Manager,
-	socketManager socket.Manager,
-	labEventBus utils.EventBus[*lab.Lab],
+	schemaService *schema.Service,
+	labRepo *lab.Repository,
+	labService *lab.Service,
+	topologyService *topology.Service,
+	storageManager *storage.Manager,
+	socketManager *socket.Manager,
+	labEventBus *utils.EventBus[*lab.Lab],
 	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
 	deploymentProvider deployment.DeploymentProvider,
-) instance.Service {
+) *instance.Service {
 	instanceService := instance.CreateService(
 		config,
 		schemaService,
@@ -329,7 +329,7 @@ func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup
 	}
 }
 
-func startCaptureServer(server capture.Server, waitGroup *sync.WaitGroup) {
+func startCaptureServer(server *capture.Server, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
 	if err := server.Start(); err != nil {

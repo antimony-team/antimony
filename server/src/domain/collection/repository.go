@@ -8,30 +8,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type (
-	Repository interface {
-		GetAll(ctx context.Context) ([]Collection, error)
-		GetByUuid(ctx context.Context, collectionId string) (*Collection, error)
-		GetByNames(ctx context.Context, collectionNames []string) ([]Collection, error)
-		DoesNameExist(ctx context.Context, collectionName string) (bool, error)
+type Repository struct {
+	db *gorm.DB
+}
 
-		Create(ctx context.Context, collection *Collection) error
-		Update(ctx context.Context, collection *Collection) error
-		Delete(ctx context.Context, collection *Collection) error
-	}
-
-	repository struct {
-		db *gorm.DB
-	}
-)
-
-func CreateRepository(db *gorm.DB) Repository {
-	return &repository{
+func CreateRepository(db *gorm.DB) *Repository {
+	return &Repository{
 		db: db,
 	}
 }
 
-func (r *repository) GetAll(ctx context.Context) ([]Collection, error) {
+func (r *Repository) GetAll(ctx context.Context) ([]Collection, error) {
 	var collections []Collection
 	result := r.db.WithContext(ctx).
 		Preload("Creator").
@@ -45,7 +32,7 @@ func (r *repository) GetAll(ctx context.Context) ([]Collection, error) {
 	return collections, nil
 }
 
-func (r *repository) GetByUuid(ctx context.Context, collectionId string) (*Collection, error) {
+func (r *Repository) GetByUuid(ctx context.Context, collectionId string) (*Collection, error) {
 	var collection Collection
 	result := r.db.WithContext(ctx).
 		Preload("Creator").
@@ -64,7 +51,7 @@ func (r *repository) GetByUuid(ctx context.Context, collectionId string) (*Colle
 	return &collection, result.Error
 }
 
-func (r *repository) GetByNames(ctx context.Context, collectionNames []string) ([]Collection, error) {
+func (r *Repository) GetByNames(ctx context.Context, collectionNames []string) ([]Collection, error) {
 	var collections []Collection
 	result := r.db.WithContext(ctx).
 		Preload("Creator").
@@ -79,7 +66,7 @@ func (r *repository) GetByNames(ctx context.Context, collectionNames []string) (
 	return collections, nil
 }
 
-func (r *repository) DoesNameExist(ctx context.Context, collectionName string) (bool, error) {
+func (r *Repository) DoesNameExist(ctx context.Context, collectionName string) (bool, error) {
 	var collection Collection
 	result := r.db.WithContext(ctx).
 		Where("name = ? AND deleted_at IS NULL", collectionName).
@@ -94,7 +81,7 @@ func (r *repository) DoesNameExist(ctx context.Context, collectionName string) (
 	return result.RowsAffected > 0, nil
 }
 
-func (r *repository) Create(ctx context.Context, collection *Collection) error {
+func (r *Repository) Create(ctx context.Context, collection *Collection) error {
 	if err := r.db.WithContext(ctx).Create(collection).Error; err != nil {
 		log.Errorf("[DB] Failed to create collection. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -103,7 +90,7 @@ func (r *repository) Create(ctx context.Context, collection *Collection) error {
 	return nil
 }
 
-func (r *repository) Update(ctx context.Context, collection *Collection) error {
+func (r *Repository) Update(ctx context.Context, collection *Collection) error {
 	if err := r.db.WithContext(ctx).Save(collection).Error; err != nil {
 		log.Errorf("[DB] Failed to update collection. Error: %s", err.Error())
 		return utils.ErrDatabaseError
@@ -112,7 +99,7 @@ func (r *repository) Update(ctx context.Context, collection *Collection) error {
 	return nil
 }
 
-func (r *repository) Delete(ctx context.Context, collection *Collection) error {
+func (r *Repository) Delete(ctx context.Context, collection *Collection) error {
 	if err := r.db.WithContext(ctx).Delete(collection).Error; err != nil {
 		log.Errorf("[DB] Failed to delete collection. Error: %s", err.Error())
 		return utils.ErrDatabaseError

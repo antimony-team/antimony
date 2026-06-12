@@ -1,31 +1,20 @@
 package user
 
 import (
-	user2 "antimonyBackend/domain/user"
+	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	Handler interface {
-		AuthConfig(ctx *gin.Context)
-		Logout(ctx *gin.Context)
-		LoginOpenId(ctx *gin.Context)
-		LoginNative(ctx *gin.Context)
-		LoginOpenIdSuccess(ctx *gin.Context)
-		RefreshToken(ctx *gin.Context)
-	}
+type Handler struct {
+	service *user.Service
+}
 
-	handler struct {
-		userService user2.Service
-	}
-)
-
-func CreateHandler(userService user2.Service) Handler {
-	return &handler{
-		userService: userService,
+func CreateHandler(service *user.Service) *Handler {
+	return &Handler{
+		service: service,
 	}
 }
 
@@ -38,14 +27,14 @@ func CreateHandler(userService user2.Service) Handler {
 // @Failure	401		{object}	nil				"Authentication via native login is disabled"
 // @Param		request	body		CredentialsIn	true	"The native credentials"
 // @Router		/users/login/native [post]
-func (h *handler) LoginNative(ctx *gin.Context) {
-	payload := user2.CredentialsIn{}
+func (h *Handler) LoginNative(ctx *gin.Context) {
+	payload := user.CredentialsIn{}
 	if err := ctx.Bind(&payload); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrInvalidCredentials))
 		return
 	}
 
-	if refreshToken, accessToken, err := h.userService.LoginNative(payload); err != nil {
+	if refreshToken, accessToken, err := h.service.LoginNative(payload); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 	} else {
 		ctx.SetCookie("authToken", refreshToken, 0, "/", "", false, true)
@@ -59,8 +48,8 @@ func (h *handler) LoginNative(ctx *gin.Context) {
 // @Success	302	{object}	nil
 // @Failure	401	{object}	nil	"Authentication via OpenID is disabled"
 // @Router		/users/login/openid [get]
-func (h *handler) LoginOpenId(ctx *gin.Context) {
-	url, err := h.userService.GetAuthCodeURL(ctx.Request.Referer())
+func (h *Handler) LoginOpenId(ctx *gin.Context) {
+	url, err := h.service.GetAuthCodeURL(ctx.Request.Referer())
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -70,8 +59,8 @@ func (h *handler) LoginOpenId(ctx *gin.Context) {
 }
 
 // @Summary	Redirect URL for the OpenID provider.
-func (h *handler) LoginOpenIdSuccess(ctx *gin.Context) {
-	authToken, accessToken, err := h.userService.AuthenticateWithCode(ctx, ctx.Query("code"))
+func (h *Handler) LoginOpenIdSuccess(ctx *gin.Context) {
+	authToken, accessToken, err := h.service.AuthenticateWithCode(ctx, ctx.Query("code"))
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -88,7 +77,7 @@ func (h *handler) LoginOpenIdSuccess(ctx *gin.Context) {
 // @Tags		users
 // @Success	200	{object}	nil
 // @Router		/users/logout [post]
-func (h *handler) Logout(ctx *gin.Context) {
+func (h *Handler) Logout(ctx *gin.Context) {
 	ctx.SetCookie("authToken", "", -1, "/", "", false, true)
 	ctx.SetCookie("authOidc", "", -1, "/", "", false, false)
 	ctx.SetCookie("accessToken", "", -1, "/", "", false, false)
@@ -100,8 +89,8 @@ func (h *handler) Logout(ctx *gin.Context) {
 // @Tags		users
 // @Success	200	{object}	utils.OkResponse[auth.AuthConfig]	"The authentication config of the server"
 // @Router		/users/login/config [get]
-func (h *handler) AuthConfig(ctx *gin.Context) {
-	ctx.JSON(utils.CreateOkResponse(h.userService.GetAuthConfig()))
+func (h *Handler) AuthConfig(ctx *gin.Context) {
+	ctx.JSON(utils.CreateOkResponse(h.service.GetAuthConfig()))
 }
 
 // @Summary	Refresh the access token
@@ -110,7 +99,7 @@ func (h *handler) AuthConfig(ctx *gin.Context) {
 // @Failure	401	{object}	nil									"The auth token cookie is not set"
 // @Failure	403	{object}	nil									"The provided auth token was invalid"
 // @Router		/users/login/refresh [get]
-func (h *handler) RefreshToken(ctx *gin.Context) {
+func (h *Handler) RefreshToken(ctx *gin.Context) {
 	var (
 		authToken, accessToken string
 		err                    error
@@ -121,7 +110,7 @@ func (h *handler) RefreshToken(ctx *gin.Context) {
 		return
 	}
 
-	if accessToken, err = h.userService.RefreshAccessToken(authToken); err != nil {
+	if accessToken, err = h.service.RefreshAccessToken(authToken); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrForbidden))
 		return
 	}

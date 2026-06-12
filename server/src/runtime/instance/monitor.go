@@ -12,43 +12,34 @@ import (
 	"github.com/samber/lo"
 )
 
-type (
-	Monitor interface {
-		Run()
+type Monitor struct {
+	socketManager      *socket.Manager
+	deploymentProvider deployment.DeploymentProvider
 
-		AddNode(containerId string)
-		RemoveNode(containerId string)
-	}
+	monitoredNodes      map[string]socket.OutputNamespace[NodeStats]
+	monitoredNodesMutex sync.Mutex
+}
 
-	NodeStats struct {
-		Timestamp time.Time `json:"timestamp"`
+type NodeStats struct {
+	Timestamp time.Time `json:"timestamp"`
 
-		CPUUsagePercent float32 `json:"cpuPercent"`
-		MemoryUsage     float32 `json:"memoryUsage"`
-		MemoryLimit     float32 `json:"memoryLimit"`
+	CPUUsagePercent float32 `json:"cpuPercent"`
+	MemoryUsage     float32 `json:"memoryUsage"`
+	MemoryLimit     float32 `json:"memoryLimit"`
 
-		Interfaces map[string]NodeInterfaceStats `json:"interfaces"`
-	}
+	Interfaces map[string]NodeInterfaceStats `json:"interfaces"`
+}
 
-	NodeInterfaceStats struct {
-		RxBps int `json:"rxBps"`
-		TxBps int `json:"txBps"`
-	}
-
-	monitor struct {
-		socketManager      socket.Manager
-		deploymentProvider deployment.DeploymentProvider
-
-		monitoredNodes      map[string]socket.OutputNamespace[NodeStats]
-		monitoredNodesMutex sync.Mutex
-	}
-)
+type NodeInterfaceStats struct {
+	RxBps int `json:"rxBps"`
+	TxBps int `json:"txBps"`
+}
 
 func CreateMonitor(
-	socketManager socket.Manager,
+	socketManager *socket.Manager,
 	deploymentProvider deployment.DeploymentProvider,
-) Monitor {
-	return &monitor{
+) *Monitor {
+	return &Monitor{
 		socketManager:      socketManager,
 		deploymentProvider: deploymentProvider,
 
@@ -57,7 +48,7 @@ func CreateMonitor(
 	}
 }
 
-func (m *monitor) Run() {
+func (m *Monitor) Run() {
 	ctx := context.Background()
 
 	for {
@@ -101,7 +92,7 @@ func (m *monitor) Run() {
 	}
 }
 
-func (m *monitor) AddNode(containerId string) {
+func (m *Monitor) AddNode(containerId string) {
 	m.monitoredNodesMutex.Lock()
 	if namespace, ok := m.monitoredNodes[containerId]; ok {
 		namespace.ClearBacklog()
@@ -122,7 +113,7 @@ func (m *monitor) AddNode(containerId string) {
 	m.monitoredNodesMutex.Unlock()
 }
 
-func (m *monitor) RemoveNode(containerId string) {
+func (m *Monitor) RemoveNode(containerId string) {
 	m.monitoredNodesMutex.Lock()
 	delete(m.monitoredNodes, containerId)
 	m.monitoredNodesMutex.Unlock()
