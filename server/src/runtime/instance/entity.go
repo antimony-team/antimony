@@ -19,7 +19,7 @@ type Instance struct {
 
 	TopologyFile       string
 	TopologyDefinition string
-	LogNamespace       socket.OutputNamespace[string]
+	LogNamespace       *socket.OutputNamespace[string]
 
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex

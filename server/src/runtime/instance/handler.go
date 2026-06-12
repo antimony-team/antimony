@@ -11,7 +11,7 @@ type handler struct {
 	service       *Service
 	socketManager *socket.Manager
 
-	commandsNamespace socket.InputNamespace[InstanceCommandData]
+	commandsNamespace *socket.InputNamespace[InstanceCommandData]
 }
 
 func CreateHandler(

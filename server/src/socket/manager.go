@@ -11,9 +11,10 @@ import (
 // socket.Manager Represents a wrapper around the socket.io objects and also manages all authenticated users.
 type Manager struct {
 	server      *socketio.Server
-	users       map[string]auth.AuthenticatedUser
-	usersMutex  sync.Mutex
 	authManager *auth.Manager
+
+	users      map[string]auth.AuthenticatedUser
+	usersMutex sync.Mutex
 }
 
 func CreateManager(authManager *auth.Manager) *Manager {
@@ -21,9 +22,10 @@ func CreateManager(authManager *auth.Manager) *Manager {
 
 	manager := &Manager{
 		server:      server,
-		users:       make(map[string]auth.AuthenticatedUser),
-		usersMutex:  sync.Mutex{},
 		authManager: authManager,
+
+		users:      make(map[string]auth.AuthenticatedUser),
+		usersMutex: sync.Mutex{},
 	}
 
 	return manager

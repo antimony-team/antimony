@@ -43,7 +43,7 @@ type (
 
 		labEventBus *utils.EventBus[*Lab]
 
-		statusMessageNamespace socket.OutputNamespace[statusmessage.Message]
+		statusMessageNamespace *socket.OutputNamespace[statusmessage.Message]
 	}
 )
 
@@ -56,7 +56,7 @@ func CreateService(
 	storageManager *storage.Manager,
 	config *config.AntimonyConfig,
 	labEventBus *utils.EventBus[*Lab],
-	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
+	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
 ) *Service {
 	labService := &Service{
 		config:                 config,

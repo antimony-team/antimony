@@ -25,7 +25,7 @@ import (
 type ContainerlabProvider struct {
 	client *client.Client
 
-	statsReader StatsReader
+	statsReader *StatsReader
 }
 
 func CreateContainerlabProvider() *ContainerlabProvider {

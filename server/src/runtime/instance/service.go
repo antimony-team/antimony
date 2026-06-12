@@ -39,7 +39,7 @@ type (
 		instances      map[string]*Instance
 		instancesMutex sync.Mutex
 
-		openShells      map[string]*ShellConfig
+		openShells      map[string]*shellConfig
 		openShellsMutex sync.Mutex
 
 		defaultSshAuth  []ssh.AuthMethod
@@ -58,20 +58,20 @@ type (
 
 		labEventBus *utils.EventBus[*lab.Lab]
 
-		updatesNamespace socket.OutputNamespace[InstanceUpdate]
+		updatesNamespace       *socket.OutputNamespace[InstanceUpdate]
+		shellCommandsNamespace *socket.OutputNamespace[ShellCommandData]
 
-		shellCommandsNamespace socket.OutputNamespace[ShellCommandData]
-		statusMessageNamespace socket.OutputNamespace[statusmessage.Message]
+		statusMessageNamespace *socket.OutputNamespace[statusmessage.Message]
 	}
 
-	ShellConfig struct {
+	shellConfig struct {
 		Owner            *auth.AuthenticatedUser
 		LabId            string
 		Node             string
 		Connection       io.ReadWriteCloser
 		ConnectionCancel context.CancelFunc
 		LastInteraction  int64
-		DataNamespace    socket.IONamespace[string, byte]
+		DataNamespace    *socket.IONamespace[string, byte]
 	}
 )
 
@@ -83,7 +83,7 @@ func CreateService(
 	storageManager *storage.Manager,
 	socketManager *socket.Manager,
 	labEventBus *utils.EventBus[*lab.Lab],
-	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
+	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
 	deploymentProvider deployment.DeploymentProvider,
 ) *Service {
 	monitor := CreateMonitor(socketManager, deploymentProvider)
@@ -95,7 +95,7 @@ func CreateService(
 		topologyService:        topologyService,
 		monitor:                monitor,
 		nodeKindConfigs:        getNodeKindConfigs("./kinds.conf.yml"),
-		openShells:             make(map[string]*ShellConfig),
+		openShells:             make(map[string]*shellConfig),
 		openShellsMutex:        sync.Mutex{},
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
@@ -898,7 +898,7 @@ func (s *Service) onNodeStarted(ctx context.Context, instance *Instance, node *I
 }
 
 func (s *Service) createInstance(
-	logNamespace socket.OutputNamespace[string],
+	logNamespace *socket.OutputNamespace[string],
 	runTopologyFile string,
 	runTopologyDefinition string,
 ) *Instance {
@@ -1109,7 +1109,7 @@ func (s *Service) updateStateAndNotify(
 	instance *Instance,
 	state InstanceState,
 	statusMessage *statusmessage.Message,
-	logNamespace socket.OutputNamespace[string],
+	logNamespace *socket.OutputNamespace[string],
 ) {
 	if instance != nil {
 		instance.State = state
@@ -1304,7 +1304,7 @@ func (s *Service) OpenShellCommand(
 	}
 
 	s.openShellsMutex.Lock()
-	userShellCount := lo.CountBy(lo.Values(s.openShells), func(shell *ShellConfig) bool {
+	userShellCount := lo.CountBy(lo.Values(s.openShells), func(shell *shellConfig) bool {
 		return shell.Owner.UserId == authUser.UserId
 	})
 	s.openShellsMutex.Unlock()
@@ -1337,7 +1337,7 @@ func (s *Service) OpenShellCommand(
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	shellConfig := &ShellConfig{
+	shellConfig := &shellConfig{
 		Owner:            authUser,
 		Node:             *nodeName,
 		LabId:            labId,
@@ -1480,7 +1480,7 @@ func (s *Service) closeNodeShells(nodeName string) {
 	s.openShellsMutex.Unlock()
 }
 
-func (s *Service) closeShell(shellId string, shell *ShellConfig, reason string) error {
+func (s *Service) closeShell(shellId string, shell *shellConfig, reason string) error {
 	s.shellCommandsNamespace.Send(ShellCommandData{
 		LabId:   shell.LabId,
 		Node:    shell.Node,
@@ -1544,7 +1544,7 @@ func (s *Service) handleShellData(
 }
 
 // streamClabOutput Streams the output of a containerlab command to a given socket namespace.
-func streamClabOutput(logNamespace socket.OutputNamespace[string], output *string) {
+func streamClabOutput(logNamespace *socket.OutputNamespace[string], output *string) {
 	re := regexp.MustCompile(`\[\dm`)
 	if output == nil {
 		return

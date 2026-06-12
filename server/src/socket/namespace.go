@@ -14,37 +14,20 @@ import (
 	socketio "github.com/zishang520/socket.io/socket"
 )
 
-// IONamespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
+// IONamespace is a bidirectional namespace where the server and the client both can send data.
+type IONamespace[I any, O any] = namespace[I, O]
+
+// InputNamespace is a unidirectional namespace where the client can send data to the server.
+type InputNamespace[I any] = namespace[I, any]
+
+// OutputNamespace is a unidirectional namespace where the server can send data to the client.
+type OutputNamespace[O any] = namespace[any, O]
+
+// namespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
 //
 // The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
 // to provide a valid access token which will be used to authenticate them via auth.Manager.
-type IONamespace[I any, O any] interface {
-	// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
-	Send(msg O)
-
-	SendBulk(msgs []O)
-
-	// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
-	SendTo(msg O, receivers []string)
-
-	// SendTo Sends multiple messages to a set of user IDs. This only works in authenticated namespaces.
-	SendBulkTo(msgs []O, receivers []string)
-
-	// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
-	SendToAdmins(msg O)
-
-	// SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
-	SendBulkToAdmins(msgs []O)
-
-	// ClearBacklog Removes all messages from the backlog
-	ClearBacklog()
-}
-
-type InputNamespace[I any] = IONamespace[I, any]
-
-type OutputNamespace[O any] = IONamespace[any, O]
-
-type namespaceManager[I any, O any] struct {
+type namespace[I any, O any] struct {
 	// A list of all connected clients, authenticated and anonymous clients
 	connectedClients []*ConnectedUser
 
@@ -57,18 +40,18 @@ type namespaceManager[I any, O any] struct {
 	isAnonymous   bool
 	socketManager *Manager
 
-	onData DataInputHandler[I]
+	onData dataInputHandler[I]
 
 	// The backlog of previously sent messages
 	backlog      utils.Ring[O]
 	backlogMutex sync.Mutex
 
-	namespaceName string
-	namespace     socketio.NamespaceInterface
+	sioNamespaceName string
+	sioNamespace     socketio.NamespaceInterface
 }
 
-type DataInputHandler[I any] func(
-	ct context.Context,
+type dataInputHandler[I any] func(
+	ctx context.Context,
 	data *I,
 	authUser *auth.AuthenticatedUser,
 	onResponse func(response utils.OkResponse[any]),
@@ -97,10 +80,10 @@ func CreateIONamespace[I any, O any](
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
 	useRawOutput bool,
-	onData DataInputHandler[I],
+	onData dataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
-) IONamespace[I, O] {
+) *IONamespace[I, O] {
 	var useRawInput bool
 
 	var test any = *new(I)
@@ -116,7 +99,7 @@ func CreateIONamespace[I any, O any](
 		backlog = utils.CreateRing[O](backlogConfig.Kind, backlogConfig.Capacity)
 	}
 
-	namespace := &namespaceManager[I, O]{
+	namespace := &namespace[I, O]{
 		connectedClients:      make([]*ConnectedUser, 0),
 		connectedClientsMap:   make(map[string]*ConnectedUser),
 		connectedClientsMutex: sync.Mutex{},
@@ -129,14 +112,14 @@ func CreateIONamespace[I any, O any](
 		useRawInput:           useRawInput,
 	}
 
-	namespace.namespaceName = "/" + strings.Join(namespacePath, "/")
-	namespace.namespace = socketManager.Server().Of(namespace.namespaceName, nil)
+	namespace.sioNamespaceName = "/" + strings.Join(namespacePath, "/")
+	namespace.sioNamespace = socketManager.Server().Of(namespace.sioNamespaceName, nil)
 
 	if !isAnonymous {
-		namespace.namespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
+		namespace.sioNamespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
 	}
 
-	_ = namespace.namespace.On("connection", namespace.handleConnection)
+	_ = namespace.sioNamespace.On("connection", namespace.handleConnection)
 
 	return namespace
 }
@@ -145,10 +128,10 @@ func CreateInputNamespace[I any](
 	socketManager *Manager,
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
-	onData DataInputHandler[I],
+	onData dataInputHandler[I],
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
-) InputNamespace[I] {
+) *InputNamespace[I] {
 	return CreateIONamespace[I, any](
 		socketManager,
 		isAnonymous,
@@ -167,7 +150,7 @@ func CreateOutputNamespace[O any](
 	useRawOutput bool,
 	accessGroup *[]*auth.AuthenticatedUser,
 	namespacePath ...string,
-) OutputNamespace[O] {
+) *OutputNamespace[O] {
 	return CreateIONamespace[any, O](
 		socketManager,
 		isAnonymous,
@@ -179,21 +162,25 @@ func CreateOutputNamespace[O any](
 	)
 }
 
-func (m *namespaceManager[I, O]) ClearBacklog() {
+// ClearBacklog Removes all messages from the backlog
+func (m *namespace[I, O]) ClearBacklog() {
 	m.backlogMutex.Lock()
 	m.backlog.Clear()
 	m.backlogMutex.Unlock()
 }
 
-func (m *namespaceManager[I, O]) Send(msg O) {
+// Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
+func (m *namespace[I, O]) Send(msg O) {
 	m.sendTo(msg, m.connectedClients)
 }
 
-func (m *namespaceManager[I, O]) SendBulk(msgs []O) {
+// SendTo Sends multiple messages to a set of user IDs. This only works in authenticated namespaces.
+func (m *namespace[I, O]) SendBulk(msgs []O) {
 	m.sendBulkTo(msgs, m.connectedClients)
 }
 
-func (m *namespaceManager[I, O]) SendTo(msg O, receivers []string) {
+// SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
+func (m *namespace[I, O]) SendTo(msg O, receivers []string) {
 	if m.isAnonymous {
 		return
 	}
@@ -206,7 +193,7 @@ func (m *namespaceManager[I, O]) SendTo(msg O, receivers []string) {
 	}))
 }
 
-func (m *namespaceManager[I, O]) SendBulkTo(msgs []O, receivers []string) {
+func (m *namespace[I, O]) SendBulkTo(msgs []O, receivers []string) {
 	if m.isAnonymous {
 		return
 	}
@@ -219,7 +206,8 @@ func (m *namespaceManager[I, O]) SendBulkTo(msgs []O, receivers []string) {
 	}))
 }
 
-func (m *namespaceManager[I, O]) SendToAdmins(msg O) {
+// SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
+func (m *namespace[I, O]) SendToAdmins(msg O) {
 	if m.isAnonymous {
 		return
 	}
@@ -229,7 +217,8 @@ func (m *namespaceManager[I, O]) SendToAdmins(msg O) {
 	}))
 }
 
-func (m *namespaceManager[I, O]) SendBulkToAdmins(msgs []O) {
+// SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
+func (m *namespace[I, O]) SendBulkToAdmins(msgs []O) {
 	if m.isAnonymous {
 		return
 	}
@@ -239,7 +228,7 @@ func (m *namespaceManager[I, O]) SendBulkToAdmins(msgs []O) {
 	}))
 }
 
-func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*ConnectedUser) {
+func (m *namespace[I, O]) sendTo(msg O, receivers []*ConnectedUser) {
 	if m.backlog != nil {
 		m.backlogMutex.Lock()
 		m.backlog.Add(msg)
@@ -260,7 +249,7 @@ func (m *namespaceManager[I, O]) sendTo(msg O, receivers []*ConnectedUser) {
 	}
 }
 
-func (m *namespaceManager[I, O]) sendBulkTo(msgs []O, receivers []*ConnectedUser) {
+func (m *namespace[I, O]) sendBulkTo(msgs []O, receivers []*ConnectedUser) {
 	if m.backlog != nil {
 		m.backlogMutex.Lock()
 		m.backlog.AddMany(msgs)
@@ -284,7 +273,7 @@ func (m *namespaceManager[I, O]) sendBulkTo(msgs []O, receivers []*ConnectedUser
 	}
 }
 
-func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
+func (m *namespace[I, O]) handleConnection(clients ...any) {
 	client, ok := clients[0].(*socketio.Socket)
 
 	if !ok {
@@ -303,7 +292,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 		m.connectedClientsMutex.Unlock()
 
 		_ = client.On("disconnect", func(clients ...any) {
-			log.Info("[SOCK] Anonymous user disconnected from socket namespace", "namespace", m.namespaceName)
+			log.Info("[SOCK] Anonymous user disconnected from socket namespace", "namespace", m.sioNamespaceName)
 
 			if i := slices.Index(m.connectedClients, socketClient); i > -1 {
 				m.connectedClientsMutex.Lock()
@@ -312,7 +301,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 			}
 		})
 
-		log.Info("[SOCK] Anonymous user connected to socket namespace", "namespace", m.namespaceName)
+		log.Info("[SOCK] Anonymous user connected to socket namespace", "namespace", m.sioNamespaceName)
 		return
 	}
 
@@ -342,7 +331,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 		log.Info(
 			"[SOCK] User disconnected from socket namespace",
 			"namespace",
-			m.namespaceName,
+			m.sioNamespaceName,
 			"user",
 			authUser.UserId,
 		)
@@ -355,7 +344,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 		m.connectedClientsMutex.Unlock()
 	})
 
-	log.Info("[SOCK] User connected to socket namespace", "namespace", m.namespaceName, "user", authUser.UserId)
+	log.Info("[SOCK] User connected to socket namespace", "namespace", m.sioNamespaceName, "user", authUser.UserId)
 
 	// Immediately send backlog to user if backlog is used in namespace
 	if m.backlog != nil {
@@ -363,7 +352,7 @@ func (m *namespaceManager[I, O]) handleConnection(clients ...any) {
 	}
 }
 
-func (m *namespaceManager[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...any) {
+func (m *namespace[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...any) {
 	var (
 		ok      bool
 		ack     func([]any, error)

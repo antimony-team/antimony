@@ -16,7 +16,7 @@ type Monitor struct {
 	socketManager      *socket.Manager
 	deploymentProvider deployment.DeploymentProvider
 
-	monitoredNodes      map[string]socket.OutputNamespace[NodeStats]
+	monitoredNodes      map[string]*socket.OutputNamespace[NodeStats]
 	monitoredNodesMutex sync.Mutex
 }
 
@@ -43,7 +43,7 @@ func CreateMonitor(
 		socketManager:      socketManager,
 		deploymentProvider: deploymentProvider,
 
-		monitoredNodes:      make(map[string]socket.OutputNamespace[NodeStats]),
+		monitoredNodes:      make(map[string]*socket.OutputNamespace[NodeStats]),
 		monitoredNodesMutex: sync.Mutex{},
 	}
 }

@@ -236,7 +236,7 @@ func createRuntime(
 	topologyService *topology.Service,
 	labEventBus *utils.EventBus[*lab.Lab],
 	deploymentProvider deployment.DeploymentProvider,
-	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
+	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
 ) *instance.Service {
 	instanceService := instance.CreateService(
 		config,
