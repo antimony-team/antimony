@@ -15,35 +15,29 @@ import (
 
 const clockTicks = 100
 
-type (
-	ContainerCGroup struct {
-		pid        int
-		cpuFile    string
-		memCurrent string
-		memStat    string
-		memMax     string
-	}
+type StatsReader struct {
+	systemMemoryTotal uint64
 
-	StatsReader interface {
-		ReadStats(containerId string, pid int) (*NodeStats, error)
-	}
+	containerStatsCache map[string]*NodeStats
+	cgroupCache         map[string]*containerCGroup
+	statsMutex          sync.Mutex
 
-	statsReader struct {
-		systemMemoryTotal uint64
+	// Cache system CPU stats so we don't need to read it for every container
+	sysCPUMutex  sync.Mutex
+	sysCPUTime   time.Time
+	sysCPUTotal  uint64
+	sysCPUOnline int
+}
 
-		containerStatsCache map[string]*NodeStats
-		cgroupCache         map[string]*ContainerCGroup
-		statsMutex          sync.Mutex
+type containerCGroup struct {
+	pid        int
+	cpuFile    string
+	memCurrent string
+	memStat    string
+	memMax     string
+}
 
-		// Cache system CPU stats so we don't need to read it for every container
-		sysCPUMutex  sync.Mutex
-		sysCPUTime   time.Time
-		sysCPUTotal  uint64
-		sysCPUOnline int
-	}
-)
-
-func CreateStatsReader() StatsReader {
+func CreateStatsReader() *StatsReader {
 	var (
 		systemMemoryTotal uint64
 		err               error
@@ -57,11 +51,11 @@ func CreateStatsReader() StatsReader {
 		log.Fatalf("CGroupV1 is not supported, please upgrade to CGroupV2: %v", err)
 	}
 
-	return &statsReader{
+	return &StatsReader{
 		systemMemoryTotal: systemMemoryTotal,
 
 		containerStatsCache: make(map[string]*NodeStats),
-		cgroupCache:         make(map[string]*ContainerCGroup),
+		cgroupCache:         make(map[string]*containerCGroup),
 		statsMutex:          sync.Mutex{},
 
 		sysCPUMutex:  sync.Mutex{},
@@ -71,7 +65,7 @@ func CreateStatsReader() StatsReader {
 	}
 }
 
-func (r *statsReader) ReadStats(fullContainerId string, pid int) (*NodeStats, error) {
+func (r *StatsReader) ReadStats(fullContainerId string, pid int) (*NodeStats, error) {
 	r.statsMutex.Lock()
 	cg := r.cgroupCache[fullContainerId]
 	prev := r.containerStatsCache[fullContainerId]
@@ -157,20 +151,20 @@ func (r *statsReader) ReadStats(fullContainerId string, pid int) (*NodeStats, er
 	return nodeStats, nil
 }
 
-func (r *statsReader) invalidate(id string) {
+func (r *StatsReader) invalidate(id string) {
 	r.statsMutex.Lock()
 	delete(r.cgroupCache, id)
 	delete(r.containerStatsCache, id)
 	r.statsMutex.Unlock()
 }
 
-func (r *statsReader) createCGroup(
+func (r *StatsReader) createCGroup(
 	fullContainerId string,
 	pid int,
-) *ContainerCGroup {
+) *containerCGroup {
 	base := filepath.Join("/sys/fs/cgroup/system.slice", fmt.Sprintf("clabernetes-%s.scope", fullContainerId))
 
-	return &ContainerCGroup{
+	return &containerCGroup{
 		pid:        pid,
 		cpuFile:    filepath.Join(base, "cpu.stat"),
 		memCurrent: filepath.Join(base, "memory.current"),
@@ -179,7 +173,7 @@ func (r *statsReader) createCGroup(
 	}
 }
 
-func (r *statsReader) readCPUUsage(cg *ContainerCGroup) (uint64, error) {
+func (r *StatsReader) readCPUUsage(cg *containerCGroup) (uint64, error) {
 	usec, err := readKeyedUint(cg.cpuFile, "usage_usec")
 	if err != nil {
 		return 0, err
@@ -187,7 +181,7 @@ func (r *statsReader) readCPUUsage(cg *ContainerCGroup) (uint64, error) {
 	return usec * 1000, nil
 }
 
-func (r *statsReader) readMemory(cg *ContainerCGroup) (uint64, uint64, error) {
+func (r *StatsReader) readMemory(cg *containerCGroup) (uint64, uint64, error) {
 	cur, err := readUint(cg.memCurrent)
 	if err != nil {
 		return 0, 0, err
@@ -210,7 +204,7 @@ func (r *statsReader) readMemory(cg *ContainerCGroup) (uint64, uint64, error) {
 	return usage, limit, nil
 }
 
-func (r *statsReader) readMemoryMax(path string) (uint64, error) {
+func (r *StatsReader) readMemoryMax(path string) (uint64, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
@@ -233,7 +227,7 @@ func (r *statsReader) readMemoryMax(path string) (uint64, error) {
 	return v, nil
 }
 
-func (r *statsReader) readNetDev(pid int) (map[string][2]uint64, error) {
+func (r *StatsReader) readNetDev(pid int) (map[string][2]uint64, error) {
 	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/net/dev", pid))
 	if err != nil {
 		return nil, err
@@ -261,7 +255,7 @@ func (r *statsReader) readNetDev(pid int) (map[string][2]uint64, error) {
 	return out, nil
 }
 
-func (r *statsReader) readSystemCPU() (uint64, int, error) {
+func (r *StatsReader) readSystemCPU() (uint64, int, error) {
 	b, err := os.ReadFile("/proc/stat")
 	if err != nil {
 		return 0, 0, err
@@ -288,7 +282,7 @@ func (r *statsReader) readSystemCPU() (uint64, int, error) {
 	return total * 1_000_000_000 / clockTicks, online, nil // jiffies -> ns
 }
 
-func (r *statsReader) cachedSystemCPU() (uint64, int, error) {
+func (r *StatsReader) cachedSystemCPU() (uint64, int, error) {
 	r.sysCPUMutex.Lock()
 	defer r.sysCPUMutex.Unlock()
 

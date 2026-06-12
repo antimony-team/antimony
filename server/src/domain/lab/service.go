@@ -48,13 +48,13 @@ type (
 )
 
 func CreateService(
-	config *config.AntimonyConfig,
 	repo *Repository,
 	userRepo *user.Repository,
 	topologyRepo *topology.Repository,
 	schemaService *schema.Service,
 	topologyService *topology.Service,
 	storageManager *storage.Manager,
+	config *config.AntimonyConfig,
 	labEventBus *utils.EventBus[*Lab],
 	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
 ) *Service {

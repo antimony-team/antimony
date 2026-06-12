@@ -70,11 +70,13 @@ func main() {
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 
 	// Infrastructure components
-	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
-	authManager := auth.CreateManager(antimonyConfig)
-	socketManager := socket.CreateManager(authManager)
-	storageManager := storage.CreateManager(antimonyConfig)
-	deploymentProvider := deployment.CreateProvider(antimonyConfig)
+	var (
+		db                 = connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
+		authManager        = auth.CreateManager(antimonyConfig)
+		socketManager      = socket.CreateManager(authManager)
+		storageManager     = storage.CreateManager(antimonyConfig)
+		deploymentProvider = deployment.CreateProvider(antimonyConfig)
+	)
 
 	// The lab event bus allows communication of runtime and domain components with the scheduler.
 	//
@@ -118,13 +120,13 @@ func main() {
 		)
 
 		labService = lab.CreateService(
-			antimonyConfig,
 			labRepository,
 			userRepository,
 			topologyRepository,
 			schemaService,
 			topologyService,
 			storageManager,
+			antimonyConfig,
 			labEventBus,
 			statusMessageNamespace,
 		)
@@ -134,15 +136,15 @@ func main() {
 	var (
 		instanceService = createRuntime(
 			antimonyConfig,
-			schemaService,
+			socketManager,
+			storageManager,
 			labRepository,
 			labService,
+			schemaService,
 			topologyService,
-			storageManager,
-			socketManager,
 			labEventBus,
-			statusMessageNamespace,
 			deploymentProvider,
+			statusMessageNamespace,
 		)
 
 		labScheduler = scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
@@ -151,16 +153,17 @@ func main() {
 	go labScheduler.Run()
 
 	captureServer := capture.CreateServer(antimonyConfig, deploymentProvider)
-	webServer := createWebServer(authManager,
+	webServer := createWebServer(
+		authManager,
 		socketManager,
-		serverConfigService,
-		devicesService,
-		schemaService,
-		userService,
-		collectionService,
-		topologyService,
 		labService,
+		userService,
+		schemaService,
+		devicesService,
 		instanceService,
+		topologyService,
+		collectionService,
+		serverConfigService,
 	)
 
 	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
@@ -180,14 +183,14 @@ func main() {
 func createWebServer(
 	authManager *auth.Manager,
 	socketManager *socket.Manager,
-	serverConfigService *serverconfig.Service,
-	devicesService *device.Service,
-	schemaService *schema.Service,
-	userService *user.Service,
-	collectionService *collection.Service,
-	topologyService *topology.Service,
 	labService *lab.Service,
+	userService *user.Service,
+	schemaService *schema.Service,
+	devicesService *device.Service,
 	instanceService *instance.Service,
+	topologyService *topology.Service,
+	collectionService *collection.Service,
+	serverConfigService *serverconfig.Service,
 ) *gin.Engine {
 	var (
 		labHandler          = labtransport.CreateHandler(labService, instanceService)
@@ -225,15 +228,15 @@ func createWebServer(
 
 func createRuntime(
 	config *config.AntimonyConfig,
-	schemaService *schema.Service,
+	socketManager *socket.Manager,
+	storageManager *storage.Manager,
 	labRepo *lab.Repository,
 	labService *lab.Service,
+	schemaService *schema.Service,
 	topologyService *topology.Service,
-	storageManager *storage.Manager,
-	socketManager *socket.Manager,
 	labEventBus *utils.EventBus[*lab.Lab],
-	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
 	deploymentProvider deployment.DeploymentProvider,
+	statusMessageNamespace socket.OutputNamespace[statusmessage.Message],
 ) *instance.Service {
 	instanceService := instance.CreateService(
 		config,

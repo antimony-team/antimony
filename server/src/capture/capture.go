@@ -21,40 +21,38 @@ import (
 	"github.com/google/gopacket/pcapgo"
 )
 
-type (
-	// Server is a service that allows clients to connect via SSH and capture network traffic from a provided
-	// container's interface.
-	//
-	// SSH connection string: ssh://<container-id>@<host> -p <port> <interface-name>
-	Server struct {
-		captureConfig *config.CaptureConfig
+// Server is a service that allows clients to connect via SSH and capture network traffic from a provided
+// container's interface.
+//
+// SSH connection string: ssh://<container-id>@<host> -p <port> <interface-name>
+type Server struct {
+	captureConfig *config.CaptureConfig
 
-		openStreams      map[string]*stream
-		openStreamsMutex sync.Mutex
+	openStreams      map[string]*stream
+	openStreamsMutex sync.Mutex
 
-		deploymentProvider deployment.DeploymentProvider
-	}
+	deploymentProvider deployment.DeploymentProvider
+}
 
-	stream struct {
-		key    string
-		source *afpacket.TPacket
+type stream struct {
+	key    string
+	source *afpacket.TPacket
 
-		mutex     sync.RWMutex
-		receivers map[*receiver]struct{}
+	mutex     sync.RWMutex
+	receivers map[*receiver]struct{}
 
-		done      chan struct{}
-		closeOnce sync.Once
-	}
+	done      chan struct{}
+	closeOnce sync.Once
+}
 
-	receiver struct {
-		ch chan packet
-	}
+type receiver struct {
+	ch chan packet
+}
 
-	packet struct {
-		ci   gopacket.CaptureInfo
-		data []byte
-	}
-)
+type packet struct {
+	ci   gopacket.CaptureInfo
+	data []byte
+}
 
 func CreateServer(
 	config *config.AntimonyConfig,

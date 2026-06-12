@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type TopologyMeta struct {
+type topologyMeta struct {
 	Name string `yaml:"name"`
 }
 
@@ -226,7 +226,7 @@ func getTopologyName(topologyFile string, onLog func(string)) string {
 		return ""
 	}
 
-	var meta TopologyMeta
+	var meta topologyMeta
 	if err := yaml.Unmarshal(content, &meta); err != nil {
 		onLog(fmt.Sprintf("failed to parse topology file: %v", err))
 		return ""
