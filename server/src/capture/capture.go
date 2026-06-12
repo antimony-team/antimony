@@ -22,12 +22,12 @@ import (
 )
 
 type (
-	// Service is a service that allows clients to connect via SSH and capture network traffic from a provided
+	// Server is a service that allows clients to connect via SSH and capture network traffic from a provided
 	// container's interface.
 	//
 	// SSH connection string: ssh://<container-id>@<host> -p <port> <interface-name>
-	Service interface {
-		StartServer() error
+	Server interface {
+		Start() error
 	}
 
 	captureStream struct {
@@ -50,7 +50,7 @@ type (
 		ch chan capturePacket
 	}
 
-	captureService struct {
+	captureServer struct {
 		captureConfig *config.CaptureConfig
 
 		openStreams      map[string]*captureStream
@@ -60,11 +60,11 @@ type (
 	}
 )
 
-func CreateService(
+func CreateServer(
 	config *config.AntimonyConfig,
 	deploymentProvider deployment.DeploymentProvider,
-) Service {
-	return &captureService{
+) Server {
+	return &captureServer{
 		captureConfig: &config.Capture,
 
 		deploymentProvider: deploymentProvider,
@@ -74,7 +74,7 @@ func CreateService(
 	}
 }
 
-func (s *captureService) StartServer() error {
+func (s *captureServer) Start() error {
 	if err := ensureHostKey("./key"); err != nil {
 		log.Fatalf("preparing host key: %v", err)
 	}
@@ -91,7 +91,7 @@ func (s *captureService) StartServer() error {
 	return srv.ListenAndServe()
 }
 
-func (s *captureService) subscribe(
+func (s *captureServer) subscribe(
 	ctx context.Context,
 	containerId string,
 	interfaceName string,
@@ -129,7 +129,7 @@ func (s *captureService) subscribe(
 	return stream, receiver, nil
 }
 
-func (s *captureService) unsubscribe(containerId string, interfaceName string, receiver *captureReceiver) {
+func (s *captureServer) unsubscribe(containerId string, interfaceName string, receiver *captureReceiver) {
 	captureKey := containerId + "/" + interfaceName
 
 	s.openStreamsMutex.Lock()
@@ -155,7 +155,7 @@ func (s *captureService) unsubscribe(containerId string, interfaceName string, r
 }
 
 // stream is reading packets from a client's receiver channel and sending them into the client's SSH session
-func (s *captureService) stream(sess ssh.Session, stream *captureStream, receiver *captureReceiver) error {
+func (s *captureServer) stream(sess ssh.Session, stream *captureStream, receiver *captureReceiver) error {
 	w := pcapgo.NewWriter(sess)
 
 	// When the client first connects, we write the pcap header to the SSH session once
@@ -181,7 +181,7 @@ func (s *captureService) stream(sess ssh.Session, stream *captureStream, receive
 }
 
 // processStream is reading packets from the capture source and forwarding them into the client receiver channels
-func (s *captureService) processStream(stream *captureStream) {
+func (s *captureServer) processStream(stream *captureStream) {
 	defer s.captureEnded(stream)
 
 	for {
@@ -204,7 +204,7 @@ func (s *captureService) processStream(stream *captureStream) {
 }
 
 // captureEnded is called when a stream ends because the container stopped or the connection is interrupted
-func (s *captureService) captureEnded(stream *captureStream) {
+func (s *captureServer) captureEnded(stream *captureStream) {
 	// Remove the entry from the map only if it hasn't been removed yet.
 	s.openStreamsMutex.Lock()
 	if s.openStreams[stream.key] == stream {
@@ -215,7 +215,7 @@ func (s *captureService) captureEnded(stream *captureStream) {
 	stream.shutdown()
 }
 
-func (s *captureService) makeSessionHandler() ssh.Handler {
+func (s *captureServer) makeSessionHandler() ssh.Handler {
 	return func(sess ssh.Session) {
 		container := sess.User()
 

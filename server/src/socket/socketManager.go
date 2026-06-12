@@ -34,7 +34,7 @@ type (
 	}
 )
 
-func CreateSocketManager(authManager auth.AuthManager) SocketManager {
+func CreateManager(authManager auth.AuthManager) SocketManager {
 	server := socketio.NewServer(nil, nil)
 
 	manager := &socketManager{

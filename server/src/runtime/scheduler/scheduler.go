@@ -59,6 +59,7 @@ func CreateScheduler(
 	labEventBus.Subscribe("lab.moved", scheduler.onLabMoved)
 	labEventBus.Subscribe("lab.deleted", scheduler.onLabDeleted)
 	labEventBus.Subscribe("lab.manually-deployed", scheduler.onLabManuallyDeployed)
+	labEventBus.Subscribe("lab.restored", scheduler.onLabRestored)
 
 	return scheduler
 }
@@ -101,5 +102,9 @@ func (s *scheduler) onLabMoved(lab *lab.Lab) {
 
 func (s *scheduler) onLabManuallyDeployed(lab *lab.Lab) {
 	s.deploymentSchedule.Remove(lab.UUID)
+	s.destructionSchedule.Schedule(lab)
+}
+
+func (s *scheduler) onLabRestored(lab *lab.Lab) {
 	s.destructionSchedule.Schedule(lab)
 }

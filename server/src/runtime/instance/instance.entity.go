@@ -136,7 +136,8 @@ type NodeKindConfig struct {
 }
 
 type InstanceUpdate struct {
-	LabId *string `json:"labId"`
+	LabId    *string        `json:"labId"`
+	NewState *InstanceState `json:"newState"`
 }
 
 type ShellData struct {

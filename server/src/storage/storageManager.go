@@ -36,7 +36,7 @@ type (
 	}
 )
 
-func CreateStorageManager(config *config.AntimonyConfig) StorageManager {
+func CreateManager(config *config.AntimonyConfig) StorageManager {
 	storageManager := &storageManager{
 		storagePath:    config.FileSystem.Storage,
 		runPath:        config.FileSystem.Run,

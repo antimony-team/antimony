@@ -73,7 +73,7 @@ type (
 	}
 )
 
-func CreateAuthManager(config *config.AntimonyConfig) AuthManager {
+func CreateManager(config *config.AntimonyConfig) AuthManager {
 	isOpenIdEnabled := config.Auth.EnableOpenID
 	isNativeEnabled := config.Auth.EnableNative
 

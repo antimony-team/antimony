@@ -137,7 +137,7 @@ func CreateService(
 		socketManager, false, nil, false, nil, "shell-commands",
 	)
 
-	service.reviveLabs()
+	service.reviveInstances()
 	service.updatesNamespace.Send(InstanceUpdate{
 		LabId: nil,
 	})
@@ -431,7 +431,8 @@ func (s *instanceService) registerProviderEventListener() {
 
 		if targetLabId != nil {
 			s.updatesNamespace.Send(InstanceUpdate{
-				targetLabId,
+				LabId:    targetLabId,
+				NewState: nil,
 			})
 		}
 	})
@@ -492,7 +493,6 @@ func (s *instanceService) DestroyLab(lab *lab.Lab) error {
 	}
 
 	instance.LogNamespace.ClearBacklog()
-	instance.LogNamespace = nil
 
 	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
@@ -1140,7 +1140,8 @@ func (s *instanceService) updateStateAndNotify(
 	}
 
 	s.updatesNamespace.Send(InstanceUpdate{
-		LabId: &lab.UUID,
+		LabId:    &lab.UUID,
+		NewState: &state,
 	})
 
 	if statusMessage != nil {
@@ -1151,7 +1152,9 @@ func (s *instanceService) updateStateAndNotify(
 	}
 }
 
-func (s *instanceService) reviveLabs() {
+// reviveInstances runs whenever the application is started and attempts to restore instances from running containers
+// and database entries. Labs that have not yet been started and have a start time in the future will be scheduled by the scheduler.
+func (s *instanceService) reviveInstances() {
 	ctx := context.Background()
 
 	savedLabs, err := s.labRepo.GetAll(ctx, nil)
@@ -1251,6 +1254,8 @@ func (s *instanceService) reviveLabs() {
 		s.instancesMutex.Lock()
 		s.instances[savedLab.UUID] = instance
 		s.instancesMutex.Unlock()
+
+		s.labEventBus.Publish("lab.restored", &savedLab)
 
 		// TODO(kian): Implement adding this to only destruction schedule somehow
 		//s.labDestructionSchedule.Schedule(&savedLab)

@@ -546,7 +546,7 @@ func TestRunScheduler_DeploysLab(t *testing.T) {
 		deploymentProvider:     mockDeployment,
 		schemaService:          schemaService,
 		topologyRepo:           topologyRepo,
-		socketManager:          antimonySocket.CreateSocketManager(nil),
+		socketManager:          antimonySocket.CreateManager(nil),
 		statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 		labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 		labDeploymentSchedule:  mockDeploymentSchedule,
@@ -698,7 +698,7 @@ func TestInitSchedule(t *testing.T) {
 				storageManager:         mockStorage,
 				deploymentProvider:     mockDeployment,
 				schemaService:          schemaService,
-				socketManager:          antimonySocket.CreateSocketManager(nil),
+				socketManager:          antimonySocket.CreateManager(nil),
 				statusMessageNamespace: &fakeNamespace[statusMessage.StatusMessage]{},
 				labUpdatesNamespace:    &fakeNamespace[LabUpdateOut]{},
 				labDeploymentSchedule:  mockDeploymentSchedule,
@@ -1301,7 +1301,7 @@ func TestRedeployLab(t *testing.T) {
 				deploymentProvider:     f.deploymentProvider,
 				statusMessageNamespace: f.statusNamespace,
 				labUpdatesNamespace:    mockLabUpdatesNs,
-				socketManager:          antimonySocket.CreateSocketManager(nil),
+				socketManager:          antimonySocket.CreateManager(nil),
 				topologyRepo:           mockTopologyRepo,
 			}
 			svc.instances = map[string]*Instance{
@@ -1345,7 +1345,7 @@ func TestDeployLab(t *testing.T) {
 		lab Lab
 	}
 
-	realSocketManager := antimonySocket.CreateSocketManager(nil)
+	realSocketManager := antimonySocket.CreateManager(nil)
 
 	tests := []struct {
 		name    string
@@ -1619,7 +1619,7 @@ func TestHandleLabCommand(t *testing.T) {
 		Node     *string
 	}
 
-	realSocketManager := antimonySocket.CreateSocketManager(nil)
+	realSocketManager := antimonySocket.CreateManager(nil)
 
 	tests := []struct {
 		name      string
@@ -1926,7 +1926,7 @@ func TestHandleNewLabCommands(t *testing.T) {
 		shellId  *string
 	}
 
-	realSocketManager := antimonySocket.CreateSocketManager(nil)
+	realSocketManager := antimonySocket.CreateManager(nil)
 
 	tests := []struct {
 		name      string

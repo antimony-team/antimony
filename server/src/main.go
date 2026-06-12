@@ -22,7 +22,7 @@ import (
 	devicetransport "antimonyBackend/transport/http/device"
 	labtransport "antimonyBackend/transport/http/lab"
 	schematransport "antimonyBackend/transport/http/schema"
-	serverConfig2 "antimonyBackend/transport/http/serverConfig"
+	serverconfigtransport "antimonyBackend/transport/http/serverConfig"
 	topologytransport "antimonyBackend/transport/http/topology"
 	usertransport "antimonyBackend/transport/http/user"
 	"antimonyBackend/utils"
@@ -69,21 +69,31 @@ func main() {
 
 	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
 
+	// Infrastructure components
 	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
+	authManager := auth.CreateManager(antimonyConfig)
+	socketManager := socket.CreateManager(authManager)
+	storageManager := storage.CreateManager(antimonyConfig)
+	deploymentProvider := deployment.CreateProvider(antimonyConfig)
 
-	authManager := auth.CreateAuthManager(antimonyConfig)
-	socketManager := socket.CreateSocketManager(authManager)
-	storageManager := storage.CreateStorageManager(antimonyConfig)
-	deploymentProvider := deployment.GetProvider(antimonyConfig)
-	captureService := capture.CreateService(antimonyConfig, deploymentProvider)
-
+	// The lab event bus allows communication of runtime and domain components with the scheduler.
+	//
+	// Supported Events:
+	//  - lab.created           -> A new lab is created and put into the deployment and destruction queues.
+	//  - lab.moved             -> A lab's start or end time has been changed, and it will be rescheduled accordingly.
+	//  - lab.deleted           -> A lab is deleted and will be removed from the deployment and destruction queues.
+	//  - lab.manually-deployed -> A lab has been manually deployed and will be moved from the deployment into the destruction queue.
+	//  - lab.restored          -> A running lab has been restored and will be added to the destruction queue.
 	labEventBus := utils.CreateEventBus[*lab.Lab]()
 
-	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
-		socketManager, false, nil, false, nil, "status-messages",
+	// Global socket namespaces
+	var (
+		statusMessageNamespace = socket.CreateOutputNamespace[statusMessage.StatusMessage](
+			socketManager, false, nil, false, nil, "status-messages",
+		)
 	)
 
-	// Repository layer components
+	// Domain repository layer components
 	var (
 		userRepository       = user.CreateRepository(db)
 		collectionRepository = collection.CreateRepository(db)
@@ -91,67 +101,117 @@ func main() {
 		labRepository        = lab.CreateRepository(db)
 	)
 
-	// Service layer components
+	// Domain service layer components
 	var (
 		serverConfigService = serverConfig.CreateService(antimonyConfig)
 		devicesService      = device.CreateService(antimonyConfig)
 		schemaService       = schema.CreateService(antimonyConfig)
 		userService         = user.CreateService(userRepository, authManager)
 		collectionService   = collection.CreateService(collectionRepository, userRepository)
-		topologyService     = topology.CreateService(
-			topologyRepository, userRepository, collectionRepository, schemaService, storageManager,
+
+		topologyService = topology.CreateService(
+			topologyRepository,
+			userRepository,
+			collectionRepository,
+			schemaService,
+			storageManager,
 		)
+
 		labService = lab.CreateService(
-			antimonyConfig, labRepository, userRepository, topologyRepository, schemaService,
-			topologyService, storageManager, labEventBus, statusMessageNamespace,
+			antimonyConfig,
+			labRepository,
+			userRepository,
+			topologyRepository,
+			schemaService,
+			topologyService,
+			storageManager,
+			labEventBus,
+			statusMessageNamespace,
 		)
 	)
 
 	// Runtime services and components
 	var (
-		instanceService = instance.CreateService(
-			antimonyConfig, schemaService, labRepository, topologyService, storageManager,
-			socketManager, labEventBus, statusMessageNamespace, deploymentProvider,
+		instanceService = createRuntime(
+			antimonyConfig,
+			schemaService,
+			labRepository,
+			labService,
+			topologyService,
+			storageManager,
+			socketManager,
+			labEventBus,
+			statusMessageNamespace,
+			deploymentProvider,
 		)
-		_ = instance.CreateHandler(instanceService, socketManager)
 
 		labScheduler = scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
 	)
 
-	labService.SetRuntimeInfo(instanceService)
-
-	// HTTP Handlers
-	var (
-		serverConfigHandler = serverConfig2.CreateHandler(serverConfigService)
-		devicesHandler      = devicetransport.CreateHandler(devicesService)
-		schemaHandler       = schematransport.CreateHandler(schemaService)
-		userHandler         = usertransport.CreateHandler(userService)
-		collectionHandler   = collectiontransport.CreateHandler(collectionService)
-		topologyHandler     = topologytransport.CreateHandler(topologyService)
-		labHandler          = labtransport.CreateHandler(labService, instanceService)
-	)
-
 	go labScheduler.Run()
 
-	go func() {
-		if err := captureService.StartServer(); err != nil {
-			log.Errorf("Failed to start capture service: %s", err.Error())
-		}
-	}()
+	captureServer := capture.CreateServer(antimonyConfig, deploymentProvider)
+	webServer := createWebServer(authManager,
+		socketManager,
+		serverConfigService,
+		devicesService,
+		schemaService,
+		userService,
+		collectionService,
+		topologyService,
+		labService,
+		instanceService,
+	)
+
+	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+
+	var serverWaitGroup sync.WaitGroup
+	serverWaitGroup.Add(2)
+
+	go startCaptureServer(captureServer, &serverWaitGroup)
+	go startWebServer(webServer, connection, &serverWaitGroup)
+
+	time.Sleep(100 * time.Millisecond)
+
+	log.Info("Antimony API is running and ready to serve calls!", "conn", connection)
+	serverWaitGroup.Wait()
+}
+
+func createWebServer(
+	authManager auth.AuthManager,
+	socketManager socket.SocketManager,
+	serverConfigService serverConfig.Service,
+	devicesService device.Service,
+	schemaService schema.Service,
+	userService user.Service,
+	collectionService collection.Service,
+	topologyService topology.Service,
+	labService lab.Service,
+	instanceService instance.Service,
+) *gin.Engine {
+	var (
+		labHandler          = labtransport.CreateHandler(labService, instanceService)
+		userHandler         = usertransport.CreateHandler(userService)
+		devicesHandler      = devicetransport.CreateHandler(devicesService)
+		schemaHandler       = schematransport.CreateHandler(schemaService)
+		topologyHandler     = topologytransport.CreateHandler(topologyService)
+		collectionHandler   = collectiontransport.CreateHandler(collectionService)
+		serverConfigHandler = serverconfigtransport.CreateHandler(serverConfigService)
+	)
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
 
-	// Public endpoints
+	// Register public HTTP endpoints
 	usertransport.RegisterRoutes(webServer, userHandler)
 	schematransport.RegisterRoutes(webServer, schemaHandler)
 
-	// Authenticated endpoints
+	// Register authenticated HTTP endpoints
 	labtransport.RegisterRoutes(webServer, labHandler, authManager)
 	devicetransport.RegisterRoutes(webServer, devicesHandler, authManager)
 	topologytransport.RegisterRoutes(webServer, topologyHandler, authManager)
 	collectiontransport.RegisterRoutes(webServer, collectionHandler, authManager)
-	serverConfig2.RegisterRoutes(webServer, serverConfigHandler, authManager)
+	serverconfigtransport.RegisterRoutes(webServer, serverConfigHandler, authManager)
 
 	// Register Socket.IO endpoints in web server
 	c := socketio.DefaultServerOptions()
@@ -160,15 +220,39 @@ func main() {
 
 	webServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	var serverWaitGroup sync.WaitGroup
-	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	return webServer
+}
 
-	serverWaitGroup.Add(1)
-	go startWebServer(webServer, connection, &serverWaitGroup)
-	time.Sleep(100 * time.Millisecond)
+func createRuntime(
+	config *config.AntimonyConfig,
+	schemaService schema.Service,
+	labRepo lab.Repository,
+	labService lab.Service,
+	topologyService topology.Service,
+	storageManager storage.StorageManager,
+	socketManager socket.SocketManager,
+	labEventBus utils.EventBus[*lab.Lab],
+	statusMessageNamespace socket.OutputNamespace[statusMessage.StatusMessage],
+	deploymentProvider deployment.DeploymentProvider,
+) instance.Service {
+	instanceService := instance.CreateService(
+		config,
+		schemaService,
+		labRepo,
+		topologyService,
+		storageManager,
+		socketManager,
+		labEventBus,
+		statusMessageNamespace,
+		deploymentProvider,
+	)
 
-	log.Info("Antimony API is ready to serve calls!", "conn", connection)
-	serverWaitGroup.Wait()
+	instance.CreateHandler(instanceService, socketManager)
+
+	// Wire instance service back to lab service through shared interface
+	labService.SetRuntimeInfo(instanceService)
+
+	return instanceService
 }
 
 func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *gorm.DB {
@@ -242,5 +326,13 @@ func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup
 
 	if err := server.Run(socket); err != nil {
 		log.Errorf("Failed to start web server on %s: %s", socket, err.Error())
+	}
+}
+
+func startCaptureServer(server capture.Server, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	if err := server.Start(); err != nil {
+		log.Errorf("Failed to start capture service: %s", err.Error())
 	}
 }

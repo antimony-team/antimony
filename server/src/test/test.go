@@ -462,9 +462,9 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 			OpenIdAdminGroups: []string{},
 		},
 	}
-	authManager := auth.CreateAuthManager(cfg)
+	authManager := auth.CreateManager(cfg)
 	devicesService := device.CreateService(cfg)
-	storageManager := storage.CreateStorageManager(cfg)
+	storageManager := storage.CreateManager(cfg)
 	schemaService := schema.CreateService(cfg)
 
 	// Step 4: Setup in-memory DB
@@ -484,7 +484,7 @@ func SetupTestServer(t *testing.T) (*gin.Engine, auth.AuthManager, *gorm.DB) {
 	GenerateTestData(db, storageManager)
 
 	// Init repos, services, handlers
-	socketManager := socket.CreateSocketManager(authManager)
+	socketManager := socket.CreateManager(authManager)
 
 	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
 		socketManager, false, nil, false, nil, "status-messages",

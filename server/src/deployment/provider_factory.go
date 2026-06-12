@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-func GetProvider(config *config.AntimonyConfig) DeploymentProvider {
+func CreateProvider(config *config.AntimonyConfig) DeploymentProvider {
 	if config.General.Provider == "clabernetes" {
 		log.Info("Using the Clabernetes deployment provider.")
 		return CreateClabernetesProvider()
