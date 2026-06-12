@@ -1329,6 +1329,9 @@ const docTemplate = `{
                 "deployed": {
                     "type": "string"
                 },
+                "isRecovered": {
+                    "type": "boolean"
+                },
                 "latestStateChange": {
                     "type": "string"
                 },
@@ -1340,9 +1343,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/instance.InstanceNode"
                     }
-                },
-                "recovered": {
-                    "type": "boolean"
                 },
                 "state": {
                     "$ref": "#/definitions/instance.InstanceState"
@@ -1370,10 +1370,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/transport.InstanceOut"
                         }
                     ],
-                    "x-nullable": true
-                },
-                "instanceName": {
-                    "type": "string",
                     "x-nullable": true
                 },
                 "name": {

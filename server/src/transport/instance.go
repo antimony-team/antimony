@@ -11,7 +11,7 @@ type InstanceOut struct {
 	State             instance.InstanceState  `json:"state"`
 	LatestStateChange time.Time               `json:"latestStateChange"`
 	Nodes             []instance.InstanceNode `json:"nodes"`
-	Recovered         bool                    `json:"recovered"`
+	IsRecovered       bool                    `json:"isRecovered"`
 }
 
 func InstanceToOut(instance *instance.Instance, instanceName string) *InstanceOut {
@@ -21,6 +21,6 @@ func InstanceToOut(instance *instance.Instance, instanceName string) *InstanceOu
 		State:             instance.State,
 		LatestStateChange: instance.LatestStateChange,
 		Nodes:             instance.Nodes,
-		Recovered:         instance.Recovered,
+		IsRecovered:       instance.Recovered,
 	}
 }

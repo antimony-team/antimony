@@ -1321,6 +1321,9 @@
                 "deployed": {
                     "type": "string"
                 },
+                "isRecovered": {
+                    "type": "boolean"
+                },
                 "latestStateChange": {
                     "type": "string"
                 },
@@ -1332,9 +1335,6 @@
                     "items": {
                         "$ref": "#/definitions/instance.InstanceNode"
                     }
-                },
-                "recovered": {
-                    "type": "boolean"
                 },
                 "state": {
                     "$ref": "#/definitions/instance.InstanceState"
@@ -1362,10 +1362,6 @@
                             "$ref": "#/definitions/transport.InstanceOut"
                         }
                     ],
-                    "x-nullable": true
-                },
-                "instanceName": {
-                    "type": "string",
                     "x-nullable": true
                 },
                 "name": {

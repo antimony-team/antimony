@@ -15,8 +15,7 @@ type LabOut struct {
 	CollectionId       string       `json:"collectionId"`
 	Creator            UserOut      `json:"creator"`
 	TopologyDefinition string       `json:"topologyDefinition"`
-	Instance           *InstanceOut `json:"instance,omitempty"     extensions:"x-nullable"`
-	InstanceName       string       `json:"instanceName,omitempty" extensions:"x-nullable"`
+	Instance           *InstanceOut `json:"instance"           extensions:"x-nullable"`
 }
 
 func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
@@ -35,6 +34,5 @@ func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
 		Creator:            UserToOut(&lab.Creator),
 		TopologyDefinition: *lab.TopologyDefinition,
 		Instance:           instanceOut,
-		InstanceName:       lab.InstanceName,
 	}
 }

@@ -195,6 +195,8 @@ definitions:
     properties:
       deployed:
         type: string
+      isRecovered:
+        type: boolean
       latestStateChange:
         type: string
       name:
@@ -203,8 +205,6 @@ definitions:
         items:
           $ref: '#/definitions/instance.InstanceNode'
         type: array
-      recovered:
-        type: boolean
       state:
         $ref: '#/definitions/instance.InstanceState'
     type: object
@@ -221,9 +221,6 @@ definitions:
       instance:
         allOf:
         - $ref: '#/definitions/transport.InstanceOut'
-        x-nullable: true
-      instanceName:
-        type: string
         x-nullable: true
       name:
         type: string
