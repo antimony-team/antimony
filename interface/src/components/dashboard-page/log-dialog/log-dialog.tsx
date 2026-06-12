@@ -204,7 +204,7 @@ const LogDialog = observer((props: LogDialogProps) => {
                 <When
                   condition={
                     props.dialogState.state!.source === '-1' &&
-                    props.dialogState.state!.lab.instance!.recovered
+                    props.dialogState.state!.lab.instance!.isRecovered
                   }
                 >
                   <span>No logs found (Recovered Instance)</span>

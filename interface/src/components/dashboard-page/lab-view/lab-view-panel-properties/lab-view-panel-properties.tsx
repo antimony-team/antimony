@@ -45,10 +45,10 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             {props.lab.id}
           </span>
         </div>
-        <If condition={props.lab.instanceName}>
+        <If condition={props.lab.instance}>
           <div className="flex align-items-center gap-1">
             <span className="property-title">Instance:</span>
-            <span className="property-value">{props.lab.instanceName}</span>
+            <span className="property-value">{props.lab.instance!.name}</span>
           </div>
         </If>
         <div className="flex align-items-center gap-1">
@@ -69,7 +69,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             <span className="property-value">
               {dayjs(props.lab.instance!.deployed).format('DD/MM/YYYY HH:mm')}
             </span>
-            <If condition={props.lab.instance!.recovered}>
+            <If condition={props.lab.instance!.isRecovered}>
               <span
                 data-pr-tooltip="This instance has been recovered after Antimony was restarted"
                 data-pr-position="right"

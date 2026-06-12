@@ -13,11 +13,10 @@ export type LabOut = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
-  instanceName: string;
 
   topologyDefinition: string;
 
-  instance?: InstanceOut;
+  instance: InstanceOut | null;
 };
 
 export type Lab = {
@@ -26,23 +25,22 @@ export type Lab = {
   startTime: Date;
   endTime: Date | null;
   creator: User;
+  state: InstanceState;
 
   topologyId: uuid4;
   collectionId: uuid4;
   topologyDefinition: RunTopology;
 
   instance: Instance | null;
-  instanceName: string | null;
-  state: InstanceState;
 };
 
 export type InstanceOut = {
+  name: string;
   deployed: Date;
-  edgesharkLink: string;
   state: InstanceState;
   latestStateChange: Date;
   nodes: InstanceNode[];
-  recovered: boolean;
+  isRecovered: boolean;
 };
 
 export type Instance = InstanceOut & {

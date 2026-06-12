@@ -314,15 +314,8 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       ...input,
       startTime: startTime,
       endTime: endTime,
-      state: input.instance
-        ? input.instance.state
-        : endTime &&
-            endTime >= dayjs(new Date()).toDate() &&
-            startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate()
-          ? InstanceState.Scheduled
-          : InstanceState.Inactive,
+      state: this.getInstanceState(input.instance, startTime, endTime),
       instance: this.parseInstance(input.instance),
-      instanceName: input.instanceName,
       topologyDefinition: {
         ...this.topologyStore.manager.buildTopologyMetadata(definition),
         definition: definition,
@@ -330,8 +323,28 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     };
   }
 
-  private parseInstance(input?: InstanceOut): Instance | null {
-    if (input === undefined) return null;
+  private getInstanceState(
+    instance: InstanceOut | null,
+    startTime: Date,
+    endTime: Date | null,
+  ) {
+    if (instance !== null) return instance.state;
+
+    if (endTime !== null) {
+      const isBeforeEndTime = endTime >= dayjs(new Date()).toDate();
+      const isBeforeStartTime =
+        startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate();
+
+      if (isBeforeStartTime && isBeforeEndTime) {
+        return InstanceState.Scheduled;
+      }
+    }
+
+    return InstanceState.Inactive;
+  }
+
+  private parseInstance(input: InstanceOut | null): Instance | null {
+    if (input === null) return null;
 
     return {
       ...input,
