@@ -7,7 +7,7 @@ import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {
   Lab,
-  LabCommand,
+  RuntimeCommand,
   ShellCommand,
   ShellCommandData,
   ShellData,
@@ -23,7 +23,7 @@ export class ShellStore {
   @observable accessor openShells: Map<string, ShellData[]> =
     new ObservableMap();
 
-  private readonly labCommandsSubscription: Subscription;
+  private readonly commandsSubscription: Subscription;
   public readonly onData: Binding<ArrayBuffer> = new Binding();
 
   private currentDataSubscription: Subscription | null = null;
@@ -35,13 +35,12 @@ export class ShellStore {
     this.dataBinder = dataBinder;
     this.statusMessageStore = statusMessageStore;
 
-    this.labCommandsSubscription =
-      this.dataBinder.subscribeNamespace('lab-commands');
+    this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
 
     this.handleData = this.handleData.bind(this);
     this.handleControl = this.handleControl.bind(this);
 
-    this.dataBinder.subscribeNamespace('shell-commands', this.handleControl);
+    this.dataBinder.subscribeNamespace('shell-control', this.handleControl);
   }
 
   private handleData(data: ArrayBuffer) {
@@ -64,6 +63,7 @@ export class ShellStore {
 
   private handleShellError(data: ShellCommandData) {
     console.error('Received error in shell', data);
+    this.handleShellClose(data);
   }
 
   @action
@@ -93,11 +93,11 @@ export class ShellStore {
   public async fetchShellsForLab(lab: Lab) {
     if (!lab.instance) return;
 
-    const result = (await this.labCommandsSubscription.socket!.emitWithAck(
+    const result = (await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify({
         labId: lab.id,
-        command: LabCommand.FetchShells,
+        command: RuntimeCommand.FetchShells,
       }),
     )) as DataResponse<ShellDataOut[]>;
 
@@ -156,7 +156,7 @@ export class ShellStore {
   public switchToShell(shell: ShellData) {
     if (this.currentShell) {
       this.dataBinder.unsubscribeNamespace(
-        `shells/${this.currentShell.id}`,
+        `shell/${this.currentShell.id}`,
         this.handleData,
       );
     }
@@ -164,7 +164,7 @@ export class ShellStore {
     this.currentShell = {...shell};
 
     this.currentDataSubscription = this.dataBinder.subscribeNamespace(
-      `shells/${this.currentShell.id}`,
+      `shell/${this.currentShell.id}`,
       this.handleData,
     );
   }
@@ -175,7 +175,7 @@ export class ShellStore {
 
     if (this.currentDataSubscription) {
       this.dataBinder.unsubscribeNamespace(
-        `shells/${this.currentShell.id}`,
+        `shell/${this.currentShell.id}`,
         this.handleData,
       );
     }
@@ -198,12 +198,12 @@ export class ShellStore {
       this.openShells.set(lab.id, []);
     }
 
-    const result = (await this.labCommandsSubscription.socket!.emitWithAck(
+    const result = (await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify({
         labId: lab.id,
         node: nodeName,
-        command: LabCommand.OpenShell,
+        command: RuntimeCommand.OpenShell,
       }),
     )) as DataResponse<uuid4>;
 
@@ -241,12 +241,12 @@ export class ShellStore {
     const shell = labShells.find(shell => shell.id === shellId);
 
     if (shell && !shell.expired) {
-      await this.labCommandsSubscription.socket!.emitWithAck(
+      await this.commandsSubscription.socket!.emitWithAck(
         'data',
         JSON.stringify({
           labId: lab.id,
           shellId: shellId,
-          command: LabCommand.CloseShell,
+          command: RuntimeCommand.CloseShell,
         }),
       );
     }

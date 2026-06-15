@@ -104,7 +104,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         startTime: editingLab.startTime.toISOString(),
         endTime: editingLab.endTime.toISOString(),
       };
-      labStore.add<string>(newLab).then(result => {
+      void labStore.add<string>(newLab).then(result => {
         if (result.isErr()) {
           notificationStore.error(result.error.message, 'Failed to update lab');
         } else {
@@ -223,6 +223,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             }}
             showIcon
             showTime
+            showSeconds
           />
         </div>
         <div className="flex-auto">
@@ -245,6 +246,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             }}
             showIcon
             showTime
+            showSeconds
           />
         </div>
       </div>

@@ -108,6 +108,7 @@ export type ShellData = ShellDataOut & {
 
 export type LabUpdateOut = {
   labId: string;
+  newState: InstanceState | null;
 };
 
 export type ShellCommandData = {
@@ -123,16 +124,16 @@ export enum ShellCommand {
   ShellClose,
 }
 
-export type LabCommandData = {
+export type RuntimeCommandPayload = {
   labId: string;
-  command: LabCommand;
+  command: RuntimeCommand;
   node?: string;
   shellId?: string;
 };
 
-export enum LabCommand {
-  Deploy,
-  Destroy,
+export enum RuntimeCommand {
+  DeployLab,
+  DestroyLab,
   StartNode,
   StopNode,
   RestartNode,

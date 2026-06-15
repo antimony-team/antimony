@@ -14,8 +14,8 @@ import {
   InstanceOut,
   InstanceState,
   Lab,
-  LabCommand,
-  LabCommandData,
+  RuntimeCommand,
+  RuntimeCommandPayload,
   LabIn,
   LabOut,
   LabUpdateOut,
@@ -44,7 +44,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor startDate: string | null = null;
   @observable accessor endDate: string | null = null;
 
-  private readonly labCommandsSubscription: Subscription;
+  private readonly commandsSubscription: Subscription;
 
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
@@ -69,8 +69,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       this.onLabUpdate.bind(this),
     );
 
-    this.labCommandsSubscription =
-      this.dataBinder.subscribeNamespace('lab-commands');
+    this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
   }
 
   protected get resourcePath(): string {
@@ -115,14 +114,16 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       .toString();
   }
 
-  public async sendLabCommand(command: LabCommandData): Promise<Result<null>> {
-    const response = await this.labCommandsSubscription.socket!.emitWithAck(
+  private async sendRuntimeCommand(
+    command: RuntimeCommandPayload,
+  ): Promise<Result<null>> {
+    const response = await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify(command),
     );
 
     if (!('payload' in response)) {
-      console.error('Failed to execute lab command: ', response);
+      console.error('Failed to execute runtime command: ', response);
       return Result.createErr(response);
     }
 
@@ -144,9 +145,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.Deploy,
+      command: RuntimeCommand.DeployLab,
     });
 
     if (result.isErr()) {
@@ -160,9 +161,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async destroyLab(lab: Lab): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.Destroy,
+      command: RuntimeCommand.DestroyLab,
     });
 
     if (result.isErr()) {
@@ -176,9 +177,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async stopNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.StopNode,
+      command: RuntimeCommand.StopNode,
       node: nodeName,
     });
 
@@ -193,9 +194,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async startNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.StartNode,
+      command: RuntimeCommand.StartNode,
       node: nodeName,
     });
 
@@ -210,9 +211,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async restartNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.RestartNode,
+      command: RuntimeCommand.RestartNode,
       node: nodeName,
     });
 
@@ -238,7 +239,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   private onLabUpdate(data: DataResponse<LabUpdateOut>) {
     if (data.payload.labId && this.lookup.has(data.payload.labId)) {
-      void this.fetchSingle(data.payload.labId);
+      if (data.payload.newState !== null) {
+        const lab = this.lookup.get(data.payload.labId);
+        runInAction(() => {
+          lab!.state = data.payload.newState!;
+        });
+      } else {
+        void this.fetchSingle(data.payload.labId);
+      }
     } else {
       void this.fetch();
     }

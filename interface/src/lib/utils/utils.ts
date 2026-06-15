@@ -171,13 +171,13 @@ export function getNodeDisplayName(
 ) {
   if (!instance) return nodeName;
 
-  if (node?.state === 'running') {
-    return `🟢 ${nodeName}`;
-  } else if (
+  if (
     node?.state === 'starting' ||
-    instance?.state === InstanceState.Deploying
+    instance.state === InstanceState.Deploying
   ) {
     return `🟠 ${nodeName}`;
+  } else if (node?.state === 'running') {
+    return `🟢 ${nodeName}`;
   }
 
   return `🔴 ${nodeName}`;
