@@ -162,6 +162,10 @@ func CreateOutputNamespace[O any](
 	)
 }
 
+func (m *namespace[I, O]) Release() {
+	m.sioNamespace.EventEmitter().Clear()
+}
+
 // ClearBacklog Removes all messages from the backlog
 func (m *namespace[I, O]) ClearBacklog() {
 	m.backlogMutex.Lock()

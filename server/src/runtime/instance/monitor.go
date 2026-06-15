@@ -67,10 +67,6 @@ func (m *Monitor) Run() {
 				continue
 			}
 
-			if namespace == nil {
-				continue
-			}
-
 			namespace.Send(NodeStats{
 				Timestamp:       time.Now(),
 				CPUUsagePercent: float32(stats.CPUUsagePercent),

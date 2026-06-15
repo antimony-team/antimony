@@ -14,8 +14,10 @@ import (
 	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/runtime/commands"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/runtime/scheduler"
+	"antimonyBackend/runtime/shell"
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	collectiontransport "antimonyBackend/transport/http/collection"
@@ -133,24 +135,23 @@ func main() {
 	)
 
 	// Runtime services and components
-	var (
-		instanceService = createRuntime(
-			antimonyConfig,
-			socketManager,
-			storageManager,
-			labRepository,
-			labService,
-			schemaService,
-			topologyService,
-			labEventBus,
-			deploymentProvider,
-			statusMessageNamespace,
-		)
-
-		labScheduler = scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
+	instanceService, shellService := createRuntime(
+		antimonyConfig,
+		socketManager,
+		storageManager,
+		labRepository,
+		labService,
+		schemaService,
+		topologyService,
+		labEventBus,
+		deploymentProvider,
+		statusMessageNamespace,
 	)
 
+	labScheduler := scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
 	go labScheduler.Run()
+
+	commands.CreateHandler(shellService, instanceService, socketManager)
 
 	captureServer := capture.CreateServer(antimonyConfig, deploymentProvider)
 	webServer := createWebServer(
@@ -237,7 +238,7 @@ func createRuntime(
 	labEventBus *utils.EventBus[*lab.Lab],
 	deploymentProvider deployment.DeploymentProvider,
 	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
-) *instance.Service {
+) (*instance.Service, *shell.Service) {
 	instanceService := instance.CreateService(
 		config,
 		schemaService,
@@ -250,12 +251,12 @@ func createRuntime(
 		deploymentProvider,
 	)
 
-	instance.CreateHandler(instanceService, socketManager)
+	shellService := shell.CreateService(config, labRepo, instanceService, socketManager, deploymentProvider)
 
 	// Wire instance service back to lab service through shared interface
 	labService.SetRuntimeInfo(instanceService)
 
-	return instanceService
+	return instanceService, shellService
 }
 
 func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *gorm.DB {

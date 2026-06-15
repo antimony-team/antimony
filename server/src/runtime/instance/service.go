@@ -12,12 +12,8 @@ import (
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"net/netip"
 	"os"
-	filepath "path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -26,54 +22,35 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
-	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 )
 
-type (
-	Service struct {
-		config *config.AntimonyConfig
+type Service struct {
+	config *config.AntimonyConfig
 
-		// Map of currently active instances indexed by lab ID.
-		// The instances can be in any of the real states.
-		instances      map[string]*Instance
-		instancesMutex sync.Mutex
+	// Map of currently active instances indexed by lab ID.
+	// The instances can be in any of the real states.
+	instances      map[string]*Instance
+	instancesMutex sync.Mutex
 
-		openShells      map[string]*shellConfig
-		openShellsMutex sync.Mutex
+	nodeKindConfigs map[string]NodeKindConfig
 
-		defaultSshAuth  []ssh.AuthMethod
-		nodeKindConfigs map[string]NodeKindConfig
+	monitor *Monitor
 
-		monitor *Monitor
+	labRepo         *lab.Repository
+	schemaService   *schema.Service
+	topologyService *topology.Service
 
-		labRepo         *lab.Repository
-		schemaService   *schema.Service
-		topologyService *topology.Service
+	storageManager *storage.Manager
+	socketManager  *socket.Manager
 
-		storageManager *storage.Manager
-		socketManager  *socket.Manager
+	deploymentProvider deployment.DeploymentProvider
 
-		deploymentProvider deployment.DeploymentProvider
+	labEventBus *utils.EventBus[*lab.Lab]
 
-		labEventBus *utils.EventBus[*lab.Lab]
-
-		updatesNamespace       *socket.OutputNamespace[InstanceUpdate]
-		shellCommandsNamespace *socket.OutputNamespace[ShellCommandData]
-
-		statusMessageNamespace *socket.OutputNamespace[statusmessage.Message]
-	}
-
-	shellConfig struct {
-		Owner            *auth.AuthenticatedUser
-		LabId            string
-		Node             string
-		Connection       io.ReadWriteCloser
-		ConnectionCancel context.CancelFunc
-		LastInteraction  int64
-		DataNamespace    *socket.IONamespace[string, byte]
-	}
-)
+	updatesNamespace       *socket.OutputNamespace[instanceUpdate]
+	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message]
+}
 
 func CreateService(
 	config *config.AntimonyConfig,
@@ -95,11 +72,8 @@ func CreateService(
 		topologyService:        topologyService,
 		monitor:                monitor,
 		nodeKindConfigs:        getNodeKindConfigs("./kinds.conf.yml"),
-		openShells:             make(map[string]*shellConfig),
-		openShellsMutex:        sync.Mutex{},
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
-		defaultSshAuth:         getSshKeyAuth(),
 		storageManager:         storageManager,
 		labEventBus:            labEventBus,
 		deploymentProvider:     deploymentProvider,
@@ -107,22 +81,18 @@ func CreateService(
 		statusMessageNamespace: statusMessageNamespace,
 	}
 
-	service.updatesNamespace = socket.CreateOutputNamespace[InstanceUpdate](
+	service.updatesNamespace = socket.CreateOutputNamespace[instanceUpdate](
 		socketManager, false, nil, false, nil, "lab-updates",
-	)
-	service.shellCommandsNamespace = socket.CreateOutputNamespace[ShellCommandData](
-		socketManager, false, nil, false, nil, "shell-commands",
 	)
 
 	service.reviveInstances()
-	service.updatesNamespace.Send(InstanceUpdate{
+	service.updatesNamespace.Send(instanceUpdate{
 		LabId: nil,
 	})
 
 	go service.registerProviderEventListener()
 
 	go service.monitor.Run()
-	go service.runShellManager()
 
 	return service
 }
@@ -247,7 +217,7 @@ func (s *Service) StopNodeCommand(
 		return fmt.Errorf("node is already stopped")
 	}
 
-	s.closeNodeShells(node.Name)
+	//s.closeNodeShells(node.Name)
 
 	if err := s.deploymentProvider.StopNode(ctx, node.ContainerId); err != nil {
 		return err
@@ -281,7 +251,7 @@ func (s *Service) RestartNodeCommand(
 		return fmt.Errorf("unable to manually restart nodes of kind '%s'", node.Kind)
 	}
 
-	s.closeNodeShells(node.Name)
+	//s.closeNodeShells(node.Name)
 
 	if err := s.deploymentProvider.RestartNode(ctx, node.ContainerId); err != nil {
 		return err
@@ -365,28 +335,6 @@ func (s *Service) validateNodeCommand(
 	return instanceLab, instance, node, nil
 }
 
-func (s *Service) runShellManager() {
-	for {
-		s.openShellsMutex.Lock()
-		for shellId, shell := range s.openShells {
-			if time.Now().Unix()-shell.LastInteraction > s.config.Shell.Timeout {
-				s.openShellsMutex.Lock()
-				delete(s.openShells, shellId)
-				s.openShellsMutex.Unlock()
-
-				if err := s.closeShell(shellId, shell, "shell was inactive for too long"); err != nil {
-					log.Errorf("Failed to close shell: %s", err.Error())
-				}
-
-				delete(s.openShells, shellId)
-			}
-		}
-		s.openShellsMutex.Unlock()
-
-		time.Sleep(5 * time.Second)
-	}
-}
-
 func (s *Service) registerProviderEventListener() {
 	ctx := context.Background()
 
@@ -407,7 +355,7 @@ func (s *Service) registerProviderEventListener() {
 		s.instancesMutex.Unlock()
 
 		if targetLabId != nil {
-			s.updatesNamespace.Send(InstanceUpdate{
+			s.updatesNamespace.Send(instanceUpdate{
 				LabId:    targetLabId,
 				NewState: nil,
 			})
@@ -441,9 +389,9 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	defer instance.Mutex.Unlock()
 
 	// Close all open shells for all nodes in the lab
-	for _, node := range instance.Nodes {
-		s.closeNodeShells(node.Name)
-	}
+	//for _, node := range instance.Nodes {
+	//	s.closeNodeShells(node.Name)
+	//}
 
 	ctx := context.Background()
 
@@ -476,7 +424,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	delete(s.instances, lab.UUID)
 	s.instancesMutex.Unlock()
 
-	s.updatesNamespace.Send(InstanceUpdate{
+	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
 	})
 
@@ -511,9 +459,9 @@ func (s *Service) redeployLab(lab *lab.Lab, instance *Instance) error {
 	defer instance.DeploymentWorker.Cancel()
 
 	// Close all open shells for all nodes in the lab
-	for _, node := range instance.Nodes {
-		s.closeNodeShells(node.Name)
-	}
+	//for _, node := range instance.Nodes {
+	//	s.closeNodeShells(node.Name)
+	//}
 
 	instance.Nodes = make([]InstanceNode, 0)
 	instance.Recovered = false
@@ -605,92 +553,6 @@ func (s *Service) redeployLab(lab *lab.Lab, instance *Instance) error {
 	return nil
 }
 
-func (s *Service) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
-	authMethods := s.defaultSshAuth
-
-	sshUsername := "admin"
-	kindConfig, hasConfig := s.nodeKindConfigs[nodeKind]
-
-	if hasConfig && kindConfig.SSHUsername != nil {
-		sshUsername = *kindConfig.SSHUsername
-	}
-
-	if hasConfig && kindConfig.SSHPassword != nil {
-		authMethods = append(authMethods, ssh.Password(*kindConfig.SSHPassword))
-	}
-
-	sshConfig := &ssh.ClientConfig{
-		User:            sshUsername,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	client, err := ssh.Dial("tcp", host+":22", sshConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	session, err := client.NewSession()
-	if err != nil {
-		_ = client.Close()
-		return nil, err
-	}
-
-	err = session.RequestPty("xterm", 25, 130, ssh.TerminalModes{
-		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
-	})
-
-	if err != nil {
-		_ = session.Close()
-		_ = client.Close()
-		return nil, err
-	}
-
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		_ = session.Close()
-		_ = client.Close()
-		return nil, err
-	}
-
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		_ = session.Close()
-		_ = client.Close()
-		return nil, err
-	}
-
-	if err = session.Shell(); err != nil {
-		_ = session.Close()
-		_ = client.Close()
-		return nil, err
-	}
-
-	return &sshReadWriteCloser{
-		reader:  stdout,
-		writer:  stdin,
-		session: session,
-		client:  client,
-	}, nil
-}
-
-type sshReadWriteCloser struct {
-	reader  io.Reader
-	writer  io.WriteCloser
-	session *ssh.Session
-	client  *ssh.Client
-}
-
-func (s *sshReadWriteCloser) Read(p []byte) (int, error)  { return s.reader.Read(p) }
-func (s *sshReadWriteCloser) Write(p []byte) (int, error) { return s.writer.Write(p) }
-func (s *sshReadWriteCloser) Close() error {
-	_ = s.writer.Close()
-	_ = s.session.Close()
-	return s.client.Close()
-}
-
 func (s *Service) DeployLab(lab *lab.Lab) error {
 	// We have to ensure that the instance is only created once
 	s.instancesMutex.Lock()
@@ -721,9 +583,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	var runTopologyDefinition string
 	runTopologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &runTopologyDefinition)
-
-	fmt.Printf("DEPLOYI TOPOLOGY: %s\n", runTopologyDefinition)
-	fmt.Printf("DEPLOYI VILEF: %s\n", *runTopologyFile)
 
 	if err != nil {
 		log.Errorf("Failed to get lab environment for lab '%s': %s", lab.Name, err)
@@ -882,7 +741,12 @@ func (s *Service) startNodeStartupListener(node *InstanceNode, instance *Instanc
 	}
 }
 
-func (s *Service) onNodeStarted(ctx context.Context, instance *Instance, node *InstanceNode, lab *lab.Lab) {
+func (s *Service) onNodeStarted(
+	ctx context.Context,
+	instance *Instance,
+	node *InstanceNode,
+	lab *lab.Lab,
+) {
 	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
 
 	s.monitor.AddNode(node.ContainerId)
@@ -892,7 +756,7 @@ func (s *Service) onNodeStarted(ctx context.Context, instance *Instance, node *I
 	node.Interfaces = interfaces
 	instance.Mutex.Unlock()
 
-	s.updatesNamespace.Send(InstanceUpdate{
+	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
 	})
 }
@@ -1092,7 +956,7 @@ func (s *Service) containerToInstanceNode(
 }
 
 func (s *Service) notifyUpdate(lab lab.Lab, message *statusmessage.Message) {
-	s.updatesNamespace.Send(InstanceUpdate{
+	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
 	})
 
@@ -1116,7 +980,7 @@ func (s *Service) updateStateAndNotify(
 		instance.LatestStateChange = time.Now()
 	}
 
-	s.updatesNamespace.Send(InstanceUpdate{
+	s.updatesNamespace.Send(instanceUpdate{
 		LabId:    &lab.UUID,
 		NewState: &state,
 	})
@@ -1239,310 +1103,6 @@ func (s *Service) reviveInstances() {
 	}
 }
 
-func (s *Service) FetchShellsCommand(
-	ctx context.Context,
-	labId string,
-	authUser *auth.AuthenticatedUser,
-) ([]ShellData, error) {
-	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
-	if err != nil {
-		return nil, err
-	}
-
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, instanceLab.Topology.Collection.Name) {
-		return nil, utils.ErrNoAccessToLab
-	}
-
-	var userShells []ShellData
-
-	s.openShellsMutex.Lock()
-	for shellId, shell := range s.openShells {
-		if shell.LabId == labId && shell.Owner.UserId == authUser.UserId {
-			userShells = append(userShells, ShellData{
-				Id:   shellId,
-				Node: shell.Node,
-			})
-		}
-	}
-	s.openShellsMutex.Unlock()
-
-	return userShells, nil
-}
-
-func (s *Service) OpenShellCommand(
-	ctx context.Context,
-	labId string,
-	nodeName *string,
-	authUser *auth.AuthenticatedUser,
-) (string, error) {
-	if nodeName == nil {
-		return "", utils.ErrInvalidSocketRequest
-	}
-
-	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
-	if err != nil {
-		return "", err
-	}
-
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, instanceLab.Topology.Collection.Name) {
-		return "", utils.ErrNoAccessToLab
-	}
-
-	s.instancesMutex.Lock()
-	instance, hasInstance := s.instances[instanceLab.UUID]
-	s.instancesMutex.Unlock()
-
-	if !hasInstance {
-		return "", utils.ErrLabNotRunning
-	}
-
-	node, hasNode := lo.Find(instance.Nodes, func(node InstanceNode) bool {
-		return node.Name == *nodeName
-	})
-	if !hasNode {
-		return "", utils.ErrNodeNotFound
-	}
-
-	s.openShellsMutex.Lock()
-	userShellCount := lo.CountBy(lo.Values(s.openShells), func(shell *shellConfig) bool {
-		return shell.Owner.UserId == authUser.UserId
-	})
-	s.openShellsMutex.Unlock()
-
-	if userShellCount >= s.config.Shell.UserLimit {
-		return "", utils.ErrShellLimitReached
-	}
-
-	connection, err := s.openNodeShell(ctx, node)
-	if err != nil {
-		log.Error("Failed to open shell on node.", "node", node.ContainerName)
-		return "", err
-	}
-
-	shellId := utils.GenerateUuid()
-	accessGroup := []*auth.AuthenticatedUser{authUser}
-
-	dataNamespace := socket.CreateIONamespace[string, byte](
-		s.socketManager,
-		false,
-		&socket.BacklogConfig{
-			Capacity: s.config.Streaming.ClabLogBacklog,
-			Kind:     utils.RingKindByte,
-		},
-		true,
-		s.handleShellData(shellId),
-		&accessGroup,
-		"shells", shellId,
-	)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	shellConfig := &shellConfig{
-		Owner:            authUser,
-		Node:             *nodeName,
-		LabId:            labId,
-		Connection:       connection,
-		ConnectionCancel: cancel,
-		LastInteraction:  time.Now().Unix(),
-		DataNamespace:    dataNamespace,
-	}
-
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			n, err := connection.Read(buf)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					s.openShellsMutex.Lock()
-					delete(s.openShells, shellId)
-					s.openShellsMutex.Unlock()
-
-					_ = s.closeShell(shellId, shellConfig, "User closed the shell")
-					break
-				}
-
-				// Only send an error if the connection hasn't been closed explicitly
-				if ctx.Err() == nil {
-					s.shellCommandsNamespace.Send(ShellCommandData{
-						LabId:   labId,
-						Node:    *nodeName,
-						ShellId: shellId,
-						Command: ShellCommands.Error,
-						Message: err.Error(),
-					})
-				}
-
-				break
-			}
-
-			dataNamespace.SendBulk(buf[:n])
-		}
-	}()
-
-	s.openShellsMutex.Lock()
-	s.openShells[shellId] = shellConfig
-	s.openShellsMutex.Unlock()
-
-	return shellId, nil
-}
-
-func (s *Service) CloseShellCommand(shellId *string, authUser *auth.AuthenticatedUser) error {
-	if shellId == nil {
-		return utils.ErrInvalidSocketRequest
-	}
-
-	s.openShellsMutex.Lock()
-	shell, hasShell := s.openShells[*shellId]
-	s.openShellsMutex.Unlock()
-
-	if !hasShell {
-		return utils.ErrShellNotFound
-	}
-
-	if !authUser.IsAdmin && shell.Owner != authUser {
-		return utils.ErrNoAccessToShell
-	}
-
-	s.openShellsMutex.Lock()
-	delete(s.openShells, *shellId)
-	s.openShellsMutex.Unlock()
-
-	err := s.closeShell(*shellId, shell, "shell was closed by the user")
-	if err != nil {
-		log.Errorf("Failed to close shell: %s", err.Error())
-	}
-
-	s.openShellsMutex.Lock()
-	delete(s.openShells, *shellId)
-	s.openShellsMutex.Unlock()
-
-	return nil
-}
-
-func (s *Service) openNodeShell(ctx context.Context, node InstanceNode) (io.ReadWriteCloser, error) {
-	var host string
-	var connection io.ReadWriteCloser
-	var err error
-
-	if ip, err := netip.ParsePrefix(node.IPv4); err != nil {
-		log.Warn(
-			"Failed to parse node IP",
-			"ip", node.IPv4, "container", node.ContainerName,
-			"err", err,
-		)
-		host = ip.Addr().String()
-	} else {
-		host = node.ContainerName
-	}
-
-	connection, err = s.openSshSession(host, node.Kind)
-	if err == nil {
-		return connection, nil
-	}
-
-	log.Debug(
-		"Failed to open SSH session for node. Falling back to native bash.",
-		"node",
-		node.ContainerName,
-	)
-
-	connection, err = s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/bash"})
-	if err == nil {
-		return connection, nil
-	}
-
-	log.Debug(
-		"Failed to open native bash session for node. Falling back to native sh.",
-		"node",
-		node.ContainerName,
-	)
-
-	return s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/sh"})
-}
-
-func (s *Service) closeNodeShells(nodeName string) {
-	var removeShellIds []string
-
-	s.openShellsMutex.Lock()
-	for shellId, shell := range s.openShells {
-		if shell.Node == nodeName {
-			err := s.closeShell(shellId, shell, "the shell's node has been stopped")
-			if err != nil {
-				log.Errorf("Failed to close shell: %s", err.Error())
-			}
-
-			removeShellIds = append(removeShellIds, shellId)
-		}
-	}
-	for _, id := range removeShellIds {
-		delete(s.openShells, id)
-	}
-	s.openShellsMutex.Unlock()
-}
-
-func (s *Service) closeShell(shellId string, shell *shellConfig, reason string) error {
-	s.shellCommandsNamespace.Send(ShellCommandData{
-		LabId:   shell.LabId,
-		Node:    shell.Node,
-		ShellId: shellId,
-		Command: ShellCommands.Close,
-		Message: reason,
-	})
-
-	shell.ConnectionCancel()
-
-	return shell.Connection.Close()
-}
-
-func (s *Service) handleShellData(
-	shellId string,
-) func(
-	ctx context.Context,
-	data *string,
-	authUser *auth.AuthenticatedUser,
-	onResponse func(response utils.OkResponse[any]),
-	onError func(response utils.ErrorResponse),
-) {
-	return func(
-		ctx context.Context,
-		data *string,
-		authUser *auth.AuthenticatedUser,
-		onResponse func(response utils.OkResponse[any]),
-		onError func(response utils.ErrorResponse),
-	) {
-		if data == nil {
-			onError(utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest))
-			return
-		}
-
-		s.openShellsMutex.Lock()
-		shell, hasShell := s.openShells[shellId]
-		s.openShellsMutex.Unlock()
-
-		if !hasShell {
-			if onError != nil {
-				onError(utils.CreateSocketErrorResponse(utils.ErrShellNotFound))
-			}
-			return
-		}
-
-		if shell.Owner.UserId != authUser.UserId {
-			onError(utils.CreateSocketErrorResponse(utils.ErrNoAccessToShell))
-			return
-		}
-
-		shell.LastInteraction = time.Now().Unix()
-
-		_, err := shell.Connection.Write(([]byte)(*data))
-		if err != nil {
-			log.Errorf("Failed to write shell data: %s", err.Error())
-			if onError != nil {
-				onError(utils.CreateSocketErrorResponse(err))
-			}
-		}
-	}
-}
-
 // streamClabOutput Streams the output of a containerlab command to a given socket namespace.
 func streamClabOutput(logNamespace *socket.OutputNamespace[string], output *string) {
 	re := regexp.MustCompile(`\[\dm`)
@@ -1580,43 +1140,41 @@ func getNodeKindConfigs(path string) map[string]NodeKindConfig {
 	return configs
 }
 
-func getSshKeyAuth() []ssh.AuthMethod {
-	home, err := os.UserHomeDir()
+func (s *Service) GetNodeKindsConfig() map[string]NodeKindConfig {
+	return s.nodeKindConfigs
+}
+
+func (s *Service) GetInstanceNode(
+	ctx context.Context,
+	labId string,
+	nodeName string,
+	authUser *auth.AuthenticatedUser,
+) (*InstanceNode, error) {
+	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
-		log.Errorf("Failed to get home directory for SSH keys.")
-		return []ssh.AuthMethod{}
+		return nil, err
 	}
 
-	keyFiles := []string{
-		"id_rsa",
-		"id_ed25519",
-		"id_ecdsa",
-		"id_dsa",
-		"id_ecdsa_sk",
-		"id_ed25519_sk",
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, instanceLab.Topology.Collection.Name) {
+		return nil, utils.ErrNoAccessToLab
 	}
 
-	var signers []ssh.AuthMethod
-	for _, name := range keyFiles {
-		path := filepath.Join(home, ".ssh", name)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
+	s.instancesMutex.Lock()
+	instance, hasInstance := s.instances[instanceLab.UUID]
+	s.instancesMutex.Unlock()
 
-		signer, err := ssh.ParsePrivateKey(data)
-		if err != nil {
-			continue
-		}
-
-		signers = append(signers, ssh.PublicKeys(signer))
+	if !hasInstance {
+		return nil, utils.ErrLabNotRunning
 	}
 
-	if len(signers) == 0 {
-		log.Warnf("Failed to find any SSH keys on the system.")
+	node, hasNode := lo.Find(instance.Nodes, func(node InstanceNode) bool {
+		return node.Name == nodeName
+	})
+	if !hasNode {
+		return nil, utils.ErrNodeNotFound
 	}
 
-	return signers
+	return &node, nil
 }
 
 func (s *Service) IsRunning(labId string) bool {
