@@ -3,7 +3,7 @@ package instance
 import (
 	"antimonyBackend/deployment"
 	"antimonyBackend/socket"
-	"antimonyBackend/utils"
+	"context"
 	"sync"
 	"time"
 )
@@ -24,8 +24,12 @@ type Instance struct {
 	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
 	Mutex sync.Mutex
 
-	// DeploymentWorker that holds the current deployment context of the lab
-	DeploymentWorker *utils.Worker
+	// DeploymentCancel that holds the current deployment context of the lab
+	DeploymentCancel      context.CancelFunc
+	DeploymentCancelMutex sync.Mutex
+
+	// IsDestroyed Whether the instance has been destroyed
+	IsDestroyed bool
 
 	NodeKinds  map[string]string
 	NodeLabels map[string]map[string]string

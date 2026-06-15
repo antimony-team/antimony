@@ -6,12 +6,12 @@ import (
 )
 
 type InstanceOut struct {
-	Name              string                  `json:"name"`
-	Deployed          time.Time               `json:"deployed"`
-	State             instance.InstanceState  `json:"state"`
-	LatestStateChange time.Time               `json:"latestStateChange"`
-	Nodes             []instance.InstanceNode `json:"nodes"`
-	IsRecovered       bool                    `json:"isRecovered"`
+	Name              string                   `json:"name"`
+	Deployed          time.Time                `json:"deployed"`
+	State             instance.InstanceState   `json:"state"`
+	LatestStateChange time.Time                `json:"latestStateChange"`
+	Nodes             []*instance.InstanceNode `json:"nodes"`
+	IsRecovered       bool                     `json:"isRecovered"`
 }
 
 func InstanceToOut(instance *instance.Instance, instanceName string) *InstanceOut {
