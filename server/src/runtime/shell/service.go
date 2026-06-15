@@ -40,17 +40,17 @@ type Service struct {
 
 	deploymentProvider deployment.DeploymentProvider
 
-	shellControlNamespace *socket.OutputNamespace[shellControlData]
+	controlNamespace *socket.OutputNamespace[shellControlData]
 }
 
 type shellConfig struct {
-	Owner            *auth.AuthenticatedUser
-	LabId            string
-	Node             string
-	Connection       io.ReadWriteCloser
-	ConnectionCancel context.CancelFunc
-	LastInteraction  int64
-	DataNamespace    *socket.IONamespace[string, byte]
+	owner            *auth.AuthenticatedUser
+	labId            string
+	node             string
+	connection       io.ReadWriteCloser
+	connectionCancel context.CancelFunc
+	lastInteraction  int64
+	dataNamespace    *socket.IONamespace[string, byte]
 }
 
 type sshReadWriteCloser struct {
@@ -79,11 +79,12 @@ func CreateService(
 		socketManager:      socketManager,
 	}
 
-	service.shellControlNamespace = socket.CreateOutputNamespace[shellControlData](
+	service.controlNamespace = socket.CreateOutputNamespace[shellControlData](
 		socketManager, false, nil, false, nil, "shell-control",
 	)
 
-	go service.runManager()
+	ctx := context.Background()
+	go service.runManager(ctx)
 
 	return service
 }
@@ -106,10 +107,10 @@ func (s *Service) FetchShellsCommand(
 
 	s.openShellsMutex.Lock()
 	for shellId, shell := range s.openShells {
-		if shell.LabId == labId && shell.Owner.UserId == authUser.UserId {
+		if shell.labId == labId && shell.owner.UserId == authUser.UserId {
 			userShells = append(userShells, shellData{
 				Id:   shellId,
-				Node: shell.Node,
+				Node: shell.node,
 			})
 		}
 	}
@@ -131,7 +132,7 @@ func (s *Service) OpenShellCommand(
 
 	s.openShellsMutex.Lock()
 	userShellCount := lo.CountBy(lo.Values(s.openShells), func(shell *shellConfig) bool {
-		return shell.Owner.UserId == authUser.UserId
+		return shell.owner.UserId == authUser.UserId
 	})
 	s.openShellsMutex.Unlock()
 
@@ -164,13 +165,13 @@ func (s *Service) OpenShellCommand(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	shellConfig := &shellConfig{
-		Owner:            authUser,
-		Node:             *nodeName,
-		LabId:            labId,
-		Connection:       connection,
-		ConnectionCancel: cancel,
-		LastInteraction:  time.Now().Unix(),
-		DataNamespace:    dataNamespace,
+		owner:            authUser,
+		node:             *nodeName,
+		labId:            labId,
+		connection:       connection,
+		connectionCancel: cancel,
+		lastInteraction:  time.Now().Unix(),
+		dataNamespace:    dataNamespace,
 	}
 
 	go s.runShell(ctx, labId, *nodeName, connection, shellId, shellConfig, dataNamespace)
@@ -195,7 +196,7 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 		return utils.ErrShellNotFound
 	}
 
-	if !authUser.IsAdmin && shell.Owner != authUser {
+	if !authUser.IsAdmin && shell.owner != authUser {
 		return utils.ErrNoAccessToShell
 	}
 
@@ -215,15 +216,11 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 	return nil
 }
 
-func (s *Service) runManager() {
+func (s *Service) runManager(ctx context.Context) {
 	for {
 		s.openShellsMutex.Lock()
 		for shellId, shell := range s.openShells {
-			if time.Now().Unix()-shell.LastInteraction > s.config.Shell.Timeout {
-				s.openShellsMutex.Lock()
-				delete(s.openShells, shellId)
-				s.openShellsMutex.Unlock()
-
+			if time.Now().Unix()-shell.lastInteraction > s.config.Shell.Timeout {
 				if err := s.closeShell(shellId, shell, "shell was inactive for too long"); err != nil {
 					log.Errorf("Failed to close shell: %s", err.Error())
 				}
@@ -233,7 +230,12 @@ func (s *Service) runManager() {
 		}
 		s.openShellsMutex.Unlock()
 
-		time.Sleep(5 * time.Second)
+		select {
+		case <-time.After(5 * time.Second):
+			continue
+		case <-ctx.Done():
+			break
+		}
 	}
 }
 
@@ -354,17 +356,15 @@ func (s *Service) openSshSession(host string, nodeKind string) (io.ReadWriteClos
 }
 
 func (s *Service) closeShell(shellId string, shell *shellConfig, reason string) error {
-	s.shellControlNamespace.Send(shellControlData{
-		LabId:   shell.LabId,
-		Node:    shell.Node,
+	s.controlNamespace.Send(shellControlData{
+		LabId:   shell.labId,
+		Node:    shell.node,
 		ShellId: shellId,
 		Command: ShellCommands.Close,
 		Message: reason,
 	})
 
-	shell.ConnectionCancel()
-
-	return shell.Connection.Close()
+	return shell.Close()
 }
 
 func (s *Service) handleUserData(
@@ -399,14 +399,14 @@ func (s *Service) handleUserData(
 			return
 		}
 
-		if shell.Owner.UserId != authUser.UserId {
+		if shell.owner.UserId != authUser.UserId {
 			onError(utils.CreateSocketErrorResponse(utils.ErrNoAccessToShell))
 			return
 		}
 
-		shell.LastInteraction = time.Now().Unix()
+		shell.lastInteraction = time.Now().Unix()
 
-		_, err := shell.Connection.Write(([]byte)(*data))
+		_, err := shell.connection.Write(([]byte)(*data))
 		if err != nil {
 			log.Errorf("Failed to write shell data: %s", err.Error())
 			if onError != nil {
@@ -447,7 +447,7 @@ func (s *Service) runShell(
 
 		// Only send an error if the connection hasn't been closed already
 		if ctx.Err() == nil {
-			s.shellControlNamespace.Send(shellControlData{
+			s.controlNamespace.Send(shellControlData{
 				LabId:   labId,
 				Node:    nodeName,
 				ShellId: shellId,
@@ -489,6 +489,13 @@ func (s *sshReadWriteCloser) Close() error {
 	_ = s.writer.Close()
 	_ = s.session.Close()
 	return s.client.Close()
+}
+
+func (c *shellConfig) Close() error {
+	c.connectionCancel()
+	c.dataNamespace.Release()
+
+	return c.connection.Close()
 }
 
 func getSshKeyAuth() []ssh.AuthMethod {

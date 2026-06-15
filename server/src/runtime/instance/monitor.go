@@ -61,9 +61,7 @@ func (m *Monitor) Run() {
 			stats, err := m.deploymentProvider.ReadNodeStats(ctx, containerId)
 			if err != nil {
 				// Node is not running or is no longer available, remove from monitor list
-				m.monitoredNodesMutex.Lock()
-				delete(m.monitoredNodes, containerId)
-				m.monitoredNodesMutex.Unlock()
+				m.RemoveNode(containerId)
 				continue
 			}
 
@@ -111,6 +109,9 @@ func (m *Monitor) AddNode(containerId string) {
 
 func (m *Monitor) RemoveNode(containerId string) {
 	m.monitoredNodesMutex.Lock()
+	if namespace, ok := m.monitoredNodes[containerId]; ok {
+		namespace.Release()
+	}
 	delete(m.monitoredNodes, containerId)
 	m.monitoredNodesMutex.Unlock()
 }

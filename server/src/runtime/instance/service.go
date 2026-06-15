@@ -417,7 +417,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		return utils.ErrContainerlab
 	}
 
-	instance.LogNamespace.ClearBacklog()
+	instance.LogNamespace.Release()
 
 	// Remove instance from a lab and send update to clients
 	s.instancesMutex.Lock()
