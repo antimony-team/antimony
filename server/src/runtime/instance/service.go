@@ -135,11 +135,7 @@ func (s *Service) DeployLabCommand(ctx context.Context, labId string, authUser *
 	// Make sure everyone knows the lab is being deployed manually by the user
 	s.labEventBus.Publish("lab.manually-deployed", instanceLab)
 
-	if err := s.DeployLab(instanceLab); err != nil {
-		return err
-	}
-
-	return nil
+	return s.DeployLab(instanceLab)
 }
 
 func (s *Service) DestroyLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
@@ -160,15 +156,22 @@ func (s *Service) DestroyLabCommand(ctx context.Context, labId string, authUser 
 func (s *Service) StartNodeCommand(
 	ctx context.Context,
 	labId string,
-	nodeId *string,
+	nodeName *string,
 	authUser *auth.AuthenticatedUser,
 ) error {
-	instanceLab, instance, node, err := s.validateNodeCommand(ctx, labId, nodeId, authUser)
+	instanceLab, instance, err := s.validateNodeCommand(ctx, labId, nodeName, authUser)
 	if err != nil {
 		return err
 	}
 
-	if !node.CanRestart {
+	instance.Mutex.Lock()
+	defer instance.Mutex.Unlock()
+
+	node := getInstanceNode(instance, *nodeName)
+
+	if node == nil {
+		return utils.ErrNodeNotFound
+	} else if !node.CanRestart {
 		return fmt.Errorf("unable to manually start nodes of kind '%s'", node.Kind)
 	}
 
@@ -189,12 +192,6 @@ func (s *Service) StartNodeCommand(
 
 	go s.startNodeStartupListener(node, instance, instanceLab)
 
-	s.notifyUpdate(*instanceLab, statusmessage.Success(
-		"Runtime",
-		fmt.Sprintf("Node %s is starting", node.Name),
-		"Node has been started", "nodeId", node.ContainerId, "labId", instanceLab.UUID,
-	))
-
 	return nil
 }
 
@@ -204,20 +201,25 @@ func (s *Service) StopNodeCommand(
 	nodeName *string,
 	authUser *auth.AuthenticatedUser,
 ) error {
-	instanceLab, instance, node, err := s.validateNodeCommand(ctx, labId, nodeName, authUser)
+	instanceLab, instance, err := s.validateNodeCommand(ctx, labId, nodeName, authUser)
 	if err != nil {
 		return err
 	}
 
-	if !node.CanRestart {
+	instance.Mutex.Lock()
+	defer instance.Mutex.Unlock()
+
+	node := getInstanceNode(instance, *nodeName)
+
+	if node == nil {
+		return utils.ErrNodeNotFound
+	} else if !node.CanRestart {
 		return fmt.Errorf("unable to manually stop nodes of kind '%s'", node.Kind)
 	}
 
 	if node.State == deployment.NodeStates.Exited {
 		return fmt.Errorf("node is already stopped")
 	}
-
-	//s.closeNodeShells(node.Name)
 
 	if err := s.deploymentProvider.StopNode(ctx, node.ContainerId); err != nil {
 		return err
@@ -227,31 +229,30 @@ func (s *Service) StopNodeCommand(
 		return err
 	}
 
-	s.notifyUpdate(*instanceLab, statusmessage.Success(
-		"Runtime",
-		fmt.Sprintf("Node %s is stopping", node.Name),
-		"Node has been stopped", "nodeId", node.ContainerId, "labId", instanceLab.UUID,
-	))
-
 	return nil
 }
 
 func (s *Service) RestartNodeCommand(
 	ctx context.Context,
 	labId string,
-	nodeId *string,
+	nodeName *string,
 	authUser *auth.AuthenticatedUser,
 ) error {
-	instanceLab, instance, node, err := s.validateNodeCommand(ctx, labId, nodeId, authUser)
+	instanceLab, instance, err := s.validateNodeCommand(ctx, labId, nodeName, authUser)
 	if err != nil {
 		return err
 	}
 
-	if !node.CanRestart {
+	instance.Mutex.Lock()
+	defer instance.Mutex.Unlock()
+
+	node := getInstanceNode(instance, *nodeName)
+
+	if node == nil {
+		return utils.ErrNodeNotFound
+	} else if !node.CanRestart {
 		return fmt.Errorf("unable to manually restart nodes of kind '%s'", node.Kind)
 	}
-
-	//s.closeNodeShells(node.Name)
 
 	if err := s.deploymentProvider.RestartNode(ctx, node.ContainerId); err != nil {
 		return err
@@ -262,12 +263,6 @@ func (s *Service) RestartNodeCommand(
 	}
 
 	go s.startNodeStartupListener(node, instance, instanceLab)
-
-	s.notifyUpdate(*instanceLab, statusmessage.Success(
-		"Runtime",
-		fmt.Sprintf("Node %s is restarting", node.Name),
-		"Node has been restarted", "nodeId", node.ContainerId, "labId", instanceLab.UUID,
-	))
 
 	return nil
 }
@@ -295,19 +290,19 @@ func (s *Service) validateNodeCommand(
 	labId string,
 	nodeName *string,
 	authUser *auth.AuthenticatedUser,
-) (*lab.Lab, *Instance, *InstanceNode, error) {
+) (*lab.Lab, *Instance, error) {
 	if nodeName == nil {
-		return nil, nil, nil, utils.ErrNodeNotFound
+		return nil, nil, utils.ErrNodeNotFound
 	}
 
 	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Deny request if user is not the owner of the requested lab or an admin
 	if !authUser.IsAdmin && authUser.UserId != instanceLab.Creator.UUID {
-		return nil, nil, nil, utils.ErrNoDestroyAccessToLab
+		return nil, nil, utils.ErrNoDestroyAccessToLab
 	}
 
 	// Don't allow destroying non-running labs
@@ -316,23 +311,10 @@ func (s *Service) validateNodeCommand(
 	s.instancesMutex.Unlock()
 
 	if !hasInstance {
-		return nil, nil, nil, utils.ErrLabNotRunning
+		return nil, nil, utils.ErrLabNotRunning
 	}
 
-	var node *InstanceNode
-
-	for i := range instance.Nodes {
-		if instance.Nodes[i].Name == *nodeName {
-			node = &instance.Nodes[i]
-			break
-		}
-	}
-
-	if node == nil {
-		return nil, nil, nil, utils.ErrNodeNotFound
-	}
-
-	return instanceLab, instance, node, nil
+	return instanceLab, instance, nil
 }
 
 func (s *Service) registerProviderEventListener() {
@@ -343,7 +325,7 @@ func (s *Service) registerProviderEventListener() {
 
 		s.instancesMutex.Lock()
 		for labId, instance := range s.instances {
-			_, hasMatched := lo.Find(instance.Nodes, func(item InstanceNode) bool {
+			_, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
 				return item.ContainerId == containerId
 			})
 
@@ -458,12 +440,7 @@ func (s *Service) redeployLab(lab *lab.Lab, instance *Instance) error {
 	}
 	defer instance.DeploymentWorker.Cancel()
 
-	// Close all open shells for all nodes in the lab
-	//for _, node := range instance.Nodes {
-	//	s.closeNodeShells(node.Name)
-	//}
-
-	instance.Nodes = make([]InstanceNode, 0)
+	instance.Nodes = make([]*InstanceNode, 0)
 	instance.Recovered = false
 	instance.Deployed = time.Now()
 
@@ -500,7 +477,7 @@ func (s *Service) redeployLab(lab *lab.Lab, instance *Instance) error {
 	})
 
 	for i := range instanceNodes {
-		go s.startNodeStartupListener(&instanceNodes[i], instance, lab)
+		go s.startNodeStartupListener(instanceNodes[i], instance, lab)
 	}
 
 	// Only report errors if the deployment worker has not been canceled
@@ -554,7 +531,8 @@ func (s *Service) redeployLab(lab *lab.Lab, instance *Instance) error {
 }
 
 func (s *Service) DeployLab(lab *lab.Lab) error {
-	// We have to ensure that the instance is only created once
+	// We have to ensure that the instance is only created once, so we have to lock the map mutex
+	// until the instance is created
 	s.instancesMutex.Lock()
 
 	if _, hasInstance := s.instances[lab.UUID]; hasInstance {
@@ -565,7 +543,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			),
 		)
 		s.instancesMutex.Unlock()
-		return utils.ErrLabIsDeploying
+		return utils.ErrLabRunning
 	}
 
 	logNamespace := socket.CreateOutputNamespace[string](
@@ -601,10 +579,12 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	instance := s.createInstance(logNamespace, *runTopologyFile, runTopologyDefinition)
 	s.instances[lab.UUID] = instance
-	s.instancesMutex.Unlock()
 
+	// Lock instance mutex before unlocking the map mutex to make sure nobody changes the newly created instance
 	instance.Mutex.Lock()
 	defer instance.Mutex.Unlock()
+
+	s.instancesMutex.Unlock()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	instance.DeploymentWorker = &utils.Worker{
@@ -646,7 +626,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	})
 
 	for i := range instanceNodes {
-		go s.startNodeStartupListener(&instanceNodes[i], instance, lab)
+		go s.startNodeStartupListener(instanceNodes[i], instance, lab)
 	}
 
 	// Only report errors if the deployment worker has not been canceled
@@ -875,7 +855,7 @@ func (s *Service) updateInstanceNode(
 		return err
 	}
 
-	updatedNode, found := lo.Find(updatedNodes, func(cmpNode InstanceNode) bool {
+	updatedNode, found := lo.Find(updatedNodes, func(cmpNode *InstanceNode) bool {
 		return cmpNode.Name == node.Name
 	})
 
@@ -883,12 +863,10 @@ func (s *Service) updateInstanceNode(
 		return nil
 	}
 
-	instance.Mutex.Lock()
 	node.State = updatedNode.State
 	node.IPv4 = updatedNode.IPv4
 	node.IPv6 = updatedNode.IPv6
 	node.Interfaces = updatedNode.Interfaces
-	instance.Mutex.Unlock()
 
 	return nil
 }
@@ -898,7 +876,7 @@ func (s *Service) getNodesFromInspect(
 	instance *Instance,
 	instanceName string,
 	onLog func(data string),
-) ([]InstanceNode, error) {
+) ([]*InstanceNode, error) {
 	inspectOutput, err := s.deploymentProvider.Inspect(ctx, instance.TopologyFile, onLog)
 
 	if err != nil {
@@ -907,7 +885,7 @@ func (s *Service) getNodesFromInspect(
 
 	containers := inspectOutput[instanceName]
 
-	return lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
+	return lo.Map(containers, func(container deployment.InspectContainer, _ int) *InstanceNode {
 		return s.containerToInstanceNode(container, instanceName, instance.NodeKinds)
 	}), nil
 }
@@ -916,7 +894,7 @@ func (s *Service) containerToInstanceNode(
 	container deployment.InspectContainer,
 	instanceName string,
 	nodeKinds map[string]string,
-) InstanceNode {
+) *InstanceNode {
 	var ok bool
 
 	prefix := fmt.Sprintf("clab-%s-", instanceName)
@@ -942,7 +920,7 @@ func (s *Service) containerToInstanceNode(
 		nodeState = deployment.NodeStates.Starting
 	}
 
-	return InstanceNode{
+	return &InstanceNode{
 		Name:          nodeName,
 		Kind:          nodeKind,
 		IPv4:          container.IPv4Address,
@@ -1070,7 +1048,7 @@ func (s *Service) reviveInstances() {
 			nodeKinds = s.extractNodeKinds(*topologyDefinitionParsed)
 		}
 
-		instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) InstanceNode {
+		instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) *InstanceNode {
 			return s.containerToInstanceNode(container, savedLab.InstanceName, nodeKinds)
 		})
 
@@ -1088,7 +1066,7 @@ func (s *Service) reviveInstances() {
 
 		for i := range instanceNodes {
 			if instanceNodes[i].State != deployment.NodeStates.Exited {
-				go s.startNodeStartupListener(&instanceNodes[i], instance, &savedLab)
+				go s.startNodeStartupListener(instanceNodes[i], instance, &savedLab)
 			}
 		}
 
@@ -1144,19 +1122,20 @@ func (s *Service) GetNodeKindsConfig() map[string]NodeKindConfig {
 	return s.nodeKindConfigs
 }
 
+// GetInstanceNode returns a copy of the instance node with the given name and lab ID.
 func (s *Service) GetInstanceNode(
 	ctx context.Context,
 	labId string,
 	nodeName string,
 	authUser *auth.AuthenticatedUser,
-) (*InstanceNode, error) {
+) (InstanceNode, error) {
 	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
-		return nil, err
+		return InstanceNode{}, err
 	}
 
 	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, instanceLab.Topology.Collection.Name) {
-		return nil, utils.ErrNoAccessToLab
+		return InstanceNode{}, utils.ErrNoAccessToLab
 	}
 
 	s.instancesMutex.Lock()
@@ -1164,17 +1143,17 @@ func (s *Service) GetInstanceNode(
 	s.instancesMutex.Unlock()
 
 	if !hasInstance {
-		return nil, utils.ErrLabNotRunning
+		return InstanceNode{}, utils.ErrLabNotRunning
 	}
 
-	node, hasNode := lo.Find(instance.Nodes, func(node InstanceNode) bool {
+	node, hasNode := lo.Find(instance.Nodes, func(node *InstanceNode) bool {
 		return node.Name == nodeName
 	})
 	if !hasNode {
-		return nil, utils.ErrNodeNotFound
+		return InstanceNode{}, utils.ErrNodeNotFound
 	}
 
-	return &node, nil
+	return *node, nil
 }
 
 func (s *Service) IsRunning(labId string) bool {
@@ -1196,4 +1175,14 @@ func (s *Service) CanDelete(labId string) bool {
 	}
 
 	return true
+}
+
+func getInstanceNode(instance *Instance, nodeName string) *InstanceNode {
+	for _, node := range instance.Nodes {
+		if node.Name == nodeName {
+			return node
+		}
+	}
+
+	return nil
 }

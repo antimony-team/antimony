@@ -140,7 +140,7 @@ func (s *Service) OpenShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.openNodeShell(ctx, *node)
+	connection, err := s.openNodeShell(ctx, node)
 	if err != nil {
 		log.Error("Failed to open shell on node.", "node", node.ContainerName)
 		return "", err
@@ -465,19 +465,19 @@ func (s *Service) validateShellCommand(
 	labId string,
 	nodeName *string,
 	authUser *auth.AuthenticatedUser,
-) (*instance.InstanceNode, error) {
+) (instance.InstanceNode, error) {
 	if nodeName == nil {
-		return nil, utils.ErrInvalidSocketRequest
+		return instance.InstanceNode{}, utils.ErrInvalidSocketRequest
 	}
 
 	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
-		return nil, err
+		return instance.InstanceNode{}, err
 	}
 
 	// Deny request if user is not the owner of the requested lab or an admin
 	if !authUser.IsAdmin && authUser.UserId != instanceLab.Creator.UUID {
-		return nil, utils.ErrNoDeployAccessToLab
+		return instance.InstanceNode{}, utils.ErrNoDeployAccessToLab
 	}
 
 	return s.instanceService.GetInstanceNode(ctx, labId, *nodeName, authUser)

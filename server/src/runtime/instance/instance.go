@@ -12,7 +12,7 @@ type Instance struct {
 	Deployed          time.Time
 	State             InstanceState
 	LatestStateChange time.Time
-	Nodes             []InstanceNode
+	Nodes             []*InstanceNode
 
 	// Recovered Whether the instance has been recovered after an Antimony restart
 	Recovered bool
