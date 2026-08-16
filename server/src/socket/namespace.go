@@ -164,6 +164,7 @@ func CreateOutputNamespace[O any](
 
 func (m *namespace[I, O]) Release() {
 	m.sioNamespace.EventEmitter().Clear()
+	m.sioNamespace.DisconnectSockets(false)
 }
 
 // ClearBacklog Removes all messages from the backlog
