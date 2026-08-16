@@ -59,13 +59,13 @@ func (h *handler) handleCommand(
 			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
-	case runtimeCommands.StartNode:
-	case runtimeCommands.StopNode:
-	case runtimeCommands.RestartNode:
+	case runtimeCommands.StartNode,
+		runtimeCommands.StopNode,
+		runtimeCommands.RestartNode:
 		h.handleNodeCommand(ctx, data, authUser, onError, onResponse)
-	case runtimeCommands.FetchShells:
-	case runtimeCommands.OpenShell:
-	case runtimeCommands.CloseShell:
+	case runtimeCommands.FetchShells,
+		runtimeCommands.OpenShell,
+		runtimeCommands.CloseShell:
 		h.handleShellCommand(ctx, data, authUser, onError, onResponse)
 	default:
 		onError(utils.CreateSocketErrorResponse(utils.ErrInvalidRuntimeCommand))
