@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 )
 
@@ -60,6 +61,8 @@ func (m *Monitor) Run() {
 		for containerId, namespace := range monitoredNodes {
 			stats, err := m.deploymentProvider.ReadNodeStats(ctx, containerId)
 			if err != nil {
+				log.Warn("[Monitor] Error reading node stats", "containerId", containerId, "error", err)
+
 				// Node is not running or is no longer available, remove from monitor list
 				m.RemoveNode(containerId)
 				continue
