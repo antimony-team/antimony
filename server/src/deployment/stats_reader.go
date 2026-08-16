@@ -162,7 +162,7 @@ func (r *StatsReader) createCGroup(
 	fullContainerId string,
 	pid int,
 ) *containerCGroup {
-	base := filepath.Join("/sys/fs/cgroup/system.slice", fmt.Sprintf("clabernetes-%s.scope", fullContainerId))
+	base := filepath.Join("/sys/fs/cgroup/system.slice", fmt.Sprintf("docker-%s.scope", fullContainerId))
 
 	return &containerCGroup{
 		pid:        pid,
