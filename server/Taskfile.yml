@@ -51,7 +51,7 @@ tasks:
       - mkdir -p ./storage
       - mkdir -p ./run
       - cp -r ../data/ ./
-      - cp ../test/config.docker.yml ./
+      - cp ../test/config.docker.yml ./config.yml
       - cp ../test/kinds.conf.yml ./
       - DOCKER_HOST=unix:///var/run/docker.sock docker run
         -e SB_NATIVE_USERNAME=admin
