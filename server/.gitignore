@@ -31,7 +31,6 @@ go.work.sum
 antimony.db
 .db/
 
-storage/
 run/
 build/
 docker/
