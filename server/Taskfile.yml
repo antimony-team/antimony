@@ -7,7 +7,7 @@ tasks:
     dir: '.'
     cmds:
       - sudo rm -rf ./build/
-      - sudo rm -rf ./clabernetes/
+      - sudo rm -rf ./docker/
 
   lint:
     dir: './src'
@@ -41,37 +41,37 @@ tasks:
 
   build-docker:
     cmds:
-      - DOCKER_HOST=unix:///var/run/clabernetes.sock clabernetes build -t antimony-backend .
+      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend .
 
   run-docker:
-    dir: './clabernetes'
+    dir: './docker'
     cmds:
-      - task: build-clabernetes
+      - task: build-docker
       - mkdir -p ./db
       - mkdir -p ./storage
       - mkdir -p ./run
       - cp -r ../data/ ./
-      - cp ../test/config.clabernetes.yml ./
+      - cp ../test/config.docker.yml ./
       - cp ../test/kinds.conf.yml ./
-      - DOCKER_HOST=unix:///var/run/clabernetes.sock clabernetes run
-          -e SB_NATIVE_USERNAME=admin
-          -e SB_NATIVE_PASSWORD=admin
-          -v ./db/:/app/db/
-          -v ./storage:/app/storage/
-          -v ./run:/app/run/
-          -v ./data:/app/data/
-          -v ./config.yml:/app/config.yml
-          -v ./kinds.conf.yml:/app/kinds.conf.yml
-          -v /var/run/clabernetes.sock:/var/run/clabernetes.sock
-          -v /var/run/netns:/var/run/netns
-          -v /var/lib/clabernetes:/var/lib/clabernetes
-          -p 3000:3000
-          --privileged
-          --network host
-          --cgroupns host
-          --user root
-          --pid host
-          antimony-backend -sqlite=true -config=./config.yml
+      - DOCKER_HOST=unix:///var/run/docker.sock docker run
+        -e SB_NATIVE_USERNAME=admin
+        -e SB_NATIVE_PASSWORD=admin
+        -v ./db/:/app/db/
+        -v ./storage:/app/storage/
+        -v ./run:/app/run/
+        -v ./data:/app/data/
+        -v ./config.yml:/app/config.yml
+        -v ./kinds.conf.yml:/app/kinds.conf.yml
+        -v /var/run/docker.sock:/var/run/docker.sock
+        -v /var/run/netns:/var/run/netns
+        -v /var/lib/docker:/var/lib/docker
+        -p 3000:3000
+        --privileged
+        --network host
+        --cgroupns host
+        --user root
+        --pid host
+        antimony-backend -sqlite=true -config=./config.yml
 
   test:
     dir: './src'
