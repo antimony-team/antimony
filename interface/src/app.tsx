@@ -1,9 +1,8 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useRef} from 'react';
 
-import classNames from 'classnames';
+import {Outlet} from 'react-router';
 import {Toast} from 'primereact/toast';
 import {observer} from 'mobx-react-lite';
-import {Route, Routes} from 'react-router';
 import {PrimeReactProvider} from 'primereact/api';
 
 import {
@@ -11,19 +10,17 @@ import {
   useDataBinder,
   useStatusMessages,
   useRootStore,
-  useCollectionStore,
-  useAuthUser,
 } from '@sb/lib/stores/root-store';
 import SBConfirm, {
   SBConfirmRef,
 } from '@sb/components/common/sb-confirm/sb-confirm';
+import {AppPhase} from '@sb/types/types';
 import SBDock from '@sb/components/common/sb-dock/sb-dock';
-import ErrorPage from '@sb/components/error-page/error-page';
 import SBLogin from '@sb/components/common/sb-login/sb-login';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-import EditorPage from '@sb/components/editor-page/editor-page';
-import DashboardPage from '@sb/components/dashboard-page/dashboard-page';
-import SBStatusIndicator from '@sb/components/common/sb-status-indicator/sb-status-indicator';
+import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
+import LoadingScreen from '@sb/components/loading-screen/loading-screen';
+import ConnectionBanner from '@sb/components/connection-status/connection-banner';
+import ConnectionScreen from '@sb/components/connection-status/connection-screen';
 
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
@@ -32,84 +29,53 @@ import 'material-symbols/outlined.css';
 import './app.sass';
 import 'primereact/resources/themes/lara-dark-blue/theme.css';
 
+/**
+ * Root layout of the app.
+ *
+ * Renders the dock and the active page next to the top-level screens. Which
+ * screen is shown is decided exclusively by `RootStore.phase`; the screens
+ * themselves are dumb consumers of that value. They all stay mounted so the
+ * transitions between them can cross-fade.
+ */
 const App: React.FC = observer(() => {
   const toastRef = useRef<Toast>(null);
   const confirmationRef = useRef<SBConfirmRef>(null);
 
   const rootStore = useRootStore();
   const dataBinder = useDataBinder();
-  const authUser = useAuthUser();
-  const collectionStore = useCollectionStore();
-  const notificationStore = useStatusMessages();
+  const statusMessageStore = useStatusMessages();
 
-  const [doneLoading, setDoneLoading] = useState(false);
+  const phase = rootStore.phase;
 
   useEffect(() => {
-    if (!notificationStore) return;
-
-    notificationStore.setToast(toastRef);
-    notificationStore.setConfirm(confirmationRef);
-  }, [notificationStore]);
-
-  useEffect(() => {
-    if (!dataBinder.isLoggedIn) setDoneLoading(false);
-  }, [dataBinder.isLoggedIn]);
-
-  const hasEditorAccess = useMemo(() => {
-    return authUser.isAdmin || collectionStore.hasAccessibleCollections;
-  }, [authUser.isAdmin, collectionStore.hasAccessibleCollections]);
+    statusMessageStore.setToast(toastRef);
+    statusMessageStore.setConfirm(confirmationRef);
+  }, [statusMessageStore]);
 
   return (
     <PrimeReactProvider>
       <RootStoreContext.Provider value={rootStore}>
-        <SBLogin />
-        <div
-          className={classNames('sb-app-container', 'sb-animated-overlay', {
-            visible: doneLoading,
-          })}
+        <SBOverlay
+          className="sb-app-container"
+          visible={phase === AppPhase.Ready}
         >
-          <If condition={dataBinder.isLoggedIn}>
-            <SBDock />
-            <div className="flex flex-grow-1 gap-2 min-h-0">
-              <Routes>
-                <Choose>
-                  {/* Allow access to the dashboard but not the editor if the user doesn't have access to the editor */}
-                  <When condition={!hasEditorAccess}>
-                    <Route path="/" element={<DashboardPage />} />
-                    <Route
-                      path="/editor"
-                      element={
-                        <ErrorPage
-                          code="403"
-                          message="You do not have access to this page"
-                          isVisible={true}
-                        />
-                      }
-                    />
-                  </When>
+          <SBDock />
+          <div className="flex flex-grow-1 gap-2 min-h-0">
+            <Outlet />
+          </div>
+        </SBOverlay>
 
-                  {/* Otherwise allow both routes */}
-                  <Otherwise>
-                    <Route path="/" element={<DashboardPage />} />
-                    <Route path="/editor" element={<EditorPage />} />
-                  </Otherwise>
-                </Choose>
-
-                <Route
-                  path="*"
-                  element={
-                    <ErrorPage
-                      code="404"
-                      message="This page does not exist"
-                      isVisible={true}
-                    />
-                  }
-                />
-              </Routes>
-            </div>
-          </If>
-        </div>
-        <SBStatusIndicator setDoneLoading={() => setDoneLoading(true)} />
+        <SBLogin visible={phase === AppPhase.Unauthenticated} />
+        <LoadingScreen
+          visible={phase === AppPhase.Connecting || phase === AppPhase.Loading}
+          message={
+            phase === AppPhase.Connecting
+              ? 'Connecting to the server...'
+              : 'Loading resources...'
+          }
+        />
+        <ConnectionScreen visible={phase === AppPhase.Offline} />
+        <ConnectionBanner visible={dataBinder.connectionWasInterrupted} />
       </RootStoreContext.Provider>
       <SBConfirm ref={confirmationRef} />
       <Toast ref={toastRef} position="bottom-right" />

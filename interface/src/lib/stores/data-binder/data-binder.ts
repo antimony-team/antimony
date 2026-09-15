@@ -5,7 +5,7 @@ import {
   EMPTY_AUTH_USER,
 } from '@sb/types/domain/user';
 import {Result} from '@sb/types/result';
-import {UserCredentials} from '@sb/types/types';
+import {ConnectionState, UserCredentials} from '@sb/types/types';
 import Cookies from 'js-cookie';
 import {action, autorun, computed, observable, runInAction} from 'mobx';
 import {io, Socket} from 'socket.io-client';
@@ -65,24 +65,46 @@ export class DataBinder {
   private subscriptions: Map<string, Subscription> = new Map();
 
   constructor() {
+    /*
+     * Automatically connect / disconnect subscriptions when logged in.
+     *
+     * Registered here rather than at the end of `initAuth` so that it is also
+     * active on the code paths that log the user in and return early.
+     */
+    autorun(() => {
+      if (this.isLoggedIn) {
+        this.connectSubscriptions();
+      } else {
+        this.disconnectSubscriptions();
+      }
+    });
+
     void this.initAuth();
   }
 
-  @action
   private async initAuth() {
     const authConfigResponse = await this.get<AuthConfig>(
       '/users/login/config',
       false,
     );
     if (authConfigResponse.isErr()) {
-      this.hasAPIError = true;
+      runInAction(() => (this.hasAPIError = true));
+
+      /*
+       * `fetch` only retries on network failures and gateway timeouts, so a
+       * server-side error here would leave the client stuck on the connection
+       * screen forever. Retry on our own to recover once the server is back.
+       */
+      setTimeout(() => void this.initAuth(), this.fetchRetryTimer);
       return;
     }
 
     const authConfig = authConfigResponse.data.payload;
-    this.isOpenIdAuthEnabled = authConfig.openId.enabled;
-    this.isNativeAuthEnabled = authConfig.native.enabled;
-    this.useNativeAutoLogin = authConfig.native.allowEmpty;
+    runInAction(() => {
+      this.isOpenIdAuthEnabled = authConfig.openId.enabled;
+      this.isNativeAuthEnabled = authConfig.native.enabled;
+      this.useNativeAutoLogin = authConfig.native.allowEmpty;
+    });
 
     if (this.isAuthDisabled) {
       runInAction(() => {
@@ -93,10 +115,7 @@ export class DataBinder {
           name: 'Admin',
         };
       });
-      return;
-    }
-
-    if (Cookies.get('accessToken') !== undefined) {
+    } else if (Cookies.get('accessToken') !== undefined) {
       // If access token has been set previously, attempt to refresh token
       const refreshResult = await this.refreshToken();
 
@@ -110,27 +129,16 @@ export class DataBinder {
         this.loginWithOpenId();
         return;
       }
-    } else {
-      if (
-        this.isNativeAuthEnabled &&
-        authConfig.native.allowEmpty &&
-        !authConfig.openId.enabled
-      ) {
-        await this.loginNative({
-          username: '',
-          password: '',
-        });
-      }
+    } else if (
+      this.isNativeAuthEnabled &&
+      authConfig.native.allowEmpty &&
+      !authConfig.openId.enabled
+    ) {
+      await this.loginNative({
+        username: '',
+        password: '',
+      });
     }
-
-    // Automatically connect / disconnect subscriptions when logged in
-    autorun(() => {
-      if (this.isLoggedIn) {
-        this.connectSubscriptions();
-      } else {
-        this.disconnectSubscriptions();
-      }
-    });
 
     runInAction(() => (this.isReady = true));
   }
@@ -502,18 +510,33 @@ export class DataBinder {
     this.authUser = EMPTY_AUTH_USER;
   }
 
+  /**
+   * Whether the connection was interrupted after the user has already logged in.
+   *
+   * The app stays usable in that case, so this only drives the connection
+   * banner rather than a full-screen takeover.
+   */
+  @computed
+  public get connectionWasInterrupted() {
+    return this.isLoggedIn && this.hasConnectionError;
+  }
+
   @computed
   public get hasConnectionError() {
     return this.hasAPIError || this.hasSocketError;
   }
 
-  @action
-  private handleNetworkError(status: number | undefined) {
-    if (!status || status === 503 || status === 504) {
-      this.hasAPIError = true;
-    } else if (status === 401) {
-      this.logout();
-    }
+  @computed
+  public get apiState(): ConnectionState {
+    return this.hasAPIError ? ConnectionState.Retrying : ConnectionState.Ok;
+  }
+
+  @computed
+  public get socketState(): ConnectionState {
+    // The sockets are only connected once the user is logged in.
+    if (!this.isLoggedIn) return ConnectionState.Unknown;
+
+    return this.hasSocketError ? ConnectionState.Retrying : ConnectionState.Ok;
   }
 
   public async get<T>(

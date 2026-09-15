@@ -1,0 +1,15 @@
+/*
+ * Full-viewport surface shared by the top-level screens (login, loading and
+ * connection error). Usually combined with .sb-animated-overlay by SBOverlay.
+ */
+.fullscreen-surface
+  position: fixed
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  display: flex
+  align-items: center
+  justify-content: center
+  background-color: var(--primary-color)
+  z-index: 10

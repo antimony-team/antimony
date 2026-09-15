@@ -1,8 +1,9 @@
 import {ShellStore} from '@sb/lib/stores/shell-store';
 import {createContext, useContext} from 'react';
 
-import {computed} from 'mobx';
+import {autorun, computed, observable, runInAction} from 'mobx';
 
+import {AppPhase, FetchState} from '@sb/types/types';
 import {LabStore} from '@sb/lib/stores/lab-store';
 import {CollectionStore} from '@sb/lib/stores/collection-store';
 import {combinedFetchState} from '@sb/lib/utils/utils';
@@ -24,6 +25,15 @@ export class RootStore {
   _schemaStore: SchemaStore;
   _statusMessagesStore: StatusMessageStore;
   _shellStore: ShellStore;
+
+  /**
+   * Latch that stays set once the initial fetch of every store has completed.
+   *
+   * Without it, any background re-fetch would briefly push `fetchState` back to
+   * `Pending` and drop the user onto the loading screen again. It is reset on
+   * logout so the next user gets a clean load.
+   */
+  @observable accessor hasLoadedOnce = false;
 
   /**
    * Poor man's dependency injection ( ͡° ͜ʖ ͡°)
@@ -60,6 +70,34 @@ export class RootStore {
       this._dataBinder,
       this._statusMessagesStore,
     );
+
+    autorun(() => {
+      if (!this._dataBinder.isLoggedIn) {
+        runInAction(() => (this.hasLoadedOnce = false));
+      } else if (this.fetchState === FetchState.Done) {
+        runInAction(() => (this.hasLoadedOnce = true));
+      }
+    });
+  }
+
+  /**
+   * The single source of truth for which top-level screen is shown.
+   *
+   * Note that a connection error while the user is logged in does not produce
+   * a phase of its own. The app stays mounted in that case and only the
+   * connection banner is shown, see `DataBinder.hasDegradedConnection`.
+   */
+  @computed
+  public get phase(): AppPhase {
+    if (!this._dataBinder.isLoggedIn) {
+      if (this._dataBinder.hasConnectionError) return AppPhase.Offline;
+
+      return this._dataBinder.isReady
+        ? AppPhase.Unauthenticated
+        : AppPhase.Connecting;
+    }
+
+    return this.hasLoadedOnce ? AppPhase.Ready : AppPhase.Loading;
   }
 
   @computed

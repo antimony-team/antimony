@@ -78,6 +78,10 @@ body
   border-radius: 8px
   background-clip: padding-box
 
+/*
+ * The transition duration has to be kept in sync with FADE_DURATION_MS in
+ * sb-overlay.tsx, which unmounts the overlay content once the fade is done.
+ */
 .sb-animated-overlay
   opacity: 0
   pointer-events: none
