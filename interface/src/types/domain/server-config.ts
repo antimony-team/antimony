@@ -1,5 +1,10 @@
 export type ServerConfig = {
   capture: CaptureConfig;
+  deployment: DeploymentConfig;
+};
+
+export type DeploymentConfig = {
+  provider: string;
 };
 
 export type CaptureConfig = {
