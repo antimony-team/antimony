@@ -394,6 +394,22 @@ const LabView = observer((props: LabDialogProps) => {
           <span>{props.lab?.name}</span>
           <div className="flex-grow-1" />
           <div className="sb-lab-view-header-buttons">
+            <Button
+              outlined
+              icon={
+                <span className="material-symbols-outlined">
+                  quick_reference_all
+                </span>
+              }
+              label="View Logs"
+              aria-label="View Logs"
+              onClick={onOpenContainerlabLogs}
+              disabled={
+                !props.lab?.instance &&
+                props.lab?.state !== InstanceState.Deploying &&
+                props.lab?.state !== InstanceState.Failed
+              }
+            />
             <Choose>
               <When
                 condition={
@@ -404,24 +420,11 @@ const LabView = observer((props: LabDialogProps) => {
                 <Button
                   outlined
                   icon="pi pi-play"
-                  label="Deploy Now"
-                  aria-label="Deploy Now"
                   severity="success"
                   onClick={() => labStore.deployLab(props.lab!)}
                 />
               </When>
               <Otherwise>
-                <Button
-                  outlined
-                  icon={
-                    <span className="material-symbols-outlined">
-                      quick_reference_all
-                    </span>
-                  }
-                  label="Containerlab Logs"
-                  aria-label="Containerlab Logs"
-                  onClick={onOpenContainerlabLogs}
-                />
                 <Button
                   outlined
                   icon={

@@ -4,7 +4,7 @@ import './log-dialog.sass';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 import {useDataBinder} from '@sb/lib/stores/root-store';
 import {DialogState} from '@sb/lib/utils/hooks';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
 import {observer} from 'mobx-react-lite';
@@ -67,7 +67,7 @@ const LogDialog = observer((props: LogDialogProps) => {
 
   // Reset log source to containerlab logs if instance is restarted
   useEffect(() => {
-    if (!props.dialogState.state?.lab.instance?.nodes.length) {
+    if (!props.dialogState.state?.lab.instance?.nodes?.length) {
       if (props.dialogState.state) {
         runInAction(() => {
           props.dialogState.state!.source = '-1';
@@ -204,7 +204,7 @@ const LogDialog = observer((props: LogDialogProps) => {
                 <When
                   condition={
                     props.dialogState.state!.source === '-1' &&
-                    props.dialogState.state!.lab.instance!.isRecovered
+                    props.dialogState.state!.lab.instance?.isRecovered
                   }
                 >
                   <span>No logs found (Recovered Instance)</span>
@@ -224,30 +224,32 @@ const LogDialog = observer((props: LogDialogProps) => {
         </Otherwise>
       </Choose>
 
-      <SBDropdown
-        id="log-selector"
-        icon={option => {
-          if (option.value === '-1') {
-            return (
-              <Image
-                src="/icons/clab-icon.png"
-                width="18px"
-                style={{paddingLeft: '2.3px', paddingRight: '1px'}}
-              />
-            );
-          } else {
-            return (
-              <span className="material-symbols-outlined">deployed_code</span>
-            );
-          }
-        }}
-        hasFilter={(logSources && logSources.length > 10) ?? false}
-        useSelectTemplate={true}
-        useItemTemplate={true}
-        value={props.dialogState.state?.source}
-        options={logSources}
-        onValueSubmit={onLogSourceChange}
-      />
+      <If condition={logSources?.length}>
+        <SBDropdown
+          id="log-selector"
+          icon={option => {
+            if (option.value === '-1') {
+              return (
+                <Image
+                  src="/icons/clab-icon.png"
+                  width="18px"
+                  style={{paddingLeft: '2.3px', paddingRight: '1px'}}
+                />
+              );
+            } else {
+              return (
+                <span className="material-symbols-outlined">deployed_code</span>
+              );
+            }
+          }}
+          hasFilter={(logSources && logSources.length > 10) ?? false}
+          useSelectTemplate={true}
+          useItemTemplate={true}
+          value={props.dialogState.state?.source}
+          options={logSources}
+          onValueSubmit={onLogSourceChange}
+        />
+      </If>
     </SBDialog>
   );
 });

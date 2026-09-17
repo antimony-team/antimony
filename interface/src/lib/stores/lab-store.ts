@@ -85,6 +85,8 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     if (response.isOk()) {
       const updatedLab = this.parseLab(response.data.payload);
 
+      console.log('UPDATE MAP GFROM SINGLE');
+
       runInAction(() => {
         this.data = [
           ...this.data
@@ -229,6 +231,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   @action
   protected handleUpdate(response: DataResponse<LabOut[]>): void {
+    console.log('HANDFLE UPDATE');
     this.data = this.parseLabs(response.payload);
     this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
 
@@ -238,6 +241,15 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private onLabUpdate(data: DataResponse<LabUpdateOut>) {
+    console.log(
+      'FETCH FROM U{DATE:',
+      data.payload,
+      'has:',
+      this.lookup.has(data.payload.labId),
+      'map:',
+      this.lookup,
+    );
+
     if (data.payload.labId && this.lookup.has(data.payload.labId)) {
       if (data.payload.newState !== null) {
         const lab = this.lookup.get(data.payload.labId);
@@ -248,6 +260,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         void this.fetchSingle(data.payload.labId);
       }
     } else {
+      console.log('FETCH FROM U{DATE');
       void this.fetch();
     }
   }

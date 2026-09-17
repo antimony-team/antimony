@@ -491,10 +491,12 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 <SBCopyableProperty value={node!.ipv4} />
               </div>
 
-              <div className="flex gap-1 flex-wrap">
-                <span className="property-title">Mgmt IPv6:</span>
-                <SBCopyableProperty value={node!.ipv6} />
-              </div>
+              <When condition={node!.ipv6}>
+                <div className="flex gap-1 flex-wrap">
+                  <span className="property-title">Mgmt IPv6:</span>
+                  <SBCopyableProperty value={node!.ipv6} />
+                </div>
+              </When>
 
               <div className="flex gap-1 flex-wrap">
                 <span className="property-title">Interfaces:</span>
@@ -533,30 +535,32 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               />
             </div>
           </div>
-          <div className="flex mt-4">
-            <div>
-              <div className="lab-details-plot-title">CPU Usage</div>
-              <UplotReact
-                options={getCPUPlotOptions()}
-                onCreate={chart => {
-                  cpuUsageChartRef.current = chart;
-                  chart.setSize({width: widthRef.current / 2, height: 200});
-                }}
-                data={[]}
-              />
+          <If condition={node!.state === 'running'}>
+            <div className="flex mt-4">
+              <div>
+                <div className="lab-details-plot-title">CPU Usage</div>
+                <UplotReact
+                  options={getCPUPlotOptions()}
+                  onCreate={chart => {
+                    cpuUsageChartRef.current = chart;
+                    chart.setSize({width: widthRef.current / 2, height: 200});
+                  }}
+                  data={[]}
+                />
+              </div>
+              <div>
+                <div className="lab-details-plot-title">Memory Usage</div>
+                <UplotReact
+                  options={getMemoryUsagePlotOptions()}
+                  onCreate={chart => {
+                    memoryUsageChartRef.current = chart;
+                    chart.setSize({width: widthRef.current / 2, height: 200});
+                  }}
+                  data={[]}
+                />
+              </div>
             </div>
-            <div>
-              <div className="lab-details-plot-title">Memory Usage</div>
-              <UplotReact
-                options={getMemoryUsagePlotOptions()}
-                onCreate={chart => {
-                  memoryUsageChartRef.current = chart;
-                  chart.setSize({width: widthRef.current / 2, height: 200});
-                }}
-                data={[]}
-              />
-            </div>
-          </div>
+          </If>
           {node!.interfaces.map((iface, i) => (
             <div style={{position: 'relative'}} key={i}>
               <Divider />
