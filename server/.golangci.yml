@@ -205,6 +205,8 @@ linters:
       # Such cases aren't reported by default.
       # Default: false
       check-type-assertions: true
+      exclude-functions:
+        - (io.Closer).Close
 
     exhaustive:
       # Program elements to check for exhaustiveness.

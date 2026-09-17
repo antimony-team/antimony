@@ -17,7 +17,7 @@ type Monitor struct {
 	socketManager      *socket.Manager
 	deploymentProvider deployment.DeploymentProvider
 
-	monitoredNodes      map[string]*socket.OutputNamespace[NodeStats]
+	monitoredNodes      map[string]monitoredNode
 	monitoredNodesMutex sync.Mutex
 }
 
@@ -36,6 +36,11 @@ type NodeInterfaceStats struct {
 	TxBps int `json:"txBps"`
 }
 
+type monitoredNode struct {
+	instanceName string
+	namespace    *socket.OutputNamespace[NodeStats]
+}
+
 func CreateMonitor(
 	socketManager *socket.Manager,
 	deploymentProvider deployment.DeploymentProvider,
@@ -44,7 +49,7 @@ func CreateMonitor(
 		socketManager:      socketManager,
 		deploymentProvider: deploymentProvider,
 
-		monitoredNodes:      make(map[string]*socket.OutputNamespace[NodeStats]),
+		monitoredNodes:      make(map[string]monitoredNode),
 		monitoredNodesMutex: sync.Mutex{},
 	}
 }
@@ -58,8 +63,8 @@ func (m *Monitor) Run() {
 		monitoredNodes := maps.Clone(m.monitoredNodes)
 		m.monitoredNodesMutex.Unlock()
 
-		for containerId, namespace := range monitoredNodes {
-			stats, err := m.deploymentProvider.ReadNodeStats(ctx, containerId)
+		for containerId, node := range monitoredNodes {
+			stats, err := m.deploymentProvider.ReadNodeStats(ctx, node.instanceName, containerId)
 			if err != nil {
 				log.Warn("[Monitor] Error reading node stats", "containerId", containerId, "error", err)
 
@@ -68,7 +73,7 @@ func (m *Monitor) Run() {
 				continue
 			}
 
-			namespace.Send(NodeStats{
+			node.namespace.Send(NodeStats{
 				Timestamp:       time.Now(),
 				CPUUsagePercent: float32(stats.CPUUsagePercent),
 				MemoryUsage:     float32(stats.MemoryUsage),
@@ -89,12 +94,12 @@ func (m *Monitor) Run() {
 	}
 }
 
-func (m *Monitor) AddNode(containerId string) {
+func (m *Monitor) AddNode(containerId string, instanceName string) {
 	m.monitoredNodesMutex.Lock()
-	if namespace, ok := m.monitoredNodes[containerId]; ok {
-		namespace.ClearBacklog()
+	if node, ok := m.monitoredNodes[containerId]; ok {
+		node.namespace.ClearBacklog()
 	} else {
-		m.monitoredNodes[containerId] = socket.CreateOutputNamespace[NodeStats](
+		namespace := socket.CreateOutputNamespace[NodeStats](
 			m.socketManager,
 			false,
 			&socket.BacklogConfig{
@@ -106,14 +111,19 @@ func (m *Monitor) AddNode(containerId string) {
 			"stats",
 			containerId,
 		)
+
+		m.monitoredNodes[containerId] = monitoredNode{
+			instanceName: instanceName,
+			namespace:    namespace,
+		}
 	}
 	m.monitoredNodesMutex.Unlock()
 }
 
 func (m *Monitor) RemoveNode(containerId string) {
 	m.monitoredNodesMutex.Lock()
-	if namespace, ok := m.monitoredNodes[containerId]; ok {
-		namespace.Release()
+	if node, ok := m.monitoredNodes[containerId]; ok {
+		node.namespace.Release()
 	}
 	delete(m.monitoredNodes, containerId)
 	m.monitoredNodesMutex.Unlock()

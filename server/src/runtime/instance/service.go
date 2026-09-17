@@ -183,7 +183,7 @@ func (s *Service) StartNodeCommand(
 		return fmt.Errorf("node is already running")
 	}
 
-	if err := s.deploymentProvider.StartNode(ctx, node.ContainerId); err != nil {
+	if err := s.deploymentProvider.StartNode(ctx, instanceLab.InstanceName, node.ContainerId); err != nil {
 		return err
 	}
 
@@ -222,7 +222,7 @@ func (s *Service) StopNodeCommand(
 		return fmt.Errorf("node is already stopped")
 	}
 
-	if err := s.deploymentProvider.StopNode(ctx, node.ContainerId); err != nil {
+	if err := s.deploymentProvider.StopNode(ctx, instanceLab.InstanceName, node.ContainerId); err != nil {
 		return err
 	}
 
@@ -255,7 +255,7 @@ func (s *Service) RestartNodeCommand(
 		return fmt.Errorf("unable to manually restart nodes of kind '%s'", node.Kind)
 	}
 
-	if err := s.deploymentProvider.RestartNode(ctx, node.ContainerId); err != nil {
+	if err := s.deploymentProvider.RestartNode(ctx, instanceLab.InstanceName, node.ContainerId); err != nil {
 		return err
 	}
 
@@ -362,7 +362,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		instance.LogNamespace,
 	)
 
-	output, err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, func(data string) {
+	output, err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
 
@@ -501,11 +501,11 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	// Redeploy instead of deploy if instance already existed
 	if instanceRunning {
-		output, err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, func(data string) {
+		output, err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
 	} else {
-		output, err = s.deploymentProvider.Deploy(ctx, instance.TopologyFile, func(data string) {
+		output, err = s.deploymentProvider.Deploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
 	}
@@ -542,6 +542,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	instance.Nodes, err = s.getNodesFromInspect(ctx, instance, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
+
+	fmt.Printf("Instance after nodes: %v\n", instance.Nodes)
 
 	instance.Recovered = false
 	instance.Deployed = time.Now()
@@ -604,6 +606,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			)
 		}
 
+		fmt.Printf("STARTUPN LISTENER ACTIVE\n")
 		go s.startNodeStartupListener(node, instance, lab)
 	}
 
@@ -655,45 +658,91 @@ func (s *Service) registerProviderEventListener() {
 	})
 }
 
-// startNodeStartupListener Starts a blocking listener that waits until the localhost SSH Service responds or the container is stopped
 func (s *Service) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *lab.Lab) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
 
-	// We can't use Go's built-in SSH service here as it responds differently to when the sevrer is not reachable.
-	cmd := []string{
-		"bash", "-c", `
-		until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@localhost; do
-			sleep 2
-		done
-	`}
-
-	connection, err := s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, cmd)
+	err := s.waitForNodeStarted(ctx, lab.InstanceName, node.ContainerId)
 	if err != nil {
-		// Error code 127 means that the command was not found.
-		// If bash or ssh can't be found, just treat the node as started as there is no service running inside
-		// the node that we have to wait for anyway.
-		if strings.Contains(err.Error(), "exit code 127") {
-			s.onNodeStarted(ctx, instance, node, lab)
-			return
-		}
-
 		log.Error(
-			"Failed to listen for node startup.",
+			"Node did not start.",
 			"err", err.Error(),
 			"lab", lab.ID,
 			"node", node.Name,
 		)
-
 		return
 	}
 
-	// We wait until the SSH process responds or the pipe is broken
-	buf := make([]byte, 1024)
-	_, err = connection.Read(buf)
+	s.onNodeStarted(ctx, instance, node, lab)
+}
 
-	if err == nil {
-		s.onNodeStarted(ctx, instance, node, lab)
+// sshProbe asks the node's own SSH server for a connection. BatchMode makes a
+// reachable-but-unauthenticated server fail fast with "Permission denied"
+// instead of prompting, so we can tell "server up" from "nothing listening".
+var sshProbe = []string{
+	"ssh",
+	"-o", "BatchMode=yes",
+	"-o", "StrictHostKeyChecking=no",
+	"-o", "ConnectTimeout=5",
+	"admin@localhost", "true",
+}
+
+// waitForNodeStarted blocks until the node's SSH server accepts connections,
+// or until it's clear the node has no SSH server to wait for. It returns
+// ctx.Err() if the context expires first.
+func (s *Service) waitForNodeStarted(
+	ctx context.Context,
+	instanceName string,
+	containerId string,
+) error {
+	for {
+		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, containerId, sshProbe)
+
+		switch {
+		case errors.Is(err, deployment.ErrNodeNotRunning):
+			fmt.Printf("[STARTUP] CASE 1\n")
+			// Container not up yet: retry.
+		case err != nil:
+			fmt.Printf("[STARTUP] CASE 2\n")
+			return err
+		case code == 0:
+			fmt.Printf("[STARTUP] CASE 3\n")
+			return nil // SSH accepted the connection.
+		case code == 126 || code == 127:
+			fmt.Printf("[STARTUP] CASE 4\n")
+			return nil // No ssh binary in the node: nothing to wait for.
+		case code == 255 && sshServerResponded(out):
+			fmt.Printf("[STARTUP] CASE 5\n")
+			return nil // Server is up; it just rejected our credentials.
+		case code == 255:
+			fmt.Printf("[STARTUP] CASE 6\n")
+			// SSH not listening yet: retry.
+		default:
+			fmt.Printf("[STARTUP] CASE 6\n")
+			return fmt.Errorf("unexpected exit %d from ssh probe: %s", code, strings.TrimSpace(out))
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
 	}
+}
+
+// sshServerResponded reports whether ssh's output came from a live server (auth or host-key stage) rather than from
+// failing to connect at all.
+func sshServerResponded(out string) bool {
+	for _, marker := range []string{
+		"Permission denied",
+		"Host key verification",
+		"Too many authentication failures",
+	} {
+		if strings.Contains(out, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) onNodeStarted(
@@ -702,13 +751,27 @@ func (s *Service) onNodeStarted(
 	node *InstanceNode,
 	lab *lab.Lab,
 ) {
-	interfaces, _ := s.deploymentProvider.GetInterfaces(ctx, node.ContainerName)
+	interfaces, err := s.deploymentProvider.GetInterfaces(ctx, lab.InstanceName, node.ContainerId)
+	if err != nil {
+		log.Error(
+			"Failed to get interfaces for node",
+			"err", err.Error(),
+			"lab", lab.ID,
+			"node", node.Name,
+		)
+	}
 
-	s.monitor.AddNode(node.ContainerId)
+	fmt.Printf("Interfaces: %v\n", interfaces)
+
+	s.monitor.AddNode(node.ContainerId, lab.InstanceName)
 
 	instance.Mutex.Lock()
 	node.State = deployment.NodeStates.Running
-	node.Interfaces = interfaces
+	if len(interfaces) == 0 {
+		node.Interfaces = make([]deployment.NodeInterface, 0)
+	} else {
+		node.Interfaces = interfaces
+	}
 	instance.Mutex.Unlock()
 
 	s.updatesNamespace.Send(instanceUpdate{
@@ -840,6 +903,8 @@ func (s *Service) updateInstanceNode(
 		return nil
 	}
 
+	fmt.Printf("Updated Node: %v\n", updatedNode)
+
 	node.State = updatedNode.State
 	node.IPv4 = updatedNode.IPv4
 	node.IPv6 = updatedNode.IPv6
@@ -854,7 +919,7 @@ func (s *Service) getNodesFromInspect(
 	instanceName string,
 	onLog func(data string),
 ) ([]*InstanceNode, error) {
-	inspectOutput, err := s.deploymentProvider.Inspect(ctx, instance.TopologyFile, onLog)
+	inspectOutput, err := s.deploymentProvider.Inspect(ctx, instance.TopologyFile, instanceName, onLog)
 
 	if err != nil {
 		return nil, err
@@ -1032,6 +1097,8 @@ func (s *Service) reviveInstances() {
 		instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) *InstanceNode {
 			return s.containerToInstanceNode(container, savedLab.InstanceName, nodeKinds)
 		})
+
+		fmt.Printf("Instance nodes: %+v\n", containers)
 
 		instance := &Instance{
 			State:                 InstanceStates.Running,

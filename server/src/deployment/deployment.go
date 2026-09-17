@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -16,29 +17,89 @@ import (
 )
 
 type DeploymentProvider interface {
-	Deploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
-	Destroy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
-	Inspect(ctx context.Context, topologyFile string, onLog func(data string)) (InspectOutput, error)
-	InspectAll(ctx context.Context) (InspectOutput, error)
-	Redeploy(ctx context.Context, topologyFile string, onLog func(data string)) (*string, error)
+	Deploy(
+		ctx context.Context,
+		topologyFile string,
+		instanceName string,
+		onLog func(data string),
+	) (*string, error)
 
-	ExecInteractive(ctx context.Context, containerId string, cmd []string) (io.ReadWriteCloser, error)
+	Redeploy(
+		ctx context.Context,
+		topologyFile string,
+		instanceName string,
+		onLog func(data string),
+	) (*string, error)
+
+	Destroy(
+		ctx context.Context,
+		topologyFile string,
+		instanceName string,
+		onLog func(data string),
+	) (*string, error)
+
+	Inspect(
+		ctx context.Context,
+		topologyFile string,
+		instanceName string,
+		onLog func(data string),
+	) (InspectOutput, error)
+
+	InspectAll(ctx context.Context) (InspectOutput, error)
+
+	Exec(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+		cmd []string,
+	) (string, int, error)
+
+	ExecInteractive(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+		cmd []string,
+	) (io.ReadWriteCloser, error)
 
 	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
 	RegisterEventListener(ctx context.Context, onUpdate func(containerlabEvent ContainerlabEvent)) error
 
-	ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error)
+	ReadNodeStats(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+	) (*NodeStats, error)
 
 	OpenCapture(ctx context.Context, containerId string, interfaceName string) (*afpacket.TPacket, error)
 
-	StartNode(ctx context.Context, containerId string) error
-	StopNode(ctx context.Context, containerId string) error
-	RestartNode(ctx context.Context, containerId string) error
+	StartNode(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+	) error
+
+	StopNode(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+	) error
+
+	RestartNode(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+	) error
 
 	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
 
-	GetInterfaces(ctx context.Context, containerId string) ([]NodeInterface, error)
+	GetInterfaces(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+	) ([]NodeInterface, error)
 }
+
+var ErrNodeNotRunning = errors.New("node is not running")
 
 type InspectOutput = map[string][]InspectContainer
 
@@ -132,7 +193,7 @@ type NodeInterfaceStats struct {
 	TxBps int
 }
 
-func runClabCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
+func runCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
 	var outputBuffer bytes.Buffer
 	cmd.Stdout = &outputBuffer
 

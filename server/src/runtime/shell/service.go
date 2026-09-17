@@ -125,7 +125,7 @@ func (s *Service) OpenShellCommand(
 	nodeName *string,
 	authUser *auth.AuthenticatedUser,
 ) (string, error) {
-	node, err := s.validateShellCommand(ctx, labId, nodeName, authUser)
+	node, instanceName, err := s.validateShellCommand(ctx, labId, nodeName, authUser)
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +140,7 @@ func (s *Service) OpenShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.openNodeShell(ctx, node)
+	connection, err := s.openNodeShell(ctx, node, instanceName)
 	if err != nil {
 		log.Error("Failed to open shell on node.", "node", node.ContainerName)
 		return "", err
@@ -239,21 +239,17 @@ func (s *Service) runManager(ctx context.Context) {
 	}
 }
 
-func (s *Service) openNodeShell(ctx context.Context, node instance.InstanceNode) (io.ReadWriteCloser, error) {
+func (s *Service) openNodeShell(
+	ctx context.Context,
+	node instance.InstanceNode,
+	instanceName string,
+) (io.ReadWriteCloser, error) {
 	var host string
 	var connection io.ReadWriteCloser
 	var err error
 
-	if ip, err := netip.ParsePrefix(node.IPv4); err != nil {
-		log.Warn(
-			"Failed to parse node IP",
-			"ip", node.IPv4, "container", node.ContainerName,
-			"err", err,
-		)
-		host = ip.Addr().String()
-	} else {
-		host = node.ContainerName
-	}
+	ip, _ := netip.ParsePrefix(node.IPv4)
+	host = ip.Addr().String()
 
 	connection, err = s.openSshSession(host, node.Kind)
 	if err == nil {
@@ -268,20 +264,13 @@ func (s *Service) openNodeShell(ctx context.Context, node instance.InstanceNode)
 		node.ContainerId,
 	)
 
-	connection, err = s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/bash"})
-	if err == nil {
-		return connection, nil
-	}
-
-	log.Debug(
-		"Failed to open native bash session for node. Falling back to native sh.",
-		"kind",
-		node.Kind,
-		"node",
+	return s.deploymentProvider.ExecInteractive(
+		ctx,
+		instanceName,
 		node.ContainerId,
+		// We want to try and use /bin/bash and fall back to /bin/sh if it's not available
+		[]string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"},
 	)
-
-	return s.deploymentProvider.ExecInteractive(ctx, node.ContainerId, []string{"/bin/sh"})
 }
 
 func (s *Service) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
@@ -465,22 +454,27 @@ func (s *Service) validateShellCommand(
 	labId string,
 	nodeName *string,
 	authUser *auth.AuthenticatedUser,
-) (instance.InstanceNode, error) {
+) (instance.InstanceNode, string, error) {
 	if nodeName == nil {
-		return instance.InstanceNode{}, utils.ErrInvalidSocketRequest
+		return instance.InstanceNode{}, "", utils.ErrInvalidSocketRequest
 	}
 
 	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
-		return instance.InstanceNode{}, err
+		return instance.InstanceNode{}, "", err
 	}
 
 	// Deny request if user is not the owner of the requested lab or an admin
 	if !authUser.IsAdmin && authUser.UserId != instanceLab.Creator.UUID {
-		return instance.InstanceNode{}, utils.ErrNoDeployAccessToLab
+		return instance.InstanceNode{}, "", utils.ErrNoDeployAccessToLab
 	}
 
-	return s.instanceService.GetInstanceNode(ctx, labId, *nodeName, authUser)
+	instanceNode, err := s.instanceService.GetInstanceNode(ctx, labId, *nodeName, authUser)
+	if err != nil {
+		return instance.InstanceNode{}, "", err
+	}
+
+	return instanceNode, instanceLab.InstanceName, nil
 }
 
 func (s *sshReadWriteCloser) Read(p []byte) (int, error)  { return s.reader.Read(p) }

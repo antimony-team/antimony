@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,8 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
+	"github.com/docker/docker/pkg/stdcopy"
 	afpacket "github.com/google/gopacket/afpacket"
 	"github.com/vishvananda/netns"
 )
@@ -25,55 +28,59 @@ import (
 type ContainerlabProvider struct {
 	client *client.Client
 
-	statsReader *StatsReader
+	statsReader *StatsReader[dockerRef]
 }
 
 func CreateContainerlabProvider() *ContainerlabProvider {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		log.Fatalf("Failed to create clabernetes client: %s", err.Error())
+		log.Fatalf("Failed to create containerlab client: %s", err.Error())
 	}
 
 	return &ContainerlabProvider{
 		client:      cli,
-		statsReader: CreateStatsReader(),
+		statsReader: CreateStatsReader(createDockerSampler()),
 	}
 }
 
 func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
+	instanceName string,
 	onLog func(data string),
 ) (*string, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
-	return runClabCommandSync(cmd, onLog)
+	return runCommandSync(cmd, onLog)
 }
 
 func (p *ContainerlabProvider) Redeploy(
 	ctx context.Context,
 	topologyFile string,
+	instanceName string,
 	onLog func(data string),
 ) (*string, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
-	return runClabCommandSync(cmd, onLog)
+	return runCommandSync(cmd, onLog)
 }
 
 func (p *ContainerlabProvider) Destroy(
 	ctx context.Context,
 	topologyFile string,
+	instanceName string,
 	onLog func(data string),
 ) (*string, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
-	return runClabCommandSync(cmd, onLog)
+	return runCommandSync(cmd, onLog)
 }
 
 func (p *ContainerlabProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
+	instanceName string,
 	onLog func(data string),
 ) (InspectOutput, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
-	rawOutput, err := runClabCommandSync(cmd, onLog)
+	rawOutput, err := runCommandSync(cmd, onLog)
 
 	if err != nil {
 		return nil, err
@@ -92,7 +99,7 @@ func (p *ContainerlabProvider) InspectAll(
 	ctx context.Context,
 ) (InspectOutput, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
-	if output, err := runClabCommandSync(cmd, nil); err != nil {
+	if output, err := runCommandSync(cmd, nil); err != nil {
 		return nil, err
 	} else {
 		if *output == "" {
@@ -104,17 +111,6 @@ func (p *ContainerlabProvider) InspectAll(
 
 		return inspectOutput, err
 	}
-}
-
-func (p *ContainerlabProvider) Exec(
-	ctx context.Context,
-	topologyFile string,
-	content string,
-	onLog func(data string),
-	onDone func(output *string, err error),
-) {
-	cmd := exec.CommandContext(ctx, "containerlab", "exec", "-t", topologyFile, "--cmd", content)
-	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) ExecOnNode(
@@ -129,32 +125,52 @@ func (p *ContainerlabProvider) ExecOnNode(
 	runClabCommand(cmd, onLog, onDone)
 }
 
+func (p *ContainerlabProvider) Exec(
+	ctx context.Context,
+	instanceName string,
+	containerId string,
+	cmd []string,
+) (string, int, error) {
+	execId, err := p.createExec(ctx, containerId, cmd, false)
+	if err != nil {
+		return "", 0, err
+	}
+
+	hr, err := p.client.ContainerExecAttach(ctx, execId, container.ExecAttachOptions{})
+	if err != nil {
+		return "", 0, err
+	}
+	defer hr.Close()
+
+	var out bytes.Buffer
+	_, _ = stdcopy.StdCopy(&out, &out, hr.Reader)
+
+	insp, err := p.client.ContainerExecInspect(ctx, execId)
+	if err != nil {
+		return out.String(), 0, err
+	}
+
+	return out.String(), insp.ExitCode, nil
+}
+
 func (p *ContainerlabProvider) ExecInteractive(
 	ctx context.Context,
+	instanceName string,
 	containerId string,
 	cmd []string,
 ) (io.ReadWriteCloser, error) {
-	execConfig := container.ExecOptions{
-		Cmd:          cmd,
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Tty:          true,
-	}
-
-	containerExec, err := p.client.ContainerExecCreate(ctx, containerId, execConfig)
+	execId, err := p.createExec(ctx, containerId, cmd, true)
 	if err != nil {
 		return nil, err
 	}
-
-	hr, err := p.client.ContainerExecAttach(ctx, containerExec.ID, container.ExecAttachOptions{Tty: true})
+	hr, err := p.client.ContainerExecAttach(ctx, execId, container.ExecAttachOptions{Tty: true})
 	if err != nil {
 		return nil, err
 	}
 
 	time.Sleep(20 * time.Millisecond)
 
-	inspect, err := p.client.ContainerExecInspect(ctx, containerExec.ID)
+	inspect, err := p.client.ContainerExecInspect(ctx, execId)
 	if err != nil {
 		hr.Close()
 		return nil, err
@@ -193,7 +209,7 @@ func (p *ContainerlabProvider) OpenCapture(
 	return tp, nil
 }
 
-func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string) error {
+func (p *ContainerlabProvider) StartNode(ctx context.Context, instanceName string, containerId string) error {
 	if err := p.client.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
 		return err
 	}
@@ -201,7 +217,7 @@ func (p *ContainerlabProvider) StartNode(ctx context.Context, containerId string
 	return nil
 }
 
-func (p *ContainerlabProvider) StopNode(ctx context.Context, containerId string) error {
+func (p *ContainerlabProvider) StopNode(ctx context.Context, instanceName string, containerId string) error {
 	timeout := int(10 * time.Second)
 	if err := p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
 		return err
@@ -210,7 +226,7 @@ func (p *ContainerlabProvider) StopNode(ctx context.Context, containerId string)
 	return nil
 }
 
-func (p *ContainerlabProvider) RestartNode(ctx context.Context, containerId string) error {
+func (p *ContainerlabProvider) RestartNode(ctx context.Context, instanceName string, containerId string) error {
 	timeout := int(10 * time.Second)
 	if err := p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
 		return err
@@ -303,6 +319,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 
 func (p *ContainerlabProvider) GetInterfaces(
 	ctx context.Context,
+	instanceName string,
 	containerId string,
 ) ([]NodeInterface, error) {
 	// Inspect the container
@@ -342,7 +359,11 @@ func (p *ContainerlabProvider) GetInterfaces(
 	return result, nil
 }
 
-func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId string) (*NodeStats, error) {
+func (p *ContainerlabProvider) ReadNodeStats(
+	ctx context.Context,
+	instanceName string,
+	containerId string,
+) (*NodeStats, error) {
 	insp, err := p.client.ContainerInspect(ctx, containerId)
 	if err != nil {
 		return nil, err
@@ -350,10 +371,32 @@ func (p *ContainerlabProvider) ReadNodeStats(ctx context.Context, containerId st
 	if insp.State == nil || insp.State.Pid <= 0 {
 		return nil, fmt.Errorf("container %s is not running", containerId)
 	}
-	pid := insp.State.Pid
-	fullContainerId := insp.ID
+	return p.statsReader.Read(ctx, insp.ID, dockerRef{fullContainerId: insp.ID, pid: insp.State.Pid})
+}
 
-	return p.statsReader.ReadStats(fullContainerId, pid)
+func (p *ContainerlabProvider) createExec(
+	ctx context.Context,
+	containerId string,
+	cmd []string,
+	tty bool,
+) (string, error) {
+	resp, err := p.client.ContainerExecCreate(ctx, containerId, container.ExecOptions{
+		Cmd:          cmd,
+		AttachStdin:  tty,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          tty,
+	})
+
+	if errdefs.IsConflict(err) {
+		return "", fmt.Errorf("%w: %s", ErrNodeNotRunning, containerId)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return resp.ID, nil
 }
 
 func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
