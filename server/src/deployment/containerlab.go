@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -186,6 +187,22 @@ func (p *ContainerlabProvider) ExecInteractive(
 	}
 
 	return hr.Conn, nil
+}
+
+func (p *ContainerlabProvider) DialNode(ctx context.Context, _ string, containerId string, port int) (net.Conn, error) {
+	insp, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return nil, err
+	}
+	ip := insp.NetworkSettings.IPAddress
+	for _, n := range insp.NetworkSettings.Networks {
+		if n.IPAddress != "" {
+			ip = n.IPAddress
+			break
+		}
+	}
+	var d net.Dialer
+	return d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", ip, port))
 }
 
 func (p *ContainerlabProvider) OpenCapture(

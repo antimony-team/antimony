@@ -230,6 +230,10 @@ func (s *Service) StopNodeCommand(
 		return err
 	}
 
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: &labId,
+	})
+
 	return nil
 }
 
@@ -502,10 +506,12 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	// Redeploy instead of deploy if instance already existed
 	if instanceRunning {
 		output, err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
+			log.Infof("[CLAB] %s\n", data)
 			instance.LogNamespace.Send(data)
 		})
 	} else {
 		output, err = s.deploymentProvider.Deploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
+			log.Infof("[CLAB] %s\n", data)
 			instance.LogNamespace.Send(data)
 		})
 	}
@@ -699,26 +705,20 @@ func (s *Service) waitForNodeStarted(
 		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, containerId, sshProbe)
 
 		switch {
-		case errors.Is(err, deployment.ErrNodeNotRunning):
-			fmt.Printf("[STARTUP] CASE 1\n")
-			// Container not up yet: retry.
+		case errors.Is(err, deployment.ErrNodeNotRunning) || code == 255:
+			// SSH not listening yet: retry.
 		case err != nil:
-			fmt.Printf("[STARTUP] CASE 2\n")
 			return err
 		case code == 0:
-			fmt.Printf("[STARTUP] CASE 3\n")
-			return nil // SSH accepted the connection.
+			// SSH accepted the connection.
+			return nil
 		case code == 126 || code == 127:
-			fmt.Printf("[STARTUP] CASE 4\n")
-			return nil // No ssh binary in the node: nothing to wait for.
+			// Server is up, but no ssh binary in the node: nothing to wait for.
+			return nil
 		case code == 255 && sshServerResponded(out):
-			fmt.Printf("[STARTUP] CASE 5\n")
-			return nil // Server is up; it just rejected our credentials.
-		case code == 255:
-			fmt.Printf("[STARTUP] CASE 6\n")
-			// SSH not listening yet: retry.
+			// Server is up but threw SSH error
+			return nil
 		default:
-			fmt.Printf("[STARTUP] CASE 6\n")
 			return fmt.Errorf("unexpected exit %d from ssh probe: %s", code, strings.TrimSpace(out))
 		}
 
@@ -1143,6 +1143,7 @@ func sendClabOutput(logNamespace *socket.OutputNamespace[string], output *string
 		if line == "" {
 			continue
 		}
+		log.Infof("[CLAB] %s\n", line)
 		logNamespace.Send(string(re.ReplaceAll([]byte(line), []byte(""))))
 	}
 }

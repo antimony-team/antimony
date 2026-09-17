@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -65,7 +66,7 @@ func CreateClabernetesProvider() *ClabernetesProvider {
 		c9s:        c9s,
 	}
 
-	provider.statsReader = CreateStatsReader(createRemoteSampler(provider.Exec))
+	provider.statsReader = CreateStatsReader[podRef](createRemoteSampler(provider.execStream))
 
 	return provider
 }
@@ -205,11 +206,8 @@ func (p *ClabernetesProvider) Exec(
 	containerId string,
 	cmd []string,
 ) (string, int, error) {
-	fmt.Printf("EXEC CMD: %q\n", cmd)
-
 	namespace := namespaceFor(instanceName)
 
-	fmt.Printf("EXEC IN NAMESPACE: %s\n", namespace)
 	executor, err := p.createExec(namespace, containerId, cmd, false)
 	if err != nil {
 		return "", 0, err
@@ -225,8 +223,6 @@ func (p *ClabernetesProvider) Exec(
 	if stderr.Len() > 0 {
 		output += stderr.String()
 	}
-
-	fmt.Printf("EXEC ERROR2: %s\n", err)
 
 	var codeErr k8sexec.CodeExitError
 	if errors.As(err, &codeErr) {
@@ -281,6 +277,58 @@ func (p *ClabernetesProvider) ExecInteractive(
 	}()
 
 	return session, nil
+}
+
+// nodeTunnelTemplate runs in the launcher: it connects to the device's
+// management IP and relays stdin/stdout to the socket.
+const nodeTunnelTemplate = `
+ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker ps -q | head -n1)")
+if [ -z "$ip" ]; then echo 'node container is not running' >&2; exit %d; fi
+exec 3<>"/dev/tcp/$ip/%d" || exit 1
+cat <&3 &
+cat >&3
+kill $! 2>/dev/null
+`
+
+func (p *ClabernetesProvider) DialNode(
+	ctx context.Context,
+	instanceName, containerId string,
+	port int,
+) (net.Conn, error) {
+	ns := namespaceFor(instanceName)
+	script := fmt.Sprintf(nodeTunnelTemplate, nodeNotRunningExitCode, port)
+
+	// This will run inside the launcher and not the node container itself, so we can't use createExec.
+	req := p.clientset.CoreV1().RESTClient().
+		Post().
+		Resource("pods").
+		Namespace(ns).
+		Name(containerId).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Command: []string{"bash", "-c", script},
+			Stdin:   true,
+			Stdout:  true,
+			Stderr:  true,
+		}, scheme.ParameterCodec)
+
+	executor, err := remotecommand.NewSPDYExecutor(p.restConfig, "POST", req.URL())
+	if err != nil {
+		return nil, err
+	}
+
+	local, remote := net.Pipe()
+
+	go func() {
+		_ = executor.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+			Stdin:  remote,
+			Stdout: remote,
+			Stderr: io.Discard,
+		})
+		_ = remote.Close()
+	}()
+
+	return local, nil
 }
 
 func (p *ClabernetesProvider) OpenCapture(
@@ -414,37 +462,34 @@ func (p *ClabernetesProvider) GetInterfaces(
 	return result, nil
 }
 
-// nodeNotRunningExitCode is the exit code wrapNodeCommand's wrapper uses to
-// signal that the launcher has no running device container. It is mapped to
-// ErrNodeNotRunning by translateExecError and never leaves this provider.
-const nodeNotRunningExitCode = 200
+// execStream runs cmd inside the node and copies its stdout to w until ctx is
+// canceled or the command exits. Unlike Exec, it does not collect output or
+// an exit code; it is meant for long-running commands that emit continuously.
+func (p *ClabernetesProvider) execStream(
+	ctx context.Context,
+	instanceName string,
+	containerId string,
+	cmd []string,
+	w io.Writer,
+) error {
+	namespace := namespaceFor(instanceName)
 
-// wrapNodeCommand wraps cmd so it runs inside the device container rather than in
-// the clabernetes launcher that pods/exec lands in. The launcher runs exactly
-// one docker container: the node itself.
-// The command returns the nodeNotRunningExitCode error code if the node is not running yet.
-func wrapNodeCommand(cmd []string, tty bool) []string {
-	quoted := make([]string, len(cmd))
-	for i, arg := range cmd {
-		quoted[i] = shellQuote(arg)
+	executor, err := p.createExec(namespace, containerId, cmd, false)
+	if err != nil {
+		return err
 	}
 
-	flags := ""
-	if tty {
-		flags = "-it "
+	err = executor.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: w,
+		Stderr: io.Discard,
+	})
+
+	var codeErr k8sexec.CodeExitError
+	if errors.As(err, &codeErr) && codeErr.Code == nodeNotRunningExitCode {
+		return ErrNodeNotRunning
 	}
 
-	script := "c=$(docker ps -q | head -n1)\n" +
-		"if [ -z \"$c\" ]; then echo 'node container is not running' >&2; exit " +
-		strconv.Itoa(nodeNotRunningExitCode) + "; fi\n" +
-		"exec docker exec " + flags + "\"$c\" " + strings.Join(quoted, " ")
-
-	return []string{"sh", "-c", script}
-}
-
-// shellQuote wraps s in single quotes so the launcher's sh passes it through untouched.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	return err
 }
 
 // waitForTopologyReady is used by the Deploy function to wait until all nodes in a lab are deployed and ready.
@@ -477,20 +522,6 @@ func (p *ClabernetesProvider) waitForTopologyReady(
 			return st.TopologyReady && st.NodeCount > 0, nil
 		},
 	)
-}
-
-// conditionSummary flattens the False conditions into one line for an error.
-func conditionSummary(conds []metav1.Condition) string {
-	var parts []string
-	for _, c := range conds {
-		if c.Status == metav1.ConditionFalse && c.Message != "" {
-			parts = append(parts, c.Type+": "+c.Message)
-		}
-	}
-	if len(parts) == 0 {
-		return "see topology status"
-	}
-	return strings.Join(parts, "; ")
 }
 
 func (p *ClabernetesProvider) waitForNamespaceGone(ctx context.Context, ns string) error {
@@ -539,6 +570,55 @@ func translateExecError(err error, ns, pod string) (exitCode int, retErr error) 
 		return codeErr.Code, nil
 	}
 	return 0, err
+}
+
+// nodeNotRunningExitCode is the exit code wrapNodeCommand's wrapper uses to
+// signal that the launcher has no running device container. It is mapped to
+// ErrNodeNotRunning by translateExecError and never leaves this provider.
+const nodeNotRunningExitCode = 200
+
+// nodeCommandTemplate runs inside the launcher. %[1]d is the not-running exit
+// code, %[2]s the docker exec flags, %[3]s the quoted command.
+const nodeCommandTemplate = `
+c=$(docker ps -q | head -n1)
+if [ -z "$c" ]; then
+  echo 'node container is not running' >&2
+  exit %[1]d
+fi
+exec docker exec %[2]s "$c" %[3]s
+`
+
+// wrapNodeCommand wraps cmd so it runs inside the device container rather than in
+// the clabernetes launcher that pods/exec lands in. The launcher runs exactly
+// one docker container: the node itself.
+// The command returns the nodeNotRunningExitCode error code if the node is not running yet.
+func wrapNodeCommand(cmd []string, tty bool) []string {
+	quoted := make([]string, len(cmd))
+	for i, arg := range cmd {
+		quoted[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+	}
+
+	flags := ""
+	if tty {
+		flags = "-it "
+	}
+
+	script := fmt.Sprintf(nodeCommandTemplate, nodeNotRunningExitCode, flags, strings.Join(quoted, " "))
+	return []string{"sh", "-c", script}
+}
+
+// conditionSummary flattens the False conditions into one line for an error.
+func conditionSummary(conds []metav1.Condition) string {
+	var parts []string
+	for _, c := range conds {
+		if c.Status == metav1.ConditionFalse && c.Message != "" {
+			parts = append(parts, c.Type+": "+c.Message)
+		}
+	}
+	if len(parts) == 0 {
+		return "see topology status"
+	}
+	return strings.Join(parts, "; ")
 }
 
 func loadKubeConfig(path string) (*rest.Config, error) {

@@ -107,13 +107,20 @@ func (r *StatsReader[K]) forget(id string) {
 // on file contents split into lines, so the same code serves files read from
 // disk and output captured from a remote shell.
 
-// parseKeyedUint finds "key value" among lines and returns value, or 0.
+// parseKeyedUint finds "key value ..." among lines and returns value, or 0.
+// Only the first token after the key is parsed, so trailing units ("kB")
+// are ignored.
 func parseKeyedUint(lines []string, key string) uint64 {
 	for _, l := range lines {
-		if strings.HasPrefix(l, key+" ") {
-			v, _ := strconv.ParseUint(strings.TrimSpace(l[len(key):]), 10, 64)
-			return v
+		if !strings.HasPrefix(l, key+" ") && !strings.HasPrefix(l, key+"\t") {
+			continue
 		}
+		fields := strings.Fields(l[len(key):])
+		if len(fields) == 0 {
+			return 0
+		}
+		v, _ := strconv.ParseUint(fields[0], 10, 64)
+		return v
 	}
 	return 0
 }

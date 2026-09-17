@@ -15,6 +15,10 @@
 #     sshUsername: admin
 #     sshPassword: NokiaSrl1!
 
+nokia_srlinux:
+     sshUsername: admin
+     sshPassword: NokiaSrl1!
+
 cisco_csr1000v:
   sshUsername: admin
   sshPassword: admin

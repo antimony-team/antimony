@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -60,6 +61,9 @@ type DeploymentProvider interface {
 		containerId string,
 		cmd []string,
 	) (io.ReadWriteCloser, error)
+
+	// DialNode opens a TCP connection to a port on the node's management interface.
+	DialNode(ctx context.Context, instanceName string, containerId string, port int) (net.Conn, error)
 
 	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
 	RegisterEventListener(ctx context.Context, onUpdate func(containerlabEvent ContainerlabEvent)) error

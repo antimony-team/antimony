@@ -52,10 +52,11 @@ func (h *Handler) Get(ctx *gin.Context) {
 	}
 
 	labsOut := lo.FilterMap(resultLabs, func(lab lab.Lab, _ int) (*transport.LabOut, bool) {
+		labInstance := h.instanceService.GetInstance(lab.UUID)
+
 		if len(labFilter.StateFilter) > 0 {
 			instanceState := instance.InstanceStates.Inactive
 
-			labInstance := h.instanceService.GetInstance(lab.UUID)
 			if labInstance != nil {
 				instanceState = labInstance.State
 			}
@@ -70,7 +71,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 			}
 		}
 
-		return transport.LabToOut(&lab, h.instanceService.GetInstance(lab.UUID)), true
+		return transport.LabToOut(&lab, labInstance), true
 	})
 
 	ctx.JSON(utils.CreateOkResponse(labsOut))

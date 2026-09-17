@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -244,24 +243,22 @@ func (s *Service) openNodeShell(
 	node instance.InstanceNode,
 	instanceName string,
 ) (io.ReadWriteCloser, error) {
-	var host string
 	var connection io.ReadWriteCloser
 	var err error
 
-	ip, _ := netip.ParsePrefix(node.IPv4)
-	host = ip.Addr().String()
-
-	connection, err = s.openSshSession(host, node.Kind)
+	connection, err = s.openSshSession(instanceName, node.ContainerId, node.Kind)
 	if err == nil {
 		return connection, nil
 	}
 
-	log.Debug(
+	log.Info(
 		"Failed to open SSH session for node. Falling back to native bash.",
 		"kind",
 		node.Kind,
 		"node",
 		node.ContainerId,
+		"err",
+		err,
 	)
 
 	return s.deploymentProvider.ExecInteractive(
@@ -273,7 +270,7 @@ func (s *Service) openNodeShell(
 	)
 }
 
-func (s *Service) openSshSession(host string, nodeKind string) (io.ReadWriteCloser, error) {
+func (s *Service) openSshSession(instanceName string, containerId string, nodeKind string) (io.ReadWriteCloser, error) {
 	authMethods := s.defaultSshAuth
 
 	sshUsername := "admin"
@@ -293,10 +290,17 @@ func (s *Service) openSshSession(host string, nodeKind string) (io.ReadWriteClos
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	client, err := ssh.Dial("tcp", host+":22", sshConfig)
+	ctx := context.Background()
+	conn, err := s.deploymentProvider.DialNode(ctx, instanceName, containerId, 22)
 	if err != nil {
 		return nil, err
 	}
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, containerId+":22", sshConfig)
+	if err != nil {
+		return nil, err
+	}
+	client := ssh.NewClient(sshConn, chans, reqs)
 
 	session, err := client.NewSession()
 	if err != nil {
