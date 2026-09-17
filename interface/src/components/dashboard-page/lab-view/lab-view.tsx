@@ -395,7 +395,12 @@ const LabView = observer((props: LabDialogProps) => {
           <div className="flex-grow-1" />
           <div className="sb-lab-view-header-buttons">
             <Choose>
-              <When condition={!props.lab?.instance}>
+              <When
+                condition={
+                  !props.lab?.instance &&
+                  props.lab?.state !== InstanceState.Deploying
+                }
+              >
                 <Button
                   outlined
                   icon="pi pi-play"
@@ -427,7 +432,7 @@ const LabView = observer((props: LabDialogProps) => {
                   severity="warning"
                   aria-label="Redeploy Lab"
                   onClick={() => labStore.deployLab(props.lab!)}
-                  disabled={props.lab?.state === InstanceState.Deploying}
+                  disabled={props.lab?.state !== InstanceState.Running}
                   tooltipOptions={{
                     showOnDisabled: true,
                   }}
@@ -442,7 +447,11 @@ const LabView = observer((props: LabDialogProps) => {
                   }
                   severity="danger"
                   onClick={() => props.onDestroyLabRequest(props.lab!)}
-                  disabled={props.lab!.state === InstanceState.Inactive}
+                  disabled={
+                    props.lab!.state !== InstanceState.Running &&
+                    props.lab!.state !== InstanceState.Deploying &&
+                    props.lab!.state !== InstanceState.Scheduled
+                  }
                 />
               </Otherwise>
             </Choose>
