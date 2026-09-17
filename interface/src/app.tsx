@@ -37,7 +37,7 @@ import 'primereact/resources/themes/lara-dark-blue/theme.css';
  * themselves are dumb consumers of that value. They all stay mounted so the
  * transitions between them can cross-fade.
  */
-const App: React.FC = observer(() => {
+const App = observer(() => {
   const toastRef = useRef<Toast>(null);
   const confirmationRef = useRef<SBConfirmRef>(null);
 

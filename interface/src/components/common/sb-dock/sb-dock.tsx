@@ -22,7 +22,7 @@ import './sb-dock.sass';
 import classNames from 'classnames';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
-const SBDock: React.FC = observer(() => {
+const SBDock = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
   const [isCalendarOpen, setCalendarOpen] = useState<boolean>(false);
 

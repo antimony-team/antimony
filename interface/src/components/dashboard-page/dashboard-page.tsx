@@ -29,7 +29,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
 
-const DashboardPage: React.FC = observer(() => {
+const DashboardPage = observer(() => {
   const [currentPage, setCurrentPage] = useState<number>(0);
 
   const labEditDialogState = useDialogState<LabEditDialogState>(null);

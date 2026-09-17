@@ -19,9 +19,7 @@ interface NodePropertyTableRowProps {
   isKeyEditable?: boolean;
 }
 
-const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
-  props: NodePropertyTableRowProps,
-) => {
+const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
   const dropdownOptions = useMemo(
     () =>
       props.property.availableValues?.map(value => ({

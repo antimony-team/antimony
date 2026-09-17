@@ -47,7 +47,7 @@ interface LabDialogProps {
   onDestroyLabRequest: (lab: Lab) => void;
 }
 
-const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
+const LabView = observer((props: LabDialogProps) => {
   const cyRef = useRef<cytoscape.Core | null>(null);
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);

@@ -43,9 +43,7 @@ interface NodePropertyTableProps {
   addText?: string;
 }
 
-const NodePropertyTable: React.FC<NodePropertyTableProps> = (
-  props: NodePropertyTableProps,
-) => {
+const NodePropertyTable = (props: NodePropertyTableProps) => {
   // List of available properties or null, if property does not have any restrictions.
   const [availableProperties, setAvailableProperties] = useState<
     SelectItem[] | null

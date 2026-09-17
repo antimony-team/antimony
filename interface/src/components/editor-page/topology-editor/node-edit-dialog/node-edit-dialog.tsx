@@ -34,9 +34,7 @@ interface NodeEditDialogProps {
   onClose: () => void;
 }
 
-const NodeEditDialog: React.FC<NodeEditDialogProps> = (
-  props: NodeEditDialogProps,
-) => {
+const NodeEditDialog = (props: NodeEditDialogProps) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
   const nameFieldRef = useRef<SBInputRef>(null);
   const iconSelectorOverlay = useRef<OverlayPanel>(null);
