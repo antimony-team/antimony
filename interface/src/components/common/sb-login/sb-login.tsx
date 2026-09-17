@@ -15,6 +15,34 @@ import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
 
 import './sb-login.sass';
 
+interface SBLoginProps {
+  visible: boolean;
+}
+
+/*
+ * Unfortunately, we need to separate the login form from the particles to
+ * prevent restarting the simulation every time.
+ * https://github.com/Wufe/react-particles-js/issues/43
+ */
+const SBLogin = (props: SBLoginProps) => {
+  const [particlesReady, setParticlesReady] = useState(false);
+
+  useEffect(() => {
+    void initParticlesEngine(async engine => {
+      await loadLinksPreset(engine);
+    }).then(() => setParticlesReady(true));
+  }, []);
+
+  return (
+    <SBOverlay visible={props.visible} fullscreen={true}>
+      <If condition={particlesReady}>
+        <Particles options={ParticlesOptions} />
+      </If>
+      <LoginForm />
+    </SBOverlay>
+  );
+};
+
 const LoginForm = observer(() => {
   const dataBinder = useDataBinder();
 
@@ -109,29 +137,5 @@ const LoginForm = observer(() => {
     </form>
   );
 });
-
-/*
- * Unfortunately, we need to separate the login form from the particles to
- * prevent restarting the simulation every time.
- * https://github.com/Wufe/react-particles-js/issues/43
- */
-const SBLogin = (props: {visible: boolean}) => {
-  const [particlesReady, setParticlesReady] = useState(false);
-
-  useEffect(() => {
-    void initParticlesEngine(async engine => {
-      await loadLinksPreset(engine);
-    }).then(() => setParticlesReady(true));
-  }, []);
-
-  return (
-    <SBOverlay visible={props.visible} fullscreen={true}>
-      <If condition={particlesReady}>
-        <Particles options={ParticlesOptions} />
-      </If>
-      <LoginForm />
-    </SBOverlay>
-  );
-};
 
 export default SBLogin;

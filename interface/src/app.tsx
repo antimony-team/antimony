@@ -19,8 +19,8 @@ import SBDock from '@sb/components/common/sb-dock/sb-dock';
 import SBLogin from '@sb/components/common/sb-login/sb-login';
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
 import LoadingScreen from '@sb/components/loading-screen/loading-screen';
-import ConnectionBanner from '@sb/components/connection-status/connection-banner';
-import ConnectionScreen from '@sb/components/connection-status/connection-screen';
+import ConnectionErrorBanner from '@sb/components/connection-status/connection-banner';
+import ConnectionErrorOverlay from '@sb/components/connection-status/connection-screen';
 
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
@@ -66,6 +66,7 @@ const App = observer(() => {
         </SBOverlay>
 
         <SBLogin visible={phase === AppPhase.Unauthenticated} />
+
         <LoadingScreen
           visible={phase === AppPhase.Connecting || phase === AppPhase.Loading}
           message={
@@ -74,8 +75,9 @@ const App = observer(() => {
               : 'Loading resources...'
           }
         />
-        <ConnectionScreen visible={phase === AppPhase.Offline} />
-        <ConnectionBanner visible={dataBinder.connectionWasInterrupted} />
+
+        <ConnectionErrorOverlay visible={phase === AppPhase.Offline} />
+        <ConnectionErrorBanner visible={dataBinder.connectionWasInterrupted} />
       </RootStoreContext.Provider>
       <SBConfirm ref={confirmationRef} />
       <Toast ref={toastRef} position="bottom-right" />
