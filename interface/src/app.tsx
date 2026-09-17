@@ -19,8 +19,8 @@ import SBDock from '@sb/components/common/sb-dock/sb-dock';
 import SBLogin from '@sb/components/common/sb-login/sb-login';
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
 import LoadingScreen from '@sb/components/loading-screen/loading-screen';
-import ConnectionErrorBanner from '@sb/components/connection-status/connection-banner';
-import ConnectionErrorOverlay from '@sb/components/connection-status/connection-screen';
+import ConnectionErrorBanner from '@sb/components/connection-error/connection-error-banner';
+import ConnectionErrorOverlay from '@sb/components/connection-error/connection-error-overlay';
 
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';

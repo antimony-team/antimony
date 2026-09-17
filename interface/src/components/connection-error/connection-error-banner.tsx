@@ -1,7 +1,7 @@
 import React from 'react';
 
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
-import ConnectionStatus from '@sb/components/connection-status/connection-status';
+import ConnectionErrorStatus from '@sb/components/connection-error/connection-error-status';
 
 /**
  * Non-blocking notice shown when the connection drops while the user is
@@ -16,7 +16,7 @@ const ConnectionBanner = (props: {visible: boolean}) => {
           <i className="pi pi-times-circle sb-connection-banner-icon-overlay" />
           <span>Antimony is experiencing network issues</span>
         </div>
-        <ConnectionStatus />
+        <ConnectionErrorStatus />
       </div>
     </SBOverlay>
   );

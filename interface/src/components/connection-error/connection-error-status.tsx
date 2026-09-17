@@ -8,7 +8,7 @@ import {ConnectionState} from '@sb/types/types';
 import {useDataBinder} from '@sb/lib/stores/root-store';
 import {Choose, Otherwise, When} from '@sb/types/control';
 
-import './connection-status.sass';
+import './connection-error-status.sass';
 
 const ConnectionStateIcon = (props: {state: ConnectionState}) => {
   return (
@@ -34,10 +34,10 @@ interface ConnectionStatusProps {
 /**
  * Lists the state of every backend connection.
  *
- * Shared by the connection banner and the connection screen so both always
+ * Shared by the connection banner and the connection screen, so both always
  * agree on what they show.
  */
-const ConnectionStatus = observer((props: ConnectionStatusProps) => {
+const ConnectionErrorStatus = observer((props: ConnectionStatusProps) => {
   const dataBinder = useDataBinder();
 
   return (
@@ -54,4 +54,4 @@ const ConnectionStatus = observer((props: ConnectionStatusProps) => {
   );
 });
 
-export default ConnectionStatus;
+export default ConnectionErrorStatus;
