@@ -139,10 +139,17 @@ definitions:
       port:
         type: integer
     type: object
+  serverconfig.DeploymentConfig:
+    properties:
+      provider:
+        type: string
+    type: object
   serverconfig.ServerConfig:
     properties:
       capture:
         $ref: '#/definitions/serverconfig.CaptureConfig'
+      deployment:
+        $ref: '#/definitions/serverconfig.DeploymentConfig'
     type: object
   topology.BindFileIn:
     properties:

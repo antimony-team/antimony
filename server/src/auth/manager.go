@@ -71,11 +71,17 @@ func CreateManager(config *config.AntimonyConfig) *Manager {
 		},
 	}
 
+	envSecret := os.Getenv("SB_JWT_SECRET")
+	if envSecret == "" {
+		log.Info("[AUTH] JWT secret env variable is not provided. Generating a random secret.")
+		envSecret = rand.Text()
+	}
+
 	authManager := &Manager{
 		config:             config,
 		authenticatedUsers: make(map[string]*AuthenticatedUser),
 		adminGroups:        config.Auth.OpenIdAdminGroups,
-		jwtSecret:          ([]byte)(rand.Text()),
+		jwtSecret:          ([]byte)(envSecret),
 		oidcSecret:         os.Getenv("SB_OIDC_SECRET"),
 		authConfig:         authConfig,
 		nativeUsername:     nativeUsername,
@@ -83,13 +89,13 @@ func CreateManager(config *config.AntimonyConfig) *Manager {
 	}
 
 	if !isNativeEnabled && !isOpenIdEnabled {
-		log.Warn("[CAUTION] No authentication method is enabled. Server will be accessible to anyone.")
+		log.Warn("[AUTH] No authentication method is enabled. Server will be accessible to anyone.")
 		authManager.CreateNativeUser()
 	}
 
 	if isNativeEnabled {
 		if nativeUsername == "" || nativePassword == "" {
-			log.Warn("[CAUTION] Native authentication is enabled but username or password are empty!")
+			log.Warn("[AUTH] Native authentication is enabled but username or password are empty!")
 		} else {
 			log.Info("Native authentication is enabled.", "username", nativeUsername)
 		}

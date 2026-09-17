@@ -69,7 +69,11 @@ func main() {
 		log.SetReportCaller(true)
 	}
 
-	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
+	antimonyConfig, err := config.Load(*cmdArgs.ConfigFile)
+	if err != nil {
+		log.Error("Failed to load configuration file.", "error", err.Error())
+		return
+	}
 
 	// Infrastructure components
 	var (

@@ -1,7 +1,12 @@
 package serverconfig
 
 type ServerConfig struct {
-	CaptureConfig CaptureConfig `json:"capture"`
+	CaptureConfig    CaptureConfig    `json:"capture"`
+	DeploymentConfig DeploymentConfig `json:"deployment"`
+}
+
+type DeploymentConfig struct {
+	Provider string `json:"provider"`
 }
 
 type CaptureConfig struct {

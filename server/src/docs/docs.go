@@ -1244,11 +1244,22 @@ const docTemplate = `{
                 }
             }
         },
+        "serverconfig.DeploymentConfig": {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
         "serverconfig.ServerConfig": {
             "type": "object",
             "properties": {
                 "capture": {
                     "$ref": "#/definitions/serverconfig.CaptureConfig"
+                },
+                "deployment": {
+                    "$ref": "#/definitions/serverconfig.DeploymentConfig"
                 }
             }
         },

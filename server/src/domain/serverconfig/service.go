@@ -21,5 +21,8 @@ func (s *Service) GetServerConfig() ServerConfig {
 			Port:               s.config.Capture.SSHPort,
 			ExcludedInterfaces: s.config.Capture.ExcludedInterfaces,
 		},
+		DeploymentConfig: DeploymentConfig{
+			Provider: s.config.Deployment.Provider.String(),
+		},
 	}
 }

@@ -1,8 +1,8 @@
-general:
-  provider: containerlab
 server:
   host: 0.0.0.0
   port: 3000
+deployment:
+  provider: containerlab
 auth:
   enableNative: true
   enableOpenId: true
