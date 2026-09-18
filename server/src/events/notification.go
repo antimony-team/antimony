@@ -1,12 +1,12 @@
 package events
 
 import (
-	"antimonyBackend/types"
+	"antimonyBackend/utils/serverlog"
 	"time"
 )
 
 type Notification struct {
 	Content   string
 	Timestamp time.Time
-	Type      types.Severity
+	Type      serverlog.LogLevel
 }

@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"antimonyBackend/utils/serverlog"
 	"bufio"
 	"bytes"
 	"context"
@@ -49,9 +50,16 @@ func (p *ContainerlabProvider) Deploy(
 	topologyFile string,
 	instanceName string,
 	onLog func(data string),
-) (*string, error) {
+) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
-	return runCommandSync(cmd, onLog)
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+
+	// Log this directly without formatting
+	if output != nil {
+		onLog(*output)
+	}
+
+	return err
 }
 
 func (p *ContainerlabProvider) Redeploy(
@@ -59,9 +67,16 @@ func (p *ContainerlabProvider) Redeploy(
 	topologyFile string,
 	instanceName string,
 	onLog func(data string),
-) (*string, error) {
+) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
-	return runCommandSync(cmd, onLog)
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+
+	// Log this directly without formatting
+	if output != nil {
+		onLog(*output)
+	}
+
+	return err
 }
 
 func (p *ContainerlabProvider) Destroy(
@@ -69,9 +84,16 @@ func (p *ContainerlabProvider) Destroy(
 	topologyFile string,
 	instanceName string,
 	onLog func(data string),
-) (*string, error) {
+) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
-	return runCommandSync(cmd, onLog)
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+
+	// Log this directly without formatting
+	if output != nil {
+		onLog(*output)
+	}
+
+	return err
 }
 
 func (p *ContainerlabProvider) Inspect(
@@ -81,7 +103,7 @@ func (p *ContainerlabProvider) Inspect(
 	onLog func(data string),
 ) (InspectOutput, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
-	rawOutput, err := runCommandSync(cmd, onLog)
+	rawOutput, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
 	if err != nil {
 		return nil, err
@@ -112,18 +134,6 @@ func (p *ContainerlabProvider) InspectAll(
 
 		return inspectOutput, err
 	}
-}
-
-func (p *ContainerlabProvider) ExecOnNode(
-	ctx context.Context,
-	topologyFile string,
-	content string,
-	nodeLabel string,
-	onLog func(data string),
-	onDone func(output *string, err error),
-) {
-	cmd := exec.CommandContext(ctx, "containerlab", "exec", "-t", topologyFile, "--cmd", content, "--label", nodeLabel)
-	runClabCommand(cmd, onLog, onDone)
 }
 
 func (p *ContainerlabProvider) Exec(

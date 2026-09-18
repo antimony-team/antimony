@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -366,11 +365,9 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		instance.LogNamespace,
 	)
 
-	output, err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
+	err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
-
-	sendClabOutput(instance.LogNamespace, output)
 
 	if err != nil {
 		log.Warn(
@@ -500,23 +497,18 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		instance.LogNamespace,
 	)
 
-	var output *string
 	var err error
 
 	// Redeploy instead of deploy if instance already existed
 	if instanceRunning {
-		output, err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
-			log.Infof("[CLAB] %s\n", data)
+		err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
 	} else {
-		output, err = s.deploymentProvider.Deploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
-			log.Infof("[CLAB] %s\n", data)
+		err = s.deploymentProvider.Deploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
 	}
-
-	sendClabOutput(instance.LogNamespace, output)
 
 	if err != nil {
 		if ctx.Err() != nil {
@@ -543,6 +535,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
 		return utils.ErrContainerlab
 	}
+
+	//utils.FormatClabLog(instance.LogNamespace.Send)(*output)
 
 	// Fetch and attach lab inspect info and change state to running if successful
 	instance.Nodes, err = s.getNodesFromInspect(ctx, instance, lab.InstanceName, func(data string) {
@@ -987,7 +981,7 @@ func (s *Service) updateNotify(lab *lab.Lab, message *statusmessage.Message) {
 
 // updateStateAndNotify Updates the state of a lab and sends various notification updates.
 // If the status message is set, all users will receive the status message.
-// If the log namespace is set, the log content of the status message is also sent to the provided namespace.
+// If the serverlog namespace is set, the serverlog content of the status message is also sent to the provided namespace.
 func (s *Service) updateStateAndNotify(
 	lab *lab.Lab,
 	instance *Instance,
@@ -1077,7 +1071,7 @@ func (s *Service) reviveInstances() {
 
 			if err != nil {
 				log.Error(
-					"Failed to setup container log stream for container",
+					"Failed to setup container serverlog stream for container",
 					"container", container.ContainerId,
 					"err", err.Error(),
 				)
@@ -1130,22 +1124,6 @@ func (s *Service) reviveInstances() {
 	}
 
 	log.Infof("[Runtime] Successfully restored %d labs", restoredLabs)
-}
-
-// sendClabOutput Streams the output of a containerlab command to a given socket namespace.
-func sendClabOutput(logNamespace *socket.OutputNamespace[string], output *string) {
-	re := regexp.MustCompile(`\[\dm`)
-	if output == nil {
-		return
-	}
-
-	for _, line := range strings.Split(*output, "\n") {
-		if line == "" {
-			continue
-		}
-		log.Infof("[CLAB] %s\n", line)
-		logNamespace.Send(string(re.ReplaceAll([]byte(line), []byte(""))))
-	}
 }
 
 func getNodeKindConfigs(path string) map[string]NodeKindConfig {

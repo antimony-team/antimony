@@ -23,21 +23,21 @@ type DeploymentProvider interface {
 		topologyFile string,
 		instanceName string,
 		onLog func(data string),
-	) (*string, error)
+	) error
 
 	Redeploy(
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
 		onLog func(data string),
-	) (*string, error)
+	) error
 
 	Destroy(
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
 		onLog func(data string),
-	) (*string, error)
+	) error
 
 	Inspect(
 		ctx context.Context,
@@ -197,7 +197,7 @@ type NodeInterfaceStats struct {
 	TxBps int
 }
 
-func runCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
+func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
 	var outputBuffer bytes.Buffer
 	cmd.Stdout = &outputBuffer
 
@@ -211,7 +211,7 @@ func runCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
 		return nil, err
 	}
 
-	go streamOutput(stderr, onLog)
+	go streamOutput(stderr, onStderr)
 
 	err = cmd.Wait()
 	output := outputBuffer.String()

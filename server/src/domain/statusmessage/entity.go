@@ -1,44 +1,44 @@
 package statusmessage
 
 import (
-	"antimonyBackend/types"
 	"antimonyBackend/utils"
+	"antimonyBackend/utils/serverlog"
 	"time"
 )
 
 type Message struct {
-	ID         string         `json:"id"`
-	Source     string         `json:"source"`
-	Content    string         `json:"content"`
-	LogContent string         `json:"logContent"`
-	Timestamp  time.Time      `json:"timestamp"`
-	Severity   types.Severity `json:"severity"`
+	ID         string             `json:"id"`
+	Source     string             `json:"source"`
+	Content    string             `json:"content"`
+	LogContent string             `json:"logContent"`
+	Timestamp  time.Time          `json:"timestamp"`
+	Severity   serverlog.LogLevel `json:"severity"`
 }
 
 func Success(source string, content string, logContent ...string) *Message {
-	return newMessage(source, content, types.Success, logContent...)
+	return newMessage(source, content, serverlog.SuccessLevel, logContent...)
 }
 
 func Info(source string, content string, logContent ...string) *Message {
-	return newMessage(source, content, types.Info, logContent...)
+	return newMessage(source, content, serverlog.InfoLevel, logContent...)
 }
 
 func Warning(source string, content string, logContent ...string) *Message {
-	return newMessage(source, content, types.Warning, logContent...)
+	return newMessage(source, content, serverlog.WarningLevel, logContent...)
 }
 
 func Error(source string, content string, logContent ...string) *Message {
-	return newMessage(source, content, types.Error, logContent...)
+	return newMessage(source, content, serverlog.ErrorLevel, logContent...)
 }
 
 func Fatal(source string, content string, logContent ...string) *Message {
-	return newMessage(source, content, types.Fatal, logContent...)
+	return newMessage(source, content, serverlog.FatalLevel, logContent...)
 }
 
-func newMessage(source string, content string, severity types.Severity, logParts ...string) *Message {
+func newMessage(source string, content string, severity serverlog.LogLevel, logParts ...string) *Message {
 	logContent := content
 	if len(logParts) > 0 {
-		logContent = utils.FormatAntimonyLog(logParts...)
+		logContent = serverlog.CreateAntimonyLog(severity, logParts...)
 	}
 
 	return &Message{
