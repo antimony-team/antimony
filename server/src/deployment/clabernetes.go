@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"antimonyBackend/utils"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -99,7 +100,7 @@ func (p *ClabernetesProvider) Deploy(
 		return nil, fmt.Errorf("clabvert %s: %w", topologyFile, err)
 	}
 
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", manifestDir)
+	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", manifestDir, "-v=6")
 	out, err := runCommandSync(cmd, onLog)
 	if err != nil {
 		return nil, err
@@ -134,31 +135,60 @@ func (p *ClabernetesProvider) Destroy(
 ) (*string, error) {
 	namespace := namespaceFor(instanceName)
 
-	fmt.Printf("Destroying labs 0")
+	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: clabernetesconstants.LabelTopologyNode,
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		onLog(utils.FormatAntimonyLog("Failed to fetch pods in namespace", "err", err.Error()))
+		return nil, err
+	}
+
+	if pods != nil {
+		for _, pod := range pods.Items {
+			onLog(utils.FormatAntimonyLog(
+				"Stopping node",
+				"namespace", namespace,
+				"node", pod.Labels[clabernetesconstants.LabelTopologyNode],
+				"name", pod.Name,
+			))
+		}
+	}
 
 	// Kill the node pods right away instead of waiting out their grace period.
 	zero := int64(0)
-	err := p.clientset.CoreV1().Pods(namespace).DeleteCollection(ctx,
+	err = p.clientset.CoreV1().Pods(namespace).DeleteCollection(
+		ctx,
 		metav1.DeleteOptions{GracePeriodSeconds: &zero},
 		metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
+		onLog(utils.FormatAntimonyLog("Failed to fetch collection in namespace", "err", err.Error()))
 		return nil, err
 	}
 
-	fmt.Printf("Destroying labs 1")
+	onLog(utils.FormatAntimonyLog("Deleting namespace", "namespace", namespace))
 
 	if err := p.clientset.CoreV1().Namespaces().Delete(ctx, namespace, metav1.DeleteOptions{}); err != nil {
 		if apierrors.IsNotFound(err) {
 			// The namespace has already been destroyed
+			onLog(utils.FormatAntimonyLog("The namespace has already been removed", "namespace", namespace))
 			return nil, nil
 		}
+
+		onLog(utils.FormatAntimonyLog(
+			"Deletion of namespace failed",
+			"namespace", namespace,
+			"err", err.Error(),
+		))
 		return nil, err
 	}
 
-	fmt.Printf("Destroying labs 2")
+	onLog(utils.FormatAntimonyLog(
+		"Waiting for namespace to be removed",
+		"namespace", namespace,
+	))
 
-	return nil, p.waitForNamespaceGone(ctx, namespace)
+	return nil, p.waitForNamespaceGone(ctx, namespace, onLog)
 }
 
 func (p *ClabernetesProvider) Inspect(
@@ -524,15 +554,33 @@ func (p *ClabernetesProvider) waitForTopologyReady(
 	)
 }
 
-func (p *ClabernetesProvider) waitForNamespaceGone(ctx context.Context, ns string) error {
+func (p *ClabernetesProvider) waitForNamespaceGone(
+	ctx context.Context,
+	namespace string,
+	onLog func(string),
+) error {
 	return wait.PollUntilContextTimeout(ctx, time.Second, 2*time.Minute, true,
 		func(ctx context.Context) (bool, error) {
-			_, err := p.clientset.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
+			_, err := p.clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
+				onLog(utils.FormatAntimonyLog(
+					"Deletion of namespace succeeded",
+					"namespace", namespace,
+				))
+
 				return true, nil
 			}
+
+			if err != nil {
+				onLog(utils.FormatAntimonyLog(
+					"Waiting for namespace deletion has failed",
+					"namespace", namespace,
+					"err", err.Error(),
+				))
+			}
 			return false, err
-		})
+		},
+	)
 }
 
 // createExec prepares a pods/exec request for cmd inside the node container.
