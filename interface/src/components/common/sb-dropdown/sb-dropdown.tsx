@@ -31,6 +31,8 @@ interface SBDropdownProps {
   emptyMessage?: string;
   filterPlaceholder?: string;
 
+  className?: string;
+
   useItemTemplate?: boolean;
   useSelectTemplate?: boolean;
 
@@ -102,7 +104,7 @@ const SBDropdown = (props: SBDropdownProps) => {
         onChange={onValueSubmit}
         itemTemplate={props.useItemTemplate ? dropdownTemplate : undefined}
         valueTemplate={props.useSelectTemplate ? dropdownTemplate : undefined}
-        className={classNames({
+        className={classNames(props.className, {
           'sb-dropdown-hidden': props.isHidden,
           'sb-dropdown-edited': props.wasEdited,
         })}

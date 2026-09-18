@@ -41,27 +41,29 @@
           font-size: 20px
           font-weight: 600
 
-      .sb-log-dialog-lines-background
-        position: absolute
-        height: 100%
-        width: 60px
-        border-right: 1px solid var(--primary-color-border)
-        background-color: var(--primary-color)
-        z-index: 1
-
       pre
+        display: inline-block
         position: relative
         margin: 0
-        padding: 0 24px 0 0
-        font-size: 16px
+        padding-right: 12px
+        font-size: 14px
         z-index: 2
         font-family: Iosevka, monospace
 
-    .p-dropdown
+    .sb-log-dialog-slector
       position: absolute
       right: 12px
       top: 12px
       z-index: 2
+      min-width: 200px
+
+    .sb-log-dialog-lines-background
+      position: absolute
+      height: 100%
+      width: 60px
+      border-right: 1px solid var(--primary-color-border)
+      background-color: var(--primary-color)
+      z-index: 1
 
 .hljs-linenumber-separator
   display: none
@@ -70,19 +72,73 @@
   color: var(--primary-color-text-darker)
   font-style: italic
 
-.hljs-antimony
-  font-weight: 800
-  color: var(--subtle-color-text)
+.hljs-log-source
+  font-weight: 600
   display: inline-block
-  //border: 2px solid var(--primary-color-border)
-  //margin-bottom: 4px
-  //margin-top: 4px
-  //padding: 2px 8px
+  width: 4.2ch
+  color: #62a4a6
+  text-align: center
 
+  &.server
+    font-weight: 800
+    color: #79c9cd
+
+.hljs-log-level
+  font-size: 0
+
+  &::before
+    display: inline-block
+    font-size: 1rem
+    width: 1.5ch
+    text-align: center
+
+  &.success
+    color: var(--success-color-text)
+
+    &::before
+      content: "✓"
+
+  &.info
+    color: var(--info-color-text)
+
+    &::before
+      content: "●"
+
+    // Replace info symbol with loading animation if line is currently the most recent one
+    &:not(:has(~ .hljs-timestamp))::before
+      content: "⠋"
+      animation: spin 0.8s steps(10) infinite
+
+  &.warn
+    color: var(--warning-color-text)
+
+    &::before
+      content: "▲"
+
+  &.error
+    color: var(--danger-color-text)
+
+    &::before
+      content: "✕"
+
+  &.wait
+    color: var(--primary-color-text-darker)
+
+    &::before
+      content: "⠋"
+      animation: spin 0.8s steps(10) infinite
 
 .hljs-error
   font-weight: 800
   color: red
+  font-size: 0
+
+  &::before
+    display: inline-block
+    font-size: 1rem
+    content: "✕"
+    width: 1.5ch
+    text-align: center
 
 .hljs-keyvalue
   color: var(--primary-color-text-darker)
@@ -90,6 +146,14 @@
 .hljs-info
   font-weight: 800
   color: var(--info-color-text)
+  font-size: 0
+
+  &::before
+    display: inline-block
+    font-size: 1rem
+    content: "●"
+    width: 1.5ch
+    text-align: center
 
 .hljs-warning
   font-weight: 800
@@ -111,3 +175,25 @@
   background-color: var(--primary-color)
   user-select: none
   margin-right: 8px
+
+@keyframes spin
+  0%
+    content: "⠋"
+  10%
+    content: "⠙"
+  20%
+    content: "⠹"
+  30%
+    content: "⠸"
+  40%
+    content: "⠼"
+  50%
+    content: "⠴"
+  60%
+    content: "⠦"
+  70%
+    content: "⠧"
+  80%
+    content: "⠇"
+  90%
+    content: "⠏"

@@ -95,7 +95,7 @@ const LogDialog = observer((props: LogDialogProps) => {
     }
 
     if (props.dialogState.state.source === '-1') {
-      return 'Containerlab';
+      return 'Antimony';
     } else {
       return (
         props.dialogState.state.lab.instance.nodes.find(
@@ -161,7 +161,7 @@ const LogDialog = observer((props: LogDialogProps) => {
 
     return [
       {
-        label: 'Containerlab',
+        label: 'Antimony',
         value: '-1',
       },
       ...nodes.map(node => ({
@@ -217,8 +217,8 @@ const LogDialog = observer((props: LogDialogProps) => {
           </div>
         </When>
         <Otherwise>
+          <div className="sb-log-dialog-lines-background" />
           <div ref={containerRef} className="sb-log-dialog-content">
-            <div className="sb-log-dialog-lines-background" />
             <pre dangerouslySetInnerHTML={{__html: formatted!}} />
           </div>
         </Otherwise>
@@ -227,13 +227,18 @@ const LogDialog = observer((props: LogDialogProps) => {
       <If condition={logSources?.length}>
         <SBDropdown
           id="log-selector"
+          className="sb-log-dialog-slector"
           icon={option => {
             if (option.value === '-1') {
               return (
                 <Image
-                  src="/icons/clab-icon.png"
+                  src="/icons/antimony-outline.svg"
                   width="18px"
-                  style={{paddingLeft: '2.3px', paddingRight: '1px'}}
+                  style={{
+                    paddingLeft: '2.3px',
+                    paddingRight: '1px',
+                    color: 'white',
+                  }}
                 />
               );
             } else {

@@ -14,24 +14,38 @@ export default () => ({
       begin: /\d{2}:\d{2}:\d{2}\s/,
     },
     {
-      className: 'antimony',
-      begin: /\bANTIMONY\b/,
+      className: 'keyvalue',
+      begin: /\s\w+=/,
+    },
+    // Log sources
+    {
+      className: 'log-source server',
+      begin: /\bSERV\b/,
     },
     {
-      className: 'error',
-      begin: /\bERROR|Error\b/,
+      className: 'log-source kubectl',
+      begin: /\bKUBE\b/,
     },
     {
-      className: 'warning',
-      begin: /\bWARN\b/,
+      className: 'log-source clab',
+      begin: /\bCLAB\b/,
+    },
+    // Log levels
+    {
+      className: 'log-level success',
+      begin: /\bSUCCESS\b/,
     },
     {
-      className: 'info',
+      className: 'log-level info',
       begin: /\bINFO\b/,
     },
     {
-      className: 'keyvalue',
-      begin: /\s\w+=/,
+      className: 'log-level warn',
+      begin: /\bWARNING\b/,
+    },
+    {
+      className: 'log-level error',
+      begin: /\bERROR\b/,
     },
   ],
 });
