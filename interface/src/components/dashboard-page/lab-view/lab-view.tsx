@@ -53,8 +53,16 @@ const LabView = observer((props: LabDialogProps) => {
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // const [hostsHidden, setHostsHidden] = useState(false);
-  const nodeContextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<ContextMenu | null>(null);
+
+  // The node that is currently selected and active in the drawer
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+
+  // The node that is currently targeted by the context menu
+  const [contextTargetNode, setContextTargetNode] = useState<string | null>(
+    null,
+  );
+
   const logDialogState = useDialogState<LogDialogState>();
   const terminalDialogState = useDialogState<TerminalDialogState>();
 
@@ -99,15 +107,15 @@ const LabView = observer((props: LabDialogProps) => {
   }, [props.lab?.topologyDefinition, props.lab?.instance]);
 
   function onGraphContext(event: cytoscape.EventObject) {
-    if (!nodeContextMenuRef.current || !cyRef.current) return;
+    if (!contextMenuRef.current || !cyRef.current) return;
 
     const mouseEvent = event.originalEvent as unknown as MouseEvent;
     mouseEvent.preventDefault();
     mouseEvent.stopPropagation();
 
     if (event.target === cyRef.current) {
-      setSelectedNode(null);
-      nodeContextMenuRef.current.show(mouseEvent);
+      setContextTargetNode(null);
+      contextMenuRef.current.show(mouseEvent);
       return;
     }
 
@@ -121,8 +129,8 @@ const LabView = observer((props: LabDialogProps) => {
 
     if (event.target.hasClass('topology-node')) {
       const nodeId = event.target.id();
-      setSelectedNode(nodeId);
-      nodeContextMenuRef.current.show(mouseEvent);
+      setContextTargetNode(nodeId);
+      contextMenuRef.current.show(mouseEvent);
     }
   }
 
@@ -136,91 +144,124 @@ const LabView = observer((props: LabDialogProps) => {
     }
   }
 
-  function onNodeStart() {
+  function onNodeStart(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
-    void labStore.startNode(props.lab, selectedNode);
+    void labStore.startNode(props.lab, nodeId);
   }
 
-  function onNodeStop() {
+  function onNodeStop(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
-    void labStore.stopNode(props.lab, selectedNode);
+    void labStore.stopNode(props.lab, nodeId);
   }
 
-  function onNodeRestart() {
+  function onNodeRestart(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
-    void labStore.restartNode(props.lab, selectedNode);
+    void labStore.restartNode(props.lab, nodeId);
   }
 
-  function onOpenContainerlabLogs() {
+  function openLabLogs() {
     logDialogState.openWith({
       lab: props.lab!,
       source: '-1',
     });
   }
 
-  function onOpenLogs() {
+  function onOpenLogs(nodeId: string | null) {
     const instance = props.lab!.instance!;
 
     logDialogState.openWith({
       lab: props.lab!,
-      source: selectedNode
-        ? instance.nodeMap.get(selectedNode)!.containerId
-        : '-1',
+      source: nodeId ? instance.nodeMap.get(nodeId)!.containerId : '-1',
     });
   }
 
-  function onOpenTerminal() {
+  function onOpenTerminal(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
     terminalDialogState.openWith({
       lab: props.lab!,
-      node: selectedNode,
+      node: nodeId,
     });
   }
 
-  function openWebSsh() {
-    if (
-      !selectedNode ||
-      !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
-    ) {
-      return;
-    }
-
-    const instance = props.lab.instance;
-    const webSshUrl = instance.nodeMap.get(selectedNode)!.webSSH;
-
-    window.open(webSshUrl, '_blank');
+  function openWebSsh(nodeId: string | null) {
+    // if (
+    //   !nodeId ||
+    //   !props.lab?.instance ||
+    //   !props.lab.instance.nodeMap.has(nodeId)
+    // ) {
+    //   return;
+    // }
+    //
+    // const instance = props.lab.instance;
+    // const webSshUrl = instance.nodeMap.get(selectedNode)!.webSSH;
+    //
+    // window.open(webSshUrl, '_blank');
   }
 
   const graphContextMenuModel = [
+    {
+      label: 'Deploy Lab',
+      icon: 'pi pi-play',
+      disabled: !canDeployLab(),
+      command: () => labStore.deployLab(props.lab!),
+    },
+    {
+      label: 'Redeploy Lab',
+      icon:
+        props.lab?.state === InstanceState.Deploying
+          ? 'pi pi-sync pi-spin'
+          : 'pi pi-sync',
+      disabled: !canRedeployLab(),
+      command: () => labStore.deployLab(props.lab!),
+    },
+    {
+      label: 'Destroy Lab',
+      icon: 'pi pi-power-off',
+      disabled: !canDestroylab(),
+      command: () => props.onDestroyLabRequest(props.lab!),
+    },
+    {
+      separator: true,
+    },
+    {
+      label: 'View Logs',
+      icon: (
+        <span className="material-symbols-outlined">quick_reference_all</span>
+      ),
+      disabled: !canOpenLabLogs(),
+      command: () => onOpenLogs(null),
+    },
+    {
+      separator: true,
+    },
     {
       label: 'Fit Graph',
       icon: (
@@ -236,7 +277,7 @@ const LabView = observer((props: LabDialogProps) => {
 
   const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
     // If the selected node is null, the graph itself is selected
-    if (selectedNode === null) {
+    if (contextTargetNode === null) {
       return graphContextMenuModel;
     }
 
@@ -247,30 +288,32 @@ const LabView = observer((props: LabDialogProps) => {
     }
 
     // Return an empty context menu if selected node is a group node
-    if (cyRef.current.getElementById(selectedNode).hasClass('drawn-shape')) {
+    if (
+      cyRef.current.getElementById(contextTargetNode).hasClass('drawn-shape')
+    ) {
       return;
     }
 
-    const node = instance.nodeMap.get(selectedNode);
+    const node = instance.nodeMap.get(contextTargetNode);
     const nodeActionChecker = new NodeActionChecker(instance, node);
 
     const entries: MenuItem[] = [
       {
         label: 'Start Node',
         icon: 'pi pi-power-off',
-        command: onNodeStart,
+        command: () => onNodeStart(contextTargetNode),
         disabled: !nodeActionChecker.canStart,
       },
       {
         label: 'Stop Node',
         icon: 'pi pi-power-off',
-        command: onNodeStop,
+        command: () => onNodeStop(contextTargetNode),
         disabled: !nodeActionChecker.canStop,
       },
       {
         label: 'Restart Node',
         icon: 'pi pi-sync',
-        command: onNodeRestart,
+        command: () => onNodeRestart(contextTargetNode),
         disabled: !nodeActionChecker.canRestart,
       },
       {
@@ -279,7 +322,7 @@ const LabView = observer((props: LabDialogProps) => {
       {
         label: 'Open Terminal',
         icon: <span className="material-symbols-outlined">terminal</span>,
-        command: onOpenTerminal,
+        command: () => onOpenTerminal(contextTargetNode),
         disabled: !nodeActionChecker.canOpenTerminal,
       },
       {
@@ -288,7 +331,7 @@ const LabView = observer((props: LabDialogProps) => {
           <span className="material-symbols-outlined">quick_reference_all</span>
         ),
         disabled: !nodeActionChecker.canShowLogs,
-        command: onOpenLogs,
+        command: () => onOpenLogs(contextTargetNode),
       },
     ];
 
@@ -310,12 +353,12 @@ const LabView = observer((props: LabDialogProps) => {
       entries.push({
         label: 'Web SSH',
         icon: 'pi pi-external-link',
-        command: openWebSsh,
+        command: () => openWebSsh(contextTargetNode),
       });
     }
 
     return entries;
-  }, [selectedNode, props.lab]);
+  }, [contextTargetNode, props.lab]);
 
   function copyCaptureToClipboard(containerId: string, ifName: string) {
     const cmd = getInterfaceCaptureCommand(
@@ -384,6 +427,34 @@ const LabView = observer((props: LabDialogProps) => {
     });
   }
 
+  function canOpenLabLogs() {
+    return (
+      props.lab?.instance ||
+      props.lab?.state === InstanceState.Deploying ||
+      props.lab?.state === InstanceState.Failed
+    );
+  }
+
+  function canDeployLab() {
+    return (
+      !props.lab?.instance &&
+      props.lab?.state !== InstanceState.Deploying &&
+      props.lab?.state !== InstanceState.Stopping
+    );
+  }
+
+  function canRedeployLab() {
+    return props.lab?.instance && props.lab?.state === InstanceState.Running;
+  }
+
+  function canDestroylab() {
+    return (
+      props.lab?.instance &&
+      (props.lab!.state === InstanceState.Running ||
+        props.lab!.state === InstanceState.Deploying)
+    );
+  }
+
   return (
     <>
       <div
@@ -417,20 +488,11 @@ const LabView = observer((props: LabDialogProps) => {
               }
               label="View Logs"
               aria-label="View Logs"
-              onClick={onOpenContainerlabLogs}
-              disabled={
-                !props.lab?.instance &&
-                props.lab?.state !== InstanceState.Deploying &&
-                props.lab?.state !== InstanceState.Failed
-              }
+              onClick={openLabLogs}
+              disabled={!canOpenLabLogs()}
             />
             <Choose>
-              <When
-                condition={
-                  !props.lab?.instance &&
-                  props.lab?.state !== InstanceState.Deploying
-                }
-              >
+              <When condition={canDeployLab()}>
                 <Button
                   outlined
                   icon="pi pi-play"
@@ -449,7 +511,7 @@ const LabView = observer((props: LabDialogProps) => {
                   severity="warning"
                   aria-label="Redeploy Lab"
                   onClick={() => labStore.deployLab(props.lab!)}
-                  disabled={props.lab?.state !== InstanceState.Running}
+                  disabled={!canRedeployLab()}
                   tooltipOptions={{
                     showOnDisabled: true,
                   }}
@@ -464,11 +526,7 @@ const LabView = observer((props: LabDialogProps) => {
                   }
                   severity="danger"
                   onClick={() => props.onDestroyLabRequest(props.lab!)}
-                  disabled={
-                    props.lab!.state !== InstanceState.Running &&
-                    props.lab!.state !== InstanceState.Deploying &&
-                    props.lab!.state !== InstanceState.Scheduled
-                  }
+                  disabled={!canDestroylab()}
                 />
               </Otherwise>
             </Choose>
@@ -526,7 +584,7 @@ const LabView = observer((props: LabDialogProps) => {
           </div>
         </div>
       </div>
-      <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
+      <ContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
       <LogDialog dialogState={logDialogState} />
       <TerminalDialog dialogState={terminalDialogState} />
     </>

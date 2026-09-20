@@ -26,12 +26,12 @@ interface LabViewDrawer {
   lab: Lab | null;
   nodeName: string | null;
 
-  onOpenTerminal: () => void;
-  onOpenLogs: () => void;
+  onOpenTerminal: (nodeId: string | null) => void;
+  onOpenLogs: (nodeId: string | null) => void;
 
-  onNodeStart: () => void;
-  onNodeStop: () => void;
-  onNodeRestart: () => void;
+  onNodeStart: (nodeId: string | null) => void;
+  onNodeStop: (nodeId: string | null) => void;
+  onNodeRestart: (nodeId: string | null) => void;
 }
 
 const LabDialogDrawer = (props: LabViewDrawer) => {
@@ -520,7 +520,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 label="Node Logs"
                 aria-label="Node Logs"
                 outlined
-                onClick={props.onOpenLogs}
+                onClick={() => props.onOpenLogs(props.nodeName)}
                 disabled={!nodeActionChecker!.canShowLogs}
               />
               <Button
@@ -530,7 +530,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 label="Open Terminal"
                 aria-label="Open Terminal"
                 outlined
-                onClick={props.onOpenTerminal}
+                onClick={() => props.onOpenLogs(props.nodeName)}
                 disabled={!nodeActionChecker!.canOpenTerminal}
               />
             </div>
@@ -597,7 +597,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               severity="success"
               label="Start"
               outlined
-              onClick={props.onNodeStart}
+              onClick={() => props.onOpenLogs(props.nodeName)}
               disabled={!nodeActionChecker!.canStart}
             />
             <Button
@@ -605,7 +605,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               severity="warning"
               label="Restart"
               outlined
-              onClick={props.onNodeRestart}
+              onClick={() => props.onOpenLogs(props.nodeName)}
               disabled={!nodeActionChecker!.canRestart}
             />
             <Button
@@ -613,7 +613,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               severity="danger"
               label="Shutdown"
               outlined
-              onClick={props.onNodeStop}
+              onClick={() => props.onOpenLogs(props.nodeName)}
               disabled={!nodeActionChecker!.canStop}
             />
           </div>
