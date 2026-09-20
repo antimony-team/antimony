@@ -273,7 +273,6 @@ export class TopologyStore extends DataStore<
   public parseTopologyDefinition(
     definitionString: string,
   ): YAMLDocument<TopologyDefinition> | null {
-    console.log('[SCHEMADEBUG] PARSE TOPOLOGYD EFINITION', new Error());
     const definition = parseDocument(definitionString, {
       keepSourceTokens: true,
     });

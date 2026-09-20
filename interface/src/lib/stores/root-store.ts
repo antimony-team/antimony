@@ -87,8 +87,6 @@ export class RootStore {
    */
   @computed
   public get phase(): AppPhase {
-    console.log('PHASE:', this._dataBinder.isLoggedIn);
-
     if (!this._dataBinder.isLoggedIn) {
       if (this._dataBinder.hasConnectionError) return AppPhase.Offline;
 
@@ -96,8 +94,6 @@ export class RootStore {
         ? AppPhase.Unauthenticated
         : AppPhase.Connecting;
     }
-
-    console.log('HAS LOADED ONCE:', this.hasLoadedOnce);
 
     return this.hasLoadedOnce ? AppPhase.Ready : AppPhase.Loading;
   }

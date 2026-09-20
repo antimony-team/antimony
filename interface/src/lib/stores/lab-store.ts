@@ -62,9 +62,12 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     this.dataBinder = dataBinder;
     this.topologyStore = topologyStore;
     this.statusMessageStore = statusMessageStore;
+
+    this.onLabUpdate = this.onLabUpdate.bind(this);
   }
 
   public init(filterFromParams: boolean) {
+    this.dataBinder.subscribeNamespace('lab-updates', this.onLabUpdate);
     this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
 
     if (filterFromParams) {
@@ -81,6 +84,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   @action
   private async fetchSingle(labId: string) {
+    console.log('FETCH SINGLE');
     const response = await this.rootStore._dataBinder.get<LabOut>(
       this.resourcePath + '/' + labId,
     );
@@ -248,14 +252,16 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   private onLabUpdate(data: DataResponse<LabUpdateOut>) {
     if (data.payload.labId && this.lookup.has(data.payload.labId)) {
-      if (data.payload.newState !== null) {
-        const lab = this.lookup.get(data.payload.labId);
-        runInAction(() => {
-          lab!.state = data.payload.newState!;
-        });
-      } else {
-        void this.fetchSingle(data.payload.labId);
-      }
+      // if (data.payload.newState !== null) {
+      //   const lab = this.lookup.get(data.payload.labId);
+      //   runInAction(() => {
+      //     lab!.state = data.payload.newState!;
+      //   });
+      // } else {
+      //   void this.fetchSingle(data.payload.labId);
+      // }
+
+      void this.fetchSingle(data.payload.labId);
     } else {
       console.log('FETCH FROM LAB UPDATE');
       void this.fetch();
