@@ -10,6 +10,7 @@ import {
   drawGraphGrid,
   generateGraph,
   getDistance,
+  getFitPadding,
 } from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
@@ -462,7 +463,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       {
         fit: {
           eles: cyRef.current.elements(),
-          padding: 100,
+          padding: getFitPadding(cyRef.current),
         },
       },
       {
@@ -570,7 +571,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy.on('mouseup', handleMouseUp);
 
     cy.animate({
-      fit: {padding: 120, eles: cy.elements()},
+      fit: {padding: getFitPadding(cy), eles: cy.elements()},
       duration: 50,
     });
   }

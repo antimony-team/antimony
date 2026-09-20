@@ -312,3 +312,7 @@ export function formatBytes(v: number | null) {
   if (abs >= 1024) return fmt(v / 1024) + ' KB';
   return v.toFixed(0) + ' B';
 }
+
+export function getFitPadding(cy: cytoscape.Core) {
+  return Math.min(cy.width(), cy.height()) * 0.1;
+}

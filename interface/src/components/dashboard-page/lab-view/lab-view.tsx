@@ -19,6 +19,7 @@ import {useDialogState} from '@sb/lib/utils/hooks';
 import {
   drawGraphGrid,
   generateGraph,
+  getFitPadding,
   getInterfaceCaptureCommand,
 } from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
@@ -340,7 +341,14 @@ const LabView = observer((props: LabDialogProps) => {
     cy.style().fromJson(topologyStyle).update();
 
     cy.nodes().lock();
-    cy.fit(undefined, 130);
+
+    cy.animate({
+      fit: {
+        padding: getFitPadding(cy),
+        eles: cy.elements(),
+      },
+      duration: 50,
+    });
   }
 
   function drawGridOverlay(event: cytoscape.EventObject) {
@@ -367,7 +375,13 @@ const LabView = observer((props: LabDialogProps) => {
   function onFitGraph() {
     if (!cyRef.current) return;
 
-    cyRef.current.fit(undefined, 120);
+    cyRef.current.animate({
+      fit: {
+        padding: getFitPadding(cyRef.current),
+        eles: cyRef.current.elements(),
+      },
+      duration: 200,
+    });
   }
 
   return (
