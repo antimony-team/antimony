@@ -1,4 +1,4 @@
-import {action, computed, observable, ObservableMap, observe} from 'mobx';
+import {action, autorun, computed, observable, ObservableMap} from 'mobx';
 
 import {
   DefaultFetchReport,
@@ -20,17 +20,24 @@ export abstract class DataStore<T, I, O> {
   protected abstract get resourcePath(): string;
   protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
 
-  constructor(rootStore: RootStore) {
+  constructor(rootStore: RootStore, autoFetch: boolean = true) {
     this.rootStore = rootStore;
 
-    observe(rootStore._dataBinder, () => this.fetch());
-
-    void this.fetch();
+    // If autofetch is set to true, automatically fetch data when the data binder is ready.
+    // Some stores like the topology store need additional store dependencies, so
+    // they have to wait until these dependency stores are ready before fetching.
+    if (autoFetch) {
+      autorun(() => {
+        if (rootStore._dataBinder.isReady) {
+          void this.fetch();
+        }
+      });
+    }
   }
 
   @action
   public async fetch() {
-    if (!this.rootStore._dataBinder.isLoggedIn) {
+    if (!this.rootStore._dataBinder.isReady) {
       this.fetchReport = {state: FetchState.Pending};
       return;
     }

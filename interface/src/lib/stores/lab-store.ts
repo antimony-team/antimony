@@ -23,7 +23,7 @@ import {
 } from '@sb/types/domain/lab';
 import {Result} from '@sb/types/result';
 import dayjs from 'dayjs';
-import {action, computed, observable, observe, runInAction} from 'mobx';
+import {action, computed, observable, reaction, runInAction} from 'mobx';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -61,17 +61,17 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     this.dataBinder = dataBinder;
     this.topologyStore = topologyStore;
     this.statusMessageStore = statusMessageStore;
-
-    observe(this, 'getParams' as keyof this, () => this.fetch());
-
-    this.dataBinder.subscribeNamespace(
-      'lab-updates',
-      this.onLabUpdate.bind(this),
-    );
   }
 
-  public init() {
+  public init(filterFromParams: boolean) {
     this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
+
+    if (filterFromParams) {
+      reaction(
+        () => this.getParams,
+        () => this.fetch(),
+      );
+    }
   }
 
   public dispose() {
@@ -261,7 +261,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         void this.fetchSingle(data.payload.labId);
       }
     } else {
-      console.log('FETCH FROM U{DATE');
+      console.log('FETCH FROM LAB UPDATE');
       void this.fetch();
     }
   }

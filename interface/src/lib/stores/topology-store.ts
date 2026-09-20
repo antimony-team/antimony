@@ -13,9 +13,9 @@ import {
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
-import {uuid4, YAMLDocument} from '@sb/types/types';
+import {FetchState, uuid4, YAMLDocument} from '@sb/types/types';
 import {validate} from 'jsonschema';
-import {action, observable, observe, runInAction} from 'mobx';
+import {action, autorun, observable, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
 import {ArchiveUploadFile} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
@@ -38,13 +38,17 @@ export class TopologyStore extends DataStore<
     schemaStore: SchemaStore,
     deviceStore: DeviceStore,
   ) {
-    super(rootStore);
+    super(rootStore, false);
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
 
     this.manager = new TopologyManager(this, deviceStore);
 
-    observe(rootStore._schemaStore, () => this.fetch());
+    autorun(() => {
+      if (rootStore._schemaStore.fetchReport.state === FetchState.Done) {
+        void this.fetch();
+      }
+    });
   }
 
   protected get resourcePath(): string {

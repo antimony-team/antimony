@@ -66,7 +66,7 @@ export const useScopedLabStore = () => {
   const [store] = useState(() => root.createLabStore());
 
   useEffect(() => {
-    store.init();
+    store.init(false);
     return () => store.dispose();
   }, [store]);
 

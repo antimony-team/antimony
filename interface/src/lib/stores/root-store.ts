@@ -60,7 +60,7 @@ export class RootStore {
       this._topologyStore,
       this._statusMessagesStore,
     );
-    this._labStore.init();
+    this._labStore.init(true);
 
     this._shellStore = new ShellStore(
       this._dataBinder,
