@@ -9,7 +9,7 @@ export class ServerConfigStore extends DataStore<
   ServerConfig
 > {
   protected get resourcePath(): string {
-    return '/config';
+    return '/server-config';
   }
 
   @action

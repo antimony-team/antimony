@@ -84,7 +84,7 @@ export class DataBinder {
 
   private async initAuth() {
     const authConfigResponse = await this.get<AuthConfig>(
-      '/users/login/config',
+      '/users/login/auth-config',
       false,
     );
     if (authConfigResponse.isErr()) {
