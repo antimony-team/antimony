@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -31,6 +30,12 @@ type ContainerlabProvider struct {
 	client *client.Client
 
 	statsReader *StatsReader[dockerRef]
+}
+
+type dockerExecSession struct {
+	net.Conn
+	client *client.Client
+	execId string
 }
 
 func CreateContainerlabProvider() *ContainerlabProvider {
@@ -169,7 +174,7 @@ func (p *ContainerlabProvider) ExecInteractive(
 	instanceName string,
 	containerId string,
 	cmd []string,
-) (io.ReadWriteCloser, error) {
+) (ShellExecSession, error) {
 	execId, err := p.createExec(ctx, containerId, cmd, true)
 	if err != nil {
 		return nil, err
@@ -196,7 +201,7 @@ func (p *ContainerlabProvider) ExecInteractive(
 		)
 	}
 
-	return hr.Conn, nil
+	return &dockerExecSession{Conn: hr.Conn, client: p.client, execId: execId}, nil
 }
 
 func (p *ContainerlabProvider) DialNode(ctx context.Context, _ string, containerId string, port int) (net.Conn, error) {
@@ -424,6 +429,13 @@ func (p *ContainerlabProvider) createExec(
 	}
 
 	return resp.ID, nil
+}
+
+func (t *dockerExecSession) Resize(cols uint, rows uint) error {
+	return t.client.ContainerExecResize(context.Background(), t.execId, container.ResizeOptions{
+		Width:  cols,
+		Height: rows,
+	})
 }
 
 func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {

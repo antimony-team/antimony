@@ -20,6 +20,10 @@ func (l LogEntry) String() string {
 	return fmt.Sprintf("%s %s %s %s", l.Time.Format(time.TimeOnly), l.Level, l.Source, l.Message)
 }
 
+func ReplaceAnsiCharacters(data string) string {
+	return ansiEscape.ReplaceAllString(data, "")
+}
+
 func CreateAntimonyLog(level LogLevel, messageParts ...string) string {
 	logMessage := messageParts[0] + " "
 	for i := 1; i < len(messageParts); i += 2 {

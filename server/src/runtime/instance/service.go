@@ -488,23 +488,32 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		"instance", lab.InstanceName,
 	)
 
-	s.updateStateAndNotify(
-		lab, instance, InstanceStates.Deploying,
-		statusmessage.Info("Runtime",
-			fmt.Sprintf("Deploying lab '%s'", lab.Name),
-			"Starting deployment of lab", "name", lab.Name, "id", lab.UUID,
-		),
-		instance.LogNamespace,
-	)
-
 	var err error
 
 	// Redeploy instead of deploy if instance already existed
 	if instanceRunning {
+		s.updateStateAndNotify(
+			lab, instance, InstanceStates.Deploying,
+			statusmessage.Info("Runtime",
+				fmt.Sprintf("Redeploying lab '%s'", lab.Name),
+				"Starting redeployment of lab", "name", lab.Name, "id", lab.UUID,
+			),
+			instance.LogNamespace,
+		)
+
 		err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
 	} else {
+		s.updateStateAndNotify(
+			lab, instance, InstanceStates.Deploying,
+			statusmessage.Info("Runtime",
+				fmt.Sprintf("Deploying lab '%s'", lab.Name),
+				"Starting deployment of lab", "name", lab.Name, "id", lab.UUID,
+			),
+			instance.LogNamespace,
+		)
+
 		err = s.deploymentProvider.Deploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
@@ -587,9 +596,15 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			lab.UUID,
 			node.ContainerId,
 		)
-		err = s.deploymentProvider.StreamContainerLogs(ctx, "", node.ContainerId, func(data string) {
-			containerLogNamespace.Send(data)
-		})
+		logStreamingCtx := context.Background()
+		err = s.deploymentProvider.StreamContainerLogs(
+			logStreamingCtx,
+			lab.InstanceName,
+			node.ContainerId,
+			func(data string) {
+				containerLogNamespace.Send(data)
+			},
+		)
 
 		if err != nil {
 			if errors.Is(ctx.Err(), context.Canceled) {
@@ -662,6 +677,8 @@ func (s *Service) startNodeStartupListener(node *InstanceNode, instance *Instanc
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
+	log.Info("[Startup] Starting startup launcher for node", "node", node.Name)
+
 	err := s.waitForNodeStarted(ctx, lab.InstanceName, node.ContainerId)
 	if err != nil {
 		log.Error(
@@ -672,6 +689,8 @@ func (s *Service) startNodeStartupListener(node *InstanceNode, instance *Instanc
 		)
 		return
 	}
+
+	log.Info("[Startup] Node is started", "node", node.Name)
 
 	s.onNodeStarted(ctx, instance, node, lab)
 }
@@ -699,27 +718,23 @@ func (s *Service) waitForNodeStarted(
 		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, containerId, sshProbe)
 
 		switch {
-		case errors.Is(err, deployment.ErrNodeNotRunning) || code == 255:
-			// SSH not listening yet: retry.
+		case errors.Is(err, deployment.ErrNodeNotRunning):
+			// Container not running yet: retry.
 		case err != nil:
 			return err
 		case code == 0:
 			// SSH accepted the connection.
 			return nil
 		case code == 126 || code == 127:
-			// Server is up, but no ssh binary in the node: nothing to wait for.
+			// No ssh client in the node, so there is no server to wait for.
 			return nil
 		case code == 255 && sshServerResponded(out):
-			// Server is up but threw SSH error
+			// A server answered and rejected our credentials: it's up.
 			return nil
+		case code == 255:
+			// Nothing listening yet: retry.
 		default:
 			return fmt.Errorf("unexpected exit %d from ssh probe: %s", code, strings.TrimSpace(out))
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
 		}
 	}
 }
@@ -771,6 +786,8 @@ func (s *Service) onNodeStarted(
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
 	})
+
+	log.Info("[Startup] Node is registered as started", "node", node.Name)
 }
 
 func (s *Service) createInstance(
@@ -1064,7 +1081,7 @@ func (s *Service) reviveInstances() {
 				container.ContainerId,
 			)
 			err := s.deploymentProvider.StreamContainerLogs(
-				ctx, "", container.ContainerId, func(data string) {
+				ctx, savedLab.InstanceName, container.ContainerId, func(data string) {
 					containerLogNamespace.Send(data)
 				},
 			)
@@ -1091,8 +1108,6 @@ func (s *Service) reviveInstances() {
 		instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) *InstanceNode {
 			return s.containerToInstanceNode(container, savedLab.InstanceName, nodeKinds)
 		})
-
-		fmt.Printf("Instance nodes: %+v\n", containers)
 
 		instance := &Instance{
 			State:                 InstanceStates.Running,

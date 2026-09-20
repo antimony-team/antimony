@@ -27,4 +27,3 @@ var ShellCommands = struct {
 	Error: shellError,
 	Close: shellClose,
 }
-

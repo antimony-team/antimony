@@ -304,6 +304,16 @@ func (p *ClabernetesProvider) InspectAll(
 	return podsToInspectOutput(*rawOutput, "")
 }
 
+type fixedSize struct {
+	size *remotecommand.TerminalSize
+}
+
+func (f *fixedSize) Next() *remotecommand.TerminalSize {
+	s := f.size
+	f.size = nil // nil tells remotecommand there are no more sizes
+	return s
+}
+
 func (p *ClabernetesProvider) Exec(
 	ctx context.Context,
 	instanceName string,
@@ -312,7 +322,7 @@ func (p *ClabernetesProvider) Exec(
 ) (string, int, error) {
 	namespace := namespaceFor(instanceName)
 
-	executor, err := p.createExec(namespace, containerId, cmd, false)
+	executor, err := p.createExec(namespace, containerId, cmd, false, true)
 	if err != nil {
 		return "", 0, err
 	}
@@ -343,10 +353,10 @@ func (p *ClabernetesProvider) ExecInteractive(
 	instanceName string,
 	containerId string,
 	cmd []string,
-) (io.ReadWriteCloser, error) {
+) (ShellExecSession, error) {
 	namespace := namespaceFor(instanceName)
 
-	executor, err := p.createExec(namespace, containerId, cmd, true)
+	executor, err := p.createExec(namespace, containerId, cmd, true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -355,17 +365,19 @@ func (p *ClabernetesProvider) ExecInteractive(
 	stdoutR, stdoutW := io.Pipe()
 
 	ctx, cancel := context.WithCancel(ctx)
-	session := &execSession{
+	session := &kubernetesExecSession{
 		Reader: stdoutR,
 		stdinW: stdinW,
+		sizes:  createSizeQueue(),
 		cancel: cancel,
 	}
 
 	go func() {
 		err := executor.StreamWithContext(ctx, remotecommand.StreamOptions{
-			Stdin:  stdinR,
-			Stdout: stdoutW,
-			Tty:    true,
+			Stdin:             stdinR,
+			Stdout:            stdoutW,
+			Tty:               true,
+			TerminalSizeQueue: session.sizes,
 		})
 
 		var codeErr k8sexec.CodeExitError
@@ -377,7 +389,7 @@ func (p *ClabernetesProvider) ExecInteractive(
 			}
 		}
 
-		stdoutW.CloseWithError(err)
+		_ = stdoutW.CloseWithError(err)
 	}()
 
 	return session, nil
@@ -500,23 +512,47 @@ func (p *ClabernetesProvider) ReadNodeStats(
 	return p.statsReader.Read(ctx, nodeId, podRef{instanceName: instanceName, podName: containerId})
 }
 
+// dockerLogsScript runs in the launcher and follows the device container's
+// logs. `docker ps -a` includes a stopped container, so logs of a crashed
+// node are still readable.
+const dockerLogsScript = `
+c=$(docker ps -aq | head -n1)
+if [ -z "$c" ]; then
+  echo 'node container not found' >&2
+  exit 200
+fi
+exec docker logs --follow --timestamps "$c"
+`
+
 func (p *ClabernetesProvider) StreamContainerLogs(
 	ctx context.Context,
-	topologyFile string,
-	containerID string,
-	onLog func(string),
+	instanceName string,
+	containerId string,
+	onLog func(data string),
 ) error {
-	//namespace := getTopologyName(topologyFile, onLog)
-	//cmd := exec.CommandContext(ctx, "kubectl", "logs", "-f", containerID, "-n", namespace)
-	//stdout, err := cmd.StdoutPipe()
-	//if err != nil {
-	//	return err
-	//}
-	//if err := cmd.Start(); err != nil {
-	//	return err
-	//}
-	//go streamOutput(stdout, onLog)
-	//return cmd.Wait()
+	namespace := namespaceFor(instanceName)
+
+	// The launcher forwards the node container's output to its own stdout, so the pod log is the node log.
+	// Kubernetes prepends an RFC 3339 timestamp per line.
+	stream, err := p.clientset.CoreV1().Pods(namespace).
+		GetLogs(containerId, &corev1.PodLogOptions{
+			Follow:     true,
+			Timestamps: true,
+		}).
+		Stream(ctx)
+	if err != nil {
+		return err
+	}
+
+	onLogWrapper := func(msg string) {
+		onLog(serverlog.ReplaceAnsiCharacters(msg))
+	}
+
+	go func() {
+		defer stream.Close()
+		streamOutput(stream, onLogWrapper)
+	}()
+
 	return nil
 }
 
@@ -578,7 +614,7 @@ func (p *ClabernetesProvider) execStream(
 ) error {
 	namespace := namespaceFor(instanceName)
 
-	executor, err := p.createExec(namespace, containerId, cmd, false)
+	executor, err := p.createExec(namespace, containerId, cmd, false, true)
 	if err != nil {
 		return err
 	}
@@ -671,7 +707,12 @@ func (p *ClabernetesProvider) createExec(
 	pod string,
 	cmd []string,
 	tty bool,
+	wrapCmd bool,
 ) (remotecommand.Executor, error) {
+	if wrapCmd {
+		cmd = wrapNodeCommand(cmd, tty)
+	}
+
 	req := p.clientset.CoreV1().RESTClient().
 		Post().
 		Resource("pods").
@@ -679,7 +720,7 @@ func (p *ClabernetesProvider) createExec(
 		Name(pod).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
-			Command: wrapNodeCommand(cmd, tty),
+			Command: cmd,
 			Stdin:   tty,
 			Stdout:  true,
 			Stderr:  !tty, // merged into stdout when a TTY is allocated
@@ -888,16 +929,46 @@ type podList struct {
 	} `json:"items"`
 }
 
-type execSession struct {
+type kubernetesExecSession struct {
 	io.Reader
 	stdinW *io.PipeWriter
+	sizes  *sizeQueue
 	cancel context.CancelFunc
 }
 
-func (s *execSession) Write(p []byte) (int, error) { return s.stdinW.Write(p) }
+func (s *kubernetesExecSession) Write(p []byte) (int, error) { return s.stdinW.Write(p) }
 
-func (s *execSession) Close() error {
+func (s *kubernetesExecSession) Resize(cols, rows uint) error {
+	s.sizes.push(cols, rows)
+	return nil
+}
+
+func (s *kubernetesExecSession) Close() error {
 	err := s.stdinW.Close()
 	s.cancel()
+	close(s.sizes.ch)
 	return err
+}
+
+type sizeQueue struct {
+	ch chan remotecommand.TerminalSize
+}
+
+func createSizeQueue() *sizeQueue {
+	return &sizeQueue{ch: make(chan remotecommand.TerminalSize, 8)}
+}
+
+func (q *sizeQueue) Next() *remotecommand.TerminalSize {
+	s, ok := <-q.ch
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+func (q *sizeQueue) push(cols, rows uint) {
+	select {
+	case q.ch <- remotecommand.TerminalSize{Width: uint16(cols), Height: uint16(rows)}:
+	default:
+	}
 }

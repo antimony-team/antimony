@@ -60,7 +60,7 @@ type DeploymentProvider interface {
 		instanceName string,
 		containerId string,
 		cmd []string,
-	) (io.ReadWriteCloser, error)
+	) (ShellExecSession, error)
 
 	// DialNode opens a TCP connection to a port on the node's management interface.
 	DialNode(ctx context.Context, instanceName string, containerId string, port int) (net.Conn, error)
@@ -94,13 +94,23 @@ type DeploymentProvider interface {
 		containerId string,
 	) error
 
-	StreamContainerLogs(ctx context.Context, topologyFile string, containerID string, onLog func(data string)) error
+	StreamContainerLogs(
+		ctx context.Context,
+		instanceName string,
+		containerId string,
+		onLog func(data string),
+	) error
 
 	GetInterfaces(
 		ctx context.Context,
 		instanceName string,
 		containerId string,
 	) ([]NodeInterface, error)
+}
+
+type ShellExecSession interface {
+	io.ReadWriteCloser
+	Resize(cols uint, rows uint) error
 }
 
 var ErrNodeNotRunning = errors.New("node is not running")

@@ -46,15 +46,15 @@ type shellConfig struct {
 	owner            *auth.AuthenticatedUser
 	labId            string
 	node             string
-	connection       io.ReadWriteCloser
+	connection       deployment.ShellExecSession
 	connectionCancel context.CancelFunc
 	lastInteraction  int64
 	dataNamespace    *socket.IONamespace[string, byte]
 }
 
-type sshReadWriteCloser struct {
-	reader  io.Reader
-	writer  io.WriteCloser
+type sshSession struct {
+	io.Reader
+	io.Writer
 	session *ssh.Session
 	client  *ssh.Client
 }
@@ -242,8 +242,8 @@ func (s *Service) openNodeShell(
 	ctx context.Context,
 	node instance.InstanceNode,
 	instanceName string,
-) (io.ReadWriteCloser, error) {
-	var connection io.ReadWriteCloser
+) (deployment.ShellExecSession, error) {
+	var connection deployment.ShellExecSession
 	var err error
 
 	connection, err = s.openSshSession(instanceName, node.ContainerId, node.Kind)
@@ -270,7 +270,11 @@ func (s *Service) openNodeShell(
 	)
 }
 
-func (s *Service) openSshSession(instanceName string, containerId string, nodeKind string) (io.ReadWriteCloser, error) {
+func (s *Service) openSshSession(
+	instanceName string,
+	containerId string,
+	nodeKind string,
+) (deployment.ShellExecSession, error) {
 	authMethods := s.defaultSshAuth
 
 	sshUsername := "admin"
@@ -308,7 +312,7 @@ func (s *Service) openSshSession(instanceName string, containerId string, nodeKi
 		return nil, err
 	}
 
-	err = session.RequestPty("xterm", 25, 130, ssh.TerminalModes{
+	err = session.RequestPty("xterm", 25, 110, ssh.TerminalModes{
 		ssh.ECHO:          1,
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
@@ -340,9 +344,9 @@ func (s *Service) openSshSession(instanceName string, containerId string, nodeKi
 		return nil, err
 	}
 
-	return &sshReadWriteCloser{
-		reader:  stdout,
-		writer:  stdin,
+	return &sshSession{
+		Writer:  stdin,
+		Reader:  stdout,
 		session: session,
 		client:  client,
 	}, nil
@@ -413,7 +417,7 @@ func (s *Service) runShell(
 	ctx context.Context,
 	labId string,
 	nodeName string,
-	connection io.ReadWriteCloser,
+	connection deployment.ShellExecSession,
 	shellId string,
 	shellConfig *shellConfig,
 	dataNamespace *socket.IONamespace[string, byte],
@@ -481,10 +485,10 @@ func (s *Service) validateShellCommand(
 	return instanceNode, instanceLab.InstanceName, nil
 }
 
-func (s *sshReadWriteCloser) Read(p []byte) (int, error)  { return s.reader.Read(p) }
-func (s *sshReadWriteCloser) Write(p []byte) (int, error) { return s.writer.Write(p) }
-func (s *sshReadWriteCloser) Close() error {
-	_ = s.writer.Close()
+func (s *sshSession) Read(p []byte) (int, error)  { return s.Read(p) }
+func (s *sshSession) Write(p []byte) (int, error) { return s.Write(p) }
+func (s *sshSession) Close() error {
+	_ = s.Close()
 	_ = s.session.Close()
 	return s.client.Close()
 }
@@ -533,4 +537,8 @@ func getSshKeyAuth() []ssh.AuthMethod {
 	}
 
 	return signers
+}
+
+func (s *sshSession) Resize(cols uint, rows uint) error {
+	return s.session.WindowChange(int(rows), int(cols))
 }
