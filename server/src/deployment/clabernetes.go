@@ -168,13 +168,9 @@ func (p *ClabernetesProvider) Redeploy(
 	instanceName string,
 	onLog func(string),
 ) error {
-	fmt.Printf("Redeployment STEP 1: Deploy\n")
-
 	if err := p.Destroy(ctx, topologyFile, instanceName, onLog); err != nil {
 		return err
 	}
-
-	fmt.Printf("Redeployment STEP 2: Deploy\n")
 
 	// Kubectl's Apply is declarative, so we can just apply again
 	return p.Deploy(ctx, topologyFile, instanceName, onLog)

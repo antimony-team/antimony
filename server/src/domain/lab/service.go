@@ -140,8 +140,6 @@ func (s *Service) Create(ctx *gin.Context, req LabIn, authUser auth.Authenticate
 		TopologyDefinition: &topologyDefinition,
 	}
 
-	fmt.Printf("CREATING LAB RIGHT NOW\n\n\n")
-
 	var instanceName string
 	if instanceName, err = s.createLabEnvironment(lab); err != nil {
 		log.Error("Failed to create lab environment", "topology", "error", err.Error())
@@ -220,14 +218,10 @@ func (s *Service) Delete(ctx *gin.Context, labId string, authUser auth.Authentic
 		return utils.ErrNoWriteAccessToLab
 	}
 
-	fmt.Printf("DELETING LAB RIGHT NOW1: %+v\n\n\n", s.runtimeInfo)
-
 	// Don't allow the deletion of running labs
 	if s.runtimeInfo == nil || !s.runtimeInfo.CanDelete(lab.UUID) {
 		return utils.ErrLabRunning
 	}
-
-	fmt.Printf("DELETING LAB RIGHT NOW2\n\n\n")
 
 	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {
 		s.statusMessageNamespace.Send(*statusmessage.Warning(
@@ -237,9 +231,7 @@ func (s *Service) Delete(ctx *gin.Context, labId string, authUser auth.Authentic
 
 		return err
 	}
-
-	fmt.Printf("DELETING LAB RIGHT NOW3\n\n\n")
-
+	
 	// Publish that a lab has been deleted for the scheduler
 	s.labEventBus.Publish("lab.deleted", lab)
 
