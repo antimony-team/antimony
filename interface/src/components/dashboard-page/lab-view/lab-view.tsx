@@ -75,6 +75,8 @@ const LabView = observer((props: LabDialogProps) => {
   const topologyStore = useTopologyStore();
   const statusMessageStore = useStatusMessages();
 
+  const cyHasInitialized = useRef(false);
+
   const groupName = useMemo(() => {
     if (!props.lab) return;
 
@@ -373,6 +375,8 @@ const LabView = observer((props: LabDialogProps) => {
   }
 
   function initCytoscape(cy: cytoscape.Core) {
+    console.log('INIT CYTO');
+
     cy.minZoom(0.3);
     cy.maxZoom(10);
 
@@ -385,13 +389,17 @@ const LabView = observer((props: LabDialogProps) => {
 
     cy.nodes().lock();
 
-    cy.animate({
-      fit: {
-        padding: getFitPadding(cy),
-        eles: cy.elements(),
-      },
-      duration: 50,
-    });
+    if (!cyHasInitialized.current) {
+      cy.animate({
+        fit: {
+          padding: getFitPadding(cy),
+          eles: cy.elements(),
+        },
+        duration: 50,
+      });
+    }
+
+    cyHasInitialized.current = true;
   }
 
   function drawGridOverlay(event: cytoscape.EventObject) {
