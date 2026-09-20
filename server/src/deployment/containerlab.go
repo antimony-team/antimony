@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -59,10 +60,7 @@ func (p *ContainerlabProvider) Deploy(
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
-	// Log this directly without formatting
-	if output != nil {
-		onLog(*output)
-	}
+	sendClabOutput(output, onLog)
 
 	return err
 }
@@ -76,10 +74,7 @@ func (p *ContainerlabProvider) Redeploy(
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
-	// Log this directly without formatting
-	if output != nil {
-		onLog(*output)
-	}
+	sendClabOutput(output, onLog)
 
 	return err
 }
@@ -93,10 +88,7 @@ func (p *ContainerlabProvider) Destroy(
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
-	// Log this directly without formatting
-	if output != nil {
-		onLog(*output)
-	}
+	sendClabOutput(output, onLog)
 
 	return err
 }
@@ -436,6 +428,19 @@ func (t *dockerExecSession) Resize(cols uint, rows uint) error {
 		Width:  cols,
 		Height: rows,
 	})
+}
+
+// sendClabOutput sends the data from the containerlab stdout to the log
+// This function strips all ansi characters and splits the data into lines
+func sendClabOutput(output *string, onLog func(data string)) {
+	if output != nil {
+		lines := strings.Split(*output, "\n")
+		for _, line := range lines {
+			if line != "" {
+				onLog(serverlog.ReplaceAnsiCharacters(line))
+			}
+		}
+	}
 }
 
 func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
