@@ -11,7 +11,7 @@ import ConnectionErrorStatus from '@sb/components/connection-error/connection-er
  */
 const ConnectionErrorOverlay = (props: {visible: boolean}) => {
   return (
-    <SBOverlay visible={props.visible} fullscreen={true}>
+    <SBOverlay visible={props.visible} animation={true} fullscreen={true}>
       <ErrorScreen
         code="Network Error"
         message="Unable to connect to the Antimony server."

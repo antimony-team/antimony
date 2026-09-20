@@ -1,4 +1,4 @@
-import {action, autorun, computed, observable, ObservableMap} from 'mobx';
+import {action, computed, observable, ObservableMap, reaction} from 'mobx';
 
 import {
   DefaultFetchReport,
@@ -20,24 +20,47 @@ export abstract class DataStore<T, I, O> {
   protected abstract get resourcePath(): string;
   protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
 
-  constructor(rootStore: RootStore, autoFetch: boolean = true) {
+  protected disposers: (() => void)[] = [];
+
+  constructor(rootStore: RootStore, dependencies: DataStoreDependency[] = []) {
     this.rootStore = rootStore;
 
-    // If autofetch is set to true, automatically fetch data when the data binder is ready.
-    // Some stores like the topology store need additional store dependencies, so
-    // they have to wait until these dependency stores are ready before fetching.
-    if (autoFetch) {
-      autorun(() => {
-        if (rootStore._dataBinder.isReady) {
-          void this.fetch();
-        }
-      });
-    }
+    this.disposers.push(
+      // Fetch once the user is logged in and all dependencies have loaded
+      reaction(
+        () =>
+          rootStore._dataBinder.isLoggedIn &&
+          dependencies.every(d => d.fetchReport.state === FetchState.Done),
+        ready => {
+          if (ready) void this.fetch();
+        },
+        {fireImmediately: true},
+      ),
+      // Drop all data on logout
+      reaction(
+        () => rootStore._dataBinder.isLoggedIn,
+        isLoggedIn => {
+          if (!isLoggedIn) this.reset();
+        },
+      ),
+    );
+  }
+
+  @action
+  protected reset() {
+    this.data = [];
+    this.lookup = new ObservableMap();
+    this.fetchReport = DefaultFetchReport;
+  }
+
+  public dispose() {
+    this.disposers.forEach(dispose => dispose());
+    this.disposers = [];
   }
 
   @action
   public async fetch() {
-    if (!this.rootStore._dataBinder.isReady) {
+    if (!this.rootStore._dataBinder.isLoggedIn) {
       this.fetchReport = {state: FetchState.Pending};
       return;
     }
@@ -122,4 +145,8 @@ export abstract class DataStore<T, I, O> {
   protected get deleteParams() {
     return '';
   }
+}
+
+export interface DataStoreDependency {
+  readonly fetchReport: FetchReport;
 }

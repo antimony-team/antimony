@@ -1,5 +1,5 @@
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
-import {DataStore} from '@sb/lib/stores/data-store';
+import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 
 import {RootStore} from '@sb/lib/stores/root-store';
@@ -13,9 +13,9 @@ import {
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
-import {FetchState, uuid4, YAMLDocument} from '@sb/types/types';
+import {uuid4, YAMLDocument} from '@sb/types/types';
 import {validate} from 'jsonschema';
-import {action, autorun, observable, runInAction} from 'mobx';
+import {action, observable, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
 import {ArchiveUploadFile} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
@@ -37,18 +37,13 @@ export class TopologyStore extends DataStore<
     dataBinder: DataBinder,
     schemaStore: SchemaStore,
     deviceStore: DeviceStore,
+    dependencies: DataStoreDependency[] = [],
   ) {
-    super(rootStore, false);
+    super(rootStore, dependencies);
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
 
     this.manager = new TopologyManager(this, deviceStore);
-
-    autorun(() => {
-      if (rootStore._schemaStore.fetchReport.state === FetchState.Done) {
-        void this.fetch();
-      }
-    });
   }
 
   protected get resourcePath(): string {
@@ -278,6 +273,7 @@ export class TopologyStore extends DataStore<
   public parseTopologyDefinition(
     definitionString: string,
   ): YAMLDocument<TopologyDefinition> | null {
+    console.log('[SCHEMADEBUG] PARSE TOPOLOGYD EFINITION', new Error());
     const definition = parseDocument(definitionString, {
       keepSourceTokens: true,
     });

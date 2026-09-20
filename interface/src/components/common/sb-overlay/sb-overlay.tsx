@@ -10,7 +10,7 @@ import './sb-overlay.sass';
  * Has to be kept in sync with the transition duration of `.sb-animated-overlay`
  * in `sb-base.sass`.
  */
-const FADE_DURATION_MS = 140;
+const FADE_DURATION_MS = 200;
 
 interface SBOverlayProps {
   visible: boolean;
@@ -21,6 +21,8 @@ interface SBOverlayProps {
   // Whether the overlay should cover the whole screen.
   fullscreen?: boolean;
 
+  hideDelay?: number;
+
   children: ReactNode;
 }
 
@@ -29,21 +31,36 @@ interface SBOverlayProps {
  */
 const SBOverlay = (props: SBOverlayProps) => {
   const [isMounted, setMounted] = useState(props.visible);
+  const [visible, setVisible] = useState(props.visible);
 
   useEffect(() => {
     if (props.visible) {
       setMounted(true);
+      setVisible(true);
       return;
     }
 
-    const timeout = setTimeout(() => setMounted(false), FADE_DURATION_MS);
+    let timeout;
+
+    if (props.hideDelay) {
+      timeout = setTimeout(
+        () => setMounted(false),
+        FADE_DURATION_MS + props.hideDelay,
+      );
+      setTimeout(() => setVisible(false), props.hideDelay);
+    } else {
+      timeout = setTimeout(() => setMounted(false), FADE_DURATION_MS);
+
+      setVisible(false);
+    }
+
     return () => clearTimeout(timeout);
-  }, [props.visible]);
+  }, [props.visible, props.hideDelay]);
 
   return (
     <div
       className={classNames('sb-animated-overlay', props.className, {
-        visible: props.visible,
+        visible: visible,
         'fullscreen-surface': props.fullscreen,
       })}
     >

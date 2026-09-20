@@ -14,7 +14,7 @@ interface LoadingScreenProps {
 
 const LoadingScreen = (props: LoadingScreenProps) => {
   return (
-    <SBOverlay fullscreen={true} visible={props.visible}>
+    <SBOverlay hideDelay={500} fullscreen={true} visible={props.visible}>
       <div className="sb-loading-screen-panel">
         <span className="sb-loading-screen-title">Antimony Loading</span>
         <span className="sb-loading-screen-text">{props.message}</span>

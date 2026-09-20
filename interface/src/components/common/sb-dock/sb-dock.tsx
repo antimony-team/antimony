@@ -137,7 +137,7 @@ const SBDock = observer(() => {
             text
             size="large"
             icon="pi pi-sign-out"
-            onClick={() => dataBinder.logout()}
+            onClick={() => dataBinder.logout(true)}
             tooltip="Log Out"
             tooltipOptions={dockButtonTooltipOptions}
             aria-label="Log Out"
@@ -146,17 +146,19 @@ const SBDock = observer(() => {
         </If>
       </div>
 
-      <CreditsDialog
-        isOpen={isCreditsOpen}
-        onClose={() => setCreditsOpen(false)}
-      />
+      <If condition={dataBinder.isLoggedIn}>
+        <CreditsDialog
+          isOpen={isCreditsOpen}
+          onClose={() => setCreditsOpen(false)}
+        />
 
-      <CalendarDialog
-        isOpen={isCalendarOpen}
-        onClose={() => setCalendarOpen(false)}
-      />
+        <CalendarDialog
+          isOpen={isCalendarOpen}
+          onClose={() => setCalendarOpen(false)}
+        />
 
-      <StatusMessagePanel ref={overlayRef} />
+        <StatusMessagePanel ref={overlayRef} />
+      </If>
     </div>
   );
 });

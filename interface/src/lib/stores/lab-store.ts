@@ -4,7 +4,7 @@ import {
   Subscription,
 } from '@sb/lib/stores/data-binder/data-binder';
 
-import {DataStore} from '@sb/lib/stores/data-store';
+import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
@@ -55,8 +55,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     dataBinder: DataBinder,
     topologyStore: TopologyStore,
     statusMessageStore: StatusMessageStore,
+    dependencies: DataStoreDependency[] = [],
   ) {
-    super(rootStore);
+    super(rootStore, dependencies);
 
     this.dataBinder = dataBinder;
     this.topologyStore = topologyStore;
@@ -72,11 +73,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         () => this.fetch(),
       );
     }
-  }
-
-  public dispose() {
-    this.dataBinder.unsubscribeNamespace('lab-updates', this.onLabUpdate);
-    this.commandsSubscription = null;
   }
 
   protected get resourcePath(): string {
@@ -372,5 +368,12 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       ...input,
       nodeMap: new Map(input.nodes?.map(node => [node.name, node])),
     };
+  }
+
+  public override dispose() {
+    super.dispose();
+
+    this.dataBinder.unsubscribeNamespace('lab-updates', this.onLabUpdate);
+    this.commandsSubscription = null;
   }
 }

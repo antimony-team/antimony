@@ -498,16 +498,20 @@ export class DataBinder {
   }
 
   @action
-  public logout() {
+  public logout(reloadApp: boolean = false) {
     // Make sure logout is only executed once
     if (!this.isLoggedIn) return;
 
-    this.isLoggedIn = false;
-    this.hasSocketError = false;
-    this.hasAPIError = false;
-
     void fetchResource(this.apiUrl + '/users/logout', 'POST');
-    this.authUser = EMPTY_AUTH_USER;
+
+    if (reloadApp) {
+      window.location.reload();
+    } else {
+      this.isLoggedIn = false;
+      this.hasSocketError = false;
+      this.hasAPIError = false;
+      this.authUser = EMPTY_AUTH_USER;
+    }
   }
 
   /**
