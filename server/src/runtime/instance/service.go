@@ -373,11 +373,11 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	}
 
 	// We have to ensure that we cancel any pending deployment operations before destroying the instance
-	instance.DeploymentCancelMutex.Lock()
+	instance.DeploymentMutex.Lock()
 	if instance.DeploymentCancel != nil {
 		instance.DeploymentCancel()
 	}
-	instance.DeploymentCancelMutex.Unlock()
+	instance.DeploymentMutex.Unlock()
 
 	instance.OperationMutex.Lock()
 	defer instance.OperationMutex.Unlock()
@@ -391,7 +391,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		"instance", lab.InstanceName,
 	)
 
-	s.updateStateAndNotify(
+	s.updateLabAndSendUpdate(
 		lab, instance, InstanceStates.Stopping,
 		statusmessage.Info(
 			"Runtime", fmt.Sprintf("Destroying lab '%s'", lab.Name),
@@ -413,7 +413,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 			"err", err.Error(),
 		)
 
-		s.updateStateAndNotify(
+		s.updateLabAndSendUpdate(
 			lab, instance, InstanceStates.Failed,
 			statusmessage.Error(
 				"Runtime", fmt.Sprintf("Failed to destroy lab '%s': %s", lab.Name, err.Error()),
@@ -459,6 +459,33 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	instance, instanceRunning := s.instances[lab.UUID]
 
 	if !instanceRunning {
+		var runTopologyDefinition string
+		runTopologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &runTopologyDefinition)
+
+		if err != nil {
+			log.Error(
+				"Failed to get run environment for lab",
+				"name", lab.Name,
+				"id", lab.UUID,
+				"instance", lab.InstanceName,
+				"err", err.Error(),
+			)
+
+			s.sendLabUpdate(
+				lab, statusmessage.Error(
+					"Runtime", fmt.Sprintf("Failed to get environment for lab '%s'", lab.Name),
+					"Failed to get environment for lab. Please check Antimony logs for more details.",
+					"name", lab.Name, "id", lab.UUID,
+				),
+				nil,
+			)
+
+			s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
+
+			s.instancesMutex.Unlock()
+			return utils.ErrAntimony
+		}
+
 		logNamespace := socket.CreateOutputNamespace[string](
 			s.socketManager,
 			false,
@@ -472,33 +499,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			lab.UUID,
 		)
 
-		var runTopologyDefinition string
-		runTopologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &runTopologyDefinition)
-
-		if err != nil {
-			log.Error(
-				"Failed to get run environment for lab",
-				"name", lab.Name,
-				"id", lab.UUID,
-				"instance", lab.InstanceName,
-				"err", err.Error(),
-			)
-
-			s.updateNotify(
-				lab, statusmessage.Error(
-					"Runtime", fmt.Sprintf("Failed to get environment for lab '%s'", lab.Name),
-					"Failed to get environment for lab. Please check Antimony logs for more details.",
-					"name", lab.Name, "id", lab.UUID,
-				),
-			)
-
-			s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
-			logNamespace.Release()
-
-			s.instancesMutex.Unlock()
-			return utils.ErrAntimony
-		}
-
 		instance = s.createInstance(logNamespace, *runTopologyFile, runTopologyDefinition)
 
 		s.instances[lab.UUID] = instance
@@ -508,13 +508,13 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	instance.DeploymentCancelMutex.Lock()
+	instance.DeploymentMutex.Lock()
 	if instance.DeploymentCancel != nil {
 		instance.DeploymentCancel()
 	}
 	instance.DeploymentCtx = ctx
 	instance.DeploymentCancel = cancel
-	instance.DeploymentCancelMutex.Unlock()
+	instance.DeploymentMutex.Unlock()
 
 	instance.OperationMutex.Lock()
 	defer instance.OperationMutex.Unlock()
@@ -544,7 +544,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		}
 		instance.DataMutex.Unlock()
 
-		s.updateStateAndNotify(
+		s.updateLabAndSendUpdate(
 			lab, instance, InstanceStates.Deploying,
 			statusmessage.Info("Runtime",
 				fmt.Sprintf("Redeploying lab '%s'", lab.Name),
@@ -557,7 +557,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			instance.LogNamespace.Send(data)
 		})
 	} else {
-		s.updateStateAndNotify(
+		s.updateLabAndSendUpdate(
 			lab, instance, InstanceStates.Deploying,
 			statusmessage.Info("Runtime",
 				fmt.Sprintf("Deploying lab '%s'", lab.Name),
@@ -585,7 +585,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			"err", err.Error(),
 		)
 
-		s.updateStateAndNotify(
+		s.updateLabAndSendUpdate(
 			lab, instance, InstanceStates.Failed,
 			statusmessage.Error("Runtime",
 				fmt.Sprintf("Failed to deploy lab '%s': %s", lab.Name, err.Error()),
@@ -623,7 +623,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			"err", err.Error(),
 		)
 
-		s.updateStateAndNotify(lab, instance, InstanceStates.Failed,
+		s.updateLabAndSendUpdate(lab, instance, InstanceStates.Failed,
 			statusmessage.Warning("Runtime",
 				fmt.Sprintf("Failed to inspect lab '%s': %s", lab.Name, err.Error()),
 				"Inspection of lab failed", "name", lab.Name, "id", lab.UUID, "err", err.Error(),
@@ -655,9 +655,9 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			lab.UUID,
 			node.ContainerId,
 		)
-		logStreamingCtx := context.Background()
+
 		err = s.deploymentProvider.StreamContainerLogs(
-			logStreamingCtx,
+			ctx,
 			lab.InstanceName,
 			node.ContainerId,
 			func(data string) {
@@ -680,7 +680,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			)
 		}
 
-		fmt.Printf("STARTUPN LISTENER ACTIVE\n")
 		go s.startNodeStartupListener(ctx, node, instance, lab)
 	}
 
@@ -691,7 +690,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		"instance", lab.InstanceName,
 	)
 
-	s.updateStateAndNotify(lab, instance, InstanceStates.Running,
+	s.updateLabAndSendUpdate(lab, instance, InstanceStates.Running,
 		statusmessage.Success(
 			"Runtime", fmt.Sprintf("Successfully deployed lab '%s'", lab.Name),
 			"Deployment of lab was successful", "name", lab.Name, "id", lab.UUID,
@@ -729,8 +728,7 @@ func (s *Service) registerProviderEventListener() {
 
 		if targetLabId != "" {
 			s.updatesNamespace.Send(instanceUpdate{
-				LabId:    &targetLabId,
-				NewState: nil,
+				LabId: &targetLabId,
 			})
 		}
 	})
@@ -876,7 +874,7 @@ func (s *Service) onNodeStarted(
 
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(node.ContainerId, lab.InstanceName)
+	s.monitor.AddNode(ctx, node.ContainerId, lab.InstanceName)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
@@ -893,19 +891,19 @@ func (s *Service) createInstance(
 	runTopologyDefintionParsed, _ := s.schemaService.Parse(runTopologyDefinition)
 
 	return &Instance{
-		Deployed:              time.Now(),
-		LatestStateChange:     time.Now(),
-		State:                 InstanceStates.Deploying,
-		Recovered:             false,
-		OperationMutex:        sync.Mutex{},
-		DataMutex:             sync.Mutex{},
-		DeploymentCancel:      nil,
-		DeploymentCancelMutex: sync.Mutex{},
-		LogNamespace:          logNamespace,
-		TopologyFile:          runTopologyFile,
-		NodeKinds:             s.extractNodeKinds(*runTopologyDefintionParsed),
-		NodeLabels:            s.extractNodeLabels(*runTopologyDefintionParsed),
-		IsDestroyed:           false,
+		Deployed:          time.Now(),
+		LatestStateChange: time.Now(),
+		State:             InstanceStates.Deploying,
+		Recovered:         false,
+		OperationMutex:    sync.Mutex{},
+		DataMutex:         sync.Mutex{},
+		DeploymentCancel:  nil,
+		DeploymentMutex:   sync.Mutex{},
+		LogNamespace:      logNamespace,
+		TopologyFile:      runTopologyFile,
+		NodeKinds:         s.extractNodeKinds(*runTopologyDefintionParsed),
+		NodeLabels:        s.extractNodeLabels(*runTopologyDefintionParsed),
+		IsDestroyed:       false,
 	}
 }
 
@@ -1082,20 +1080,10 @@ func (s *Service) containerToInstanceNode(
 	}
 }
 
-func (s *Service) updateNotify(lab *lab.Lab, message *statusmessage.Message) {
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &lab.UUID,
-	})
-
-	if message != nil {
-		s.statusMessageNamespace.Send(*message)
-	}
-}
-
-// updateStateAndNotify Updates the state of a lab and sends various notification updates.
+// updateLabAndSendUpdate Updates the state of a lab and sends various notification updates.
 // If the status message is set, all users will receive the status message.
 // If the serverlog namespace is set, the serverlog content of the status message is also sent to the provided namespace.
-func (s *Service) updateStateAndNotify(
+func (s *Service) updateLabAndSendUpdate(
 	lab *lab.Lab,
 	instance *Instance,
 	state InstanceState,
@@ -1107,9 +1095,16 @@ func (s *Service) updateStateAndNotify(
 	instance.LatestStateChange = time.Now()
 	instance.DataMutex.Unlock()
 
+	s.sendLabUpdate(lab, statusMessage, logNamespace)
+}
+
+func (s *Service) sendLabUpdate(
+	lab *lab.Lab,
+	statusMessage *statusmessage.Message,
+	logNamespace *socket.OutputNamespace[string],
+) {
 	s.updatesNamespace.Send(instanceUpdate{
-		LabId:    &lab.UUID,
-		NewState: &state,
+		LabId: &lab.UUID,
 	})
 
 	if statusMessage != nil {
@@ -1210,19 +1205,19 @@ func (s *Service) reviveInstances() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		instance := &Instance{
-			State:                 InstanceStates.Running,
-			Nodes:                 instanceNodes,
-			Deployed:              time.Now(),
-			LatestStateChange:     time.Now(),
-			Recovered:             true,
-			TopologyFile:          s.storageManager.GetRunTopologyFile(savedLab.UUID),
-			LogNamespace:          logNamespace,
-			NodeLabels:            nodeLabels,
-			NodeKinds:             nodeKinds,
-			DeploymentCtx:         ctx,
-			DeploymentCancel:      cancel,
-			DeploymentCancelMutex: sync.Mutex{},
-			IsDestroyed:           false,
+			State:             InstanceStates.Running,
+			Nodes:             instanceNodes,
+			Deployed:          time.Now(),
+			LatestStateChange: time.Now(),
+			Recovered:         true,
+			TopologyFile:      s.storageManager.GetRunTopologyFile(savedLab.UUID),
+			LogNamespace:      logNamespace,
+			NodeLabels:        nodeLabels,
+			NodeKinds:         nodeKinds,
+			DeploymentCtx:     ctx,
+			DeploymentCancel:  cancel,
+			DeploymentMutex:   sync.Mutex{},
+			IsDestroyed:       false,
 		}
 
 		for i := range instanceNodes {

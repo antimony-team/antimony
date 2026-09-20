@@ -37,8 +37,9 @@ type NodeInterfaceStats struct {
 }
 
 type monitoredNode struct {
-	instanceName string
-	namespace    *socket.OutputNamespace[NodeStats]
+	instanceName          string
+	namespace             *socket.OutputNamespace[NodeStats]
+	instanceDeploymentCtx context.Context
 }
 
 func CreateMonitor(
@@ -55,8 +56,6 @@ func CreateMonitor(
 }
 
 func (m *Monitor) Run() {
-	ctx := context.Background()
-
 	for {
 		// Duplicate the list so we don't have to keep the mutex locked until every node stat is sent
 		m.monitoredNodesMutex.Lock()
@@ -64,12 +63,21 @@ func (m *Monitor) Run() {
 		m.monitoredNodesMutex.Unlock()
 
 		for containerId, node := range monitoredNodes {
-			stats, err := m.deploymentProvider.ReadNodeStats(ctx, node.instanceName, containerId)
+			stats, err := m.deploymentProvider.ReadNodeStats(node.instanceDeploymentCtx, node.instanceName, containerId)
 			if err != nil {
-				log.Warn("[Monitor] Error reading node stats", "containerId", containerId, "error", err)
-
 				// Node is not running or is no longer available, remove from monitor list
 				m.RemoveNode(containerId)
+
+				// Ignore the error if the context was canceled and the node instance's deployment was aborted
+				if node.instanceDeploymentCtx.Err() == nil {
+					log.Warn(
+						"[Monitor] Failed to read node stats",
+						"instanceName", node.instanceName,
+						"containerId", containerId,
+						"error", err,
+					)
+				}
+
 				continue
 			}
 
@@ -94,7 +102,7 @@ func (m *Monitor) Run() {
 	}
 }
 
-func (m *Monitor) AddNode(containerId string, instanceName string) {
+func (m *Monitor) AddNode(ctx context.Context, containerId string, instanceName string) {
 	m.monitoredNodesMutex.Lock()
 	if node, ok := m.monitoredNodes[containerId]; ok {
 		node.namespace.ClearBacklog()
@@ -113,8 +121,9 @@ func (m *Monitor) AddNode(containerId string, instanceName string) {
 		)
 
 		m.monitoredNodes[containerId] = monitoredNode{
-			instanceName: instanceName,
-			namespace:    namespace,
+			instanceDeploymentCtx: ctx,
+			instanceName:          instanceName,
+			namespace:             namespace,
 		}
 	}
 	m.monitoredNodesMutex.Unlock()

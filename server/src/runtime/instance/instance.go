@@ -23,10 +23,12 @@ type Instance struct {
 	// OperationMutex The mutex that serializes deployment operations (deploy, destroy, node commands)
 	OperationMutex sync.Mutex
 
-	// Deployment fields that hold the context of the current deployment
-	DeploymentCtx         context.Context
-	DeploymentCancel      context.CancelFunc
-	DeploymentCancelMutex sync.Mutex
+	// DeploymentCtx holds the context of the current deployment. All runtime instance functions,
+	// such as startup listeners and log streamers, are tied to its lifecycle. Canceling the
+	// context will terminate all current operations and release the OperationMutex.
+	DeploymentCtx    context.Context
+	DeploymentCancel context.CancelFunc
+	DeploymentMutex  sync.Mutex
 
 	// IsDestroyed Whether the instance has been destroyed
 	IsDestroyed bool
@@ -39,8 +41,8 @@ type Instance struct {
 }
 
 func (i *Instance) deploymentContext() context.Context {
-	i.DeploymentCancelMutex.Lock()
-	defer i.DeploymentCancelMutex.Unlock()
+	i.DeploymentMutex.Lock()
+	defer i.DeploymentMutex.Unlock()
 
 	return i.DeploymentCtx
 }
@@ -97,6 +99,5 @@ type NodeKindConfig struct {
 }
 
 type instanceUpdate struct {
-	LabId    *string        `json:"labId"`
-	NewState *InstanceState `json:"newState"`
+	LabId *string `json:"labId"`
 }
