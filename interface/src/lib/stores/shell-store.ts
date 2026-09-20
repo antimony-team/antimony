@@ -90,6 +90,26 @@ export class ShellStore {
     }
   }
 
+  @action
+  public clearExpiredShells() {
+    const shellsToRemove = new Set<string>();
+
+    for (const [labId, shells] of this.openShells) {
+      for (const shell of shells) {
+        if (shell.expired) {
+          shellsToRemove.add(shell.id);
+        }
+      }
+
+      this.openShells.set(
+        labId,
+        this.openShells
+          .get(labId)!
+          .filter(shell => !shellsToRemove.has(shell.id)),
+      );
+    }
+  }
+
   public async fetchShellsForLab(lab: Lab) {
     if (!lab.instance) return;
 

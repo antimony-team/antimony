@@ -125,6 +125,8 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   async function onOpen() {
     if (!props.dialogState.state) return;
 
+    shellStore.clearExpiredShells();
+
     if (terminalContainerRef.current) {
       if (termRef.current) {
         termRef.current.dispose();
