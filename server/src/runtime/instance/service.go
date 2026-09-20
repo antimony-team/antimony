@@ -391,6 +391,14 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		"instance", lab.InstanceName,
 	)
 
+	// Manually set node states to exited to mark the nodes no longer running
+	instance.DataMutex.Lock()
+	for _, node := range instance.Nodes {
+		node.State = deployment.NodeStates.Exited
+		node.Interfaces = make([]deployment.NodeInterface, 0)
+	}
+	instance.DataMutex.Unlock()
+
 	s.updateLabAndSendUpdate(
 		lab, instance, InstanceStates.Stopping,
 		statusmessage.Info(
@@ -533,9 +541,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	var err error
 
-	// Redeploy instead of deploy if instance already existed
 	if instanceRunning {
-		// Manually set node startes to starting to mark the nodes not running
+		// Manually set node states to starting to mark the nodes not running
 		// The actual state and interfaces will be updated once the instance is redeployed
 		instance.DataMutex.Lock()
 		for _, node := range instance.Nodes {
@@ -553,6 +560,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			instance.LogNamespace,
 		)
 
+		// Redeploy instead of deploy if instance already existed
 		err = s.deploymentProvider.Redeploy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 			instance.LogNamespace.Send(data)
 		})
