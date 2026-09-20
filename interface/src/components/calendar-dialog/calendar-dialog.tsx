@@ -2,8 +2,11 @@ import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import {useCalendarLabStore} from '@sb/lib/stores/root-store';
-import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
+import {
+  DialogAction,
+  useDialogState,
+  useScopedLabStore,
+} from '@sb/lib/utils/hooks';
 
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
@@ -23,12 +26,39 @@ interface CalendarDialogProps {
 }
 
 const CalendarDialog = observer((props: CalendarDialogProps) => {
+  const labEditDialogState = useDialogState<LabEditDialogState>(null);
+
+  function onLabClick(lab: Lab) {
+    labEditDialogState.openWith({
+      editingLab: lab!,
+      topologyId: lab!.topologyId,
+      action: DialogAction.Edit,
+    });
+  }
+
+  return (
+    <SBDialog
+      className="calender-dialog"
+      headerTitle="Lab Schedule"
+      isOpen={props.isOpen}
+      onClose={props.onClose}
+      hideButtons={true}
+    >
+      <CalendarDialogContent onLabClick={onLabClick} />
+      <LabEditDialog dialogState={labEditDialogState} />
+    </SBDialog>
+  );
+});
+
+interface CalendarDialogContentProps {
+  onLabClick: (lab: Lab) => void;
+}
+
+const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
   const [currentView, setCurrentView] = useState<View>('month');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
 
-  const labEditDialogState = useDialogState<LabEditDialogState>(null);
-
-  const calendarLabStore = useCalendarLabStore();
+  const labStore = useScopedLabStore();
 
   function CustomEvent({event}: CustomEventProps) {
     return (
@@ -47,7 +77,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
 
   const events = useMemo(
     () =>
-      calendarLabStore.data
+      labStore.data
         .filter(lab => lab.endTime !== null)
         .map(lab => ({
           title: lab.name,
@@ -56,16 +86,16 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
           start: new Date(lab.startTime),
           end: new Date(lab.endTime!),
         })),
-    [calendarLabStore.data],
+    [labStore.data],
   );
 
   useEffect(() => {
-    calendarLabStore.setDates(
+    labStore.setDates(
       moment(currentDate).startOf('month').toISOString(),
       moment(currentDate).endOf('month').toISOString(),
     );
-    calendarLabStore.setLimit(1000);
-    calendarLabStore.setStateFilter([
+    labStore.setLimit(1000);
+    labStore.setStateFilter([
       InstanceState.Deploying,
       InstanceState.Inactive,
       InstanceState.Failed,
@@ -77,28 +107,21 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
 
   function onRangeChange(range: Date[] | {start: Date; end: Date}) {
     if (Array.isArray(range)) {
-      calendarLabStore.setDates(
+      labStore.setDates(
         range[0].toISOString(),
         range[range.length - 1].toISOString(),
       );
     } else {
-      calendarLabStore.setDates(
-        range.start.toISOString(),
-        range.end.toISOString(),
-      );
+      labStore.setDates(range.start.toISOString(), range.end.toISOString());
     }
   }
 
   function onEventSelect(event: CalendarEvent) {
     if (event.state === InstanceState.Scheduled) {
-      const lab: Lab | undefined = calendarLabStore.data.find(
+      const lab: Lab | undefined = labStore.data.find(
         lab => lab.id === event.id,
       );
-      labEditDialogState.openWith({
-        editingLab: lab!,
-        topologyId: lab!.topologyId,
-        action: DialogAction.Edit,
-      });
+      props.onLabClick(lab!);
     } else {
       return;
     }
@@ -117,45 +140,36 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
   }
 
   return (
-    <SBDialog
-      className="calender-dialog"
-      headerTitle="Lab Schedule"
-      isOpen={props.isOpen}
-      onClose={props.onClose}
-      hideButtons={true}
-    >
-      <div className="calendar-container">
-        <Calendar
-          popup
-          localizer={localizer}
-          events={events}
-          startAccessor="start"
-          endAccessor="end"
-          view={currentView}
-          defaultView="month"
-          views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
-          toolbar={true}
-          date={currentDate}
-          onView={view => setCurrentView(view)}
-          onNavigate={date => setCurrentDate(date)}
-          eventPropGetter={eventStyleGenerator}
-          onRangeChange={onRangeChange}
-          onSelectEvent={onEventSelect}
-          onDrillDown={date => {
-            setCurrentView('week');
-            setCurrentDate(date);
-          }}
-          onShowMore={events => {
-            setCurrentDate(events[0].start);
-            setCurrentView('week');
-          }}
-          components={{
-            event: CustomEvent,
-          }}
-        />
-      </div>
-      <LabEditDialog dialogState={labEditDialogState} />
-    </SBDialog>
+    <div className="calendar-container">
+      <Calendar
+        popup
+        localizer={localizer}
+        events={events}
+        startAccessor="start"
+        endAccessor="end"
+        view={currentView}
+        defaultView="month"
+        views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
+        toolbar={true}
+        date={currentDate}
+        onView={view => setCurrentView(view)}
+        onNavigate={date => setCurrentDate(date)}
+        eventPropGetter={eventStyleGenerator}
+        onRangeChange={onRangeChange}
+        onSelectEvent={onEventSelect}
+        onDrillDown={date => {
+          setCurrentView('week');
+          setCurrentDate(date);
+        }}
+        onShowMore={events => {
+          setCurrentDate(events[0].start);
+          setCurrentView('week');
+        }}
+        components={{
+          event: CustomEvent,
+        }}
+      />
+    </div>
   );
 });
 

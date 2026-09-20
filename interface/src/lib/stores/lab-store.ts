@@ -44,7 +44,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor startDate: string | null = null;
   @observable accessor endDate: string | null = null;
 
-  private readonly commandsSubscription: Subscription;
+  private commandsSubscription: Subscription | null = null;
 
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
@@ -68,8 +68,15 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       'lab-updates',
       this.onLabUpdate.bind(this),
     );
+  }
 
+  public init() {
     this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
+  }
+
+  public dispose() {
+    this.dataBinder.unsubscribeNamespace('lab-updates', this.onLabUpdate);
+    this.commandsSubscription = null;
   }
 
   protected get resourcePath(): string {
@@ -84,8 +91,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
     if (response.isOk()) {
       const updatedLab = this.parseLab(response.data.payload);
-
-      console.log('UPDATE MAP GFROM SINGLE');
 
       runInAction(() => {
         this.data = [
@@ -119,6 +124,12 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   private async sendRuntimeCommand(
     command: RuntimeCommandPayload,
   ): Promise<Result<null>> {
+    if (!this.commandsSubscription) {
+      return Result.createErr(
+        'Lab store has not initialized its commands subscription.',
+      );
+    }
+
     const response = await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify(command),
@@ -231,7 +242,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   @action
   protected handleUpdate(response: DataResponse<LabOut[]>): void {
-    console.log('HANDFLE UPDATE');
     this.data = this.parseLabs(response.payload);
     this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
 
@@ -241,15 +251,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   private onLabUpdate(data: DataResponse<LabUpdateOut>) {
-    console.log(
-      'FETCH FROM U{DATE:',
-      data.payload,
-      'has:',
-      this.lookup.has(data.payload.labId),
-      'map:',
-      this.lookup,
-    );
-
     if (data.payload.labId && this.lookup.has(data.payload.labId)) {
       if (data.payload.newState !== null) {
         const lab = this.lookup.get(data.payload.labId);

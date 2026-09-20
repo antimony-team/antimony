@@ -19,7 +19,6 @@ export class RootStore {
   _serverConfigStore: ServerConfigStore;
   _topologyStore: TopologyStore;
   _labStore: LabStore;
-  _calendarLabStore: LabStore;
   _deviceStore: DeviceStore;
   _collectionStore: CollectionStore;
   _schemaStore: SchemaStore;
@@ -54,18 +53,15 @@ export class RootStore {
       this._schemaStore,
       this._deviceStore,
     );
+
     this._labStore = new LabStore(
       this,
       this._dataBinder,
       this._topologyStore,
       this._statusMessagesStore,
     );
-    this._calendarLabStore = new LabStore(
-      this,
-      this._dataBinder,
-      this._topologyStore,
-      this._statusMessagesStore,
-    );
+    this._labStore.init();
+
     this._shellStore = new ShellStore(
       this._dataBinder,
       this._statusMessagesStore,
@@ -111,6 +107,15 @@ export class RootStore {
       this._schemaStore.fetchReport.state,
     );
   }
+
+  public createLabStore(): LabStore {
+    return new LabStore(
+      this,
+      this._dataBinder,
+      this._topologyStore,
+      this._statusMessagesStore,
+    );
+  }
 }
 
 export const rootStore = new RootStore();
@@ -138,10 +143,6 @@ export const useTopologyStore = () => {
 
 export const useLabStore = () => {
   return useContext(RootStoreContext)._labStore;
-};
-
-export const useCalendarLabStore = () => {
-  return useContext(RootStoreContext)._calendarLabStore;
 };
 
 export const useDeviceStore = () => {

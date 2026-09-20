@@ -7,6 +7,7 @@ import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 import {uuid4} from '@sb/types/types';
 import {Terminal} from '@xterm/xterm';
+import {FitAddon} from '@xterm/addon-fit';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -50,6 +51,8 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   const [currentTabs, setCurrentTabs] = useState<TerminalTab[]>([]);
 
   const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const newTabOverlay = useRef<OverlayPanel>(null);
   const newTabAnchor = useRef<TabPanel>(null);
@@ -126,11 +129,18 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       if (termRef.current) {
         termRef.current.dispose();
       }
+      if (fitRef.current) {
+        fitRef.current.dispose();
+      }
       termRef.current = new Terminal({
         fontFamily: 'Iosevka, monospace',
         rows: 25,
-        cols: 130,
+        cols: 110,
       });
+
+      fitRef.current = new FitAddon();
+      termRef.current.loadAddon(fitRef.current);
+
       termRef.current.open(terminalContainerRef.current);
 
       termRef.current.onData((data: string) => {
@@ -317,6 +327,16 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     (expiredCloseButtonRef.current as unknown as HTMLButtonElement).focus();
   }, [isExpired]);
 
+  function onResizeEnd() {
+    console.log(
+      'FIT cols:',
+      termRef.current!.cols,
+      'rows:',
+      termRef.current!.rows,
+    );
+    fitRef.current!.fit();
+  }
+
   return (
     <SBDialog
       onClose={onClose}
@@ -325,9 +345,10 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       className="sb-terminal-dialog"
       hideButtons={true}
       draggable={true}
-      resizeable={false}
+      resizeable={true}
       disableModal={true}
       onShow={onOpen}
+      onResizeEnd={onResizeEnd}
       headerIcon={<span className="material-symbols-outlined">terminal</span>}
     >
       <TabView activeIndex={tabIndex} onTabChange={onTabSwitch} scrollable>

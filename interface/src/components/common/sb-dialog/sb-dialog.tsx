@@ -34,6 +34,7 @@ interface SBDialogProps {
   onShow?: () => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  onResizeEnd?: () => void;
 }
 
 const SBDialog = (props: SBDialogProps) => {
@@ -50,6 +51,7 @@ const SBDialog = (props: SBDialogProps) => {
       onDragStart={props.onDragStart}
       onDragEnd={props.onDragEnd}
       keepInViewport={false}
+      onResizeEnd={props.onResizeEnd}
       header={
         <div className="sb-dialog-header">
           <div className="sb-dialog-header-title">

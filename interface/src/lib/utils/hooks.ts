@@ -1,5 +1,6 @@
 import {action, observable} from 'mobx';
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
+import {useRootStore} from '@sb/lib/stores/root-store';
 
 export enum DialogAction {
   Add,
@@ -59,3 +60,15 @@ export function usePromiseWithResolvers() {
   }
   return ref.current;
 }
+
+export const useScopedLabStore = () => {
+  const root = useRootStore();
+  const [store] = useState(() => root.createLabStore());
+
+  useEffect(() => {
+    store.init();
+    return () => store.dispose();
+  }, [store]);
+
+  return store;
+};
