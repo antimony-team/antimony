@@ -2,6 +2,7 @@ package transport
 
 import (
 	"antimonyBackend/runtime/instance"
+	"slices"
 	"time"
 )
 
@@ -14,13 +15,23 @@ type InstanceOut struct {
 	IsRecovered       bool                     `json:"isRecovered"`
 }
 
-func InstanceToOut(instance *instance.Instance, instanceName string) *InstanceOut {
+func InstanceToOut(inst *instance.Instance, instanceName string) *InstanceOut {
+	inst.DataMutex.Lock()
+	defer inst.DataMutex.Unlock()
+
+	nodes := make([]*instance.InstanceNode, len(inst.Nodes))
+	for i, node := range inst.Nodes {
+		nodeCopy := *node
+		nodeCopy.Interfaces = slices.Clone(node.Interfaces)
+		nodes[i] = &nodeCopy
+	}
+
 	return &InstanceOut{
 		Name:              instanceName,
-		Deployed:          instance.Deployed,
-		State:             instance.State,
-		LatestStateChange: instance.LatestStateChange,
-		Nodes:             instance.Nodes,
-		IsRecovered:       instance.Recovered,
+		Deployed:          inst.Deployed,
+		State:             inst.State,
+		LatestStateChange: inst.LatestStateChange,
+		Nodes:             nodes,
+		IsRecovered:       inst.Recovered,
 	}
 }

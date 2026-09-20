@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -164,8 +165,11 @@ func (s *Service) StartNodeCommand(
 		return err
 	}
 
-	instance.Mutex.Lock()
-	defer instance.Mutex.Unlock()
+	// Don't wait to acquire mutex, just abort immediately if lab is busy
+	if !instance.OperationMutex.TryLock() {
+		return fmt.Errorf("lab is busy, try again once the current operation has finished")
+	}
+	defer instance.OperationMutex.Unlock()
 
 	node := getInstanceNode(instance, *nodeName)
 
@@ -175,22 +179,33 @@ func (s *Service) StartNodeCommand(
 		return fmt.Errorf("unable to manually start nodes of kind '%s'", node.Kind)
 	}
 
-	switch node.State {
+	instance.DataMutex.Lock()
+	nodeState := node.State
+	instance.DataMutex.Unlock()
+
+	switch nodeState {
 	case deployment.NodeStates.Starting:
 		return fmt.Errorf("node is already starting")
 	case deployment.NodeStates.Running:
 		return fmt.Errorf("node is already running")
 	}
 
-	if err := s.deploymentProvider.StartNode(ctx, instanceLab.InstanceName, node.ContainerId); err != nil {
+	deploymentContext := instance.deploymentContext()
+
+	err = s.deploymentProvider.StartNode(deploymentContext, instanceLab.InstanceName, node.ContainerId)
+	if err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNode(ctx, instance, instanceLab.InstanceName, node, true); err != nil {
+	if err := s.updateInstanceNode(deploymentContext, instance, instanceLab.InstanceName, node, true); err != nil {
 		return err
 	}
 
-	go s.startNodeStartupListener(node, instance, instanceLab)
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: &labId,
+	})
+
+	go s.startNodeStartupListener(deploymentContext, node, instance, instanceLab)
 
 	return nil
 }
@@ -206,8 +221,11 @@ func (s *Service) StopNodeCommand(
 		return err
 	}
 
-	instance.Mutex.Lock()
-	defer instance.Mutex.Unlock()
+	// Don't wait to acquire mutex, just abort immediately if lab is busy
+	if !instance.OperationMutex.TryLock() {
+		return fmt.Errorf("lab is busy, try again once the current operation has finished")
+	}
+	defer instance.OperationMutex.Unlock()
 
 	node := getInstanceNode(instance, *nodeName)
 
@@ -217,15 +235,22 @@ func (s *Service) StopNodeCommand(
 		return fmt.Errorf("unable to manually stop nodes of kind '%s'", node.Kind)
 	}
 
-	if node.State == deployment.NodeStates.Exited {
+	instance.DataMutex.Lock()
+	nodeState := node.State
+	instance.DataMutex.Unlock()
+
+	if nodeState == deployment.NodeStates.Exited {
 		return fmt.Errorf("node is already stopped")
 	}
 
-	if err := s.deploymentProvider.StopNode(ctx, instanceLab.InstanceName, node.ContainerId); err != nil {
+	deploymentContext := instance.deploymentContext()
+
+	err = s.deploymentProvider.StopNode(deploymentContext, instanceLab.InstanceName, node.ContainerId)
+	if err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNode(ctx, instance, instanceLab.InstanceName, node, true); err != nil {
+	if err := s.updateInstanceNode(deploymentContext, instance, instanceLab.InstanceName, node, true); err != nil {
 		return err
 	}
 
@@ -247,8 +272,11 @@ func (s *Service) RestartNodeCommand(
 		return err
 	}
 
-	instance.Mutex.Lock()
-	defer instance.Mutex.Unlock()
+	// Don't wait to acquire mutex, just abort immediately if lab is busy
+	if !instance.OperationMutex.TryLock() {
+		return fmt.Errorf("lab is busy, try again once the current operation has finished")
+	}
+	defer instance.OperationMutex.Unlock()
 
 	node := getInstanceNode(instance, *nodeName)
 
@@ -258,15 +286,22 @@ func (s *Service) RestartNodeCommand(
 		return fmt.Errorf("unable to manually restart nodes of kind '%s'", node.Kind)
 	}
 
-	if err := s.deploymentProvider.RestartNode(ctx, instanceLab.InstanceName, node.ContainerId); err != nil {
+	deploymentContext := instance.deploymentContext()
+
+	err = s.deploymentProvider.RestartNode(deploymentContext, instanceLab.InstanceName, node.ContainerId)
+	if err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNode(ctx, instance, instanceLab.InstanceName, node, true); err != nil {
+	if err := s.updateInstanceNode(deploymentContext, instance, instanceLab.InstanceName, node, true); err != nil {
 		return err
 	}
 
-	go s.startNodeStartupListener(node, instance, instanceLab)
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: &labId,
+	})
+
+	go s.startNodeStartupListener(deploymentContext, node, instance, instanceLab)
 
 	return nil
 }
@@ -309,11 +344,11 @@ func (s *Service) validateNodeCommand(
 		return nil, nil, utils.ErrNoDestroyAccessToLab
 	}
 
-	// Don't allow destroying non-running labs
 	s.instancesMutex.Lock()
 	instance, hasInstance := s.instances[instanceLab.UUID]
 	s.instancesMutex.Unlock()
 
+	// Don't allow destroying non-running labs
 	if !hasInstance {
 		return nil, nil, utils.ErrLabNotRunning
 	}
@@ -344,8 +379,8 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	}
 	instance.DeploymentCancelMutex.Unlock()
 
-	instance.Mutex.Lock()
-	defer instance.Mutex.Unlock()
+	instance.OperationMutex.Lock()
+	defer instance.OperationMutex.Unlock()
 
 	ctx := context.Background()
 
@@ -378,16 +413,23 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 			"err", err.Error(),
 		)
 
-		s.statusMessageNamespace.Send(*statusmessage.Error(
-			"Runtime", fmt.Sprintf("Failed to destroy lab '%s': %s", lab.Name, err.Error()),
-			"Destruction of lab failed", "name", lab.Name, "id", lab.UUID, "err", err.Error(),
-		))
+		s.updateStateAndNotify(
+			lab, instance, InstanceStates.Failed,
+			statusmessage.Error(
+				"Runtime", fmt.Sprintf("Failed to destroy lab '%s': %s", lab.Name, err.Error()),
+				"Destruction of lab failed", "name", lab.Name, "id", lab.UUID, "err", err.Error(),
+			),
+			instance.LogNamespace,
+		)
 
 		return utils.ErrContainerlab
 	}
 
-	instance.LogNamespace.Release()
+	instance.DataMutex.Lock()
 	instance.IsDestroyed = true
+	instance.DataMutex.Unlock()
+
+	instance.LogNamespace.Release()
 
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
@@ -451,6 +493,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			)
 
 			s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
+			logNamespace.Release()
 
 			s.instancesMutex.Unlock()
 			return utils.ErrAntimony
@@ -464,20 +507,20 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	s.instancesMutex.Unlock()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	instance.DeploymentCancelMutex.Lock()
 	if instance.DeploymentCancel != nil {
 		instance.DeploymentCancel()
 	}
+	instance.DeploymentCtx = ctx
 	instance.DeploymentCancel = cancel
 	instance.DeploymentCancelMutex.Unlock()
 
-	instance.Mutex.Lock()
-	defer instance.Mutex.Unlock()
+	instance.OperationMutex.Lock()
+	defer instance.OperationMutex.Unlock()
 
 	// If the instance has been destroyed in the meantime, ignore deploy command
-	if instance.IsDestroyed {
+	if ctx.Err() != nil || instance.IsDestroyed {
 		return nil
 	}
 
@@ -492,6 +535,15 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	// Redeploy instead of deploy if instance already existed
 	if instanceRunning {
+		// Manually set node startes to starting to mark the nodes not running
+		// The actual state and interfaces will be updated once the instance is redeployed
+		instance.DataMutex.Lock()
+		for _, node := range instance.Nodes {
+			node.State = deployment.NodeStates.Starting
+			node.Interfaces = make([]deployment.NodeInterface, 0)
+		}
+		instance.DataMutex.Unlock()
+
 		s.updateStateAndNotify(
 			lab, instance, InstanceStates.Deploying,
 			statusmessage.Info("Runtime",
@@ -520,6 +572,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	}
 
 	if err != nil {
+		// Ignore the error if the context was canceled and the deployment was aborted
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -548,19 +601,19 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	//utils.FormatClabLog(instance.LogNamespace.Send)(*output)
 
 	// Fetch and attach lab inspect info and change state to running if successful
-	instance.Nodes, err = s.getNodesFromInspect(ctx, instance, lab.InstanceName, func(data string) {
+	instanceNodes, err := s.getNodesFromInspect(ctx, instance, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
 
-	fmt.Printf("Instance after nodes: %v\n", instance.Nodes)
-
-	instance.Recovered = false
-	instance.Deployed = time.Now()
-
 	if err != nil {
+		// Ignore the error if the context was canceled and the deployment was aborted
 		if ctx.Err() != nil {
 			return nil
 		}
+
+		instance.DataMutex.Lock()
+		instance.Nodes = make([]*InstanceNode, 0)
+		instance.DataMutex.Unlock()
 
 		log.Warn(
 			"[Runtime] Inspection of lab failed",
@@ -582,7 +635,13 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		return utils.ErrContainerlab
 	}
 
-	for _, node := range instance.Nodes {
+	instance.DataMutex.Lock()
+	instance.Nodes = instanceNodes
+	instance.Recovered = false
+	instance.Deployed = time.Now()
+	instance.DataMutex.Unlock()
+
+	for _, node := range instanceNodes {
 		containerLogNamespace := socket.CreateOutputNamespace[string](
 			s.socketManager,
 			false,
@@ -622,7 +681,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		}
 
 		fmt.Printf("STARTUPN LISTENER ACTIVE\n")
-		go s.startNodeStartupListener(node, instance, lab)
+		go s.startNodeStartupListener(ctx, node, instance, lab)
 	}
 
 	log.Info(
@@ -649,44 +708,67 @@ func (s *Service) registerProviderEventListener() {
 	ctx := context.Background()
 
 	_ = s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
-		var targetLabId *string
+		var targetLabId string
 
 		s.instancesMutex.Lock()
-		for labId, instance := range s.instances {
+		instances := maps.Clone(s.instances)
+		s.instancesMutex.Unlock()
+
+		for labId, instance := range instances {
+			instance.DataMutex.Lock()
 			_, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
 				return item.ContainerId == containerId
 			})
+			instance.DataMutex.Unlock()
 
 			if hasMatched {
-				targetLabId = &labId
+				targetLabId = labId
 				break
 			}
 		}
-		s.instancesMutex.Unlock()
 
-		if targetLabId != nil {
+		if targetLabId != "" {
 			s.updatesNamespace.Send(instanceUpdate{
-				LabId:    targetLabId,
+				LabId:    &targetLabId,
 				NewState: nil,
 			})
 		}
 	})
 }
 
-func (s *Service) startNodeStartupListener(node *InstanceNode, instance *Instance, lab *lab.Lab) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+func (s *Service) startNodeStartupListener(
+	ctx context.Context,
+	node *InstanceNode,
+	instance *Instance,
+	lab *lab.Lab,
+) {
+	ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
 	log.Info("[Startup] Starting startup launcher for node", "node", node.Name)
 
-	err := s.waitForNodeStarted(ctx, lab.InstanceName, node.ContainerId)
+	err := s.waitForNodeStarted(ctxTimeout, lab.InstanceName, node.ContainerId)
 	if err != nil {
+		// Ignore the error if the context was canceled and the deployment was aborted
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return
+		}
+
+		instance.DataMutex.Lock()
+		node.State = deployment.NodeStates.Exited
+		instance.DataMutex.Unlock()
+
 		log.Error(
 			"Node did not start.",
 			"err", err.Error(),
 			"lab", lab.ID,
 			"node", node.Name,
 		)
+
+		s.updatesNamespace.Send(instanceUpdate{
+			LabId: &lab.UUID,
+		})
+
 		return
 	}
 
@@ -736,6 +818,12 @@ func (s *Service) waitForNodeStarted(
 		default:
 			return fmt.Errorf("unexpected exit %d from ssh probe: %s", code, strings.TrimSpace(out))
 		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
 	}
 }
 
@@ -761,6 +849,15 @@ func (s *Service) onNodeStarted(
 	lab *lab.Lab,
 ) {
 	interfaces, err := s.deploymentProvider.GetInterfaces(ctx, lab.InstanceName, node.ContainerId)
+
+	instance.DataMutex.Lock()
+
+	// Ignore the error if the context was canceled and the deployment was aborted
+	if ctx.Err() != nil {
+		instance.DataMutex.Unlock()
+		return
+	}
+
 	if err != nil {
 		log.Error(
 			"Failed to get interfaces for node",
@@ -770,18 +867,16 @@ func (s *Service) onNodeStarted(
 		)
 	}
 
-	fmt.Printf("Interfaces: %v\n", interfaces)
-
-	s.monitor.AddNode(node.ContainerId, lab.InstanceName)
-
-	instance.Mutex.Lock()
 	node.State = deployment.NodeStates.Running
-	if len(interfaces) == 0 {
+	if interfaces == nil {
 		node.Interfaces = make([]deployment.NodeInterface, 0)
 	} else {
 		node.Interfaces = interfaces
 	}
-	instance.Mutex.Unlock()
+
+	instance.DataMutex.Unlock()
+
+	s.monitor.AddNode(node.ContainerId, lab.InstanceName)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
@@ -802,7 +897,8 @@ func (s *Service) createInstance(
 		LatestStateChange:     time.Now(),
 		State:                 InstanceStates.Deploying,
 		Recovered:             false,
-		Mutex:                 sync.Mutex{},
+		OperationMutex:        sync.Mutex{},
+		DataMutex:             sync.Mutex{},
 		DeploymentCancel:      nil,
 		DeploymentCancelMutex: sync.Mutex{},
 		LogNamespace:          logNamespace,
@@ -914,12 +1010,12 @@ func (s *Service) updateInstanceNode(
 		return nil
 	}
 
-	fmt.Printf("Updated Node: %v\n", updatedNode)
-
+	instance.DataMutex.Lock()
 	node.State = updatedNode.State
 	node.IPv4 = updatedNode.IPv4
 	node.IPv6 = updatedNode.IPv6
 	node.Interfaces = updatedNode.Interfaces
+	instance.DataMutex.Unlock()
 
 	return nil
 }
@@ -1006,8 +1102,10 @@ func (s *Service) updateStateAndNotify(
 	statusMessage *statusmessage.Message,
 	logNamespace *socket.OutputNamespace[string],
 ) {
+	instance.DataMutex.Lock()
 	instance.State = state
 	instance.LatestStateChange = time.Now()
+	instance.DataMutex.Unlock()
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId:    &lab.UUID,
@@ -1109,6 +1207,8 @@ func (s *Service) reviveInstances() {
 			return s.containerToInstanceNode(container, savedLab.InstanceName, nodeKinds)
 		})
 
+		ctx, cancel := context.WithCancel(context.Background())
+
 		instance := &Instance{
 			State:                 InstanceStates.Running,
 			Nodes:                 instanceNodes,
@@ -1119,14 +1219,15 @@ func (s *Service) reviveInstances() {
 			LogNamespace:          logNamespace,
 			NodeLabels:            nodeLabels,
 			NodeKinds:             nodeKinds,
+			DeploymentCtx:         ctx,
+			DeploymentCancel:      cancel,
 			DeploymentCancelMutex: sync.Mutex{},
-			DeploymentCancel:      nil,
 			IsDestroyed:           false,
 		}
 
 		for i := range instanceNodes {
 			if instanceNodes[i].State != deployment.NodeStates.Exited {
-				go s.startNodeStartupListener(instanceNodes[i], instance, &savedLab)
+				go s.startNodeStartupListener(ctx, instanceNodes[i], instance, &savedLab)
 			}
 		}
 
@@ -1191,6 +1292,9 @@ func (s *Service) GetInstanceNode(
 		return InstanceNode{}, utils.ErrLabNotRunning
 	}
 
+	instance.DataMutex.Lock()
+	defer instance.DataMutex.Unlock()
+
 	node, hasNode := lo.Find(instance.Nodes, func(node *InstanceNode) bool {
 		return node.Name == nodeName
 	})
@@ -1198,7 +1302,10 @@ func (s *Service) GetInstanceNode(
 		return InstanceNode{}, utils.ErrNodeNotFound
 	}
 
-	return *node, nil
+	nodeCopy := *node
+	nodeCopy.Interfaces = slices.Clone(node.Interfaces)
+
+	return nodeCopy, nil
 }
 
 func (s *Service) IsRunning(labId string) bool {
@@ -1212,14 +1319,17 @@ func (s *Service) IsRunning(labId string) bool {
 
 func (s *Service) CanDelete(labId string) bool {
 	s.instancesMutex.Lock()
-	defer s.instancesMutex.Unlock()
+	instance, hasInstance := s.instances[labId]
+	s.instancesMutex.Unlock()
 
-	if instance, hasInstance := s.instances[labId]; hasInstance {
-		// If instance is failed, user can delete it
-		return instance.State == InstanceStates.Failed
+	if !hasInstance {
+		return true
 	}
 
-	return true
+	instance.DataMutex.Lock()
+	defer instance.DataMutex.Unlock()
+
+	return instance.State == InstanceStates.Failed
 }
 
 func getInstanceNode(instance *Instance, nodeName string) *InstanceNode {

@@ -17,22 +17,32 @@ type Instance struct {
 	// Recovered Whether the instance has been recovered after an Antimony restart
 	Recovered bool
 
-	TopologyFile       string
-	TopologyDefinition string
-	LogNamespace       *socket.OutputNamespace[string]
+	// DataMutex The mutex that guards mutable instance fields
+	DataMutex sync.Mutex
 
-	// Mutex The mutex that is locked whenever an instance operation is in progress (e.g. deploy)
-	Mutex sync.Mutex
+	// OperationMutex The mutex that serializes deployment operations (deploy, destroy, node commands)
+	OperationMutex sync.Mutex
 
-	// DeploymentCancel that holds the current deployment context of the lab
+	// Deployment fields that hold the context of the current deployment
+	DeploymentCtx         context.Context
 	DeploymentCancel      context.CancelFunc
 	DeploymentCancelMutex sync.Mutex
 
 	// IsDestroyed Whether the instance has been destroyed
 	IsDestroyed bool
 
-	NodeKinds  map[string]string
-	NodeLabels map[string]map[string]string
+	// Read-only fields that are never changed
+	TopologyFile string
+	LogNamespace *socket.OutputNamespace[string]
+	NodeKinds    map[string]string
+	NodeLabels   map[string]map[string]string
+}
+
+func (i *Instance) deploymentContext() context.Context {
+	i.DeploymentCancelMutex.Lock()
+	defer i.DeploymentCancelMutex.Unlock()
+
+	return i.DeploymentCtx
 }
 
 type InstanceNode struct {

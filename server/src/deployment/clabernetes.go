@@ -680,7 +680,7 @@ func (p *ClabernetesProvider) waitForNamespaceGone(
 			_, err := p.clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				onLog(serverlog.CreateAntimonyLog(
-					serverlog.InfoLevel,
+					serverlog.SuccessLevel,
 					"Deletion of namespace succeeded",
 					"namespace", namespace,
 				))
