@@ -482,30 +482,30 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
             {nodeName} ({InstanceNodeState[node!.state]})
           </div>
           <div className="flex flex-row gap-4 justify-content-between">
-            <div className="flex flex-column gap-1">
-              <div className="flex gap-1 flex-wrap">
+            <div className="flex flex-column gap-1 min-w-0">
+              <div className="flex gap-1">
                 <span className="property-title">Container ID:</span>
                 <SBCopyableProperty value={node!.containerId} />
               </div>
 
-              <div className="flex gap-1 flex-wrap">
+              <div className="flex gap-1">
                 <span className="property-title">Container Name:</span>
                 <SBCopyableProperty value={node!.containerName} />
               </div>
 
-              <div className="flex gap-1 flex-wrap">
+              <div className="flex gap-1">
                 <span className="property-title">Mgmt IPv4:</span>
                 <SBCopyableProperty value={node!.ipv4} />
               </div>
 
               <When condition={node!.ipv6}>
-                <div className="flex gap-1 flex-wrap">
+                <div className="flex gap-1">
                   <span className="property-title">Mgmt IPv6:</span>
                   <SBCopyableProperty value={node!.ipv6} />
                 </div>
               </When>
 
-              <div className="flex gap-1 flex-wrap">
+              <div className="flex gap-1">
                 <span className="property-title">Interfaces:</span>
                 <span className="property-value">
                   <Choose>
@@ -581,6 +581,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 data={[]}
               />
               <Button
+                className="lab-dialog-drawer-capture-button"
                 style={{position: 'absolute', top: 4, right: 0}}
                 outlined
                 icon="pi pi-eye"

@@ -22,12 +22,19 @@
     .p-button-label
       flex-grow: 0
 
+  .property-title,.property-value
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+
   .property-title
     user-select: none
     font-weight: 600
+    flex: 0 0 auto
 
   .property-value
     opacity: 0.6
+    flex: 1 1 auto
 
     &.copyable
       user-select: none
@@ -46,6 +53,9 @@
   .lab-dialog-drawer-special-buttons
     .p-button
       gap: 8px
+
+.lab-dialog-drawer-capture-button
+  background-color: var(--secondary-color) !important
 
 .lab-dialog-drawer-control-buttons
   display: flex
