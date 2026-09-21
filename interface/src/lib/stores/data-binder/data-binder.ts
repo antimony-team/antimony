@@ -226,9 +226,12 @@ export class DataBinder {
         return;
       }
 
-      runInAction(() => (this.hasSocketError = true));
-
       if (e.message === 'Invalid namespace') {
+        console.warn(
+          '[SOCK] Tried to connect to invalid namespace:',
+          subscription.namespace,
+        );
+
         subscription.socket?.disconnect();
         setTimeout(() => {
           subscription.socket?.connect();
@@ -237,7 +240,13 @@ export class DataBinder {
         return;
       }
 
-      console.error('Socket Error:', e, 'namespace:', subscription.namespace);
+      runInAction(() => (this.hasSocketError = true));
+      console.error(
+        '[SOCK] Socket Error:',
+        e,
+        'namespace:',
+        subscription.namespace,
+      );
     });
 
     subscription.onDataCallbacks.forEach(callback => {
