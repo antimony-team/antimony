@@ -54,14 +54,14 @@ definitions:
     type: object
   deployment.NodeState:
     enum:
-    - starting
-    - running
-    - exited
-    type: string
+    - 0
+    - 1
+    - 2
+    type: integer
     x-enum-varnames:
     - starting
     - running
-    - exited
+    - stopped
   device.DeviceConfig:
     properties:
       interfacePattern:

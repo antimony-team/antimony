@@ -239,7 +239,7 @@ func (s *Service) StopNodeCommand(
 	nodeState := node.State
 	instance.DataMutex.Unlock()
 
-	if nodeState == deployment.NodeStates.Exited {
+	if nodeState == deployment.NodeStates.Stopped {
 		return fmt.Errorf("node is already stopped")
 	}
 
@@ -394,7 +394,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	// Manually set node states to exited to mark the nodes no longer running
 	instance.DataMutex.Lock()
 	for _, node := range instance.Nodes {
-		node.State = deployment.NodeStates.Exited
+		node.State = deployment.NodeStates.Stopped
 		node.Interfaces = make([]deployment.NodeInterface, 0)
 	}
 	instance.DataMutex.Unlock()
@@ -761,7 +761,7 @@ func (s *Service) startNodeStartupListener(
 		}
 
 		instance.DataMutex.Lock()
-		node.State = deployment.NodeStates.Exited
+		node.State = deployment.NodeStates.Stopped
 		instance.DataMutex.Unlock()
 
 		log.Error(
@@ -1168,6 +1168,10 @@ func (s *Service) reviveInstances() {
 		)
 
 		for _, container := range containers {
+			if container.State == deployment.NodeStates.Stopped {
+				continue
+			}
+
 			containerLogNamespace := socket.CreateOutputNamespace[string](
 				s.socketManager,
 				false,
@@ -1229,7 +1233,7 @@ func (s *Service) reviveInstances() {
 		}
 
 		for i := range instanceNodes {
-			if instanceNodes[i].State != deployment.NodeStates.Exited {
+			if instanceNodes[i].State != deployment.NodeStates.Stopped {
 				go s.startNodeStartupListener(ctx, instanceNodes[i], instance, &savedLab)
 			}
 		}

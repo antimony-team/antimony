@@ -1121,16 +1121,16 @@ const docTemplate = `{
             }
         },
         "deployment.NodeState": {
-            "type": "string",
+            "type": "integer",
             "enum": [
-                "starting",
-                "running",
-                "exited"
+                0,
+                1,
+                2
             ],
             "x-enum-varnames": [
                 "starting",
                 "running",
-                "exited"
+                "stopped"
             ]
         },
         "device.DeviceConfig": {

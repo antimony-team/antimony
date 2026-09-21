@@ -130,22 +130,22 @@ type InspectContainer struct {
 	Owner       string    `json:"owner"`
 }
 
-type NodeState string
+type NodeState int
 
 const (
-	starting NodeState = "starting"
-	running  NodeState = "running"
-	exited   NodeState = "exited"
+	starting NodeState = iota
+	running
+	stopped
 )
 
 var NodeStates = struct {
 	Starting NodeState
 	Running  NodeState
-	Exited   NodeState
+	Stopped  NodeState
 }{
 	Starting: starting,
 	Running:  running,
-	Exited:   exited,
+	Stopped:  stopped,
 }
 
 type ContainerlabEvent struct {

@@ -231,7 +231,7 @@ func (s *Service) Delete(ctx *gin.Context, labId string, authUser auth.Authentic
 
 		return err
 	}
-	
+
 	// Publish that a lab has been deleted for the scheduler
 	s.labEventBus.Publish("lab.deleted", lab)
 
