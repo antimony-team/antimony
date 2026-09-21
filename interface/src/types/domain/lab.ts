@@ -54,7 +54,7 @@ export type InstanceNode = {
   port: number;
   kind: string;
   user: string;
-  state: string;
+  state: InstanceNodeState;
   webSSH: string;
   containerId: string;
   containerName: string;
@@ -69,6 +69,12 @@ export type NodeInterface = {
   mtu: number;
   state: string;
 };
+
+export enum InstanceNodeState {
+  Starting,
+  Running,
+  Stopped,
+}
 
 export enum InstanceState {
   Deploying,

@@ -1,6 +1,11 @@
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {Instance, InstanceNode, InstanceState} from '@sb/types/domain/lab';
+import {
+  Instance,
+  InstanceNode,
+  InstanceNodeState,
+  InstanceState,
+} from '@sb/types/domain/lab';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
 import cytoscape, {ElementDefinition} from 'cytoscape';
@@ -172,11 +177,11 @@ export function getNodeDisplayName(
   if (!instance) return nodeName;
 
   if (
-    node?.state === 'starting' ||
+    node?.state === InstanceNodeState.Starting ||
     instance.state === InstanceState.Deploying
   ) {
     return `🟠 ${nodeName}`;
-  } else if (node?.state === 'running') {
+  } else if (node?.state === InstanceNodeState.Running) {
     return `🟢 ${nodeName}`;
   }
 

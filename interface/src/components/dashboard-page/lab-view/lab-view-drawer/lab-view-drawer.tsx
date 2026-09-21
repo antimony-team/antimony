@@ -1,6 +1,11 @@
 import './lab-view-drawer.sass';
 import React, {useEffect, useMemo, useRef} from 'react';
-import {Lab, NodeInterfaceStats, NodeStats} from '@sb/types/domain/lab';
+import {
+  InstanceNodeState,
+  Lab,
+  NodeInterfaceStats,
+  NodeStats,
+} from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
 import {
   useLabStore,
@@ -89,7 +94,9 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       cpuUsageBufferRef.current = [[], []];
       memoryUsageBufferRef.current = [[], []];
 
-      labStore.subscribeNodeStats(node.containerId, handleData);
+      if (node.state !== InstanceNodeState.Stopped) {
+        labStore.subscribeNodeStats(node.containerId, handleData);
+      }
     }
 
     return () => {
@@ -472,7 +479,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       <If condition={node && nodeActionChecker}>
         <div className="lab-dialog-drawer-content-inner">
           <div className="lab-dialog-drawer-title">
-            {nodeName} ({node!.state})
+            {nodeName} ({InstanceNodeState[node!.state]})
           </div>
           <div className="flex flex-row gap-4 justify-content-between">
             <div className="flex flex-column gap-1">
@@ -535,7 +542,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               />
             </div>
           </div>
-          <If condition={node!.state === 'running'}>
+          <If condition={node!.state === InstanceNodeState.Running}>
             <div className="flex mt-4">
               <div>
                 <div className="lab-details-plot-title">CPU Usage</div>
@@ -597,7 +604,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               severity="success"
               label="Start"
               outlined
-              onClick={() => props.onOpenLogs(props.nodeName)}
+              onClick={() => props.onNodeStart(props.nodeName)}
               disabled={!nodeActionChecker!.canStart}
             />
             <Button
@@ -605,7 +612,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               severity="warning"
               label="Restart"
               outlined
-              onClick={() => props.onOpenLogs(props.nodeName)}
+              onClick={() => props.onNodeRestart(props.nodeName)}
               disabled={!nodeActionChecker!.canRestart}
             />
             <Button
@@ -613,7 +620,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               severity="danger"
               label="Shutdown"
               outlined
-              onClick={() => props.onOpenLogs(props.nodeName)}
+              onClick={() => props.onNodeStop(props.nodeName)}
               disabled={!nodeActionChecker!.canStop}
             />
           </div>

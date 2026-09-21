@@ -35,13 +35,17 @@ const SOCKETIO_CONFIG = {
   transports: ['websocket'],
 };
 
+// How long to wait before retrying a fetch request on network error
+const FETCH_RETRY_TIMER = 5000;
+
+// How long to wait before retrying a subscription if the namespace is invalid
+const INVALID_NAMESPACE_RETRY_TIMER = 5000;
+
 export class DataBinder {
   private readonly apiUrl =
     import.meta.env.SB_API_SERVER_URL ?? window.location.host;
   private readonly socketUrl =
     import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.host;
-
-  protected readonly fetchRetryTimer = 5000;
 
   // Set to true when all preloading and auth processes have finished
   @observable accessor isReady = false;
@@ -95,7 +99,7 @@ export class DataBinder {
        * server-side error here would leave the client stuck on the connection
        * screen forever. Retry on our own to recover once the server is back.
        */
-      setTimeout(() => void this.initAuth(), this.fetchRetryTimer);
+      setTimeout(() => void this.initAuth(), FETCH_RETRY_TIMER);
       return;
     }
 
@@ -235,7 +239,7 @@ export class DataBinder {
         subscription.socket?.disconnect();
         setTimeout(() => {
           subscription.socket?.connect();
-        }, 2000);
+        }, INVALID_NAMESPACE_RETRY_TIMER);
 
         return;
       }
@@ -406,7 +410,7 @@ export class DataBinder {
 
     if (!response || response.status === 504) {
       runInAction(() => (this.hasAPIError = true));
-      await new Promise(resolve => setTimeout(resolve, this.fetchRetryTimer));
+      await new Promise(resolve => setTimeout(resolve, FETCH_RETRY_TIMER));
       return this.fetch(path, method, body, authenticated);
     }
 

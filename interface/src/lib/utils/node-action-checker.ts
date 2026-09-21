@@ -1,4 +1,9 @@
-import {Instance, InstanceNode, InstanceState} from '@sb/types/domain/lab';
+import {
+  Instance,
+  InstanceNode,
+  InstanceNodeState,
+  InstanceState,
+} from '@sb/types/domain/lab';
 
 export class NodeActionChecker {
   private readonly instance?: Instance | null;
@@ -13,7 +18,7 @@ export class NodeActionChecker {
     return (
       this.isInstanceRunning &&
       this.node?.canRestart &&
-      this.node?.state !== 'running'
+      this.assertNodeState(InstanceNodeState.Stopped)
     );
   }
 
@@ -21,7 +26,7 @@ export class NodeActionChecker {
     return (
       this.isInstanceRunning &&
       this.node?.canRestart &&
-      this.node?.state !== 'exited'
+      this.assertNodeState(InstanceNodeState.Running)
     );
   }
 
@@ -29,19 +34,31 @@ export class NodeActionChecker {
     return (
       this.isInstanceRunning &&
       this.node?.canRestart &&
-      this.node?.state !== 'exited'
+      this.assertNodeState(InstanceNodeState.Running)
     );
   }
 
   public get canOpenTerminal() {
-    return this.isInstanceRunning && this.node?.state === 'running';
+    return (
+      this.isInstanceRunning && this.assertNodeState(InstanceNodeState.Running)
+    );
   }
 
   public get canShowLogs() {
-    return this.isInstanceRunning && this.node !== undefined;
+    return (
+      this.isInstanceRunning &&
+      this.assertNodeState(
+        InstanceNodeState.Starting,
+        InstanceNodeState.Running,
+      )
+    );
   }
 
   private get isInstanceRunning() {
     return this.instance?.state === InstanceState.Running;
+  }
+
+  private assertNodeState(...states: InstanceNodeState[]) {
+    return this.node?.state && states.includes(this.node.state);
   }
 }
