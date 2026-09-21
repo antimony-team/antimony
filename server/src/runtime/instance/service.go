@@ -192,12 +192,16 @@ func (s *Service) StartNodeCommand(
 
 	deploymentContext := instance.deploymentContext()
 
-	err = s.deploymentProvider.StartNode(deploymentContext, instanceLab.InstanceName, node.ContainerId)
+	err = s.deploymentProvider.StartNode(
+		deploymentContext,
+		instanceLab.InstanceName,
+		node.Name,
+	)
 	if err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNode(deploymentContext, instance, instanceLab.InstanceName, node, true); err != nil {
+	if err := s.updateInstanceNode(instance, instanceLab.InstanceName, node, true); err != nil {
 		return err
 	}
 
@@ -205,7 +209,7 @@ func (s *Service) StartNodeCommand(
 		LabId: &labId,
 	})
 
-	go s.startNodeStartupListener(deploymentContext, node, instance, instanceLab)
+	go s.startNodeStartupListener(node, instance, instanceLab)
 
 	return nil
 }
@@ -245,12 +249,16 @@ func (s *Service) StopNodeCommand(
 
 	deploymentContext := instance.deploymentContext()
 
-	err = s.deploymentProvider.StopNode(deploymentContext, instanceLab.InstanceName, node.ContainerId)
+	err = s.deploymentProvider.StopNode(
+		deploymentContext,
+		instanceLab.InstanceName,
+		node.Name,
+	)
 	if err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNode(deploymentContext, instance, instanceLab.InstanceName, node, true); err != nil {
+	if err := s.updateInstanceNode(instance, instanceLab.InstanceName, node, true); err != nil {
 		return err
 	}
 
@@ -288,12 +296,16 @@ func (s *Service) RestartNodeCommand(
 
 	deploymentContext := instance.deploymentContext()
 
-	err = s.deploymentProvider.RestartNode(deploymentContext, instanceLab.InstanceName, node.ContainerId)
+	err = s.deploymentProvider.RestartNode(
+		deploymentContext,
+		instanceLab.InstanceName,
+		node.Name,
+	)
 	if err != nil {
 		return err
 	}
 
-	if err := s.updateInstanceNode(deploymentContext, instance, instanceLab.InstanceName, node, true); err != nil {
+	if err := s.updateInstanceNode(instance, instanceLab.InstanceName, node, true); err != nil {
 		return err
 	}
 
@@ -301,7 +313,7 @@ func (s *Service) RestartNodeCommand(
 		LabId: &labId,
 	})
 
-	go s.startNodeStartupListener(deploymentContext, node, instance, instanceLab)
+	go s.startNodeStartupListener(node, instance, instanceLab)
 
 	return nil
 }
@@ -507,7 +519,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			lab.UUID,
 		)
 
-		instance = s.createInstance(logNamespace, *runTopologyFile, runTopologyDefinition)
+		instance = s.createInstance(lab.InstanceName, logNamespace, *runTopologyFile, runTopologyDefinition)
 
 		s.instances[lab.UUID] = instance
 	}
@@ -609,7 +621,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	//utils.FormatClabLog(instance.LogNamespace.Send)(*output)
 
 	// Fetch and attach lab inspect info and change state to running if successful
-	instanceNodes, err := s.getNodesFromInspect(ctx, instance, lab.InstanceName, func(data string) {
+	instanceNodes, err := s.getNodesFromInspect(instance, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
 
@@ -688,7 +700,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			)
 		}
 
-		go s.startNodeStartupListener(ctx, node, instance, lab)
+		go s.startNodeStartupListener(node, instance, lab)
 	}
 
 	log.Info(
@@ -714,8 +726,12 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 func (s *Service) registerProviderEventListener() {
 	ctx := context.Background()
 
-	_ = s.deploymentProvider.RegisterListener(ctx, func(containerId string) {
+	_ = s.deploymentProvider.RegisterListener(ctx, func(nodeName string) {
+		fmt.Printf("LISTENER FOR CONTAINER ID: %s\n", nodeName)
+
 		var targetLabId string
+		var targetInstance *Instance
+		var targetNode *InstanceNode
 
 		s.instancesMutex.Lock()
 		instances := maps.Clone(s.instances)
@@ -723,40 +739,93 @@ func (s *Service) registerProviderEventListener() {
 
 		for labId, instance := range instances {
 			instance.DataMutex.Lock()
-			_, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
-				return item.ContainerId == containerId
+
+			node, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
+				return item.Name == nodeName
 			})
-			instance.DataMutex.Unlock()
 
 			if hasMatched {
 				targetLabId = labId
+				targetInstance = instance
+				targetNode = node
+			}
+
+			if targetLabId != "" {
+				// Ignore instances that are currently being deployed
+				//if instance.State == InstanceStates.Deploying {
+				//	targetLabId = ""
+				//}
+
+				instance.DataMutex.Unlock()
 				break
 			}
+
+			instance.DataMutex.Unlock()
 		}
 
 		if targetLabId != "" {
+			err := s.updateInstanceNode(
+				targetInstance,
+				targetInstance.Name,
+				targetNode,
+				true,
+			)
+			if err != nil {
+				log.Error(
+					"Failed to update instance node",
+					"err", err.Error(),
+					"lab", targetLabId,
+					"node", targetNode.Name,
+				)
+			}
+
 			s.updatesNamespace.Send(instanceUpdate{
 				LabId: &targetLabId,
 			})
 		}
+
+		//var targetLabId string
+		//
+		//s.instancesMutex.Lock()
+		//instances := maps.Clone(s.instances)
+		//s.instancesMutex.Unlock()
+		//
+		//for labId, instance := range instances {
+		//	instance.DataMutex.Lock()
+		//	_, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
+		//		return item.ContainerId == containerId
+		//	})
+		//	instance.DataMutex.Unlock()
+		//
+		//	if hasMatched {
+		//		targetLabId = labId
+		//		break
+		//	}
+		//}
+		//
+		//if targetLabId != "" {
+		//	s.updatesNamespace.Send(instanceUpdate{
+		//		LabId: &targetLabId,
+		//	})
+		//}
 	})
 }
 
 func (s *Service) startNodeStartupListener(
-	ctx context.Context,
 	node *InstanceNode,
 	instance *Instance,
 	lab *lab.Lab,
 ) {
-	ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	deploymentContext := instance.deploymentContext()
+	ctxTimeout, cancel := context.WithTimeout(deploymentContext, 10*time.Minute)
 	defer cancel()
 
 	log.Info("[Startup] Starting startup launcher for node", "node", node.Name)
 
-	err := s.waitForNodeStarted(ctxTimeout, lab.InstanceName, node.ContainerId)
+	err := s.waitForNodeStarted(ctxTimeout, lab.InstanceName, node.Name)
 	if err != nil {
 		// Ignore the error if the context was canceled and the deployment was aborted
-		if errors.Is(ctx.Err(), context.Canceled) {
+		if errors.Is(deploymentContext.Err(), context.Canceled) {
 			return
 		}
 
@@ -767,7 +836,7 @@ func (s *Service) startNodeStartupListener(
 		log.Error(
 			"Node did not start.",
 			"err", err.Error(),
-			"lab", lab.ID,
+			"lab", lab.UUID,
 			"node", node.Name,
 		)
 
@@ -780,7 +849,7 @@ func (s *Service) startNodeStartupListener(
 
 	log.Info("[Startup] Node is started", "node", node.Name)
 
-	s.onNodeStarted(ctx, instance, node, lab)
+	s.onNodeStarted(instance, node, lab)
 }
 
 // sshProbe asks the node's own SSH server for a connection. BatchMode makes a
@@ -800,13 +869,13 @@ var sshProbe = []string{
 func (s *Service) waitForNodeStarted(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 ) error {
 	for {
-		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, containerId, sshProbe)
+		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, nodeName, sshProbe)
 
 		switch {
-		case errors.Is(err, deployment.ErrNodeNotRunning):
+		case errors.Is(err, utils.ErrNodeNotRunning):
 			// Container not running yet: retry.
 		case err != nil:
 			return err
@@ -849,17 +918,18 @@ func sshServerResponded(out string) bool {
 }
 
 func (s *Service) onNodeStarted(
-	ctx context.Context,
 	instance *Instance,
 	node *InstanceNode,
 	lab *lab.Lab,
 ) {
-	interfaces, err := s.deploymentProvider.GetInterfaces(ctx, lab.InstanceName, node.ContainerId)
+	deploymentContext := instance.deploymentContext()
+
+	interfaces, err := s.deploymentProvider.GetInterfaces(deploymentContext, lab.InstanceName, node.Name)
 
 	instance.DataMutex.Lock()
 
 	// Ignore the error if the context was canceled and the deployment was aborted
-	if ctx.Err() != nil {
+	if deploymentContext.Err() != nil {
 		instance.DataMutex.Unlock()
 		return
 	}
@@ -868,8 +938,8 @@ func (s *Service) onNodeStarted(
 		log.Error(
 			"Failed to get interfaces for node",
 			"err", err.Error(),
-			"lab", lab.ID,
-			"node", node.Name,
+			"lab", lab.UUID,
+			"node", node.ContainerId,
 		)
 	}
 
@@ -882,7 +952,7 @@ func (s *Service) onNodeStarted(
 
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(ctx, node.ContainerId, lab.InstanceName)
+	s.monitor.AddNode(deploymentContext, lab.InstanceName, node.Name, node.ContainerId)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
@@ -892,6 +962,7 @@ func (s *Service) onNodeStarted(
 }
 
 func (s *Service) createInstance(
+	name string,
 	logNamespace *socket.OutputNamespace[string],
 	runTopologyFile string,
 	runTopologyDefinition string,
@@ -899,6 +970,7 @@ func (s *Service) createInstance(
 	runTopologyDefintionParsed, _ := s.schemaService.Parse(runTopologyDefinition)
 
 	return &Instance{
+		Name:              name,
 		Deployed:          time.Now(),
 		LatestStateChange: time.Now(),
 		State:             InstanceStates.Deploying,
@@ -989,7 +1061,6 @@ func (s *Service) extractNodeKinds(topologyDefinition any) map[string]string {
 }
 
 func (s *Service) updateInstanceNode(
-	ctx context.Context,
 	instance *Instance,
 	instanceName string,
 	node *InstanceNode,
@@ -1003,7 +1074,7 @@ func (s *Service) updateInstanceNode(
 		}
 	}
 
-	updatedNodes, err := s.getNodesFromInspect(ctx, instance, instanceName, onLog)
+	updatedNodes, err := s.getNodesFromInspect(instance, instanceName, onLog)
 	if err != nil {
 		return err
 	}
@@ -1013,10 +1084,14 @@ func (s *Service) updateInstanceNode(
 	})
 
 	if !found {
+		fmt.Printf("FAILED TO FIND UPDATE NODE: %s", node.Name)
 		return nil
 	}
 
+	fmt.Printf("FOUND INSTANCE NODE: %s, updated: %v\n", node.Name, updatedNode)
+
 	instance.DataMutex.Lock()
+	node.ContainerId = updatedNode.ContainerId
 	node.State = updatedNode.State
 	node.IPv4 = updatedNode.IPv4
 	node.IPv6 = updatedNode.IPv6
@@ -1027,16 +1102,20 @@ func (s *Service) updateInstanceNode(
 }
 
 func (s *Service) getNodesFromInspect(
-	ctx context.Context,
 	instance *Instance,
 	instanceName string,
 	onLog func(data string),
 ) ([]*InstanceNode, error) {
-	inspectOutput, err := s.deploymentProvider.Inspect(ctx, instance.TopologyFile, instanceName, onLog)
+	deploymentContext := instance.deploymentContext()
+	inspectOutput, err := s.deploymentProvider.Inspect(deploymentContext, instance.TopologyFile, instanceName, onLog)
+
+	fmt.Printf("INSPECT OUTPUT1: %v, err: %s", inspectOutput, err)
 
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("INSPECT OUTPUT: %v", inspectOutput)
 
 	containers := inspectOutput[instanceName]
 
@@ -1070,8 +1149,10 @@ func (s *Service) containerToInstanceNode(
 
 	nodeState := container.State
 
+	fmt.Printf("containerToInstanceNode NODE: %s, STATE: %s\n", nodeName, nodeState)
+
 	// Always set running nodes to starting as we want the startup listener to decide when they are actually running
-	if container.State == deployment.NodeStates.Running {
+	if nodeState == deployment.NodeStates.Running {
 		nodeState = deployment.NodeStates.Starting
 	}
 
@@ -1186,7 +1267,10 @@ func (s *Service) reviveInstances() {
 				container.ContainerId,
 			)
 			err := s.deploymentProvider.StreamContainerLogs(
-				ctx, savedLab.InstanceName, container.ContainerId, func(data string) {
+				ctx,
+				savedLab.InstanceName,
+				container.Name,
+				func(data string) {
 					containerLogNamespace.Send(data)
 				},
 			)
@@ -1217,6 +1301,7 @@ func (s *Service) reviveInstances() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		instance := &Instance{
+			Name:              savedLab.InstanceName,
 			State:             InstanceStates.Running,
 			Nodes:             instanceNodes,
 			Deployed:          time.Now(),
@@ -1234,7 +1319,7 @@ func (s *Service) reviveInstances() {
 
 		for i := range instanceNodes {
 			if instanceNodes[i].State != deployment.NodeStates.Stopped {
-				go s.startNodeStartupListener(ctx, instanceNodes[i], instance, &savedLab)
+				go s.startNodeStartupListener(instanceNodes[i], instance, &savedLab)
 			}
 		}
 

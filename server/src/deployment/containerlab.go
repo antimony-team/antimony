@@ -1,8 +1,8 @@
 package deployment
 
 import (
+	"antimonyBackend/utils"
 	"antimonyBackend/utils/serverlog"
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -45,10 +45,13 @@ func CreateContainerlabProvider() *ContainerlabProvider {
 		log.Fatalf("Failed to create containerlab client: %s", err.Error())
 	}
 
-	return &ContainerlabProvider{
-		client:      cli,
-		statsReader: CreateStatsReader(createDockerSampler()),
+	provider := &ContainerlabProvider{
+		client: cli,
 	}
+
+	provider.statsReader = CreateStatsReader(createDockerSampler(provider.resolveNode))
+
+	return provider
 }
 
 func (p *ContainerlabProvider) Deploy(
@@ -136,9 +139,14 @@ func (p *ContainerlabProvider) InspectAll(
 func (p *ContainerlabProvider) Exec(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 	cmd []string,
 ) (string, int, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return "", 0, err
+	}
+
 	execId, err := p.createExec(ctx, containerId, cmd, false)
 	if err != nil {
 		return "", 0, err
@@ -164,13 +172,19 @@ func (p *ContainerlabProvider) Exec(
 func (p *ContainerlabProvider) ExecInteractive(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 	cmd []string,
 ) (ShellExecSession, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
 	execId, err := p.createExec(ctx, containerId, cmd, true)
 	if err != nil {
 		return nil, err
 	}
+
 	hr, err := p.client.ContainerExecAttach(ctx, execId, container.ExecAttachOptions{Tty: true})
 	if err != nil {
 		return nil, err
@@ -196,7 +210,17 @@ func (p *ContainerlabProvider) ExecInteractive(
 	return &dockerExecSession{Conn: hr.Conn, client: p.client, execId: execId}, nil
 }
 
-func (p *ContainerlabProvider) DialNode(ctx context.Context, _ string, containerId string, port int) (net.Conn, error) {
+func (p *ContainerlabProvider) DialNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+	port int,
+) (net.Conn, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
 	insp, err := p.client.ContainerInspect(ctx, containerId)
 	if err != nil {
 		return nil, err
@@ -214,9 +238,15 @@ func (p *ContainerlabProvider) DialNode(ctx context.Context, _ string, container
 
 func (p *ContainerlabProvider) OpenCapture(
 	ctx context.Context,
-	containerId string,
+	instanceName string,
+	nodeName string,
 	interfaceName string,
 ) (*afpacket.TPacket, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
 	info, err := p.client.ContainerInspect(ctx, containerId)
 	if err != nil {
 		return nil, fmt.Errorf("inspect %q: %w", containerId, err)
@@ -233,33 +263,48 @@ func (p *ContainerlabProvider) OpenCapture(
 	return tp, nil
 }
 
-func (p *ContainerlabProvider) StartNode(ctx context.Context, instanceName string, containerId string) error {
-	if err := p.client.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
+func (p *ContainerlabProvider) StartNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return p.client.ContainerStart(ctx, containerId, container.StartOptions{})
 }
 
-func (p *ContainerlabProvider) StopNode(ctx context.Context, instanceName string, containerId string) error {
+func (p *ContainerlabProvider) StopNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
 	timeout := int(10 * time.Second)
-	if err := p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout})
 }
 
-func (p *ContainerlabProvider) RestartNode(ctx context.Context, instanceName string, containerId string) error {
+func (p *ContainerlabProvider) RestartNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
 	timeout := int(10 * time.Second)
-	if err := p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout})
 }
 
-func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
+func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error {
 	eventFilter := filters.NewArgs()
 	eventFilter.Add("type", "container")
 	eventFilter.Add("event", "start")
@@ -275,54 +320,33 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 	for {
 		select {
 		case msg := <-channel:
-			onUpdate(msg.Actor.ID[:12])
+			nodeName := msg.Actor.Attributes["clab-node-name"]
+			// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
+			if nodeName != "" {
+				onUpdate(nodeName)
+			}
 		case err := <-errs:
 			if err != nil {
 				log.Errorf("Failed to receive clabernetes events: %s", err.Error())
 				return err
 			}
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
-}
-
-func (p *ContainerlabProvider) RegisterEventListener(
-	ctx context.Context,
-	onUpdate func(containerlabEvent ContainerlabEvent),
-) error {
-	cmd := exec.CommandContext(ctx, "containerlab", "events", "--format", "json", "--interface-stats")
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-
-	if err = cmd.Start(); err != nil {
-		return err
-	}
-
-	log.Infof("[EVENTS] Starting event listener")
-
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		var output ContainerlabEvent
-		rawOutput := scanner.Text()
-		err := json.Unmarshal([]byte(rawOutput), &output)
-		if err != nil {
-			log.Errorf("[EVENTS] Failed to parse event: %s", err.Error())
-		} else {
-			onUpdate(output)
-		}
-	}
-
-	return nil
 }
 
 func (p *ContainerlabProvider) StreamContainerLogs(
 	ctx context.Context,
-	_ string,
-	containerId string,
+	instanceName string,
+	nodeName string,
 	onLog func(data string),
 ) error {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return err
+	}
+
 	logOptions := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -344,16 +368,20 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 func (p *ContainerlabProvider) GetInterfaces(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 ) ([]NodeInterface, error) {
-	// Inspect the container
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
 	info, err := p.client.ContainerInspect(ctx, containerId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to inspect container %q: %w", containerId, err)
+		return nil, err
 	}
 
 	if info.State == nil || info.State.Pid == 0 {
-		return make([]NodeInterface, 0), fmt.Errorf("container %s has no PID (not running?)", containerId)
+		return nil, utils.ErrNodeNotRunning
 	}
 
 	containerPid := info.State.Pid
@@ -386,16 +414,11 @@ func (p *ContainerlabProvider) GetInterfaces(
 func (p *ContainerlabProvider) ReadNodeStats(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 ) (*NodeStats, error) {
-	insp, err := p.client.ContainerInspect(ctx, containerId)
-	if err != nil {
-		return nil, err
-	}
-	if insp.State == nil || insp.State.Pid <= 0 {
-		return nil, fmt.Errorf("container %s is not running", containerId)
-	}
-	return p.statsReader.Read(ctx, insp.ID, dockerRef{fullContainerId: insp.ID, pid: insp.State.Pid})
+	nodeId := instanceName + "/" + nodeName
+
+	return p.statsReader.Read(ctx, nodeId, dockerRef{instanceName, nodeName})
 }
 
 func (p *ContainerlabProvider) createExec(
@@ -413,7 +436,7 @@ func (p *ContainerlabProvider) createExec(
 	})
 
 	if errdefs.IsConflict(err) {
-		return "", fmt.Errorf("%w: %s", ErrNodeNotRunning, containerId)
+		return "", utils.ErrNodeNotRunning
 	}
 
 	if err != nil {
@@ -421,6 +444,46 @@ func (p *ContainerlabProvider) createExec(
 	}
 
 	return resp.ID, nil
+}
+
+// containerForNode returns the id of the container backing a node, running
+// or not. It returns ErrNodeNotFound if no such container exists.
+func (p *ContainerlabProvider) containerForNode(ctx context.Context, instanceName, nodeName string) (string, error) {
+	f := filters.NewArgs()
+	f.Add("label", "containerlab="+instanceName)
+	f.Add("label", "clab-node-name="+nodeName)
+
+	containers, err := p.client.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
+	if err != nil {
+		return "", err
+	}
+	if len(containers) == 0 {
+		return "", fmt.Errorf("%w: %s/%s", utils.ErrNodeNotFound, instanceName, nodeName)
+	}
+	return containers[0].ID, nil
+}
+
+func (p *ContainerlabProvider) resolveNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) (dockerTarget, error) {
+	id, err := p.containerForNode(ctx, instanceName, nodeName)
+
+	if err != nil {
+		return dockerTarget{}, err
+	}
+
+	insp, err := p.client.ContainerInspect(ctx, id)
+	if err != nil {
+		return dockerTarget{}, err
+	}
+
+	if insp.State == nil || insp.State.Pid <= 0 {
+		return dockerTarget{}, fmt.Errorf("%w: %s/%s", utils.ErrNodeNotRunning, instanceName, nodeName)
+	}
+
+	return dockerTarget{fullContainerId: insp.ID, pid: insp.State.Pid}, nil
 }
 
 func (t *dockerExecSession) Resize(cols uint, rows uint) error {

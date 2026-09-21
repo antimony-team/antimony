@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"antimonyBackend/utils"
 	"bufio"
 	"context"
 	"fmt"
@@ -42,15 +43,15 @@ const (
 	firstSampleTimeout = 10 * time.Second
 )
 
-// podRef holds information to identify a node's kubernetes podName.
+// podRef holds information to identify a node's name.
 type podRef struct {
 	instanceName string
-	podName      string
+	nodeName     string
 }
 
 // streamingFunc runs cmd inside the node container of the given pod and returns
 // its stdout. The clabernetes provider supplies this from its exec client.
-type streamingFunc func(ctx context.Context, instanceName string, pod string, cmd []string, w io.Writer) error
+type streamingFunc func(ctx context.Context, instanceName string, nodeName string, cmd []string, w io.Writer) error
 
 // remoteSampler collects stat samples by running a script inside the node container.
 // With cgroup v2 and Docker's default private cgroup namespace, /sys/fs/cgroup
@@ -90,7 +91,7 @@ func (r *remoteSampler) Sample(ctx context.Context, ref podRef) (statsSample, er
 	case <-ctx.Done():
 		return statsSample{}, ctx.Err()
 	case <-time.After(firstSampleTimeout):
-		return statsSample{}, fmt.Errorf("no stats received from %s/%s yet", ref.instanceName, ref.podName)
+		return statsSample{}, fmt.Errorf("no stats received from %s/%s yet", ref.instanceName, ref.nodeName)
 	}
 
 	ns.mu.Lock()
@@ -103,7 +104,7 @@ func (r *remoteSampler) Sample(ctx context.Context, ref podRef) (statsSample, er
 		delete(r.streams, ref)
 		r.streamsMutex.Unlock()
 
-		return statsSample{}, ErrNodeNotRunning
+		return statsSample{}, utils.ErrNodeNotRunning
 	}
 	return ns.latest, nil
 }
@@ -169,8 +170,8 @@ func (r *remoteSampler) run(ctx context.Context, ref podRef, ns *nodeStream) {
 
 	pr, pw := io.Pipe()
 	go func() {
-		err := r.streamStarter(ctx, ref.instanceName, ref.podName, []string{"sh", "-c", remoteSampleScript}, pw)
-		pw.CloseWithError(err)
+		err := r.streamStarter(ctx, ref.instanceName, ref.nodeName, []string{"sh", "-c", remoteSampleScript}, pw)
+		_ = pw.CloseWithError(err)
 	}()
 
 	scanner := bufio.NewScanner(pr)

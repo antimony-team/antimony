@@ -37,6 +37,7 @@ type NodeInterfaceStats struct {
 }
 
 type monitoredNode struct {
+	name                  string
 	instanceName          string
 	namespace             *socket.OutputNamespace[NodeStats]
 	instanceDeploymentCtx context.Context
@@ -63,7 +64,7 @@ func (m *Monitor) Run() {
 		m.monitoredNodesMutex.Unlock()
 
 		for containerId, node := range monitoredNodes {
-			stats, err := m.deploymentProvider.ReadNodeStats(node.instanceDeploymentCtx, node.instanceName, containerId)
+			stats, err := m.deploymentProvider.ReadNodeStats(node.instanceDeploymentCtx, node.instanceName, node.name)
 			if err != nil {
 				// Node is not running or is no longer available, remove from monitor list
 				m.RemoveNode(containerId)
@@ -102,7 +103,7 @@ func (m *Monitor) Run() {
 	}
 }
 
-func (m *Monitor) AddNode(ctx context.Context, containerId string, instanceName string) {
+func (m *Monitor) AddNode(ctx context.Context, instanceName string, nodeName string, containerId string) {
 	m.monitoredNodesMutex.Lock()
 	if node, ok := m.monitoredNodes[containerId]; ok {
 		node.namespace.ClearBacklog()
@@ -121,6 +122,7 @@ func (m *Monitor) AddNode(ctx context.Context, containerId string, instanceName 
 		)
 
 		m.monitoredNodes[containerId] = monitoredNode{
+			name:                  nodeName,
 			instanceDeploymentCtx: ctx,
 			instanceName:          instanceName,
 			namespace:             namespace,

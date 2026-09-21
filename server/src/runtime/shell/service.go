@@ -246,7 +246,7 @@ func (s *Service) openNodeShell(
 	var connection deployment.ShellExecSession
 	var err error
 
-	connection, err = s.openSshSession(instanceName, node.ContainerId, node.Kind)
+	connection, err = s.openSshSession(instanceName, node.Name, node.Kind)
 	if err == nil {
 		return connection, nil
 	}
@@ -264,7 +264,7 @@ func (s *Service) openNodeShell(
 	return s.deploymentProvider.ExecInteractive(
 		ctx,
 		instanceName,
-		node.ContainerId,
+		node.Name,
 		// We want to try and use /bin/bash and fall back to /bin/sh if it's not available
 		[]string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"},
 	)
@@ -272,7 +272,7 @@ func (s *Service) openNodeShell(
 
 func (s *Service) openSshSession(
 	instanceName string,
-	containerId string,
+	nodeName string,
 	nodeKind string,
 ) (deployment.ShellExecSession, error) {
 	authMethods := s.defaultSshAuth
@@ -295,12 +295,13 @@ func (s *Service) openSshSession(
 	}
 
 	ctx := context.Background()
-	conn, err := s.deploymentProvider.DialNode(ctx, instanceName, containerId, 22)
+	conn, err := s.deploymentProvider.DialNode(ctx, instanceName, nodeName, 22)
 	if err != nil {
 		return nil, err
 	}
 
-	sshConn, chans, reqs, err := ssh.NewClientConn(conn, containerId+":22", sshConfig)
+	// The host here doesn't matter, we already have the connection
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, nodeName+":22", sshConfig)
 	if err != nil {
 		return nil, err
 	}

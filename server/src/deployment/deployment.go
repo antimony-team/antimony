@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"os"
@@ -51,60 +50,64 @@ type DeploymentProvider interface {
 	Exec(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 		cmd []string,
 	) (string, int, error)
 
 	ExecInteractive(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 		cmd []string,
 	) (ShellExecSession, error)
 
 	// DialNode opens a TCP connection to a port on the node's management interface.
-	DialNode(ctx context.Context, instanceName string, containerId string, port int) (net.Conn, error)
+	DialNode(ctx context.Context, instanceName string, nodeName string, port int) (net.Conn, error)
 
-	RegisterListener(ctx context.Context, onUpdate func(containerId string)) error
-	RegisterEventListener(ctx context.Context, onUpdate func(containerlabEvent ContainerlabEvent)) error
+	RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error
 
 	ReadNodeStats(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 	) (*NodeStats, error)
 
-	OpenCapture(ctx context.Context, containerId string, interfaceName string) (*afpacket.TPacket, error)
+	OpenCapture(
+		ctx context.Context,
+		instanceName string,
+		nodeName string,
+		interfaceName string,
+	) (*afpacket.TPacket, error)
 
 	StartNode(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 	) error
 
 	StopNode(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 	) error
 
 	RestartNode(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 	) error
 
 	StreamContainerLogs(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 		onLog func(data string),
 	) error
 
 	GetInterfaces(
 		ctx context.Context,
 		instanceName string,
-		containerId string,
+		nodeName string,
 	) ([]NodeInterface, error)
 }
 
@@ -112,8 +115,6 @@ type ShellExecSession interface {
 	io.ReadWriteCloser
 	Resize(cols uint, rows uint) error
 }
-
-var ErrNodeNotRunning = errors.New("node is not running")
 
 type InspectOutput = map[string][]InspectContainer
 

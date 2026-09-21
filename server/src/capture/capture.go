@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/charmbracelet/log"
@@ -87,16 +88,17 @@ func (s *Server) Start() error {
 
 func (s *Server) subscribe(
 	ctx context.Context,
-	containerId string,
+	instanceName string,
+	nodeName string,
 	interfaceName string,
 ) (*stream, *receiver, error) {
-	captureKey := containerId + "/" + interfaceName
+	captureKey := getCaptureKey(instanceName, nodeName, interfaceName)
 
 	s.openStreamsMutex.Lock()
 
 	captureStream, ok := s.openStreams[captureKey]
 	if !ok {
-		src, err := s.deploymentProvider.OpenCapture(ctx, containerId, interfaceName)
+		src, err := s.deploymentProvider.OpenCapture(ctx, instanceName, nodeName, interfaceName)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -123,8 +125,8 @@ func (s *Server) subscribe(
 	return captureStream, receiver, nil
 }
 
-func (s *Server) unsubscribe(containerId string, interfaceName string, receiver *receiver) {
-	captureKey := containerId + "/" + interfaceName
+func (s *Server) unsubscribe(instanceName string, nodeName string, interfaceName string, receiver *receiver) {
+	captureKey := getCaptureKey(instanceName, nodeName, interfaceName)
 
 	s.openStreamsMutex.Lock()
 	stream, ok := s.openStreams[captureKey]
@@ -211,7 +213,12 @@ func (s *Server) captureEnded(stream *stream) {
 
 func (s *Server) makeSessionHandler() ssh.Handler {
 	return func(sess ssh.Session) {
-		container := sess.User()
+		instanceName, nodeName, ok := strings.Cut(sess.User(), "/")
+		if !ok {
+			_, _ = fmt.Fprint(sess.Stderr(), "invalid container ID")
+			_ = sess.Exit(2)
+			return
+		}
 
 		args := sess.Command()
 		if len(args) == 0 {
@@ -220,11 +227,11 @@ func (s *Server) makeSessionHandler() ssh.Handler {
 			return
 		}
 
-		c, r, err := s.subscribe(sess.Context(), container, args[0])
+		c, r, err := s.subscribe(sess.Context(), instanceName, nodeName, args[0])
 		if err != nil {
 			return
 		}
-		defer s.unsubscribe(container, args[0], r)
+		defer s.unsubscribe(instanceName, nodeName, args[0], r)
 
 		_ = s.stream(sess, c, r)
 	}
@@ -237,6 +244,10 @@ func (s *stream) shutdown() {
 			s.source.Close()
 		}
 	})
+}
+
+func getCaptureKey(instanceName string, nodeName string, interfaceName string) string {
+	return instanceName + "/" + nodeName + "/" + interfaceName
 }
 
 func ensureHostKey(path string) error {

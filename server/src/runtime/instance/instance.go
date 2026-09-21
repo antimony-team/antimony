@@ -9,6 +9,7 @@ import (
 )
 
 type Instance struct {
+	Name              string
 	Deployed          time.Time
 	State             InstanceState
 	LatestStateChange time.Time

@@ -1,10 +1,10 @@
 package deployment
 
 import (
+	"antimonyBackend/utils"
 	"antimonyBackend/utils/serverlog"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,9 +26,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	k8sexec "k8s.io/client-go/util/exec"
@@ -68,7 +70,7 @@ func CreateClabernetesProvider() *ClabernetesProvider {
 		c9s:        c9s,
 	}
 
-	provider.statsReader = CreateStatsReader[podRef](createRemoteSampler(provider.execStream))
+	provider.statsReader = CreateStatsReader[podRef](createRemoteSampler(provider.startExecStream))
 
 	return provider
 }
@@ -262,19 +264,6 @@ func (p *ClabernetesProvider) Destroy(
 	return p.waitForNamespaceGone(ctx, namespace, onLog)
 }
 
-//func (p *ClabernetesProvider) Inspect(
-//	ctx context.Context,
-//	topologyFile string,
-//	instanceName string,
-//	onLog func(string),
-//) (InspectOutput, error) {
-//	return p.inspectNamespace(ctx, namespaceFor(instanceName), topologyFile)
-//}
-//
-//func (p *ClabernetesProvider) InspectAll(ctx context.Context) (InspectOutput, error) {
-//	return p.inspectNamespace(ctx, metav1.NamespaceAll, "")
-//}
-
 func (p *ClabernetesProvider) Inspect(
 	ctx context.Context,
 	topologyFile string,
@@ -291,20 +280,25 @@ func (p *ClabernetesProvider) InspectAll(ctx context.Context) (InspectOutput, er
 // inspect lists the running node pods in ns (all namespaces when empty) and
 // appends an "exited" entry for every node deployment scaled to zero, since
 // stopped nodes have no pod.
-func (p *ClabernetesProvider) inspect(ctx context.Context, ns, labPath string) (InspectOutput, error) {
+func (p *ClabernetesProvider) inspect(ctx context.Context, namespace string, labPath string) (InspectOutput, error) {
 	selector := metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode}
 
-	pods, err := p.clientset.CoreV1().Pods(ns).List(ctx, selector)
+	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, selector)
 	if err != nil {
 		return nil, fmt.Errorf("list node pods: %w", err)
 	}
-	deployments, err := p.clientset.AppsV1().Deployments(ns).List(ctx, selector)
+
+	deployments, err := p.clientset.AppsV1().Deployments(namespace).List(ctx, selector)
 	if err != nil {
 		return nil, fmt.Errorf("list node deployments: %w", err)
 	}
 
 	output := InspectOutput{}
 	for i := range pods.Items {
+
+		if pods.Items[i].DeletionTimestamp != nil {
+			continue
+		}
 		c := podToInspectContainer(&pods.Items[i], labPath)
 		output[c.LabName] = append(output[c.LabName], c)
 	}
@@ -324,7 +318,7 @@ func podToInspectContainer(pod *corev1.Pod, labPath string) InspectContainer {
 		LabName:     pod.Labels[clabernetesconstants.LabelTopologyOwner],
 		LabPath:     labPath,
 		Name:        pod.Labels[clabernetesconstants.LabelTopologyNode],
-		ContainerId: pod.Name,
+		ContainerId: string(pod.UID),
 		Kind:        pod.Labels[clabernetesconstants.LabelTopologyKind],
 		State:       podStateToNodeState(pod),
 		Owner:       pod.Namespace,
@@ -349,7 +343,7 @@ func stoppedDeploymentToInspectContainer(d *appsv1.Deployment, labPath string) I
 		LabName:     d.Labels[clabernetesconstants.LabelTopologyOwner],
 		LabPath:     labPath,
 		Name:        d.Labels[clabernetesconstants.LabelTopologyNode],
-		ContainerId: d.Name, // no pod exists; equals the node name under non-prefixed naming
+		ContainerId: "",
 		Kind:        d.Labels[clabernetesconstants.LabelTopologyKind],
 		State:       NodeStates.Stopped,
 		Owner:       d.Namespace,
@@ -380,12 +374,16 @@ func podStateToNodeState(pod *corev1.Pod) NodeState {
 func (p *ClabernetesProvider) Exec(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 	cmd []string,
 ) (string, int, error) {
 	namespace := namespaceFor(instanceName)
+	podName, err := p.podForNode(ctx, namespace, nodeName)
+	if err != nil {
+		return "", 0, err
+	}
 
-	executor, err := p.createExec(namespace, containerId, cmd, false, true)
+	executor, err := p.createExec(namespace, podName, cmd, false, true)
 	if err != nil {
 		return "", 0, err
 	}
@@ -404,7 +402,7 @@ func (p *ClabernetesProvider) Exec(
 	var codeErr k8sexec.CodeExitError
 	if errors.As(err, &codeErr) {
 		if codeErr.Code == nodeNotRunningExitCode {
-			return "", 0, ErrNodeNotRunning
+			return "", 0, utils.ErrNodeNotRunning
 		}
 		return output, codeErr.Code, nil
 	}
@@ -414,12 +412,16 @@ func (p *ClabernetesProvider) Exec(
 func (p *ClabernetesProvider) ExecInteractive(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 	cmd []string,
 ) (ShellExecSession, error) {
 	namespace := namespaceFor(instanceName)
+	podName, err := p.podForNode(ctx, namespace, nodeName)
+	if err != nil {
+		return nil, err
+	}
 
-	executor, err := p.createExec(namespace, containerId, cmd, true, true)
+	executor, err := p.createExec(namespace, podName, cmd, true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +448,7 @@ func (p *ClabernetesProvider) ExecInteractive(
 		var codeErr k8sexec.CodeExitError
 		if errors.As(err, &codeErr) {
 			if codeErr.Code == nodeNotRunningExitCode {
-				err = fmt.Errorf("%w: %s/%s", ErrNodeNotRunning, namespace, containerId)
+				err = utils.ErrNodeNotRunning
 			} else {
 				err = nil // shell exited on its own; that's a clean EOF
 			}
@@ -471,18 +473,24 @@ kill $! 2>/dev/null
 
 func (p *ClabernetesProvider) DialNode(
 	ctx context.Context,
-	instanceName, containerId string,
+	instanceName string,
+	nodeName string,
 	port int,
 ) (net.Conn, error) {
-	ns := namespaceFor(instanceName)
+	namespace := namespaceFor(instanceName)
+	podName, err := p.podForNode(ctx, namespace, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
 	script := fmt.Sprintf(nodeTunnelTemplate, nodeNotRunningExitCode, port)
 
 	// This will run inside the launcher and not the node container itself, so we can't use createExec.
 	req := p.clientset.CoreV1().RESTClient().
 		Post().
 		Resource("pods").
-		Namespace(ns).
-		Name(containerId).
+		Namespace(namespace).
+		Name(podName).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Command: []string{"bash", "-c", script},
@@ -499,7 +507,7 @@ func (p *ClabernetesProvider) DialNode(
 	local, remote := net.Pipe()
 
 	go func() {
-		_ = executor.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+		_ = executor.StreamWithContext(ctx, remotecommand.StreamOptions{
 			Stdin:  remote,
 			Stdout: remote,
 			Stderr: io.Discard,
@@ -512,7 +520,8 @@ func (p *ClabernetesProvider) DialNode(
 
 func (p *ClabernetesProvider) OpenCapture(
 	ctx context.Context,
-	containerId string,
+	instanceName string,
+	nodeName string,
 	interfaceName string,
 ) (*afpacket.TPacket, error) {
 	return nil, nil
@@ -552,58 +561,136 @@ func (p *ClabernetesProvider) OpenCapture(
 //		//})
 //		return nil
 //	}
-func (p *ClabernetesProvider) StartNode(ctx context.Context, instanceName, containerId string) error {
-	ns := namespaceFor(instanceName)
-	node, err := p.nodeNameForPod(ctx, ns, containerId)
-	if err != nil {
-		return err
-	}
-	if err := p.setDisableDeployments(ctx, ns, node, false); err != nil {
-		return err
-	}
-	return p.scaleNode(ctx, ns, node, 1)
-}
-
-func (p *ClabernetesProvider) StopNode(ctx context.Context, instanceName, containerId string) error {
-	ns := namespaceFor(instanceName)
-	node, err := p.nodeNameForPod(ctx, ns, containerId)
-	if err != nil {
-		return err
-	}
-	if err := p.setDisableDeployments(ctx, ns, node, true); err != nil {
-		return err
-	}
-	return p.scaleNode(ctx, ns, node, 0)
-}
-
-func (p *ClabernetesProvider) RestartNode(ctx context.Context, instanceName, containerId string) error {
-	ns := namespaceFor(instanceName)
-	grace := int64(10)
-	return p.clientset.CoreV1().Pods(ns).Delete(ctx, containerId, metav1.DeleteOptions{
-		GracePeriodSeconds: &grace,
-	})
-}
-
-func (p *ClabernetesProvider) RegisterListener(ctx context.Context, onUpdate func(containerId string)) error {
-	return nil
-}
-
-func (p *ClabernetesProvider) RegisterEventListener(
+func (p *ClabernetesProvider) StartNode(
 	ctx context.Context,
-	onUpdate func(containerlabEvent ContainerlabEvent),
+	instanceName string,
+	nodeName string,
 ) error {
+	namespace := namespaceFor(instanceName)
+	if err := p.setDisableDeployments(ctx, namespace, nodeName, false); err != nil {
+		return err
+	}
+	return p.scaleNode(ctx, namespace, nodeName, 1)
+}
+
+func (p *ClabernetesProvider) StopNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
+	namespace := namespaceFor(instanceName)
+	if err := p.setDisableDeployments(ctx, namespace, nodeName, true); err != nil {
+		return err
+	}
+	return p.scaleNode(ctx, namespace, nodeName, 0)
+}
+
+func (p *ClabernetesProvider) RestartNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
+	namespace := namespaceFor(instanceName)
+	grace := int64(10)
+
+	return p.clientset.CoreV1().Pods(namespace).DeleteCollection(ctx,
+		metav1.DeleteOptions{GracePeriodSeconds: &grace},
+		metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + nodeName},
+	)
+}
+
+func (p *ClabernetesProvider) RegisterListener(
+	ctx context.Context,
+	onUpdate func(nodeName string),
+) error {
+	factory := informers.NewSharedInformerFactoryWithOptions(
+		p.clientset,
+		0, // no periodic resync; events only
+		informers.WithTweakListOptions(func(o *metav1.ListOptions) {
+			o.LabelSelector = clabernetesconstants.LabelTopologyNode
+		}),
+	)
+
+	podFromEvent := func(obj any) *corev1.Pod {
+		switch t := obj.(type) {
+		case *corev1.Pod:
+			return t
+		case cache.DeletedFinalStateUnknown:
+			if pod, ok := t.Obj.(*corev1.Pod); ok {
+				return pod
+			}
+		}
+		return nil
+	}
+
+	notify := func(pod *corev1.Pod) {
+		if pod == nil {
+			return
+		}
+		onUpdate(pod.Labels[clabernetesconstants.LabelTopologyNode])
+	}
+
+	_, err := factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj any) { notify(podFromEvent(obj)) },
+		DeleteFunc: func(obj any) { notify(podFromEvent(obj)) },
+		//UpdateFunc: func(oldObj, newObj any) {
+		//	o, n := oldObj.(*corev1.Pod), newObj.(*corev1.Pod)
+		//	// Only phase/readiness changes matter; pods are updated for many other reasons.
+		//	if o.Status.Phase != n.Status.Phase || isReady(o) != isReady(n) ||
+		//		(o.DeletionTimestamp == nil) != (n.DeletionTimestamp == nil) {
+		//		onUpdate(n.Name)
+		//	}
+		//},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// Deployments carry the stop/start state (replicas 0/1); a stopped node has no pod to watch.
+	_, err = factory.Apps().V1().Deployments().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: func(oldObj, newObj any) {
+			o, n := oldObj.(*appsv1.Deployment), newObj.(*appsv1.Deployment)
+			if replicas(o) != replicas(n) {
+				onUpdate(n.Name)
+			}
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	factory.Start(ctx.Done())
+	factory.WaitForCacheSync(ctx.Done())
+	<-ctx.Done()
 	return nil
+}
+
+func isReady(pod *corev1.Pod) bool {
+	for _, c := range pod.Status.Conditions {
+		if c.Type == corev1.PodReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func replicas(d *appsv1.Deployment) int32 {
+	if d.Spec.Replicas == nil {
+		return 1
+	}
+	return *d.Spec.Replicas
 }
 
 func (p *ClabernetesProvider) ReadNodeStats(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 ) (*NodeStats, error) {
 	namespace := namespaceFor(instanceName)
-	nodeId := namespace + "/" + containerId
+	nodeId := namespace + "/" + nodeName
 
-	return p.statsReader.Read(ctx, nodeId, podRef{instanceName: instanceName, podName: containerId})
+	return p.statsReader.Read(ctx, nodeId, podRef{instanceName, nodeName})
 }
 
 // dockerLogsScript runs in the launcher and follows the device container's
@@ -621,15 +708,20 @@ exec docker logs --follow --timestamps "$c"
 func (p *ClabernetesProvider) StreamContainerLogs(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 	onLog func(data string),
 ) error {
 	namespace := namespaceFor(instanceName)
+	podName, err := p.podForNode(ctx, namespace, nodeName)
+	if err != nil {
+		return err
+	}
 
 	// The launcher forwards the node container's output to its own stdout, so the pod log is the node log.
 	// Kubernetes prepends an RFC 3339 timestamp per line.
-	stream, err := p.clientset.CoreV1().Pods(namespace).
-		GetLogs(containerId, &corev1.PodLogOptions{
+	stream, err := p.clientset.CoreV1().
+		Pods(namespace).
+		GetLogs(podName, &corev1.PodLogOptions{
 			Follow:     true,
 			Timestamps: true,
 		}).
@@ -653,7 +745,7 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 func (p *ClabernetesProvider) GetInterfaces(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 ) ([]NodeInterface, error) {
 	namespace := namespaceFor(instanceName)
 
@@ -665,16 +757,16 @@ func (p *ClabernetesProvider) GetInterfaces(
 	out, code, err := p.Exec(
 		ctx,
 		instanceName,
-		containerId,
+		nodeName,
 		[]string{"sh", "-c", listInterfacesScript},
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("list interfaces in %s/%s: %w", namespace, containerId, err)
+		return nil, fmt.Errorf("list interfaces in %s/%s: %w", namespace, nodeName, err)
 	}
 
 	if code != 0 {
-		return nil, fmt.Errorf("list interfaces of %s: exit code %d: %s", containerId, code, strings.TrimSpace(out))
+		return nil, fmt.Errorf("list interfaces of %s: exit code %d: %s", nodeName, code, strings.TrimSpace(out))
 	}
 
 	result := make([]NodeInterface, 0)
@@ -696,19 +788,23 @@ func (p *ClabernetesProvider) GetInterfaces(
 	return result, nil
 }
 
-// execStream runs cmd inside the node and copies its stdout to w until ctx is
+// startExecStream runs cmd inside the node and copies its stdout to w until ctx is
 // canceled or the command exits. Unlike Exec, it does not collect output or
 // an exit code; it is meant for long-running commands that emit continuously.
-func (p *ClabernetesProvider) execStream(
+func (p *ClabernetesProvider) startExecStream(
 	ctx context.Context,
 	instanceName string,
-	containerId string,
+	nodeName string,
 	cmd []string,
 	w io.Writer,
 ) error {
 	namespace := namespaceFor(instanceName)
+	podName, err := p.podForNode(ctx, namespace, nodeName)
+	if err != nil {
+		return err
+	}
 
-	executor, err := p.createExec(namespace, containerId, cmd, false, true)
+	executor, err := p.createExec(namespace, podName, cmd, false, true)
 	if err != nil {
 		return err
 	}
@@ -720,7 +816,7 @@ func (p *ClabernetesProvider) execStream(
 
 	var codeErr k8sexec.CodeExitError
 	if errors.As(err, &codeErr) && codeErr.Code == nodeNotRunningExitCode {
-		return ErrNodeNotRunning
+		return utils.ErrNodeNotRunning
 	}
 
 	return err
@@ -798,7 +894,7 @@ func (p *ClabernetesProvider) waitForNamespaceGone(
 // createExec prepares a pods/exec request for cmd inside the node container.
 func (p *ClabernetesProvider) createExec(
 	namespace string,
-	pod string,
+	podName string,
 	cmd []string,
 	tty bool,
 	wrapCmd bool,
@@ -811,7 +907,7 @@ func (p *ClabernetesProvider) createExec(
 		Post().
 		Resource("pods").
 		Namespace(namespace).
-		Name(pod).
+		Name(podName).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Command: cmd,
@@ -824,17 +920,22 @@ func (p *ClabernetesProvider) createExec(
 	return remotecommand.NewSPDYExecutor(p.restConfig, "POST", req.URL())
 }
 
-// translateExecError maps the launcher's "device not running" exit code onto
-// the provider-neutral sentinel; any other exit code is returned as-is.
-func translateExecError(err error, ns, pod string) (exitCode int, retErr error) {
-	var codeErr k8sexec.CodeExitError
-	if errors.As(err, &codeErr) {
-		if codeErr.Code == nodeNotRunningExitCode {
-			return 0, fmt.Errorf("%w: %s/%s", ErrNodeNotRunning, ns, pod)
-		}
-		return codeErr.Code, nil
+// podForNode returns the name of the pod currently backing a node. It returns ErrNodeNotRunning when the node has no
+// live pod: stopped, or started but not created yet.
+func (p *ClabernetesProvider) podForNode(ctx context.Context, namespace, nodeName string) (string, error) {
+	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + nodeName,
+	})
+	if err != nil {
+		return "", err
 	}
-	return 0, err
+
+	for i := range pods.Items {
+		if pods.Items[i].DeletionTimestamp == nil && pods.Items[i].Status.Phase == corev1.PodRunning {
+			return pods.Items[i].Name, nil
+		}
+	}
+	return "", utils.ErrNodeNotRunning
 }
 
 // nodeNotRunningExitCode is the exit code wrapNodeCommand's wrapper uses to
@@ -901,194 +1002,6 @@ func loadKubeConfig(path string) (*rest.Config, error) {
 	).ClientConfig()
 }
 
-// inspectNamespace lists the node deployments in ns (all namespaces when ns
-// is empty) and joins each with its pod, if it currently has one.
-func (p *ClabernetesProvider) inspectNamespace(ctx context.Context, ns, labPath string) (InspectOutput, error) {
-	selector := metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode}
-
-	deployments, err := p.clientset.AppsV1().Deployments(ns).List(ctx, selector)
-	if err != nil {
-		return nil, fmt.Errorf("list node deployments: %w", err)
-	}
-	pods, err := p.clientset.CoreV1().Pods(ns).List(ctx, selector)
-	if err != nil {
-		return nil, fmt.Errorf("list node pods: %w", err)
-	}
-
-	// namespace/node -> live pod (prefer one that isn't terminating)
-	podByNode := make(map[string]*corev1.Pod, len(pods.Items))
-	for i := range pods.Items {
-		pod := &pods.Items[i]
-		key := pod.Namespace + "/" + pod.Labels[clabernetesconstants.LabelTopologyNode]
-		if cur, ok := podByNode[key]; !ok || cur.DeletionTimestamp != nil {
-			podByNode[key] = pod
-		}
-	}
-
-	output := InspectOutput{}
-	for i := range deployments.Items {
-		d := &deployments.Items[i]
-		node := d.Labels[clabernetesconstants.LabelTopologyNode]
-		labName := d.Labels[clabernetesconstants.LabelTopologyOwner]
-		pod := podByNode[d.Namespace+"/"+node]
-
-		c := InspectContainer{
-			LabName:     labName,
-			LabPath:     labPath,
-			Name:        node,
-			ContainerId: node, // stable across restarts; the provider resolves the pod itself
-			Kind:        d.Labels[clabernetesconstants.LabelTopologyKind],
-			State:       nodeState(d, pod),
-			Owner:       d.Namespace,
-		}
-		if len(d.Spec.Template.Spec.Containers) > 0 {
-			c.Image = d.Spec.Template.Spec.Containers[0].Image
-		}
-		if pod != nil {
-			for _, ip := range pod.Status.PodIPs {
-				if strings.Contains(ip.IP, ":") {
-					c.IPv6Address = ip.IP
-				} else {
-					c.IPv4Address = ip.IP
-				}
-			}
-		}
-		output[labName] = append(output[labName], c)
-	}
-	return output, nil
-}
-
-// nodeState derives the containerlab-style state from the deployment's
-// desired replicas and the pod's readiness.
-func nodeState(d *appsv1.Deployment, pod *corev1.Pod) NodeState {
-	if d.Spec.Replicas != nil && *d.Spec.Replicas == 0 {
-		return NodeStates.Stopped // stopped via StopNode
-	}
-	if pod == nil || pod.DeletionTimestamp != nil {
-		return starting // not created yet, or being replaced
-	}
-	switch pod.Status.Phase {
-	case corev1.PodSucceeded, corev1.PodFailed:
-		return NodeStates.Stopped
-	case corev1.PodRunning:
-		for _, cond := range pod.Status.Conditions {
-			if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
-				return running
-			}
-		}
-	}
-	return starting
-}
-
-type deploymentList struct {
-	Items []struct {
-		Metadata struct {
-			Name      string            `json:"name"`
-			Namespace string            `json:"namespace"`
-			Labels    map[string]string `json:"labels"`
-		} `json:"metadata"`
-		Spec struct {
-			Replicas *int32 `json:"replicas"`
-			Template struct {
-				Spec struct {
-					Containers []struct {
-						Image string `json:"image"`
-					} `json:"containers"`
-				} `json:"spec"`
-			} `json:"template"`
-		} `json:"spec"`
-	} `json:"items"`
-}
-
-// addStoppedNodes appends an "exited" entry for every node deployment that is
-// scaled to zero, since such nodes have no pod and don't appear in the pod list.
-func addStoppedNodes(output InspectOutput, raw string, labPath string) error {
-	if raw == "" {
-		return nil
-	}
-
-	var list deploymentList
-	if err := json.Unmarshal([]byte(raw), &list); err != nil {
-		return fmt.Errorf("parse deployment list: %w", err)
-	}
-
-	for _, d := range list.Items {
-		if d.Spec.Replicas == nil || *d.Spec.Replicas != 0 {
-			continue // has a pod (or will have): covered by the pod list
-		}
-		labName := d.Metadata.Labels[clabernetesconstants.LabelTopologyOwner]
-		node := d.Metadata.Labels[clabernetesconstants.LabelTopologyNode]
-
-		c := InspectContainer{
-			LabName:     labName,
-			LabPath:     labPath,
-			Name:        node,
-			ContainerId: node, // no pod exists; StartNode accepts the node name
-			Kind:        d.Metadata.Labels[clabernetesconstants.LabelTopologyKind],
-			State:       NodeStates.Stopped,
-			Owner:       d.Metadata.Namespace,
-		}
-		if cs := d.Spec.Template.Spec.Containers; len(cs) > 0 {
-			c.Image = cs[0].Image
-		}
-		output[labName] = append(output[labName], c)
-	}
-	return nil
-}
-
-//func podsToInspectOutput(raw string, labPath string) (InspectOutput, error) {
-//	if raw == "" {
-//		return InspectOutput{}, nil
-//	}
-//
-//	var list podList
-//	if err := json.Unmarshal([]byte(raw), &list); err != nil {
-//		return nil, fmt.Errorf("parse pod list: %w", err)
-//	}
-//
-//	output := InspectOutput{}
-//	for _, pod := range list.Items {
-//		labName := pod.Metadata.Labels[clabernetesconstants.LabelTopologyOwner]
-//
-//		c := InspectContainer{
-//			LabName:     labName,
-//			LabPath:     labPath,
-//			Name:        pod.Metadata.Labels[clabernetesconstants.LabelTopologyNode],
-//			ContainerId: pod.Metadata.Name,
-//			Kind:        pod.Metadata.Labels[clabernetesconstants.LabelTopologyKind],
-//			State:       podStateToNodeState(pod.Status.Phase, pod.Status.Conditions),
-//			Owner:       pod.Metadata.Namespace,
-//		}
-//		if len(pod.Spec.Containers) > 0 {
-//			c.Image = pod.Spec.Containers[0].Image
-//		}
-//		for _, ip := range pod.Status.PodIPs {
-//			if strings.Contains(ip.IP, ":") {
-//				c.IPv6Address = ip.IP
-//			} else {
-//				c.IPv4Address = ip.IP
-//			}
-//		}
-//
-//		output[labName] = append(output[labName], c)
-//	}
-//	return output, nil
-//}
-
-//func podStateToNodeState(phase string, conditions []podCondition) NodeState {
-//	switch phase {
-//	case "Succeeded", "Failed":
-//		return exited
-//	case "Running":
-//		for _, c := range conditions {
-//			if c.Type == "Ready" && c.Status == "True" {
-//				return running
-//			}
-//		}
-//	}
-//	return starting
-//}
-
 func namespaceFor(topologyName string) string {
 	return "c9s-" + topologyName
 }
@@ -1098,6 +1011,7 @@ func namespaceFor(topologyName string) string {
 func (p *ClabernetesProvider) nodeNameForPod(ctx context.Context, ns, pod string) (string, error) {
 	po, err := p.clientset.CoreV1().Pods(ns).Get(ctx, pod, metav1.GetOptions{})
 	if err != nil {
+		fmt.Printf("FAILED TO GET NODE %s/%s: %v", ns, pod, err)
 		return "", err
 	}
 	node := po.Labels[clabernetesconstants.LabelTopologyNode]
@@ -1115,7 +1029,6 @@ func (p *ClabernetesProvider) setDisableDeployments(ctx context.Context, ns, nod
 		value = `"true"`
 	}
 	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%s}}}`, clabernetesconstants.LabelDisableDeployments, value)
-
 	_, err := p.c9s.C9sV1alpha1().Nodes(ns).Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return err
 }
