@@ -160,7 +160,7 @@ const LogDialog = observer((props: LogDialogProps) => {
         value: ANTIMONY_LOG,
       },
       ...nodes.map(node => ({
-        label: node.containerName,
+        label: node.name,
         value: node.containerId,
       })),
     ];
