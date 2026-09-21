@@ -1,5 +1,6 @@
 // import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
 import LogDialog, {
+  ANTIMONY_LOG,
   LogDialogState,
 } from '@sb/components/dashboard-page/log-dialog/log-dialog';
 
@@ -185,7 +186,7 @@ const LabView = observer((props: LabDialogProps) => {
   function openLabLogs() {
     logDialogState.openWith({
       lab: props.lab!,
-      source: '-1',
+      source: ANTIMONY_LOG,
     });
   }
 
@@ -194,7 +195,7 @@ const LabView = observer((props: LabDialogProps) => {
 
     logDialogState.openWith({
       lab: props.lab!,
-      source: nodeId ? instance.nodeMap.get(nodeId)!.containerId : '-1',
+      source: nodeId ? instance.nodeMap.get(nodeId)!.containerId : ANTIMONY_LOG,
     });
   }
 
@@ -414,12 +415,12 @@ const LabView = observer((props: LabDialogProps) => {
     if (logDialogState.isOpen) {
       if (!props.lab.instance) {
         logDialogState.close();
-      } else {
+      } /* else {
         logDialogState.openWith({
           lab: props.lab,
-          source: '-1',
+          source: ANTIMONY_LOG,
         });
-      }
+      }*/
     }
   }, [props.lab]);
 

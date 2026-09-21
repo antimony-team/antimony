@@ -9,27 +9,24 @@ import {Lab} from '@sb/types/domain/lab';
 
 import {observer} from 'mobx-react-lite';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import containerLogLanguage from '@sb/lib/utils/container-log.language';
-import charmbraceletLogLanguage from '@sb/lib/utils/charmbracelet-log.language';
 
-import hljs from 'highlight.js';
+import hljs from '@sb/lib/utils/hljs/highlight';
 import {Skeleton} from 'primereact/skeleton';
 import {runInAction} from 'mobx';
 import {Image} from 'primereact/image';
 
+export const ANTIMONY_LOG = '__antimony__';
+
 export interface LogDialogState {
   lab: Lab;
 
-  // Container ID of the docker container or -1 for containerlab logs.
+  // Container ID of the docker container or `ANTIMONY_LOG` for Antimony server logs.
   source: string;
 }
 
 interface LogDialogProps {
   dialogState: DialogState<LogDialogState>;
 }
-
-hljs.registerLanguage('container-log', containerLogLanguage);
-hljs.registerLanguage('charmbracelet-log', charmbraceletLogLanguage);
 
 const LogDialog = observer((props: LogDialogProps) => {
   const [lines, setLines] = useState<string[] | null>(null);
@@ -58,23 +55,23 @@ const LogDialog = observer((props: LogDialogProps) => {
         })
         .join('\n');
     }
-    if (props.dialogState.state?.source === '-1') {
-      return hljs.highlight(content, {language: 'charmbracelet-log'}).value;
+    if (props.dialogState.state?.source === ANTIMONY_LOG) {
+      return hljs.highlight(content, {language: 'antimony-log'}).value;
     } else {
-      return hljs.highlight(content, {language: 'container-log'}).value;
+      return hljs.highlight(content, {language: 'generic-log'}).value;
     }
   }, [lines]);
 
   // Reset log source to containerlab logs if instance is restarted
-  useEffect(() => {
-    if (!props.dialogState.state?.lab.instance?.nodes?.length) {
-      if (props.dialogState.state) {
-        runInAction(() => {
-          props.dialogState.state!.source = '-1';
-        });
-      }
-    }
-  }, [props.dialogState.state?.lab.instance]);
+  // useEffect(() => {
+  //   if (!props.dialogState.state?.lab.instance?.nodes?.length) {
+  //     if (props.dialogState.state) {
+  //       runInAction(() => {
+  //         props.dialogState.state!.source = ANTIMONY_LOG;
+  //       });
+  //     }
+  //   }
+  // }, [props.dialogState.state?.lab.instance]);
 
   const skeleton = useMemo(() => {
     const generateWidth = () => Math.random() * (60 - 15) + 15;
@@ -94,7 +91,7 @@ const LogDialog = observer((props: LogDialogProps) => {
       return '';
     }
 
-    if (props.dialogState.state.source === '-1') {
+    if (props.dialogState.state.source === ANTIMONY_LOG) {
       return 'Antimony';
     } else {
       return (
@@ -114,10 +111,7 @@ const LogDialog = observer((props: LogDialogProps) => {
   useEffect(() => {
     if (!props.dialogState.state) return;
 
-    const namespace =
-      props.dialogState.state.source === '-1'
-        ? `logs/${props.dialogState.state.lab.id}`
-        : `logs/${props.dialogState.state.lab.id}/${props.dialogState.state.source}`;
+    const namespace = currentLogNamespace();
 
     logSourceChangedRef.current = true;
     dataBinder.subscribeNamespace(namespace, onLogs, onSocketConnect);
@@ -127,20 +121,21 @@ const LogDialog = observer((props: LogDialogProps) => {
     };
   }, [props.dialogState.state?.source, props.dialogState.isOpen]);
 
+  function currentLogNamespace() {
+    if (!props.dialogState.state) return '';
+
+    return props.dialogState.state.source === ANTIMONY_LOG
+      ? `logs/${props.dialogState.state.lab.id}`
+      : `logs/${props.dialogState.state.lab.id}/${props.dialogState.state.source}`;
+  }
+
   function onSocketConnect() {
     setLines([]);
   }
-
   function onClose() {
     if (!props.dialogState.state) return;
 
-    const namespace =
-      props.dialogState.state.source === '-1'
-        ? `logs/${props.dialogState.state.lab.id}`
-        : `logs/${props.dialogState.state.lab.id}/${props.dialogState.state.source}`;
-
-    dataBinder.unsubscribeNamespace(namespace, onLogs);
-
+    dataBinder.unsubscribeNamespace(currentLogNamespace(), onLogs);
     props.dialogState.close();
   }
 
@@ -162,7 +157,7 @@ const LogDialog = observer((props: LogDialogProps) => {
     return [
       {
         label: 'Antimony',
-        value: '-1',
+        value: ANTIMONY_LOG,
       },
       ...nodes.map(node => ({
         label: node.containerName,
@@ -203,7 +198,7 @@ const LogDialog = observer((props: LogDialogProps) => {
               <Choose>
                 <When
                   condition={
-                    props.dialogState.state!.source === '-1' &&
+                    props.dialogState.state!.source === ANTIMONY_LOG &&
                     props.dialogState.state!.lab.instance?.isRecovered
                   }
                 >
@@ -229,7 +224,7 @@ const LogDialog = observer((props: LogDialogProps) => {
           id="log-selector"
           className="sb-log-dialog-slector"
           icon={option => {
-            if (option.value === '-1') {
+            if (option.value === ANTIMONY_LOG) {
               return (
                 <Image
                   src="/icons/antimony-outline.svg"
