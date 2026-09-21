@@ -94,7 +94,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       cpuUsageBufferRef.current = [[], []];
       memoryUsageBufferRef.current = [[], []];
 
-      if (node.state !== InstanceNodeState.Stopped) {
+      if (node.state === InstanceNodeState.Running) {
         labStore.subscribeNodeStats(node.containerId, handleData);
       }
     }
@@ -537,7 +537,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 label="Open Terminal"
                 aria-label="Open Terminal"
                 outlined
-                onClick={() => props.onOpenLogs(props.nodeName)}
+                onClick={() => props.onOpenTerminal(props.nodeName)}
                 disabled={!nodeActionChecker!.canOpenTerminal}
               />
             </div>
