@@ -21,7 +21,11 @@ export default function baseConfig(mode: string): UserConfig {
         '/socket.io': {
           target: 'ws://localhost:3000',
           ws: true,
+          changeOrigin: true,
         },
+      },
+      cors: {
+        origin: true,
       },
     },
     build: {sourcemap: mode === 'development'},
