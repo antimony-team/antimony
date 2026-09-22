@@ -64,26 +64,40 @@ func CreateValidationError(err error) (int, ErrorResponse) {
 
 func CreateSocketErrorResponse(err error) ErrorResponse {
 	switch {
+	// Generic request errors
 	case errors.Is(err, ErrAntimony):
 		return ErrorResponse{Code: 5000, Message: err.Error()}
-	case errors.Is(err, ErrContainerlab):
-		return ErrorResponse{Code: 5001, Message: err.Error()}
-	case errors.Is(err, ErrLabIsDeploying):
-		return ErrorResponse{Code: 5002, Message: err.Error()}
-	case errors.Is(err, ErrLabNotRunning):
-		return ErrorResponse{Code: 5003, Message: err.Error()}
-	case errors.Is(err, ErrNodeNotRunning):
-		return ErrorResponse{Code: 5004, Message: err.Error()}
-	case errors.Is(err, ErrUuidNotFound):
-		return ErrorResponse{Code: 5005, Message: err.Error()}
-	case errors.Is(err, ErrNodeNotFound):
-		return ErrorResponse{Code: 5006, Message: err.Error()}
-	case errors.Is(err, ErrShellNotFound):
-		return ErrorResponse{Code: 5007, Message: err.Error()}
-	case errors.Is(err, ErrShellLimitReached):
-		return ErrorResponse{Code: 5008, Message: err.Error()}
+	case errors.Is(err, ErrInvalidRuntimeCommand):
+		return ErrorResponse{Code: 5400, Message: err.Error()}
 	case errors.Is(err, ErrInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
+	case errors.Is(err, ErrUuidNotFound):
+		return ErrorResponse{Code: 5404, Message: err.Error()}
+	case errors.Is(err, ErrProvider):
+		return ErrorResponse{Code: 5001, Message: err.Error()}
+
+	// Lab errors
+	case errors.Is(err, ErrNodeNotFound):
+		return ErrorResponse{Code: 5011, Message: err.Error()}
+	case errors.Is(err, ErrLabNotRunning):
+		return ErrorResponse{Code: 5012, Message: err.Error()}
+	case errors.Is(err, ErrLabOperationInProgress):
+		return ErrorResponse{Code: 5013, Message: err.Error()}
+
+	// Node errors
+	case errors.Is(err, ErrNodeNotFound):
+		return ErrorResponse{Code: 5021, Message: err.Error()}
+	case errors.Is(err, ErrNodeNotRunning):
+		return ErrorResponse{Code: 5022, Message: err.Error()}
+	case errors.Is(err, ErrInvalidNodeOperation):
+		return ErrorResponse{Code: 5023, Message: err.Error()}
+
+	// Shell errors
+	case errors.Is(err, ErrShellNotFound):
+		return ErrorResponse{Code: 5031, Message: err.Error()}
+	case errors.Is(err, ErrShellLimitReached):
+		return ErrorResponse{Code: 5032, Message: err.Error()}
+
 	// Permission / Access errors
 	case errors.Is(err, ErrNoDestroyAccessToLab),
 		errors.Is(err, ErrNoAccessToShell),

@@ -1,19 +1,12 @@
 package deployment
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
-	"os"
-	"os/exec"
-	"strings"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/google/gopacket/afpacket"
 )
 
@@ -39,14 +32,28 @@ type DeploymentProvider interface {
 		onLog func(data string),
 	) error
 
-	Inspect(
+	// InspectLabs returns a list of [InspectContainer] of all currently running labs indexed by their instance names.
+	InspectLabs(
+		ctx context.Context,
+		onLog func(data string),
+	) (map[string][]InspectContainer, error)
+
+	// InspectLabs returns a list of [InspectContainer] for all nodes in a specific lab.
+	InspectLab(
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
 		onLog func(data string),
-	) (InspectOutput, error)
+	) ([]InspectContainer, error)
 
-	InspectAll(ctx context.Context) (InspectOutput, error)
+	// InspectLabs returns an [InspectContainer] for a specific node in a lab.
+	InspectNode(
+		ctx context.Context,
+		topologyFile string,
+		instanceName string,
+		nodeName string,
+		onLog func(data string),
+	) (InspectContainer, error)
 
 	Exec(
 		ctx context.Context,
@@ -120,20 +127,16 @@ type ShellExecSession interface {
 	Resize(cols uint, rows uint) error
 }
 
-type InspectOutput = map[string][]InspectContainer
-
 type InspectContainer struct {
+	Name          string    `json:"name"`
 	LabName       string    `json:"lab_name"`
 	LabPath       string    `json:"labPath"`
-	Name          string    `json:"name"`
+	Image         string    `json:"image"`
+	State         NodeState `json:"state"`
 	ContainerId   string    `json:"container_id"`
 	ContainerName string    `json:"container_name"`
-	Image         string    `json:"image"`
-	Kind          string    `json:"kind"`
-	State         NodeState `json:"state"`
 	IPv4Address   string    `json:"ipv4_address"`
 	IPv6Address   string    `json:"ipv6_address"`
-	Owner         string    `json:"owner"`
 }
 
 type NodeState int
@@ -211,72 +214,4 @@ type NodeInterfaceStats struct {
 
 	RxBps int
 	TxBps int
-}
-
-func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
-	var outputBuffer bytes.Buffer
-	cmd.Stdout = &outputBuffer
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		log.Errorf("stderr pipe error: %v", err)
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	go streamOutput(stderr, onStderr)
-
-	err = cmd.Wait()
-	output := outputBuffer.String()
-
-	if err != nil {
-		err = fmt.Errorf("sub-process '%s' failed: %s", cmd.String(), err)
-	}
-
-	return &output, err
-}
-
-func runClabCommand(cmd *exec.Cmd, onLog func(string), onDone func(*string, error)) {
-	var outputBuffer bytes.Buffer
-	cmd.Stdout = &outputBuffer
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		onDone(nil, err)
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
-		onDone(nil, err)
-		return
-	}
-
-	go streamOutput(stderr, onLog)
-
-	err = cmd.Wait()
-	output := outputBuffer.String()
-	onDone(&output, err)
-}
-
-func streamOutput(pipe io.Reader, onLog func(data string)) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		if onLog != nil {
-			onLog(scanner.Text())
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return
-	}
-}
-
-func readFileOrEmpty(path string) string {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(b))
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/stdcopy"
 	afpacket "github.com/google/gopacket/afpacket"
+	"github.com/samber/lo"
 	"github.com/vishvananda/netns"
 )
 
@@ -96,31 +97,27 @@ func (p *ContainerlabProvider) Destroy(
 	return err
 }
 
-func (p *ContainerlabProvider) Inspect(
+func (p *ContainerlabProvider) InspectLabs(
 	ctx context.Context,
-	topologyFile string,
-	instanceName string,
 	onLog func(data string),
-) (InspectOutput, error) {
-	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
-	rawOutput, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+) (map[string][]InspectContainer, error) {
+	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
 
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 	if err != nil {
 		return nil, err
 	}
 
-	if *rawOutput == "" {
-		return InspectOutput{}, nil
+	if *output == "" {
+		return map[string][]InspectContainer{}, nil
 	}
 
-	var inspectOutput InspectOutput
-	if err = json.Unmarshal([]byte(*rawOutput), &inspectOutput); err != nil {
-		return nil, err
-	}
+	var inspectOutput map[string][]InspectContainer
+	err = json.Unmarshal([]byte(*output), &inspectOutput)
 
 	// Strip the containerlab prefix from the container names
-	containerNamePrefix := fmt.Sprintf("clab-%s-", instanceName)
-	for _, lab := range inspectOutput {
+	for labName, lab := range inspectOutput {
+		containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
 		for i := range lab {
 			lab[i].ContainerName = lab[i].Name
 			lab[i].Name = strings.TrimPrefix(lab[i].Name, containerNamePrefix)
@@ -130,31 +127,64 @@ func (p *ContainerlabProvider) Inspect(
 	return inspectOutput, err
 }
 
-func (p *ContainerlabProvider) InspectAll(
+func (p *ContainerlabProvider) InspectLab(
 	ctx context.Context,
-) (InspectOutput, error) {
-	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
-	if output, err := runCommandSync(cmd, nil); err != nil {
+	topologyFile string,
+	instanceName string,
+	onLog func(data string),
+) ([]InspectContainer, error) {
+	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
+
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+	if err != nil {
 		return nil, err
-	} else {
-		if *output == "" {
-			return InspectOutput{}, nil
-		}
-
-		var inspectOutput InspectOutput
-		err = json.Unmarshal([]byte(*output), &inspectOutput)
-
-		// Strip the containerlab prefix from the container names
-		for labName, lab := range inspectOutput {
-			containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
-			for i := range lab {
-				lab[i].ContainerName = lab[i].Name
-				lab[i].Name = strings.TrimPrefix(lab[i].Name, containerNamePrefix)
-			}
-		}
-
-		return inspectOutput, err
 	}
+
+	if *output == "" {
+		return make([]InspectContainer, 0), nil
+	}
+
+	var inspectOutput map[string][]InspectContainer
+	if err = json.Unmarshal([]byte(*output), &inspectOutput); err != nil {
+		return nil, err
+	}
+
+	labInspect, ok := inspectOutput[instanceName]
+	if !ok {
+		return nil, utils.ErrLabNotRunning
+	}
+
+	// Strip the containerlab prefix from the container names
+	containerNamePrefix := fmt.Sprintf("clab-%s-", instanceName)
+	for i := range labInspect {
+		labInspect[i].ContainerName = labInspect[i].Name
+		labInspect[i].Name = strings.TrimPrefix(labInspect[i].Name, containerNamePrefix)
+	}
+
+	return labInspect, err
+}
+
+func (p *ContainerlabProvider) InspectNode(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	nodeName string,
+	onLog func(data string),
+) (InspectContainer, error) {
+	labInspect, err := p.InspectLab(ctx, topologyFile, instanceName, onLog)
+	if err != nil {
+		return InspectContainer{}, err
+	}
+
+	nodeInspect, ok := lo.Find(labInspect, func(i InspectContainer) bool {
+		return i.Name == nodeName
+	})
+
+	if !ok {
+		return InspectContainer{}, utils.ErrNodeNotFound
+	}
+
+	return nodeInspect, nil
 }
 
 func (p *ContainerlabProvider) Exec(

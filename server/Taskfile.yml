@@ -35,6 +35,7 @@ tasks:
       - task: build
       - sudo -E SB_JWT_SECRET=testing ./antimony-server -config=./config.yml
     env:
+      SB_LOG_LEVEL: debug
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
       SB_NATIVE_USERNAME: admin

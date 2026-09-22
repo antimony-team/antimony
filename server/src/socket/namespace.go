@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -329,6 +330,11 @@ func (m *namespace[I, O]) handleConnection(clients ...any) {
 	m.connectedClientsMutex.Unlock()
 
 	_ = client.On("data", func(raw ...any) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("[SOCK] Panic in handleData", "panic", r)
+			}
+		}()
 		m.handleData(authUser, raw...)
 	})
 
@@ -365,27 +371,37 @@ func (m *namespace[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...an
 		data    I
 	)
 
-	if len(raw) > 1 {
-		ack, ok = raw[1].(func([]any, error))
-		if !ok {
-			return
+	if n := len(raw); n > 0 {
+		if fn, isAck := raw[n-1].(func([]any, error)); isAck {
+			ack = fn
+			raw = raw[:n-1]
 		}
 	}
 
+	reject := func(msg string) {
+		if ack != nil {
+			ack([]any{utils.CreateSocketErrorResponse(fmt.Errorf("%w: %s", utils.ErrInvalidSocketRequest, msg))}, nil)
+		}
+	}
+
+	if len(raw) == 0 {
+		reject("no data provided")
+		return
+	}
+
 	if dataRaw, ok = raw[0].(string); !ok {
+		reject(fmt.Sprintf("expected a string payload, got %T", raw[0]))
 		return
 	}
 
 	if m.useRawInput {
 		if data, ok = any(dataRaw).(I); !ok {
+			reject(fmt.Sprintf("namespace expects %T, cannot use raw string input", data))
 			return
 		}
 	} else {
 		if err := json.Unmarshal([]byte(dataRaw), &data); err != nil {
-			if ack != nil {
-				errorResponse := utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest)
-				ack([]any{errorResponse}, nil)
-			}
+			reject("invalid JSON payload: " + err.Error())
 			return
 		}
 	}

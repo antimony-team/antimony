@@ -76,6 +76,8 @@ definitions:
   instance.InstanceNode:
     properties:
       canRestart:
+        description: CanRestart whether the node can be restarted. Determined by the
+          node's kind and the kind config file.
         type: boolean
       containerId:
         description: |-
@@ -84,8 +86,14 @@ definitions:
           In clabernetes this is the node's pod UID.
         type: string
       containerName:
+        description: |-
+          ContainerName is the name of the container running the node. Currently unused outside of display purposes.
+          In containerlab this is the node's docker container name.
+          In clabernetes this is equal to the node's name.
         type: string
       interfaces:
+        description: Interfaces are the network interfaces of the node. Fetched after
+          the node's startup listener succeeded.
         items:
           $ref: '#/definitions/deployment.NodeInterface'
         type: array

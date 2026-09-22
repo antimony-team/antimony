@@ -21,6 +21,7 @@ import (
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sclientset "github.com/clabernetes/clabernetes/generated/clientset"
 	"github.com/google/gopacket/afpacket"
+	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -264,23 +265,67 @@ func (p *ClabernetesProvider) Destroy(
 	return p.waitForNamespaceGone(ctx, namespace, onLog)
 }
 
-func (p *ClabernetesProvider) Inspect(
+func (p *ClabernetesProvider) InspectLabs(
+	ctx context.Context,
+	onLog func(data string),
+) (map[string][]InspectContainer, error) {
+	return p.inspect(ctx, "", metav1.NamespaceAll)
+}
+
+func (p *ClabernetesProvider) InspectLab(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(string),
-) (InspectOutput, error) {
-	return p.inspect(ctx, namespaceFor(instanceName), topologyFile)
+	onLog func(data string),
+) ([]InspectContainer, error) {
+	inspectOutput, err := p.inspect(ctx, topologyFile, metav1.NamespaceAll)
+	if err != nil {
+		return nil, err
+	}
+
+	if labInspect, ok := inspectOutput[instanceName]; !ok {
+		return nil, utils.ErrLabNotRunning
+	} else {
+		return labInspect, nil
+	}
 }
 
-func (p *ClabernetesProvider) InspectAll(ctx context.Context) (InspectOutput, error) {
-	return p.inspect(ctx, metav1.NamespaceAll, "")
+func (p *ClabernetesProvider) InspectNode(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	nodeName string,
+	onLog func(data string),
+) (InspectContainer, error) {
+	inspectOutput, err := p.inspect(ctx, topologyFile, metav1.NamespaceAll)
+	if err != nil {
+		return InspectContainer{}, err
+	}
+
+	labInspect, ok := inspectOutput[instanceName]
+	if !ok {
+		return InspectContainer{}, utils.ErrLabNotRunning
+	}
+
+	nodeInspect, ok := lo.Find(labInspect, func(i InspectContainer) bool {
+		return i.Name == nodeName
+	})
+
+	if !ok {
+		return InspectContainer{}, utils.ErrNodeNotFound
+	}
+
+	return nodeInspect, nil
 }
 
 // inspect lists the running node pods in ns (all namespaces when empty) and
 // appends an "exited" entry for every node deployment scaled to zero, since
 // stopped nodes have no pod.
-func (p *ClabernetesProvider) inspect(ctx context.Context, namespace string, labPath string) (InspectOutput, error) {
+func (p *ClabernetesProvider) inspect(
+	ctx context.Context,
+	topologyFile string,
+	namespace string,
+) (map[string][]InspectContainer, error) {
 	selector := metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode}
 
 	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, selector)
@@ -293,65 +338,75 @@ func (p *ClabernetesProvider) inspect(ctx context.Context, namespace string, lab
 		return nil, fmt.Errorf("list node deployments: %w", err)
 	}
 
-	output := InspectOutput{}
-	for i := range pods.Items {
+	output := make(map[string][]InspectContainer)
+	stopped := make(map[string]bool)
 
-		if pods.Items[i].DeletionTimestamp != nil {
-			continue
-		}
-		c := podToInspectContainer(&pods.Items[i], labPath)
-		output[c.LabName] = append(output[c.LabName], c)
-	}
 	for i := range deployments.Items {
 		d := &deployments.Items[i]
 		if d.Spec.Replicas == nil || *d.Spec.Replicas != 0 {
 			continue // has (or will have) a pod: already covered above
 		}
-		c := stoppedDeploymentToInspectContainer(d, labPath)
+		c := stoppedDeploymentToInspectContainer(d, topologyFile)
+		output[c.LabName] = append(output[c.LabName], c)
+		stopped[d.Namespace+"/"+c.Name] = true
+	}
+
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		node := pod.Labels[clabernetesconstants.LabelTopologyNode]
+
+		if pod.DeletionTimestamp != nil || stopped[pod.Namespace+"/"+node] {
+			continue
+		}
+		c := podToInspectContainer(pod, topologyFile)
 		output[c.LabName] = append(output[c.LabName], c)
 	}
+
 	return output, nil
 }
 
-func podToInspectContainer(pod *corev1.Pod, labPath string) InspectContainer {
-	c := InspectContainer{
-		LabName:     pod.Labels[clabernetesconstants.LabelTopologyOwner],
-		LabPath:     labPath,
-		Name:        pod.Labels[clabernetesconstants.LabelTopologyNode],
-		ContainerId: string(pod.UID),
-		Kind:        pod.Labels[clabernetesconstants.LabelTopologyKind],
-		State:       podStateToNodeState(pod),
-		Owner:       pod.Namespace,
+func podToInspectContainer(pod *corev1.Pod, topologyFile string) InspectContainer {
+	fmt.Printf("Kind label: %s\n", pod.Labels[clabernetesconstants.LabelTopologyKind])
+
+	container := InspectContainer{
+		Name:          pod.Labels[clabernetesconstants.LabelTopologyNode],
+		LabName:       pod.Labels[clabernetesconstants.LabelTopologyOwner],
+		LabPath:       topologyFile,
+		ContainerId:   string(pod.UID),
+		ContainerName: pod.Name,
+		State:         podStateToNodeState(pod),
 	}
-	if len(pod.Spec.Containers) > 0 {
-		c.Image = pod.Spec.Containers[0].Image
+
+	if spec := pod.Spec.Containers; len(pod.Spec.Containers) > 0 {
+		container.Image = spec[0].Image
 	}
+
 	for _, ip := range pod.Status.PodIPs {
 		if strings.Contains(ip.IP, ":") {
-			c.IPv6Address = ip.IP
+			container.IPv6Address = ip.IP
 		} else {
-			c.IPv4Address = ip.IP
+			container.IPv4Address = ip.IP
 		}
 	}
-	return c
+
+	return container
 }
 
-func stoppedDeploymentToInspectContainer(d *appsv1.Deployment, labPath string) InspectContainer {
-	fmt.Printf("STOPPED POD: %s/%s\n", d.Namespace, d.Labels[clabernetesconstants.LabelTopologyNode])
+func stoppedDeploymentToInspectContainer(d *appsv1.Deployment, topologyFile string) InspectContainer {
+	container := InspectContainer{
+		Name:          d.Labels[clabernetesconstants.LabelTopologyNode],
+		LabName:       d.Labels[clabernetesconstants.LabelTopologyOwner],
+		LabPath:       topologyFile,
+		ContainerId:   "",
+		ContainerName: "",
+		State:         NodeStates.Stopped,
+	}
 
-	c := InspectContainer{
-		LabName:     d.Labels[clabernetesconstants.LabelTopologyOwner],
-		LabPath:     labPath,
-		Name:        d.Labels[clabernetesconstants.LabelTopologyNode],
-		ContainerId: "",
-		Kind:        d.Labels[clabernetesconstants.LabelTopologyKind],
-		State:       NodeStates.Stopped,
-		Owner:       d.Namespace,
+	if spec := d.Spec.Template.Spec.Containers; len(spec) > 0 {
+		container.Image = spec[0].Image
 	}
-	if cs := d.Spec.Template.Spec.Containers; len(cs) > 0 {
-		c.Image = cs[0].Image
-	}
-	return c
+
+	return container
 }
 
 func podStateToNodeState(pod *corev1.Pod) NodeState {

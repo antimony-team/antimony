@@ -65,7 +65,12 @@ func main() {
 
 	log.SetTimeFormat("[2006-01-02 15:04:05]")
 
-	if isDevMode {
+	if lvl, err := log.ParseLevel(os.Getenv("SB_LOG_LEVEL")); err == nil {
+		log.Info("Starting with custom log level", "level", lvl.String())
+		log.SetLevel(lvl)
+	} else if isDevMode {
+		log.Info("Starting in development mode with custopm log level", "level", "debug")
+		log.SetLevel(log.DebugLevel)
 		log.SetReportCaller(true)
 	}
 

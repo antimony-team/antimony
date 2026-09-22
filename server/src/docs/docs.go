@@ -1154,6 +1154,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "canRestart": {
+                    "description": "CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.",
                     "type": "boolean"
                 },
                 "containerId": {
@@ -1161,9 +1162,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "containerName": {
+                    "description": "ContainerName is the name of the container running the node. Currently unused outside of display purposes.\nIn containerlab this is the node's docker container name.\nIn clabernetes this is equal to the node's name.",
                     "type": "string"
                 },
                 "interfaces": {
+                    "description": "Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/deployment.NodeInterface"

@@ -7,7 +7,7 @@ import "errors"
  */
 
 var ErrAntimony = errors.New("the antimony server encountered an error. please check the logs")
-var ErrContainerlab = errors.New("the containerlab subprocess encountered an error")
+var ErrProvider = errors.New("the provider subprocess encountered an error")
 var ErrDatabaseError = errors.New("the antimony database encountered an error. please check the logs")
 var ErrFileStorage = errors.New("the antimony storage service encountered an error. please check the logs")
 var ErrOpenIDError = errors.New("failed to authenticate via openid connect")
@@ -55,10 +55,12 @@ var ErrNoPermissionToCreateCollections = errors.New("permission to create collec
  * Socket-exclusive errors.
  */
 
+var ErrLabNotFound = errors.New("the specified lab has not been found")
 var ErrLabNotRunning = errors.New("the specified lab is not running")
 var ErrShellLimitReached = errors.New("user shell limit reached")
 var ErrNodeNotRunning = errors.New("the specified node is not running")
-var ErrLabIsDeploying = errors.New("the specified lab is already being deployed")
+var ErrLabOperationInProgress = errors.New("lab is busy, try again once the current operation has finished")
+var ErrInvalidNodeOperation = errors.New("the provided node operation was not allowed")
 var ErrInvalidRuntimeCommand = errors.New("the provided runtime command was invalid")
 var ErrNoAccessToShell = errors.New("access to the provided shell is not granted")
 var ErrInvalidSocketRequest = errors.New("the socket request was invalid")

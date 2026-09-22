@@ -12,8 +12,8 @@ type Instance struct {
 	// Immutable after construction; safe to read without locking.
 	Name         string
 	TopologyFile string
-	NodeKinds    map[string]string
 	NodeLabels   map[string]map[string]string
+	NodeKinds    map[string]string
 	LogNamespace *socket.OutputNamespace[string]
 
 	// DataMutex guards the mutable state below.
