@@ -1157,6 +1157,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "containerId": {
+                    "description": "ContainerId is the globally unique identifier for the container running the node.\nIn containerlab this is the node's docker container ID.\nIn clabernetes this is the node's pod UID.",
                     "type": "string"
                 },
                 "containerName": {
@@ -1169,19 +1170,27 @@ const docTemplate = `{
                     }
                 },
                 "ipv4": {
+                    "description": "IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.",
                     "type": "string"
                 },
                 "ipv6": {
                     "type": "string"
                 },
                 "kind": {
+                    "description": "Kind is the type of the node as defined in the topology file.",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Name is the name of the node as defined in the topology file.",
                     "type": "string"
                 },
                 "state": {
-                    "$ref": "#/definitions/deployment.NodeState"
+                    "description": "State is the current state of the node.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/deployment.NodeState"
+                        }
+                    ]
                 }
             }
         },

@@ -141,7 +141,7 @@ func (s *Service) OpenShellCommand(
 
 	connection, err := s.openNodeShell(ctx, node, instanceName)
 	if err != nil {
-		log.Error("Failed to open shell on node.", "node", node.ContainerName)
+		log.Error("Failed to open shell on node.", "node", node.ContainerId)
 		return "", err
 	}
 

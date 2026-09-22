@@ -114,7 +114,19 @@ func (p *ContainerlabProvider) Inspect(
 	}
 
 	var inspectOutput InspectOutput
-	err = json.Unmarshal([]byte(*rawOutput), &inspectOutput)
+	if err = json.Unmarshal([]byte(*rawOutput), &inspectOutput); err != nil {
+		return nil, err
+	}
+
+	// Strip the containerlab prefix from the container names
+	containerNamePrefix := fmt.Sprintf("clab-%s-", instanceName)
+	for _, lab := range inspectOutput {
+		for i := range lab {
+			lab[i].ContainerName = lab[i].Name
+			lab[i].Name = strings.TrimPrefix(lab[i].Name, containerNamePrefix)
+		}
+	}
+
 	return inspectOutput, err
 }
 
@@ -131,6 +143,15 @@ func (p *ContainerlabProvider) InspectAll(
 
 		var inspectOutput InspectOutput
 		err = json.Unmarshal([]byte(*output), &inspectOutput)
+
+		// Strip the containerlab prefix from the container names
+		for labName, lab := range inspectOutput {
+			containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
+			for i := range lab {
+				lab[i].ContainerName = lab[i].Name
+				lab[i].Name = strings.TrimPrefix(lab[i].Name, containerNamePrefix)
+			}
+		}
 
 		return inspectOutput, err
 	}
@@ -365,7 +386,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 	return nil
 }
 
-func (p *ContainerlabProvider) GetInterfaces(
+func (p *ContainerlabProvider) GetNetworkInterfaces(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
@@ -543,4 +564,22 @@ func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error
 	runtime.UnlockOSThread()
 
 	return tp, err
+}
+
+var nodeStateNames = map[string]NodeState{
+	"starting": NodeStates.Starting,
+	"running":  NodeStates.Running,
+	"exited":   NodeStates.Stopped,
+	"dead":     NodeStates.Stopped,
+	"created":  NodeStates.Stopped,
+}
+
+// We need to translate the containerlab's node state names to our own node state enum.
+func (s *NodeState) UnmarshalText(b []byte) error {
+	v, ok := nodeStateNames[strings.ToLower(string(b))]
+	if !ok {
+		return fmt.Errorf("unknown node state %q", b)
+	}
+	*s = v
+	return nil
 }

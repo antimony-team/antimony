@@ -9,19 +9,25 @@ import (
 )
 
 type Instance struct {
-	Name              string
+	// Immutable after construction; safe to read without locking.
+	Name         string
+	TopologyFile string
+	NodeKinds    map[string]string
+	NodeLabels   map[string]map[string]string
+	LogNamespace *socket.OutputNamespace[string]
+
+	// DataMutex guards the mutable state below.
+	DataMutex         sync.Mutex
 	Deployed          time.Time
-	State             InstanceState
 	LatestStateChange time.Time
+	State             InstanceState
 	Nodes             []*InstanceNode
-
-	// Recovered Whether the instance has been recovered after an Antimony restart
+	// Recovered specifies whether the instance has been recovered after an Antimony restart
 	Recovered bool
+	// IsDestroyed Whether the instance has been destroyed
+	IsDestroyed bool
 
-	// DataMutex The mutex that guards mutable instance fields
-	DataMutex sync.Mutex
-
-	// OperationMutex The mutex that serializes deployment operations (deploy, destroy, node commands)
+	// OperationMutex is the mutex that serializes deployment operations (deploy, destroy, node commands)
 	OperationMutex sync.Mutex
 
 	// DeploymentCtx holds the context of the current deployment. All runtime instance functions,
@@ -30,15 +36,6 @@ type Instance struct {
 	DeploymentCtx    context.Context
 	DeploymentCancel context.CancelFunc
 	DeploymentMutex  sync.Mutex
-
-	// IsDestroyed Whether the instance has been destroyed
-	IsDestroyed bool
-
-	// Read-only fields that are never changed
-	TopologyFile string
-	LogNamespace *socket.OutputNamespace[string]
-	NodeKinds    map[string]string
-	NodeLabels   map[string]map[string]string
 }
 
 func (i *Instance) deploymentContext() context.Context {
@@ -49,15 +46,33 @@ func (i *Instance) deploymentContext() context.Context {
 }
 
 type InstanceNode struct {
-	Name          string                     `json:"name"`
-	Kind          string                     `json:"kind"`
-	IPv4          string                     `json:"ipv4"`
-	IPv6          string                     `json:"ipv6"`
-	State         deployment.NodeState       `json:"state"`
-	ContainerId   string                     `json:"containerId"`
-	ContainerName string                     `json:"containerName"`
-	Interfaces    []deployment.NodeInterface `json:"interfaces"`
+	// Name is the name of the node as defined in the topology file.
+	Name string `json:"name"`
 
+	// Kind is the type of the node as defined in the topology file.
+	Kind string `json:"kind"`
+
+	// IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.
+	IPv4 string `json:"ipv4"`
+	IPv6 string `json:"ipv6"`
+
+	// State is the current state of the node.
+	State deployment.NodeState `json:"state"`
+
+	// ContainerId is the globally unique identifier for the container running the node.
+	// In containerlab this is the node's docker container ID.
+	// In clabernetes this is the node's pod UID.
+	ContainerId string `json:"containerId"`
+
+	// ContainerName is the name of the container running the node. Currently unused outside of display purposes.
+	// In containerlab this is the node's docker container name.
+	// In clabernetes this is equal to the node's name.
+	ContainerName string `json:"containerName"`
+
+	// Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.
+	Interfaces []deployment.NodeInterface `json:"interfaces"`
+
+	// CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.
 	CanRestart bool `json:"canRestart"`
 }
 

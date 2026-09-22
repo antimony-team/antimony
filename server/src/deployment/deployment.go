@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -104,7 +105,10 @@ type DeploymentProvider interface {
 		onLog func(data string),
 	) error
 
-	GetInterfaces(
+	// GetNetworkInterfaces returns a list of network interfaces for a node.
+	//
+	// Returns a [utils.ErrNodeNotRunning] if the node is currently not running.
+	GetNetworkInterfaces(
 		ctx context.Context,
 		instanceName string,
 		nodeName string,
@@ -119,16 +123,17 @@ type ShellExecSession interface {
 type InspectOutput = map[string][]InspectContainer
 
 type InspectContainer struct {
-	LabName     string    `json:"lab_name"`
-	LabPath     string    `json:"labPath"`
-	Name        string    `json:"name"`
-	ContainerId string    `json:"container_id"`
-	Image       string    `json:"image"`
-	Kind        string    `json:"kind"`
-	State       NodeState `json:"state"`
-	IPv4Address string    `json:"ipv4_address"`
-	IPv6Address string    `json:"ipv6_address"`
-	Owner       string    `json:"owner"`
+	LabName       string    `json:"lab_name"`
+	LabPath       string    `json:"labPath"`
+	Name          string    `json:"name"`
+	ContainerId   string    `json:"container_id"`
+	ContainerName string    `json:"container_name"`
+	Image         string    `json:"image"`
+	Kind          string    `json:"kind"`
+	State         NodeState `json:"state"`
+	IPv4Address   string    `json:"ipv4_address"`
+	IPv6Address   string    `json:"ipv6_address"`
+	Owner         string    `json:"owner"`
 }
 
 type NodeState int
@@ -226,6 +231,11 @@ func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
 
 	err = cmd.Wait()
 	output := outputBuffer.String()
+
+	if err != nil {
+		err = fmt.Errorf("sub-process '%s' failed: %s", cmd.String(), err)
+	}
+
 	return &output, err
 }
 

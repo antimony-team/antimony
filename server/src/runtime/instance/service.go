@@ -727,8 +727,6 @@ func (s *Service) registerProviderEventListener() {
 	ctx := context.Background()
 
 	_ = s.deploymentProvider.RegisterListener(ctx, func(nodeName string) {
-		fmt.Printf("LISTENER FOR CONTAINER ID: %s\n", nodeName)
-
 		var targetLabId string
 		var targetInstance *Instance
 		var targetNode *InstanceNode
@@ -745,16 +743,14 @@ func (s *Service) registerProviderEventListener() {
 			})
 
 			if hasMatched {
-				targetLabId = labId
-				targetInstance = instance
-				targetNode = node
-			}
-
-			if targetLabId != "" {
-				// Ignore instances that are currently being deployed
-				//if instance.State == InstanceStates.Deploying {
-				//	targetLabId = ""
-				//}
+				// We want to ignore events from instances that are currently being worked on due to two reasons
+				// 1) Many events may fire during these operations, and we send explicit updates anyway when they are done
+				// 2) Re-Inspect may temporarily fail when the lab is currently not running (e.g., in Containerlab)
+				if instance.State != InstanceStates.Deploying && instance.State != InstanceStates.Stopping {
+					targetLabId = labId
+					targetInstance = instance
+					targetNode = node
+				}
 
 				instance.DataMutex.Unlock()
 				break
@@ -770,44 +766,26 @@ func (s *Service) registerProviderEventListener() {
 				targetNode,
 				true,
 			)
-			if err != nil {
-				log.Error(
-					"Failed to update instance node",
-					"err", err.Error(),
-					"lab", targetLabId,
-					"node", targetNode.Name,
-				)
+
+			log.Error(
+				"Failed to update instance node",
+				"lab", targetLabId,
+				"node", targetNode.Name,
+				"err", err.Error(),
+			)
+
+			// We want to ignore errors here as it's possible that the lab or nodes aren't quite ready yet.
+			// This can potentially mess up the containerlab
+			if err == nil {
+				s.updatesNamespace.Send(instanceUpdate{
+					LabId: &targetLabId,
+				})
 			}
 
 			s.updatesNamespace.Send(instanceUpdate{
 				LabId: &targetLabId,
 			})
 		}
-
-		//var targetLabId string
-		//
-		//s.instancesMutex.Lock()
-		//instances := maps.Clone(s.instances)
-		//s.instancesMutex.Unlock()
-		//
-		//for labId, instance := range instances {
-		//	instance.DataMutex.Lock()
-		//	_, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
-		//		return item.ContainerId == containerId
-		//	})
-		//	instance.DataMutex.Unlock()
-		//
-		//	if hasMatched {
-		//		targetLabId = labId
-		//		break
-		//	}
-		//}
-		//
-		//if targetLabId != "" {
-		//	s.updatesNamespace.Send(instanceUpdate{
-		//		LabId: &targetLabId,
-		//	})
-		//}
 	})
 }
 
@@ -820,7 +798,11 @@ func (s *Service) startNodeStartupListener(
 	ctxTimeout, cancel := context.WithTimeout(deploymentContext, 10*time.Minute)
 	defer cancel()
 
-	log.Info("[Startup] Starting startup launcher for node", "node", node.Name)
+	log.Debug(
+		"[Startup] Starting startup launcher for node",
+		"lab", lab.UUID,
+		"node", node.Name,
+	)
 
 	err := s.waitForNodeStarted(ctxTimeout, lab.InstanceName, node.Name)
 	if err != nil {
@@ -847,7 +829,7 @@ func (s *Service) startNodeStartupListener(
 		return
 	}
 
-	log.Info("[Startup] Node is started", "node", node.Name)
+	log.Debug("[Startup] Node has started", "lab", lab.UUID, "node", node.Name)
 
 	s.onNodeStarted(instance, node, lab)
 }
@@ -924,7 +906,7 @@ func (s *Service) onNodeStarted(
 ) {
 	deploymentContext := instance.deploymentContext()
 
-	interfaces, err := s.deploymentProvider.GetInterfaces(deploymentContext, lab.InstanceName, node.Name)
+	interfaces, err := s.deploymentProvider.GetNetworkInterfaces(deploymentContext, lab.InstanceName, node.Name)
 
 	instance.DataMutex.Lock()
 
@@ -957,8 +939,6 @@ func (s *Service) onNodeStarted(
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
 	})
-
-	log.Info("[Startup] Node is registered as started", "node", node.Name)
 }
 
 func (s *Service) createInstance(
@@ -1084,11 +1064,13 @@ func (s *Service) updateInstanceNode(
 	})
 
 	if !found {
-		fmt.Printf("FAILED TO FIND UPDATE NODE: %s", node.Name)
+		log.Warn(
+			"Tried to update node that was not found in inspect output",
+			"instance", instanceName,
+			"node", node.Name,
+		)
 		return nil
 	}
-
-	fmt.Printf("FOUND INSTANCE NODE: %s, updated: %v\n", node.Name, updatedNode)
 
 	instance.DataMutex.Lock()
 	node.ContainerId = updatedNode.ContainerId
@@ -1107,15 +1089,11 @@ func (s *Service) getNodesFromInspect(
 	onLog func(data string),
 ) ([]*InstanceNode, error) {
 	deploymentContext := instance.deploymentContext()
+
 	inspectOutput, err := s.deploymentProvider.Inspect(deploymentContext, instance.TopologyFile, instanceName, onLog)
-
-	fmt.Printf("INSPECT OUTPUT1: %v, err: %s", inspectOutput, err)
-
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("INSPECT OUTPUT: %v", inspectOutput)
 
 	containers := inspectOutput[instanceName]
 
@@ -1131,25 +1109,20 @@ func (s *Service) containerToInstanceNode(
 ) *InstanceNode {
 	var ok bool
 
-	prefix := fmt.Sprintf("clab-%s-", instanceName)
-	nodeName := strings.TrimPrefix(container.Name, prefix)
-
 	var nodeKind string
 	canRestart := false
 
-	if nodeKind, ok = nodeKinds[nodeName]; ok {
+	if nodeKind, ok = nodeKinds[container.Name]; ok {
 		if kindConfig, ok := s.nodeKindConfigs[nodeKind]; ok {
 			if kindConfig.CanRestart != nil && *kindConfig.CanRestart {
 				canRestart = true
 			}
 		}
 	} else {
-		log.Warnf("Failed to get kind for running node '%s'", nodeName)
+		log.Warnf("Failed to get kind for running node '%s'", container.Name)
 	}
 
 	nodeState := container.State
-
-	fmt.Printf("containerToInstanceNode NODE: %s, STATE: %s\n", nodeName, nodeState)
 
 	// Always set running nodes to starting as we want the startup listener to decide when they are actually running
 	if nodeState == deployment.NodeStates.Running {
@@ -1157,13 +1130,13 @@ func (s *Service) containerToInstanceNode(
 	}
 
 	return &InstanceNode{
-		Name:          nodeName,
+		Name:          container.Name,
 		Kind:          nodeKind,
 		IPv4:          container.IPv4Address,
 		IPv6:          container.IPv6Address,
 		State:         nodeState,
 		ContainerId:   container.ContainerId,
-		ContainerName: container.Name,
+		ContainerName: container.ContainerName,
 		Interfaces:    make([]deployment.NodeInterface, 0),
 		CanRestart:    canRestart,
 	}
@@ -1277,7 +1250,7 @@ func (s *Service) reviveInstances() {
 
 			if err != nil {
 				log.Error(
-					"Failed to setup container serverlog stream for container",
+					"Failed to setup container log stream for container",
 					"container", container.ContainerId,
 					"err", err.Error(),
 				)

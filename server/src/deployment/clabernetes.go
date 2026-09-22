@@ -742,7 +742,7 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	return nil
 }
 
-func (p *ClabernetesProvider) GetInterfaces(
+func (p *ClabernetesProvider) GetNetworkInterfaces(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
@@ -762,6 +762,10 @@ func (p *ClabernetesProvider) GetInterfaces(
 	)
 
 	if err != nil {
+		if errors.Is(err, utils.ErrNodeNotRunning) {
+			return nil, utils.ErrNodeNotRunning
+		}
+
 		return nil, fmt.Errorf("list interfaces in %s/%s: %w", namespace, nodeName, err)
 	}
 
