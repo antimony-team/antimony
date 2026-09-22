@@ -481,8 +481,18 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
           <div className="lab-dialog-drawer-title">
             {nodeName} ({InstanceNodeState[node!.state]})
           </div>
-          <div className="flex flex-row gap-4 justify-content-between">
+          <div className="flex flex-row gap-2 justify-content-between">
             <div className="flex flex-column gap-1 min-w-0">
+              <div className="flex gap-1">
+                <span className="property-title">Node Name:</span>
+                <SBCopyableProperty value={node!.name} />
+              </div>
+
+              <div className="flex gap-1">
+                <span className="property-title">Node Kind:</span>
+                <SBCopyableProperty value={node!.kind} />
+              </div>
+
               <div className="flex gap-1">
                 <span className="property-title">Container ID:</span>
                 <SBCopyableProperty value={node!.containerId} />
@@ -498,12 +508,15 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 <SBCopyableProperty value={node!.ipv4} />
               </div>
 
-              <When condition={node!.ipv6}>
-                <div className="flex gap-1">
-                  <span className="property-title">Mgmt IPv6:</span>
-                  <SBCopyableProperty value={node!.ipv6} />
-                </div>
-              </When>
+              <div className="flex gap-1">
+                <span className="property-title">Mgmt IPv6:</span>
+                <Choose>
+                  <When condition={node!.ipv6}>
+                    <SBCopyableProperty value={node!.ipv6} />
+                  </When>
+                  <Otherwise>N/A</Otherwise>
+                </Choose>
+              </div>
 
               <div className="flex gap-1">
                 <span className="property-title">Interfaces:</span>
