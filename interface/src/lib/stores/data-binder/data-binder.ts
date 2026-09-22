@@ -68,6 +68,8 @@ export class DataBinder {
 
   private subscriptions: Map<string, Subscription> = new Map();
 
+  private runningRequests = new Map<string, number>();
+
   constructor() {
     /*
      * Automatically connect / disconnect subscriptions when logged in.
@@ -561,6 +563,22 @@ export class DataBinder {
     authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<void, T>(path, 'GET', undefined, authenticated);
+  }
+
+  /**
+   * Like get(), but if a newer getLatest() for the same path starts before this
+   * one returns, this one resolves to null and its result must be discarded.
+   */
+  public async getLatest<T>(
+    path: string,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>> | null> {
+    const seq = (this.runningRequests.get(path) ?? 0) + 1;
+    this.runningRequests.set(path, seq);
+
+    const result = await this.get<T>(path, authenticated);
+
+    return this.runningRequests.get(path) === seq ? result : null;
   }
 
   public async delete<T>(

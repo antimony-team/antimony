@@ -114,7 +114,6 @@ export type ShellData = ShellDataOut & {
 
 export type LabUpdateOut = {
   labId: string;
-  newState: InstanceState | null;
 };
 
 export type ShellCommandData = {
