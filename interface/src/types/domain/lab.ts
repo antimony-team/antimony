@@ -49,10 +49,10 @@ export type Instance = InstanceOut & {
 
 export type InstanceNode = {
   name: string;
+  kind: string;
   ipv4: string;
   ipv6: string;
   port: number;
-  kind: string;
   user: string;
   state: InstanceNodeState;
   webSSH: string;

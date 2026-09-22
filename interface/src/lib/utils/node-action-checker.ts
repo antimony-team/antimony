@@ -59,6 +59,6 @@ export class NodeActionChecker {
   }
 
   private assertNodeState(...states: InstanceNodeState[]) {
-    return this.node?.state && states.includes(this.node.state);
+    return this.node && states.includes(this.node.state);
   }
 }
