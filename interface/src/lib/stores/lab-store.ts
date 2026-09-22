@@ -21,9 +21,10 @@ import {
   LabUpdateOut,
   NodeStats,
 } from '@sb/types/domain/lab';
-import {Result} from '@sb/types/result';
+import {ErrorResult, Result} from '@sb/types/result';
 import dayjs from 'dayjs';
 import {action, computed, observable, reaction, runInAction} from 'mobx';
+import {ErrorCodes} from '@sb/types/error-codes';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -136,6 +137,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     );
 
     if (!('payload' in response)) {
+      // Ignore operation in progress as they are caused by the user spamming action buttons.
+      if (
+        (response as ErrorResult).code ===
+        ErrorCodes.ErrorLabOperationInProgress
+      ) {
+        return Result.createOk(null);
+      }
+
       console.error('Failed to execute runtime command: ', response);
       return Result.createErr(response);
     }
