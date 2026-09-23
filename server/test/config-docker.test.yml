@@ -25,7 +25,7 @@ capture:
   sshHost: 0.0.0.0
   sshPort: 6969
   sshKeyPath: ./key
-  excludedInterfaces: [ "lo", "gway-2800", "monit_in", "mgmt0-0" ]
+  excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*" ]
 streaming:
   containerLogBacklog: 1000
   clabLogBacklog: 1000

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -780,14 +781,9 @@ func (s *Service) registerProviderEventListener() {
 			})
 
 			if hasMatched {
-				// We want to ignore events from instances that are currently being worked on due to two reasons
-				// 1) Many events may fire during these operations, and we send explicit updates anyway when they are done
-				// 2) Re-Inspect may temporarily fail when the lab is currently not running (e.g., in Containerlab)
-				if instance.State != InstanceStates.Deploying && instance.State != InstanceStates.Stopping {
-					targetLabId = labId
-					targetInstance = instance
-					targetNode = node
-				}
+				targetLabId = labId
+				targetInstance = instance
+				targetNode = node
 
 				instance.DataMutex.Unlock()
 				break
@@ -815,7 +811,6 @@ func (s *Service) registerProviderEventListener() {
 				s.updatesNamespace.Send(instanceUpdate{
 					LabId: &targetLabId,
 				})
-				//fmt.Printf("Updated instance node in listener: %s %v\n", targetInstance.Name, targetNode)
 			}
 		}
 	})
@@ -939,6 +934,15 @@ func (s *Service) onNodeStarted(
 	deploymentContext := instance.deploymentContext()
 
 	interfaces, err := s.deploymentProvider.GetNetworkInterfaces(deploymentContext, lab.InstanceName, node.Name)
+
+	interfaces = lo.Filter(interfaces, func(i deployment.NodeInterface, _ int) bool {
+		for _, p := range s.config.Capture.ExcludedInterfaces {
+			if ok, _ := path.Match(p, i.Name); ok {
+				return false
+			}
+		}
+		return true
+	})
 
 	instance.DataMutex.Lock()
 
