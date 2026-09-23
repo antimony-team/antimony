@@ -1,7 +1,89 @@
-.sb-lab-dialog-panel-properties
-  left: 8px
-  top: 8px
-  width: 380px
+.sb-lab-view-properties
+  position: absolute
+  background-color: var(--island-color)
+  border: 2px solid var(--border-color)
+  border-radius: 12px
+  padding: 12px
+  margin: 12px
+  z-index: 10
+
+  .sb-lab-view-properties-table
+    display: grid
+    grid-template-columns: max-content minmax(0, 1fr)
+    column-gap: 1.25rem
+    row-gap: .45rem
+    margin: 0
+    align-items: baseline
+
+    dt
+      font-size: 15px
+      white-space: nowrap
+      color: var(--primary-color-text-darker)
+      letter-spacing: .03em
+
+    dd
+      font-size: 16px
+      margin: 0
+      min-width: 0
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+
+      .copyable
+        user-select: none
+
+        &:hover
+          text-decoration: underline
+          cursor: copy
+
+    .lab-props-italic
+      font-style: italic
+
+    .lab-props-link
+      display: inline-flex
+      align-items: center
+      gap: 6px
+      text-decoration: none
+      color: var(--accent-color)
+
+      &:hover
+        text-decoration: underline
+
+      .pi
+        font-size: 12px
+
+    .lab-props-facts
+      display: inline-flex
+      align-items: center
+
+      .pi
+        font-size: 12px
+        margin-right: 1ch
+        color: var(--fg-muted)
+
+      > span:not(:first-child)::before
+        content: ""
+        display: inline-block
+        width: 3px
+        height: 3px
+        border-radius: 50%
+        background: var(--primary-color-text)
+        margin: 0 .7ch
+        vertical-align: middle
+
+  .sb-lab-view-properties-footer
+    margin-top: 12px
+    display: flex
+    gap: 8px
+
+    .p-button
+      flex: 1
+
+  .p-divider
+    margin: 8px 0
+
+  .p-button
+    padding: 8px
 
   .property-title
     user-select: none

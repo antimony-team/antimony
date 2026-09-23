@@ -9,7 +9,6 @@ import TerminalDialog, {
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
 import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {
-  useCollectionStore,
   useDeviceStore,
   useLabStore,
   useServerConfig,
@@ -24,7 +23,7 @@ import {
   getInterfaceCaptureCommand,
   getNodeStateClass,
 } from '@sb/lib/utils/utils';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {If} from '@sb/types/control';
 import {InstanceNode, InstanceState, Lab} from '@sb/types/domain/lab';
 
 import cytoscape from 'cytoscape';
@@ -34,8 +33,6 @@ import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
-import {Button} from 'primereact/button';
-import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 import classNames from 'classnames';
 
 import './lab-view.sass';
@@ -43,6 +40,7 @@ import {Splitter, SplitterPanel} from 'primereact/splitter';
 import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
 import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
 import CytoscapeComponent from 'react-cytoscapejs';
+import LabViewHeader from '@sb/components/dashboard-page/lab-view/lab-view-header/lab-view-header';
 
 interface LabDialogProps {
   lab: Lab | null;
@@ -88,26 +86,13 @@ const LabView = observer((props: LabDialogProps) => {
   const [isCyReady, setIsCyReady] = useState<boolean>(false);
 
   const serverConfig = useServerConfig();
-  const collectionStore = useCollectionStore();
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
   const topologyStore = useTopologyStore();
   const statusMessageStore = useStatusMessages();
 
   const cyHasInitialized = useRef(false);
-
-  const groupName = useMemo(() => {
-    if (!props.lab) return;
-
-    const collectionId = props.lab.collectionId;
-    if (!collectionStore.lookup.has(collectionId)) return;
-    return collectionStore.lookup.get(collectionId)!.name;
-  }, [props.lab, collectionStore.lookup]);
-
-  useEffect(() => {
-    // Reset selected node when lab changes
-    // setSelectedNode(null);
-  }, [props.lab]);
+  const currentLabIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isCyReady || !cyRef.current) return;
@@ -115,9 +100,24 @@ const LabView = observer((props: LabDialogProps) => {
   }, [isCyReady]);
 
   useEffect(() => {
-    if (isCyReady && cyRef.current && props.lab && !cyHasInitialized.current) {
-      initCytoscape(cyRef.current);
-      cyHasInitialized.current = true;
+    if (isCyReady && cyRef.current && props.lab) {
+      if (currentLabIdRef.current !== props.lab.id) {
+        currentLabIdRef.current = props.lab.id;
+
+        cyRef.current.nodes().lock();
+        cyRef.current.animate({
+          fit: {
+            padding: getFitPadding(cyRef.current),
+            eles: cyRef.current.elements(),
+          },
+          duration: 50,
+        });
+      }
+
+      if (!cyHasInitialized.current) {
+        initCytoscape(cyRef.current);
+        cyHasInitialized.current = true;
+      }
     }
   }, [isCyReady, props.lab]);
 
@@ -408,16 +408,6 @@ const LabView = observer((props: LabDialogProps) => {
     // cy.on('zoom', onZoom);
     // cy.on('mousedown', onMouseDown);
     cy.style().fromJson(topologyStyle).update();
-
-    cy.nodes().lock();
-
-    cy.animate({
-      fit: {
-        padding: getFitPadding(cy),
-        eles: cy.elements(),
-      },
-      duration: 50,
-    });
   }
 
   function applyNodeState(
@@ -584,7 +574,7 @@ const LabView = observer((props: LabDialogProps) => {
 
   function canOpenLabLogs() {
     return (
-      props.lab?.instance ||
+      Boolean(props.lab?.instance) ||
       props.lab?.state === InstanceState.Deploying ||
       props.lab?.state === InstanceState.Failed
     );
@@ -599,7 +589,9 @@ const LabView = observer((props: LabDialogProps) => {
   }
 
   function canRedeployLab() {
-    return props.lab?.instance && props.lab?.state === InstanceState.Running;
+    return (
+      Boolean(props.lab?.instance) && props.lab?.state === InstanceState.Running
+    );
   }
 
   function canDestroylab() {
@@ -617,75 +609,18 @@ const LabView = observer((props: LabDialogProps) => {
           open: props.lab,
         })}
       >
-        <div className="sb-lab-view-header">
-          <Button
-            text
-            icon="pi pi-arrow-left"
-            size="large"
-            onClick={() => props.onClose()}
-            tooltip="Back"
-            tooltipOptions={{position: 'bottom', showDelay: 500}}
-            aria-label="Download"
+        <If condition={props.lab}>
+          <LabViewHeader
+            lab={props.lab!}
+            onClose={props.onClose}
+            onOpenLabLogs={openLabLogs}
+            onDestroyLabRequest={props.onDestroyLabRequest}
+            canDeployLab={canDeployLab}
+            canRedeployLab={canRedeployLab}
+            canDestroyLab={canDestroylab}
+            canOpenLabLogs={canOpenLabLogs}
           />
-          <If condition={props.lab}>
-            <StateIndicator lab={props.lab!} showText={false} />
-          </If>
-          <span className="sb-lab-dialog-title-name">{groupName + ' / '}</span>
-          <span>{props.lab?.name}</span>
-          <div className="flex-grow-1" />
-          <div className="sb-lab-view-header-buttons">
-            <Button
-              outlined
-              icon={
-                <span className="material-symbols-outlined">
-                  quick_reference_all
-                </span>
-              }
-              label="View Logs"
-              aria-label="View Logs"
-              onClick={openLabLogs}
-              disabled={!canOpenLabLogs()}
-            />
-            <Choose>
-              <When condition={canDeployLab()}>
-                <Button
-                  outlined
-                  icon="pi pi-play"
-                  severity="success"
-                  onClick={() => labStore.deployLab(props.lab!)}
-                />
-              </When>
-              <Otherwise>
-                <Button
-                  outlined
-                  icon={
-                    props.lab?.state === InstanceState.Deploying
-                      ? 'pi pi-sync pi-spin'
-                      : 'pi pi-sync'
-                  }
-                  aria-label="Redeploy Lab"
-                  onClick={() => labStore.deployLab(props.lab!)}
-                  disabled={!canRedeployLab()}
-                  tooltipOptions={{
-                    showOnDisabled: true,
-                  }}
-                />
-                <Button
-                  outlined
-                  icon="pi pi-power-off"
-                  aria-label={
-                    props.lab!.state === InstanceState.Scheduled
-                      ? 'Delete Lab'
-                      : 'Destroy Lab'
-                  }
-                  severity="danger"
-                  onClick={() => props.onDestroyLabRequest(props.lab!)}
-                  disabled={!canDestroylab()}
-                />
-              </Otherwise>
-            </Choose>
-          </div>
-        </div>
+        </If>
         <div className="sb-lab-view-content">
           <div className="sb-lab-view-drawer-container">
             <Splitter

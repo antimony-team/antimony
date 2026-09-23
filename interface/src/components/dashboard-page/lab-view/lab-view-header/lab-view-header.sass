@@ -1,0 +1,60 @@
+.sb-lab-view-header
+  display: flex
+  justify-content: space-between
+  align-items: center
+  background-color: var(--island-color)
+  border-bottom: 2px solid var(--border-color)
+  gap: 8px
+  border-radius: 12px 12px 0 0
+  height: 70px
+
+  .p-button:not(.p-button-outlined)
+    padding: 8px
+    margin: 8px
+    width: 40px
+
+  .sb-lab-view-header-content
+    display: flex
+    align-items: center
+    gap: 8px
+
+    .sb-lab-view-header-content-text
+      display: flex
+      flex-direction: column
+
+      .header-group
+        font-size: 20px
+        color: var(--primary-color-text-darker)
+
+      .header-name
+        font-size: 20px
+
+      .header-meta
+        font-size: 14px
+        color: var(--primary-color-text-darker)
+
+        > span:not(:first-child)::before
+          content: ""
+          display: inline-block
+          width: 3px
+          height: 3px
+          border-radius: 50%
+          background: var(--primary-color-text-darker)
+          margin: 0 .7ch
+          vertical-align: middle
+
+        .highlight
+          font-weight: 400
+          color: var(--primary-color-text)
+          font-variant-numeric: tabular-nums
+
+  .sb-lab-view-header-buttons
+    margin-right: 12px
+    display: flex
+    gap: 8px
+
+    .p-button
+      padding: 8px 16px
+
+      &.p-button-icon-only
+        width: 70px

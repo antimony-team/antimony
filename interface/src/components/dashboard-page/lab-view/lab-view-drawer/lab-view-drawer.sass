@@ -10,13 +10,6 @@
   .p-divider
     margin: 12px 0
 
-  .p-button
-    display: flex
-    justify-content: center
-
-    .p-button-label
-      flex-grow: 0
-
 .lab-dialog-drawer-content-inner
   padding: 12px
   overflow-x: hidden
@@ -113,6 +106,7 @@
   align-items: baseline
 
   dt
+    font-size: 15px
     white-space: nowrap
     color: var(--primary-color-text-darker)
     letter-spacing: .03em
@@ -124,7 +118,6 @@
     overflow: hidden
     text-overflow: ellipsis
     white-space: nowrap
-    font-family: monospace
 
     .copyable
       user-select: none
@@ -132,6 +125,18 @@
       &:hover
         text-decoration: underline
         cursor: copy
+
+  .lab-props-link
+    display: inline-flex
+    align-items: center
+    gap: 6px
+    text-decoration: none
+
+    &:hover
+      text-decoration: underline
+
+    .pi
+      font-size: 12px
 
 .lab-details-plot
   .lab-details-plot-header

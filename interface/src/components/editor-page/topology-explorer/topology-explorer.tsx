@@ -1162,8 +1162,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />
       <If condition={authUser.isAdmin}>
         <Button
-          outlined
-          rounded
+          text
           className="sb-topology-explorer-add-collection"
           icon="pi pi-plus"
           onClick={onAddCollection}

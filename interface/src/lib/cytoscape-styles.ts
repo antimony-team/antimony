@@ -46,7 +46,7 @@ export const topologyStyle = [
     style: {
       shape: 'roundrectangle',
       'background-opacity': 0,
-      'border-color': '#00bcd4',
+      'border-color': '#42b5ac',
       'border-width': 2,
       'border-opacity': 1,
       'text-margin-y': 6,

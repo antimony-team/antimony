@@ -92,17 +92,15 @@ const SBDialog = (props: SBDialogProps) => {
             onClick={() =>
               props.onCancel?.call(null) ?? props.onClose?.call(null)
             }
-            className="w-8rem"
             aria-label="Cancel"
           />
           <Button
+            outlined
             icon="pi pi-check"
             label={props.submitLabel ?? 'Submit'}
             onClick={() => {
-              console.log('ON SUBMIT BUTTON');
               props.onSubmit?.call(null);
             }}
-            className="w-8rem"
             aria-label="Submit"
             disabled={props.canSubmit === false}
           />

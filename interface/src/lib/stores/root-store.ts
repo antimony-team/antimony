@@ -13,9 +13,11 @@ import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
+import {ClockStore} from '@sb/lib/stores/clock-store';
 
 export class RootStore {
   _dataBinder: DataBinder;
+  _clockStore: ClockStore;
   _serverConfigStore: ServerConfigStore;
   _topologyStore: TopologyStore;
   _labStore: LabStore;
@@ -39,6 +41,8 @@ export class RootStore {
    */
   constructor() {
     this._dataBinder = new DataBinder();
+
+    this._clockStore = new ClockStore();
 
     this._statusMessagesStore = new StatusMessageStore(this);
 
@@ -129,6 +133,10 @@ export const useRootStore = () => {
 
 export const useDataBinder = () => {
   return useContext(RootStoreContext)._dataBinder;
+};
+
+export const useClock = () => {
+  return useContext(RootStoreContext)._clockStore;
 };
 
 export const useAuthUser = () => {

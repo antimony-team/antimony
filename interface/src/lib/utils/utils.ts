@@ -6,6 +6,10 @@ import {FetchState, Position} from '@sb/types/types';
 import cytoscape, {ElementDefinition} from 'cytoscape';
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration';
+dayjs.extend(duration);
+
 export async function fetchResource<T>(
   url: string,
   method: string = 'GET',
@@ -296,4 +300,13 @@ export function formatBytes(v: number | null) {
 
 export function getFitPadding(cy: cytoscape.Core) {
   return Math.min(cy.width(), cy.height()) * 0.1;
+}
+
+export function formatUptime(deployed: string | Date, now = dayjs()) {
+  const d = dayjs.duration(now.diff(dayjs(deployed)));
+  const days = Math.floor(d.asDays());
+  if (days >= 1) return `${days} d ${d.hours()} h`;
+  if (d.asHours() >= 1) return `${d.hours()} h ${d.minutes()} min`;
+  if (d.asMinutes() >= 1) return `${d.minutes()} min ${d.seconds()} s`;
+  return `${d.seconds()} s`;
 }
