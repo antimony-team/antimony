@@ -18,10 +18,12 @@
 
   .sb-lab-view-header
     display: flex
-    background-color: var(--header-color)
-    border-radius: 6px 6px 0 0
+    background-color: var(--island-color)
+    border-bottom: 2px solid var(--border-color)
     align-items: center
     gap: 8px
+    border-radius: 12px 12px 0 0
+    height: 70px
 
     .p-button:not(.p-button-outlined)
       padding: 8px
@@ -29,12 +31,15 @@
       width: 40px
 
   .sb-lab-view-header-buttons
-    margin-right: 8px
+    margin-right: 12px
     display: flex
     gap: 8px
 
     .p-button
       padding: 8px 16px
+
+      &.p-button-icon-only
+        width: 70px
 
   .sb-lab-view-content
     flex-grow: 1
@@ -53,6 +58,7 @@
       .sb-lab-view-drawer
         background-color: var(--secondary-color)
         pointer-events: all
+        border-radius: 12px
 
         &.closed
           opacity: 0
@@ -61,12 +67,17 @@
       .sb-lab-view-drawer,.sb-lab-view-drawer-gutter
         transition: opacity 0.12s ease-in-out
 
+      .sb-lab-view-drawer-gutter
+        width: 3px !important
+
       .sb-lab-view-drawer-decoy
         pointer-events: none
 
 .topology-graph-container
   display: flex
   height: 100%
+  background: var(--graph-color)
+  border-radius: 0 0 12px 12px
 
 .grid-canvas
   position: absolute
@@ -113,10 +124,10 @@
 
 .sb-lab-dialog-panel
   position: absolute
-  background-color: var(--secondary-color)
-  border: 1px solid var(--primary-color-border)
+  background-color: var(--island-color)
+  border: 2px solid var(--border-color)
+  border-radius: 12px
   z-index: 10
-  border-radius: 4px
   display: flex
   flex-direction: column
   padding: 12px

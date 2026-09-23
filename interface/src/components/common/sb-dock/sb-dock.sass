@@ -1,5 +1,4 @@
 .sb-dock
-  background-color: var(--secondary-color)
   padding-right: 16px
   height: 60px
   margin-bottom: 8px
@@ -22,13 +21,14 @@
 
     &:hover
       background-color: unset !important
-      border-color: var(--primary-color-border)
+      border-color: var(--border-color)
 
-    &.selected
-      background-color: var(--primary-color)
+    &.selected,&:active
+      background-color: rgba(255,255,255,0.08)
+      color: var(--primary-color-text)
 
       &:hover
-        background-color: var(--primary-color) !important
+        background-color: rgba(255,255,255,0.08) !important
 
   .material-symbols-outlined
     font-size: 20px
@@ -39,8 +39,6 @@
 .sb-logo-tab
   align-self: stretch
   width: 60px
-  background-color: var(--header-color)
-  border-radius: 6px 0 0 6px
   display: flex
   justify-content: center
   align-items: center

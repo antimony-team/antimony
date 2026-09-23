@@ -50,7 +50,7 @@ const SBDock = observer(() => {
       <div className="flex align-items-center gap-3">
         <div className="sb-logo-tab" onClick={() => navigate('/')}>
           <Image
-            src="./icons/favicon-dark.png"
+            src="./icons/favicon-light.png"
             width="45px"
             alt="Antimony Logo"
           />

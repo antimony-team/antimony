@@ -123,7 +123,7 @@ const DashboardPage = observer(() => {
         {/*  />*/}
         {/*</When>*/}
         <Otherwise>
-          <div className="height-100 width-100 sb-card sb-dashboard-container">
+          <div className="height-100 width-100 sb-dashboard-container">
             <LabView
               lab={openLab}
               onClose={onCloseLabView}

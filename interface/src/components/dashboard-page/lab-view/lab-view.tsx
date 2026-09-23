@@ -128,7 +128,6 @@ const LabView = observer((props: LabDialogProps) => {
       props.lab.topologyDefinition,
       deviceStore,
       topologyStore.manager,
-      null,
       false,
     );
   }, [props.lab?.id]);
@@ -664,7 +663,6 @@ const LabView = observer((props: LabDialogProps) => {
                       ? 'pi pi-sync pi-spin'
                       : 'pi pi-sync'
                   }
-                  severity="warning"
                   aria-label="Redeploy Lab"
                   onClick={() => labStore.deployLab(props.lab!)}
                   disabled={!canRedeployLab()}
