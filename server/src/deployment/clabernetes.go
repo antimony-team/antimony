@@ -339,7 +339,7 @@ func (p *ClabernetesProvider) inspect(
 	}
 
 	output := make(map[string][]InspectContainer)
-	stopped := make(map[string]bool)
+	stoppedIdx := make(map[string][2]any)
 
 	for i := range deployments.Items {
 		d := &deployments.Items[i]
@@ -348,14 +348,22 @@ func (p *ClabernetesProvider) inspect(
 		}
 		c := stoppedDeploymentToInspectContainer(d, topologyFile)
 		output[c.LabName] = append(output[c.LabName], c)
-		stopped[d.Namespace+"/"+c.Name] = true
+		stoppedIdx[d.Namespace+"/"+c.Name] = [2]any{c.LabName, len(output[c.LabName]) - 1}
 	}
 
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		node := pod.Labels[clabernetesconstants.LabelTopologyNode]
 
-		if pod.DeletionTimestamp != nil || stopped[pod.Namespace+"/"+node] {
+		if ref, ok := stoppedIdx[pod.Namespace+"/"+node]; ok {
+			// Pod is scaling down to 0, still winding down
+			lab, idx := ref[0].(string), ref[1].(int)
+			output[lab][idx].State = NodeStates.Stopping
+			continue
+		}
+
+		if pod.DeletionTimestamp != nil {
+			// This pod is being replaced by a restart, the new pod carries the state
 			continue
 		}
 		c := podToInspectContainer(pod, topologyFile)
@@ -409,21 +417,25 @@ func stoppedDeploymentToInspectContainer(d *appsv1.Deployment, topologyFile stri
 	return container
 }
 
+// podStateToNodeState maps a live (non-terminating) pod's phase onto the runtime state of the node it backs.
+// Terminating pods are handled by the caller, since whether they mean "stopping" or "restarting" depends on the
+// deployment, not the pod.
 func podStateToNodeState(pod *corev1.Pod) NodeState {
-	if pod.DeletionTimestamp != nil {
-		return starting // being replaced
-	}
 	switch pod.Status.Phase {
 	case corev1.PodSucceeded, corev1.PodFailed:
 		return NodeStates.Stopped
 	case corev1.PodRunning:
 		for _, c := range pod.Status.Conditions {
 			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
-				return running
+				return NodeStates.Running
 			}
 		}
+		return NodeStates.Starting
+	case corev1.PodPending:
+		return NodeStates.Starting
+	default:
+		return NodeStates.Starting
 	}
-	return starting
 }
 
 func (p *ClabernetesProvider) Exec(

@@ -115,12 +115,10 @@ func (p *ContainerlabProvider) InspectLabs(
 	var inspectOutput map[string][]InspectContainer
 	err = json.Unmarshal([]byte(*output), &inspectOutput)
 
-	// Strip the containerlab prefix from the container names
-	for labName, lab := range inspectOutput {
+	for labName, labInspect := range inspectOutput {
 		containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
-		for i := range lab {
-			lab[i].ContainerName = lab[i].Name
-			lab[i].Name = strings.TrimPrefix(lab[i].Name, containerNamePrefix)
+		for i := range labInspect {
+			parseInspectContainer(&labInspect[i], containerNamePrefix)
 		}
 	}
 
@@ -154,11 +152,9 @@ func (p *ContainerlabProvider) InspectLab(
 		return nil, utils.ErrLabNotRunning
 	}
 
-	// Strip the containerlab prefix from the container names
 	containerNamePrefix := fmt.Sprintf("clab-%s-", instanceName)
 	for i := range labInspect {
-		labInspect[i].ContainerName = labInspect[i].Name
-		labInspect[i].Name = strings.TrimPrefix(labInspect[i].Name, containerNamePrefix)
+		parseInspectContainer(&labInspect[i], containerNamePrefix)
 	}
 
 	return labInspect, err
@@ -596,19 +592,40 @@ func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error
 	return tp, err
 }
 
-var nodeStateNames = map[string]NodeState{
-	"starting": NodeStates.Starting,
-	"running":  NodeStates.Running,
-	"exited":   NodeStates.Stopped,
-	"dead":     NodeStates.Stopped,
-	"created":  NodeStates.Stopped,
+// parseInspectContainer parses the containerlab inspect output to fit the InspectContainer requirements
+func parseInspectContainer(container *InspectContainer, containerNamePrefix string) {
+	container.ContainerName = container.Name
+	container.Name = strings.TrimPrefix(container.Name, containerNamePrefix)
+
+	if container.IPv4Address == "N/A" {
+		container.IPv4Address = ""
+	}
+
+	if container.IPv6Address == "N/A" {
+		container.IPv6Address = ""
+	}
 }
 
-// We need to translate the containerlab's node state names to our own node state enum.
+// dockerStates maps Docker's container statuses (as relayed by Containerlab's Inspect) onto NodeState.
+var dockerStates = map[string]NodeState{
+	"created":    NodeStates.Stopped,
+	"exited":     NodeStates.Stopped,
+	"dead":       NodeStates.Stopped,
+	"paused":     NodeStates.Stopped,
+	"restarting": NodeStates.Starting,
+	"running":    NodeStates.Running,
+	"removing":   NodeStates.Stopping,
+}
+
 func (s *NodeState) UnmarshalText(b []byte) error {
-	v, ok := nodeStateNames[strings.ToLower(string(b))]
+	raw := strings.ToLower(strings.TrimSpace(string(b)))
+	if fields := strings.Fields(raw); len(fields) > 0 {
+		raw = fields[0]
+	}
+	v, ok := dockerStates[raw]
 	if !ok {
-		return fmt.Errorf("unknown node state %q", b)
+		log.Warn("Unknown docker state, treating as stopped", "state", string(b))
+		v = NodeStates.Stopped
 	}
 	*s = v
 	return nil

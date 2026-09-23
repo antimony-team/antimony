@@ -1125,12 +1125,14 @@ const docTemplate = `{
             "enum": [
                 0,
                 1,
-                2
+                2,
+                3
             ],
             "x-enum-varnames": [
+                "stopped",
                 "starting",
                 "running",
-                "stopped"
+                "stopping"
             ]
         },
         "device.DeviceConfig": {
@@ -1158,26 +1160,30 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "containerId": {
-                    "description": "ContainerId is the globally unique identifier for the container running the node.\nIn containerlab this is the node's docker container ID.\nIn clabernetes this is the node's pod UID.",
+                    "description": "ContainerId is the globally unique identifier for the container running the node.\n\nWith containerlab as the deployment provider, this is the node's docker container ID.\nWith clabernetes as the deployment provider, this is the node's pod UID.\n\nLeft empty if the node is currently not running.",
                     "type": "string"
                 },
                 "containerName": {
-                    "description": "ContainerName is the name of the container running the node. Currently unused outside of display purposes.\nIn containerlab this is the node's docker container name.\nIn clabernetes this is equal to the node's name.",
+                    "description": "ContainerName is the name of the container running the node. Currently unused outside of display purposes.\n\nWith containerlab as the deployment provider, this is the node's docker container name.\nWith clabernetes as the deployment provider, this is equal to the node's name.\n\nLeft empty if the node is currently not running.",
                     "type": "string"
                 },
                 "interfaces": {
-                    "description": "Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.",
+                    "description": "Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.\nSet tpo nil if the node is not running.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/deployment.NodeInterface"
                     }
                 },
                 "ipv4": {
-                    "description": "IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.",
+                    "description": "IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.\n\nLeft empty if the node is currently not running or there is no IPv4 or IPv6 address assigned.",
                     "type": "string"
                 },
                 "ipv6": {
                     "type": "string"
+                },
+                "isReady": {
+                    "description": "IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.\nThis is initially set to false and set to true once the node's startup listener succeeded.",
+                    "type": "boolean"
                 },
                 "kind": {
                     "description": "Kind is the type of the node as defined in the topology file.",

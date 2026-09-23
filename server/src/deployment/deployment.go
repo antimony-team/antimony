@@ -142,19 +142,22 @@ type InspectContainer struct {
 type NodeState int
 
 const (
-	starting NodeState = iota
+	stopped NodeState = iota
+	starting
 	running
-	stopped
+	stopping
 )
 
 var NodeStates = struct {
+	Stopped  NodeState
 	Starting NodeState
 	Running  NodeState
-	Stopped  NodeState
+	Stopping NodeState
 }{
+	Stopped:  stopped,
 	Starting: starting,
 	Running:  running,
-	Stopped:  stopped,
+	Stopping: stopping,
 }
 
 type ContainerlabEvent struct {

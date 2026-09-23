@@ -176,7 +176,7 @@ func (s *Service) StartNodeCommand(
 	if node == nil {
 		return utils.ErrNodeNotFound
 	} else if !node.CanRestart {
-		return fmt.Errorf("unable to manually start nodes of kind '%s'", node.Kind)
+		return fmt.Errorf("%w: unable to manually start nodes of kind '%s'", utils.ErrInvalidNodeOperation, node.Kind)
 	}
 
 	instance.DataMutex.Lock()
@@ -185,9 +185,11 @@ func (s *Service) StartNodeCommand(
 
 	switch nodeState {
 	case deployment.NodeStates.Starting:
-		return fmt.Errorf("node is already starting")
+		return fmt.Errorf("%w: node is already starting", utils.ErrInvalidNodeOperation)
 	case deployment.NodeStates.Running:
-		return fmt.Errorf("node is already running")
+		return fmt.Errorf("%w: node is already running", utils.ErrInvalidNodeOperation)
+	case deployment.NodeStates.Stopping:
+		return fmt.Errorf("%w: node is currently stopping", utils.ErrInvalidNodeOperation)
 	}
 
 	deploymentContext := instance.deploymentContext()
@@ -236,18 +238,28 @@ func (s *Service) StopNodeCommand(
 	if node == nil {
 		return utils.ErrNodeNotFound
 	} else if !node.CanRestart {
-		return fmt.Errorf("unable to manually stop nodes of kind '%s'", node.Kind)
+		return fmt.Errorf("%w: unable to manually start nodes of kind '%s'", utils.ErrInvalidNodeOperation, node.Kind)
 	}
 
 	instance.DataMutex.Lock()
 	nodeState := node.State
 	instance.DataMutex.Unlock()
 
-	if nodeState == deployment.NodeStates.Stopped {
-		return fmt.Errorf("node is already stopped")
+	switch nodeState {
+	case deployment.NodeStates.Stopping:
+		return fmt.Errorf("%w: node is already stopping", utils.ErrInvalidNodeOperation)
+	case deployment.NodeStates.Stopped:
+		return fmt.Errorf("%w: node is already stopped", utils.ErrInvalidNodeOperation)
 	}
 
-	deploymentContext := instance.deploymentContext()
+	instance.DataMutex.Lock()
+	deploymentContext := instance.DeploymentCtx
+	node.Reset()
+	instance.DataMutex.Unlock()
+
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: &labId,
+	})
 
 	err = s.deploymentProvider.StopNode(
 		deploymentContext,
@@ -291,10 +303,28 @@ func (s *Service) RestartNodeCommand(
 	if node == nil {
 		return utils.ErrNodeNotFound
 	} else if !node.CanRestart {
-		return fmt.Errorf("unable to manually restart nodes of kind '%s'", node.Kind)
+		return fmt.Errorf("%w: unable to manually start nodes of kind '%s'", utils.ErrInvalidNodeOperation, node.Kind)
 	}
 
-	deploymentContext := instance.deploymentContext()
+	instance.DataMutex.Lock()
+	nodeState := node.State
+	instance.DataMutex.Unlock()
+
+	switch nodeState {
+	case deployment.NodeStates.Stopping:
+		return fmt.Errorf("%w: node is currently stopping", utils.ErrInvalidNodeOperation)
+	case deployment.NodeStates.Starting:
+		return fmt.Errorf("%w: node is currently starting", utils.ErrInvalidNodeOperation)
+	}
+
+	instance.DataMutex.Lock()
+	deploymentContext := instance.DeploymentCtx
+	node.Reset()
+	instance.DataMutex.Unlock()
+
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: &labId,
+	})
 
 	err = s.deploymentProvider.RestartNode(
 		deploymentContext,
@@ -566,12 +596,9 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	var err error
 
 	if instanceRunning {
-		// Manually set node states to starting to mark the nodes not running
-		// The actual state and interfaces will be updated once the instance is redeployed
 		instance.DataMutex.Lock()
 		for _, node := range instance.Nodes {
-			node.State = deployment.NodeStates.Starting
-			node.Interfaces = make([]deployment.NodeInterface, 0)
+			node.Reset()
 		}
 		instance.DataMutex.Unlock()
 
@@ -709,10 +736,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 				"err", err.Error(),
 			)
 		}
-
-		instance.DataMutex.Lock()
-		node.State = deployment.NodeStates.Starting
-		instance.DataMutex.Unlock()
 
 		go s.startNodeStartupListener(node, instance, lab)
 	}
@@ -926,20 +949,17 @@ func (s *Service) onNodeStarted(
 	}
 
 	if err != nil {
-		log.Error(
+		log.Warn(
 			"Failed to get interfaces for node",
-			"err", err.Error(),
 			"lab", lab.UUID,
-			"node", node.ContainerId,
+			"container", node.ContainerId,
+			"err", err.Error(),
 		)
+
+		interfaces = make([]deployment.NodeInterface, 0)
 	}
 
-	node.State = deployment.NodeStates.Running
-	if interfaces == nil {
-		node.Interfaces = make([]deployment.NodeInterface, 0)
-	} else {
-		node.Interfaces = interfaces
-	}
+	node.SetReady(interfaces)
 
 	instance.DataMutex.Unlock()
 
@@ -1091,30 +1111,19 @@ func (s *Service) fetchNode(
 
 	instance.DataMutex.Lock()
 
-	// If the node has been running and is still running, there is no need to update anything
-	if node.State == deployment.NodeStates.Running && updatedNode.State == deployment.NodeStates.Running {
-		instance.DataMutex.Unlock()
-		return false, nil
-	}
-
-	// If the node has been starting and is now running, we don't want to update anything. In this case,
-	// the startup listener will handle the update
-	if node.State == deployment.NodeStates.Starting && updatedNode.State == deployment.NodeStates.Running {
-		instance.DataMutex.Unlock()
-		return false, nil
-	}
-
 	// If the state hasn't changed, there is no need to update anything
 	if node.State == updatedNode.State {
 		instance.DataMutex.Unlock()
 		return false, nil
 	}
 
-	node.ContainerId = updatedNode.ContainerId
-	node.State = updatedNode.State
-	node.IPv4 = updatedNode.IPv4
-	node.IPv6 = updatedNode.IPv6
-	node.Interfaces = updatedNode.Interfaces
+	//if node.State != deployment.NodeStates.Running {
+	//	node.IsReady = false
+	//	node.Interfaces = make([]deployment.NodeInterface, 0)
+	//}
+
+	node.Set(updatedNode.State, updatedNode.IPv4, updatedNode.IPv6, updatedNode.ContainerId, updatedNode.ContainerName)
+
 	instance.DataMutex.Unlock()
 
 	return true, nil
@@ -1155,12 +1164,22 @@ func (s *Service) containerToInstanceNode(
 		log.Warn("Failed to get kind of running node", "containerId", container.ContainerId)
 	}
 
+	// For consistency, we clear the IP, container ID and container name fields when the container is stopped,
+	// even though the deployment provider might supply them.
+	if container.State == deployment.NodeStates.Stopped {
+		container.ContainerId = ""
+		container.ContainerName = ""
+		container.IPv4Address = ""
+		container.IPv6Address = ""
+	}
+
 	return &InstanceNode{
 		Name:          container.Name,
 		Kind:          nodeKind,
 		IPv4:          container.IPv4Address,
 		IPv6:          container.IPv6Address,
 		State:         container.State,
+		IsReady:       false,
 		ContainerId:   container.ContainerId,
 		ContainerName: container.ContainerName,
 		Interfaces:    make([]deployment.NodeInterface, 0),
@@ -1332,8 +1351,9 @@ func (s *Service) reviveInstances() {
 		}
 
 		for i := range instanceNodes {
-			if instanceNodes[i].State != deployment.NodeStates.Stopped {
-				instanceNodes[i].State = deployment.NodeStates.Starting
+			// Attach a starup listener to the node if it's currently running or starting
+			if instanceNodes[i].State == deployment.NodeStates.Running ||
+				instanceNodes[i].State == deployment.NodeStates.Starting {
 				go s.startNodeStartupListener(instanceNodes[i], instance, &savedLab)
 			}
 		}
