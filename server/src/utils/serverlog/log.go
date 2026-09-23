@@ -97,6 +97,10 @@ func CreateClabLog(line string) string {
 
 func FormatKubectlLog(onLog func(string)) func(string) {
 	return func(message string) {
+		if onLog == nil {
+			return
+		}
+
 		log := CreateKubeCtlLog(message)
 		if log != "" {
 			onLog(log)
@@ -106,6 +110,10 @@ func FormatKubectlLog(onLog func(string)) func(string) {
 
 func FormatClabLog(onLog func(string)) func(string) {
 	return func(message string) {
+		if onLog == nil {
+			return
+		}
+
 		log := CreateClabLog(message)
 		if log != "" {
 			onLog(log)

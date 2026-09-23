@@ -797,7 +797,7 @@ func (s *Service) registerProviderEventListener() {
 				targetInstance,
 				targetInstance.Name,
 				targetNode,
-				true,
+				false,
 			)
 
 			if err != nil {
