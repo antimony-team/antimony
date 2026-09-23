@@ -493,42 +493,97 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 <SBCopyableProperty value={node!.kind} />
               </div>
 
-              <div className="flex gap-1">
-                <span className="property-title">Container ID:</span>
-                <SBCopyableProperty value={node!.containerId} />
-              </div>
-
-              <div className="flex gap-1">
-                <span className="property-title">Container Name:</span>
-                <SBCopyableProperty value={node!.containerName} />
-              </div>
-
-              <div className="flex gap-1">
-                <span className="property-title">Mgmt IPv4:</span>
-                <SBCopyableProperty value={node!.ipv4} />
-              </div>
-
-              <div className="flex gap-1">
-                <span className="property-title">Mgmt IPv6:</span>
-                <Choose>
-                  <When condition={node!.ipv6}>
-                    <SBCopyableProperty value={node!.ipv6} />
-                  </When>
-                  <Otherwise>N/A</Otherwise>
-                </Choose>
-              </div>
-
-              <div className="flex gap-1">
-                <span className="property-title">Interfaces:</span>
-                <span className="property-value">
+              <If condition={node!.state !== InstanceNodeState.Stopped}>
+                <div className="flex gap-1">
+                  <span className="property-title">Container ID:</span>
                   <Choose>
-                    <When condition={node!.interfaces.length}>
-                      {node!.interfaces.map(iface => iface.name).join(', ')}
+                    <When
+                      condition={node!.state === InstanceNodeState.Starting}
+                    >
+                      <span className="property-value pending">Pending</span>
                     </When>
-                    <Otherwise>N/A</Otherwise>
+                    <When condition={node!.containerId === ''}>
+                      <span className="property-value">N/A</span>
+                    </When>
+                    <Otherwise>
+                      <SBCopyableProperty value={node!.containerId!} />
+                    </Otherwise>
                   </Choose>
-                </span>
-              </div>
+                </div>
+
+                <div className="flex gap-1">
+                  <span className="property-title">Container Name:</span>
+                  <Choose>
+                    <When
+                      condition={node!.state === InstanceNodeState.Starting}
+                    >
+                      <span className="property-value pending">Pending</span>
+                    </When>
+                    <When condition={node!.containerName === ''}>
+                      <span className="property-value">N/A</span>
+                    </When>
+                    <Otherwise>
+                      <SBCopyableProperty value={node!.containerName!} />
+                    </Otherwise>
+                  </Choose>
+                </div>
+
+                <div className="flex gap-1">
+                  <span className="property-title">Mgmt IPv4:</span>
+                  <Choose>
+                    <When
+                      condition={node!.state === InstanceNodeState.Starting}
+                    >
+                      <span className="property-value pending">Pending</span>
+                    </When>
+                    <When condition={node!.ipv4 === ''}>
+                      <span className="property-value">N/A</span>
+                    </When>
+                    <Otherwise>
+                      <SBCopyableProperty value={node!.ipv4!} />
+                    </Otherwise>
+                  </Choose>
+                </div>
+
+                <div className="flex gap-1">
+                  <span className="property-title">Mgmt IPv6:</span>
+                  <Choose>
+                    <When
+                      condition={node!.state === InstanceNodeState.Starting}
+                    >
+                      <span className="property-value pending">Pending</span>
+                    </When>
+                    <When condition={node!.ipv6 === ''}>
+                      <span className="property-value">N/A</span>
+                    </When>
+                    <Otherwise>
+                      <SBCopyableProperty value={node!.ipv6!} />
+                    </Otherwise>
+                  </Choose>
+                </div>
+
+                <div className="flex gap-1">
+                  <span className="property-title">Interfaces:</span>
+                  <Choose>
+                    <When
+                      condition={
+                        !node!.isReady &&
+                        node!.state === InstanceNodeState.Starting
+                      }
+                    >
+                      <span className="property-value pending">Pending</span>
+                    </When>
+                    <When condition={node!.interfaces!.length === 0}>
+                      <span className="property-value">None</span>
+                    </When>
+                    <Otherwise>
+                      <span className="property-value">
+                        {node!.interfaces!.map(iface => iface.name).join(', ')}
+                      </span>
+                    </Otherwise>
+                  </Choose>
+                </div>
+              </If>
             </div>
             <div className="lab-dialog-drawer-special-buttons">
               <Button

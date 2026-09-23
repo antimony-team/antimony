@@ -39,9 +39,7 @@ export class NodeActionChecker {
   }
 
   public get canOpenTerminal() {
-    return (
-      this.isInstanceRunning && this.assertNodeState(InstanceNodeState.Running)
-    );
+    return this.isInstanceRunning && this.node?.isReady;
   }
 
   public get canShowLogs() {
@@ -52,6 +50,14 @@ export class NodeActionChecker {
         InstanceNodeState.Running,
       )
     );
+  }
+
+  public get canShowStats() {
+    return this.isInstanceRunning && this.node?.isReady;
+  }
+
+  public get canShowCaptures() {
+    return this.isInstanceRunning && this.node?.isReady;
   }
 
   private get isInstanceRunning() {

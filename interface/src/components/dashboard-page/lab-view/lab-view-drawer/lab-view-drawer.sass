@@ -36,6 +36,17 @@
     opacity: 0.6
     flex: 1 1 auto
 
+    &.pending
+      color: var(--fg-muted)
+      font-style: italic
+
+      &::after
+        display: inline-block
+        width: 1.5ch
+        text-align: left
+        content: ""
+        animation: ellipsis 1.2s steps(4, end) infinite
+
     &.copyable
       user-select: none
 
@@ -83,3 +94,12 @@
   font-size: 20px
   margin-bottom: 12px
 
+@keyframes ellipsis
+  0%
+    content: ""
+  25%
+    content: "."
+  50%
+    content: ".."
+  75%
+    content: "..."

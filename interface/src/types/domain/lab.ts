@@ -54,11 +54,13 @@ export type InstanceNode = {
   ipv6: string;
   port: number;
   user: string;
-  state: InstanceNodeState;
   webSSH: string;
   containerId: string;
   containerName: string;
   interfaces: NodeInterface[];
+
+  state: InstanceNodeState;
+  isReady: boolean;
 
   canRestart: boolean;
 };
@@ -71,9 +73,10 @@ export type NodeInterface = {
 };
 
 export enum InstanceNodeState {
+  Stopped,
   Starting,
   Running,
-  Stopped,
+  Stopping,
 }
 
 export enum InstanceState {
