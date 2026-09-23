@@ -14,6 +14,12 @@ export const topologyStyle = [
       height: 64,
       width: 64,
       shape: 'data(shape)',
+      'underlay-shape': 'ellipse',
+      'underlay-padding': 2,
+      'underlay-opacity': 0,
+      'underlay-color': '#d8a657',
+      'transition-property': 'opacity',
+      'transition-duration': '250ms',
       'background-opacity': 1,
       'background-clip': 'none',
       'background-image': 'data(image)',
@@ -25,6 +31,14 @@ export const topologyStyle = [
       'text-margin-x': 32,
       'z-index': 0,
       'z-index-compare': 'manual',
+    },
+  },
+  {
+    selector: '.topology-node.ready',
+    style: {
+      'underlay-color': '#80e163',
+      'underlay-padding': 6,
+      'underlay-opacity': 0.5,
     },
   },
   {

@@ -1,11 +1,6 @@
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
-import {
-  Instance,
-  InstanceNode,
-  InstanceNodeState,
-  InstanceState,
-} from '@sb/types/domain/lab';
+import {InstanceNode, InstanceNodeState} from '@sb/types/domain/lab';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
 import cytoscape, {ElementDefinition} from 'cytoscape';
@@ -72,7 +67,6 @@ export function generateGraph(
   topology: Topology | RunTopology,
   deviceStore: DeviceStore,
   topologyManager: TopologyManager,
-  instance: Instance | null = null,
   omitLabels: boolean = false,
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
@@ -124,23 +118,11 @@ export function generateGraph(
       parentId = groupId;
     }
 
-    let label;
-
-    if (!omitLabels) {
-      label = getNodeDisplayName(
-        nodeName,
-        instance,
-        instance?.nodeMap.get(nodeName),
-      );
-    } else {
-      label = '';
-    }
-
     elements.push({
       data: {
         id: nodeName,
         parent: parentId,
-        label: label,
+        label: nodeName,
         title: topologyManager.getNodeTooltip(nodeName),
         kind: node?.kind ?? '',
         image: deviceStore.getNodeIcon(node),
@@ -169,23 +151,17 @@ export function generateGraph(
   return elements;
 }
 
-export function getNodeDisplayName(
-  nodeName: string,
-  instance?: Instance | null,
-  node?: InstanceNode | null,
-) {
-  if (!instance) return nodeName;
-
-  if (
-    node?.state === InstanceNodeState.Starting ||
-    instance.state === InstanceState.Deploying
-  ) {
-    return `🟠 ${nodeName}`;
-  } else if (node?.state === InstanceNodeState.Running) {
-    return `🟢 ${nodeName}`;
+export function getNodeStateClass(node: InstanceNode) {
+  switch (node.state) {
+    case InstanceNodeState.Stopped:
+      return 'stopped';
+    case InstanceNodeState.Stopping:
+      return 'stopping';
+    case InstanceNodeState.Starting:
+      return 'starting';
+    case InstanceNodeState.Running:
+      return node.isReady ? 'ready' : 'starting';
   }
-
-  return `🔴 ${nodeName}`;
 }
 
 export function drawGraphGrid(

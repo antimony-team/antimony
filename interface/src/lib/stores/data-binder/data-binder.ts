@@ -255,16 +255,27 @@ export class DataBinder {
       );
     });
 
-    subscription.onDataCallbacks.forEach(callback => {
-      subscription.socket!.on('backlog', data => {
-        if (data instanceof ArrayBuffer) {
-          callback(data);
-        } else {
-          for (const msg of data) callback(msg);
-        }
-      });
-      subscription.socket!.on('data', callback);
+    subscription.socket.on('backlog', (data: unknown) => {
+      const items = data instanceof ArrayBuffer ? [data] : (data as unknown[]);
+      for (const msg of items) {
+        subscription.onDataCallbacks.forEach(cb => cb(msg));
+      }
     });
+
+    subscription.socket.on('data', (data: unknown) => {
+      subscription.onDataCallbacks.forEach(cb => cb(data));
+    });
+
+    // subscription.onDataCallbacks.forEach(callback => {
+    //   subscription.socket!.on('backlog', data => {
+    //     if (data instanceof ArrayBuffer) {
+    //       callback(data);
+    //     } else {
+    //       for (const msg of data) callback(msg);
+    //     }
+    //   });
+    //   subscription.socket!.on('data', callback);
+    // });
   }
 
   /**

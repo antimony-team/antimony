@@ -2,7 +2,7 @@ import React from 'react';
 
 const SBCopyableProperty = ({value}: {value: string}) => (
   <span
-    className="property-value copyable"
+    className="copyable"
     data-pr-tooltip="Copy to clipboard"
     data-pr-position="right"
     data-pr-my="left+10 center"

@@ -22,9 +22,10 @@ import {
   generateGraph,
   getFitPadding,
   getInterfaceCaptureCommand,
+  getNodeStateClass,
 } from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
+import {InstanceNode, InstanceState, Lab} from '@sb/types/domain/lab';
 
 import cytoscape from 'cytoscape';
 import {ExpandLines} from 'iconoir-react';
@@ -48,6 +49,23 @@ interface LabDialogProps {
   onClose: () => void;
   onDestroyLabRequest: (lab: Lab) => void;
 }
+
+const ALL_STATE_CLASSES = [
+  'ready',
+  'running',
+  'starting',
+  'stopping',
+  'stopped',
+  'settling',
+];
+
+const READY_UNDERLAY = {
+  'underlay-color': '#80e163',
+  'underlay-padding': 6,
+  'underlay-opacity': 0.5,
+};
+
+const PULSING = ['starting', 'stopping', 'settling'];
 
 const LabView = observer((props: LabDialogProps) => {
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -92,8 +110,14 @@ const LabView = observer((props: LabDialogProps) => {
   }, [props.lab]);
 
   useEffect(() => {
-    if (isCyReady && cyRef.current && props.lab) {
+    if (!isCyReady || !cyRef.current) return;
+    return startStatePing(cyRef.current);
+  }, [isCyReady]);
+
+  useEffect(() => {
+    if (isCyReady && cyRef.current && props.lab && !cyHasInitialized.current) {
       initCytoscape(cyRef.current);
+      cyHasInitialized.current = true;
     }
   }, [isCyReady, props.lab]);
 
@@ -104,10 +128,10 @@ const LabView = observer((props: LabDialogProps) => {
       props.lab.topologyDefinition,
       deviceStore,
       topologyStore.manager,
-      props.lab.instance,
+      null,
       false,
     );
-  }, [props.lab?.topologyDefinition, props.lab?.instance]);
+  }, [props.lab?.id]);
 
   function onGraphContext(event: cytoscape.EventObject) {
     if (!contextMenuRef.current || !cyRef.current) return;
@@ -345,8 +369,8 @@ const LabView = observer((props: LabDialogProps) => {
 
       for (const iface of node.interfaces) {
         entries.push({
-          label: 'Open Capture for ' + iface.name,
-          icon: 'pi pi-eye',
+          label: 'Copy Capture for ' + iface.name,
+          icon: 'pi pi-copy',
           command: () => copyCaptureToClipboard(node.containerId, iface.name),
         });
       }
@@ -376,8 +400,6 @@ const LabView = observer((props: LabDialogProps) => {
   }
 
   function initCytoscape(cy: cytoscape.Core) {
-    console.log('INIT CYTO');
-
     cy.minZoom(0.3);
     cy.maxZoom(10);
 
@@ -390,18 +412,143 @@ const LabView = observer((props: LabDialogProps) => {
 
     cy.nodes().lock();
 
-    if (!cyHasInitialized.current) {
-      cy.animate({
-        fit: {
-          padding: getFitPadding(cy),
-          eles: cy.elements(),
-        },
-        duration: 50,
-      });
+    cy.animate({
+      fit: {
+        padding: getFitPadding(cy),
+        eles: cy.elements(),
+      },
+      duration: 50,
+    });
+  }
+
+  function applyNodeState(
+    cyNode: cytoscape.NodeSingular,
+    node: InstanceNode,
+  ): void {
+    const cls = getNodeStateClass(node);
+    if (cyNode.hasClass(cls)) return;
+    if (cls === 'ready' && cyNode.hasClass('settling')) return; // bloom already scheduled
+
+    const wasPulsing = PULSING.some(c => cyNode.hasClass(c));
+    cyNode.removeClass(ALL_STATE_CLASSES.join(' '));
+
+    // Pulsing → ready: let the current pulse finish, then grow the green ring.
+    if (cls === 'ready' && wasPulsing) {
+      cyNode.addClass('settling');
+      setTimeout(() => {
+        if (!cyNode.hasClass('settling')) return; // state changed again meanwhile
+
+        cyNode.removeClass('settling').addClass('ready');
+        cyNode.style({
+          'underlay-color': READY_UNDERLAY['underlay-color'],
+          'underlay-padding': 0,
+          'underlay-opacity': READY_UNDERLAY['underlay-opacity'],
+        });
+        cyNode
+          .animation({
+            style: {'underlay-padding': READY_UNDERLAY['underlay-padding']},
+            duration: 350,
+            easing: 'ease-out',
+          })
+          .play()
+          .promise('completed')
+          .then(() =>
+            cyNode.removeStyle(
+              'underlay-color underlay-padding underlay-opacity',
+            ),
+          );
+      }, pulseRemainingRef.current(cyNode));
+      return;
     }
 
-    cyHasInitialized.current = true;
+    cyNode.addClass(cls);
+
+    if (cls === 'starting' || cls === 'stopping') {
+      // Entering a pulse: start from radius 0 on this node's own clock.
+      if (!wasPulsing) cyNode.scratch('pulseStart', performance.now());
+      return;
+    }
+
+    // Settled state reached without a bloom (stopped, or ready from a cold start):
+    // hand the underlay back to the stylesheet.
+    if (wasPulsing) {
+      cyNode.removeStyle('underlay-color underlay-padding underlay-opacity');
+    }
   }
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!isCyReady || !cy) return;
+
+    const nodes = props.lab?.instance?.nodes ?? [];
+    const labState = props.lab?.state;
+
+    cy.batch(() => {
+      if (nodes.length > 0) {
+        for (const node of nodes) {
+          const el = cy.getElementById(node.name);
+          if (el.nonempty()) applyNodeState(el, node);
+        }
+        return;
+      }
+
+      // No per-node information yet: derive from the lab's own state.
+      const all = cy.nodes('.topology-node');
+      if (
+        labState === InstanceState.Deploying ||
+        labState === InstanceState.Stopping
+      ) {
+        const cls =
+          labState === InstanceState.Deploying ? 'starting' : 'stopping';
+        all.forEach(el => {
+          if (el.hasClass(cls)) return;
+          el.removeClass(ALL_STATE_CLASSES.join(' ')).addClass(cls);
+          el.scratch('pulseStart', performance.now());
+        });
+      } else {
+        all
+          .removeClass(ALL_STATE_CLASSES.join(' '))
+          .removeStyle('underlay-color underlay-padding underlay-opacity');
+      }
+    });
+  }, [isCyReady, props.lab?.instance?.nodes, props.lab?.state]);
+
+  function startStatePing(cy: cytoscape.Core) {
+    const period = 1100;
+    const maxPad = 15;
+    let frame = 0;
+
+    // ms until the current pulse reaches full expansion / zero opacity
+    pulseRemainingRef.current = (n: cytoscape.NodeSingular) => {
+      const s = n.scratch('pulseStart');
+      return s === undefined ? 0 : period - ((performance.now() - s) % period);
+    };
+
+    const tick = (now: number) => {
+      const active = cy.nodes(
+        '.topology-node.starting, .topology-node.stopping, .topology-node.settling',
+      );
+      if (active.length > 0) {
+        cy.batch(() => {
+          active.forEach(n => {
+            const s = n.scratch('pulseStart') ?? now;
+            const t = ((now - s) % period) / period;
+            n.style({
+              'underlay-padding': 2 + t * maxPad,
+              'underlay-opacity': 0.6 * (1 - t),
+            });
+          });
+        });
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }
+
+  const pulseRemainingRef = useRef<(n: cytoscape.NodeSingular) => number>(
+    () => 0,
+  );
 
   function drawGridOverlay(event: cytoscape.EventObject) {
     if (!gridCanvasRef.current || !containerRef.current || !event.cy) return;

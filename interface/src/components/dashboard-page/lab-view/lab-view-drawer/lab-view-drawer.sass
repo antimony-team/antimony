@@ -5,68 +5,33 @@
   display: flex
   flex-direction: column
 
-.lab-dialog-drawer-content-inner
-  padding: 12px
-  //margin-bottom: -57px
-  overflow-x: hidden
-  overflow-y: auto
-  flex-grow: 1
+  .p-divider
+    margin: 12px 0
 
   .p-button
-    margin-top: 8px
-    width: 180px
-    text-align: center
     display: flex
     justify-content: center
 
     .p-button-label
       flex-grow: 0
 
-  .property-title,.property-value
-    white-space: nowrap
-    overflow: hidden
-    text-overflow: ellipsis
-
-  .property-title
-    user-select: none
-    font-weight: 600
-    flex: 0 0 auto
-
-  .property-value
-    opacity: 0.6
-    flex: 1 1 auto
-
-    &.pending
-      color: var(--fg-muted)
-      font-style: italic
-
-      &::after
-        display: inline-block
-        width: 1.5ch
-        text-align: left
-        content: ""
-        animation: ellipsis 1.2s steps(4, end) infinite
-
-    &.copyable
-      user-select: none
-
-      &:hover
-        text-decoration: underline
-        cursor: copy
+.lab-dialog-drawer-content-inner
+  padding: 12px
+  overflow-x: hidden
+  overflow-y: auto
+  flex-grow: 1
 
   .p-button
-    padding: 10px
-
-  .p-button
-    padding: 10px
-    width: 180px
+    padding: 8px 16px
 
   .lab-dialog-drawer-special-buttons
-    .p-button
-      gap: 8px
+    display: flex
+    justify-content: space-between
+    gap: 12px
 
-.lab-dialog-drawer-capture-button
-  background-color: var(--secondary-color) !important
+    .p-button
+      flex: 1
+      gap: 8px
 
 .lab-dialog-drawer-control-buttons
   display: flex
@@ -89,10 +54,129 @@
   font-weight: 700
   margin-bottom: 12px
 
-.lab-details-plot-title
-  text-align: center
-  font-size: 20px
-  margin-bottom: 12px
+.lab-dialog-drawer-header
+  display: flex
+  justify-content: space-between
+  align-items: center
+
+  &.running
+    --state-color: var(--success-color)
+    --state-color-text: var(--success-color-text)
+
+    .lab-dialog-drawer-header-title::before
+      box-shadow: 0 0 0 .25em var(--state-color)
+
+  &.stopping
+    --state-color: var(--subtle-color)
+    --state-color-text: var(--subtle-color-text)
+
+  &.starting
+    --state-color: var(--warning-color)
+    --state-color-text: var(--warning-color-text)
+
+  &.starting, &.stopping
+    .lab-dialog-drawer-header-title::before
+      animation: node-ping 1.1s ease-out infinite
+
+  &.stopped
+    --state-color: var(--overlay-color-darker)
+    --state-color-text: var(--primary-color-text-darker)
+
+  .lab-dialog-drawer-header-title
+    align-items: center
+    font-size: 24px
+    display: inline-flex
+    gap: 12px
+    margin-left: 6px
+
+    &::before
+      content: ""
+      width: .8em
+      height: .8em
+      border-radius: 50%
+      background: var(--state-color-text)
+      box-shadow: 0 0 0 0 var(--state-color)
+
+  .lab-dialog-drawer-header-state
+    padding: 4px 8px
+    border-radius: 6px
+    color: var(--state-color-text)
+    background: var(--state-color)
+
+.lab-dialog-drawer-props
+  display: grid
+  grid-template-columns: max-content minmax(0, 1fr)
+  column-gap: 1.25rem
+  row-gap: .45rem
+  align-items: baseline
+
+  dt
+    white-space: nowrap
+    color: var(--primary-color-text-darker)
+    letter-spacing: .03em
+
+  dd
+    color: var(--primary-color-text)
+    margin: 0
+    min-width: 0
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    font-family: monospace
+
+    .copyable
+      user-select: none
+
+      &:hover
+        text-decoration: underline
+        cursor: copy
+
+.lab-details-plot
+  .lab-details-plot-header
+    display: flex
+    align-items: center
+    justify-content: space-between
+    gap: 12px
+    margin: 8px 0 8px
+
+    .lab-details-plot-title
+      font-size: 16px
+      margin-bottom: 4px
+      color: var(--primary-color-text-darker)
+
+    .lab-details-plot-rates
+      font-size: 20px
+
+    .lab-details-net-plot-title
+      font-family: monospace
+      font-weight: 500
+      font-size: 20px
+
+    .lab-details-net-plot-rates
+      display: flex
+      gap: 14px
+      font-size: 13px
+      color: var(--primary-color-text-darker)
+      margin-top: 2px
+
+      .swatch
+        display: inline-block
+        width: 10px
+        height: 10px
+        border-radius: 2px
+        vertical-align: -1px
+        margin-right: 6px
+        &.tx
+          background: #d8a657
+        &.rx
+          background: #378add
+
+  .p-progressbar
+    height: 5px !important
+    margin-bottom: 12px
+
+    .p-progressbar-value
+      background-color: #3fcfad
 
 @keyframes ellipsis
   0%
@@ -103,3 +187,14 @@
     content: ".."
   75%
     content: "..."
+
+@keyframes node-ping
+  0%
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot) 60%, transparent)
+  100%
+    box-shadow: 0 0 0 .4em color-mix(in srgb, var(--dot) 0%, transparent)
+
+@media (prefers-reduced-motion: reduce)
+  .node-state.starting::before, .node-state.stopping::before
+    animation: none
+    box-shadow: 0 0 0 .25em color-mix(in srgb, var(--dot) 40%, transparent)
