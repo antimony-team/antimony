@@ -177,7 +177,14 @@ const LogDialog = observer((props: LogDialogProps) => {
     <SBDialog
       onClose={onClose}
       isOpen={props.dialogState.isOpen}
-      headerTitle={`Logs of ${props.dialogState.state?.lab.name} (${logSourceName})`}
+      headerTitle={
+        <>
+          <span className="sb-dialog-title">Logs</span>
+          <span className="sb-dialog-subtitle">
+            {props.dialogState.state?.lab.name}
+          </span>
+        </>
+      }
       className="sb-log-dialog"
       hideButtons={true}
       draggable={true}
@@ -228,7 +235,7 @@ const LogDialog = observer((props: LogDialogProps) => {
               return (
                 <Image
                   src="/icons/antimony-outline.svg"
-                  width="18px"
+                  width="13px"
                   style={{
                     paddingLeft: '2.3px',
                     paddingRight: '1px',

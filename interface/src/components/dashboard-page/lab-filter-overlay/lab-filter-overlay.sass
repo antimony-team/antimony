@@ -103,13 +103,14 @@
   border-radius: 16px
   padding: 0.55rem 0.75rem
   color: var(--primary-color-text)
-  background: var(--primary-color)
+  background: var(--highlight-color)
   align-items: center
   gap: 8px
   user-select: none
+  border: 1px solid transparent
 
   &:has(i:hover)
-    filter: brightness(1.2)
+    border-color: var(--primary-color-text-darker)
 
   i:hover
     cursor: pointer

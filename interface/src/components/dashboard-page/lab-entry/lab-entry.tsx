@@ -5,9 +5,8 @@ import {
   useLabStore,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
-import {Choose, If, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
-import {Button, ButtonProps} from 'primereact/button';
+import {ButtonProps} from 'primereact/button';
 import React, {useMemo} from 'react';
 
 import './lab-entry.sass';
@@ -85,104 +84,104 @@ const LabEntry = observer((props: LabEntryProps) => {
     props.lab.state !== InstanceState.Stopping && isChangeable;
 
   return (
-    <div className="lab-item-card">
+    <div className="lab-item-card" onClick={() => props.onOpenLab()}>
       <div className="lab-group" onClick={props.onOpenLab}>
         <span>
           {collectionStore.lookup.get(props.lab.collectionId)?.name ??
             'unknown'}
         </span>
       </div>
-      <div className="lab-name" onClick={() => props.onOpenLab()}>
+      <div className="lab-name">
         <span>{props.lab.name}</span>
       </div>
       <div className="lab-state">
-        <If condition={showButtons}>
-          <div className="lab-state-buttons">
-            <Choose>
-              <When condition={props.lab.state === InstanceState.Scheduled}>
-                <Button
-                  severity="info"
-                  icon="pi pi-pen-to-square"
-                  tooltip="Edit"
-                  aria-label="Edit Lab"
-                  onClick={onEditLab}
-                  {...defaultLabButtonProps}
-                />
-                <Button
-                  icon="pi pi-trash"
-                  severity="danger"
-                  tooltip="Delete"
-                  aria-label="Delete Lab"
-                  onClick={onDeleteScheduledLab}
-                  {...defaultLabButtonProps}
-                />
-              </When>
-              <When condition={props.lab.state === InstanceState.Inactive}>
-                <Button
-                  icon="pi pi-play"
-                  severity="success"
-                  tooltip="Deploy Now"
-                  aria-label="Deploy Lab Now"
-                  onClick={() => labStore.deployLab(props.lab)}
-                  {...defaultLabButtonProps}
-                />
-                <Button
-                  icon="pi pi-trash"
-                  severity="danger"
-                  tooltip="Delete"
-                  aria-label="Delete Lab"
-                  onClick={() => labStore.delete(props.lab.id)}
-                  {...defaultLabButtonProps}
-                />
-              </When>
-              <When condition={props.lab.state === InstanceState.Deploying}>
-                <Button
-                  icon="pi pi-power-off"
-                  severity="danger"
-                  aria-label="Destroy Lab"
-                  onClick={() => props.onDestroyLabRequest()}
-                  {...defaultLabButtonProps}
-                />
-              </When>
-              <When condition={props.lab.state === InstanceState.Failed}>
-                <Button
-                  icon="pi pi-sync"
-                  severity="warning"
-                  tooltip="Redeploy"
-                  aria-label="Redeploy Lab"
-                  onClick={() => labStore.deployLab(props.lab)}
-                  {...defaultLabButtonProps}
-                />
-                <Button
-                  icon="pi pi-trash"
-                  severity="danger"
-                  tooltip="Delete"
-                  aria-label="Delete Lab"
-                  onClick={() => labStore.delete(props.lab.id)}
-                  {...defaultLabButtonProps}
-                />
-              </When>
-              <When condition={props.lab.state === InstanceState.Running}>
-                <Button
-                  icon="pi pi-sync"
-                  severity="warning"
-                  tooltip="Redeploy"
-                  aria-label="Redeploy Lab"
-                  onClick={() => labStore.deployLab(props.lab)}
-                  {...defaultLabButtonProps}
-                />
-                <Button
-                  icon="pi pi-power-off"
-                  severity="danger"
-                  tooltip="Destroy"
-                  aria-label="Destroy Lab"
-                  onClick={() => props.onDestroyLabRequest()}
-                  {...defaultLabButtonProps}
-                />
-              </When>
-            </Choose>
-          </div>
-        </If>
+        {/*<If condition={showButtons}>*/}
+        {/*  <div className="lab-state-buttons">*/}
+        {/*    <Choose>*/}
+        {/*      <When condition={props.lab.state === InstanceState.Scheduled}>*/}
+        {/*        <Button*/}
+        {/*          severity="info"*/}
+        {/*          icon="pi pi-pen-to-square"*/}
+        {/*          tooltip="Edit"*/}
+        {/*          aria-label="Edit Lab"*/}
+        {/*          onClick={onEditLab}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-trash"*/}
+        {/*          severity="danger"*/}
+        {/*          tooltip="Delete"*/}
+        {/*          aria-label="Delete Lab"*/}
+        {/*          onClick={onDeleteScheduledLab}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*      </When>*/}
+        {/*      <When condition={props.lab.state === InstanceState.Inactive}>*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-play"*/}
+        {/*          severity="success"*/}
+        {/*          tooltip="Deploy Now"*/}
+        {/*          aria-label="Deploy Lab Now"*/}
+        {/*          onClick={() => labStore.deployLab(props.lab)}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-trash"*/}
+        {/*          severity="danger"*/}
+        {/*          tooltip="Delete"*/}
+        {/*          aria-label="Delete Lab"*/}
+        {/*          onClick={() => labStore.delete(props.lab.id)}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*      </When>*/}
+        {/*      <When condition={props.lab.state === InstanceState.Deploying}>*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-power-off"*/}
+        {/*          severity="danger"*/}
+        {/*          aria-label="Destroy Lab"*/}
+        {/*          onClick={() => props.onDestroyLabRequest()}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*      </When>*/}
+        {/*      <When condition={props.lab.state === InstanceState.Failed}>*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-sync"*/}
+        {/*          severity="warning"*/}
+        {/*          tooltip="Redeploy"*/}
+        {/*          aria-label="Redeploy Lab"*/}
+        {/*          onClick={() => labStore.deployLab(props.lab)}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-trash"*/}
+        {/*          severity="danger"*/}
+        {/*          tooltip="Delete"*/}
+        {/*          aria-label="Delete Lab"*/}
+        {/*          onClick={() => labStore.delete(props.lab.id)}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*      </When>*/}
+        {/*      <When condition={props.lab.state === InstanceState.Running}>*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-sync"*/}
+        {/*          severity="warning"*/}
+        {/*          tooltip="Redeploy"*/}
+        {/*          aria-label="Redeploy Lab"*/}
+        {/*          onClick={() => labStore.deployLab(props.lab)}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*        <Button*/}
+        {/*          icon="pi pi-power-off"*/}
+        {/*          severity="danger"*/}
+        {/*          tooltip="Destroy"*/}
+        {/*          aria-label="Destroy Lab"*/}
+        {/*          onClick={() => props.onDestroyLabRequest()}*/}
+        {/*          {...defaultLabButtonProps}*/}
+        {/*        />*/}
+        {/*      </When>*/}
+        {/*    </Choose>*/}
+        {/*  </div>*/}
+        {/*</If>*/}
         <span className="lab-state-label">
           <StateIndicator lab={props.lab} showText={true} />
           <div className="lab-state-date">

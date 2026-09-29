@@ -1604,6 +1604,13 @@
     "@eslint/core" "^0.15.0"
     levn "^0.4.1"
 
+"@flaticon/flaticon-uicons@^3.3.1":
+  version "3.3.1"
+  resolved "https://registry.yarnpkg.com/@flaticon/flaticon-uicons/-/flaticon-uicons-3.3.1.tgz#4783573fd7da1f859f704e6e545f4e162edd4c90"
+  integrity sha512-WN2zuECCdjuGBQrjzN0kpeSygzC5fgF8Q7pDR+FUuGtYWczSdIhIwoD+/fKBEfwqKfNIMZ1WouidevGQ4OJORg==
+  optionalDependencies:
+    esbuild-linux-64 "^0.14.5"
+
 "@floating-ui/core@^1.6.0":
   version "1.6.8"
   resolved "https://registry.yarnpkg.com/@floating-ui/core/-/core-1.6.8.tgz#aa43561be075815879305965020f492cdb43da12"
@@ -3870,6 +3877,11 @@ es6-error@^4.1.1:
   resolved "https://registry.yarnpkg.com/es6-error/-/es6-error-4.1.1.tgz#9e3af407459deed47e9a91f9b885a84eb05c561d"
   integrity sha512-Um/+FxMr9CISWh0bi5Zv0iOD+4cFh5qLeks1qhAopKVAJw3drgKbKySikp7wGhDL0HPeaja0P5ULZrxLkniUVg==
 
+esbuild-linux-64@^0.14.5:
+  version "0.14.54"
+  resolved "https://registry.yarnpkg.com/esbuild-linux-64/-/esbuild-linux-64-0.14.54.tgz#de5fdba1c95666cf72369f52b40b03be71226652"
+  integrity sha512-EgjAgH5HwTbtNsTqQOXWApBaPVdDn7XcK+/PtJwZLT1UmpLoznPd8c5CxqsH2dQK3j05YsB3L17T8vE7cp4cCg==
+
 esbuild@^0.28.0:
   version "0.28.2"
   resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.28.2.tgz#0f43bd1bad955b72d24e2261e3abe5957ccf0816"
@@ -5443,10 +5455,10 @@ matcher@^3.0.0:
   dependencies:
     escape-string-regexp "^4.0.0"
 
-material-symbols@^0.31.7:
-  version "0.31.7"
-  resolved "https://registry.yarnpkg.com/material-symbols/-/material-symbols-0.31.7.tgz#568e033542b9b997d2fd2e743e4a31570310b259"
-  integrity sha512-m7qSflvzsk9mI27G1b6LBvgn0vb3g75DA7nFFgGgAk+BFIIsaJARi/Wr0Ju6kPmeGSiFbXGnFBjKyST+Qz+iUg==
+material-symbols@^0.47.5:
+  version "0.47.5"
+  resolved "https://registry.yarnpkg.com/material-symbols/-/material-symbols-0.47.5.tgz#71502691ae22f07bd432b5282542a6d1115c5b3d"
+  integrity sha512-bry9rHVqF7HewbSK9Yb77obFoDvQsEot8IrW9+F179iEkcg7P/zYv2zuwBRU1oFkA5Ez0MpDAintffdtqL70Eg==
 
 math-intrinsics@^1.1.0:
   version "1.1.0"

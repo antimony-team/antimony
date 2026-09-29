@@ -230,6 +230,9 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     } else {
       deferTerminalReset();
       shellStore.switchToShell(currentShells[event.index]);
+
+      // Set focus to the terminal after switching tabs
+      termRef.current.focus();
     }
   }
 
@@ -343,7 +346,14 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     <SBDialog
       onClose={onClose}
       isOpen={props.dialogState.isOpen}
-      headerTitle={`Terminal for ${props.dialogState.state?.lab.name}`}
+      headerTitle={
+        <>
+          <span className="sb-dialog-title">Terminal</span>
+          <span className="sb-dialog-subtitle">
+            {props.dialogState.state?.lab.name}
+          </span>
+        </>
+      }
       className="sb-terminal-dialog"
       hideButtons={true}
       draggable={true}
@@ -351,7 +361,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       disableModal={true}
       onShow={onOpen}
       onResizeEnd={onResizeEnd}
-      headerIcon={<span className="material-symbols-outlined">terminal</span>}
+      headerIcon={<span className="material-symbols-outlined">terminal_2</span>}
     >
       <TabView activeIndex={tabIndex} onTabChange={onTabSwitch} scrollable>
         {currentTabs.map((tab, index) => {

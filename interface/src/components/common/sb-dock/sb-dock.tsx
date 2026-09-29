@@ -67,7 +67,7 @@ const SBDock = observer(() => {
                 selected: windowLocation === '#/' || windowLocation === '',
               })}
               label="Dashboard"
-              onClick={() => navigate('/')}
+              onMouseDown={() => navigate('/')}
               aria-label="Dashboard Page"
             />
             <Button
@@ -79,7 +79,7 @@ const SBDock = observer(() => {
                 selected: windowLocation === '#/editor',
               })}
               label="Topology Editor"
-              onClick={() => navigate('/editor')}
+              onMouseDown={() => navigate('/editor')}
               aria-label="Topology Editor Page"
             />
           </When>

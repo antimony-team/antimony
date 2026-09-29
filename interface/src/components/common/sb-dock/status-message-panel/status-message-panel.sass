@@ -3,7 +3,7 @@
   flex-direction: column
   min-width: 700px
   max-height: 340px
-  border-radius: 6px
+  border-radius: 12px
   max-width: 600px
   padding: 0 !important
 
@@ -12,24 +12,20 @@
     display: flex
     flex-direction: row
     justify-content: space-between
-    border-radius: 6px 6px 0 0
-    background-color: var(--header-color)
-    margin: -1px
-    z-index: 1
-    border: 1px solid var(--border-color)
+    background-color: var(--highlight-color)
 
     .sb-dock-status-messages-left
       display: flex
-      gap: 10px
       align-items: center
+      gap: 10px
 
       > span
         color: var(--primary-color-text)
-        margin-right: 4px
 
     .p-button
-      color: var(--primary-color-text)
-      filter: brightness(1.5)
+      height: 40px
+      width: 40px
+      margin: 6px 0
 
     .p-chip
       gap: 8px
@@ -37,11 +33,12 @@
       font-size: 12pt
       border-radius: 6px
       background-color: transparent
-      border: 1px solid var(--border-color)
+      border: 1px solid var(--primary-color-text-darker)
       cursor: pointer
 
-      &.selected
-        backdrop-filter: brightness(1.8)
+      &.selected,&:active
+        background-color: transparent
+        backdrop-filter: brightness(1.4)
 
       &.error > .p-chip-icon
         color: var(--danger-color-text)
@@ -56,7 +53,7 @@
         color: var(--success-color-text)
 
       &:hover
-        filter: brightness(1.2)
+        border-color: var(--primary-color-text-darker)
 
       .p-chip-text
         margin: 0
@@ -65,17 +62,17 @@
         margin: 0
 
   .p-overlaypanel-content
-    padding: 0
     display: flex
     flex-direction: column
     align-items: stretch
     overflow: hidden
+    border-radius: 8px 8px 12px 12px
 
     .p-listbox
       border: none
       width: 100% !important
       overflow-y: scroll
-      background-color: var(--primary-color)
+      background-color: var(--island-color)
 
       li:not(:first-child)
         border-top: 1px solid var(--border-color)
@@ -88,6 +85,14 @@
 
     .p-listbox-item
       padding: 0
+
+  // Change the background color of the overlay triangle
+  &::after
+    background-color: var(--highlight-color) !important
+
+    // Account for border aliasing by lowering the brightness of the border
+    border-top-color: color-mix(in srgb, var(--border-color) 80%, black) !important
+    border-left-color: color-mix(in srgb, var(--border-color) 80%, black) !important
 
 .sb-dock-status-messages-item-container
   display: flex

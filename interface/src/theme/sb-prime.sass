@@ -84,6 +84,9 @@
     background-color: unset
 
   &.p-button-icon-only
+    &:active
+      filter: brightness(1.2)
+
     &.p-disabled
       filter: brightness(0.5)
       cursor: pointer !important
@@ -111,7 +114,7 @@
     opacity: 1 !important
 
 .p-dialog
-  border: 1px solid var(--border-color) !important
+  border: 2px solid var(--border-color) !important
   border-radius: 12px !important
 
   .p-dialog-header
@@ -205,11 +208,17 @@
   resize: none
 
 .p-inputtext,.p-dropdown
-  background: var(--primary-color)
+  background: var(--input-color)
   border-color: transparent
+  border-radius: 8px
 
   &:focus
     border-color: var(--border-color)
+
+.p-inputtext
+  // If the input borders a datepicker button, make the right side flat to they are connected
+  &:has(+ .p-datepicker-trigger)
+    border-radius: 8px 0 0 8px
 
 .p-inputgroup-addon
   background-color: var(--header-color)
@@ -242,6 +251,7 @@
   display: flex
 
 .p-chip
+  transition: all 0.08s ease-in
   user-select: none
   background: var(--primary-color)
 
@@ -256,9 +266,15 @@
   &:focus
     border: none
 
+.p-dropdown
+  &:has(svg[data-pr-overlay-visible="true"])
+    border-radius: 6px 6px 0 0
+
 .p-dropdown-panel
-  background-color: var(--primary-color)
+  background-color: var(--island-color)
   border-color: var(--border-color)
+  border-radius: 0 0 6px 6px
+  border-top-color: var(--island-color)
 
   .p-dropdown-item
     background-color: transparent
@@ -268,7 +284,7 @@
 
     &:hover
       backdrop-filter: brightness(1.2)
-
+--island-color
   .p-dropdown-header
     background-color: transparent
     border-color: var(--border-color)
@@ -334,15 +350,16 @@
     margin-right: 12px
 
 .p-datepicker-trigger
-  background-color: var(--header-color)
+  background-color: var(--input-color)
   border-color: transparent
+  border-radius: 0 6px 6px 0
 
   &:active
     background-color: var(--header-color)
 
 .p-overlaypanel
-  border: 1px solid var(--border-color)
-  background-color: var(--overlay-color)
+  border: 2px solid var(--border-color)
+  background-color: var(--island-color)
   padding: 12px
 
   .p-overlaypanel-content
@@ -366,13 +383,18 @@
     border-bottom-color: var(--border-color)
 
 .p-datepicker
-  background-color: var(--overlay-color)
+  background-color: var(--island-color)
   border: 1px solid var(--border-color)
 
+  .p-highlight
+    background-color: var(--highlight-color)
+
+  .p-datepicker-today > span
+    color: var(--accent-color)
 
   .p-datepicker-header
     padding-top: 0
-    background-color: var(--overlay-color)
+    background-color: transparent
     border-color: var(--border-color)
 
   .p-timepicker
@@ -406,3 +428,21 @@
 
 .p-tree-container
   overflow-x: hidden
+
+.p-overlaypanel
+  // We completely rewrite the built-in arrow logic with a rotated square
+  &::after
+    content: ""
+    position: absolute
+    width: 12px
+    height: 12px
+    background: var(--island-color)
+    border-left: 2px solid var(--border-color)
+    border-top: 2px solid var(--border-color)
+    border-bottom: unset
+    border-right: unset
+    transform: rotate(45deg)
+    top: -7px
+
+  &::before
+    display: none
