@@ -26,30 +26,44 @@ func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 		Order("labs.start_time")
 
 	if labFilter != nil {
+		hasCollectionFilter := len(labFilter.CollectionFilter) > 0
+		hasSearchQuery := labFilter.SearchQuery != nil && len(*labFilter.SearchQuery) > 0
+
+		if hasCollectionFilter || hasSearchQuery {
+			query = query.
+				Joins("JOIN topologies ON topologies.id = labs.topology_id").
+				Joins("JOIN collections ON collections.id = topologies.collection_id")
+		}
+
 		if labFilter.StartDate != nil {
 			query = query.Where("labs.start_time >= ?", labFilter.StartDate)
 		}
+
 		if labFilter.EndDate != nil {
 			query = query.Where("labs.end_time <= ?", labFilter.EndDate)
 		}
-		if len(labFilter.CollectionFilter) > 0 {
-			query = query.
-				Joins("JOIN topologies ON topologies.id = labs.topology_id").
-				Joins("JOIN collections ON collections.id = topologies.collection_id").
-				Where("collections.uuid IN ?", labFilter.CollectionFilter)
+
+		if hasCollectionFilter {
+			query = query.Where("collections.uuid IN ?", labFilter.CollectionFilter)
 		}
-		if labFilter.SearchQuery != nil && len(*labFilter.SearchQuery) > 0 {
+
+		if hasSearchQuery {
 			matchQuery := "%" + *labFilter.SearchQuery + "%"
-			query = query.
-				Joins("JOIN topologies ON topologies.id = labs.topology_id").
-				Joins("JOIN collections ON collections.id = topologies.collection_id").
-				Where(
-					"labs.name LIKE ? OR topologies.name LIKE ? OR collections.name LIKE ?",
-					matchQuery, matchQuery, matchQuery,
-				)
+			query = query.Where(
+				"labs.name LIKE ? OR topologies.name LIKE ? OR collections.name LIKE ?",
+				matchQuery, matchQuery, matchQuery,
+			)
 		}
-		query = query.Limit(labFilter.Limit).Offset(labFilter.Offset)
+
+		if labFilter.Limit > 0 {
+			query = query.Limit(labFilter.Limit)
+		}
+
+		if labFilter.Offset > 0 {
+			query = query.Offset(labFilter.Offset)
+		}
 	}
+
 	result := query.Find(&labs)
 
 	if result.Error != nil {

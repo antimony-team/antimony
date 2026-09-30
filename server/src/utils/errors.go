@@ -1,6 +1,9 @@
 package utils
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 /*
  * Generic errors.
@@ -8,6 +11,15 @@ import "errors"
 
 var ErrAntimony = errors.New("the antimony server encountered an error. please check the logs")
 var ErrProvider = errors.New("the provider subprocess encountered an error")
+
+// ErrCaptureNotSupported is returned by providers that cannot attach to a node's interfaces.
+//
+// It wraps [ErrProvider] so it maps onto the existing provider error code rather than adding a new
+// one to the socket contract.
+var ErrCaptureNotSupported = fmt.Errorf(
+	"%w: packet capture is not supported by this provider",
+	ErrProvider,
+)
 var ErrDatabaseError = errors.New("the antimony database encountered an error. please check the logs")
 var ErrFileStorage = errors.New("the antimony storage service encountered an error. please check the logs")
 var ErrOpenIDError = errors.New("failed to authenticate via openid connect")
@@ -42,6 +54,7 @@ var ErrTokenInvalid = errors.New("the auth token provided was invalid")
 var ErrUnauthorized = errors.New("the request was unauthorized")
 var ErrForbidden = errors.New("access to the requested resource is forbidden")
 var ErrNoAccessToLab = errors.New("access to the provided lab is not granted")
+var ErrNoAccessToTopology = errors.New("access to the provided topology is not granted")
 var ErrNoWriteAccessToLab = errors.New("write access to the provided lab is not granted")
 var ErrNoWriteAccessToTopology = errors.New("write access to the provided topology is not granted")
 var ErrNoWriteAccessToBindFile = errors.New("write access to the provided file is not granted")

@@ -4,8 +4,7 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
-
-	"github.com/gin-gonic/gin"
+	"context"
 )
 
 type Service struct {
@@ -20,7 +19,7 @@ func CreateService(repo *Repository, userRepo *user.Repository) *Service {
 	}
 }
 
-func (u *Service) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
+func (u *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
 	var (
 		collections []Collection
 		err         error
@@ -36,7 +35,7 @@ func (u *Service) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Coll
 }
 
 func (u *Service) Create(
-	ctx *gin.Context,
+	ctx context.Context,
 	req CollectionIn,
 	authUser auth.AuthenticatedUser,
 ) (string, error) {
@@ -69,7 +68,7 @@ func (u *Service) Create(
 }
 
 func (u *Service) Update(
-	ctx *gin.Context,
+	ctx context.Context,
 	req CollectionInPartial,
 	collectionId string,
 	authUser auth.AuthenticatedUser,
@@ -108,7 +107,7 @@ func (u *Service) Update(
 	return u.repo.Update(ctx, collection)
 }
 
-func (u *Service) Delete(ctx *gin.Context, collectionId string, authUser auth.AuthenticatedUser) error {
+func (u *Service) Delete(ctx context.Context, collectionId string, authUser auth.AuthenticatedUser) error {
 	collection, err := u.repo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err

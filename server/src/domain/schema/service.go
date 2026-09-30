@@ -32,6 +32,7 @@ func (u *Service) Get() string {
 	return *u.schemaString
 }
 
+// Parse unmarshals a topology definition and validates it against the containerlab schema.
 func (u *Service) Parse(data string) (*any, error) {
 	var obj any
 
@@ -39,7 +40,13 @@ func (u *Service) Parse(data string) (*any, error) {
 		return nil, utils.ErrInvalidTopology
 	}
 
-	return &obj, u.clabSchema.Validate(obj)
+	if err := u.clabSchema.Validate(obj); err != nil {
+		log.Warn("Topology definition failed schema validation", "err", err.Error())
+
+		return nil, utils.ErrInvalidTopology
+	}
+
+	return &obj, nil
 }
 
 func loadSchema(config *config.AntimonyConfig) (*jsonschema.Schema, *string) {

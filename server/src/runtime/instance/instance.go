@@ -63,6 +63,7 @@ type InstanceNode struct {
 
 	// IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.
 	// This is initially set to false and set to true once the node's startup listener succeeded.
+
 	IsReady bool `json:"isReady"`
 
 	// ContainerId is the globally unique identifier for the container running the node.
@@ -117,7 +118,7 @@ func (n *InstanceNode) Reset() {
 	n.Interfaces = make([]deployment.NodeInterface, 0)
 }
 
-// Set sets the node's fields to its ready state.
+// SetReady sets the node's fields to its ready state.
 //
 // We assume [InstanceNode.Set] has already been called.
 func (n *InstanceNode) SetReady(

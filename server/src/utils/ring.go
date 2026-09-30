@@ -49,11 +49,22 @@ func CreateRing[O any](kind RingKind, capacity int) Ring[O] {
 	}
 }
 
+// CreateValueRing creates a ring that keeps the most recent capacity items.
+//
+// A capacity of zero (or less) means "keep nothing" rather than being an error.
 func CreateValueRing[T any](capacity int) *ValueRing[T] {
+	if capacity < 0 {
+		capacity = 0
+	}
+
 	return &ValueRing[T]{buf: make([]T, capacity)}
 }
 
 func (r *ValueRing[T]) Add(item T) {
+	if len(r.buf) == 0 {
+		return
+	}
+
 	if r.size < len(r.buf) {
 		r.buf[(r.head+r.size)%len(r.buf)] = item
 		r.size++
@@ -90,7 +101,12 @@ func (r *ValueRing[T]) Len() int {
 	return r.size
 }
 
+// CreateByteRing creates a ring that keeps the most recent capacity lines.
 func CreateByteRing(capacity int) *ByteRing {
+	if capacity < 0 {
+		capacity = 0
+	}
+
 	return &ByteRing{maxLines: capacity}
 }
 

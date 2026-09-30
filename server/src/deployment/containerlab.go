@@ -59,7 +59,7 @@ func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
@@ -73,7 +73,7 @@ func (p *ContainerlabProvider) Redeploy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
@@ -87,7 +87,7 @@ func (p *ContainerlabProvider) Destroy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
@@ -99,7 +99,7 @@ func (p *ContainerlabProvider) Destroy(
 
 func (p *ContainerlabProvider) InspectLabs(
 	ctx context.Context,
-	onLog func(data string),
+	onLog LogFunc,
 ) (map[string][]InspectContainer, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
 
@@ -112,24 +112,19 @@ func (p *ContainerlabProvider) InspectLabs(
 		return map[string][]InspectContainer{}, nil
 	}
 
-	var inspectOutput map[string][]InspectContainer
-	err = json.Unmarshal([]byte(*output), &inspectOutput)
-
-	for labName, labInspect := range inspectOutput {
-		containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
-		for i := range labInspect {
-			parseInspectContainer(&labInspect[i], containerNamePrefix)
-		}
+	var rawOutput map[string][]clabInspectContainer
+	if err = json.Unmarshal([]byte(*output), &rawOutput); err != nil {
+		return nil, err
 	}
 
-	return inspectOutput, err
+	return convertInspectOutput(rawOutput), nil
 }
 
 func (p *ContainerlabProvider) InspectLab(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) ([]InspectContainer, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
 
@@ -142,22 +137,19 @@ func (p *ContainerlabProvider) InspectLab(
 		return make([]InspectContainer, 0), nil
 	}
 
-	var inspectOutput map[string][]InspectContainer
-	if err = json.Unmarshal([]byte(*output), &inspectOutput); err != nil {
+	var rawOutput map[string][]clabInspectContainer
+	if err = json.Unmarshal([]byte(*output), &rawOutput); err != nil {
 		return nil, err
 	}
 
-	labInspect, ok := inspectOutput[instanceName]
+	// Select the requested lab before converting, so a host running many labs does not pay to
+	// convert all of them just to discard the rest.
+	rawContainers, ok := rawOutput[instanceName]
 	if !ok {
 		return nil, utils.ErrLabNotRunning
 	}
 
-	containerNamePrefix := fmt.Sprintf("clab-%s-", instanceName)
-	for i := range labInspect {
-		parseInspectContainer(&labInspect[i], containerNamePrefix)
-	}
-
-	return labInspect, err
+	return clabToInspectContainer(instanceName, rawContainers), nil
 }
 
 func (p *ContainerlabProvider) InspectNode(
@@ -165,7 +157,7 @@ func (p *ContainerlabProvider) InspectNode(
 	topologyFile string,
 	instanceName string,
 	nodeName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) (InspectContainer, error) {
 	labInspect, err := p.InspectLab(ctx, topologyFile, instanceName, onLog)
 	if err != nil {
@@ -387,7 +379,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
 	if err != nil {
@@ -542,12 +534,12 @@ func (t *dockerExecSession) Resize(cols uint, rows uint) error {
 
 // sendClabOutput sends the data from the containerlab stdout to the log
 // This function strips all ansi characters and splits the data into lines
-func sendClabOutput(output *string, onLog func(data string)) {
+func sendClabOutput(output *string, onLog LogFunc) {
 	if output != nil {
 		lines := strings.Split(*output, "\n")
 		for _, line := range lines {
 			if line != "" {
-				onLog(serverlog.ReplaceAnsiCharacters(line))
+				onLog.Log(serverlog.ReplaceAnsiCharacters(line))
 			}
 		}
 	}
@@ -617,16 +609,78 @@ var dockerStates = map[string]NodeState{
 	"removing":   NodeStates.Stopping,
 }
 
-func (s *NodeState) UnmarshalText(b []byte) error {
-	raw := strings.ToLower(strings.TrimSpace(string(b)))
-	if fields := strings.Fields(raw); len(fields) > 0 {
-		raw = fields[0]
+// clabInspectContainer mirrors the JSON that "containerlab inspect --format json" produces.
+//
+// It exists so that NodeState does not need a text unmarshaller of its own. NodeState used to carry
+// one — so that Docker's status strings could be decoded straight into InspectContainer — with no
+// matching marshaller, which made the type asymmetric: encoding/json wrote it as a number and then
+// refused to read that number back, so a client could not decode this API's own response using the
+// transport types. Keeping the string handling local to the provider that needs it leaves NodeState
+// a plain integer in both directions.
+type clabInspectContainer struct {
+	Name          string `json:"name"`
+	LabName       string `json:"lab_name"`
+	LabPath       string `json:"labPath"`
+	Image         string `json:"image"`
+	State         string `json:"state"`
+	ContainerId   string `json:"container_id"`
+	ContainerName string `json:"container_name"`
+	IPv4Address   string `json:"ipv4_address"`
+	IPv6Address   string `json:"ipv6_address"`
+}
+
+func (c clabInspectContainer) toInspectContainer() InspectContainer {
+	return InspectContainer{
+		Name:          c.Name,
+		LabName:       c.LabName,
+		LabPath:       c.LabPath,
+		Image:         c.Image,
+		State:         parseDockerState(c.State),
+		ContainerId:   c.ContainerId,
+		ContainerName: c.ContainerName,
+		IPv4Address:   c.IPv4Address,
+		IPv6Address:   c.IPv6Address,
 	}
-	v, ok := dockerStates[raw]
+}
+
+// parseDockerState maps a Docker container status, as relayed by containerlab, onto a NodeState.
+func parseDockerState(raw string) NodeState {
+	normalised := strings.ToLower(strings.TrimSpace(raw))
+	if fields := strings.Fields(normalised); len(fields) > 0 {
+		normalised = fields[0]
+	}
+
+	state, ok := dockerStates[normalised]
 	if !ok {
-		log.Warn("Unknown docker state, treating as stopped", "state", string(b))
-		v = NodeStates.Stopped
+		log.Warn("Unknown docker state, treating as stopped", "state", raw)
+
+		return NodeStates.Stopped
 	}
-	*s = v
-	return nil
+
+	return state
+}
+
+// convertInspectOutput turns every lab's DTOs into the shared inspect containers.
+func convertInspectOutput(raw map[string][]clabInspectContainer) map[string][]InspectContainer {
+	out := make(map[string][]InspectContainer, len(raw))
+
+	for labName, containers := range raw {
+		out[labName] = clabToInspectContainer(labName, containers)
+	}
+
+	return out
+}
+
+// clabToInspectContainer turns one lab's DTOs into the shared [InspectContainer] objects, applying that lab's
+// container name prefix as it goes.
+func clabToInspectContainer(labName string, raw []clabInspectContainer) []InspectContainer {
+	containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
+
+	converted := make([]InspectContainer, len(raw))
+	for i, inspectContainer := range raw {
+		converted[i] = inspectContainer.toInspectContainer()
+		parseInspectContainer(&converted[i], containerNamePrefix)
+	}
+
+	return converted
 }

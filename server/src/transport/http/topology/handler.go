@@ -35,7 +35,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	topologiesFull, err := h.service.Get(ctx, authUser)
+	topologiesFull, err := h.service.Get(ctx.Request.Context(), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -64,7 +64,7 @@ func (h *Handler) GetByUuid(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	topologyFull, err := h.service.GetByUuid(ctx, ctx.Param("topologyId"), authUser)
+	topologyFull, err := h.service.GetByUuid(ctx.Request.Context(), ctx.Param("topologyId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -96,7 +96,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Create(ctx, payload, authUser)
+	result, err := h.service.Create(ctx.Request.Context(), payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -130,7 +130,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.Update(ctx, payload, ctx.Param("topologyId"), authUser); err != nil {
+	if err := h.service.Update(ctx.Request.Context(), payload, ctx.Param("topologyId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -155,7 +155,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	if err := h.service.Delete(ctx, ctx.Param("topologyId"), authUser); err != nil {
+	if err := h.service.Delete(ctx.Request.Context(), ctx.Param("topologyId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -187,7 +187,7 @@ func (h *Handler) CreateBindFile(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.service.CreateBindFile(ctx, ctx.Param("topologyId"), payload, authUser)
+	result, err := h.service.CreateBindFile(ctx.Request.Context(), ctx.Param("topologyId"), payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -220,7 +220,7 @@ func (h *Handler) UpdateBindFile(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateBindFile(ctx, payload, ctx.Param("fileId"), authUser); err != nil {
+	if err := h.service.UpdateBindFile(ctx.Request.Context(), payload, ctx.Param("fileId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -246,7 +246,7 @@ func (h *Handler) DeleteBindFile(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	if err := h.service.DeleteBindFile(ctx, ctx.Param("fileId"), authUser); err != nil {
+	if err := h.service.DeleteBindFile(ctx.Request.Context(), ctx.Param("fileId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

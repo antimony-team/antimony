@@ -32,7 +32,7 @@ func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
 	output := outputBuffer.String()
 
 	if err != nil {
-		err = fmt.Errorf("sub-process '%s' failed: %s", cmd.String(), err)
+		err = fmt.Errorf("sub-process '%s' failed: %w", cmd.String(), err)
 	}
 
 	return &output, err

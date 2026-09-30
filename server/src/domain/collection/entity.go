@@ -8,8 +8,9 @@ import (
 
 type Collection struct {
 	gorm.Model
-	UUID         string `gorm:"uniqueIndex;not null"`
-	Name         string `gorm:"uniqueIndex;not null"`
+	UUID string `gorm:"uniqueIndex;not null"`
+	// Name is only unique among the collections that still exist. Names of deleted collections can be reused.
+	Name         string `gorm:"index:idx_collections_name,unique,where:deleted_at IS NULL;not null"`
 	PublicWrite  bool
 	PublicDeploy bool
 	Creator      user.User

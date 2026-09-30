@@ -60,7 +60,7 @@ func (h *Handler) LoginOpenId(ctx *gin.Context) {
 
 // @Summary	Redirect URL for the OpenID provider.
 func (h *Handler) LoginOpenIdSuccess(ctx *gin.Context) {
-	authToken, accessToken, err := h.service.AuthenticateWithCode(ctx, ctx.Query("code"))
+	authToken, accessToken, err := h.service.AuthenticateWithCode(ctx.Request.Context(), ctx.Query("code"))
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return

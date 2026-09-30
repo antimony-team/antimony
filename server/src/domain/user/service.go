@@ -7,7 +7,6 @@ import (
 	"errors"
 
 	"github.com/charmbracelet/log"
-	"github.com/gin-gonic/gin"
 )
 
 type Service struct {
@@ -56,7 +55,7 @@ func (s *Service) GetAuthCodeURL(stateToken string) (string, error) {
 	return s.authManager.GetAuthCodeURL(stateToken)
 }
 
-func (s *Service) AuthenticateWithCode(ctx *gin.Context, authCode string) (string, string, error) {
+func (s *Service) AuthenticateWithCode(ctx context.Context, authCode string) (string, string, error) {
 	authUser, err := s.authManager.AuthenticateWithCode(
 		authCode,
 		func(userSub string, userProfile string) (string, error) {

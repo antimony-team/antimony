@@ -11,7 +11,6 @@ import (
 	"slices"
 
 	"github.com/charmbracelet/log"
-	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
 
@@ -40,7 +39,7 @@ func CreateService(
 	}
 }
 
-func (s *Service) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]TopologyFull, error) {
+func (s *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]TopologyFull, error) {
 	var (
 		topologies []Topology
 		err        error
@@ -88,7 +87,7 @@ func (s *Service) Get(ctx *gin.Context, authUser auth.AuthenticatedUser) ([]Topo
 }
 
 func (s *Service) GetByUuid(
-	ctx *gin.Context,
+	ctx context.Context,
 	labId string,
 	authUser auth.AuthenticatedUser,
 ) (*TopologyFull, error) {
@@ -104,7 +103,7 @@ func (s *Service) GetByUuid(
 
 	// Deny request if user doesn't have access to the specified topology (Return generic not found error)
 	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, topology.Collection.Name) {
-		return nil, utils.ErrUuidNotFound
+		return nil, utils.ErrNoAccessToTopology
 	}
 
 	bindFiles, err := s.repo.GetBindFileForTopology(ctx, topology.UUID)
@@ -131,7 +130,7 @@ func (s *Service) GetByUuid(
 	return result, err
 }
 
-func (s *Service) Create(ctx *gin.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error) {
+func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error) {
 	topologyCollection, err := s.collectionRepo.GetByUuid(ctx, *req.CollectionId)
 	if err != nil {
 		return "", err
@@ -178,7 +177,7 @@ func (s *Service) Create(ctx *gin.Context, req TopologyIn, authUser auth.Authent
 }
 
 func (s *Service) Update(
-	ctx *gin.Context,
+	ctx context.Context,
 	req TopologyInPartial,
 	topologyId string,
 	authUser auth.AuthenticatedUser,
@@ -250,7 +249,7 @@ func (s *Service) Update(
 	return s.repo.Update(ctx, topology)
 }
 
-func (s *Service) Delete(ctx *gin.Context, topologyId string, authUser auth.AuthenticatedUser) error {
+func (s *Service) Delete(ctx context.Context, topologyId string, authUser auth.AuthenticatedUser) error {
 	topology, err := s.repo.GetByUuid(ctx, topologyId)
 	if err != nil {
 		return err
@@ -265,7 +264,7 @@ func (s *Service) Delete(ctx *gin.Context, topologyId string, authUser auth.Auth
 }
 
 func (s *Service) CreateBindFile(
-	ctx *gin.Context,
+	ctx context.Context,
 	topologyId string,
 	req BindFileIn,
 	authUser auth.AuthenticatedUser,
@@ -280,10 +279,17 @@ func (s *Service) CreateBindFile(
 		return "", utils.ErrNoWriteAccessToBindFile
 	}
 
+	// Validate and canonicalize the client-supplied path before anything else, so an invalid path is refused before
+	// it can reach the database or the filesystem.
+	filePath, err := storage.NormaliseBindFilePath(*req.FilePath)
+	if err != nil {
+		return "", err
+	}
+
 	// Don't allow duplicate bind file names within the same topology
 	if nameExists, err := s.repo.DoesBindFilePathExist(
 		ctx,
-		*req.FilePath,
+		filePath,
 		bindFileTopology.UUID,
 		"",
 	); err != nil {
@@ -292,14 +298,14 @@ func (s *Service) CreateBindFile(
 		return "", utils.ErrBindFileExists
 	}
 
-	if err := s.saveBindFile(topologyId, *req.FilePath, *req.Content); err != nil {
+	if err := s.saveBindFile(topologyId, filePath, *req.Content); err != nil {
 		return "", err
 	}
 
 	newUuid := utils.GenerateUuid()
 	err = s.repo.CreateBindFile(ctx, &BindFile{
 		UUID:     newUuid,
-		FilePath: *req.FilePath,
+		FilePath: filePath,
 		Topology: *bindFileTopology,
 	})
 
@@ -307,7 +313,7 @@ func (s *Service) CreateBindFile(
 }
 
 func (s *Service) UpdateBindFile(
-	ctx *gin.Context,
+	ctx context.Context,
 	req BindFileInPartial,
 	bindFileUuid string,
 	authUser auth.AuthenticatedUser,
@@ -330,10 +336,16 @@ func (s *Service) UpdateBindFile(
 	bindFilePath := bindFile.FilePath
 
 	if req.FilePath != nil {
+		// Validate and canonicalize before any side effect.
+		newPath, err := storage.NormaliseBindFilePath(*req.FilePath)
+		if err != nil {
+			return err
+		}
+
 		// Don't allow duplicate bind file names within the same topology
 		if nameExists, err := s.repo.DoesBindFilePathExist(
 			ctx,
-			*req.FilePath,
+			newPath,
 			bindFileTopology.UUID,
 			bindFileUuid,
 		); err != nil {
@@ -342,14 +354,7 @@ func (s *Service) UpdateBindFile(
 			return utils.ErrBindFileExists
 		}
 
-		// Delete the old file if the file path has changed
-		if bindFile.FilePath != *req.FilePath {
-			if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
-				log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
-			}
-		}
-
-		bindFilePath = *req.FilePath
+		bindFilePath = newPath
 	}
 
 	var bindFileContent string
@@ -364,6 +369,13 @@ func (s *Service) UpdateBindFile(
 		bindFileContent = bindFileOut.Content
 	}
 
+	// Only now that the content is in hand is it safe to drop the file at the old path.
+	if bindFile.FilePath != bindFilePath {
+		if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
+			log.Errorf("Failed to delete old bind file '%s': %s", bindFile.FilePath, err.Error())
+		}
+	}
+
 	if err := s.saveBindFile(bindFileTopology.UUID, bindFilePath, bindFileContent); err != nil {
 		return err
 	}
@@ -373,7 +385,7 @@ func (s *Service) UpdateBindFile(
 	return s.repo.UpdateBindFile(ctx, bindFile)
 }
 
-func (s *Service) DeleteBindFile(ctx *gin.Context, bindFileId string, authUser auth.AuthenticatedUser) error {
+func (s *Service) DeleteBindFile(ctx context.Context, bindFileId string, authUser auth.AuthenticatedUser) error {
 	bindFile, err := s.repo.GetBindFileByUuid(ctx, bindFileId)
 	if err != nil {
 		return err

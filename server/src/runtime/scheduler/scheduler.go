@@ -5,6 +5,8 @@ import (
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/utils"
+	"context"
+	"sync"
 	"time"
 )
 
@@ -15,6 +17,11 @@ type Scheduler struct {
 
 	deploymentSchedule  *utils.Schedule[lab.Lab]
 	destructionSchedule *utils.Schedule[lab.Lab]
+
+	// ctx governs the lifetime of the Run loop. It is canceled by Close.
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 func CreateScheduler(
@@ -40,6 +47,8 @@ func CreateScheduler(
 		},
 	)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	scheduler := &Scheduler{
 		config: config,
 
@@ -47,6 +56,10 @@ func CreateScheduler(
 
 		deploymentSchedule:  deploymentSchedule,
 		destructionSchedule: destructionSchedule,
+
+		ctx:       ctx,
+		cancel:    cancel,
+		closeOnce: sync.Once{},
 	}
 
 	labEventBus.Subscribe("lab.created", scheduler.onLabCreated)
@@ -58,30 +71,56 @@ func CreateScheduler(
 	return scheduler
 }
 
+// Run drives the deployment and destruction queues until the scheduler is closed.
 func (s *Scheduler) Run() {
 	for {
-		if deployLab := s.deploymentSchedule.TryPop(); deployLab != nil {
+		if dueLab := s.deploymentSchedule.TryPop(); dueLab != nil {
+			// Each consumer gets its own copy. The queues dereference the whole struct to read its
+			// time (timeGetter(*item)), so handing the same pointer to a goroutine that mutates the
+			// lab — DeployLab writes through to Topology.LastDeployFailed — raced with every later
+			// TryPop.
+			toDeploy := copyLab(dueLab)
+
 			go func() {
-				s.instanceService.DeployLab(deployLab)
+				_ = s.instanceService.DeployLab(toDeploy)
 			}()
 
 			// Schedule the destruction of the lab
-			s.destructionSchedule.Schedule(deployLab)
+			s.destructionSchedule.Schedule(copyLab(dueLab))
 		}
 
-		if deployLab := s.destructionSchedule.TryPop(); deployLab != nil {
+		if dueLab := s.destructionSchedule.TryPop(); dueLab != nil {
+			toDestroy := copyLab(dueLab)
+
 			go func() {
-				s.instanceService.DestroyLab(deployLab)
+				_ = s.instanceService.DestroyLab(toDestroy)
 			}()
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
 }
 
+// Close stops the Run loop. It is safe to call more than once.
+func (s *Scheduler) Close() {
+	s.closeOnce.Do(s.cancel)
+}
+
+// copyLab returns a shallow copy of a lab, so the scheduler's queues never share mutable state with the runtime
+// services or with each other.
+func copyLab(original *lab.Lab) *lab.Lab {
+	copied := *original
+
+	return &copied
+}
+
 func (s *Scheduler) onLabCreated(lab *lab.Lab) {
-	s.deploymentSchedule.Schedule(lab)
-	s.destructionSchedule.Schedule(lab)
+	s.deploymentSchedule.Schedule(copyLab(lab))
+	s.destructionSchedule.Schedule(copyLab(lab))
 }
 
 func (s *Scheduler) onLabDeleted(lab *lab.Lab) {
@@ -90,15 +129,15 @@ func (s *Scheduler) onLabDeleted(lab *lab.Lab) {
 }
 
 func (s *Scheduler) onLabMoved(lab *lab.Lab) {
-	s.deploymentSchedule.Reschedule(lab)
-	s.destructionSchedule.Reschedule(lab)
+	s.deploymentSchedule.Reschedule(copyLab(lab))
+	s.destructionSchedule.Reschedule(copyLab(lab))
 }
 
 func (s *Scheduler) onLabManuallyDeployed(lab *lab.Lab) {
 	s.deploymentSchedule.Remove(lab.UUID)
-	s.destructionSchedule.Schedule(lab)
+	s.destructionSchedule.Schedule(copyLab(lab))
 }
 
 func (s *Scheduler) onLabRestored(lab *lab.Lab) {
-	s.destructionSchedule.Schedule(lab)
+	s.destructionSchedule.Schedule(copyLab(lab))
 }

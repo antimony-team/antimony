@@ -177,12 +177,12 @@ func (m *namespace[I, O]) ClearBacklog() {
 
 // Send Sends a message to all connected clients. This works in authenticated and anonymous namespaces.
 func (m *namespace[I, O]) Send(msg O) {
-	m.sendTo(msg, m.connectedClients)
+	m.sendTo(msg, m.getAllClients())
 }
 
 // SendTo Sends multiple messages to a set of user IDs. This only works in authenticated namespaces.
 func (m *namespace[I, O]) SendBulk(msgs []O) {
-	m.sendBulkTo(msgs, m.connectedClients)
+	m.sendBulkTo(msgs, m.getAllClients())
 }
 
 // SendTo Sends a message to a set of user IDs. This only works in authenticated namespaces.
@@ -191,12 +191,7 @@ func (m *namespace[I, O]) SendTo(msg O, receivers []string) {
 		return
 	}
 
-	m.sendTo(msg, lo.FilterMap(receivers, func(userId string, _ int) (*ConnectedUser, bool) {
-		if client, ok := m.connectedClientsMap[userId]; ok {
-			return client, true
-		}
-		return nil, false
-	}))
+	m.sendTo(msg, m.getClientsFor(receivers))
 }
 
 func (m *namespace[I, O]) SendBulkTo(msgs []O, receivers []string) {
@@ -204,12 +199,7 @@ func (m *namespace[I, O]) SendBulkTo(msgs []O, receivers []string) {
 		return
 	}
 
-	m.sendBulkTo(msgs, lo.FilterMap(receivers, func(userId string, _ int) (*ConnectedUser, bool) {
-		if client, ok := m.connectedClientsMap[userId]; ok {
-			return client, true
-		}
-		return nil, false
-	}))
+	m.sendBulkTo(msgs, m.getClientsFor(receivers))
 }
 
 // SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
@@ -218,9 +208,7 @@ func (m *namespace[I, O]) SendToAdmins(msg O) {
 		return
 	}
 
-	m.sendTo(msg, lo.Filter(m.connectedClients, func(client *ConnectedUser, _ int) bool {
-		return client.IsAdmin
-	}))
+	m.sendTo(msg, m.getAdminClients())
 }
 
 // SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
@@ -229,9 +217,7 @@ func (m *namespace[I, O]) SendBulkToAdmins(msgs []O) {
 		return
 	}
 
-	m.sendBulkTo(msgs, lo.Filter(m.connectedClients, func(client *ConnectedUser, _ int) bool {
-		return client.IsAdmin
-	}))
+	m.sendBulkTo(msgs, m.getAdminClients())
 }
 
 func (m *namespace[I, O]) sendTo(msg O, receivers []*ConnectedUser) {
@@ -359,8 +345,27 @@ func (m *namespace[I, O]) handleConnection(clients ...any) {
 
 	// Immediately send backlog to user if backlog is used in namespace
 	if m.backlog != nil {
-		_ = client.Emit("backlog", m.backlog.Items())
+		_ = client.Emit("backlog", m.backlogItems())
 	}
+}
+
+// backlogItems returns the replay payload for a newly connected client, in the same shape as the
+// live messages on this namespace.
+//
+// The ring stores the raw values, so on a wrapped namespace they have to be wrapped here — without
+// that, one namespace delivered {"payload": ...} on "data" and a bare array on "backlog".
+func (m *namespace[I, O]) backlogItems() any {
+	m.backlogMutex.Lock()
+	items := m.backlog.Items()
+	m.backlogMutex.Unlock()
+
+	if m.useRawOutput {
+		return items
+	}
+
+	return lo.Map(items, func(item O, _ int) utils.OkResponse[any] {
+		return utils.CreateSocketOkResponse[any](item)
+	})
 }
 
 func (m *namespace[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...any) {
@@ -417,7 +422,43 @@ func (m *namespace[I, O]) handleData(authUser *auth.AuthenticatedUser, raw ...an
 				ack([]any{errorResponse}, nil)
 			},
 		)
-	} else {
-		m.onData(ctx, &data, authUser, nil, nil)
+
+		return
 	}
+
+	// No ack callback was supplied, but the handlers call onResponse or onError unconditionally, so they are given
+	// no-op functions rather than nil.
+	m.onData(ctx, &data, authUser,
+		func(utils.OkResponse[any]) {},
+		func(utils.ErrorResponse) {},
+	)
+}
+
+func (m *namespace[I, O]) getAllClients() []*ConnectedUser {
+	m.connectedClientsMutex.Lock()
+	defer m.connectedClientsMutex.Unlock()
+
+	return slices.Clone(m.connectedClients)
+}
+
+func (m *namespace[I, O]) getClientsFor(userIds []string) []*ConnectedUser {
+	m.connectedClientsMutex.Lock()
+	defer m.connectedClientsMutex.Unlock()
+
+	return lo.FilterMap(userIds, func(userId string, _ int) (*ConnectedUser, bool) {
+		if client, ok := m.connectedClientsMap[userId]; ok {
+			return client, true
+		}
+
+		return nil, false
+	})
+}
+
+func (m *namespace[I, O]) getAdminClients() []*ConnectedUser {
+	m.connectedClientsMutex.Lock()
+	defer m.connectedClientsMutex.Unlock()
+
+	return lo.Filter(m.connectedClients, func(client *ConnectedUser, _ int) bool {
+		return client.IsAdmin
+	})
 }

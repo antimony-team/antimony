@@ -23,9 +23,10 @@ type Lab struct {
 }
 
 type LabIn struct {
-	Name       *string    `json:"name"       binding:"required"`
-	StartTime  *time.Time `json:"startTime"  binding:"required"`
-	EndTime    *time.Time `json:"endTime"    binding:"required"`
+	Name      *string    `json:"name"      binding:"required"`
+	StartTime *time.Time `json:"startTime" binding:"required"`
+	// EndTime is deliberately optional. A lab created without one runs indefinitely.
+	EndTime    *time.Time `json:"endTime"`
 	TopologyId *string    `json:"topologyId" binding:"required"`
 }
 

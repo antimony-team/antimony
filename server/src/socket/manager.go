@@ -8,7 +8,7 @@ import (
 	socketio "github.com/zishang520/socket.io/socket"
 )
 
-// socket.Manager Represents a wrapper around the socket.io objects and also manages all authenticated users.
+// Manager is a wrapper around the socket.io objects and also manages all authenticated users.
 type Manager struct {
 	server      *socketio.Server
 	authManager *auth.Manager

@@ -1182,7 +1182,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "isReady": {
-                    "description": "IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.\nThis is initially set to false and set to true once the node's startup listener succeeded.",
                     "type": "boolean"
                 },
                 "kind": {
@@ -1225,13 +1224,13 @@ const docTemplate = `{
         "lab.LabIn": {
             "type": "object",
             "required": [
-                "endTime",
                 "name",
                 "startTime",
                 "topologyId"
             ],
             "properties": {
                 "endTime": {
+                    "description": "EndTime is deliberately optional. A lab created without one runs indefinitely.",
                     "type": "string"
                 },
                 "name": {

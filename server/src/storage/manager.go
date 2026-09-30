@@ -89,15 +89,30 @@ func (s *Manager) WriteTopology(topologyId string, content string) error {
 }
 
 func (s *Manager) ReadBindFile(topologyId string, filePath string, content *string) error {
-	return s.readStorage(getBindFilePath(topologyId, filePath), content)
+	relativePath, err := bindFilePath(topologyId, filePath)
+	if err != nil {
+		return err
+	}
+
+	return s.readStorage(relativePath, content)
 }
 
 func (s *Manager) WriteBindFile(topologyId string, filePath string, content string) error {
-	return s.writeStorage(getBindFilePath(topologyId, filePath), content)
+	relativePath, err := bindFilePath(topologyId, filePath)
+	if err != nil {
+		return err
+	}
+
+	return s.writeStorage(relativePath, content)
 }
 
 func (s *Manager) DeleteBindFile(topologyId string, filePath string) error {
-	return s.deleteStorage(getBindFilePath(topologyId, filePath))
+	relativePath, err := bindFilePath(topologyId, filePath)
+	if err != nil {
+		return err
+	}
+
+	return s.deleteStorage(relativePath)
 }
 
 func (s *Manager) DeleteRunEnvironment(labId string) error {
@@ -175,6 +190,17 @@ func (s *Manager) delete(absolutePath string) error {
 	return nil
 }
 
+// NormaliseBindFilePath validates a client-supplied bind file path and returns its canonical form.
+func NormaliseBindFilePath(filePath string) (string, error) {
+	cleaned := filepath.Clean(filepath.ToSlash(filePath))
+
+	if !filepath.IsLocal(cleaned) || cleaned == "." {
+		return "", fmt.Errorf("%w: %q", utils.ErrInvalidBindFilePath, filePath)
+	}
+
+	return cleaned, nil
+}
+
 func getDefinitionFilePath(topologyId string) string {
 	return filepath.Join(topologyId, "topology.clab.yaml")
 }
@@ -183,8 +209,13 @@ func getRunDefinitionFilePath(labId string) string {
 	return filepath.Join(labId, "topology.clab.yaml")
 }
 
-func getBindFilePath(topologyId string, filePath string) string {
-	return fmt.Sprintf("%s/%s", topologyId, filePath)
+func bindFilePath(topologyId string, filePath string) (string, error) {
+	cleaned, err := NormaliseBindFilePath(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(topologyId, cleaned), nil
 }
 
 func isDirectoryWritable(path string) bool {

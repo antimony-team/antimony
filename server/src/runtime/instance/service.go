@@ -97,11 +97,6 @@ func CreateService(
 		socketManager, false, nil, false, nil, "lab-updates",
 	)
 
-	service.reviveInstances()
-	service.updatesNamespace.Send(instanceUpdate{
-		LabId: nil,
-	})
-
 	go service.registerProviderEventListener(ctx)
 
 	go service.monitor.Run(ctx)
@@ -109,8 +104,18 @@ func CreateService(
 	return service
 }
 
-// Close stops the service's background workers, cancels any in-flight deployments and releases the
-// socket namespaces owned by the service and its instances. It is safe to call more than once.
+// Revive restores instances from the labs in the database and the containers the deployment provider reports and must
+// be called once during startup.
+func (s *Service) Revive() {
+	s.reviveInstances()
+
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: nil,
+	})
+}
+
+// Close stops the service's background workers, cancels any in-flight deployments, and releases the socket namespaces
+// owned by the service and its instances. It is safe to call more than once.
 func (s *Service) Close() {
 	s.closeOnce.Do(func() {
 		s.cancel()
@@ -154,14 +159,6 @@ func (s *Service) DeployLabCommand(ctx context.Context, labId string, authUser *
 	if err != nil {
 		return err
 	}
-
-	//s.instancesMutex.Lock()
-	//instance, hasInstance := s.instances[instanceLab.UUID]
-	//s.instancesMutex.Unlock()
-
-	//if hasInstance {
-	//	return s.redeployLab(instanceLab, instance)
-	//}
 
 	// When deploying a lab that has already ended, set its end time to indefinite
 	if instanceLab.EndTime != nil && instanceLab.EndTime.Unix() <= time.Now().Unix() {
@@ -241,9 +238,7 @@ func (s *Service) StartNodeCommand(
 		return err
 	}
 
-	if _, err := s.fetchNode(instance, instanceLab.InstanceName, node, true); err != nil {
-		return err
-	}
+	s.fetchNode(instance, instanceLab.InstanceName, node, true)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &labId,
@@ -308,9 +303,7 @@ func (s *Service) StopNodeCommand(
 		return err
 	}
 
-	if _, err := s.fetchNode(instance, instanceLab.InstanceName, node, true); err != nil {
-		return err
-	}
+	s.fetchNode(instance, instanceLab.InstanceName, node, true)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &labId,
@@ -373,9 +366,7 @@ func (s *Service) RestartNodeCommand(
 		return err
 	}
 
-	if _, err := s.fetchNode(instance, instanceLab.InstanceName, node, true); err != nil {
-		return err
-	}
+	s.fetchNode(instance, instanceLab.InstanceName, node, true)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &labId,
@@ -829,21 +820,7 @@ func (s *Service) registerProviderEventListener(ctx context.Context) {
 		}
 
 		if targetLabId != "" {
-			hasChanged, err := s.fetchNode(
-				targetInstance,
-				targetInstance.Name,
-				targetNode,
-				false,
-			)
-
-			if err != nil {
-				log.Warn(
-					"Failed to update instance node",
-					"lab", targetLabId,
-					"node", targetNode.Name,
-					"err", err.Error(),
-				)
-			} else if hasChanged {
+			if s.fetchNode(targetInstance, targetInstance.Name, targetNode, false) {
 				s.updatesNamespace.Send(instanceUpdate{
 					LabId: &targetLabId,
 				})
@@ -1001,9 +978,11 @@ func (s *Service) onNodeStarted(
 
 	node.SetReady(interfaces)
 
+	nodeName, containerId := node.Name, node.ContainerId
+
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(deploymentContext, lab.InstanceName, node.Name, node.ContainerId)
+	s.monitor.AddNode(deploymentContext, lab.InstanceName, nodeName, containerId)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
@@ -1117,12 +1096,17 @@ func (s *Service) extractNodeKinds(topologyDefinition any) map[string]string {
 	return result
 }
 
+// fetchNode re-inspects a single node and applies any state change to it.
+//
+// It reports whether the node's state actually changed. A node that is missing from the inspect
+// output is not an error: the provider may simply not have created its container yet, so it is
+// logged and treated as unchanged.
 func (s *Service) fetchNode(
 	instance *Instance,
 	instanceName string,
 	node *InstanceNode,
 	sendLogs bool,
-) (bool, error) {
+) bool {
 	var onLog func(string)
 
 	if sendLogs && instance.LogNamespace != nil {
@@ -1144,7 +1128,8 @@ func (s *Service) fetchNode(
 			"instance", instanceName,
 			"node", node.Name,
 		)
-		return false, nil
+
+		return false
 	}
 
 	updatedNode := s.containerToInstanceNode(nodeContainer, instance.NodeKinds)
@@ -1154,19 +1139,15 @@ func (s *Service) fetchNode(
 	// If the state hasn't changed, there is no need to update anything
 	if node.State == updatedNode.State {
 		instance.DataMutex.Unlock()
-		return false, nil
-	}
 
-	//if node.State != deployment.NodeStates.Running {
-	//	node.IsReady = false
-	//	node.Interfaces = make([]deployment.NodeInterface, 0)
-	//}
+		return false
+	}
 
 	node.Set(updatedNode.State, updatedNode.IPv4, updatedNode.IPv6, updatedNode.ContainerId, updatedNode.ContainerName)
 
 	instance.DataMutex.Unlock()
 
-	return true, nil
+	return true
 }
 
 func (s *Service) inspectLab(
@@ -1499,7 +1480,11 @@ func (s *Service) CanDelete(labId string) bool {
 	return instance.State == InstanceStates.Failed
 }
 
+// getInstanceNode looks a node up by name under the instance's data lock.
 func getInstanceNode(instance *Instance, nodeName string) *InstanceNode {
+	instance.DataMutex.Lock()
+	defer instance.DataMutex.Unlock()
+
 	for _, node := range instance.Nodes {
 		if node.Name == nodeName {
 			return node
