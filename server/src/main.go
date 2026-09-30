@@ -160,6 +160,11 @@ func main() {
 	labScheduler := scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
 	go labScheduler.Run()
 
+	// After the scheduler is subscribed is it safe to restore the labs that survived the last shutdown. The revive
+	// function publishes 'lab.restored' and 'lab.created', and the event bus has no replay, so anything published
+	// before this point would be dropped.
+	instanceService.Revive()
+
 	commands.CreateHandler(shellService, instanceService, socketManager)
 
 	captureServer := capture.CreateServer(antimonyConfig, deploymentProvider)

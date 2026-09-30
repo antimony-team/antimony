@@ -51,18 +51,17 @@ func TestDeployCommand_UnknownLabIsRejected(t *testing.T) {
 	assert.Contains(t, errorResponse.Message, "lab has not been found")
 }
 
-// TestDeployCommand_NonOwnerIsRejectedWithTheGenericCode pins a gap in the socket error mapping.
+// TestDeployCommand_NonOwnerIsForbidden covers the permission check on deploy.
 //
-// validateLabCommand refuses a non-owner with utils.ErrNoDeployAccessToLab, but
-// utils.CreateSocketErrorResponse only lists ErrNoDestroyAccessToLab, ErrNoAccessToShell and
-// ErrNoAccessToLab under 5403. So a permission failure on deploy or destroy arrives as the generic
-// 5000 instead, and a client cannot tell "you may not do this" apart from "the server broke".
-func TestDeployCommand_NonOwnerIsRejectedWithTheGenericCode(t *testing.T) {
+// validateLabCommand refuses a non-owner with utils.ErrNoDeployAccessToLab, which was missing from
+// the 5403 group in utils.CreateSocketErrorResponse and so arrived as the generic 5000 — leaving a
+// client unable to tell "you may not do this" apart from "the server broke".
+func TestDeployCommand_NonOwnerIsForbidden(t *testing.T) {
 	h := NewHarness(t)
 
 	client := h.Dial("/cmd", h.Seed.Member.Token)
 
-	errorResponse := client.Emit(deployCommand(LabAdminID)).RequireError(5000)
+	errorResponse := client.Emit(deployCommand(LabAdminID)).RequireError(5403)
 
 	assert.Contains(t, errorResponse.Message, "deploy access to the provided lab is not granted")
 	assert.False(t, h.InstanceService.IsRunning(LabAdminID))
@@ -350,8 +349,7 @@ func TestDestroyCommand_NonOwnerIsRejected(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Member.Token)
 
-	// Same mapping gap as on deploy: ErrNoDeployAccessToLab is not in the 5403 list.
-	client.Emit(destroyCommand(LabAdminID)).RequireError(5000)
+	client.Emit(destroyCommand(LabAdminID)).RequireError(5403)
 
 	assert.True(t, h.InstanceService.IsRunning(LabAdminID), "the lab must still be running")
 }
@@ -489,11 +487,21 @@ func findStatusMessage(
 	return statusmessage.Message{}
 }
 
-// requireEventually polls a condition until it holds or the timeout expires.
+// requireEventually polls a condition until it holds or the standard socket timeout expires.
 func requireEventually(t *testing.T, condition func() bool, message string) {
 	t.Helper()
 
-	deadline := time.Now().Add(socketTimeout)
+	requireEventuallyWithin(t, socketTimeout, condition, message)
+}
+
+// requireEventuallyWithin polls a condition until it holds or the given timeout expires.
+//
+// Used with a longer budget where each attempt is itself a full socket round trip, so the default
+// five seconds only affords a handful of tries.
+func requireEventuallyWithin(t *testing.T, timeout time.Duration, condition func() bool, message string) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
 		if condition() {

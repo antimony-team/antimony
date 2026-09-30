@@ -401,33 +401,34 @@ func TestLabFilter_UnknownStateIsEmpty(t *testing.T) {
  * Combinations
  */
 
-// TestLabFilter_CombiningSearchAndCollectionIsADatabaseError pins a bug: those two filters cannot
-// be used together.
+// TestLabFilter_CombinesSearchAndCollection covers using both narrowing filters at once.
 //
-// lab.Repository.GetAll adds the same pair of joins in both branches:
-//
-//	if len(labFilter.CollectionFilter) > 0 { query = query.Joins("JOIN topologies ...").Joins("JOIN collections ...") }
-//	if labFilter.SearchQuery != nil && ... { query = query.Joins("JOIN topologies ...").Joins("JOIN collections ...") }
-//
-// When both are set the joins are emitted twice and the query fails with
-// "ambiguous column name: collections.uuid". The user sees a 500 with the generic database message.
-//
-// Hoisting the joins out so they are added at most once fixes it.
-func TestLabFilter_CombiningSearchAndCollectionIsADatabaseError(t *testing.T) {
+// Both branches of lab.Repository.GetAll used to add the same pair of joins, so setting both
+// emitted them twice and the query failed with "ambiguous column name: collections.uuid". The joins
+// have to be added at most once.
+func TestLabFilter_CombinesSearchAndCollection(t *testing.T) {
 	h := NewHarness(t)
 
-	response := h.GET(
-		"/labs"+allLabs+"&searchQuery=Lab&collectionFilter[]="+h.Seed.Hidden.UUID,
-		h.Seed.Admin.Token,
-	)
+	labs := listLabs(t, h, h.Seed.Admin.Token,
+		"searchQuery=Lab&collectionFilter[]="+h.Seed.Hidden.UUID)
 
-	errorResponse := response.RequireError(http.StatusInternalServerError, 500)
-	assert.Contains(t, errorResponse.Message, "database")
+	assert.Equal(t, []string{LabHiddenID}, labIDs(labs))
+}
 
-	// Each filter works perfectly well on its own.
-	assert.Equal(t, []string{LabHiddenID},
-		labIDs(listLabs(t, h, h.Seed.Admin.Token, "collectionFilter[]="+h.Seed.Hidden.UUID)))
-	assert.NotEmpty(t, listLabs(t, h, h.Seed.Admin.Token, "searchQuery=Lab"))
+func TestLabFilter_CombinesSearchCollectionAndDates(t *testing.T) {
+	h := NewHarness(t)
+
+	// All three narrowing filters together must still produce a valid query.
+	start := time.Now().Add(-4 * time.Hour).Format(time.RFC3339)
+
+	labs := listLabs(t, h, h.Seed.Admin.Token,
+		"searchQuery=Lab&collectionFilter[]="+h.Seed.PublicBoth.UUID+
+			"&startDate="+url.QueryEscape(start))
+
+	assert.NotEmpty(t, labs)
+	for _, id := range labIDs(labs) {
+		assert.NotEqual(t, LabHiddenID, id, "the collection filter must still apply")
+	}
 }
 
 func TestLabFilter_CombinesStateAndSearch(t *testing.T) {

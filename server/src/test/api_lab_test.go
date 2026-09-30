@@ -15,39 +15,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// allLabs is the query string needed to actually list labs. See
-// TestGetLabs_WithoutAnExplicitLimitReturnsNothing for why an explicit limit is mandatory.
+// allLabs makes the listing limit explicit. It is no longer required — an unparameterised request
+// returns everything — but the tests that assert on the full set keep it so they are unaffected if
+// a default page size is introduced later.
 const allLabs = "?limit=100"
 
 /*
  * GET /labs
  */
 
-// TestGetLabs_WithoutAnExplicitLimitReturnsNothing pins a bug in the list contract.
+// TestGetLabs_WithoutALimitReturnsEverything covers the default of the list contract.
 //
-// LabFilter.Limit is a plain int, so a request without a `limit` query parameter arrives as 0, and
-// lab.Repository.GetAll applies it unconditionally:
-//
-//	query = query.Limit(labFilter.Limit).Offset(labFilter.Offset)
-//
-// GORM turns Limit(0) into a literal `LIMIT 0`, so the unparameterised list endpoint returns an
-// empty array rather than every lab. Every other filter is affected too: a request that only sets
-// searchQuery or stateFilter also returns nothing, because it does not set a limit either.
-//
-// The fix is to only apply the clause when the limit is positive (GORM treats -1 as "no limit").
-func TestGetLabs_WithoutAnExplicitLimitReturnsNothing(t *testing.T) {
+// LabFilter.Limit is a plain int, so an unparameterised request arrives as 0. GORM turns Limit(0)
+// into a literal "LIMIT 0", so the clause must only be applied when the limit is positive,
+// otherwise the default listing (and every filter used without a limit) comes back empty.
+func TestGetLabs_WithoutALimitReturnsEverything(t *testing.T) {
 	h := NewHarness(t)
 
 	var labs []labDTO
 	h.GET("/labs", h.Seed.Admin.Token).RequireOk(&labs)
 
-	assert.Empty(t, labs, "LIMIT 0 swallows every row")
+	assert.ElementsMatch(t, []string{
+		LabAdminID, LabMemberID, LabHiddenID, LabPastID, LabFutureID,
+	}, labIDs(labs))
+}
 
-	// The same request with a limit returns the labs that were there all along.
-	var withLimit []labDTO
-	h.GET("/labs"+allLabs, h.Seed.Admin.Token).RequireOk(&withLimit)
+func TestGetLabs_FiltersWorkWithoutAnExplicitLimit(t *testing.T) {
+	h := NewHarness(t)
 
-	assert.Len(t, withLimit, 5)
+	// Every filter must be usable on its own, without the caller also having to pass a limit.
+	var bySearch []labDTO
+	h.GET("/labs?searchQuery=Member", h.Seed.Admin.Token).RequireOk(&bySearch)
+	assert.Equal(t, []string{"Member Lab"}, labNames(bySearch))
+
+	var byCollection []labDTO
+	h.GET("/labs?collectionFilter[]="+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(&byCollection)
+	assert.Equal(t, []string{LabHiddenID}, labIDs(byCollection))
+}
+
+func TestGetLabs_ZeroLimitIsTreatedAsNoLimit(t *testing.T) {
+	h := NewHarness(t)
+
+	// An explicit limit=0 is indistinguishable from an absent one, so it must mean "no limit"
+	// rather than "no rows".
+	var labs []labDTO
+	h.GET("/labs?limit=0", h.Seed.Admin.Token).RequireOk(&labs)
+
+	assert.Len(t, labs, 5)
 }
 
 func TestGetLabs_AdminSeesEveryLab(t *testing.T) {
@@ -166,9 +180,10 @@ func TestGetLabByUuid_MemberCanReadOneInItsCollections(t *testing.T) {
 	assert.Equal(t, LabAdminID, labOut.ID)
 }
 
-// TestGetLabByUuid_InaccessibleLabIsForbidden records an inconsistency worth knowing about rather
-// than a bug: an inaccessible *topology* is masked as 404 so its existence cannot be probed, but an
-// inaccessible *lab* answers 403, which confirms it exists.
+// TestGetLabByUuid_InaccessibleLabIsForbidden covers the access check on a single lab.
+//
+// Both labs and topologies answer 403 here rather than masking as 404: the IDs are server-generated
+// UUIDs so a 404 bought little obfuscation, and a real error is more useful to the client.
 func TestGetLabByUuid_InaccessibleLabIsForbidden(t *testing.T) {
 	h := NewHarness(t)
 
@@ -324,10 +339,11 @@ func TestCreateLab_MissingRequiredFieldsAreRejected(t *testing.T) {
 
 	now := time.Now().Format(time.RFC3339)
 
+	// endTime is deliberately absent from this list: a lab created without one is indefinite.
+	// See TestCreateLab_AcceptsNoEndTime.
 	bodies := map[string]map[string]any{
 		"no name":       {"startTime": now, "endTime": now, "topologyId": TopologyAdminID},
 		"no startTime":  {"name": "x", "endTime": now, "topologyId": TopologyAdminID},
-		"no endTime":    {"name": "x", "startTime": now, "topologyId": TopologyAdminID},
 		"no topologyId": {"name": "x", "startTime": now, "endTime": now},
 		"empty object":  {},
 	}
@@ -362,105 +378,79 @@ func TestCreateLab_InstanceNameIsDerivedFromTheTopologyAndATimestamp(t *testing.
 	stored, err := h.LabRepo.GetByUuid(t.Context(), createdID)
 	require.NoError(t, err)
 
-	assert.Regexp(t, `^admin-topo-\d{13}$`, stored.InstanceName,
-		"the instance name is the sanitised topology name plus a millisecond timestamp")
+	assert.Regexp(t, `^admin-topo-[0-9a-f]{8,}$`, stored.InstanceName,
+		"the instance name is the sanitised topology name plus a unique suffix")
 }
 
-// TestCreateLab_RapidCreationCollidesOnTheInstanceName pins a race that surfaces as an opaque 500.
+// TestCreateLab_RapidCreationNeverCollides covers instance name generation under load.
 //
-// lab.Service.createLabEnvironment builds the instance name as:
-//
-//	fmt.Sprintf("%s-%d", runTopologyName, time.Now().UnixMilli())
-//
-// and Lab.InstanceName carries a uniqueIndex. Two labs created on the same topology within the same
-// millisecond therefore collide, and the user gets "the antimony database encountered an error".
-//
-// This is timing dependent, so the test creates labs in a tight loop and only asserts that *if* a
-// failure happens it is this collision. It does not assert that a collision must occur.
-//
-// A UUID suffix (or a retry on unique-constraint violation) would remove the race entirely.
-func TestCreateLab_RapidCreationCollidesOnTheInstanceName(t *testing.T) {
+// The instance name used to be the topology name plus a millisecond timestamp, and InstanceName
+// carries a unique index, so two labs created on the same topology within the same millisecond
+// collided and the user got an opaque database error. The generated name has to be unique
+// regardless of timing.
+func TestCreateLab_RapidCreationNeverCollides(t *testing.T) {
 	h := NewHarness(t)
 
 	start := time.Now().Add(time.Hour)
 	end := start.Add(time.Hour)
 
 	names := make(map[string]struct{})
-	collisions := 0
 
-	for range 20 {
-		response := h.POST("/labs", lab.LabIn{
+	for i := range 25 {
+		var createdID string
+		h.POST("/labs", lab.LabIn{
 			Name:       ptr("Repeat"),
 			StartTime:  &start,
 			EndTime:    &end,
 			TopologyId: ptr(TopologyAdminID),
-		}, h.Seed.Admin.Token)
-
-		if response.Status() == http.StatusInternalServerError {
-			collisions++
-
-			errorResponse := response.RequireError(http.StatusInternalServerError, 500)
-			assert.Contains(t, errorResponse.Message, "database",
-				"the only expected failure here is the instance name collision")
-
-			continue
-		}
-
-		var createdID string
-		response.RequireOk(&createdID)
+		}, h.Seed.Admin.Token).RequireOk(&createdID)
 
 		stored, err := h.LabRepo.GetByUuid(t.Context(), createdID)
 		require.NoError(t, err)
 
 		_, duplicate := names[stored.InstanceName]
-		require.False(t, duplicate, "two labs must never share an instance name")
+		require.Falsef(t, duplicate, "instance name %q was reused on iteration %d", stored.InstanceName, i)
 
 		names[stored.InstanceName] = struct{}{}
 	}
 
-	if collisions > 0 {
-		t.Logf(
-			"%d of 20 rapid lab creations failed on the instance name unique index (millisecond "+
-				"timestamp granularity)", collisions,
-		)
-	}
+	assert.Len(t, names, 25)
 }
 
-// TestInstanceOut_NodeStateDoesNotRoundTrip pins the JSON asymmetry on deployment.NodeState.
+// TestInstanceOut_NodeStateRoundTrips covers the JSON representation of deployment.NodeState.
 //
-// NodeState has an UnmarshalText (added so containerlab's inspect output, which reports states as
-// strings like "running", can be decoded) but no MarshalText or MarshalJSON. So encoding/json
-// writes the state as a number and then refuses to read that number back, which means a Go client
-// cannot decode this API's own response using the transport types. The TypeScript frontend is
-// unaffected because it only ever sees the number.
-//
-// Adding a MarshalText that emits the same lowercase names UnmarshalText accepts would make the
-// representation symmetric, at the cost of changing the wire format. Dropping UnmarshalText from
-// the shared type and doing the string parsing in the containerlab provider's own DTO would keep
-// the wire format as it is.
-func TestInstanceOut_NodeStateDoesNotRoundTrip(t *testing.T) {
+// NodeState used to carry an UnmarshalText (so containerlab's inspect output, which reports states
+// as strings like "running", could be decoded) with no matching marshaller. encoding/json therefore
+// wrote it as a number and then refused to read that number back, so a Go client could not decode
+// this API's own response using the transport types. The string parsing belongs to the containerlab
+// provider's own DTO, not to the shared type.
+func TestInstanceOut_NodeStateRoundTrips(t *testing.T) {
 	h := NewHarness(t)
 
 	h.DeployLab(LabAdminID)
 
-	// Decoding into the transport type fails on the node state.
-	var viaTransportTypes transport.LabOut
 	response := h.GET("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireStatus(http.StatusOK)
 
 	var envelope utils.OkResponse[json.RawMessage]
 	require.NoError(t, json.Unmarshal([]byte(response.Body()), &envelope))
 
-	err := json.Unmarshal(envelope.Payload, &viaTransportTypes)
-	require.Error(t, err, "the API's own output must currently fail to decode into transport.LabOut")
-	assert.Contains(t, err.Error(), "JSON value must be string type")
+	// The API's own output must decode into the transport types it was produced from.
+	var decoded transport.LabOut
+	require.NoError(t, json.Unmarshal(envelope.Payload, &decoded),
+		"transport.LabOut must be able to decode the response it produced")
 
-	// The state is on the wire as a number, which is what the test DTOs decode.
-	var viaTestTypes labDTO
-	require.NoError(t, json.Unmarshal(envelope.Payload, &viaTestTypes))
-	require.NotNil(t, viaTestTypes.Instance)
+	require.NotNil(t, decoded.Instance)
 
-	host := findNode(t, viaTestTypes.Instance.Nodes, NodeHost)
-	assert.Equal(t, int(deployment.NodeStates.Running), host.State)
+	var host *instance.InstanceNode
+	for _, node := range decoded.Instance.Nodes {
+		if node.Name == NodeHost {
+			host = node
+			break
+		}
+	}
+
+	require.NotNil(t, host)
+	assert.Equal(t, deployment.NodeStates.Running, host.State)
 }
 
 func TestCreateLab_RequiresAuthentication(t *testing.T) {
@@ -585,17 +575,19 @@ func TestUpdateLab_AdminCanUpdateSomeoneElsesLab(t *testing.T) {
 	assert.Equal(t, "Admin Renamed", stored.Name)
 }
 
-// TestUpdateLab_RunningLabIsRejectedAsA500 pins the status of a client error that has no HTTP
-// mapping. utils.ErrLabRunning is not handled by utils.CreateErrorResponse, so refusing to edit a
-// running lab surfaces as a bare 500 with code -1. A 409 Conflict would be the honest answer.
-func TestUpdateLab_RunningLabIsRejectedAsA500(t *testing.T) {
+// TestUpdateLab_RunningLabIsRejected covers refusing to edit a running lab.
+//
+// This is a client mistake, not a server failure, so utils.ErrLabRunning needs an HTTP mapping —
+// without one it surfaced as a bare 500. It gets its own code so a client can tell it apart from
+// the other 400s this endpoint returns for a malformed payload.
+func TestUpdateLab_RunningLabIsRejected(t *testing.T) {
 	h := NewHarness(t)
 
 	h.DeployLab(LabAdminID)
 
 	response := h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{Name: ptr("Nope")}, h.Seed.Admin.Token)
 
-	errorResponse := response.RequireError(http.StatusInternalServerError, -1)
+	errorResponse := response.RequireError(http.StatusBadRequest, 4003)
 	assert.Contains(t, errorResponse.Message, "modifications to a running lab are not allowed")
 
 	stored, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
@@ -687,7 +679,7 @@ func TestDeleteLab_RunningLabIsRejected(t *testing.T) {
 
 	response := h.DELETE("/labs/"+LabAdminID, h.Seed.Admin.Token)
 
-	errorResponse := response.RequireError(http.StatusInternalServerError, -1)
+	errorResponse := response.RequireError(http.StatusBadRequest, 4003)
 	assert.Contains(t, errorResponse.Message, "modifications to a running lab are not allowed")
 
 	_, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)

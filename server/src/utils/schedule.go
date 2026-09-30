@@ -47,11 +47,18 @@ func (s *Schedule[T]) Reschedule(item *T) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if _, isScheduled := s.scheduleMap[s.keyGetter(*item)]; isScheduled {
-		s.remove(s.keyGetter(*item))
+	key := s.keyGetter(*item)
+
+	if _, isScheduled := s.scheduleMap[key]; isScheduled {
+		s.remove(key)
 	}
 
-	s.insert(s.keyGetter(*item), item)
+	// Skip scheduling if the item's time is nil
+	if s.timeGetter(*item) == nil {
+		return
+	}
+
+	s.insert(key, item)
 }
 
 func (s *Schedule[T]) IsScheduled(key string) bool {

@@ -97,11 +97,6 @@ func CreateService(
 		socketManager, false, nil, false, nil, "lab-updates",
 	)
 
-	service.reviveInstances()
-	service.updatesNamespace.Send(instanceUpdate{
-		LabId: nil,
-	})
-
 	go service.registerProviderEventListener(ctx)
 
 	go service.monitor.Run(ctx)
@@ -109,8 +104,18 @@ func CreateService(
 	return service
 }
 
-// Close stops the service's background workers, cancels any in-flight deployments and releases the
-// socket namespaces owned by the service and its instances. It is safe to call more than once.
+// Revive restores instances from the labs in the database and the containers the deployment provider reports and must
+// be called once during startup.
+func (s *Service) Revive() {
+	s.reviveInstances()
+
+	s.updatesNamespace.Send(instanceUpdate{
+		LabId: nil,
+	})
+}
+
+// Close stops the service's background workers, cancels any in-flight deployments, and releases the socket namespaces
+// owned by the service and its instances. It is safe to call more than once.
 func (s *Service) Close() {
 	s.closeOnce.Do(func() {
 		s.cancel()
@@ -1001,9 +1006,11 @@ func (s *Service) onNodeStarted(
 
 	node.SetReady(interfaces)
 
+	nodeName, containerId := node.Name, node.ContainerId
+
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(deploymentContext, lab.InstanceName, node.Name, node.ContainerId)
+	s.monitor.AddNode(deploymentContext, lab.InstanceName, nodeName, containerId)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &lab.UUID,
@@ -1499,7 +1506,11 @@ func (s *Service) CanDelete(labId string) bool {
 	return instance.State == InstanceStates.Failed
 }
 
+// getInstanceNode looks a node up by name under the instance's data lock.
 func getInstanceNode(instance *Instance, nodeName string) *InstanceNode {
+	instance.DataMutex.Lock()
+	defer instance.DataMutex.Unlock()
+
 	for _, node := range instance.Nodes {
 		if node.Name == nodeName {
 			return node

@@ -327,29 +327,42 @@ func TestDeleteCollection_DeletingTwiceIsNotFound(t *testing.T) {
 	h.DELETE("/collections/"+h.Seed.Private.UUID, h.Seed.Admin.Token).RequireError(http.StatusNotFound, -1)
 }
 
-// TestDeleteCollection_ReusingADeletedNameFailsWithADatabaseError pins current behaviour, which is
-// almost certainly not the intent.
+// TestDeleteCollection_FreesTheNameForReuse covers recreating a collection under a deleted name.
 //
-// Collection.Name carries a plain `uniqueIndex`, which soft-deleted rows still occupy, but
-// Repository.DoesNameExist filters them out with `deleted_at IS NULL`. So the service's duplicate
-// check passes and the INSERT then trips the index. The user sees an opaque 500 instead of the 2001
-// "a collection with that name already exists", and the name is burned for good.
-//
-// Fixing it means either a partial unique index (name, deleted_at) or dropping the deleted_at
-// filter from DoesNameExist so the clean 2001 is returned.
-func TestDeleteCollection_ReusingADeletedNameFailsWithADatabaseError(t *testing.T) {
+// Collections are soft deleted, and Name used to carry a plain unique index that soft-deleted rows
+// still occupied. Repository.DoesNameExist filters them out, so the service's duplicate check
+// passed and the INSERT then tripped the index, surfacing as an opaque 500 with the name burned for
+// good. A partial unique index over the live rows makes the name genuinely reusable.
+func TestDeleteCollection_FreesTheNameForReuse(t *testing.T) {
 	h := NewHarness(t)
 
 	h.DELETE("/collections/"+h.Seed.Private.UUID, h.Seed.Admin.Token).RequireOk(nil)
 
-	response := h.POST("/collections", collection.CollectionIn{
+	var createdID string
+	h.POST("/collections", collection.CollectionIn{
+		Name:         ptr(CollectionPrivate),
+		PublicWrite:  ptr(true),
+		PublicDeploy: ptr(true),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	require.NotEmpty(t, createdID)
+	assert.NotEqual(t, h.Seed.Private.UUID, createdID, "it must be a genuinely new collection")
+
+	stored, err := h.CollectionRepo.GetByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+	assert.Equal(t, CollectionPrivate, stored.Name)
+	assert.True(t, stored.PublicWrite, "the new collection keeps its own settings")
+}
+
+func TestDeleteCollection_DuplicateNameIsStillRejectedForLiveCollections(t *testing.T) {
+	h := NewHarness(t)
+
+	// Reuse must only be possible once the original is gone; a live name is still taken.
+	h.POST("/collections", collection.CollectionIn{
 		Name:         ptr(CollectionPrivate),
 		PublicWrite:  ptr(false),
 		PublicDeploy: ptr(false),
-	}, h.Seed.Admin.Token)
-
-	errorResponse := response.RequireError(http.StatusInternalServerError, 500)
-	assert.Contains(t, errorResponse.Message, "database")
+	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 2001)
 }
 
 func TestDeleteCollection_RequiresAuthentication(t *testing.T) {

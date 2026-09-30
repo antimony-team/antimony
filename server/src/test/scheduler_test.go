@@ -2,7 +2,6 @@ package test
 
 import (
 	"antimonyBackend/domain/lab"
-	"net/http"
 	"testing"
 	"time"
 
@@ -68,9 +67,14 @@ func TestScheduler_LeavesAFutureLabAlone(t *testing.T) {
 func TestScheduler_DestroysALabWhoseEndTimeHasPassed(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	// Starts in the past and ends almost immediately, so the scheduler should deploy it and then
-	// tear it down again.
-	end := time.Now().Add(400 * time.Millisecond)
+	// Starts in the past and ends shortly after, so the scheduler should deploy it and then tear it
+	// down again.
+	//
+	// The window has to be comfortably longer than a deployment takes: both queues are driven off
+	// the creation event, so if destruction became due before the deploy goroutine finished, the
+	// destroy would find nothing running and the lab would then stay up for good. A second and a
+	// half is ample even under the race detector.
+	end := time.Now().Add(1500 * time.Millisecond)
 	labId := createLabViaApi(t, h, "Short Lived", time.Now().Add(-time.Minute), &end)
 
 	requireEventually(t, func() bool {
@@ -157,8 +161,9 @@ func TestScheduler_ManualDeploymentTakesTheLabOutOfTheDeploymentQueue(t *testing
 func TestScheduler_ManualDeploymentStillSchedulesDestruction(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	// A short window, so the destruction the manual deploy schedules should fire quickly.
-	end := time.Now().Add(500 * time.Millisecond)
+	// A short window, so the destruction the manual deploy schedules fires quickly — but long
+	// enough that the deploy reliably completes first.
+	end := time.Now().Add(1500 * time.Millisecond)
 	labId := createLabViaApi(t, h, "Manual With Deadline", time.Now().Add(time.Hour), &end)
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
@@ -171,105 +176,96 @@ func TestScheduler_ManualDeploymentStillSchedulesDestruction(t *testing.T) {
 	}, "a manually deployed lab must still be destroyed at its end time")
 }
 
-// TestScheduler_MakingALabIndefinitePanicsTheUpdateHandler pins a nil-pointer crash reachable from
-// an ordinary user action.
+// TestScheduler_MakingALabIndefiniteIsAccepted covers clearing a lab's end time while the
+// scheduler is running.
 //
-// Setting indefinite:true clears the lab's end time and publishes "lab.moved". The scheduler's
-// handler reschedules the lab on *both* queues:
-//
-//	func (s *Scheduler) onLabMoved(lab *lab.Lab) {
-//	    s.deploymentSchedule.Reschedule(lab)
-//	    s.destructionSchedule.Reschedule(lab)   // timeGetter returns lab.EndTime, now nil
-//	}
-//
-// utils.Schedule.Schedule guards against a nil time, but Reschedule does not — it goes straight to
-// insert, which dereferences the result of timeGetter:
-//
-//	itemTime := s.timeGetter(*item).Unix()   // panics
-//
-// gin's Recovery turns this into a 500, so the server survives, but the update is lost: the lab
-// keeps its old end time in the client's eyes and its scheduling state is left inconsistent.
-//
-// The fix is to give Reschedule the same nil-time guard Schedule has (removing the item and
-// returning), which is also the correct semantics: a lab with no end time simply is not scheduled
-// for destruction.
-func TestScheduler_MakingALabIndefinitePanicsTheUpdateHandler(t *testing.T) {
+// indefinite:true clears the end time and publishes "lab.moved", which reschedules the lab on both
+// queues. The destruction queue's time getter returns the now-nil EndTime, so Reschedule has to
+// tolerate a nil time the same way Schedule does: drop the item and return.
+func TestScheduler_MakingALabIndefiniteIsAccepted(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	// LabIn.EndTime is required, so the lab has to be created with an end time first.
 	end := time.Now().Add(time.Hour)
-	labId := createLabViaApi(t, h, "Indefinite", time.Now().Add(time.Hour), &end)
-
-	response := h.PATCH("/labs/"+labId, lab.LabInPartial{Indefinite: ptr(true)}, h.Seed.Admin.Token)
-
-	assert.Equal(t, http.StatusInternalServerError, response.Status(),
-		"clearing the end time panics inside the scheduler and Recovery turns it into a 500")
-
-	// The end time was cleared in the database before the panic, so the write is half-applied.
-	stored, err := h.LabRepo.GetByUuid(t.Context(), labId)
-	require.NoError(t, err)
-	assert.Nil(t, stored.EndTime)
-}
-
-func TestScheduler_AnIndefiniteLabIsNeverDestroyed(t *testing.T) {
-	// Without the scheduler subscribed there is nothing to panic, so this covers the intended
-	// behaviour: a lab with no end time is never queued for destruction.
-	h := NewHarness(t)
-
-	end := time.Now().Add(300 * time.Millisecond)
 	labId := createLabViaApi(t, h, "Indefinite", time.Now().Add(time.Hour), &end)
 
 	h.PATCH("/labs/"+labId, lab.LabInPartial{Indefinite: ptr(true)}, h.Seed.Admin.Token).RequireOk(nil)
 
-	client := h.Dial("/cmd", h.Seed.Admin.Token)
-	client.Emit(deployCommand(labId)).RequireOk(nil)
+	stored, err := h.LabRepo.GetByUuid(t.Context(), labId)
+	require.NoError(t, err)
+	assert.Nil(t, stored.EndTime)
 
-	require.True(t, h.InstanceService.IsRunning(labId))
+	// And the scheduler must still be alive afterwards.
+	h.PATCH("/labs/"+labId, lab.LabInPartial{Name: ptr("Still Working")}, h.Seed.Admin.Token).
+		RequireOk(nil)
+}
 
-	time.Sleep(600 * time.Millisecond)
+func TestScheduler_AnIndefiniteLabIsNeverDestroyed(t *testing.T) {
+	h := NewHarness(t, WithScheduler())
+
+	// Created indefinite from the start, with the scheduler running.
+	labId := createLabViaApi(t, h, "Indefinite", time.Now().Add(-time.Minute), nil)
+
+	requireEventually(t, func() bool {
+		return h.InstanceService.IsRunning(labId)
+	}, "the lab must be deployed once its start time passes")
+
+	// A nil end time means the destruction queue skips the lab entirely.
+	time.Sleep(400 * time.Millisecond)
 
 	assert.True(t, h.InstanceService.IsRunning(labId), "a lab with no end time must keep running")
 	assert.False(t, h.Provider.WasCalled("Destroy"))
 }
 
-func TestCreateLab_RequiresAnEndTime(t *testing.T) {
+// TestCreateLab_AcceptsNoEndTime covers creating an indefinite lab directly.
+//
+// The update endpoint has always accepted indefinite:true, so requiring endTime on create forced
+// clients into a create-then-patch dance with a throwaway end time.
+func TestCreateLab_AcceptsNoEndTime(t *testing.T) {
 	h := NewHarness(t)
 
 	start := time.Now().Add(time.Hour)
 
-	// Worth pinning because the update endpoint does accept an indefinite lab: the asymmetry means
-	// a client has to create the lab with a throwaway end time first.
-	errorResponse := h.POST("/labs", map[string]any{
+	var createdID string
+	h.POST("/labs", map[string]any{
 		"name":       "No End",
 		"startTime":  start.Format(time.RFC3339),
 		"topologyId": TopologyAdminID,
-	}, h.Seed.Admin.Token).RequireValidationError()
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
 
-	assert.Contains(t, errorResponse.Message, "EndTime")
+	require.NotEmpty(t, createdID)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+	assert.Nil(t, stored.EndTime, "a lab created without an end time is indefinite")
 }
 
-// TestScheduler_RevivedLabsAreNeverQueuedBecauseTheSchedulerSubscribesTooLate pins a startup
-// ordering bug that silently discards all scheduling state across a restart.
+func TestCreateLab_StillRequiresTheOtherFields(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour).Format(time.RFC3339)
+
+	bodies := map[string]map[string]any{
+		"no name":       {"startTime": start, "topologyId": TopologyAdminID},
+		"no startTime":  {"name": "x", "topologyId": TopologyAdminID},
+		"no topologyId": {"name": "x", "startTime": start},
+	}
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			h.POST("/labs", body, h.Seed.Admin.Token).RequireValidationError()
+		})
+	}
+}
+
+// TestScheduler_RevivedLabsAreQueuedOnStartup covers the startup handover between the revive pass
+// and the scheduler.
 //
-// instance.CreateService runs its revive pass during construction and publishes "lab.restored" for
-// every lab it adopts and "lab.created" for every lab that has not started yet. But main.go builds
-// the scheduler *after* the runtime:
-//
-//	instanceService, shellService := createRuntime(...)            // revive publishes here
-//	labScheduler := scheduler.CreateScheduler(..., labEventBus)    // subscribes only now
-//	go labScheduler.Run()
-//
-// utils.EventBus has no replay, so every revive event is delivered to an empty subscriber list and
-// dropped. The consequences after any server restart are that
-//
-//   - a lab that was still running is adopted but never queued for destruction, so it runs past its
-//     end time indefinitely, and
-//   - a lab whose start time is still in the future is never queued for deployment, so it never
-//     starts automatically.
-//
-// Creating the scheduler before the instance service fixes both, since the bus is already wired by
-// the time revive publishes.
-func TestScheduler_RevivedLabsAreNeverQueuedBecauseTheSchedulerSubscribesTooLate(t *testing.T) {
+// instance.CreateService publishes "lab.restored" for every lab it adopts and "lab.created" for
+// every lab that has not started yet. utils.EventBus has no replay, so the scheduler has to be
+// subscribed before the instance service is constructed or those events are delivered to an empty
+// subscriber list and lost — which would mean that after any restart, expired labs run forever and
+// future labs never start.
+func TestScheduler_RevivedLabsAreQueuedOnStartup(t *testing.T) {
 	h := NewHarness(t, WithScheduler(), WithProvider(func(p *FakeProvider) {
 		p.SeedInstance(InstancePastLab,
 			FakeNode{Name: NodeHost, Kind: "linux"},
@@ -277,21 +273,34 @@ func TestScheduler_RevivedLabsAreNeverQueuedBecauseTheSchedulerSubscribesTooLate
 		)
 	}))
 
-	// The lab is adopted and the event is published...
 	require.True(t, h.InstanceService.IsRunning(LabPastID), "the lab must be adopted on startup")
-	require.Contains(t, h.StartupEvents.LabIdsFor("lab.restored"), LabPastID,
-		"revive does publish the event")
+	require.Contains(t, h.StartupEvents.LabIdsFor("lab.restored"), LabPastID)
 
-	// ...but the scheduler was not subscribed yet, so nothing acts on it. The lab's end time is two
-	// hours in the past, so a working scheduler would tear it down within a tick or two.
-	time.Sleep(500 * time.Millisecond)
+	// Its end time is two hours in the past, so the destruction queue must pop it promptly.
+	requireEventually(t, func() bool {
+		return !h.InstanceService.IsRunning(LabPastID)
+	}, "a restored lab whose end time has passed must be destroyed")
 
-	assert.True(t, h.InstanceService.IsRunning(LabPastID),
-		"the expired lab keeps running because the restore event was lost")
-	assert.False(t, h.Provider.WasCalled("Destroy"))
+	assert.True(t, h.Provider.WasCalled("Destroy"))
+}
 
-	// The same loss applies to labs that have not started yet.
-	assert.Contains(t, h.StartupEvents.LabIdsFor("lab.created"), LabFutureID)
+func TestScheduler_FutureLabsFromReviveAreDeployedWhenDue(t *testing.T) {
+	h := NewHarness(t, WithScheduler())
+
+	// The seeded future lab starts in four hours, so it must be queued but not yet deployed.
+	require.Contains(t, h.StartupEvents.LabIdsFor("lab.created"), LabFutureID)
+
+	time.Sleep(200 * time.Millisecond)
+	require.False(t, h.InstanceService.IsRunning(LabFutureID))
+
+	// Pulling its start time into the past must make the queued lab deploy.
+	newStart := time.Now().Add(-time.Minute)
+	h.PATCH("/labs/"+LabFutureID, lab.LabInPartial{StartTime: &newStart}, h.Seed.Admin.Token).
+		RequireOk(nil)
+
+	requireEventually(t, func() bool {
+		return h.InstanceService.IsRunning(LabFutureID)
+	}, "a lab queued by the revive pass must deploy once it becomes due")
 }
 
 // TestScheduler_WorksForEventsPublishedAfterStartup is the control for the test above: the very same
@@ -299,7 +308,7 @@ func TestScheduler_RevivedLabsAreNeverQueuedBecauseTheSchedulerSubscribesTooLate
 func TestScheduler_WorksForEventsPublishedAfterStartup(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	end := time.Now().Add(400 * time.Millisecond)
+	end := time.Now().Add(1500 * time.Millisecond)
 	labId := createLabViaApi(t, h, "Live Event", time.Now().Add(-time.Minute), &end)
 
 	requireEventually(t, func() bool {

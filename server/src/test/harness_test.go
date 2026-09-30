@@ -399,6 +399,9 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		go h.Scheduler.Run()
 	}
 
+	// Mirrors main.go: the revive pass runs only once every event bus subscriber is in place.
+	h.InstanceService.Revive()
+
 	h.Engine = h.buildEngine()
 	h.Server = httptest.NewServer(h.Engine)
 

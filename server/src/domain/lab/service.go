@@ -10,13 +10,12 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
+	"context"
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 )
@@ -74,7 +73,7 @@ func CreateService(
 	return labService
 }
 
-func (s *Service) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]Lab, error) {
+func (s *Service) Get(ctx context.Context, labFilter LabFilter, authUser auth.AuthenticatedUser) ([]Lab, error) {
 	var (
 		labs []Lab
 		err  error
@@ -89,7 +88,7 @@ func (s *Service) Get(ctx *gin.Context, labFilter LabFilter, authUser auth.Authe
 	}), nil
 }
 
-func (s *Service) GetByUuid(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) (*Lab, error) {
+func (s *Service) GetByUuid(ctx context.Context, labId string, authUser auth.AuthenticatedUser) (*Lab, error) {
 	var (
 		lab *Lab
 		err error
@@ -106,7 +105,7 @@ func (s *Service) GetByUuid(ctx *gin.Context, labId string, authUser auth.Authen
 	return lab, err
 }
 
-func (s *Service) Create(ctx *gin.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error) {
+func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.AuthenticatedUser) (string, error) {
 	labTopology, err := s.topologyRepo.GetByUuid(ctx, *req.TopologyId)
 	if err != nil {
 		return "", err
@@ -161,7 +160,7 @@ func (s *Service) Create(ctx *gin.Context, req LabIn, authUser auth.Authenticate
 	return labUuid, nil
 }
 
-func (s *Service) Update(ctx *gin.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error {
+func (s *Service) Update(ctx context.Context, req LabInPartial, labId string, authUser auth.AuthenticatedUser) error {
 	lab, err := s.repo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
@@ -207,7 +206,7 @@ func (s *Service) Update(ctx *gin.Context, req LabInPartial, labId string, authU
 	return nil
 }
 
-func (s *Service) Delete(ctx *gin.Context, labId string, authUser auth.AuthenticatedUser) error {
+func (s *Service) Delete(ctx context.Context, labId string, authUser auth.AuthenticatedUser) error {
 	lab, err := s.repo.GetByUuid(ctx, labId)
 	if err != nil {
 		return err
@@ -251,7 +250,7 @@ func (s *Service) createLabEnvironment(lab *Lab) (string, error) {
 
 	runTopologyName = strings.ReplaceAll(lab.Topology.Name, " ", "-")
 	runTopologyName = strings.ReplaceAll(runTopologyName, "_", "-")
-	runTopologyName = fmt.Sprintf("%s-%d", runTopologyName, time.Now().UnixMilli())
+	runTopologyName = fmt.Sprintf("%s-%s", runTopologyName, instanceNameSuffix())
 
 	if err := s.renameTopology(lab.Topology.UUID, runTopologyName, &runTopologyDefinition); err != nil {
 		return "", err
@@ -290,4 +289,9 @@ func (s *Service) renameTopology(topologyId string, topologyName string, runTopo
 		*runTopologyDefinition = string(runTopologyRaw)
 		return nil
 	}
+}
+
+// instanceNameSuffix returns a short, unique, containerlab-safe suffix for an instance name.
+func instanceNameSuffix() string {
+	return strings.ReplaceAll(utils.GenerateUuid(), "-", "")[:12]
 }

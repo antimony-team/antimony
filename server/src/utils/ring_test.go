@@ -111,18 +111,52 @@ func TestValueRing_ItemsReturnsACopy(t *testing.T) {
 	assert.Equal(t, []int{1, 2, 3}, ring.Items(), "mutating the returned slice must not affect the ring")
 }
 
-// TestValueRing_ZeroCapacityPanics pins a latent crash rather than endorsing it.
+// TestValueRing_ZeroCapacityIsSafe covers a degenerate but reachable configuration.
 //
-// A zero-capacity ValueRing panics on the very first Add, because the "buffer is full" branch
-// indexes into a zero-length slice. This is reachable from configuration: setting
-// streaming.clabLogBacklog (or containerLogBacklog / shellLinesBacklog) to 0 in the config file
-// produces a namespace whose backlog ring panics as soon as the first log line is emitted.
-//
-// A zero capacity should either be rejected at config load or treated as "no backlog".
-func TestValueRing_ZeroCapacityPanics(t *testing.T) {
+// A zero-capacity ValueRing used to panic on the very first Add, because the "buffer is full"
+// branch indexed into a zero-length slice. That is reachable from the config file: setting
+// streaming.clabLogBacklog (or containerLogBacklog / shellLinesBacklog) to 0 produced a namespace
+// whose ring panicked as soon as the first log line was emitted. A capacity of zero must simply
+// mean "keep nothing".
+func TestValueRing_ZeroCapacityIsSafe(t *testing.T) {
 	ring := CreateValueRing[int](0)
 
-	assert.Panics(t, func() { ring.Add(1) })
+	assert.NotPanics(t, func() {
+		ring.Add(1)
+		ring.AddMany([]int{2, 3})
+	})
+
+	assert.Equal(t, 0, ring.Len())
+	assert.Empty(t, ring.Items())
+}
+
+func TestValueRing_NegativeCapacityIsSafe(t *testing.T) {
+	assert.NotPanics(t, func() {
+		ring := CreateValueRing[int](-5)
+
+		ring.Add(1)
+
+		assert.Equal(t, 0, ring.Len())
+		assert.Empty(t, ring.Items())
+	})
+}
+
+func TestCreateRing_ZeroCapacityIsSafeForBothKinds(t *testing.T) {
+	assert.NotPanics(t, func() {
+		value := CreateRing[string](RingKindValue, 0)
+		value.AddMany([]string{"a", "b"})
+
+		assert.Empty(t, value.Items())
+	})
+
+	assert.NotPanics(t, func() {
+		bytes := CreateRing[byte](RingKindByte, 0)
+		bytes.AddMany([]byte("one\ntwo\n"))
+
+		// A zero line limit keeps only the unterminated remainder, which is already the ByteRing's
+		// documented trimming behaviour.
+		assert.Empty(t, bytes.Items())
+	})
 }
 
 /*

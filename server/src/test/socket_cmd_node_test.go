@@ -3,6 +3,7 @@ package test
 import (
 	"antimonyBackend/deployment"
 	"antimonyBackend/utils"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -531,15 +532,14 @@ func TestStartupProbe_UnexpectedExitCodeMarksTheNodeStopped(t *testing.T) {
 }
 
 func TestStartupProbe_RetriesWhileTheNodeIsNotRunningYet(t *testing.T) {
-	var attempts int
+	// The probe runs on the startup listener's goroutine, so the counter has to be atomic.
+	var attempts atomic.Int64
 
 	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
 		p.ExecFn = func(string, string, []string) (string, int, error) {
-			attempts++
-
 			// The first probe reports the container as not running, which is a retry condition
 			// rather than a failure.
-			if attempts == 1 {
+			if attempts.Add(1) == 1 {
 				return "", 0, utils.ErrNodeNotRunning
 			}
 
@@ -560,7 +560,7 @@ func TestStartupProbe_RetriesWhileTheNodeIsNotRunningYet(t *testing.T) {
 		return findNode(t, labOut.Instance.Nodes, NodeHost).IsReady
 	}, "the node must become ready after the retry")
 
-	assert.GreaterOrEqual(t, attempts, 2, "the probe must have retried")
+	assert.GreaterOrEqual(t, attempts.Load(), int64(2), "the probe must have retried")
 }
 
 func TestStartupProbe_ExcludedInterfacesAreFilteredOut(t *testing.T) {

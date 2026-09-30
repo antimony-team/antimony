@@ -51,6 +51,10 @@ type FakeProvider struct {
 	DeployStates deployment.NodeState
 
 	// Overridable behaviour. A nil field means "use the default".
+	//
+	// These are read by service goroutines (the monitor polls ReadNodeStats every second, startup
+	// listeners call Exec), so they are guarded by the same mutex as the rest of the fake and are
+	// set through the SetXxx helpers rather than assigned directly.
 	DeployFn          func(topologyFile, instanceName string, onLog deployment.LogFunc) error
 	RedeployFn        func(topologyFile, instanceName string, onLog deployment.LogFunc) error
 	DestroyFn         func(topologyFile, instanceName string, onLog deployment.LogFunc) error
@@ -231,6 +235,34 @@ func (p *FakeProvider) Shell(instanceName, nodeName string) *FakeShellSession {
 	return p.shells[instanceName+"/"+nodeName]
 }
 
+// SetExecFn replaces the Exec behaviour. Safe to call while the fake is in use.
+func (p *FakeProvider) SetExecFn(fn func(instanceName, nodeName string, cmd []string) (string, int, error)) {
+	p.mu.Lock()
+	p.ExecFn = fn
+	p.mu.Unlock()
+}
+
+// SetStatsFn replaces the ReadNodeStats behaviour. Safe to call while the monitor is polling.
+func (p *FakeProvider) SetStatsFn(fn func(instanceName, nodeName string) (*deployment.NodeStats, error)) {
+	p.mu.Lock()
+	p.StatsFn = fn
+	p.mu.Unlock()
+}
+
+func (p *FakeProvider) execFn() func(string, string, []string) (string, int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.ExecFn
+}
+
+func (p *FakeProvider) statsFn() func(string, string) (*deployment.NodeStats, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.StatsFn
+}
+
 /*
  * deployment.DeploymentProvider implementation.
  */
@@ -367,8 +399,8 @@ func (p *FakeProvider) Exec(
 ) (string, int, error) {
 	p.record("Exec", map[string]any{"instanceName": instanceName, "nodeName": nodeName, "cmd": cmd})
 
-	if p.ExecFn != nil {
-		return p.ExecFn(instanceName, nodeName, cmd)
+	if fn := p.execFn(); fn != nil {
+		return fn(instanceName, nodeName, cmd)
 	}
 
 	// Exit 127 means "no ssh client on the node", which instance.waitForNodeStarted treats as
@@ -435,8 +467,8 @@ func (p *FakeProvider) ReadNodeStats(
 ) (*deployment.NodeStats, error) {
 	p.record("ReadNodeStats", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
-	if p.StatsFn != nil {
-		return p.StatsFn(instanceName, nodeName)
+	if fn := p.statsFn(); fn != nil {
+		return fn(instanceName, nodeName)
 	}
 
 	return &deployment.NodeStats{

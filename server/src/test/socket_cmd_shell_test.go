@@ -250,8 +250,7 @@ func TestOpenShellCommand_NonOwnerIsRejected(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Member.Token)
 
-	// validateShellCommand refuses with ErrNoDeployAccessToLab, which is outside the 5403 group.
-	errorResponse := client.Emit(openShellCommand(LabAdminID, NodeHost)).RequireError(5000)
+	errorResponse := client.Emit(openShellCommand(LabAdminID, NodeHost)).RequireError(5403)
 	assert.Contains(t, errorResponse.Message, "deploy access to the provided lab is not granted")
 }
 
@@ -520,13 +519,14 @@ func TestShellData_NodeOutputReachesTheClient(t *testing.T) {
 	require.NotNil(t, session)
 
 	// The client is registered on the server slightly after Dial returns, so keep offering output
-	// until it lands rather than racing the registration.
+	// until it lands rather than racing the registration. Each attempt is a full round trip through
+	// a binary socket.io frame, so this gets a longer budget than the default.
 	var received []byte
 
-	requireEventually(t, func() bool {
+	requireEventuallyWithin(t, 20*time.Second, func() bool {
 		session.Push("total 0\n")
 
-		value, ok := dataClient.NextDataWithin(200 * time.Millisecond)
+		value, ok := dataClient.NextDataWithin(300 * time.Millisecond)
 		if !ok {
 			return false
 		}

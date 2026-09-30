@@ -45,7 +45,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 		return
 	}
 
-	resultLabs, err := h.service.Get(ctx, labFilter, authUser)
+	resultLabs, err := h.service.Get(ctx.Request.Context(), labFilter, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -93,7 +93,7 @@ func (h *Handler) GetByUuid(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	resultLab, err := h.service.GetByUuid(ctx, ctx.Param("labId"), authUser)
+	resultLab, err := h.service.GetByUuid(ctx.Request.Context(), ctx.Param("labId"), authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -128,7 +128,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Create(ctx, payload, authUser)
+	result, err := h.service.Create(ctx.Request.Context(), payload, authUser)
 	if err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
@@ -162,7 +162,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.Update(ctx, payload, ctx.Param("labId"), authUser); err != nil {
+	if err := h.service.Update(ctx.Request.Context(), payload, ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -187,7 +187,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
 	}
 
-	if err := h.service.Delete(ctx, ctx.Param("labId"), authUser); err != nil {
+	if err := h.service.Delete(ctx.Request.Context(), ctx.Param("labId"), authUser); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

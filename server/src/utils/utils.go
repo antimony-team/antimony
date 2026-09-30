@@ -5,7 +5,7 @@ import (
 )
 
 func GenerateUuid() string {
-	uuid1, err := uuid.NewUUID()
+	uuid1, err := uuid.NewRandom()
 	if err != nil {
 		panic("Failed to generate UUID")
 	}

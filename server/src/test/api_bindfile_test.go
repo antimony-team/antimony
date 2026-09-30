@@ -172,41 +172,125 @@ func TestCreateBindFile_EmptyContentIsAllowed(t *testing.T) {
 	assert.Empty(t, content)
 }
 
-// TestCreateBindFile_PathTraversalEscapesTheStorageDirectory documents a security bug.
+// TestCreateBindFile_PathTraversalIsRejected covers the path validation on bind file creation.
 //
-// Bind file paths are never validated. utils.ErrInvalidBindFilePath exists and is mapped to
-// HTTP 400 / code 4002 in utils.CreateErrorResponse, but no code path ever returns it, and there is
-// no sanitisation anywhere between the handler and os.WriteFile:
-//
-//	storage.getBindFilePath -> fmt.Sprintf("%s/%s", topologyId, filePath)
-//	storage.write           -> os.MkdirAll(filepath.Dir(path)) + os.WriteFile(path)
-//
-// filepath.Join collapses the "..", so a relative path escapes both the topology directory and the
-// storage root. Any authenticated user who owns a topology (or any admin) can therefore write a
-// file of arbitrary content to an arbitrary path the server process can reach, and DELETE on the
-// same bind file will unlink it again.
-//
-// The fix is to reject any path that is not local after cleaning — filepath.IsLocal covers exactly
-// this — and to return the already-wired ErrInvalidBindFilePath.
-func TestCreateBindFile_PathTraversalEscapesTheStorageDirectory(t *testing.T) {
+// Bind file paths come straight from the API, so they are attacker controlled. Anything that is not
+// a local relative path must be refused with utils.ErrInvalidBindFilePath (400 / code 4002) before
+// a single byte is written, so a client cannot reach outside its topology's own directory.
+func TestCreateBindFile_PathTraversalIsRejected(t *testing.T) {
 	h := NewHarness(t)
 
 	storageRoot := h.Config.FileSystem.Storage
 
-	h.POST(bindFileURL(TopologyAdminID), topology.BindFileIn{
+	// The absolute cases point inside the test's own temp tree rather than at a real system path,
+	// so that a regression here cannot scribble outside it.
+	absoluteInsideTemp := filepath.Join(storageRoot, "..", "absolute-escaped.txt")
+
+	cases := map[string]string{
+		"parent traversal":   "../../escaped.txt",
+		"single parent":      "../escaped.txt",
+		"traversal mid path": "srl1/../../escaped.txt",
+		"absolute path":      absoluteInsideTemp,
+		"absolute root":      "/escaped.txt",
+		"empty path":         "",
+		"bare dot dot":       "..",
+		"trailing traversal": "srl1/..",
+	}
+
+	for name, path := range cases {
+		t.Run(name, func(t *testing.T) {
+			response := h.POST(bindFileURL(TopologyAdminID), topology.BindFileIn{
+				FilePath: ptr(path),
+				Content:  ptr("should never be written"),
+			}, h.Seed.Admin.Token)
+
+			errorResponse := response.RequireError(http.StatusBadRequest, 4002)
+			assert.Contains(t, errorResponse.Message, "bind file path was invalid")
+		})
+	}
+
+	// Nothing may have been written anywhere outside the topology directory.
+	for _, escaped := range []string{
+		filepath.Join(storageRoot, "..", "escaped.txt"),
+		filepath.Join(storageRoot, "escaped.txt"),
+		absoluteInsideTemp,
+	} {
+		_, err := os.Stat(escaped)
+		assert.Truef(t, os.IsNotExist(err), "nothing may have been written to %s", escaped)
+	}
+}
+
+func TestCreateBindFile_NestedRelativePathsAreStillAllowed(t *testing.T) {
+	h := NewHarness(t)
+
+	// The validation must not break the nested paths bind files legitimately use.
+	for _, path := range []string{
+		"config.cfg",
+		"srl1/config.cfg",
+		"srl1/etc/frr/frr.conf",
+	} {
+		t.Run(path, func(t *testing.T) {
+			var createdID string
+			h.POST(bindFileURL(TopologyPrivateID), topology.BindFileIn{
+				FilePath: ptr(path),
+				Content:  ptr("fine"),
+			}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+			stored, err := h.TopologyRepo.GetBindFileByUuid(t.Context(), createdID)
+			require.NoError(t, err)
+			assert.Equal(t, path, stored.FilePath)
+		})
+	}
+}
+
+// TestCreateBindFile_PathsAreNormalisedBeforeStorage guards against two spellings of the same path
+// aliasing one file.
+//
+// "./srl1/daemons" and "srl1/daemons" are the same file, but the duplicate-path check compares the
+// stored strings, so storing them verbatim would let a client create two rows pointing at one file
+// and silently overwrite. Cleaning the path at the boundary makes the stored form canonical.
+func TestCreateBindFile_PathsAreNormalisedBeforeStorage(t *testing.T) {
+	h := NewHarness(t)
+
+	var createdID string
+	h.POST(bindFileURL(TopologyPrivateID), topology.BindFileIn{
+		FilePath: ptr("./srl1/../srl1/daemons"),
+		Content:  ptr("normalised"),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	stored, err := h.TopologyRepo.GetBindFileByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+	assert.Equal(t, "srl1/daemons", stored.FilePath, "the stored path must be the cleaned form")
+
+	content, ok := readBindFile(t, h, TopologyPrivateID, "srl1/daemons")
+	require.True(t, ok)
+	assert.Equal(t, "normalised", content)
+
+	// And the canonical spelling must now be detected as a duplicate.
+	h.POST(bindFileURL(TopologyPrivateID), topology.BindFileIn{
+		FilePath: ptr("srl1/daemons"),
+		Content:  ptr("second"),
+	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 4001)
+}
+
+func TestUpdateBindFile_PathTraversalIsRejectedWithoutTouchingTheOldFile(t *testing.T) {
+	h := NewHarness(t)
+
+	// The update path removes the old file before writing the new one, so validation has to happen
+	// before any of that or a refused rename would still destroy the original.
+	response := h.PATCH(bindFileItemURL(TopologyAdminID, BindFileID), topology.BindFileInPartial{
 		FilePath: ptr("../../escaped.txt"),
-		Content:  ptr("written outside the storage root"),
-	}, h.Seed.Admin.Token).RequireStatus(http.StatusOK)
+	}, h.Seed.Admin.Token)
 
-	// storage/<topologyId>/../../escaped.txt resolves to the parent of the storage root.
-	escaped := filepath.Join(storageRoot, "..", "escaped.txt")
+	response.RequireError(http.StatusBadRequest, 4002)
 
-	written, err := os.ReadFile(escaped)
-	require.NoErrorf(t, err, "expected the traversal to land at %s", escaped)
-	assert.Equal(t, "written outside the storage root", string(written))
+	content, ok := readBindFile(t, h, TopologyAdminID, BindFilePath)
+	require.True(t, ok, "the original file must survive a refused rename")
+	assert.Equal(t, BindFileContent, content)
 
-	assert.NotContains(t, escaped, filepath.Join(storageRoot, TopologyAdminID),
-		"the file must be shown to live outside the topology directory")
+	stored, err := h.TopologyRepo.GetBindFileByUuid(t.Context(), BindFileID)
+	require.NoError(t, err)
+	assert.Equal(t, BindFilePath, stored.FilePath, "the row must be unchanged")
 }
 
 /*
@@ -229,69 +313,47 @@ func TestUpdateBindFile_CanReplaceOnlyTheContent(t *testing.T) {
 	assert.Equal(t, BindFilePath, stored.FilePath, "the path must be untouched")
 }
 
-// TestUpdateBindFile_RenamingWithoutNewContentIsDestructive documents a data-loss bug.
-//
-// topology.Service.UpdateBindFile deletes the file at the old path *before* deciding where the new
-// content comes from. When the request changes only the path (content omitted), the fallback branch
-// then tries to read the file it just deleted:
-//
-//	if bindFile.FilePath != *req.FilePath {
-//	    s.removeBindFile(topology, bindFile.FilePath)   // <- old file unlinked here
-//	}
-//	...
-//	if req.Content != nil { ... } else {
-//	    s.loadBindFile(topology, *bindFile)             // <- reads the old path, now missing
-//	}
-//
-// The read fails, the handler returns 500, and the update aborts *after* the delete has happened.
-// The fix is to load the existing content before removing the old file.
-func TestUpdateBindFile_RenamingWithoutNewContentIsDestructive(t *testing.T) {
+func TestUpdateBindFile_RenamingCarriesTheContentOver(t *testing.T) {
 	h := NewHarness(t)
 
-	response := h.PATCH(bindFileItemURL(TopologyAdminID, BindFileID), topology.BindFileInPartial{
+	// Changing only the path must move the file, keeping its content. This requires loading the
+	// existing content *before* the old file is removed.
+	h.PATCH(bindFileItemURL(TopologyAdminID, BindFileID), topology.BindFileInPartial{
 		FilePath: ptr("srl1/renamed.cfg"),
-	}, h.Seed.Admin.Token)
+	}, h.Seed.Admin.Token).RequireOk(nil)
 
-	errorResponse := response.RequireError(http.StatusInternalServerError, -1)
-	assert.Contains(t, errorResponse.Message, "no such file or directory")
-
-	// The old file is already gone from disk...
-	_, oldStillThere := readBindFile(t, h, TopologyAdminID, BindFilePath)
-	assert.False(t, oldStillThere, "the old file was deleted before the failure")
-
-	// ...nothing was written at the new path...
-	_, newExists := readBindFile(t, h, TopologyAdminID, "srl1/renamed.cfg")
-	assert.False(t, newExists, "the rename never completed")
-
-	// ...and the row still points at the path that no longer exists, so the bind file is dangling.
 	stored, err := h.TopologyRepo.GetBindFileByUuid(t.Context(), BindFileID)
 	require.NoError(t, err)
-	assert.Equal(t, BindFilePath, stored.FilePath)
+	assert.Equal(t, "srl1/renamed.cfg", stored.FilePath)
+
+	moved, ok := readBindFile(t, h, TopologyAdminID, "srl1/renamed.cfg")
+	require.True(t, ok, "the file must exist at the new path")
+	assert.Equal(t, BindFileContent, moved, "the content must be carried over")
+
+	_, stillThere := readBindFile(t, h, TopologyAdminID, BindFilePath)
+	assert.False(t, stillThere, "the file at the old path must be removed")
 }
 
-// TestUpdateBindFile_AFailedRenameBricksTheWholeTopology follows the consequence of the bug above.
-//
-// Once a bind file row points at a missing file, LoadTopology fails for that topology. GetByUuid
-// turns that into 400/3003, and the list endpoint skips the topology entirely (the service logs and
-// `continue`s), so it silently vanishes from the client's view. A single failed rename therefore
-// makes a topology permanently unreachable through the API even though its definition is intact.
-func TestUpdateBindFile_AFailedRenameBricksTheWholeTopology(t *testing.T) {
+func TestUpdateBindFile_RenamingKeepsTheTopologyReadable(t *testing.T) {
 	h := NewHarness(t)
 
 	h.PATCH(bindFileItemURL(TopologyAdminID, BindFileID), topology.BindFileInPartial{
 		FilePath: ptr("srl1/renamed.cfg"),
-	}, h.Seed.Admin.Token).RequireStatus(http.StatusInternalServerError)
+	}, h.Seed.Admin.Token).RequireOk(nil)
 
-	// The single-topology endpoint now reports the topology as invalid.
-	h.GET("/topologies/"+TopologyAdminID, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 3003)
+	// A rename must leave no dangling row behind: LoadTopology reads every bind file, so a row
+	// pointing at a missing file would make the whole topology unreadable.
+	var topologyOut transport.TopologyOut
+	h.GET("/topologies/"+TopologyAdminID, h.Seed.Admin.Token).RequireOk(&topologyOut)
 
-	// And the list endpoint drops it without any indication that something is wrong.
+	require.Len(t, topologyOut.BindFiles, 1)
+	assert.Equal(t, "srl1/renamed.cfg", topologyOut.BindFiles[0].FilePath)
+	assert.Equal(t, BindFileContent, topologyOut.BindFiles[0].Content)
+
+	// And it must still be listed.
 	var topologies []transport.TopologyOut
 	h.GET("/topologies", h.Seed.Admin.Token).RequireOk(&topologies)
-
-	ids := topologyIDs(topologies)
-	assert.NotContains(t, ids, TopologyAdminID, "the broken topology disappears from the list")
-	assert.Contains(t, ids, TopologyMemberID, "unrelated topologies are unaffected")
+	assert.Contains(t, topologyIDs(topologies), TopologyAdminID)
 }
 
 func TestUpdateBindFile_MovingWithNewContentWorks(t *testing.T) {

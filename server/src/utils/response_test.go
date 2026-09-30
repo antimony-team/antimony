@@ -99,39 +99,67 @@ func TestCreateErrorResponse_UnknownErrorsBecomeInternalServerErrors(t *testing.
 	assert.Equal(t, -1, response.Code)
 }
 
-// TestCreateErrorResponse_UnmappedDomainErrorsLeakAs500 records which real domain errors have no
-// HTTP mapping and therefore surface as a bare 500 with code -1.
-//
-// The two that matter for the API surface are ErrLabRunning (returned when a client tries to edit
-// or delete a running lab, which is a client mistake and should be a 4xx — 409 would fit) and
-// ErrNodeNotFound. The rest are genuine server-side failures where a 500 is defensible.
-func TestCreateErrorResponse_UnmappedDomainErrorsLeakAs500(t *testing.T) {
-	unmapped := []error{
-		ErrLabRunning,
-		ErrNodeNotFound,
+func TestCreateErrorResponse_MapsLabRunningToBadRequest(t *testing.T) {
+	// Refusing to edit or delete a running lab is a client mistake, not a server failure, so it
+	// used to be the one genuinely misreported error: no mapping meant a bare 500.
+	status, response := CreateErrorResponse(ErrLabRunning)
+
+	assert.Equal(t, http.StatusBadRequest, status)
+	assert.Equal(t, 4003, response.Code)
+	assert.Contains(t, response.Message, "modifications to a running lab are not allowed")
+}
+
+// TestCreateErrorResponse_ServerFailuresAre500 covers the errors for which a 500 is the right
+// answer: something inside the server went wrong and the client cannot act on it.
+func TestCreateErrorResponse_ServerFailuresAre500(t *testing.T) {
+	for _, err := range []error{
 		ErrAntimony,
 		ErrProvider,
 		ErrFileStorage,
 		ErrOpenIDError,
-		ErrLabNotFound,
-		ErrLabNotRunning,
-		ErrShellNotFound,
-		ErrShellLimitReached,
-		ErrNodeNotRunning,
-		ErrLabOperationInProgress,
-		ErrInvalidNodeOperation,
-		ErrInvalidRuntimeCommand,
-		ErrNoAccessToShell,
-		ErrNoDestroyAccessToLab,
-		ErrInvalidSocketRequest,
-	}
-
-	for _, err := range unmapped {
+	} {
 		t.Run(err.Error(), func(t *testing.T) {
 			status, response := CreateErrorResponse(err)
 
 			assert.Equal(t, http.StatusInternalServerError, status)
 			assert.Equal(t, -1, response.Code)
+		})
+	}
+}
+
+// TestCreateErrorResponse_SocketOnlyErrorsHaveNoHttpMapping records that the runtime errors have no
+// HTTP mapping, which is fine because no HTTP handler can return them: the lab, node and shell
+// commands they belong to are only reachable over socket.io, where
+// CreateSocketErrorResponse maps every one of them (see TestCreateSocketErrorResponse_MapsEveryKnownError).
+//
+// This is here so that if one of them ever does become reachable over HTTP, the omission is a
+// deliberate decision rather than an accident.
+func TestCreateErrorResponse_SocketOnlyErrorsHaveNoHttpMapping(t *testing.T) {
+	socketOnly := []error{
+		ErrLabNotFound,
+		ErrLabNotRunning,
+		ErrLabOperationInProgress,
+		ErrNodeNotFound,
+		ErrNodeNotRunning,
+		ErrInvalidNodeOperation,
+		ErrShellNotFound,
+		ErrShellLimitReached,
+		ErrNoAccessToShell,
+		ErrNoDestroyAccessToLab,
+		ErrInvalidRuntimeCommand,
+		ErrInvalidSocketRequest,
+	}
+
+	for _, err := range socketOnly {
+		t.Run(err.Error(), func(t *testing.T) {
+			status, response := CreateErrorResponse(err)
+
+			assert.Equal(t, http.StatusInternalServerError, status)
+			assert.Equal(t, -1, response.Code)
+
+			// But each one must be mapped on the socket side.
+			assert.NotEqual(t, 5000, CreateSocketErrorResponse(err).Code,
+				"a runtime error must have a specific socket code")
 		})
 	}
 }

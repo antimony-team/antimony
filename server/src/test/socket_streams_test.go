@@ -161,9 +161,9 @@ func TestSocketStreams_MonitorStopsWatchingAFailedNode(t *testing.T) {
 	}, "the monitor must begin polling node stats")
 
 	// Once the stats read starts failing the monitor drops the node from its list.
-	h.Provider.StatsFn = func(string, string) (*deployment.NodeStats, error) {
+	h.Provider.SetStatsFn(func(string, string) (*deployment.NodeStats, error) {
 		return nil, errFakeProvider
-	}
+	})
 
 	h.Provider.ResetCalls()
 
@@ -361,19 +361,19 @@ func TestSocketNamespace_BacklogReplaysAndCanBeCleared(t *testing.T) {
 
 	first := h.Dial("/test-backlog", h.Seed.Admin.Token)
 
-	// The backlog holds the raw values rather than the wrapped envelopes; see
-	// TestSocketNamespace_BacklogIsUnwrappedEvenOnAWrappedNamespace.
-	var replayed []streamMessage
+	// This is a wrapped namespace, so the backlog carries the same envelope as the live messages.
+	// See TestSocketNamespace_BacklogMatchesTheLiveMessageShape.
+	var replayed []utils.OkResponse[streamMessage]
 	decodeInto(t, first.NextBacklog(), &replayed)
 
 	require.Len(t, replayed, 1)
-	assert.Equal(t, "before anyone connected", replayed[0].Text)
+	assert.Equal(t, "before anyone connected", replayed[0].Payload.Text)
 
 	namespace.ClearBacklog()
 
 	second := h.Dial("/test-backlog", h.Seed.Admin.Token)
 
-	var afterClear []streamMessage
+	var afterClear []utils.OkResponse[streamMessage]
 	decodeInto(t, second.NextBacklog(), &afterClear)
 
 	assert.Empty(t, afterClear, "clearing the backlog must leave a new subscriber with nothing")
@@ -394,35 +394,29 @@ func TestSocketNamespace_BacklogEvictsOldestBeyondCapacity(t *testing.T) {
 
 	client := h.Dial("/test-backlog-capacity", h.Seed.Admin.Token)
 
-	var replayed []streamMessage
+	var replayed []utils.OkResponse[streamMessage]
 	decodeInto(t, client.NextBacklog(), &replayed)
 
 	require.Len(t, replayed, 3)
 
 	texts := make([]string, 0, len(replayed))
 	for _, item := range replayed {
-		texts = append(texts, item.Text)
+		texts = append(texts, item.Payload.Text)
 	}
 
 	assert.Equal(t, []string{"three", "four", "five"}, texts,
 		"the backlog is a ring, so the oldest entries are evicted in order")
 }
 
-// TestSocketNamespace_BacklogIsUnwrappedEvenOnAWrappedNamespace documents an asymmetry that will
-// bite whoever first gives a wrapped namespace a backlog.
+// TestSocketNamespace_BacklogMatchesTheLiveMessageShape covers the backlog envelope.
 //
-// namespace.sendTo stores the raw value in the ring but wraps it for the live send:
+// namespace.sendTo stored the raw value in the ring but wrapped it for the live send, so the same
+// namespace delivered {"payload": {...}} on "data" and a bare [{...}] on "backlog" — two shapes for
+// one stream. The backlog now carries the same envelope the live messages do.
 //
-//	if m.backlog != nil { m.backlog.Add(msg) }              // raw
-//	... client.socket.Emit("data", utils.CreateSocketOkResponse[any](msg))   // wrapped
-//
-// So the same namespace delivers {"payload": {...}} on "data" and a bare [{...}] on "backlog", and
-// a client would need to handle both shapes.
-//
-// No production namespace is affected today: the four wrapped ones (/cmd, /lab-updates,
-// /status-messages, /shell-control) all have a nil backlog config, and the four backlogged ones
-// (logs, container logs, stats, shell data) all use raw output. The trap is only latent.
-func TestSocketNamespace_BacklogIsUnwrappedEvenOnAWrappedNamespace(t *testing.T) {
+// No production namespace was affected: the wrapped ones all have a nil backlog config and the
+// backlogged ones all use raw output. This keeps the two consistent for whoever combines them.
+func TestSocketNamespace_BacklogMatchesTheLiveMessageShape(t *testing.T) {
 	h := NewHarness(t)
 
 	namespace := socket.CreateOutputNamespace[streamMessage](
@@ -435,15 +429,14 @@ func TestSocketNamespace_BacklogIsUnwrappedEvenOnAWrappedNamespace(t *testing.T)
 
 	client := h.Dial("/test-backlog-shape", h.Seed.Admin.Token)
 
-	// The backlog decodes straight into the value type...
-	var raw []streamMessage
-	decodeInto(t, client.NextBacklog(), &raw)
+	// The backlog carries the same envelope as a live message.
+	var replayed []utils.OkResponse[streamMessage]
+	decodeInto(t, client.NextBacklog(), &replayed)
 
-	require.Len(t, raw, 1)
-	assert.Equal(t, "stored", raw[0].Text)
+	require.Len(t, replayed, 1)
+	assert.Equal(t, "stored", replayed[0].Payload.Text)
 
-	// ...while a live message on the very same namespace carries an envelope.
-	var wrapped streamMessage
+	var live streamMessage
 
 	requireEventually(t, func() bool {
 		namespace.Send(streamMessage{Text: "live"})
@@ -453,12 +446,34 @@ func TestSocketNamespace_BacklogIsUnwrappedEvenOnAWrappedNamespace(t *testing.T)
 			return false
 		}
 
-		DecodePayload(t, value, &wrapped)
+		DecodePayload(t, value, &live)
 
 		return true
-	}, "a live message must still arrive wrapped")
+	}, "a live message must arrive wrapped")
 
-	assert.Equal(t, "live", wrapped.Text)
+	assert.Equal(t, "live", live.Text)
+}
+
+func TestSocketNamespace_RawNamespaceBacklogStaysUnwrapped(t *testing.T) {
+	h := NewHarness(t)
+
+	// A raw namespace must keep delivering bare values in both channels, which is what the log and
+	// shell streams rely on.
+	namespace := socket.CreateOutputNamespace[streamMessage](
+		h.Sockets, false,
+		&socket.BacklogConfig{Capacity: 5, Kind: utils.RingKindValue},
+		true, nil, "test-raw-backlog",
+	)
+
+	namespace.Send(streamMessage{Text: "stored"})
+
+	client := h.Dial("/test-raw-backlog", h.Seed.Admin.Token)
+
+	var replayed []streamMessage
+	decodeInto(t, client.NextBacklog(), &replayed)
+
+	require.Len(t, replayed, 1)
+	assert.Equal(t, "stored", replayed[0].Text)
 }
 
 func TestSocketNamespace_ReleaseDisconnectsSubscribers(t *testing.T) {

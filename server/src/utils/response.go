@@ -34,6 +34,8 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidBindFilePath):
 		return http.StatusBadRequest, ErrorResponse{Code: 4002, Message: err.Error()}
+	case errors.Is(err, ErrLabRunning):
+		return http.StatusBadRequest, ErrorResponse{Code: 4003, Message: err.Error()}
 	case errors.Is(err, ErrDatabaseError):
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
@@ -45,6 +47,7 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return 498, ErrorResponse{Code: 498, Message: err.Error()}
 	case errors.Is(err, ErrForbidden),
 		errors.Is(err, ErrNoAccessToLab),
+		errors.Is(err, ErrNoAccessToTopology),
 		errors.Is(err, ErrNoWriteAccessToLab),
 		errors.Is(err, ErrNoWriteAccessToBindFile),
 		errors.Is(err, ErrNoWriteAccessToTopology),
@@ -100,8 +103,10 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 
 	// Permission / Access errors
 	case errors.Is(err, ErrNoDestroyAccessToLab),
+		errors.Is(err, ErrNoDeployAccessToLab),
 		errors.Is(err, ErrNoAccessToShell),
-		errors.Is(err, ErrNoAccessToLab):
+		errors.Is(err, ErrNoAccessToLab),
+		errors.Is(err, ErrNoAccessToTopology):
 		return ErrorResponse{Code: 5403, Message: err.Error()}
 	}
 

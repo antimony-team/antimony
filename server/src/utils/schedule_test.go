@@ -220,22 +220,38 @@ func TestSchedule_SchedulingTheSameKeyTwiceKeepsBothEntries(t *testing.T) {
 	assert.NotNil(t, schedule.TryPop(), "the duplicate entry is still in the queue")
 }
 
-// TestSchedule_RescheduleWithoutATimePanics pins the root cause of a server-side crash.
+// TestSchedule_RescheduleWithoutATimeRemovesTheItem covers rescheduling an item that no longer has
+// a time.
 //
-// Schedule skips an item whose time is nil, but Reschedule has no such guard and goes straight to
+// Schedule skips an item whose time is nil, but Reschedule had no such guard and went straight to
 // insert, which dereferences the result of timeGetter. The lab scheduler calls Reschedule on its
-// destruction queue whenever a lab moves, and that queue's timeGetter returns Lab.EndTime — which
-// is exactly nil for a lab the user just made indefinite.
+// destruction queue whenever a lab moves, and that queue's time getter returns Lab.EndTime — nil
+// for a lab the user just made indefinite, which crashed the update handler.
 //
-// Reschedule should mirror Schedule: drop the item from the queue and return.
-func TestSchedule_RescheduleWithoutATimePanics(t *testing.T) {
+// Reschedule now mirrors Schedule: an item with no time is simply not scheduled, which for the
+// destruction queue is exactly right.
+func TestSchedule_RescheduleWithoutATimeRemovesTheItem(t *testing.T) {
 	schedule := newSchedule()
 
-	schedule.Schedule(&scheduleItem{Key: "a", Time: at(time.Hour)})
+	schedule.Schedule(&scheduleItem{Key: "a", Time: at(-time.Minute)})
+	require.True(t, schedule.IsScheduled("a"))
 
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		schedule.Reschedule(&scheduleItem{Key: "a", Time: nil})
-	}, "rescheduling an item with no time dereferences a nil pointer")
+	})
+
+	assert.False(t, schedule.IsScheduled("a"), "an item with no time must be dropped from the queue")
+	assert.Nil(t, schedule.TryPop())
+}
+
+func TestSchedule_RescheduleAnUnknownItemWithoutATimeIsANoOp(t *testing.T) {
+	schedule := newSchedule()
+
+	assert.NotPanics(t, func() {
+		schedule.Reschedule(&scheduleItem{Key: "never-seen", Time: nil})
+	})
+
+	assert.False(t, schedule.IsScheduled("never-seen"))
 }
 
 func TestSchedule_ScheduleWithoutATimeIsSafe(t *testing.T) {

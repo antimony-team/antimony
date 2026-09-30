@@ -105,15 +105,19 @@ func TestGetTopologyByUuid_MemberCanReadOneInItsCollections(t *testing.T) {
 	assert.Equal(t, TopologyAdminID, topologyOut.ID)
 }
 
-func TestGetTopologyByUuid_InaccessibleTopologyIsMaskedAsNotFound(t *testing.T) {
+// TestGetTopologyByUuid_InaccessibleTopologyIsForbidden covers the access check on a single
+// topology.
+//
+// This used to be masked as a 404 to stop existence probing, but the IDs are server-generated
+// UUIDs so that bought very little, and it made the topology and lab endpoints disagree about the
+// same situation. Both now answer 403 with a real message.
+func TestGetTopologyByUuid_InaccessibleTopologyIsForbidden(t *testing.T) {
 	h := NewHarness(t)
 
-	// The service deliberately answers "not found" rather than "forbidden" here, so a client
-	// cannot probe for the existence of topologies in collections it has no access to.
 	errorResponse := h.GET("/topologies/"+TopologyHiddenID, h.Seed.Member.Token).
-		RequireError(http.StatusNotFound, -1)
+		RequireError(http.StatusForbidden, 403)
 
-	assert.Contains(t, errorResponse.Message, "uuid was not found")
+	assert.Contains(t, errorResponse.Message, "access to the provided topology is not granted")
 }
 
 func TestGetTopologyByUuid_UnknownIdIsNotFound(t *testing.T) {
@@ -237,27 +241,39 @@ func TestCreateTopology_InvalidYamlIsRejected(t *testing.T) {
 	assert.Contains(t, errorResponse.Message, "topology provided were invalid")
 }
 
-// TestCreateTopology_SchemaViolationLeaksAnInternalErrorAs500 pins a bug.
+// TestCreateTopology_SchemaViolationIsRejected covers a definition that parses as YAML but does not
+// satisfy the containerlab schema.
 //
-// A definition that parses as YAML but violates the containerlab JSON schema comes back as a bare
-// 500 with code -1, and the raw jsonschema validation message (including the upstream schema URL)
-// is passed straight through to the client. The handler documentation promises 400/3003 here.
-//
-// The cause is schema.Service.Parse returning the jsonschema error unwrapped, so
-// utils.CreateErrorResponse has no case for it and falls through to its 500 default. Wrapping it in
-// utils.ErrInvalidTopology would give the documented 400/3003 while keeping the detail in the logs.
-func TestCreateTopology_SchemaViolationLeaksAnInternalErrorAs500(t *testing.T) {
+// schema.Service.Parse used to return the jsonschema validation error unwrapped, so
+// utils.CreateErrorResponse had no case for it and fell through to a 500 — leaking the raw validator
+// message and the upstream schema URL to the client. Wrapping it in utils.ErrInvalidTopology gives
+// the documented 400 / code 3003 and keeps the detail in the server log.
+func TestCreateTopology_SchemaViolationIsRejected(t *testing.T) {
 	h := NewHarness(t)
 
-	response := h.POST("/topologies", topology.TopologyIn{
-		// Valid YAML, but nodes must be a mapping rather than a sequence.
-		Definition:   ptr("name: bad-schema\ntopology:\n  nodes:\n    - not-a-map\n"),
-		SyncUrl:      ptr(""),
-		CollectionId: ptr(h.Seed.PublicBoth.UUID),
-	}, h.Seed.Admin.Token)
+	cases := map[string]string{
+		"nodes is a sequence": "name: bad\ntopology:\n  nodes:\n    - not-a-map\n",
+		"no topology section": "name: bad\n",
+		"unknown top level":   "name: bad\ntopology:\n  nodes:\n    a:\n      kind: linux\nbogus: true\n",
+	}
 
-	errorResponse := response.RequireError(http.StatusInternalServerError, -1)
-	assert.Contains(t, errorResponse.Message, "jsonschema", "the raw validator error reaches the client")
+	for name, definition := range cases {
+		t.Run(name, func(t *testing.T) {
+			response := h.POST("/topologies", topology.TopologyIn{
+				Definition:   ptr(definition),
+				SyncUrl:      ptr(""),
+				CollectionId: ptr(h.Seed.PublicBoth.UUID),
+			}, h.Seed.Admin.Token)
+
+			errorResponse := response.RequireError(http.StatusBadRequest, 3003)
+
+			assert.Contains(t, errorResponse.Message, "topology provided were invalid")
+			assert.NotContains(t, errorResponse.Message, "jsonschema",
+				"the raw validator error must not reach the client")
+			assert.NotContains(t, errorResponse.Message, "containerlab.dev",
+				"the upstream schema URL must not reach the client")
+		})
+	}
 }
 
 func TestCreateTopology_UnknownCollectionIsNotFound(t *testing.T) {

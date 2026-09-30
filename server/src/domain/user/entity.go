@@ -11,7 +11,8 @@ type User struct {
 	Name string `gorm:"not null"`
 }
 
+// CredentialsIn is the native login payload.
 type CredentialsIn struct {
-	Username string `json:"username" ,binding:"required"`
-	Password string `json:"password" ,binding:"required"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
