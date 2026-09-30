@@ -90,3 +90,6 @@ containerlab:
   # The path to the device config file.
   # Default: ./data/device-config.json
   deviceConfig: ./data/device-config.json
+  # The path to the kinds config file.
+  # Default: ./kinds.conf.yml
+  kindsConfig: ./kinds.conf.yml

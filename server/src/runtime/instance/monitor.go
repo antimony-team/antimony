@@ -56,7 +56,8 @@ func CreateMonitor(
 	}
 }
 
-func (m *Monitor) Run() {
+// Run polls the stats of all monitored nodes until the provided context is canceled.
+func (m *Monitor) Run(ctx context.Context) {
 	for {
 		// Duplicate the list so we don't have to keep the mutex locked until every node stat is sent
 		m.monitoredNodesMutex.Lock()
@@ -99,8 +100,22 @@ func (m *Monitor) Run() {
 			})
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(1 * time.Second):
+		}
 	}
+}
+
+// Close releases the stat namespaces of all monitored nodes and clears the monitor list.
+func (m *Monitor) Close() {
+	m.monitoredNodesMutex.Lock()
+	for containerId, node := range m.monitoredNodes {
+		node.namespace.Release()
+		delete(m.monitoredNodes, containerId)
+	}
+	m.monitoredNodesMutex.Unlock()
 }
 
 func (m *Monitor) AddNode(ctx context.Context, instanceName string, nodeName string, containerId string) {

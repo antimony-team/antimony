@@ -123,4 +123,8 @@ type ClabConfig struct {
 	SchemaUrl      string `yaml:"schemaUrl"`
 	SchemaFallback string `yaml:"schemaFallback"`
 	DeviceConfig   string `yaml:"deviceConfig"`
+
+	// KindsConfig is the path to the node kind configuration file. See the shipped kinds.conf.yml for the
+	// supported fields. If the file is missing, all node kinds fall back to their defaults.
+	KindsConfig string `yaml:"kindsConfig"`
 }

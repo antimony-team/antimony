@@ -77,7 +77,7 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 		return ErrorResponse{Code: 5001, Message: err.Error()}
 
 	// Lab errors
-	case errors.Is(err, ErrNodeNotFound):
+	case errors.Is(err, ErrLabNotFound):
 		return ErrorResponse{Code: 5011, Message: err.Error()}
 	case errors.Is(err, ErrLabNotRunning):
 		return ErrorResponse{Code: 5012, Message: err.Error()}

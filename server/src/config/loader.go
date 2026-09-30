@@ -74,6 +74,7 @@ func defaultConfig() *AntimonyConfig {
 			SchemaUrl:      "https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json",
 			SchemaFallback: "./data/clab.schema.json",
 			DeviceConfig:   "./data/device-config.json",
+			KindsConfig:    "./kinds.conf.yml",
 		},
 	}
 }

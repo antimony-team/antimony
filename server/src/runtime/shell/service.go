@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -40,6 +41,10 @@ type Service struct {
 	deploymentProvider deployment.DeploymentProvider
 
 	controlNamespace *socket.OutputNamespace[shellControlData]
+
+	// cancel stops the shell manager worker. It is called by Close.
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 type shellConfig struct {
@@ -66,6 +71,8 @@ func CreateService(
 	socketManager *socket.Manager,
 	deploymentProvider deployment.DeploymentProvider,
 ) *Service {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	service := &Service{
 		config:          config,
 		labRepo:         labRepo,
@@ -76,16 +83,39 @@ func CreateService(
 		defaultSshAuth:     getSshKeyAuth(),
 		deploymentProvider: deploymentProvider,
 		socketManager:      socketManager,
+
+		cancel:    cancel,
+		closeOnce: sync.Once{},
 	}
 
 	service.controlNamespace = socket.CreateOutputNamespace[shellControlData](
 		socketManager, false, nil, false, nil, "shell-control",
 	)
 
-	ctx := context.Background()
 	go service.runManager(ctx)
 
 	return service
+}
+
+// Close stops the shell manager worker, terminates all open shells and releases the control namespace.
+// It is safe to call more than once.
+func (s *Service) Close() {
+	s.closeOnce.Do(func() {
+		s.cancel()
+
+		s.openShellsMutex.Lock()
+		openShells := maps.Clone(s.openShells)
+		s.openShells = make(map[string]*shellConfig)
+		s.openShellsMutex.Unlock()
+
+		for shellId, shell := range openShells {
+			if err := s.closeShell(shellId, shell, "the server is shutting down"); err != nil {
+				log.Errorf("Failed to close shell: %s", err.Error())
+			}
+		}
+
+		s.controlNamespace.Release()
+	})
 }
 
 func (s *Service) FetchShellsCommand(
@@ -195,7 +225,10 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 		return utils.ErrShellNotFound
 	}
 
-	if !authUser.IsAdmin && shell.owner != authUser {
+	// Compare by user ID rather than by pointer: the socket manager hands out a fresh
+	// *AuthenticatedUser per connection, so the owner of a shell opened on an earlier
+	// connection never matches by identity.
+	if !authUser.IsAdmin && shell.owner.UserId != authUser.UserId {
 		return utils.ErrNoAccessToShell
 	}
 
@@ -207,10 +240,6 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 	if err != nil {
 		log.Errorf("Failed to close shell: %s", err.Error())
 	}
-
-	s.openShellsMutex.Lock()
-	delete(s.openShells, *shellId)
-	s.openShellsMutex.Unlock()
 
 	return nil
 }
@@ -231,9 +260,8 @@ func (s *Service) runManager(ctx context.Context) {
 
 		select {
 		case <-time.After(5 * time.Second):
-			continue
 		case <-ctx.Done():
-			break
+			return
 		}
 	}
 }
@@ -486,11 +514,19 @@ func (s *Service) validateShellCommand(
 	return instanceNode, instanceLab.InstanceName, nil
 }
 
-func (s *sshSession) Read(p []byte) (int, error)  { return s.Read(p) }
-func (s *sshSession) Write(p []byte) (int, error) { return s.Write(p) }
+// Read and Write must delegate to the embedded reader and writer explicitly. Naming them after the
+// embedded interface methods shadows those methods, so a bare s.Read / s.Write would recurse.
+func (s *sshSession) Read(p []byte) (int, error)  { return s.Reader.Read(p) }
+func (s *sshSession) Write(p []byte) (int, error) { return s.Writer.Write(p) }
+
 func (s *sshSession) Close() error {
-	_ = s.Close()
+	// The writer is the session's stdin pipe. Closing it signals EOF to the remote shell.
+	if stdin, ok := s.Writer.(io.Closer); ok {
+		_ = stdin.Close()
+	}
+
 	_ = s.session.Close()
+
 	return s.client.Close()
 }
 

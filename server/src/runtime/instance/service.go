@@ -52,6 +52,11 @@ type Service struct {
 
 	updatesNamespace       *socket.OutputNamespace[instanceUpdate]
 	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message]
+
+	// ctx governs the lifetime of the service's background workers. It is canceled by Close.
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 func CreateService(
@@ -67,13 +72,15 @@ func CreateService(
 ) *Service {
 	monitor := CreateMonitor(socketManager, deploymentProvider)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	service := &Service{
 		config:                 config,
 		labRepo:                labRepo,
 		schemaService:          schemaService,
 		topologyService:        topologyService,
 		monitor:                monitor,
-		nodeKindConfigs:        getNodeKindConfigs("./kinds.conf.yml"),
+		nodeKindConfigs:        getNodeKindConfigs(config.Containerlab.KindsConfig),
 		instances:              make(map[string]*Instance),
 		instancesMutex:         sync.Mutex{},
 		storageManager:         storageManager,
@@ -81,6 +88,9 @@ func CreateService(
 		deploymentProvider:     deploymentProvider,
 		socketManager:          socketManager,
 		statusMessageNamespace: statusMessageNamespace,
+		ctx:                    ctx,
+		cancel:                 cancel,
+		closeOnce:              sync.Once{},
 	}
 
 	service.updatesNamespace = socket.CreateOutputNamespace[instanceUpdate](
@@ -92,11 +102,38 @@ func CreateService(
 		LabId: nil,
 	})
 
-	go service.registerProviderEventListener()
+	go service.registerProviderEventListener(ctx)
 
-	go service.monitor.Run()
+	go service.monitor.Run(ctx)
 
 	return service
+}
+
+// Close stops the service's background workers, cancels any in-flight deployments and releases the
+// socket namespaces owned by the service and its instances. It is safe to call more than once.
+func (s *Service) Close() {
+	s.closeOnce.Do(func() {
+		s.cancel()
+		s.monitor.Close()
+
+		s.instancesMutex.Lock()
+		for labId, instance := range s.instances {
+			instance.DeploymentMutex.Lock()
+			if instance.DeploymentCancel != nil {
+				instance.DeploymentCancel()
+			}
+			instance.DeploymentMutex.Unlock()
+
+			if instance.LogNamespace != nil {
+				instance.LogNamespace.Release()
+			}
+
+			delete(s.instances, labId)
+		}
+		s.instancesMutex.Unlock()
+
+		s.updatesNamespace.Release()
+	})
 }
 
 /*
@@ -433,7 +470,8 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	instance.OperationMutex.Lock()
 	defer instance.OperationMutex.Unlock()
 
-	ctx := context.Background()
+	// Tie the destruction to the service lifetime so Close cancels it along with everything else.
+	ctx := s.ctx
 
 	log.Info(
 		"[Runtime] Starting destruction of lab",
@@ -761,9 +799,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	return nil
 }
 
-func (s *Service) registerProviderEventListener() {
-	ctx := context.Background()
-
+func (s *Service) registerProviderEventListener(ctx context.Context) {
 	_ = s.deploymentProvider.RegisterListener(ctx, func(nodeName string) {
 		var targetLabId string
 		var targetInstance *Instance
