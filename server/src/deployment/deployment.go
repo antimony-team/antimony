@@ -15,27 +15,27 @@ type DeploymentProvider interface {
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
-		onLog func(data string),
+		onLog LogFunc,
 	) error
 
 	Redeploy(
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
-		onLog func(data string),
+		onLog LogFunc,
 	) error
 
 	Destroy(
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
-		onLog func(data string),
+		onLog LogFunc,
 	) error
 
 	// InspectLabs returns a list of [InspectContainer] of all currently running labs indexed by their instance names.
 	InspectLabs(
 		ctx context.Context,
-		onLog func(data string),
+		onLog LogFunc,
 	) (map[string][]InspectContainer, error)
 
 	// InspectLabs returns a list of [InspectContainer] for all nodes in a specific lab.
@@ -43,7 +43,7 @@ type DeploymentProvider interface {
 		ctx context.Context,
 		topologyFile string,
 		instanceName string,
-		onLog func(data string),
+		onLog LogFunc,
 	) ([]InspectContainer, error)
 
 	// InspectLabs returns an [InspectContainer] for a specific node in a lab.
@@ -52,7 +52,7 @@ type DeploymentProvider interface {
 		topologyFile string,
 		instanceName string,
 		nodeName string,
-		onLog func(data string),
+		onLog LogFunc,
 	) (InspectContainer, error)
 
 	Exec(
@@ -109,7 +109,7 @@ type DeploymentProvider interface {
 		ctx context.Context,
 		instanceName string,
 		nodeName string,
-		onLog func(data string),
+		onLog LogFunc,
 	) error
 
 	// GetNetworkInterfaces returns a list of network interfaces for a node.
@@ -120,6 +120,14 @@ type DeploymentProvider interface {
 		instanceName string,
 		nodeName string,
 	) ([]NodeInterface, error)
+}
+
+type LogFunc func(string)
+
+func (f LogFunc) Log(msg string) {
+	if f != nil {
+		f(msg)
+	}
 }
 
 type ShellExecSession interface {

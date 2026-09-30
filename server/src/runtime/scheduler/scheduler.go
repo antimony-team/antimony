@@ -5,6 +5,8 @@ import (
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/utils"
+	"context"
+	"sync"
 	"time"
 )
 
@@ -15,6 +17,11 @@ type Scheduler struct {
 
 	deploymentSchedule  *utils.Schedule[lab.Lab]
 	destructionSchedule *utils.Schedule[lab.Lab]
+
+	// ctx governs the lifetime of the Run loop. It is canceled by Close.
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 func CreateScheduler(
@@ -40,6 +47,8 @@ func CreateScheduler(
 		},
 	)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	scheduler := &Scheduler{
 		config: config,
 
@@ -47,6 +56,10 @@ func CreateScheduler(
 
 		deploymentSchedule:  deploymentSchedule,
 		destructionSchedule: destructionSchedule,
+
+		ctx:       ctx,
+		cancel:    cancel,
+		closeOnce: sync.Once{},
 	}
 
 	labEventBus.Subscribe("lab.created", scheduler.onLabCreated)
@@ -58,6 +71,7 @@ func CreateScheduler(
 	return scheduler
 }
 
+// Run drives the deployment and destruction queues until the scheduler is closed.
 func (s *Scheduler) Run() {
 	for {
 		if deployLab := s.deploymentSchedule.TryPop(); deployLab != nil {
@@ -75,8 +89,17 @@ func (s *Scheduler) Run() {
 			}()
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
+}
+
+// Close stops the Run loop. It is safe to call more than once.
+func (s *Scheduler) Close() {
+	s.closeOnce.Do(s.cancel)
 }
 
 func (s *Scheduler) onLabCreated(lab *lab.Lab) {

@@ -59,7 +59,7 @@ func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
@@ -73,7 +73,7 @@ func (p *ContainerlabProvider) Redeploy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
@@ -87,7 +87,7 @@ func (p *ContainerlabProvider) Destroy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
@@ -99,7 +99,7 @@ func (p *ContainerlabProvider) Destroy(
 
 func (p *ContainerlabProvider) InspectLabs(
 	ctx context.Context,
-	onLog func(data string),
+	onLog LogFunc,
 ) (map[string][]InspectContainer, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
 
@@ -129,7 +129,7 @@ func (p *ContainerlabProvider) InspectLab(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) ([]InspectContainer, error) {
 	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
 
@@ -165,7 +165,7 @@ func (p *ContainerlabProvider) InspectNode(
 	topologyFile string,
 	instanceName string,
 	nodeName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) (InspectContainer, error) {
 	labInspect, err := p.InspectLab(ctx, topologyFile, instanceName, onLog)
 	if err != nil {
@@ -387,7 +387,7 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
 	if err != nil {
@@ -542,12 +542,12 @@ func (t *dockerExecSession) Resize(cols uint, rows uint) error {
 
 // sendClabOutput sends the data from the containerlab stdout to the log
 // This function strips all ansi characters and splits the data into lines
-func sendClabOutput(output *string, onLog func(data string)) {
+func sendClabOutput(output *string, onLog LogFunc) {
 	if output != nil {
 		lines := strings.Split(*output, "\n")
 		for _, line := range lines {
 			if line != "" {
-				onLog(serverlog.ReplaceAnsiCharacters(line))
+				onLog.Log(serverlog.ReplaceAnsiCharacters(line))
 			}
 		}
 	}

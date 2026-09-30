@@ -80,7 +80,7 @@ func (p *ClabernetesProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(string),
+	onLog LogFunc,
 ) error {
 	namespace := namespaceFor(instanceName)
 	manifestDir := filepath.Join(filepath.Dir(topologyFile), "c9s")
@@ -101,14 +101,14 @@ func (p *ClabernetesProvider) Deploy(
 		false,
 	)
 
-	onLog(serverlog.CreateAntimonyLog(
+	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
 		"Starting clabvertion of topology",
 		"instance", instanceName,
 	))
 
 	if err := cv.Clabvert(); err != nil {
-		onLog(serverlog.CreateAntimonyLog(
+		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
 			"Clabvertion of topology failed",
 			"instance", instanceName,
@@ -117,13 +117,13 @@ func (p *ClabernetesProvider) Deploy(
 		return fmt.Errorf("clabvert %s: %w", topologyFile, err)
 	}
 
-	onLog(serverlog.CreateAntimonyLog(
+	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.SuccessLevel,
 		"Clabvertion of topology completed",
 		"instance", instanceName,
 	))
 
-	onLog(serverlog.CreateAntimonyLog(
+	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
 		"Starting deployment of kubernetes manifest",
 		"instance", instanceName,
@@ -139,13 +139,13 @@ func (p *ClabernetesProvider) Deploy(
 		for _, line := range logLines {
 			logLine := serverlog.CreateKubeCtlLog(line)
 			if logLine != "" {
-				onLog(logLine)
+				onLog.Log(logLine)
 			}
 		}
 	}
 
 	if err != nil {
-		onLog(serverlog.CreateAntimonyLog(
+		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
 			"Deployment of kubernetes manifest failed",
 			"instance", instanceName,
@@ -156,7 +156,7 @@ func (p *ClabernetesProvider) Deploy(
 		return err
 	}
 
-	onLog(serverlog.CreateAntimonyLog(
+	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
 		"Waiting for kubernetes deployment to complete",
 		"instance", instanceName,
@@ -170,7 +170,7 @@ func (p *ClabernetesProvider) Redeploy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(string),
+	onLog LogFunc,
 ) error {
 	if err := p.Destroy(ctx, topologyFile, instanceName, onLog); err != nil {
 		return err
@@ -184,7 +184,7 @@ func (p *ClabernetesProvider) Destroy(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(string),
+	onLog LogFunc,
 ) error {
 	namespace := namespaceFor(instanceName)
 
@@ -192,7 +192,7 @@ func (p *ClabernetesProvider) Destroy(
 		LabelSelector: clabernetesconstants.LabelTopologyNode,
 	})
 	if err != nil && !apierrors.IsNotFound(err) {
-		onLog(serverlog.CreateAntimonyLog(
+		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
 			"Failed to fetch pods in namespace",
 			"err", err.Error(),
@@ -202,7 +202,7 @@ func (p *ClabernetesProvider) Destroy(
 
 	if pods != nil {
 		for _, pod := range pods.Items {
-			onLog(serverlog.CreateAntimonyLog(
+			onLog.Log(serverlog.CreateAntimonyLog(
 				serverlog.InfoLevel,
 				"Stopping node",
 				"namespace", namespace,
@@ -220,7 +220,7 @@ func (p *ClabernetesProvider) Destroy(
 		metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
-		onLog(serverlog.CreateAntimonyLog(
+		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
 			"Failed to fetch collection in namespace",
 			"err", err.Error(),
@@ -228,7 +228,7 @@ func (p *ClabernetesProvider) Destroy(
 		return err
 	}
 
-	onLog(serverlog.CreateAntimonyLog(
+	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
 		"Deleting namespace",
 		"namespace", namespace,
@@ -239,7 +239,7 @@ func (p *ClabernetesProvider) Destroy(
 		Delete(ctx, namespace, metav1.DeleteOptions{GracePeriodSeconds: &zero}); err != nil {
 		if apierrors.IsNotFound(err) {
 			// The namespace has already been destroyed
-			onLog(serverlog.CreateAntimonyLog(
+			onLog.Log(serverlog.CreateAntimonyLog(
 				serverlog.WarningLevel,
 				"The namespace has already been removed",
 				"namespace", namespace,
@@ -247,7 +247,7 @@ func (p *ClabernetesProvider) Destroy(
 			return nil
 		}
 
-		onLog(serverlog.CreateAntimonyLog(
+		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
 			"Deletion of namespace failed",
 			"namespace", namespace,
@@ -256,7 +256,7 @@ func (p *ClabernetesProvider) Destroy(
 		return err
 	}
 
-	onLog(serverlog.CreateAntimonyLog(
+	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
 		"Waiting for namespace to be removed",
 		"namespace", namespace,
@@ -267,7 +267,7 @@ func (p *ClabernetesProvider) Destroy(
 
 func (p *ClabernetesProvider) InspectLabs(
 	ctx context.Context,
-	onLog func(data string),
+	onLog LogFunc,
 ) (map[string][]InspectContainer, error) {
 	return p.inspect(ctx, "", metav1.NamespaceAll)
 }
@@ -276,7 +276,7 @@ func (p *ClabernetesProvider) InspectLab(
 	ctx context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) ([]InspectContainer, error) {
 	inspectOutput, err := p.inspect(ctx, topologyFile, metav1.NamespaceAll)
 	if err != nil {
@@ -295,7 +295,7 @@ func (p *ClabernetesProvider) InspectNode(
 	topologyFile string,
 	instanceName string,
 	nodeName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) (InspectContainer, error) {
 	inspectOutput, err := p.inspect(ctx, topologyFile, metav1.NamespaceAll)
 	if err != nil {
@@ -776,7 +776,7 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
-	onLog func(data string),
+	onLog LogFunc,
 ) error {
 	namespace := namespaceFor(instanceName)
 	podName, err := p.podForNode(ctx, namespace, nodeName)
@@ -798,7 +798,7 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	}
 
 	onLogWrapper := func(msg string) {
-		onLog(serverlog.ReplaceAnsiCharacters(msg))
+		onLog.Log(serverlog.ReplaceAnsiCharacters(msg))
 	}
 
 	go func() {
@@ -898,7 +898,7 @@ func (p *ClabernetesProvider) waitForTopologyReady(
 	ctx context.Context,
 	namespace string,
 	instanceName string,
-	onLog func(string),
+	onLog LogFunc,
 ) error {
 	lastReady := -1
 
@@ -910,8 +910,8 @@ func (p *ClabernetesProvider) waitForTopologyReady(
 			}
 			st := topo.Status
 
-			if st.ReadyNodeCount != lastReady && onLog != nil {
-				onLog(serverlog.CreateAntimonyLog(
+			if st.ReadyNodeCount != lastReady {
+				onLog.Log(serverlog.CreateAntimonyLog(
 					serverlog.InfoLevel,
 					fmt.Sprintf("Deployment status: %d/%d nodes ready", st.ReadyNodeCount, st.NodeCount),
 					"instance", instanceName,
@@ -934,13 +934,13 @@ func (p *ClabernetesProvider) waitForTopologyReady(
 func (p *ClabernetesProvider) waitForNamespaceGone(
 	ctx context.Context,
 	namespace string,
-	onLog func(string),
+	onLog LogFunc,
 ) error {
 	return wait.PollUntilContextTimeout(ctx, time.Second, 2*time.Minute, true,
 		func(ctx context.Context) (bool, error) {
 			_, err := p.clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
-				onLog(serverlog.CreateAntimonyLog(
+				onLog.Log(serverlog.CreateAntimonyLog(
 					serverlog.SuccessLevel,
 					"Deletion of namespace succeeded",
 					"namespace", namespace,
@@ -950,7 +950,7 @@ func (p *ClabernetesProvider) waitForNamespaceGone(
 			}
 
 			if err != nil {
-				onLog(serverlog.CreateAntimonyLog(
+				onLog.Log(serverlog.CreateAntimonyLog(
 					serverlog.ErrorLevel,
 					"Waiting for namespace deletion has failed",
 					"namespace", namespace,

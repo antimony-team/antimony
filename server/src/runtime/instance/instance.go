@@ -63,6 +63,7 @@ type InstanceNode struct {
 
 	// IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.
 	// This is initially set to false and set to true once the node's startup listener succeeded.
+
 	IsReady bool `json:"isReady"`
 
 	// ContainerId is the globally unique identifier for the container running the node.
