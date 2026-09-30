@@ -47,6 +47,7 @@ tasks:
       - task: build
       - SB_JWT_SECRET=testing ./antimony-server -config=./config-c9s.yml
     env:
+      SB_LOG_LEVEL: debug
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
       SB_NATIVE_USERNAME: admin
@@ -68,6 +69,7 @@ tasks:
       - cp ../test/config-docker.test.yml ./config.yml
       - cp ../test/kinds.conf.yml ./
       - DOCKER_HOST=unix:///var/run/docker.sock docker run
+        -e SB_LOG_LEVEL=debug
         -e SB_NATIVE_USERNAME=admin
         -e SB_NATIVE_PASSWORD=admin
         -v ./db/:/app/db/
