@@ -104,7 +104,7 @@ func (s *Service) GetByUuid(
 
 	// Deny request if user doesn't have access to the specified topology (Return generic not found error)
 	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, topology.Collection.Name) {
-		return nil, utils.ErrUuidNotFound
+		return nil, utils.ErrNoAccessToLab
 	}
 
 	bindFiles, err := s.repo.GetBindFileForTopology(ctx, topology.UUID)
