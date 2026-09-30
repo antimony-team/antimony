@@ -149,9 +149,12 @@ func parseMemoryUsage(current, inactiveFile uint64) uint64 {
 }
 
 // parseProcStat sums the aggregate "cpu" line of /proc/stat into ns and counts
-// the per-core lines.
-func parseProcStat(lines []string) (systemNs uint64, onlineCPUs int) {
+// the per-core lines. It returns the system time in nanoseconds and the number
+// of online CPUs.
+func parseProcStat(lines []string) (uint64, int) {
 	var total uint64
+	onlineCPUs := 0
+
 	for _, line := range lines {
 		if !strings.HasPrefix(line, "cpu") || len(line) < 4 {
 			continue

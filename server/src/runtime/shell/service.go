@@ -5,7 +5,6 @@ import (
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/lab"
-	"antimonyBackend/domain/topology"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/socket"
 	"antimonyBackend/utils"
@@ -34,7 +33,6 @@ type Service struct {
 
 	labRepo         *lab.Repository
 	instanceService *instance.Service
-	topologyService *topology.Service
 
 	socketManager *socket.Manager
 

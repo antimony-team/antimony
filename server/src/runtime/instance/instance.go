@@ -118,7 +118,7 @@ func (n *InstanceNode) Reset() {
 	n.Interfaces = make([]deployment.NodeInterface, 0)
 }
 
-// Set sets the node's fields to its ready state.
+// SetReady sets the node's fields to its ready state.
 //
 // We assume [InstanceNode.Set] has already been called.
 func (n *InstanceNode) SetReady(

@@ -1,6 +1,9 @@
 package utils
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 /*
  * Generic errors.
@@ -8,6 +11,15 @@ import "errors"
 
 var ErrAntimony = errors.New("the antimony server encountered an error. please check the logs")
 var ErrProvider = errors.New("the provider subprocess encountered an error")
+
+// ErrCaptureNotSupported is returned by providers that cannot attach to a node's interfaces.
+//
+// It wraps [ErrProvider] so it maps onto the existing provider error code rather than adding a new
+// one to the socket contract.
+var ErrCaptureNotSupported = fmt.Errorf(
+	"%w: packet capture is not supported by this provider",
+	ErrProvider,
+)
 var ErrDatabaseError = errors.New("the antimony database encountered an error. please check the logs")
 var ErrFileStorage = errors.New("the antimony storage service encountered an error. please check the logs")
 var ErrOpenIDError = errors.New("failed to authenticate via openid connect")

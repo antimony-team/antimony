@@ -154,9 +154,6 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 	// Publish that a new lab has been created for the scheduler
 	s.labEventBus.Publish("lab.created", lab)
 
-	// Send update to clients
-	//s.notifyUpdate(*lab, nil)
-
 	return labUuid, nil
 }
 

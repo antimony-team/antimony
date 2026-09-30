@@ -318,6 +318,13 @@ func (p *ClabernetesProvider) InspectNode(
 	return nodeInspect, nil
 }
 
+// containerRef locates an already-appended container in the inspect output, so a pod that is still
+// winding down can update the entry its deployment created.
+type containerRef struct {
+	labName string
+	index   int
+}
+
 // inspect lists the running node pods in ns (all namespaces when empty) and
 // appends an "exited" entry for every node deployment scaled to zero, since
 // stopped nodes have no pod.
@@ -339,7 +346,7 @@ func (p *ClabernetesProvider) inspect(
 	}
 
 	output := make(map[string][]InspectContainer)
-	stoppedIdx := make(map[string][2]any)
+	stoppedIdx := make(map[string]containerRef)
 
 	for i := range deployments.Items {
 		d := &deployments.Items[i]
@@ -348,7 +355,10 @@ func (p *ClabernetesProvider) inspect(
 		}
 		c := stoppedDeploymentToInspectContainer(d, topologyFile)
 		output[c.LabName] = append(output[c.LabName], c)
-		stoppedIdx[d.Namespace+"/"+c.Name] = [2]any{c.LabName, len(output[c.LabName]) - 1}
+		stoppedIdx[d.Namespace+"/"+c.Name] = containerRef{
+			labName: c.LabName,
+			index:   len(output[c.LabName]) - 1,
+		}
 	}
 
 	for i := range pods.Items {
@@ -357,8 +367,7 @@ func (p *ClabernetesProvider) inspect(
 
 		if ref, ok := stoppedIdx[pod.Namespace+"/"+node]; ok {
 			// Pod is scaling down to 0, still winding down
-			lab, idx := ref[0].(string), ref[1].(int)
-			output[lab][idx].State = NodeStates.Stopping
+			output[ref.labName][ref.index].State = NodeStates.Stopping
 			continue
 		}
 
@@ -374,8 +383,6 @@ func (p *ClabernetesProvider) inspect(
 }
 
 func podToInspectContainer(pod *corev1.Pod, topologyFile string) InspectContainer {
-	fmt.Printf("Kind label: %s\n", pod.Labels[clabernetesconstants.LabelTopologyKind])
-
 	container := InspectContainer{
 		Name:          pod.Labels[clabernetesconstants.LabelTopologyNode],
 		LabName:       pod.Labels[clabernetesconstants.LabelTopologyOwner],
@@ -585,49 +592,19 @@ func (p *ClabernetesProvider) DialNode(
 	return local, nil
 }
 
+// OpenCapture is not supported on clabernetes.
+//
+// Capturing relies on attaching an AF_PACKET socket to an interface in the node's network
+// namespace, which the server cannot reach when the node runs in a pod on another host.
 func (p *ClabernetesProvider) OpenCapture(
-	ctx context.Context,
-	instanceName string,
-	nodeName string,
-	interfaceName string,
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
 ) (*afpacket.TPacket, error) {
-	return nil, nil
+	return nil, utils.ErrCaptureNotSupported
 }
 
-//	func (p *ClabernetesProvider) StartNode(ctx context.Context, instanceName string, containerId string) error {
-//		//ns := namespaceFor(instanceName)
-//		//node, err := p.nodeNameForPod(ctx, ns, containerId)
-//		//if err != nil {
-//		//	return err
-//		//}
-//		//if err := p.setDisableDeployments(ctx, ns, node, false); err != nil {
-//		//	return err
-//		//}
-//		//return p.scaleNode(ctx, ns, node, 1)
-//		return nil
-//	}
-//
-//	func (p *ClabernetesProvider) StopNode(ctx context.Context, instanceName string, containerId string) error {
-//		//ns := namespaceFor(instanceName)
-//		//node, err := p.nodeNameForPod(ctx, ns, containerId)
-//		//if err != nil {
-//		//	return err
-//		//}
-//		//if err := p.setDisableDeployments(ctx, ns, node, true); err != nil {
-//		//	return err
-//		//}
-//		//return p.scaleNode(ctx, ns, node, 0)
-//		return nil
-//	}
-//
-//	func (p *ClabernetesProvider) `RestartNode`(ctx context.Context, instanceName string, containerId string) error {
-//		//ns := namespaceFor(instanceName)
-//		//grace := int64(10)
-//		//return p.clientset.CoreV1().Pods(ns).Delete(ctx, containerId, metav1.DeleteOptions{
-//		//	GracePeriodSeconds: &grace,
-//		//})
-//		return nil
-//	}
 func (p *ClabernetesProvider) StartNode(
 	ctx context.Context,
 	instanceName string,
@@ -700,14 +677,6 @@ func (p *ClabernetesProvider) RegisterListener(
 	_, err := factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj any) { notify(podFromEvent(obj)) },
 		DeleteFunc: func(obj any) { notify(podFromEvent(obj)) },
-		//UpdateFunc: func(oldObj, newObj any) {
-		//	o, n := oldObj.(*corev1.Pod), newObj.(*corev1.Pod)
-		//	// Only phase/readiness changes matter; pods are updated for many other reasons.
-		//	if o.Status.Phase != n.Status.Phase || isReady(o) != isReady(n) ||
-		//		(o.DeletionTimestamp == nil) != (n.DeletionTimestamp == nil) {
-		//		onUpdate(n.Name)
-		//	}
-		//},
 	})
 
 	if err != nil {
@@ -717,7 +686,15 @@ func (p *ClabernetesProvider) RegisterListener(
 	// Deployments carry the stop/start state (replicas 0/1); a stopped node has no pod to watch.
 	_, err = factory.Apps().V1().Deployments().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj any) {
-			o, n := oldObj.(*appsv1.Deployment), newObj.(*appsv1.Deployment)
+			// An informer can hand over a cache.DeletedFinalStateUnknown tombstone instead of the
+			// object, so neither assertion is guaranteed to hold.
+			o, isOldDeployment := oldObj.(*appsv1.Deployment)
+			n, isNewDeployment := newObj.(*appsv1.Deployment)
+
+			if !isOldDeployment || !isNewDeployment {
+				return
+			}
+
 			if replicas(o) != replicas(n) {
 				onUpdate(n.Name)
 			}
@@ -731,15 +708,6 @@ func (p *ClabernetesProvider) RegisterListener(
 	factory.WaitForCacheSync(ctx.Done())
 	<-ctx.Done()
 	return nil
-}
-
-func isReady(pod *corev1.Pod) bool {
-	for _, c := range pod.Status.Conditions {
-		if c.Type == corev1.PodReady {
-			return c.Status == corev1.ConditionTrue
-		}
-	}
-	return false
 }
 
 func replicas(d *appsv1.Deployment) int32 {
@@ -759,18 +727,6 @@ func (p *ClabernetesProvider) ReadNodeStats(
 
 	return p.statsReader.Read(ctx, nodeId, podRef{instanceName, nodeName})
 }
-
-// dockerLogsScript runs in the launcher and follows the device container's
-// logs. `docker ps -a` includes a stopped container, so logs of a crashed
-// node are still readable.
-const dockerLogsScript = `
-c=$(docker ps -aq | head -n1)
-if [ -z "$c" ]; then
-  echo 'node container not found' >&2
-  exit 200
-fi
-exec docker logs --follow --timestamps "$c"
-`
 
 func (p *ClabernetesProvider) StreamContainerLogs(
 	ctx context.Context,
@@ -1077,21 +1033,6 @@ func namespaceFor(topologyName string) string {
 	return "c9s-" + topologyName
 }
 
-// nodeNameForPod returns the containerlab node name of a pod, which under
-// non-prefixed naming is also the name of its Deployment and Node CR.
-func (p *ClabernetesProvider) nodeNameForPod(ctx context.Context, ns, pod string) (string, error) {
-	po, err := p.clientset.CoreV1().Pods(ns).Get(ctx, pod, metav1.GetOptions{})
-	if err != nil {
-		fmt.Printf("FAILED TO GET NODE %s/%s: %v", ns, pod, err)
-		return "", err
-	}
-	node := po.Labels[clabernetesconstants.LabelTopologyNode]
-	if node == "" {
-		return "", fmt.Errorf("pod %s/%s has no %s label", ns, pod, clabernetesconstants.LabelTopologyNode)
-	}
-	return node, nil
-}
-
 // setDisableDeployments toggles the label that tells the manager to leave
 // this node's deployment alone, so a scale-down isn't reverted.
 func (p *ClabernetesProvider) setDisableDeployments(ctx context.Context, ns, node string, disabled bool) error {
@@ -1110,36 +1051,6 @@ func (p *ClabernetesProvider) scaleNode(ctx context.Context, ns, node string, re
 		Deployments(ns).
 		Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return err
-}
-
-type podCondition struct {
-	Type   string `json:"type"`
-	Status string `json:"status"`
-}
-
-type podIP struct {
-	IP string `json:"ip"`
-}
-
-type podList struct {
-	Items []struct {
-		Metadata struct {
-			Name      string            `json:"name"`
-			Namespace string            `json:"namespace"`
-			UID       string            `json:"uid"`
-			Labels    map[string]string `json:"labels"`
-		} `json:"metadata"`
-		Spec struct {
-			Containers []struct {
-				Image string `json:"image"`
-			} `json:"containers"`
-		} `json:"spec"`
-		Status struct {
-			Phase      string         `json:"phase"`
-			PodIPs     []podIP        `json:"podIPs"`
-			Conditions []podCondition `json:"conditions"`
-		} `json:"status"`
-	} `json:"items"`
 }
 
 type kubernetesExecSession struct {

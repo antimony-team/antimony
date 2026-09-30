@@ -373,6 +373,16 @@ linters:
         # Use consistent method receiver names.
         # https://staticcheck.dev/docs/checks/#ST1016
         - -ST1016
+        # The documentation of an exported function should start with the function's name.
+        # Disabled because the HTTP handlers lead with their swag (// @Summary ...) annotations.
+        # https://staticcheck.dev/docs/checks/#ST1020
+        - -ST1020
+        # The documentation of an exported type should start with the type's name.
+        # https://staticcheck.dev/docs/checks/#ST1021
+        - -ST1021
+        # The documentation of a variable or constant should start with its name.
+        # https://staticcheck.dev/docs/checks/#ST1022
+        - -ST1022
         # Omit embedded fields from selector expression.
         # https://staticcheck.dev/docs/checks/#QF1008
         - -QF1008
