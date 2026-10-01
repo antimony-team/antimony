@@ -12,16 +12,15 @@ type Instance struct {
 	// Immutable after construction; safe to read without locking.
 	Name         string
 	TopologyFile string
-	NodeLabels   map[string]map[string]string
-	NodeKinds    map[string]string
 	LogNamespace *socket.OutputNamespace[string]
+	// Nodes are the nodes of the lab. While the list is immutable, the nodes themselves are mutable and have to be protected.
+	Nodes []*InstanceNode
 
 	// DataMutex guards the mutable state below.
 	DataMutex         sync.Mutex
 	Deployed          time.Time
 	LatestStateChange time.Time
 	State             InstanceState
-	Nodes             []*InstanceNode
 	// Recovered specifies whether the instance has been recovered after an Antimony restart
 	Recovered bool
 	// IsDestroyed Whether the instance has been destroyed
@@ -52,6 +51,12 @@ type InstanceNode struct {
 	// Kind is the type of the node as defined in the topology file.
 	Kind string `json:"kind"`
 
+	// CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.
+	CanRestart bool `json:"canRestart"`
+
+	// LogNamespace is the namespace of the node's log streamer.
+	LogNamespace *socket.OutputNamespace[string] `json:"-"`
+
 	// IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.
 	//
 	// Left empty if the node is currently not running or there is no IPv4 or IPv6 address assigned.
@@ -63,7 +68,6 @@ type InstanceNode struct {
 
 	// IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.
 	// This is initially set to false and set to true once the node's startup listener succeeded.
-
 	IsReady bool `json:"isReady"`
 
 	// ContainerId is the globally unique identifier for the container running the node.
@@ -83,28 +87,8 @@ type InstanceNode struct {
 	ContainerName string `json:"containerName"`
 
 	// Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.
-	// Set tpo nil if the node is not running.
+	// Left empty if the node is currently not running.
 	Interfaces []deployment.NodeInterface `json:"interfaces"`
-
-	// CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.
-	CanRestart bool `json:"canRestart"`
-}
-
-// Set sets the node's fields to a new state.
-//
-// We don't set [InstanceNode.IsReady] or [InstanceNode.Interfaces] here as this will be set by the node's startup listener.
-func (n *InstanceNode) Set(
-	state deployment.NodeState,
-	ipv4 string,
-	ipv6 string,
-	containerId string,
-	containerName string,
-) {
-	n.State = state
-	n.IPv4 = ipv4
-	n.IPv6 = ipv6
-	n.ContainerId = containerId
-	n.ContainerName = containerName
 }
 
 // Reset resets the node's fields to its non-running state.

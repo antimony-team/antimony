@@ -185,7 +185,13 @@ func TestDeployCommand_InspectFailureIsReported(t *testing.T) {
 	labInstance := h.InstanceService.GetInstance(LabAdminID)
 	require.NotNil(t, labInstance)
 	assert.Equal(t, instance.InstanceStates.Failed, labInstance.State)
-	assert.Empty(t, labInstance.Nodes, "a failed inspection must leave no nodes behind")
+
+	// The nodes come from the topology and stay, but without inspect output nothing is known to run.
+	assert.Len(t, labInstance.Nodes, 2)
+	for _, node := range []string{NodeHost, NodeSRL} {
+		assert.Equalf(t, deployment.NodeStates.Stopped, nodeState(t, h, LabAdminID, node),
+			"node %s must be stopped after a failed inspection", node)
+	}
 }
 
 func TestDeployCommand_RedeploysAnAlreadyRunningLab(t *testing.T) {

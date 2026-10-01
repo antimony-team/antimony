@@ -388,12 +388,21 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 		return err
 	}
 
+	info, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return err
+	}
+	if info.State == nil {
+		return utils.ErrNodeNotRunning
+	}
+
 	logOptions := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
 		Timestamps: true,
 		Tail:       "all",
+		Since:      info.State.StartedAt,
 	}
 
 	out, err := p.client.ContainerLogs(ctx, containerId, logOptions)

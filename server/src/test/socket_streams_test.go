@@ -80,11 +80,8 @@ func TestSocketStreams_ContainerLogsAreStreamedPerNode(t *testing.T) {
 
 	h.DeployLab(LabAdminID)
 
-	node := h.Provider.Node(InstanceAdminLab, NodeHost)
-	require.NotNil(t, node)
-	require.NotEmpty(t, node.ContainerId)
-
-	client := h.Dial("/logs/"+LabAdminID+"/"+node.ContainerId, h.Seed.Admin.Token)
+	// The namespace is keyed by node name, which stays the same across restarts unlike the container ID.
+	client := h.Dial("/logs/"+LabAdminID+"/"+NodeHost, h.Seed.Admin.Token)
 
 	var received string
 

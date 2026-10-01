@@ -244,7 +244,7 @@ func (s *Service) StartNodeCommand(
 		LabId: &labId,
 	})
 
-	go s.startNodeStartupListener(node, instance, instanceLab)
+	go s.startNodeStartupListener(labId, instance, node, true)
 
 	return nil
 }
@@ -372,7 +372,7 @@ func (s *Service) RestartNodeCommand(
 		LabId: &labId,
 	})
 
-	go s.startNodeStartupListener(node, instance, instanceLab)
+	go s.startNodeStartupListener(labId, instance, node, true)
 
 	return nil
 }
@@ -461,9 +461,6 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	instance.OperationMutex.Lock()
 	defer instance.OperationMutex.Unlock()
 
-	// Tie the destruction to the service lifetime so Close cancels it along with everything else.
-	ctx := s.ctx
-
 	log.Info(
 		"[Runtime] Starting destruction of lab",
 		"name",
@@ -488,7 +485,7 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		instance.LogNamespace,
 	)
 
-	err := s.deploymentProvider.Destroy(ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
+	err := s.deploymentProvider.Destroy(s.ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
 
@@ -518,6 +515,9 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	instance.DataMutex.Unlock()
 
 	instance.LogNamespace.Release()
+	for i := range instance.Nodes {
+		instance.Nodes[i].LogNamespace.Release()
+	}
 
 	s.instancesMutex.Lock()
 	delete(s.instances, lab.UUID)
@@ -587,7 +587,13 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			lab.UUID,
 		)
 
-		instance, err = s.createInstance(lab.InstanceName, logNamespace, *runTopologyFile, runTopologyDefinition)
+		instance, err = s.createInstance(
+			lab.InstanceName,
+			logNamespace,
+			*runTopologyFile,
+			runTopologyDefinition,
+			lab.UUID,
+		)
 		if err != nil {
 			s.instancesMutex.Unlock()
 			return err
@@ -687,8 +693,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		return utils.ErrProvider
 	}
 
-	// Fetch and attach lab inspect info and change state to running if successful
-	instanceNodes, err := s.inspectLab(instance, lab.InstanceName, func(data string) {
+	// Fetch and attach lab inspect info to nodes
+	err = s.inspectLabAndUpdateNodes(instance, lab.InstanceName, func(data string) {
 		instance.LogNamespace.Send(data)
 	})
 
@@ -697,10 +703,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-
-		instance.DataMutex.Lock()
-		instance.Nodes = make([]*InstanceNode, 0)
-		instance.DataMutex.Unlock()
 
 		log.Warn(
 			"[Runtime] Inspection of lab failed",
@@ -723,33 +725,20 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	}
 
 	instance.DataMutex.Lock()
-	instance.Nodes = instanceNodes
 	instance.Recovered = false
 	instance.Deployed = time.Now()
 	instance.DataMutex.Unlock()
 
-	for _, node := range instanceNodes {
-		containerLogNamespace := socket.CreateOutputNamespace[string](
-			s.socketManager,
-			false,
-			&socket.BacklogConfig{
-				Capacity: s.config.Streaming.ContainerLogBacklog,
-				Kind:     utils.RingKindValue,
-			},
-			true,
-			nil,
-			"logs",
-			lab.UUID,
-			node.ContainerId,
-		)
+	for i := range instance.Nodes {
+		if instance.Nodes[i].State == deployment.NodeStates.Stopped {
+			continue
+		}
 
 		err = s.deploymentProvider.StreamContainerLogs(
 			ctx,
-			lab.InstanceName,
-			node.Name,
-			func(data string) {
-				containerLogNamespace.Send(data)
-			},
+			instance.Name,
+			instance.Nodes[i].Name,
+			instance.Nodes[i].LogNamespace.Send,
 		)
 
 		if err != nil {
@@ -758,23 +747,23 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			}
 
 			log.Warn(
-				"[Runtime] Fetching of container logs failed",
-				"name", lab.Name,
+				"[Runtime] Starting of node log streaming has failed",
+				"name", instance.Name,
 				"id", lab.UUID,
-				"instance", lab.InstanceName,
-				"container", node.ContainerId,
+				"instance", instance.Name,
+				"nodeName", instance.Nodes[i].Name,
 				"err", err.Error(),
 			)
 		}
 
-		go s.startNodeStartupListener(node, instance, lab)
+		go s.startNodeStartupListener(lab.UUID, instance, instance.Nodes[i], false)
 	}
 
 	log.Info(
 		"[Runtime] Deployment of lab was successful",
 		"name", lab.Name,
 		"id", lab.UUID,
-		"instance", lab.InstanceName,
+		"instance", instance.Name,
 	)
 
 	s.updateLabAndSendUpdate(lab, instance, InstanceStates.Running,
@@ -830,9 +819,10 @@ func (s *Service) registerProviderEventListener(ctx context.Context) {
 }
 
 func (s *Service) startNodeStartupListener(
-	node *InstanceNode,
+	labId string,
 	instance *Instance,
-	lab *lab.Lab,
+	node *InstanceNode,
+	startStreamingLogs bool,
 ) {
 	deploymentContext := instance.deploymentContext()
 	ctxTimeout, cancel := context.WithTimeout(deploymentContext, 10*time.Minute)
@@ -840,11 +830,36 @@ func (s *Service) startNodeStartupListener(
 
 	log.Debug(
 		"[Startup] Starting startup launcher for node",
-		"lab", lab.UUID,
+		"lab", labId,
 		"node", node.Name,
 	)
 
-	err := s.waitForNodeStarted(ctxTimeout, lab.InstanceName, node.Name)
+	err := s.waitForNodeStarted(ctxTimeout, instance.Name, node.Name)
+
+	if startStreamingLogs {
+		err := s.deploymentProvider.StreamContainerLogs(
+			deploymentContext,
+			instance.Name,
+			node.Name,
+			node.LogNamespace.Send,
+		)
+
+		if err != nil {
+			if errors.Is(deploymentContext.Err(), context.Canceled) {
+				return
+			}
+
+			log.Warn(
+				"[Runtime] Starting of node log streaming has failed",
+				"name", instance.Name,
+				"id", labId,
+				"instance", instance.Name,
+				"nodeName", node.Name,
+				"err", err.Error(),
+			)
+		}
+	}
+
 	if err != nil {
 		// Ignore the error if the context was canceled and the deployment was aborted
 		if errors.Is(deploymentContext.Err(), context.Canceled) {
@@ -858,20 +873,20 @@ func (s *Service) startNodeStartupListener(
 		log.Error(
 			"Node did not start.",
 			"err", err.Error(),
-			"lab", lab.UUID,
+			"lab", labId,
 			"node", node.Name,
 		)
 
 		s.updatesNamespace.Send(instanceUpdate{
-			LabId: &lab.UUID,
+			LabId: &labId,
 		})
 
 		return
 	}
 
-	log.Debug("[Startup] Node has started", "lab", lab.UUID, "node", node.Name)
+	log.Debug("[Startup] Node has started", "lab", labId, "node", node.Name)
 
-	s.onNodeStarted(instance, node, lab)
+	s.onNodeStarted(labId, instance, node)
 }
 
 // sshProbe asks the node's own SSH server for a connection. BatchMode makes a
@@ -940,13 +955,13 @@ func sshServerResponded(out string) bool {
 }
 
 func (s *Service) onNodeStarted(
+	labId string,
 	instance *Instance,
 	node *InstanceNode,
-	lab *lab.Lab,
 ) {
 	deploymentContext := instance.deploymentContext()
 
-	interfaces, err := s.deploymentProvider.GetNetworkInterfaces(deploymentContext, lab.InstanceName, node.Name)
+	interfaces, err := s.deploymentProvider.GetNetworkInterfaces(deploymentContext, instance.Name, node.Name)
 
 	interfaces = lo.Filter(interfaces, func(i deployment.NodeInterface, _ int) bool {
 		for _, p := range s.config.Capture.ExcludedInterfaces {
@@ -968,7 +983,7 @@ func (s *Service) onNodeStarted(
 	if err != nil {
 		log.Warn(
 			"Failed to get interfaces for node",
-			"lab", lab.UUID,
+			"lab", labId,
 			"container", node.ContainerId,
 			"err", err.Error(),
 		)
@@ -978,14 +993,14 @@ func (s *Service) onNodeStarted(
 
 	node.SetReady(interfaces)
 
-	nodeName, containerId := node.Name, node.ContainerId
+	containerId := node.ContainerId
 
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(deploymentContext, lab.InstanceName, nodeName, containerId)
+	s.monitor.AddNode(deploymentContext, instance.Name, node.Name, containerId)
 
 	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &lab.UUID,
+		LabId: &labId,
 	})
 }
 
@@ -994,11 +1009,23 @@ func (s *Service) createInstance(
 	logNamespace *socket.OutputNamespace[string],
 	runTopologyFile string,
 	runTopologyDefinition string,
+	labId string,
 ) (*Instance, error) {
 	runTopologyDefintionParsed, err := s.schemaService.Parse(runTopologyDefinition)
 	if err != nil {
 		log.Error(
-			"[NECRO] Failed to parse topology definition for newly created instance",
+			"Failed to parse topology definition for newly created instance",
+			"instance", name,
+			"err", err.Error(),
+		)
+		return nil, utils.ErrAntimony
+	}
+
+	nodes, err := s.createNodesFromTopology(*runTopologyDefintionParsed, labId)
+	if err != nil {
+		log.Error(
+			"Failed to get nodes from topology definition for newly created instance",
+			"lab", labId,
 			"instance", name,
 			"err", err.Error(),
 		)
@@ -1017,83 +1044,75 @@ func (s *Service) createInstance(
 		DeploymentMutex:   sync.Mutex{},
 		LogNamespace:      logNamespace,
 		TopologyFile:      runTopologyFile,
-		NodeLabels:        s.extractNodeLabels(*runTopologyDefintionParsed),
-		NodeKinds:         s.extractNodeKinds(*runTopologyDefintionParsed),
+		Nodes:             nodes,
 		IsDestroyed:       false,
 	}, nil
 }
 
-func (s *Service) extractNodeLabels(topologyDefinition any) map[string]map[string]string {
-	result := make(map[string]map[string]string)
-
+func (s *Service) createNodesFromTopology(topologyDefinition any, labId string) ([]*InstanceNode, error) {
 	topologyMap, ok := topologyDefinition.(map[string]any)
 	if !ok {
-		return result
+		return nil, errors.New("topology definition is not a map")
 	}
 
 	top, ok := topologyMap["topology"].(map[string]any)
 	if !ok {
-		return result
+		return nil, errors.New("topology definition has no topology section")
 	}
 
 	nodes, ok := top["nodes"].(map[string]any)
 	if !ok {
-		return result
+		return nil, errors.New("topology definition has no nodes")
 	}
 
+	defaultKind := ""
+	if defaults, ok := top["defaults"].(map[string]any); ok {
+		defaultKind, _ = defaults["kind"].(string)
+	}
+
+	result := make([]*InstanceNode, 0, len(nodes))
 	for nodeName, nodeVal := range nodes {
-		node, ok := nodeVal.(map[string]any)
-		if !ok {
-			continue
+		kind := defaultKind
+		if node, ok := nodeVal.(map[string]any); ok {
+			if nodeKind, ok := node["kind"].(string); ok {
+				kind = nodeKind
+			}
 		}
 
-		labels, ok := node["labels"].(map[string]any)
-		if !ok {
-			continue
+		nodeLogNamespace := socket.CreateOutputNamespace[string](
+			s.socketManager,
+			false,
+			&socket.BacklogConfig{
+				Capacity: s.config.Streaming.ContainerLogBacklog,
+				Kind:     utils.RingKindValue,
+			},
+			true,
+			nil,
+			"logs",
+			labId,
+			nodeName,
+		)
+
+		canRestart := false
+		if kindConfig, ok := s.nodeKindConfigs[kind]; ok {
+			canRestart = kindConfig.CanRestart != nil && *kindConfig.CanRestart
 		}
 
-		result[nodeName] = make(map[string]string)
-		for k, v := range labels {
-			result[nodeName][k] = fmt.Sprintf("%v", v)
-		}
+		result = append(result, &InstanceNode{
+			Name:         nodeName,
+			Kind:         kind,
+			CanRestart:   canRestart,
+			State:        deployment.NodeStates.Stopped,
+			Interfaces:   make([]deployment.NodeInterface, 0),
+			LogNamespace: nodeLogNamespace,
+		})
 	}
 
-	return result
-}
+	slices.SortFunc(result, func(a, b *InstanceNode) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 
-func (s *Service) extractNodeKinds(topologyDefinition any) map[string]string {
-	result := make(map[string]string)
-
-	topologyMap, ok := topologyDefinition.(map[string]any)
-	if !ok {
-		return result
-	}
-
-	top, ok := topologyMap["topology"].(map[string]any)
-	if !ok {
-		return result
-	}
-
-	nodes, ok := top["nodes"].(map[string]any)
-	if !ok {
-		return result
-	}
-
-	for nodeName, nodeVal := range nodes {
-		node, ok := nodeVal.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		kind, ok := node["kind"].(string)
-		if !ok {
-			continue
-		}
-
-		result[nodeName] = kind
-	}
-
-	return result
+	return result, nil
 }
 
 // fetchNode re-inspects a single node and applies any state change to it.
@@ -1132,79 +1151,78 @@ func (s *Service) fetchNode(
 		return false
 	}
 
-	updatedNode := s.containerToInstanceNode(nodeContainer, instance.NodeKinds)
-
 	instance.DataMutex.Lock()
 
 	// If the state hasn't changed, there is no need to update anything
-	if node.State == updatedNode.State {
+	if node.State == nodeContainer.State {
 		instance.DataMutex.Unlock()
 
 		return false
 	}
 
-	node.Set(updatedNode.State, updatedNode.IPv4, updatedNode.IPv6, updatedNode.ContainerId, updatedNode.ContainerName)
+	s.updateNodeWithContainer(node, nodeContainer)
 
 	instance.DataMutex.Unlock()
 
 	return true
 }
 
-func (s *Service) inspectLab(
+func (s *Service) inspectLabAndUpdateNodes(
 	instance *Instance,
 	instanceName string,
 	onLog func(data string),
-) ([]*InstanceNode, error) {
-	deploymentContext := instance.deploymentContext()
+) error {
+	inspectContainers, err := s.deploymentProvider.InspectLab(
+		instance.deploymentContext(),
+		instance.TopologyFile,
+		instanceName,
+		onLog,
+	)
 
-	labContainers, err := s.deploymentProvider.InspectLab(deploymentContext, instance.TopologyFile, instanceName, onLog)
-	if err != nil {
-		return nil, err
+	instance.DataMutex.Lock()
+	defer instance.DataMutex.Unlock()
+
+	for i := range instance.Nodes {
+		// If the inspect failed, just set all nodes to the stopped state
+		if err != nil {
+			instance.Nodes[i].State = deployment.NodeStates.Stopped
+			continue
+		}
+
+		targetContainer, ok := lo.Find(inspectContainers, func(container deployment.InspectContainer) bool {
+			return container.Name == instance.Nodes[i].Name
+		})
+		if !ok {
+			instance.Nodes[i].State = deployment.NodeStates.Stopped
+			log.Warn("Failed to find node in inspect output", "node", instance.Nodes[i].Name, "lab", instanceName)
+			continue
+		}
+
+		instance.Nodes[i].Reset()
+		s.updateNodeWithContainer(instance.Nodes[i], targetContainer)
 	}
 
-	return lo.Map(labContainers, func(container deployment.InspectContainer, _ int) *InstanceNode {
-		return s.containerToInstanceNode(container, instance.NodeKinds)
-	}), nil
+	return err
 }
 
-func (s *Service) containerToInstanceNode(
+func (s *Service) updateNodeWithContainer(
+	node *InstanceNode,
 	container deployment.InspectContainer,
-	nodeKinds map[string]string,
-) *InstanceNode {
-	canRestart := false
-
-	nodeKind, kindFound := nodeKinds[container.Name]
-
-	if kindFound {
-		if kindConfig, ok := s.nodeKindConfigs[nodeKind]; ok {
-			if kindConfig.CanRestart != nil && *kindConfig.CanRestart {
-				canRestart = true
-			}
-		}
-	} else {
-		log.Warn("Failed to get kind of running node", "containerId", container.ContainerId)
-	}
+) {
+	node.State = container.State
 
 	// For consistency, we clear the IP, container ID and container name fields when the container is stopped,
 	// even though the deployment provider might supply them.
 	if container.State == deployment.NodeStates.Stopped {
-		container.ContainerId = ""
-		container.ContainerName = ""
-		container.IPv4Address = ""
-		container.IPv6Address = ""
-	}
-
-	return &InstanceNode{
-		Name:          container.Name,
-		Kind:          nodeKind,
-		IPv4:          container.IPv4Address,
-		IPv6:          container.IPv6Address,
-		State:         container.State,
-		IsReady:       false,
-		ContainerId:   container.ContainerId,
-		ContainerName: container.ContainerName,
-		Interfaces:    make([]deployment.NodeInterface, 0),
-		CanRestart:    canRestart,
+		node.ContainerId = ""
+		node.ContainerName = ""
+		node.IPv4 = ""
+		node.IPv6 = ""
+	} else {
+		node.ContainerId = container.ContainerId
+		node.ContainerName = container.ContainerName
+		node.IPv4 = container.IPv4Address
+		node.IPv6 = container.IPv6Address
 	}
 }
 
@@ -1296,9 +1314,6 @@ func (s *Service) reviveInstances() {
 			continue
 		}
 
-		nodeLabels := s.extractNodeLabels(*topologyDefinitionParsed)
-		nodeKinds := s.extractNodeKinds(*topologyDefinitionParsed)
-
 		logNamespace := socket.CreateOutputNamespace[string](
 			s.socketManager,
 			false,
@@ -1312,70 +1327,72 @@ func (s *Service) reviveInstances() {
 			savedLab.UUID,
 		)
 
-		for _, container := range containers {
-			if container.State == deployment.NodeStates.Stopped {
+		nodes, err := s.createNodesFromTopology(*topologyDefinitionParsed, savedLab.UUID)
+		if err != nil {
+			log.Error(
+				"Failed to get nodes from topology definition for newly created instance",
+				"lab", savedLab.UUID,
+				"instance", savedLab.InstanceName,
+				"err", err.Error(),
+			)
+			continue
+		}
+
+		deploymentCtx, deploymentCancel := context.WithCancel(context.Background())
+
+		for i := range nodes {
+			nodeContainer, ok := lo.Find(containers, func(container deployment.InspectContainer) bool {
+				return container.Name == nodes[i].Name
+			})
+			if !ok {
+				log.Warn("Failed to find node in inspect output", "node", nodes[i].Name, "lab", savedLab.InstanceName)
 				continue
 			}
 
-			containerLogNamespace := socket.CreateOutputNamespace[string](
-				s.socketManager,
-				false,
-				&socket.BacklogConfig{
-					Capacity: s.config.Streaming.ContainerLogBacklog,
-					Kind:     utils.RingKindValue,
-				},
-				true,
-				nil,
-				"logs",
-				savedLab.UUID,
-				container.ContainerId,
-			)
-			err := s.deploymentProvider.StreamContainerLogs(
-				ctx,
-				savedLab.InstanceName,
-				container.Name,
-				func(data string) {
-					containerLogNamespace.Send(data)
-				},
-			)
+			// Attach runtime information to nodes
+			nodes[i].Reset()
+			s.updateNodeWithContainer(nodes[i], nodeContainer)
 
-			if err != nil {
-				log.Error(
-					"[NECRO] Failed to setup container log stream for container",
-					"container", container.ContainerId,
-					"err", err.Error(),
+			if nodes[i].State != deployment.NodeStates.Stopped {
+				err := s.deploymentProvider.StreamContainerLogs(
+					deploymentCtx,
+					savedLab.InstanceName,
+					nodes[i].Name,
+					nodes[i].LogNamespace.Send,
 				)
+
+				if err != nil {
+					log.Error(
+						"[NECRO] Failed to setup container log stream for container",
+						"lab", savedLab.UUID,
+						"node", nodes[i].Name,
+						"containerId", nodes[i].ContainerId,
+						"err", err.Error(),
+					)
+				}
 			}
 		}
-
-		instanceNodes := lo.Map(containers, func(container deployment.InspectContainer, _ int) *InstanceNode {
-			return s.containerToInstanceNode(container, nodeKinds)
-		})
-
-		ctx, cancel := context.WithCancel(context.Background())
 
 		instance := &Instance{
 			Name:              savedLab.InstanceName,
 			State:             InstanceStates.Running,
-			Nodes:             instanceNodes,
+			Nodes:             nodes,
 			Deployed:          time.Now(),
 			LatestStateChange: time.Now(),
 			Recovered:         true,
 			TopologyFile:      s.storageManager.GetRunTopologyFile(savedLab.UUID),
 			LogNamespace:      logNamespace,
-			NodeLabels:        nodeLabels,
-			NodeKinds:         nodeKinds,
-			DeploymentCtx:     ctx,
-			DeploymentCancel:  cancel,
+			DeploymentCtx:     deploymentCtx,
+			DeploymentCancel:  deploymentCancel,
 			DeploymentMutex:   sync.Mutex{},
 			IsDestroyed:       false,
 		}
 
-		for i := range instanceNodes {
-			// Attach a starup listener to the node if it's currently running or starting
-			if instanceNodes[i].State == deployment.NodeStates.Running ||
-				instanceNodes[i].State == deployment.NodeStates.Starting {
-				go s.startNodeStartupListener(instanceNodes[i], instance, &savedLab)
+		// Attach startup listeners to nodes that are currently running or starting
+		for i := range nodes {
+			if nodes[i].State == deployment.NodeStates.Running ||
+				nodes[i].State == deployment.NodeStates.Starting {
+				go s.startNodeStartupListener(savedLab.UUID, instance, nodes[i], false)
 			}
 		}
 
