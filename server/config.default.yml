@@ -62,7 +62,7 @@ capture:
   sshKeyPath: ./key
   # Interfaces that are excluded from traffic capture and monitoring.
   # Default: ["lo", "gway-*", "monit_in", "mgmt0-0"]
-  excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*" ]
+  excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
 streaming:
   # The maximum number of container log entries that will be kept in memory.
   # Default: 1000
