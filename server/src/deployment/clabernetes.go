@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -737,13 +739,15 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	if err != nil {
 		return err
 	}
-	podName := pod.Name
 
-	// The launcher forwards the node container's output to its own stdout, so the pod log is the node log.
+	// The pod log only holds the device's own output. Startup progress such as image pulls, failed exec commands
+	// or planning problems is recorded as events on the pod and the c9s Node, so those go first.
+	p.sendNodeEvents(ctx, namespace, nodeName, pod.Name, onLog)
+
 	// Kubernetes prepends an RFC 3339 timestamp per line.
 	stream, err := p.clientset.CoreV1().
 		Pods(namespace).
-		GetLogs(podName, &corev1.PodLogOptions{
+		GetLogs(pod.Name, &corev1.PodLogOptions{
 			Follow:     true,
 			Timestamps: true,
 		}).
@@ -762,6 +766,66 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	}()
 
 	return nil
+}
+
+// sendNodeEvents sends the events recorded for a node's pod and its c9s Node, oldest first. The lines use the
+// pod log's "<RFC 3339 timestamp> <message>" format.
+func (p *ClabernetesProvider) sendNodeEvents(
+	ctx context.Context,
+	namespace string,
+	nodeName string,
+	podName string,
+	onLog LogFunc,
+) {
+	var events []corev1.Event
+	for kind, name := range map[string]string{"Pod": podName, "Node": nodeName} {
+		list, err := p.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
+			FieldSelector: fields.Set{"involvedObject.kind": kind, "involvedObject.name": name}.String(),
+		})
+		if err != nil {
+			log.Warn("Failed to list node events", "namespace", namespace, "kind", kind, "name", name, "err", err)
+			continue
+		}
+		events = append(events, list.Items...)
+	}
+
+	// Most events only have second precision. Their names end in a nanosecond creation timestamp, which orders
+	// events of the same object within a second.
+	slices.SortFunc(events, func(a, b corev1.Event) int {
+		if c := eventTime(a).Compare(eventTime(b)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	for _, event := range events {
+		label := "Event"
+		if event.Type == corev1.EventTypeWarning {
+			label = "Warning"
+		}
+
+		line := fmt.Sprintf(
+			"%s [%s %s] %s",
+			eventTime(event).UTC().Format(time.RFC3339Nano), label, event.Reason, event.Message,
+		)
+		if event.Count > 1 {
+			line += fmt.Sprintf(" (x%d)", event.Count)
+		}
+		onLog.Log(line)
+	}
+}
+
+// eventTime returns when an event last occurred. Depending on the reporter, events carry either the legacy
+// timestamps or EventTime.
+func eventTime(event corev1.Event) time.Time {
+	switch {
+	case !event.LastTimestamp.IsZero():
+		return event.LastTimestamp.Time
+	case !event.EventTime.IsZero():
+		return event.EventTime.Time
+	default:
+		return event.CreationTimestamp.Time
+	}
 }
 
 func (p *ClabernetesProvider) GetNetworkInterfaces(
