@@ -663,6 +663,18 @@ func (p *ClabernetesProvider) RegisterListener(
 	_, err := factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj any) { notify(podFromEvent(obj)) },
 		DeleteFunc: func(obj any) { notify(podFromEvent(obj)) },
+		// Readiness changes arrive as updates, e.g. a restarted node's new pod becoming ready.
+		UpdateFunc: func(oldObj, newObj any) {
+			o, n := podFromEvent(oldObj), podFromEvent(newObj)
+			if o == nil || n == nil {
+				return
+			}
+
+			terminationChanged := (o.DeletionTimestamp == nil) != (n.DeletionTimestamp == nil)
+			if terminationChanged || podStateToNodeState(o) != podStateToNodeState(n) {
+				notify(n)
+			}
+		},
 	})
 
 	if err != nil {
