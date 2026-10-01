@@ -1,0 +1,97 @@
+name: End-to-end tests
+
+on:
+  push:
+    branches: [ development ]
+
+  pull_request:
+    branches: [ development ]
+
+  workflow_dispatch:
+    inputs:
+      backend-image:
+        description: Backend image to test against
+        type: string
+        default: ghcr.io/antimony-team/antimony-backend:dev
+
+  # Lets the backend repository run these tests against its own images
+  workflow_call:
+    inputs:
+      interface-ref:
+        description: Interface branch, tag or commit to test
+        type: string
+        default: development
+      backend-image:
+        description: Backend image to test against
+        type: string
+        default: ghcr.io/antimony-team/antimony-backend:dev
+
+env:
+  # The image e2e/scripts/start-backend.sh runs
+  SB_E2E_BACKEND_IMAGE: ${{ inputs.backend-image || 'ghcr.io/antimony-team/antimony-backend:dev' }}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      # The repository is named explicitly, because when this workflow is called from the backend
+      # repository, github.repository refers to the backend.
+      - name: Check out the interface
+        uses: actions/checkout@v5
+        with:
+          repository: antimony-team/antimony-interface
+          ref: ${{ inputs.interface-ref || github.sha }}
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pulled up front so a slow download doesn't count against the backend start timeout
+      - name: Pull the backend image
+        run: docker pull "$SB_E2E_BACKEND_IMAGE"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Run end-to-end tests
+        run: yarn e2e
+
+      - name: Upload test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/.tmp/report/
+            e2e/.tmp/test-results/
+            e2e/.tmp/backend/server.log
+          retention-days: 14

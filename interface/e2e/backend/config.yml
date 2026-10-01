@@ -1,0 +1,45 @@
+# Configuration of the Antimony backend for the e2e tests, derived from the backend's
+# test/config.test.yml. Mounted into the container as /app/config.yml, so paths are relative to /app
+# (data/ comes with the image).
+#
+# Differences to test/config.test.yml, marked with "e2e:" below:
+#  - ports 3100 (API) and 6100 (capture), which must match e2e/settings.ts and start-backend.sh
+#  - the dummy deployment provider, so nothing is deployed
+#  - no OpenID, since there is no identity provider in the test environment
+#  - `fileSystem` instead of `filesystem`, which is the key the backend actually reads
+#  - no remote schema download, so runs don't depend on GitHub being reachable
+server:
+  host: 0.0.0.0
+  port: 3100 # e2e: instead of 3000
+deployment:
+  provider: dummy # e2e: instead of containerlab
+auth:
+  enableNative: true
+  enableOpenId: false # e2e: no OpenID provider is running
+shell:
+  userLimit: 20
+  timeout: 1800
+database:
+  host: 127.0.0.1
+  port: 5432
+  database: antimony
+  user: antimony
+  localFile: ./db/antimony.db
+capture:
+  enabled: yes
+  sshHost: 0.0.0.0
+  sshPort: 6100 # e2e: instead of 6969
+  sshKeyPath: ./key
+  excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
+streaming:
+  containerLogBacklog: 1000
+  clabLogBacklog: 1000
+  shellLinesBacklog: 1000
+fileSystem: # e2e: the backend ignores the `filesystem` spelling
+  storage: ./storage/
+  run: ./run/
+containerlab:
+  schemaUrl: "" # e2e: use the bundled schema instead of downloading it
+  schemaFallback: ./data/clab.schema.json
+  deviceConfig: ./data/device-config.json
+  kindsConfig: ./kinds.conf.yml

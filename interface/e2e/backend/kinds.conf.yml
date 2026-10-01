@@ -1,0 +1,11 @@
+# Node kind configuration of the e2e backend, mounted into the container as /app/kinds.conf.yml.
+nokia_srlinux:
+  sshUsername: admin
+  sshPassword: NokiaSrl1!
+
+cisco_csr1000v:
+  sshUsername: admin
+  sshPassword: admin
+
+linux:
+  canRestart: true

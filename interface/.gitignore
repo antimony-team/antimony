@@ -97,3 +97,7 @@ build/
 release/
 dist-electron/
 dist/
+
+# End-to-end tests
+e2e/.tmp/
+e2e/.auth/

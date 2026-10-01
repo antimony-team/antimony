@@ -58,7 +58,7 @@ export default [
       sourceType: 'module',
 
       parserOptions: {
-        project: './tsconfig.json',
+        project: ['./tsconfig.json', './e2e/tsconfig.json'],
       },
     },
 
