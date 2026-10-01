@@ -25,6 +25,26 @@ func ReplaceAnsiCharacters(data string) string {
 }
 
 func CreateAntimonyLog(level LogLevel, messageParts ...string) string {
+	return LogEntry{
+		Level:   level,
+		Message: formatMessage(messageParts),
+		Time:    time.Now(),
+		Source:  "SERV",
+	}.String()
+}
+
+// CreateKubeLog creates a log entry for something reported by Kubernetes, such as an event, at the time it occurred.
+func CreateKubeLog(level LogLevel, timestamp time.Time, messageParts ...string) string {
+	return LogEntry{
+		Level:   level,
+		Message: formatMessage(messageParts),
+		Time:    timestamp.Local(),
+		Source:  "KUBE",
+	}.String()
+}
+
+// formatMessage joins a message and its key-value pairs into "message key=value key=value".
+func formatMessage(messageParts []string) string {
 	logMessage := messageParts[0] + " "
 	for i := 1; i < len(messageParts); i += 2 {
 		if i+1 < len(messageParts) {
@@ -34,42 +54,7 @@ func CreateAntimonyLog(level LogLevel, messageParts ...string) string {
 		}
 	}
 
-	return LogEntry{
-		Level:   level,
-		Message: logMessage,
-		Time:    time.Now(),
-		Source:  "SERV",
-	}.String()
-}
-
-func CreateKubeCtlLog(line string) string {
-	if line == "" {
-		return ""
-	}
-
-	header, msg, found := strings.Cut(line, "] ")
-	fields := strings.Fields(header)
-
-	// klog header: I0918 14:14:04.502476 229402 loader.go:407
-	if !found || len(fields) != 4 || len(fields[0]) != 5 {
-		return LogEntry{Level: InfoLevel, Message: line, Time: time.Now(), Source: "KUBE"}.String()
-	}
-
-	level := InfoLevel
-	switch fields[0][0] {
-	case 'W':
-		level = WarningLevel
-	case 'E', 'F':
-		level = ErrorLevel
-	}
-
-	ts, err := time.ParseInLocation("2006 0102 15:04:05.000000",
-		fmt.Sprintf("%d %s %s", time.Now().Year(), fields[0][1:], fields[1]), time.Local)
-	if err != nil {
-		ts = time.Now()
-	}
-
-	return LogEntry{Level: level, Message: msg, Time: ts, Source: "KUBE"}.String()
+	return logMessage
 }
 
 func CreateClabLog(line string) string {
@@ -93,19 +78,6 @@ func CreateClabLog(line string) string {
 	entry.Message = strings.TrimSpace(parts[2])
 
 	return entry.String()
-}
-
-func FormatKubectlLog(onLog func(string)) func(string) {
-	return func(message string) {
-		if onLog == nil {
-			return
-		}
-
-		log := CreateKubeCtlLog(message)
-		if log != "" {
-			onLog(log)
-		}
-	}
 }
 
 func FormatClabLog(onLog func(string)) func(string) {

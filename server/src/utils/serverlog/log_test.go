@@ -2,6 +2,7 @@ package serverlog
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,61 +176,22 @@ func TestCreateClabLog_TrimsTheMessage(t *testing.T) {
 }
 
 /*
- * CreateKubeCtlLog
+ * CreateKubeLog
  */
 
-func TestCreateKubeCtlLog_ParsesAKlogHeader(t *testing.T) {
-	rendered := CreateKubeCtlLog("I0918 14:14:04.502476 229402 loader.go:407] Config loaded")
+func TestCreateKubeLog_UsesTheGivenTimeAndKubeSource(t *testing.T) {
+	timestamp := time.Date(2026, 10, 1, 14, 15, 16, 0, time.Local)
 
-	assert.Contains(t, rendered, "INFO")
+	rendered := CreateKubeLog(WarningLevel, timestamp, "Pulling image", "node", "srl")
+
+	assert.Contains(t, rendered, "14:15:16", "the event's own timestamp must be used")
+	assert.Contains(t, rendered, "WARNING")
 	assert.Contains(t, rendered, "KUBE")
-	assert.Contains(t, rendered, "Config loaded")
-	assert.Contains(t, rendered, "14:14:04", "the klog timestamp must be carried over")
-}
-
-func TestCreateKubeCtlLog_MapsKlogSeverityPrefixes(t *testing.T) {
-	cases := map[string]string{
-		"I": "INFO",
-		"W": "WARNING",
-		"E": "ERROR",
-		"F": "ERROR", // fatal klog lines are surfaced as errors
-	}
-
-	for prefix, expected := range cases {
-		t.Run(prefix, func(t *testing.T) {
-			rendered := CreateKubeCtlLog(prefix + "0918 14:14:04.502476 229402 loader.go:407] a message")
-
-			assert.Contains(t, rendered, expected)
-			assert.Contains(t, rendered, "a message")
-		})
-	}
-}
-
-func TestCreateKubeCtlLog_EmptyLineProducesNothing(t *testing.T) {
-	assert.Empty(t, CreateKubeCtlLog(""))
-}
-
-func TestCreateKubeCtlLog_FallsBackForNonKlogLines(t *testing.T) {
-	cases := map[string]string{
-		"no bracket":          "just a plain message",
-		"wrong field count":   "I0918 14:14:04] a message",
-		"short level prefix":  "I09 14:14:04.502476 229402 loader.go:407] a message",
-		"unparseable time":    "I0918 not-a-time 229402 loader.go:407] a message",
-		"bracket but no klog": "something] else",
-	}
-
-	for name, line := range cases {
-		t.Run(name, func(t *testing.T) {
-			rendered := CreateKubeCtlLog(line)
-
-			assert.Contains(t, rendered, "KUBE")
-			assert.NotEmpty(t, rendered)
-		})
-	}
+	assert.Contains(t, rendered, "Pulling image node=srl")
 }
 
 /*
- * FormatClabLog / FormatKubectlLog
+ * FormatClabLog
  */
 
 func TestFormatClabLog_ForwardsFormattedLines(t *testing.T) {
@@ -249,42 +211,12 @@ func TestFormatClabLog_ToleratesANilCallback(t *testing.T) {
 	assert.NotPanics(t, func() { formatter("14:15:16 INFO ignored") })
 }
 
-func TestFormatKubectlLog_ForwardsFormattedLines(t *testing.T) {
-	var received []string
-	formatter := FormatKubectlLog(func(line string) { received = append(received, line) })
-
-	formatter("E0918 14:14:04.502476 229402 loader.go:407] pod failed")
-
-	require.Len(t, received, 1)
-	assert.Contains(t, received[0], "ERROR")
-	assert.Contains(t, received[0], "pod failed")
-}
-
-func TestFormatKubectlLog_SwallowsEmptyLines(t *testing.T) {
-	var received []string
-	formatter := FormatKubectlLog(func(line string) { received = append(received, line) })
-
-	formatter("")
-
-	assert.Empty(t, received, "an empty kubectl line must not be forwarded")
-}
-
-func TestFormatKubectlLog_ToleratesANilCallback(t *testing.T) {
-	formatter := FormatKubectlLog(nil)
-
-	assert.NotPanics(t, func() { formatter("I0918 14:14:04.502476 229402 loader.go:407] ignored") })
-}
-
-func TestFormatters_ProduceSingleLineOutput(t *testing.T) {
+func TestFormatClabLog_ProducesSingleLineOutput(t *testing.T) {
 	// The formatted output is streamed to socket clients one message per line, so an embedded
 	// newline would split a single log entry across two messages.
-	var clabLine, kubeLine string
+	var clabLine string
 
 	FormatClabLog(func(line string) { clabLine = line })("14:15:16 INFO no newlines please")
-	FormatKubectlLog(func(line string) { kubeLine = line })(
-		"I0918 14:14:04.502476 229402 loader.go:407] no newlines please",
-	)
 
 	assert.NotContains(t, clabLine, "\n")
-	assert.NotContains(t, kubeLine, "\n")
 }

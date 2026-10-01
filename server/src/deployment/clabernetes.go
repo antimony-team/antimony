@@ -27,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -740,10 +739,7 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 		return err
 	}
 
-	// The pod log only holds the device's own output. Startup progress such as image pulls, failed exec commands
-	// or planning problems is recorded as events on the pod and the c9s Node, so those go first.
-	p.sendNodeEvents(ctx, namespace, nodeName, pod.Name, onLog)
-
+	// The pod log only holds the device's own output; startup events go to the deployment log instead.
 	// Kubernetes prepends an RFC 3339 timestamp per line.
 	stream, err := p.clientset.CoreV1().
 		Pods(namespace).
@@ -768,50 +764,71 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	return nil
 }
 
-// sendNodeEvents sends the events recorded for a node's pod and its c9s Node, oldest first. The lines use the
-// pod log's "<RFC 3339 timestamp> <message>" format.
-func (p *ClabernetesProvider) sendNodeEvents(
-	ctx context.Context,
-	namespace string,
-	nodeName string,
-	podName string,
-	onLog LogFunc,
-) {
-	var events []corev1.Event
-	for kind, name := range map[string]string{"Pod": podName, "Node": nodeName} {
-		list, err := p.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
-			FieldSelector: fields.Set{"involvedObject.kind": kind, "involvedObject.name": name}.String(),
-		})
-		if err != nil {
-			log.Warn("Failed to list node events", "namespace", namespace, "kind", kind, "name", name, "err", err)
-			continue
-		}
-		events = append(events, list.Items...)
-	}
-
-	// Most events only have second precision. Their names end in a nanosecond creation timestamp, which orders
-	// events of the same object within a second.
+// sortEvents sorts events oldest first. Most events only have second precision. Their names end in a nanosecond
+// creation timestamp, which orders events of the same object within a second.
+func sortEvents(events []corev1.Event) {
 	slices.SortFunc(events, func(a, b corev1.Event) int {
 		if c := eventTime(a).Compare(eventTime(b)); c != 0 {
 			return c
 		}
 		return strings.Compare(a.Name, b.Name)
 	})
+}
+
+// forwardDeployEvents sends the pod and c9s Node events of a lab namespace to the deployment log, so progress
+// like image pulls shows up while the lab starts. It skips events from before since and those already in sent,
+// which maps each forwarded event to its count so repeats are sent again. Failures are ignored since the events
+// are only informational.
+func (p *ClabernetesProvider) forwardDeployEvents(
+	ctx context.Context,
+	namespace string,
+	since time.Time,
+	sent map[string]int32,
+	onLog LogFunc,
+) {
+	list, err := p.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	// Pod events are attributed to the node the pod belongs to
+	podNodes := make(map[string]string)
+	if pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: clabernetesconstants.LabelTopologyNode,
+	}); err == nil {
+		for _, pod := range pods.Items {
+			podNodes[pod.Name] = pod.Labels[clabernetesconstants.LabelTopologyNode]
+		}
+	}
+
+	events := lo.Filter(list.Items, func(event corev1.Event, _ int) bool {
+		kind := event.InvolvedObject.Kind
+		return (kind == "Pod" || kind == "Node") &&
+			!eventTime(event).Before(since) &&
+			sent[event.Name] != event.Count
+	})
+	sortEvents(events)
 
 	for _, event := range events {
-		label := "Event"
-		if event.Type == corev1.EventTypeWarning {
-			label = "Warning"
+		sent[event.Name] = event.Count
+
+		node := event.InvolvedObject.Name
+		if event.InvolvedObject.Kind == "Pod" {
+			if podNode, ok := podNodes[node]; ok {
+				node = podNode
+			}
 		}
 
-		line := fmt.Sprintf(
-			"%s [%s %s] %s",
-			eventTime(event).UTC().Format(time.RFC3339Nano), label, event.Reason, event.Message,
-		)
-		if event.Count > 1 {
-			line += fmt.Sprintf(" (x%d)", event.Count)
+		level := serverlog.InfoLevel
+		if event.Type == corev1.EventTypeWarning {
+			level = serverlog.WarningLevel
 		}
-		onLog.Log(line)
+
+		parts := []string{event.Message, "node", node, "reason", event.Reason}
+		if event.Count > 1 {
+			parts = append(parts, "count", strconv.Itoa(int(event.Count)))
+		}
+		onLog.Log(serverlog.CreateKubeLog(level, eventTime(event), parts...))
 	}
 }
 
@@ -914,8 +931,14 @@ func (p *ClabernetesProvider) waitForTopologyReady(
 ) error {
 	lastReady := -1
 
+	// Events only have second precision
+	eventsSince := time.Now().Truncate(time.Second)
+	sentEvents := make(map[string]int32)
+
 	return wait.PollUntilContextTimeout(ctx, time.Second, 10*time.Minute, true,
 		func(ctx context.Context) (bool, error) {
+			p.forwardDeployEvents(ctx, namespace, eventsSince, sentEvents, onLog)
+
 			topo, err := p.c9s.C9sV1alpha1().Topologies(namespace).Get(ctx, instanceName, metav1.GetOptions{})
 			if err != nil {
 				return false, err
