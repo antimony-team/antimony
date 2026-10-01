@@ -83,7 +83,7 @@ const LabView = observer((props: LabDialogProps) => {
   const logDialogState = useDialogState<LogDialogState>();
   const terminalDialogState = useDialogState<TerminalDialogState>();
 
-  const [isCyReady, setIsCyReady] = useState<boolean>(false);
+  const [isCyReady, setCyReady] = useState<boolean>(false);
 
   const serverConfig = useServerConfig();
   const deviceStore = useDeviceStore();
@@ -379,7 +379,7 @@ const LabView = observer((props: LabDialogProps) => {
       entries.push({
         label: 'Web SSH',
         icon: 'pi pi-external-link',
-        command: () => openWebSsh(contextTargetNode),
+        command: () => openWebSsh(),
       });
     }
 
@@ -664,7 +664,7 @@ const LabView = observer((props: LabDialogProps) => {
               elements={elements}
               cy={(cy: cytoscape.Core) => {
                 cyRef.current = cy;
-                setIsCyReady(true);
+                setCyReady(true);
               }}
             />
           </div>

@@ -73,7 +73,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
           <dt>Deployed</dt>
           <dd>
             {dayjs(props.lab.instance?.deployed).format('D MMM YYYY, HH:mm')}
-            <If condition={props.lab.instance!.isRecovered}>
+            <If condition={props.lab.instance?.isRecovered}>
               <span
                 data-pr-tooltip="This instance has been recovered after Antimony was restarted"
                 data-pr-position="right"

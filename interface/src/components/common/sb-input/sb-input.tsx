@@ -126,6 +126,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
       />
       <InputText
         ref={inputFieldRef}
+        id={props.id}
         data-tooltip-id={inputId}
         onClick={onSingleClick}
         onDoubleClick={onEnterEditing}

@@ -144,6 +144,8 @@ const DashboardPage = observer(() => {
                       {InstanceState[state]}
                       <i
                         className="pi pi-times-circle"
+                        role="button"
+                        aria-label={`Remove ${InstanceState[state]} Filter`}
                         onClick={() => labStore.toggleState(state)}
                       ></i>
                     </div>
@@ -178,6 +180,8 @@ const DashboardPage = observer(() => {
                   </IconField>
                   <span
                     className="search-bar-icon"
+                    role="button"
+                    aria-label="Filter Labs"
                     onClick={e => labFilterOverlay.current?.toggle(e)}
                   >
                     <i className="pi pi-filter" />

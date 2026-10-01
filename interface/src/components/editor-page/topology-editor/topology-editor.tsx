@@ -443,7 +443,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
                   size="large"
                   onClick={() => props.setMaximized(false)}
-                  aria-label="Maximize"
+                  aria-label="Minimize"
                 />
               </When>
               <Otherwise>
@@ -452,7 +452,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
                   size="large"
                   onClick={() => props.setMaximized(true)}
-                  aria-label="Minimize"
+                  aria-label="Maximize"
                 />
               </Otherwise>
             </Choose>

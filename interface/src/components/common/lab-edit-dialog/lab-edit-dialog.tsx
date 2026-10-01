@@ -94,7 +94,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           'Failed to edit topology',
         );
       } else {
-        notificationStore.success('Lab has been udpated successfully.');
+        notificationStore.success('Lab has been updated successfully.');
         props.dialogState.close();
       }
     } else if (props.dialogState.state.action === DialogAction.Add) {

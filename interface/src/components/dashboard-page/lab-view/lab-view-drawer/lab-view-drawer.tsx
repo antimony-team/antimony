@@ -522,7 +522,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                   icon="pi pi-copy"
                   label="Copy Capture Command"
                   onClick={() => copyCaptureToClipboard(iface.name)}
-                  aria-label="Submit"
+                  aria-label={`Copy Capture Command for ${iface.name}`}
                 />
               </div>
               <UplotReact

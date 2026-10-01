@@ -424,6 +424,10 @@ const MonacoWrapper = observer(
           <div className="sb-monaco-wrapper">
             <div
               className="sb-monaco-wrapper-error"
+              data-testid="validation-status"
+              data-validation-state={ValidationState[
+                props.validationState
+              ]?.toLowerCase()}
               data-pr-tooltip={props.validationError ?? 'Schema Valid'}
               data-pr-position="right"
             >

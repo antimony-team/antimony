@@ -92,7 +92,7 @@ const BindFileDirectoryEditDialog = observer(
             ref={filePathInputRef}
             onValueSubmit={onFilePathSubmit}
             placeholder="e.g. node01/interfaces"
-            id="bind-file-path"
+            id="bind-file-directory-path"
             defaultValue={editingFilePath}
             label="Directory Name"
           />

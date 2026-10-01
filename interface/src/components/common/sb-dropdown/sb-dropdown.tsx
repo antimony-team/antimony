@@ -92,6 +92,7 @@ const SBDropdown = (props: SBDropdownProps) => {
       </If>
       <Dropdown
         disabled={false}
+        inputId={props.id}
         showClear={false}
         value={props.value}
         optionLabel={props.optionLabel}

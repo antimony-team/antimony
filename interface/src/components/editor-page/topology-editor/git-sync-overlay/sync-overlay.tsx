@@ -54,7 +54,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
 
     const value = urlFieldRef.current.input.current.value;
     if (value === props.topology?.syncUrl) {
-      notificationStore.success('Sync URL has been udpated successfully.');
+      notificationStore.success('Sync URL has been updated successfully.');
       return;
     }
 
@@ -65,7 +65,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
       });
 
       if (response.isOk()) {
-        notificationStore.success('Sync URL has been udpated successfully.');
+        notificationStore.success('Sync URL has been updated successfully.');
       } else {
         notificationStore.error('Failed to update sync URL.');
       }
@@ -103,7 +103,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
     <OverlayPanel ref={props.popOverRef} className="sync-overlay-panel">
       <div className="flex flex-column gap-2">
         <SBInput
-          id="sb-node-name"
+          id="sync-url"
           ref={urlFieldRef}
           label="Sync URL"
           placeholder="e.g. https://example.com/topology.yaml"
@@ -130,7 +130,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
             label="Save"
             outlined
             onClick={onSave}
-            aria-label="Save"
+            aria-label="Save Sync URL"
           />
         </div>
       </div>

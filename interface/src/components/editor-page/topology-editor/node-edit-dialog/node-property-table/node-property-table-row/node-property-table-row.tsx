@@ -129,7 +129,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
           tooltip="Revert property"
           tooltipOptions={{showDelay: 500}}
           disabled={!props.property.wasEdited}
-          aria-label="Undo"
+          aria-label="Revert Property"
         />
         <Button
           icon="pi pi-trash"
@@ -139,7 +139,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
           tooltip="Remove property"
           tooltipOptions={{showDelay: 500}}
           onClick={props.property.onDelete}
-          aria-label="Redo"
+          aria-label="Remove Property"
         />
       </td>
     </tr>

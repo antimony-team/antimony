@@ -92,7 +92,7 @@ const SBDialog = (props: SBDialogProps) => {
             onClick={() =>
               props.onCancel?.call(null) ?? props.onClose?.call(null)
             }
-            aria-label="Cancel"
+            aria-label={props.cancelLabel ?? 'Cancel'}
           />
           <Button
             outlined
@@ -101,7 +101,7 @@ const SBDialog = (props: SBDialogProps) => {
             onClick={() => {
               props.onSubmit?.call(null);
             }}
-            aria-label="Submit"
+            aria-label={props.submitLabel ?? 'Submit'}
             disabled={props.canSubmit === false}
           />
         </div>

@@ -50,7 +50,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
           onClick={() => props.onClose()}
           tooltip="Back"
           tooltipOptions={{position: 'bottom', showDelay: 500}}
-          aria-label="Download"
+          aria-label="Back"
         />
         <If condition={props.lab}>
           <StateIndicator lab={props.lab!} showText={false} />
@@ -105,6 +105,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
               outlined
               icon="pi pi-play"
               severity="success"
+              aria-label="Deploy Lab"
               onClick={() => labStore.deployLab(props.lab)}
             />
           </When>

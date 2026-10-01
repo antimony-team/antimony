@@ -369,7 +369,11 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
             <TabPanel
               key={tab.shellId}
               header={
-                <div className="sb-terminal-tab-header">
+                <div
+                  className="sb-terminal-tab-header"
+                  data-testid="terminal-tab"
+                  data-shell-id={tab.shellId}
+                >
                   <Choose>
                     <When condition={tab.expired}>
                       <span>{tab.label} (Expired)</span>
@@ -380,6 +384,8 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
                   </Choose>
                   <div
                     className="sb-terminal-tab-header-close"
+                    role="button"
+                    aria-label="Close Terminal"
                     onClick={e => onTabClose(e, tab.shellId, index)}
                   >
                     <i className="pi pi-times" />
@@ -394,7 +400,11 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           key="add"
           ref={newTabAnchor}
           header={
-            <div className="sb-terminal-tab-header-add">
+            <div
+              className="sb-terminal-tab-header-add"
+              role="button"
+              aria-label="Open New Terminal"
+            >
               <span onClick={() => {}}>
                 <i className="pi pi-plus" />
               </span>
