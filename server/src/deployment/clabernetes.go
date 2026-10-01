@@ -19,8 +19,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	c9sv1alpha1 "github.com/clabernetes/clabernetes/apis/v1alpha1"
+	clabernetescompiler "github.com/clabernetes/clabernetes/compiler"
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sclientset "github.com/clabernetes/clabernetes/generated/clientset"
+	claberneteslogging "github.com/clabernetes/clabernetes/logging"
 	"github.com/google/gopacket/afpacket"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
@@ -1126,6 +1128,21 @@ func stripTopologyLabels(content []byte) (string, error) {
 // applyTopology creates the namespace and the clabernetes Topology for a lab, or updates the Topology's
 // definition if it already exists.
 func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, instanceName, definition string) error {
+	spec := c9sv1alpha1.TopologySpec{
+		Definition: c9sv1alpha1.Definition{Containerlab: definition},
+		Expose:     c9sv1alpha1.Expose{ExposeType: "None"},
+	}
+	topology := &c9sv1alpha1.Topology{
+		ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+		Spec:       spec,
+	}
+
+	// Clabernetes only logs compilation errors in its manager and never reports them on the Topology, so we
+	// compile the topology ourselves first to fail right away with the same error.
+	if _, err := clabernetescompiler.CompileTopology(&claberneteslogging.FakeInstance{}, topology); err != nil {
+		return fmt.Errorf("topology is not supported by clabernetes: %w", err)
+	}
+
 	_, err := p.clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
@@ -1138,16 +1155,8 @@ func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, inst
 		return fmt.Errorf("create namespace %s: %w", namespace, err)
 	}
 
-	spec := c9sv1alpha1.TopologySpec{
-		Definition: c9sv1alpha1.Definition{Containerlab: definition},
-		Expose:     c9sv1alpha1.Expose{ExposeType: "None"},
-	}
-
 	topologies := p.c9s.C9sV1alpha1().Topologies(namespace)
-	_, err = topologies.Create(ctx, &c9sv1alpha1.Topology{
-		ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
-		Spec:       spec,
-	}, metav1.CreateOptions{})
+	_, err = topologies.Create(ctx, topology, metav1.CreateOptions{})
 
 	if !apierrors.IsAlreadyExists(err) {
 		return err
