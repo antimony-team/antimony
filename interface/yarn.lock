@@ -3412,10 +3412,10 @@ cytoscape-cose-bilkent@^4.1.0:
   dependencies:
     cose-base "^1.0.0"
 
-cytoscape@^3.32.0:
-  version "3.32.0"
-  resolved "https://registry.yarnpkg.com/cytoscape/-/cytoscape-3.32.0.tgz#34bc2402c9bc7457ab7d9492745f034b7bf47644"
-  integrity sha512-5JHBC9n75kz5851jeklCPmZWcg3hUe6sjqJvyk3+hVqFaKcHwHgxsjeN1yLmggoUc6STbtm9/NQyabQehfjvWQ==
+cytoscape@^3.34.3:
+  version "3.34.3"
+  resolved "https://registry.yarnpkg.com/cytoscape/-/cytoscape-3.34.3.tgz#1503996ba0b59b901d86310a1f612e92dc464f51"
+  integrity sha512-yfYGhRcGAntq6YBD583j4n0Eg3jIxvWmZtz/5uz9UYkeIStSlMxuUja+ec5j3iBD8nv1rwaOAYMW09tBdkSeaQ==
 
 data-view-buffer@^1.0.1:
   version "1.0.1"
