@@ -142,7 +142,7 @@ const LogDialog = observer((props: LogDialogProps) => {
       },
       ...nodes.map(node => ({
         label: node.name,
-        value: node.containerId,
+        value: node.name,
       })),
     ];
   }, [props.dialogState.state?.lab]);

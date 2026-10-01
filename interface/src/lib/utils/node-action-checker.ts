@@ -43,13 +43,7 @@ export class NodeActionChecker {
   }
 
   public get canShowLogs() {
-    return (
-      this.isInstanceRunning &&
-      this.assertNodeState(
-        InstanceNodeState.Starting,
-        InstanceNodeState.Running,
-      )
-    );
+    return Boolean(this.instance);
   }
 
   public get canShowStats() {

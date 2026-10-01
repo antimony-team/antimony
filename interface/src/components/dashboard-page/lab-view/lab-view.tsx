@@ -218,7 +218,7 @@ const LabView = observer((props: LabDialogProps) => {
 
     logDialogState.openWith({
       lab: props.lab!,
-      source: nodeId ? instance.nodeMap.get(nodeId)!.containerId : ANTIMONY_LOG,
+      source: nodeId ? instance.nodeMap.get(nodeId)!.name : ANTIMONY_LOG,
     });
   }
 
