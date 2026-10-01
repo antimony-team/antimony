@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,6 +51,18 @@ type DummyProvider struct {
 
 	// DeployStates is the state newly deployed nodes are reported in. Defaults to Running.
 	DeployStates NodeState
+
+	// Optional behaviour that makes the dummy more realistic when the server runs with it (see
+	// CreateProvider). The zero values keep it instant and silent, which the Go test suite relies on.
+	// They are set before the dummy is used and never changed afterwards.
+
+	// DeployDelay is how long Deploy and Redeploy take, so that the deploying state is observable.
+	DeployDelay time.Duration
+	// EchoShells makes interactive shells print a prompt and echo their input like a terminal.
+	EchoShells bool
+	// EmitContainerLogs makes nodes write log lines when their logs are streamed and when they are
+	// started, stopped or restarted.
+	EmitContainerLogs bool
 
 	// Overridable behaviour. A nil field means "use the default".
 	//
@@ -269,7 +282,7 @@ func (p *DummyProvider) statsFn() func(string, string) (*NodeStats, error) {
  */
 
 func (p *DummyProvider) Deploy(
-	_ context.Context,
+	ctx context.Context,
 	topologyFile string,
 	instanceName string,
 	onLog LogFunc,
@@ -280,11 +293,11 @@ func (p *DummyProvider) Deploy(
 		return p.DeployFn(topologyFile, instanceName, onLog)
 	}
 
-	return p.deployDefault(topologyFile, instanceName, onLog, "Deploying")
+	return p.deployDefault(ctx, topologyFile, instanceName, onLog, "Deploying")
 }
 
 func (p *DummyProvider) Redeploy(
-	_ context.Context,
+	ctx context.Context,
 	topologyFile string,
 	instanceName string,
 	onLog LogFunc,
@@ -295,7 +308,7 @@ func (p *DummyProvider) Redeploy(
 		return p.RedeployFn(topologyFile, instanceName, onLog)
 	}
 
-	return p.deployDefault(topologyFile, instanceName, onLog, "Redeploying")
+	return p.deployDefault(ctx, topologyFile, instanceName, onLog, "Redeploying")
 }
 
 func (p *DummyProvider) Destroy(
@@ -426,6 +439,9 @@ func (p *DummyProvider) ExecInteractive(
 	}
 
 	session := CreateDummyShellSession()
+	if p.EchoShells {
+		session = createEchoShellSession(nodeName)
+	}
 
 	p.mu.Lock()
 	p.shells[instanceName+"/"+nodeName] = session
@@ -507,7 +523,7 @@ func (p *DummyProvider) StartNode(_ context.Context, instanceName string, nodeNa
 		return p.StartNodeFn(instanceName, nodeName)
 	}
 
-	return p.transition(instanceName, nodeName, NodeStates.Running)
+	return p.transitionAndLog(instanceName, nodeName, NodeStates.Running, "started")
 }
 
 func (p *DummyProvider) StopNode(_ context.Context, instanceName string, nodeName string) error {
@@ -517,7 +533,7 @@ func (p *DummyProvider) StopNode(_ context.Context, instanceName string, nodeNam
 		return p.StopNodeFn(instanceName, nodeName)
 	}
 
-	return p.transition(instanceName, nodeName, NodeStates.Stopped)
+	return p.transitionAndLog(instanceName, nodeName, NodeStates.Stopped, "stopped")
 }
 
 func (p *DummyProvider) RestartNode(_ context.Context, instanceName string, nodeName string) error {
@@ -527,7 +543,7 @@ func (p *DummyProvider) RestartNode(_ context.Context, instanceName string, node
 		return p.RestartNodeFn(instanceName, nodeName)
 	}
 
-	return p.transition(instanceName, nodeName, NodeStates.Running)
+	return p.transitionAndLog(instanceName, nodeName, NodeStates.Running, "restarted")
 }
 
 func (p *DummyProvider) StreamContainerLogs(
@@ -545,6 +561,11 @@ func (p *DummyProvider) StreamContainerLogs(
 	p.mu.Lock()
 	p.containerLogs[instanceName+"/"+nodeName] = onLog
 	p.mu.Unlock()
+
+	if p.EmitContainerLogs {
+		onLog.Log(fmt.Sprintf("[dummy] %s: container is starting", nodeName))
+		onLog.Log(fmt.Sprintf("[dummy] %s: container is ready", nodeName))
+	}
 
 	return nil
 }
@@ -591,6 +612,7 @@ func (p *DummyProvider) record(method string, args map[string]any) {
 }
 
 func (p *DummyProvider) deployDefault(
+	ctx context.Context,
 	topologyFile string,
 	instanceName string,
 	onLog LogFunc,
@@ -603,6 +625,14 @@ func (p *DummyProvider) deployDefault(
 
 	onLog.Log(fmt.Sprintf("%s lab %s", verb, instanceName))
 
+	if p.DeployDelay > 0 {
+		select {
+		case <-time.After(p.DeployDelay):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
 	p.mu.Lock()
 	for i := range nodes {
 		nodes[i].State = p.DeployStates
@@ -611,6 +641,19 @@ func (p *DummyProvider) deployDefault(
 	p.mu.Unlock()
 
 	onLog.Log(fmt.Sprintf("%s: %d nodes ready", instanceName, len(nodes)))
+
+	return nil
+}
+
+// transitionAndLog changes a node's state and, with EmitContainerLogs, reports it in the node's log stream.
+func (p *DummyProvider) transitionAndLog(instanceName, nodeName string, state NodeState, action string) error {
+	if err := p.transition(instanceName, nodeName, state); err != nil {
+		return err
+	}
+
+	if p.EmitContainerLogs {
+		p.PushContainerLog(instanceName, nodeName, fmt.Sprintf("[dummy] %s: container %s", nodeName, action))
+	}
 
 	return nil
 }
@@ -738,6 +781,9 @@ type DummyShellSession struct {
 	pending   []byte
 	closed    chan struct{}
 	closeOnce sync.Once
+
+	// prompt is set for echoing sessions (see DummyProvider.EchoShells) and printed after every line.
+	prompt string
 }
 
 func CreateDummyShellSession() *DummyShellSession {
@@ -745,6 +791,15 @@ func CreateDummyShellSession() *DummyShellSession {
 		out:    make(chan []byte, 64),
 		closed: make(chan struct{}),
 	}
+}
+
+// createEchoShellSession creates a session that greets the user with a prompt and echoes input back.
+func createEchoShellSession(nodeName string) *DummyShellSession {
+	session := CreateDummyShellSession()
+	session.prompt = nodeName + ":~$ "
+	session.Push(fmt.Sprintf("Connected to %s (dummy shell, input is echoed)\r\n%s", nodeName, session.prompt))
+
+	return session
 }
 
 // Push makes data readable by whoever is reading the session, as node output would be.
@@ -812,7 +867,30 @@ func (s *DummyShellSession) Write(p []byte) (int, error) {
 	s.written = append(s.written, p...)
 	s.mu.Unlock()
 
+	if s.prompt != "" {
+		s.Push(s.echo(p))
+	}
+
 	return len(p), nil
+}
+
+// echo renders input the way a terminal in cooked mode would: Enter starts a new prompt line and
+// backspace erases the previous character.
+func (s *DummyShellSession) echo(input []byte) string {
+	var output strings.Builder
+
+	for _, b := range input {
+		switch b {
+		case '\r':
+			output.WriteString("\r\n" + s.prompt)
+		case 0x7f:
+			output.WriteString("\b \b")
+		default:
+			output.WriteByte(b)
+		}
+	}
+
+	return output.String()
 }
 
 func (s *DummyShellSession) Close() error {
