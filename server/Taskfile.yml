@@ -116,9 +116,10 @@ tasks:
       - kind delete cluster --name c9s
       - kind create cluster --name c9s
       - >-
-        helm upgrade --install --create-namespace --namespace c9s --version 0.8.0
+        helm upgrade --install --create-namespace --namespace c9s --version 0.9.0
         clabernetes oci://ghcr.io/clabernetes/clabernetes/clabernetes
       - kubectl -n c9s rollout status deployment/clabernetes-manager --timeout=180s
+      - kubectl -n c9s rollout status deployment/clabernetes-planner-pool --timeout=180s
 
   test:
     desc: Fast, cached tests for local iteration

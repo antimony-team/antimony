@@ -9,19 +9,20 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os/exec"
-	"path/filepath"
+	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 	c9sv1alpha1 "github.com/clabernetes/clabernetes/apis/v1alpha1"
-	"github.com/clabernetes/clabernetes/clabverter"
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sclientset "github.com/clabernetes/clabernetes/generated/clientset"
 	"github.com/google/gopacket/afpacket"
 	"github.com/samber/lo"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +34,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport/spdy"
 	k8sexec "k8s.io/client-go/util/exec"
 
 	corev1 "k8s.io/api/core/v1"
@@ -83,71 +86,28 @@ func (p *ClabernetesProvider) Deploy(
 	onLog LogFunc,
 ) error {
 	namespace := namespaceFor(instanceName)
-	manifestDir := filepath.Join(filepath.Dir(topologyFile), "c9s")
 
-	cv := clabverter.MustNewClabverter(
-		topologyFile,
-		"",
-		manifestDir,
-		namespace,
-		"non-prefixed",
-		"",
-		"",
-		"",
-		true,
-		false,
-		false,
-		true,
-		false,
-	)
+	content, err := os.ReadFile(topologyFile)
+	if err != nil {
+		return fmt.Errorf("read topology %s: %w", topologyFile, err)
+	}
 
-	onLog.Log(serverlog.CreateAntimonyLog(
-		serverlog.InfoLevel,
-		"Starting clabvertion of topology",
-		"instance", instanceName,
-	))
-
-	if err := cv.Clabvert(); err != nil {
-		onLog.Log(serverlog.CreateAntimonyLog(
-			serverlog.ErrorLevel,
-			"Clabvertion of topology failed",
-			"instance", instanceName,
-			"err", err.Error(),
-		))
-		return fmt.Errorf("clabvert %s: %w", topologyFile, err)
+	definition, err := stripTopologyLabels(content)
+	if err != nil {
+		return fmt.Errorf("parse topology %s: %w", topologyFile, err)
 	}
 
 	onLog.Log(serverlog.CreateAntimonyLog(
-		serverlog.SuccessLevel,
-		"Clabvertion of topology completed",
-		"instance", instanceName,
-	))
-
-	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
-		"Starting deployment of kubernetes manifest",
+		"Creating clabernetes topology",
 		"instance", instanceName,
 		"namespace", namespace,
 	))
 
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", manifestDir, "-v=6")
-
-	out, err := runCommandSync(cmd, serverlog.FormatKubectlLog(onLog))
-
-	if out != nil {
-		logLines := strings.Split(*out, "\n")
-		for _, line := range logLines {
-			logLine := serverlog.CreateKubeCtlLog(line)
-			if logLine != "" {
-				onLog.Log(logLine)
-			}
-		}
-	}
-
-	if err != nil {
+	if err := p.applyTopology(ctx, namespace, instanceName, definition); err != nil {
 		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
-			"Deployment of kubernetes manifest failed",
+			"Creation of clabernetes topology failed",
 			"instance", instanceName,
 			"namespace", namespace,
 			"err", err.Error(),
@@ -176,7 +136,6 @@ func (p *ClabernetesProvider) Redeploy(
 		return err
 	}
 
-	// Kubectl's Apply is declarative, so we can just apply again
 	return p.Deploy(ctx, topologyFile, instanceName, onLog)
 }
 
@@ -452,12 +411,12 @@ func (p *ClabernetesProvider) Exec(
 	cmd []string,
 ) (string, int, error) {
 	namespace := namespaceFor(instanceName)
-	podName, err := p.podForNode(ctx, namespace, nodeName)
+	pod, err := p.podForNode(ctx, namespace, nodeName)
 	if err != nil {
 		return "", 0, err
 	}
 
-	executor, err := p.createExec(namespace, podName, cmd, false, true)
+	executor, err := p.createExec(namespace, pod, cmd, false)
 	if err != nil {
 		return "", 0, err
 	}
@@ -475,13 +434,19 @@ func (p *ClabernetesProvider) Exec(
 
 	var codeErr k8sexec.CodeExitError
 	if errors.As(err, &codeErr) {
-		if codeErr.Code == nodeNotRunningExitCode {
-			return "", 0, utils.ErrNodeNotRunning
-		}
 		return output, codeErr.Code, nil
+	}
+
+	// Unlike docker exec, the container runtime reports a missing executable as an error instead of
+	// a shell's "command not found" exit code.
+	if err != nil && strings.Contains(err.Error(), "executable file not found") {
+		return output, commandNotFoundExitCode, nil
 	}
 	return output, 0, err
 }
+
+// commandNotFoundExitCode is the exit code a shell returns for an unknown command.
+const commandNotFoundExitCode = 127
 
 func (p *ClabernetesProvider) ExecInteractive(
 	ctx context.Context,
@@ -490,12 +455,12 @@ func (p *ClabernetesProvider) ExecInteractive(
 	cmd []string,
 ) (ShellExecSession, error) {
 	namespace := namespaceFor(instanceName)
-	podName, err := p.podForNode(ctx, namespace, nodeName)
+	pod, err := p.podForNode(ctx, namespace, nodeName)
 	if err != nil {
 		return nil, err
 	}
 
-	executor, err := p.createExec(namespace, podName, cmd, true, true)
+	executor, err := p.createExec(namespace, pod, cmd, true)
 	if err != nil {
 		return nil, err
 	}
@@ -521,11 +486,7 @@ func (p *ClabernetesProvider) ExecInteractive(
 
 		var codeErr k8sexec.CodeExitError
 		if errors.As(err, &codeErr) {
-			if codeErr.Code == nodeNotRunningExitCode {
-				err = utils.ErrNodeNotRunning
-			} else {
-				err = nil // shell exited on its own; that's a clean EOF
-			}
+			err = nil // shell exited on its own; that's a clean EOF
 		}
 
 		_ = stdoutW.CloseWithError(err)
@@ -534,17 +495,8 @@ func (p *ClabernetesProvider) ExecInteractive(
 	return session, nil
 }
 
-// nodeTunnelTemplate runs in the launcher: it connects to the device's
-// management IP and relays stdin/stdout to the socket.
-const nodeTunnelTemplate = `
-ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker ps -q | head -n1)")
-if [ -z "$ip" ]; then echo 'node container is not running' >&2; exit %d; fi
-exec 3<>"/dev/tcp/$ip/%d" || exit 1
-cat <&3 &
-cat >&3
-kill $! 2>/dev/null
-`
-
+// DialNode opens a TCP connection to port on the node through a pods/portforward stream.
+// The device container shares the pod's network namespace, so the port is the device's own.
 func (p *ClabernetesProvider) DialNode(
 	ctx context.Context,
 	instanceName string,
@@ -552,41 +504,75 @@ func (p *ClabernetesProvider) DialNode(
 	port int,
 ) (net.Conn, error) {
 	namespace := namespaceFor(instanceName)
-	podName, err := p.podForNode(ctx, namespace, nodeName)
+	pod, err := p.podForNode(ctx, namespace, nodeName)
 	if err != nil {
 		return nil, err
 	}
 
-	script := fmt.Sprintf(nodeTunnelTemplate, nodeNotRunningExitCode, port)
+	transport, upgrader, err := spdy.RoundTripperFor(p.restConfig)
+	if err != nil {
+		return nil, err
+	}
 
-	// This will run inside the launcher and not the node container itself, so we can't use createExec.
 	req := p.clientset.CoreV1().RESTClient().
 		Post().
 		Resource("pods").
 		Namespace(namespace).
-		Name(podName).
-		SubResource("exec").
-		VersionedParams(&corev1.PodExecOptions{
-			Command: []string{"bash", "-c", script},
-			Stdin:   true,
-			Stdout:  true,
-			Stderr:  true,
-		}, scheme.ParameterCodec)
+		Name(pod.Name).
+		SubResource("portforward")
 
-	executor, err := remotecommand.NewSPDYExecutor(p.restConfig, "POST", req.URL())
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, "POST", req.URL())
+	streamConn, _, err := dialer.Dial(portforward.PortForwardProtocolV1Name)
 	if err != nil {
+		return nil, fmt.Errorf("port-forward to %s/%s: %w", namespace, pod.Name, err)
+	}
+
+	headers := http.Header{}
+	headers.Set(corev1.StreamType, corev1.StreamTypeError)
+	headers.Set(corev1.PortHeader, strconv.Itoa(port))
+	headers.Set(corev1.PortForwardRequestIDHeader, "0")
+
+	errorStream, err := streamConn.CreateStream(headers)
+	if err != nil {
+		_ = streamConn.Close()
+		return nil, err
+	}
+	// The error stream is read-only for the client
+	_ = errorStream.Close()
+
+	headers.Set(corev1.StreamType, corev1.StreamTypeData)
+	dataStream, err := streamConn.CreateStream(headers)
+	if err != nil {
+		_ = streamConn.Close()
 		return nil, err
 	}
 
 	local, remote := net.Pipe()
+	closeAll := sync.OnceFunc(func() {
+		_ = remote.Close()
+		_ = streamConn.Close()
+	})
 
 	go func() {
-		_ = executor.StreamWithContext(ctx, remotecommand.StreamOptions{
-			Stdin:  remote,
-			Stdout: remote,
-			Stderr: io.Discard,
-		})
-		_ = remote.Close()
+		defer closeAll()
+		_, _ = io.Copy(remote, dataStream)
+	}()
+	go func() {
+		defer closeAll()
+		_, _ = io.Copy(dataStream, remote)
+	}()
+	go func() {
+		// The kubelet reports failures such as a refused connection on the error stream
+		if msg, _ := io.ReadAll(errorStream); len(msg) > 0 {
+			closeAll()
+		}
+	}()
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-streamConn.CloseChan():
+		}
+		closeAll()
 	}()
 
 	return local, nil
@@ -611,7 +597,7 @@ func (p *ClabernetesProvider) StartNode(
 	nodeName string,
 ) error {
 	namespace := namespaceFor(instanceName)
-	if err := p.setDisableDeployments(ctx, namespace, nodeName, false); err != nil {
+	if err := p.setIgnoreReconcile(ctx, namespace, nodeName, false); err != nil {
 		return err
 	}
 	return p.scaleNode(ctx, namespace, nodeName, 1)
@@ -623,7 +609,7 @@ func (p *ClabernetesProvider) StopNode(
 	nodeName string,
 ) error {
 	namespace := namespaceFor(instanceName)
-	if err := p.setDisableDeployments(ctx, namespace, nodeName, true); err != nil {
+	if err := p.setIgnoreReconcile(ctx, namespace, nodeName, true); err != nil {
 		return err
 	}
 	return p.scaleNode(ctx, namespace, nodeName, 0)
@@ -735,10 +721,11 @@ func (p *ClabernetesProvider) StreamContainerLogs(
 	onLog LogFunc,
 ) error {
 	namespace := namespaceFor(instanceName)
-	podName, err := p.podForNode(ctx, namespace, nodeName)
+	pod, err := p.podForNode(ctx, namespace, nodeName)
 	if err != nil {
 		return err
 	}
+	podName := pod.Name
 
 	// The launcher forwards the node container's output to its own stdout, so the pod log is the node log.
 	// Kubernetes prepends an RFC 3339 timestamp per line.
@@ -826,27 +813,20 @@ func (p *ClabernetesProvider) startExecStream(
 	w io.Writer,
 ) error {
 	namespace := namespaceFor(instanceName)
-	podName, err := p.podForNode(ctx, namespace, nodeName)
+	pod, err := p.podForNode(ctx, namespace, nodeName)
 	if err != nil {
 		return err
 	}
 
-	executor, err := p.createExec(namespace, podName, cmd, false, true)
+	executor, err := p.createExec(namespace, pod, cmd, false)
 	if err != nil {
 		return err
 	}
 
-	err = executor.StreamWithContext(ctx, remotecommand.StreamOptions{
+	return executor.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: w,
 		Stderr: io.Discard,
 	})
-
-	var codeErr k8sexec.CodeExitError
-	if errors.As(err, &codeErr) && codeErr.Code == nodeNotRunningExitCode {
-		return utils.ErrNodeNotRunning
-	}
-
-	return err
 }
 
 // waitForTopologyReady is used by the Deploy function to wait until all nodes in a lab are deployed and ready.
@@ -918,86 +898,70 @@ func (p *ClabernetesProvider) waitForNamespaceGone(
 	)
 }
 
-// createExec prepares a pods/exec request for cmd inside the node container.
+// createExec prepares a pods/exec request for cmd inside the node's device container.
 func (p *ClabernetesProvider) createExec(
 	namespace string,
-	podName string,
+	pod *corev1.Pod,
 	cmd []string,
 	tty bool,
-	wrapCmd bool,
 ) (remotecommand.Executor, error) {
-	if wrapCmd {
-		cmd = wrapNodeCommand(cmd, tty)
-	}
-
 	req := p.clientset.CoreV1().RESTClient().
 		Post().
 		Resource("pods").
 		Namespace(namespace).
-		Name(podName).
+		Name(pod.Name).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
-			Command: cmd,
-			Stdin:   tty,
-			Stdout:  true,
-			Stderr:  !tty, // merged into stdout when a TTY is allocated
-			TTY:     tty,
+			Container: deviceContainer(pod),
+			Command:   cmd,
+			Stdin:     tty,
+			Stdout:    true,
+			Stderr:    !tty, // merged into stdout when a TTY is allocated
+			TTY:       tty,
 		}, scheme.ParameterCodec)
 
 	return remotecommand.NewSPDYExecutor(p.restConfig, "POST", req.URL())
 }
 
-// podForNode returns the name of the pod currently backing a node. It returns ErrNodeNotRunning when the node has no
-// live pod: stopped, or started but not created yet.
-func (p *ClabernetesProvider) podForNode(ctx context.Context, namespace, nodeName string) (string, error) {
+// podForNode returns the pod currently backing a node. It returns ErrNodeNotRunning when the node has no
+// pod with a running device container: stopped, started but not created yet, or the device is restarting.
+func (p *ClabernetesProvider) podForNode(ctx context.Context, namespace, nodeName string) (*corev1.Pod, error) {
 	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + nodeName,
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for i := range pods.Items {
-		if pods.Items[i].DeletionTimestamp == nil && pods.Items[i].Status.Phase == corev1.PodRunning {
-			return pods.Items[i].Name, nil
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+
+		container := deviceContainer(pod)
+		for _, status := range pod.Status.ContainerStatuses {
+			if status.Name == container && status.State.Running != nil {
+				return pod, nil
+			}
 		}
 	}
-	return "", utils.ErrNodeNotRunning
+	return nil, utils.ErrNodeNotRunning
 }
 
-// nodeNotRunningExitCode is the exit code wrapNodeCommand's wrapper uses to
-// signal that the launcher has no running device container. It is mapped to
-// ErrNodeNotRunning by translateExecError and never leaves this provider.
-const nodeNotRunningExitCode = 200
+// defaultContainerAnnotation names the container kubectl targets by default. c9s sets it to the device container.
+const defaultContainerAnnotation = "kubectl.kubernetes.io/default-container"
 
-// nodeCommandTemplate runs inside the launcher. %[1]d is the not-running exit
-// code, %[2]s the docker exec flags, %[3]s the quoted command.
-const nodeCommandTemplate = `
-c=$(docker ps -q | head -n1)
-if [ -z "$c" ]; then
-  echo 'node container is not running' >&2
-  exit %[1]d
-fi
-exec docker exec %[2]s "$c" %[3]s
-`
-
-// wrapNodeCommand wraps cmd so it runs inside the device container rather than in
-// the clabernetes launcher that pods/exec lands in. The launcher runs exactly
-// one docker container: the node itself.
-// The command returns the nodeNotRunningExitCode error code if the node is not running yet.
-func wrapNodeCommand(cmd []string, tty bool) []string {
-	quoted := make([]string, len(cmd))
-	for i, arg := range cmd {
-		quoted[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+// deviceContainer returns the name of the device container in a node pod. Besides the device, the pod runs c9s's
+// own init and sidecar containers, and chassis or grouped nodes run more than one device container.
+func deviceContainer(pod *corev1.Pod) string {
+	if name := pod.Annotations[defaultContainerAnnotation]; name != "" {
+		return name
 	}
-
-	flags := ""
-	if tty {
-		flags = "-it "
+	if len(pod.Spec.Containers) > 0 {
+		return pod.Spec.Containers[0].Name
 	}
-
-	script := fmt.Sprintf(nodeCommandTemplate, nodeNotRunningExitCode, flags, strings.Join(quoted, " "))
-	return []string{"sh", "-c", script}
+	return ""
 }
 
 // conditionSummary flattens the False conditions into one line for an error.
@@ -1033,14 +997,82 @@ func namespaceFor(topologyName string) string {
 	return "c9s-" + topologyName
 }
 
-// setDisableDeployments toggles the label that tells the manager to leave
-// this node's deployment alone, so a scale-down isn't reverted.
-func (p *ClabernetesProvider) setDisableDeployments(ctx context.Context, ns, node string, disabled bool) error {
+// stripTopologyLabels removes all containerlab labels from a topology definition. Clabernetes turns them into
+// Kubernetes labels and rejects the whole topology if a value isn't a valid label value (e.g. a negative graph
+// position). They only carry Antimony's UI metadata, which nothing reads from the cluster.
+func stripTopologyLabels(content []byte) (string, error) {
+	var definition map[string]any
+	if err := yaml.Unmarshal(content, &definition); err != nil {
+		return "", err
+	}
+
+	if topology, ok := definition["topology"].(map[string]any); ok {
+		if defaults, ok := topology["defaults"].(map[string]any); ok {
+			delete(defaults, "labels")
+		}
+		for _, section := range []string{"kinds", "groups", "nodes"} {
+			entries, _ := topology[section].(map[string]any)
+			for _, entry := range entries {
+				if fields, ok := entry.(map[string]any); ok {
+					delete(fields, "labels")
+				}
+			}
+		}
+	}
+
+	out, err := yaml.Marshal(definition)
+	return string(out), err
+}
+
+// applyTopology creates the namespace and the clabernetes Topology for a lab, or updates the Topology's
+// definition if it already exists.
+func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, instanceName, definition string) error {
+	_, err := p.clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+			// Device pods run privileged containers
+			Labels: map[string]string{"pod-security.kubernetes.io/enforce": "privileged"},
+		},
+	}, metav1.CreateOptions{})
+
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("create namespace %s: %w", namespace, err)
+	}
+
+	spec := c9sv1alpha1.TopologySpec{
+		Definition: c9sv1alpha1.Definition{Containerlab: definition},
+		Expose:     c9sv1alpha1.Expose{ExposeType: "None"},
+	}
+
+	topologies := p.c9s.C9sV1alpha1().Topologies(namespace)
+	_, err = topologies.Create(ctx, &c9sv1alpha1.Topology{
+		ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+		Spec:       spec,
+	}, metav1.CreateOptions{})
+
+	if !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	existing, err := topologies.Get(ctx, instanceName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	existing.Spec = spec
+	_, err = topologies.Update(ctx, existing, metav1.UpdateOptions{})
+
+	return err
+}
+
+// setIgnoreReconcile toggles the label that tells the manager to skip reconciling
+// this node, so a scale-down of its deployment isn't reverted.
+func (p *ClabernetesProvider) setIgnoreReconcile(ctx context.Context, ns, node string, ignored bool) error {
 	value := "null" // JSON null removes the label in a merge patch
-	if disabled {
+	if ignored {
 		value = `"true"`
 	}
-	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%s}}}`, clabernetesconstants.LabelDisableDeployments, value)
+	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%s}}}`, clabernetesconstants.LabelIgnoreReconcile, value)
 	_, err := p.c9s.C9sV1alpha1().Nodes(ns).Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return err
 }
