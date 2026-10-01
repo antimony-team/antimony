@@ -83,25 +83,6 @@ const LogDialog = observer((props: LogDialogProps) => {
     ));
   }, [formatted]);
 
-  const logSourceName = useMemo(() => {
-    if (
-      !props.dialogState.state ||
-      !props.dialogState.state.lab.instance?.nodes
-    ) {
-      return '';
-    }
-
-    if (props.dialogState.state.source === ANTIMONY_LOG) {
-      return 'Antimony';
-    } else {
-      return (
-        props.dialogState.state.lab.instance.nodes.find(
-          node => node.containerId === props.dialogState.state!.source,
-        )?.name ?? 'Unknown'
-      );
-    }
-  }, [props.dialogState.state?.source]);
-
   useEffect(() => {
     if (!containerRef.current) return;
 

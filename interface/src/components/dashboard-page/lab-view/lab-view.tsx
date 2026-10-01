@@ -237,7 +237,7 @@ const LabView = observer((props: LabDialogProps) => {
     });
   }
 
-  function openWebSsh(nodeId: string | null) {
+  function openWebSsh() {
     // if (
     //   !nodeId ||
     //   !props.lab?.instance ||
@@ -433,19 +433,16 @@ const LabView = observer((props: LabDialogProps) => {
           'underlay-padding': 0,
           'underlay-opacity': READY_UNDERLAY['underlay-opacity'],
         });
-        cyNode
-          .animation({
-            style: {'underlay-padding': READY_UNDERLAY['underlay-padding']},
-            duration: 350,
-            easing: 'ease-out',
-          })
-          .play()
-          .promise('completed')
-          .then(() =>
+        void cyNode.animate({
+          style: {'underlay-padding': READY_UNDERLAY['underlay-padding']},
+          duration: 350,
+          easing: 'ease-out',
+          queue: false,
+          complete: () =>
             cyNode.removeStyle(
               'underlay-color underlay-padding underlay-opacity',
             ),
-          );
+        });
       }, pulseRemainingRef.current(cyNode));
       return;
     }
@@ -596,7 +593,7 @@ const LabView = observer((props: LabDialogProps) => {
 
   function canDestroylab() {
     return (
-      props.lab?.instance &&
+      Boolean(props.lab?.instance) &&
       (props.lab!.state === InstanceState.Running ||
         props.lab!.state === InstanceState.Deploying)
     );

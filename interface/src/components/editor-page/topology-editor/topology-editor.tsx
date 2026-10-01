@@ -50,7 +50,8 @@ interface TopologyEditorProps {
 }
 
 const TopologyEditor = observer((props: TopologyEditorProps) => {
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [, setValidationError] = useState<string | null>(null);
+  // const [validationError, setValidationError] = useState<string | null>(null);
   const [validationState, setValidationState] = useState<ValidationState>(
     ValidationState.Done,
   );
