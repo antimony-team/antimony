@@ -19,15 +19,35 @@ tasks:
     cmds:
       - golangci-lint fmt -c ../.golangci.yml
 
-  build:
+  swag:
+    desc: Regenerate the Swagger API docs
     dir: './src'
     cmds:
       - go tool swag init
+
+  swag-check:
+    desc: Fails if the committed Swagger docs are out of date
+    dir: './src'
+    cmds:
+      - task: swag
+      - cmd: |
+          if [ -n "$(git status --porcelain -- docs)" ]; then
+            echo "Swagger docs are out of date. Run 'task swag' and commit the result:"
+            git status --porcelain -- docs
+            git --no-pager diff --stat -- docs
+            exit 1
+          fi
+          echo "Swagger docs are up to date."
+
+  build:
+    dir: './src'
+    cmds:
+      - task: swag
       - go build -o ../build/antimony-server ./main.go
       - cp -r ../data/ ../build/
-      - cp -r ../test/config.test.yml ../build/config.yml
-      - cp -r ../test/config-c9s.test.yml ../build/config-c9s.yml
-      - cp -r ../test/kinds.conf.yml ../build/kinds.conf.yml
+      - cp ../test/config.test.yml ../build/config.yml
+      - cp ../test/config-c9s.test.yml ../build/config-c9s.yml
+      - cp ../test/kinds.conf.yml ../build/kinds.conf.yml
 
   run:
     dir: './build'
@@ -35,11 +55,12 @@ tasks:
       - task: build
       - sudo -E SB_JWT_SECRET=testing ./antimony-server -config=./config.yml
     env:
-      SB_LOG_LEVEL: debug
+      # Secret of the test OIDC provider that ships with the repo, not a real credential
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
       SB_NATIVE_USERNAME: admin
       SB_NATIVE_PASSWORD: admin
+      SB_LOG_LEVEL: debug
 
   run-c9s:
     dir: './build'
@@ -47,12 +68,12 @@ tasks:
       - task: build
       - SB_JWT_SECRET=testing ./antimony-server -config=./config-c9s.yml
     env:
-      SB_LOG_LEVEL: debug
+      # Secret of the test OIDC provider that ships with the repo, not a real credential
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
       SB_DATABASE_PASSWORD: password123
       SB_NATIVE_USERNAME: admin
       SB_NATIVE_PASSWORD: admin
-
+      SB_LOG_LEVEL: debug
 
   build-docker:
     cmds:
@@ -100,17 +121,18 @@ tasks:
       - kubectl -n c9s rollout status deployment/clabernetes-manager --timeout=180s
 
   test:
+    desc: Fast, cached tests for local iteration
     dir: './src'
     cmds:
-      - go test -v -shuffle=on ./...
+      - go test ./...
 
   test-race:
-    desc: Runs all tests with race detector
+    desc: Full tests with race detector and shuffled order
     dir: './src'
     env:
       CGO_ENABLED: '1'
     cmds:
-      - go test -v -race -shuffle=on ./...
+      - go test -race -shuffle=on ./...
 
   test-coverage:
     dir: './src'
