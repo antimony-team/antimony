@@ -6,6 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	socketio "github.com/zishang520/socket.io/servers/socket/v3"
+	siotypes "github.com/zishang520/socket.io/v3/pkg/types"
 )
 
 // Manager is a wrapper around the socket.io objects and also manages all authenticated users.
@@ -18,7 +19,14 @@ type Manager struct {
 }
 
 func CreateManager(authManager *auth.Manager) *Manager {
-	server := socketio.NewServer(nil, nil)
+	// Accept websocket upgrades from any origin. Without a CORS origin, the websocket library only accepts upgrades
+	// whose Origin matches the Host header, which rejects the interface whenever it is served through a proxy
+	// (e.g., the Vite dev server). This is safe because authenticated namespaces require the access token in the
+	// handshake payload, not a cookie.
+	opts := socketio.DefaultServerOptions()
+	opts.SetCors(&siotypes.Cors{Origin: true})
+
+	server := socketio.NewServer(nil, opts)
 
 	manager := &Manager{
 		server:      server,

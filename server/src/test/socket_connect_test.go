@@ -1,9 +1,11 @@
 package test
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -96,6 +98,22 @@ func TestSocketConnect_TokenSignedWithTheWrongSecretIsRejected(t *testing.T) {
 	_, err := h.TryDial("/cmd", token)
 
 	require.Error(t, err)
+}
+
+func TestSocketConnect_UpgradesFromAnotherOriginAreAccepted(t *testing.T) {
+	h := NewHarness(t)
+
+	// Browsers send an Origin header, and the interface is often served from a different origin than
+	// the API, e.g. by the Vite dev server proxying to the backend. The Go client sends no Origin at
+	// all, so without this test a check that ties the upgrade to the Host header goes unnoticed.
+	url := "ws" + strings.TrimPrefix(h.Server.URL, "http") + "/socket.io/?EIO=4&transport=websocket"
+	conn, response, err := websocket.DefaultDialer.Dial(url, http.Header{"Origin": {"http://localhost:8080"}})
+	if response != nil {
+		defer response.Body.Close()
+	}
+
+	require.NoError(t, err, "the websocket upgrade must not depend on the Origin header")
+	defer conn.Close()
 }
 
 func TestSocketConnect_RejectionReasonsAreWhatTheInterfaceExpects(t *testing.T) {
