@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/clabernetes/clabernetes v0.9.0
+	github.com/containerd/errdefs v1.0.0
 	github.com/coreos/go-oidc v2.3.0+incompatible
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/gin-gonic/gin v1.10.0
@@ -57,7 +58,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

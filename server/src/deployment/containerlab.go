@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/stdcopy"
 	afpacket "github.com/google/gopacket/afpacket"
 	"github.com/samber/lo"
@@ -264,13 +264,17 @@ func (p *ContainerlabProvider) DialNode(
 	if err != nil {
 		return nil, err
 	}
-	ip := insp.NetworkSettings.IPAddress
+	var ip string
 	for _, n := range insp.NetworkSettings.Networks {
 		if n.IPAddress != "" {
 			ip = n.IPAddress
 			break
 		}
 	}
+	if ip == "" {
+		return nil, utils.ErrNodeNotRunning
+	}
+
 	var d net.Dialer
 	return d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", ip, port))
 }
@@ -474,7 +478,7 @@ func (p *ContainerlabProvider) createExec(
 		Tty:          tty,
 	})
 
-	if errdefs.IsConflict(err) {
+	if cerrdefs.IsConflict(err) {
 		return "", utils.ErrNodeNotRunning
 	}
 
