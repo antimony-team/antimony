@@ -560,11 +560,14 @@ func (p *DummyProvider) GetNetworkInterfaces(
 		return p.InterfacesFn(instanceName, nodeName)
 	}
 
+	// The node is shared with SetNodeState and the node commands, so its state has to be read while
+	// the lock is still held.
 	p.mu.Lock()
 	node := p.nodeLocked(instanceName, nodeName)
+	isRunning := node != nil && node.State == NodeStates.Running
 	p.mu.Unlock()
 
-	if node == nil || node.State != NodeStates.Running {
+	if !isRunning {
 		return nil, utils.ErrNodeNotRunning
 	}
 
