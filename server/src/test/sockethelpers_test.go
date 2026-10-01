@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	clienttransports "github.com/zishang520/engine.io-client-go/transports"
-	enginetypes "github.com/zishang520/engine.io/v2/types"
-	clientsocket "github.com/zishang520/socket.io-client-go/socket"
+	clienttransports "github.com/zishang520/socket.io/clients/engine/v3/transports"
+	clientsocket "github.com/zishang520/socket.io/clients/socket/v3"
+	siotypes "github.com/zishang520/socket.io/v3/pkg/types"
 )
 
 const (
@@ -124,7 +125,7 @@ func (h *Harness) tryDial(namespace string, authPayload map[string]any) (*Socket
 	// WebSocket only, rather than the default polling-then-upgrade. The upgrade dance adds a
 	// long-poll request per connection, and under the load of the whole suite those occasionally
 	// fail to hand over, which silently wedges an otherwise healthy connection.
-	opts.SetTransports(enginetypes.NewSet(clienttransports.WebSocket))
+	opts.SetTransports(siotypes.NewSet(clienttransports.WebSocket))
 	opts.SetForceNew(true)
 
 	// Reconnection keeps an established connection alive across a transport hiccup. It does not
@@ -210,6 +211,57 @@ func (h *Harness) tryDial(namespace string, authPayload map[string]any) (*Socket
 	case <-time.After(socketTimeout):
 		client.Close()
 		return nil, fmt.Errorf("%w: timed out connecting to %q", errSocketConnect, namespace)
+	}
+}
+
+// RawConnectError performs the socket.io namespace handshake over a bare websocket and returns the
+// reason the server gives for refusing the connection, or "" when it accepts it.
+//
+// The Go client cannot observe the reason: its parser rejects the server's connect_error packet
+// because the packet's `data` field is null. The browser client accepts it, and data-binder.ts in
+// the interface branches on the exact text, so the reason is read straight off the wire here.
+func (h *Harness) RawConnectError(namespace string, authPayload map[string]any) string {
+	h.T.Helper()
+
+	url := "ws" + strings.TrimPrefix(h.Server.URL, "http") + "/socket.io/?EIO=4&transport=websocket"
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	require.NoError(h.T, err)
+	defer conn.Close()
+
+	require.NoError(h.T, conn.SetReadDeadline(time.Now().Add(socketTimeout)))
+
+	_, open, err := conn.ReadMessage()
+	require.NoError(h.T, err)
+	require.Truef(h.T, strings.HasPrefix(string(open), "0"), "expected an engine.io open packet, got %q", open)
+
+	// "4" is an engine.io message, "0" a socket.io CONNECT for the namespace, followed by the auth
+	// payload the browser client sends from its `auth` option.
+	connect := "40" + namespace + ","
+	if authPayload != nil {
+		encoded, err := json.Marshal(authPayload)
+		require.NoError(h.T, err)
+		connect += string(encoded)
+	}
+	require.NoError(h.T, conn.WriteMessage(websocket.TextMessage, []byte(connect)))
+
+	accepted := "40" + namespace + ","
+	refused := "44" + namespace + ","
+
+	for {
+		_, msg, err := conn.ReadMessage()
+		require.NoError(h.T, err)
+
+		switch packet := string(msg); {
+		case strings.HasPrefix(packet, accepted):
+			return ""
+		case strings.HasPrefix(packet, refused):
+			var connectError struct {
+				Message string `json:"message"`
+			}
+			require.NoError(h.T, json.Unmarshal([]byte(strings.TrimPrefix(packet, refused)), &connectError))
+
+			return connectError.Message
+		}
 	}
 }
 

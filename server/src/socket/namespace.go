@@ -12,7 +12,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
-	socketio "github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 )
 
 // IONamespace is a bidirectional namespace where the server and the client both can send data.
@@ -48,7 +48,7 @@ type namespace[I any, O any] struct {
 	backlogMutex sync.Mutex
 
 	sioNamespaceName string
-	sioNamespace     socketio.NamespaceInterface
+	sioNamespace     socketio.Namespace
 }
 
 type dataInputHandler[I any] func(
@@ -298,7 +298,7 @@ func (m *namespace[I, O]) handleConnection(clients ...any) {
 	}
 
 	var authUser *auth.AuthenticatedUser
-	if accessToken, ok := client.Handshake().Auth.(map[string]any)["token"].(string); !ok {
+	if accessToken, ok := client.Handshake().Auth["token"].(string); !ok {
 		return
 	} else if authUser = m.socketManager.GetAuthUser(accessToken); authUser == nil {
 		// This is just for consistency, as non-authenticated users should never make it past the middleware

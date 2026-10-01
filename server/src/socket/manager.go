@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/samber/lo"
-	socketio "github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 )
 
 // Manager is a wrapper around the socket.io objects and also manages all authenticated users.
@@ -88,12 +88,7 @@ func (m *Manager) SocketAuthenticatorMiddleware(
 }
 
 func (m *Manager) parseHandshake(handshake *socketio.Handshake) *string {
-	authMap, ok := handshake.Auth.(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	accessToken, ok := authMap["token"].(string)
+	accessToken, ok := handshake.Auth["token"].(string)
 	if !ok {
 		return nil
 	}

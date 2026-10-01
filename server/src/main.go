@@ -40,7 +40,7 @@ import (
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	socketio "github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

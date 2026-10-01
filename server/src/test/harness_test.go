@@ -36,7 +36,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
-	socketio "github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 

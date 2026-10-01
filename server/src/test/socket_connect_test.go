@@ -20,9 +20,8 @@ import (
  * observe *that* a connection was refused but not *why*. The reason is only reachable from a client
  * that tolerates the nil data field, which the browser client does.
  *
- * The distinction between the rejection reasons is still covered: the middleware delegates to
- * auth.Manager.AuthenticateUser, and the HTTP tests in api_auth_test.go pin every one of its
- * outcomes (401 for a missing credential, 498 for an invalid one).
+ * The reasons themselves are pinned by TestSocketConnect_RejectionReasonsAreWhatTheInterfaceExpects,
+ * which reads them off the wire with Harness.RawConnectError.
  */
 
 func TestSocketConnect_ValidTokenIsAccepted(t *testing.T) {
@@ -97,6 +96,32 @@ func TestSocketConnect_TokenSignedWithTheWrongSecretIsRejected(t *testing.T) {
 	_, err := h.TryDial("/cmd", token)
 
 	require.Error(t, err)
+}
+
+func TestSocketConnect_RejectionReasonsAreWhatTheInterfaceExpects(t *testing.T) {
+	h := NewHarness(t)
+
+	// data-binder.ts in the interface matches these texts exactly: "Invalid Token" makes it refresh
+	// the access token and reconnect, "Invalid namespace" makes it retry later. Changing them breaks
+	// the client without failing any other test.
+	cases := []struct {
+		name      string
+		namespace string
+		auth      map[string]any
+		reason    string
+	}{
+		{"a valid token is accepted", "/cmd", map[string]any{"token": h.Seed.Admin.Token}, ""},
+		{"no auth payload", "/cmd", nil, "Unauthorized"},
+		{"an auth payload without a token", "/cmd", map[string]any{"somethingElse": "value"}, "Unauthorized"},
+		{"an invalid token", "/cmd", map[string]any{"token": "this-is-not-a-jwt"}, "Invalid Token"},
+		{"an unknown namespace", "/not-a-namespace", map[string]any{"token": h.Seed.Admin.Token}, "Invalid namespace"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.reason, h.RawConnectError(c.namespace, c.auth))
+		})
+	}
 }
 
 func TestSocketConnect_EveryProductionNamespaceRequiresAuthentication(t *testing.T) {
