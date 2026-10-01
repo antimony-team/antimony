@@ -1,6 +1,7 @@
 package user
 
 import (
+	"antimonyBackend/auth"
 	"antimonyBackend/domain/user"
 	"antimonyBackend/utils"
 	"net/http"
@@ -118,4 +119,38 @@ func (h *Handler) RefreshToken(ctx *gin.Context) {
 	ctx.SetCookie("accessToken", accessToken, 0, "/", "", false, false)
 
 	ctx.JSON(utils.CreateOkResponse(accessToken))
+}
+
+// @Summary	Create a non-admin native user (development mode only)
+// @Accept		json
+// @Produce	json
+// @Tags		users
+// @Security	BasicAuth
+// @Success	200		{object}	utils.OkResponse[string]	"The ID of the newly created user"
+// @Failure	400		{object}	utils.ErrorResponse			"The credentials were empty or the username is taken"
+// @Failure	401		{object}	nil							"The user isn't authorized"
+// @Failure	403		{object}	utils.ErrorResponse			"The user is not an admin"
+// @Failure	498		{object}	nil							"The provided access token is not valid"
+// @Param		request	body		user.NativeUserIn			true	"The user"
+// @Router		/users [post]
+func (h *Handler) CreateNativeUser(ctx *gin.Context) {
+	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
+	if !ok {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		return
+	}
+
+	payload := user.NativeUserIn{}
+	if err := ctx.Bind(&payload); err != nil {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrInvalidCredentials))
+		return
+	}
+
+	userId, err := h.service.CreateNativeUser(ctx.Request.Context(), payload, authUser)
+	if err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.CreateOkResponse(userId))
 }

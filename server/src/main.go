@@ -60,10 +60,14 @@ func main() {
 	// Load environment variables from .env file if present
 	_ = godotenv.Load()
 
+	log.SetTimeFormat("[2006-01-02 15:04:05]")
+
 	cmdArgs := utils.ParseArguments()
 	isDevMode := *cmdArgs.DevelopmentMode
 
-	log.SetTimeFormat("[2006-01-02 15:04:05]")
+	if isDevMode {
+		log.Warn("Antimony is starting Development mode. Do not use in production.")
+	}
 
 	if lvl, err := log.ParseLevel(os.Getenv("SB_LOG_LEVEL")); err == nil {
 		log.Info("Starting with custom log level", "level", lvl.String())
@@ -179,6 +183,7 @@ func main() {
 		topologyService,
 		collectionService,
 		serverConfigService,
+		isDevMode,
 	)
 
 	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
@@ -206,6 +211,7 @@ func createWebServer(
 	topologyService *topology.Service,
 	collectionService *collection.Service,
 	serverConfigService *serverconfig.Service,
+	isDevMode bool,
 ) *gin.Engine {
 	var (
 		labHandler          = labtransport.CreateHandler(labService, instanceService)
@@ -222,6 +228,10 @@ func createWebServer(
 
 	// Register public HTTP endpoints
 	usertransport.RegisterRoutes(webServer, userHandler)
+
+	if isDevMode {
+		usertransport.RegisterDevRoutes(webServer, userHandler, authManager)
+	}
 	schematransport.RegisterRoutes(webServer, schemaHandler)
 
 	// Register authenticated HTTP endpoints

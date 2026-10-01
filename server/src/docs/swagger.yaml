@@ -303,6 +303,20 @@ definitions:
       username:
         type: string
     type: object
+  user.NativeUserIn:
+    properties:
+      collections:
+        items:
+          type: string
+        type: array
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
   utils.ErrorResponse:
     properties:
       code:
@@ -947,6 +961,41 @@ paths:
       summary: Update an existing bind file of a topology
       tags:
       - bindFiles
+  /users:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The user
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.NativeUserIn'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The ID of the newly created user
+          schema:
+            $ref: '#/definitions/utils.OkResponse-string'
+        "400":
+          description: The credentials were empty or the username is taken
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: The user is not an admin
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Create a non-admin native user (development mode only)
+      tags:
+      - users
   /users/login/config:
     get:
       consumes:

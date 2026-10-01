@@ -122,6 +122,7 @@ type harnessOptions struct {
 
 	seed          bool
 	withScheduler bool
+	devMode       bool
 
 	configureProvider func(*deployment.DummyProvider)
 }
@@ -192,6 +193,11 @@ func WithKindsConfig(contents string) HarnessOption {
 // WithDeploymentProvider sets the provider name reported by /server-config.
 func WithDeploymentProvider(provider config.DeploymentProvider) HarnessOption {
 	return func(o *harnessOptions) { o.deploymentProvider = provider }
+}
+
+// WithDevMode registers the development-only endpoints, as main.go does when started with -dev.
+func WithDevMode() HarnessOption {
+	return func(o *harnessOptions) { o.devMode = true }
 }
 
 // WithCaptureEnabled sets the capture flag reported by /server-config.
@@ -403,7 +409,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	// Mirrors main.go: the revive pass runs only once every event bus subscriber is in place.
 	h.InstanceService.Revive()
 
-	h.Engine = h.buildEngine()
+	h.Engine = h.buildEngine(opts.devMode)
 	h.Server = httptest.NewServer(h.Engine)
 
 	t.Cleanup(h.Server.Close)
@@ -412,7 +418,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	return h
 }
 
-func (h *Harness) buildEngine() *gin.Engine {
+func (h *Harness) buildEngine(devMode bool) *gin.Engine {
 	var (
 		labHandler          = labtransport.CreateHandler(h.LabService, h.InstanceService)
 		userHandler         = usertransport.CreateHandler(h.UserService)
@@ -430,6 +436,9 @@ func (h *Harness) buildEngine() *gin.Engine {
 	engine.Use(gin.Recovery())
 
 	usertransport.RegisterRoutes(engine, userHandler)
+	if devMode {
+		usertransport.RegisterDevRoutes(engine, userHandler, h.Auth)
+	}
 	schematransport.RegisterRoutes(engine, schemaHandler)
 
 	labtransport.RegisterRoutes(engine, labHandler, h.Auth)

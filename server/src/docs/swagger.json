@@ -921,6 +921,62 @@
                 }
             }
         },
+        "/users": {
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Create a non-admin native user (development mode only)",
+                "parameters": [
+                    {
+                        "description": "The user",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.NativeUserIn"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ID of the newly created user",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-string"
+                        }
+                    },
+                    "400": {
+                        "description": "The credentials were empty or the username is taken",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "The user is not an admin",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
         "/users/login/config": {
             "get": {
                 "consumes": [
@@ -1449,6 +1505,27 @@
         "user.CredentialsIn": {
             "type": "object",
             "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.NativeUserIn": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "collections": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "password": {
                     "type": "string"
                 },

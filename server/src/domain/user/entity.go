@@ -16,3 +16,10 @@ type CredentialsIn struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
+
+// NativeUserIn is the payload for creating a non-admin native user in development mode.
+type NativeUserIn struct {
+	Username    string   `json:"username"    binding:"required"`
+	Password    string   `json:"password"    binding:"required"`
+	Collections []string `json:"collections"`
+}

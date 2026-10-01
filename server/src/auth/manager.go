@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -20,16 +21,29 @@ import (
 const NativeUserID = "00000000-0000-0000-0000-00000000000"
 
 type Manager struct {
-	config             *config.AntimonyConfig
+	config         *config.AntimonyConfig
+	oauth2Config   oauth2.Config
+	provider       oidc.Provider
+	oidcSecret     string
+	jwtSecret      []byte
+	adminGroups    []string
+	authConfig     AuthConfig
+	nativeUsername string
+	nativePassword string
+
+	// Additional native accounts created at runtime via RegisterNativeUser, indexed by username
+	nativeAccounts map[string]nativeAccount
+
+	// Currently authenticated users, indexed by user ID
 	authenticatedUsers map[string]*AuthenticatedUser
-	oauth2Config       oauth2.Config
-	provider           oidc.Provider
-	oidcSecret         string
-	jwtSecret          []byte
-	adminGroups        []string
-	authConfig         AuthConfig
-	nativeUsername     string
-	nativePassword     string
+
+	// Guards authenticatedUsers and nativeAccounts, which are written while requests read them
+	usersMutex sync.Mutex
+}
+
+type nativeAccount struct {
+	password string
+	userId   string
 }
 
 type AuthenticatedUser struct {
@@ -86,6 +100,7 @@ func CreateManager(config *config.AntimonyConfig) *Manager {
 		authConfig:         authConfig,
 		nativeUsername:     nativeUsername,
 		nativePassword:     nativePassword,
+		nativeAccounts:     make(map[string]nativeAccount),
 	}
 
 	if !isNativeEnabled && !isOpenIdEnabled {
@@ -122,11 +137,42 @@ func CreateManager(config *config.AntimonyConfig) *Manager {
 }
 
 func (m *Manager) CreateNativeUser() {
+	m.usersMutex.Lock()
+	defer m.usersMutex.Unlock()
+
 	m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
 		UserId:      NativeUserID,
 		IsAdmin:     true,
 		Collections: make([]string, 0),
 	}
+}
+
+// RegisterNativeUser adds a non-admin native account that can log in via the native login. The user has access to the
+// given collections only. This is meant for development and testing setups.
+func (m *Manager) RegisterNativeUser(userId string, username string, password string, collections []string) error {
+	if !m.authConfig.Native.Enabled {
+		return utils.ErrNativeAuthDisabledError
+	}
+
+	if username == "" || password == "" || username == m.nativeUsername {
+		return utils.ErrInvalidCredentials
+	}
+
+	m.usersMutex.Lock()
+	defer m.usersMutex.Unlock()
+
+	if _, exists := m.nativeAccounts[username]; exists {
+		return utils.ErrInvalidCredentials
+	}
+
+	m.nativeAccounts[username] = nativeAccount{password: password, userId: userId}
+	m.authenticatedUsers[userId] = &AuthenticatedUser{
+		UserId:      userId,
+		IsAdmin:     false,
+		Collections: append(make([]string, 0, len(collections)), collections...),
+	}
+
+	return nil
 }
 
 func (m *Manager) RefreshAccessToken(authToken string) (string, error) {
@@ -237,7 +283,9 @@ func (m *Manager) AuthenticateWithCode(
 		IsAdmin:     isAdmin,
 		Collections: userGroups,
 	}
+	m.usersMutex.Lock()
 	m.authenticatedUsers[userId] = authenticatedUser
+	m.usersMutex.Unlock()
 
 	return authenticatedUser, nil
 }
@@ -260,17 +308,27 @@ func (m *Manager) LoginNative(username string, password string) (string, string,
 		return "", "", utils.ErrNativeAuthDisabledError
 	}
 
+	userId := ""
+	m.usersMutex.Lock()
 	if username == m.nativeUsername && password == m.nativePassword {
-		authUser := m.authenticatedUsers[NativeUserID]
-		if authToken, err = m.CreateAuthToken(NativeUserID); err != nil {
-			return "", "", err
-		} else if accessToken, err = m.CreateAccessToken(*authUser); err != nil {
-			return "", "", err
-		} else {
-			return authToken, accessToken, nil
-		}
+		userId = NativeUserID
+	} else if account, ok := m.nativeAccounts[username]; ok && password == account.password {
+		userId = account.userId
 	}
-	return "", "", utils.ErrInvalidCredentials
+	authUser := m.authenticatedUsers[userId]
+	m.usersMutex.Unlock()
+
+	if authUser == nil {
+		return "", "", utils.ErrInvalidCredentials
+	}
+
+	if authToken, err = m.CreateAuthToken(userId); err != nil {
+		return "", "", err
+	} else if accessToken, err = m.CreateAccessToken(*authUser); err != nil {
+		return "", "", err
+	} else {
+		return authToken, accessToken, nil
+	}
 }
 
 func (m *Manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, error) {
@@ -286,11 +344,15 @@ func (m *Manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, erro
 			return nil, utils.ErrTokenInvalid
 		}
 
-		if permissions, ok := m.authenticatedUsers[userIdStr]; !ok {
+		m.usersMutex.Lock()
+		permissions, ok := m.authenticatedUsers[userIdStr]
+		m.usersMutex.Unlock()
+
+		if !ok {
 			return nil, utils.ErrTokenInvalid
-		} else {
-			return permissions, nil
 		}
+
+		return permissions, nil
 	}
 }
 
@@ -324,6 +386,9 @@ func (m *Manager) tokenParser(token *jwt.Token) (interface{}, error) {
 }
 
 func (m *Manager) RegisterTestUser(user AuthenticatedUser) (string, error) {
+	m.usersMutex.Lock()
+	defer m.usersMutex.Unlock()
+
 	m.authenticatedUsers[user.UserId] = &user
 	return user.UserId, nil
 }

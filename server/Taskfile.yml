@@ -53,7 +53,7 @@ tasks:
     dir: './build'
     cmds:
       - task: build
-      - sudo -E SB_JWT_SECRET=testing ./antimony-server -config=./config.yml
+      - sudo -E SB_JWT_SECRET=testing ./antimony-server -config=./config.yml -dev
     env:
       # Secret of the test OIDC provider that ships with the repo, not a real credential
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
