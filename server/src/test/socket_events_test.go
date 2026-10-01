@@ -130,12 +130,12 @@ func TestProviderEvent_EventIsRoutedToTheOwningInstance(t *testing.T) {
  */
 
 func TestRevive_AdoptsAnAlreadyRunningLab(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		// The instance names of the seeded labs are fixed constants precisely so this can be set
 		// up before the harness seeds anything.
 		p.SeedInstance(InstanceAdminLab,
-			FakeNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
-			FakeNode{Name: NodeSRL, Kind: "nokia_srlinux", State: deployment.NodeStates.Running},
+			deployment.DummyNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
+			deployment.DummyNode{Name: NodeSRL, Kind: "nokia_srlinux", State: deployment.NodeStates.Running},
 		)
 	}))
 
@@ -155,9 +155,9 @@ func TestRevive_AdoptsAnAlreadyRunningLab(t *testing.T) {
 }
 
 func TestRevive_ReportsTheAdoptedInstanceOverHttp(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.SeedInstance(InstanceAdminLab,
-			FakeNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
+			deployment.DummyNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
 		)
 	}))
 
@@ -170,10 +170,10 @@ func TestRevive_ReportsTheAdoptedInstanceOverHttp(t *testing.T) {
 }
 
 func TestRevive_SkipsStoppedContainers(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.SeedInstance(InstanceAdminLab,
-			FakeNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
-			FakeNode{Name: NodeSRL, Kind: "nokia_srlinux", State: deployment.NodeStates.Stopped},
+			deployment.DummyNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
+			deployment.DummyNode{Name: NodeSRL, Kind: "nokia_srlinux", State: deployment.NodeStates.Stopped},
 		)
 	}))
 
@@ -209,10 +209,10 @@ func TestRevive_DoesNothingForAnEmptyDatabase(t *testing.T) {
 }
 
 func TestRevive_IgnoresContainersWithNoMatchingLab(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		// An instance the database knows nothing about, left over from a manual clab deploy.
 		p.SeedInstance("some-other-instance",
-			FakeNode{Name: "stray", Kind: "linux", State: deployment.NodeStates.Running},
+			deployment.DummyNode{Name: "stray", Kind: "linux", State: deployment.NodeStates.Running},
 		)
 	}))
 
@@ -222,9 +222,9 @@ func TestRevive_IgnoresContainersWithNoMatchingLab(t *testing.T) {
 }
 
 func TestRevive_AttachesStartupListenersToAdoptedNodes(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.SeedInstance(InstanceAdminLab,
-			FakeNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
+			deployment.DummyNode{Name: NodeHost, Kind: "linux", State: deployment.NodeStates.Running},
 		)
 	}))
 

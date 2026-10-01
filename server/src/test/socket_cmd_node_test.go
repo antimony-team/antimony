@@ -256,11 +256,11 @@ func TestStopNodeCommand_ProviderFailureIsReported(t *testing.T) {
 
 	h.DeployLab(LabAdminID)
 
-	h.Provider.StopNodeFn = func(string, string) error { return errFakeProvider }
+	h.Provider.StopNodeFn = func(string, string) error { return deployment.ErrDummyProvider }
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	// The fake's error is not one of the mapped sentinels, so it arrives as the generic 5000.
+	// The dummy's error is not one of the mapped sentinels, so it arrives as the generic 5000.
 	client.Emit(nodeCommand(cmdStopNode, LabAdminID, NodeHost)).RequireError(5000)
 }
 
@@ -367,7 +367,7 @@ func TestRestartNodeCommand_ProviderFailureIsReported(t *testing.T) {
 
 	h.DeployLab(LabAdminID)
 
-	h.Provider.RestartNodeFn = func(string, string) error { return errFakeProvider }
+	h.Provider.RestartNodeFn = func(string, string) error { return deployment.ErrDummyProvider }
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 	client.Emit(nodeCommand(cmdRestartNode, LabAdminID, NodeHost)).RequireError(5000)
@@ -453,7 +453,7 @@ func TestStartupProbe_TreatsEveryReadySignalAsStarted(t *testing.T) {
 
 	for name, probe := range cases {
 		t.Run(name, func(t *testing.T) {
-			h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+			h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 				p.ExecFn = func(string, string, []string) (string, int, error) {
 					return probe.output, probe.code, nil
 				}
@@ -478,7 +478,7 @@ func TestStartupProbe_TreatsEveryReadySignalAsStarted(t *testing.T) {
 func TestStartupProbe_KeepsWaitingWhileNothingIsListening(t *testing.T) {
 	// Exit 255 with no server marker means "nothing listening yet", so the probe retries rather
 	// than giving up. The node must therefore not be marked ready.
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.ExecFn = func(string, string, []string) (string, int, error) {
 			return "ssh: connect to host localhost port 22: Connection refused", 255, nil
 		}
@@ -500,9 +500,9 @@ func TestStartupProbe_KeepsWaitingWhileNothingIsListening(t *testing.T) {
 }
 
 func TestStartupProbe_ProbeErrorMarksTheNodeStopped(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.ExecFn = func(string, string, []string) (string, int, error) {
-			return "", 0, errFakeProvider
+			return "", 0, deployment.ErrDummyProvider
 		}
 	}))
 
@@ -519,7 +519,7 @@ func TestStartupProbe_ProbeErrorMarksTheNodeStopped(t *testing.T) {
 }
 
 func TestStartupProbe_UnexpectedExitCodeMarksTheNodeStopped(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.ExecFn = func(string, string, []string) (string, int, error) {
 			// Anything outside the handled set is treated as a hard failure.
 			return "something unexpected", 42, nil
@@ -535,7 +535,7 @@ func TestStartupProbe_RetriesWhileTheNodeIsNotRunningYet(t *testing.T) {
 	// The probe runs on the startup listener's goroutine, so the counter has to be atomic.
 	var attempts atomic.Int64
 
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.ExecFn = func(string, string, []string) (string, int, error) {
 			// The first probe reports the container as not running, which is a retry condition
 			// rather than a failure.
@@ -588,9 +588,9 @@ func TestStartupProbe_ExcludedInterfacesAreFilteredOut(t *testing.T) {
 }
 
 func TestStartupProbe_InterfaceFailureLeavesTheNodeReadyWithNoInterfaces(t *testing.T) {
-	h := NewHarness(t, WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
 		p.InterfacesFn = func(string, string) ([]deployment.NodeInterface, error) {
-			return nil, errFakeProvider
+			return nil, deployment.ErrDummyProvider
 		}
 	}))
 

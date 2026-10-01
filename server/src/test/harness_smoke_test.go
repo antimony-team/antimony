@@ -12,7 +12,7 @@ import (
 
 // TestHarness_Smoke checks that the harness wires up a usable service graph: the fixtures land in
 // the database and on disk, the HTTP stack answers with the expected envelopes, the socket stack
-// accepts an authenticated client, and the fake provider is reachable through a real command.
+// accepts an authenticated client, and the dummy provider is reachable through a real command.
 func TestHarness_Smoke(t *testing.T) {
 	h := NewHarness(t)
 
@@ -64,7 +64,7 @@ func TestHarness_Smoke(t *testing.T) {
 		client.Emit(map[string]any{"command": 0}).RequireError(5422)
 	})
 
-	t.Run("a lab deploys through the fake provider", func(t *testing.T) {
+	t.Run("a lab deploys through the dummy provider", func(t *testing.T) {
 		updates := h.Dial("/lab-updates", h.Seed.Admin.Token)
 		client := h.Dial("/cmd", h.Seed.Admin.Token)
 

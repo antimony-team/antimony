@@ -169,7 +169,7 @@ func TestOpenShellCommand_OpensAShellOnARunningNode(t *testing.T) {
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 	shellId := openShell(t, client, LabAdminID, NodeHost)
 
-	// The SSH attempt fails because the fake refuses DialNode, so the service falls back to an
+	// The SSH attempt fails because the dummy refuses DialNode, so the service falls back to an
 	// interactive exec on the node.
 	assert.True(t, h.Provider.WasCalled("DialNode"), "SSH is attempted first")
 
@@ -316,7 +316,7 @@ func TestOpenShellCommand_ProviderFailureIsReported(t *testing.T) {
 	h.DeployLab(LabAdminID)
 
 	h.Provider.ExecInteractiveFn = func(string, string, []string) (deployment.ShellExecSession, error) {
-		return nil, errFakeProvider
+		return nil, deployment.ErrDummyProvider
 	}
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)

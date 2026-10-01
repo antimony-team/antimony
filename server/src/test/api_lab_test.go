@@ -691,7 +691,7 @@ func TestDeleteLab_FailedLabCanBeDeleted(t *testing.T) {
 
 	// A deployment that fails leaves the instance in the Failed state, which CanDelete allows
 	// precisely so a broken lab is not stuck forever.
-	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return errFakeProvider }
+	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return deployment.ErrDummyProvider }
 
 	instanceLab, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
 	require.NoError(t, err)

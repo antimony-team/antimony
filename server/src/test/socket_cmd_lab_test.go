@@ -144,7 +144,7 @@ func TestDeployCommand_ClearsTheLastDeployFailedFlag(t *testing.T) {
 func TestDeployCommand_ProviderFailureIsReported(t *testing.T) {
 	h := NewHarness(t)
 
-	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return errFakeProvider }
+	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return deployment.ErrDummyProvider }
 
 	status := h.Dial("/status-messages", h.Seed.Admin.Token)
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
@@ -175,7 +175,7 @@ func TestDeployCommand_InspectFailureIsReported(t *testing.T) {
 
 	// Deploy succeeds but the follow-up inspection does not.
 	h.Provider.InspectLabFn = func(string, string) ([]deployment.InspectContainer, error) {
-		return nil, errFakeProvider
+		return nil, deployment.ErrDummyProvider
 	}
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
@@ -395,7 +395,7 @@ func TestDestroyCommand_ProviderFailureLeavesTheLabFailed(t *testing.T) {
 
 	h.DeployLab(LabAdminID)
 
-	h.Provider.DestroyFn = func(string, string, deployment.LogFunc) error { return errFakeProvider }
+	h.Provider.DestroyFn = func(string, string, deployment.LogFunc) error { return deployment.ErrDummyProvider }
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 

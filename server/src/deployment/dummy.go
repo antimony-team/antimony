@@ -1,7 +1,6 @@
-package test
+package deployment
 
 import (
-	"antimonyBackend/deployment"
 	"antimonyBackend/utils"
 	"context"
 	"errors"
@@ -16,26 +15,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// errFakeProvider is returned by the parts of the fake that have no meaningful test double.
-var errFakeProvider = errors.New("fake provider: not supported in tests")
+// ErrDummyProvider is returned by the parts of the dummy that have no meaningful test double.
+var ErrDummyProvider = errors.New("dummy provider: not supported")
 
-// FakeProvider is a programmable deployment.DeploymentProvider.
+// DummyProvider is a programmable DeploymentProvider that deploys nothing and keeps all lab state in
+// memory. It backs the Go test suite and can be selected with `deployment.provider: dummy` to run the
+// server without containerlab or clabernetes, e.g. for end-to-end tests of the interface.
 //
 // Every method records its call (see Calls, CallCount, LastCall) and delegates to an overridable
 // function field. The zero-configuration behaviour is "everything succeeds", so a test only has to
 // describe the part of the world it actually cares about.
 //
-// The fake keeps a per-instance node state machine. Deploy derives the nodes from the topology file
+// The dummy keeps a per-instance node state machine. Deploy derives the nodes from the topology file
 // it is handed, so deploying a seeded topology yields that topology's real node names without the
 // test having to restate them. StartNode/StopNode/RestartNode mutate that state and the Inspect*
 // methods read it back, which is what makes node-command transitions observable.
-type FakeProvider struct {
+type DummyProvider struct {
 	mu sync.Mutex
 
-	calls []ProviderCall
+	calls []DummyProviderCall
 
 	// instances maps an instance name to its nodes, keyed by node name.
-	instances map[string]map[string]*FakeNode
+	instances map[string]map[string]*DummyNode
 
 	// listener is the callback captured from RegisterListener.
 	listener func(nodeName string)
@@ -45,58 +46,58 @@ type FakeProvider struct {
 	containerLogs map[string]func(data string)
 
 	// shells holds the sessions handed out by ExecInteractive, keyed by "<instanceName>/<nodeName>".
-	shells map[string]*FakeShellSession
+	shells map[string]*DummyShellSession
 
 	// DeployStates is the state newly deployed nodes are reported in. Defaults to Running.
-	DeployStates deployment.NodeState
+	DeployStates NodeState
 
 	// Overridable behaviour. A nil field means "use the default".
 	//
 	// These are read by service goroutines (the monitor polls ReadNodeStats every second, startup
-	// listeners call Exec), so they are guarded by the same mutex as the rest of the fake and are
+	// listeners call Exec), so they are guarded by the same mutex as the rest of the dummy and are
 	// set through the SetXxx helpers rather than assigned directly.
-	DeployFn          func(topologyFile, instanceName string, onLog deployment.LogFunc) error
-	RedeployFn        func(topologyFile, instanceName string, onLog deployment.LogFunc) error
-	DestroyFn         func(topologyFile, instanceName string, onLog deployment.LogFunc) error
-	InspectLabsFn     func() (map[string][]deployment.InspectContainer, error)
-	InspectLabFn      func(topologyFile, instanceName string) ([]deployment.InspectContainer, error)
-	InspectNodeFn     func(topologyFile, instanceName, nodeName string) (deployment.InspectContainer, error)
+	DeployFn          func(topologyFile, instanceName string, onLog LogFunc) error
+	RedeployFn        func(topologyFile, instanceName string, onLog LogFunc) error
+	DestroyFn         func(topologyFile, instanceName string, onLog LogFunc) error
+	InspectLabsFn     func() (map[string][]InspectContainer, error)
+	InspectLabFn      func(topologyFile, instanceName string) ([]InspectContainer, error)
+	InspectNodeFn     func(topologyFile, instanceName, nodeName string) (InspectContainer, error)
 	ExecFn            func(instanceName, nodeName string, cmd []string) (string, int, error)
-	ExecInteractiveFn func(instanceName, nodeName string, cmd []string) (deployment.ShellExecSession, error)
+	ExecInteractiveFn func(instanceName, nodeName string, cmd []string) (ShellExecSession, error)
 	DialNodeFn        func(instanceName, nodeName string, port int) (net.Conn, error)
 	StartNodeFn       func(instanceName, nodeName string) error
 	StopNodeFn        func(instanceName, nodeName string) error
 	RestartNodeFn     func(instanceName, nodeName string) error
-	StreamLogsFn      func(instanceName, nodeName string, onLog deployment.LogFunc) error
-	InterfacesFn      func(instanceName, nodeName string) ([]deployment.NodeInterface, error)
-	StatsFn           func(instanceName, nodeName string) (*deployment.NodeStats, error)
+	StreamLogsFn      func(instanceName, nodeName string, onLog LogFunc) error
+	InterfacesFn      func(instanceName, nodeName string) ([]NodeInterface, error)
+	StatsFn           func(instanceName, nodeName string) (*NodeStats, error)
 }
 
-// FakeNode is one node in the fake provider's world.
-type FakeNode struct {
+// DummyNode is one node in the dummy provider's world.
+type DummyNode struct {
 	Name          string
 	Kind          string
 	Image         string
-	State         deployment.NodeState
+	State         NodeState
 	ContainerId   string
 	ContainerName string
 	IPv4          string
 	IPv6          string
 }
 
-// ProviderCall is a single recorded provider invocation.
-type ProviderCall struct {
+// DummyProviderCall is a single recorded provider invocation.
+type DummyProviderCall struct {
 	Method string
 	Args   map[string]any
 }
 
-func CreateFakeProvider() *FakeProvider {
-	return &FakeProvider{
-		calls:         make([]ProviderCall, 0),
-		instances:     make(map[string]map[string]*FakeNode),
+func CreateDummyProvider() *DummyProvider {
+	return &DummyProvider{
+		calls:         make([]DummyProviderCall, 0),
+		instances:     make(map[string]map[string]*DummyNode),
 		containerLogs: make(map[string]func(string)),
-		shells:        make(map[string]*FakeShellSession),
-		DeployStates:  deployment.NodeStates.Running,
+		shells:        make(map[string]*DummyShellSession),
+		DeployStates:  NodeStates.Running,
 	}
 }
 
@@ -105,18 +106,18 @@ func CreateFakeProvider() *FakeProvider {
  */
 
 // Calls returns a copy of every recorded provider call, in order.
-func (p *FakeProvider) Calls() []ProviderCall {
+func (p *DummyProvider) Calls() []DummyProviderCall {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	out := make([]ProviderCall, len(p.calls))
+	out := make([]DummyProviderCall, len(p.calls))
 	copy(out, p.calls)
 
 	return out
 }
 
 // CallCount reports how many times a method was invoked.
-func (p *FakeProvider) CallCount(method string) int {
+func (p *DummyProvider) CallCount(method string) int {
 	count := 0
 	for _, call := range p.Calls() {
 		if call.Method == method {
@@ -128,7 +129,7 @@ func (p *FakeProvider) CallCount(method string) int {
 }
 
 // LastCall returns the most recent invocation of a method, or nil if it was never called.
-func (p *FakeProvider) LastCall(method string) *ProviderCall {
+func (p *DummyProvider) LastCall(method string) *DummyProviderCall {
 	calls := p.Calls()
 	for i := len(calls) - 1; i >= 0; i-- {
 		if calls[i].Method == method {
@@ -140,21 +141,21 @@ func (p *FakeProvider) LastCall(method string) *ProviderCall {
 }
 
 // WasCalled reports whether a method was invoked at least once.
-func (p *FakeProvider) WasCalled(method string) bool {
+func (p *DummyProvider) WasCalled(method string) bool {
 	return p.CallCount(method) > 0
 }
 
 // ResetCalls clears the call log without touching the node state. Useful to assert on what happened
 // after a particular point in a test.
-func (p *FakeProvider) ResetCalls() {
+func (p *DummyProvider) ResetCalls() {
 	p.mu.Lock()
-	p.calls = make([]ProviderCall, 0)
+	p.calls = make([]DummyProviderCall, 0)
 	p.mu.Unlock()
 }
 
 // SeedInstance registers an instance as already deployed, without going through Deploy. This is how
 // tests set up the world that instance.reviveInstances discovers on startup.
-func (p *FakeProvider) SeedInstance(instanceName string, nodes ...FakeNode) {
+func (p *DummyProvider) SeedInstance(instanceName string, nodes ...DummyNode) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -162,7 +163,7 @@ func (p *FakeProvider) SeedInstance(instanceName string, nodes ...FakeNode) {
 }
 
 // SetNodeState changes a node's reported state, as an external event would.
-func (p *FakeProvider) SetNodeState(instanceName, nodeName string, state deployment.NodeState) {
+func (p *DummyProvider) SetNodeState(instanceName, nodeName string, state NodeState) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -172,8 +173,8 @@ func (p *FakeProvider) SetNodeState(instanceName, nodeName string, state deploym
 	}
 }
 
-// Node returns a copy of a node's current state, or nil if the fake has never heard of it.
-func (p *FakeProvider) Node(instanceName, nodeName string) *FakeNode {
+// Node returns a copy of a node's current state, or nil if the dummy has never heard of it.
+func (p *DummyProvider) Node(instanceName, nodeName string) *DummyNode {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -185,8 +186,8 @@ func (p *FakeProvider) Node(instanceName, nodeName string) *FakeNode {
 	return nil
 }
 
-// HasInstance reports whether the fake currently considers an instance deployed.
-func (p *FakeProvider) HasInstance(instanceName string) bool {
+// HasInstance reports whether the dummy currently considers an instance deployed.
+func (p *DummyProvider) HasInstance(instanceName string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -197,7 +198,7 @@ func (p *FakeProvider) HasInstance(instanceName string) bool {
 
 // FireNodeEvent invokes the callback captured from RegisterListener, simulating a container event
 // pushed by the deployment backend. It reports whether a listener was registered.
-func (p *FakeProvider) FireNodeEvent(nodeName string) bool {
+func (p *DummyProvider) FireNodeEvent(nodeName string) bool {
 	p.mu.Lock()
 	listener := p.listener
 	p.mu.Unlock()
@@ -213,7 +214,7 @@ func (p *FakeProvider) FireNodeEvent(nodeName string) bool {
 
 // PushContainerLog feeds a line into the callback captured from StreamContainerLogs. It reports
 // whether a stream was registered for that node.
-func (p *FakeProvider) PushContainerLog(instanceName, nodeName, line string) bool {
+func (p *DummyProvider) PushContainerLog(instanceName, nodeName, line string) bool {
 	p.mu.Lock()
 	onLog := p.containerLogs[instanceName+"/"+nodeName]
 	p.mu.Unlock()
@@ -228,35 +229,35 @@ func (p *FakeProvider) PushContainerLog(instanceName, nodeName, line string) boo
 }
 
 // Shell returns the interactive session handed out for a node, or nil if none was opened.
-func (p *FakeProvider) Shell(instanceName, nodeName string) *FakeShellSession {
+func (p *DummyProvider) Shell(instanceName, nodeName string) *DummyShellSession {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	return p.shells[instanceName+"/"+nodeName]
 }
 
-// SetExecFn replaces the Exec behaviour. Safe to call while the fake is in use.
-func (p *FakeProvider) SetExecFn(fn func(instanceName, nodeName string, cmd []string) (string, int, error)) {
+// SetExecFn replaces the Exec behaviour. Safe to call while the dummy is in use.
+func (p *DummyProvider) SetExecFn(fn func(instanceName, nodeName string, cmd []string) (string, int, error)) {
 	p.mu.Lock()
 	p.ExecFn = fn
 	p.mu.Unlock()
 }
 
 // SetStatsFn replaces the ReadNodeStats behaviour. Safe to call while the monitor is polling.
-func (p *FakeProvider) SetStatsFn(fn func(instanceName, nodeName string) (*deployment.NodeStats, error)) {
+func (p *DummyProvider) SetStatsFn(fn func(instanceName, nodeName string) (*NodeStats, error)) {
 	p.mu.Lock()
 	p.StatsFn = fn
 	p.mu.Unlock()
 }
 
-func (p *FakeProvider) execFn() func(string, string, []string) (string, int, error) {
+func (p *DummyProvider) execFn() func(string, string, []string) (string, int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	return p.ExecFn
 }
 
-func (p *FakeProvider) statsFn() func(string, string) (*deployment.NodeStats, error) {
+func (p *DummyProvider) statsFn() func(string, string) (*NodeStats, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -264,14 +265,14 @@ func (p *FakeProvider) statsFn() func(string, string) (*deployment.NodeStats, er
 }
 
 /*
- * deployment.DeploymentProvider implementation.
+ * DeploymentProvider implementation.
  */
 
-func (p *FakeProvider) Deploy(
+func (p *DummyProvider) Deploy(
 	_ context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog deployment.LogFunc,
+	onLog LogFunc,
 ) error {
 	p.record("Deploy", map[string]any{"topologyFile": topologyFile, "instanceName": instanceName})
 
@@ -282,11 +283,11 @@ func (p *FakeProvider) Deploy(
 	return p.deployDefault(topologyFile, instanceName, onLog, "Deploying")
 }
 
-func (p *FakeProvider) Redeploy(
+func (p *DummyProvider) Redeploy(
 	_ context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog deployment.LogFunc,
+	onLog LogFunc,
 ) error {
 	p.record("Redeploy", map[string]any{"topologyFile": topologyFile, "instanceName": instanceName})
 
@@ -297,11 +298,11 @@ func (p *FakeProvider) Redeploy(
 	return p.deployDefault(topologyFile, instanceName, onLog, "Redeploying")
 }
 
-func (p *FakeProvider) Destroy(
+func (p *DummyProvider) Destroy(
 	_ context.Context,
 	topologyFile string,
 	instanceName string,
-	onLog deployment.LogFunc,
+	onLog LogFunc,
 ) error {
 	p.record("Destroy", map[string]any{"topologyFile": topologyFile, "instanceName": instanceName})
 
@@ -318,10 +319,10 @@ func (p *FakeProvider) Destroy(
 	return nil
 }
 
-func (p *FakeProvider) InspectLabs(
+func (p *DummyProvider) InspectLabs(
 	_ context.Context,
-	_ deployment.LogFunc,
-) (map[string][]deployment.InspectContainer, error) {
+	_ LogFunc,
+) (map[string][]InspectContainer, error) {
 	p.record("InspectLabs", map[string]any{})
 
 	if p.InspectLabsFn != nil {
@@ -331,7 +332,7 @@ func (p *FakeProvider) InspectLabs(
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	out := make(map[string][]deployment.InspectContainer, len(p.instances))
+	out := make(map[string][]InspectContainer, len(p.instances))
 	for instanceName := range p.instances {
 		out[instanceName] = p.containersLocked(instanceName)
 	}
@@ -339,12 +340,12 @@ func (p *FakeProvider) InspectLabs(
 	return out, nil
 }
 
-func (p *FakeProvider) InspectLab(
+func (p *DummyProvider) InspectLab(
 	_ context.Context,
 	topologyFile string,
 	instanceName string,
-	_ deployment.LogFunc,
-) ([]deployment.InspectContainer, error) {
+	_ LogFunc,
+) ([]InspectContainer, error) {
 	p.record("InspectLab", map[string]any{"topologyFile": topologyFile, "instanceName": instanceName})
 
 	if p.InspectLabFn != nil {
@@ -355,19 +356,19 @@ func (p *FakeProvider) InspectLab(
 	defer p.mu.Unlock()
 
 	if _, ok := p.instances[instanceName]; !ok {
-		return nil, fmt.Errorf("%w: instance %q is not deployed", errFakeProvider, instanceName)
+		return nil, fmt.Errorf("%w: instance %q is not deployed", ErrDummyProvider, instanceName)
 	}
 
 	return p.containersLocked(instanceName), nil
 }
 
-func (p *FakeProvider) InspectNode(
+func (p *DummyProvider) InspectNode(
 	_ context.Context,
 	topologyFile string,
 	instanceName string,
 	nodeName string,
-	_ deployment.LogFunc,
-) (deployment.InspectContainer, error) {
+	_ LogFunc,
+) (InspectContainer, error) {
 	p.record("InspectNode", map[string]any{
 		"topologyFile": topologyFile,
 		"instanceName": instanceName,
@@ -383,15 +384,15 @@ func (p *FakeProvider) InspectNode(
 
 	node := p.nodeLocked(instanceName, nodeName)
 	if node == nil {
-		return deployment.InspectContainer{}, fmt.Errorf(
-			"%w: node %q not found in instance %q", errFakeProvider, nodeName, instanceName,
+		return InspectContainer{}, fmt.Errorf(
+			"%w: node %q not found in instance %q", ErrDummyProvider, nodeName, instanceName,
 		)
 	}
 
 	return p.containerLocked(instanceName, node), nil
 }
 
-func (p *FakeProvider) Exec(
+func (p *DummyProvider) Exec(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
@@ -408,12 +409,12 @@ func (p *FakeProvider) Exec(
 	return "sh: ssh: not found", 127, nil
 }
 
-func (p *FakeProvider) ExecInteractive(
+func (p *DummyProvider) ExecInteractive(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
 	cmd []string,
-) (deployment.ShellExecSession, error) {
+) (ShellExecSession, error) {
 	p.record("ExecInteractive", map[string]any{
 		"instanceName": instanceName,
 		"nodeName":     nodeName,
@@ -424,7 +425,7 @@ func (p *FakeProvider) ExecInteractive(
 		return p.ExecInteractiveFn(instanceName, nodeName, cmd)
 	}
 
-	session := CreateFakeShellSession()
+	session := CreateDummyShellSession()
 
 	p.mu.Lock()
 	p.shells[instanceName+"/"+nodeName] = session
@@ -433,7 +434,7 @@ func (p *FakeProvider) ExecInteractive(
 	return session, nil
 }
 
-func (p *FakeProvider) DialNode(
+func (p *DummyProvider) DialNode(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
@@ -447,10 +448,10 @@ func (p *FakeProvider) DialNode(
 
 	// Refusing the dial makes the shell service fall back to ExecInteractive, so tests do not need
 	// to stand up a real SSH server.
-	return nil, fmt.Errorf("%w: no SSH listener on %s/%s:%d", errFakeProvider, instanceName, nodeName, port)
+	return nil, fmt.Errorf("%w: no SSH listener on %s/%s:%d", ErrDummyProvider, instanceName, nodeName, port)
 }
 
-func (p *FakeProvider) RegisterListener(_ context.Context, onUpdate func(nodeName string)) error {
+func (p *DummyProvider) RegisterListener(_ context.Context, onUpdate func(nodeName string)) error {
 	p.record("RegisterListener", map[string]any{})
 
 	p.mu.Lock()
@@ -460,31 +461,31 @@ func (p *FakeProvider) RegisterListener(_ context.Context, onUpdate func(nodeNam
 	return nil
 }
 
-func (p *FakeProvider) ReadNodeStats(
+func (p *DummyProvider) ReadNodeStats(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
-) (*deployment.NodeStats, error) {
+) (*NodeStats, error) {
 	p.record("ReadNodeStats", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
 	if fn := p.statsFn(); fn != nil {
 		return fn(instanceName, nodeName)
 	}
 
-	return &deployment.NodeStats{
+	return &NodeStats{
 		Timestamp:       time.Now(),
 		CPUUsage:        1000,
 		SystemUsage:     10000,
 		CPUUsagePercent: 12.5,
 		MemoryUsage:     1 << 20,
 		MemoryLimit:     1 << 30,
-		Interfaces: map[string]deployment.NodeInterfaceStats{
+		Interfaces: map[string]NodeInterfaceStats{
 			"eth0": {RxBytes: 1024, TxBytes: 2048, RxBps: 128, TxBps: 256},
 		},
 	}, nil
 }
 
-func (p *FakeProvider) OpenCapture(
+func (p *DummyProvider) OpenCapture(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
@@ -496,44 +497,44 @@ func (p *FakeProvider) OpenCapture(
 		"interfaceName": interfaceName,
 	})
 
-	return nil, fmt.Errorf("%w: packet capture cannot be faked", errFakeProvider)
+	return nil, fmt.Errorf("%w: packet capture cannot be faked", ErrDummyProvider)
 }
 
-func (p *FakeProvider) StartNode(_ context.Context, instanceName string, nodeName string) error {
+func (p *DummyProvider) StartNode(_ context.Context, instanceName string, nodeName string) error {
 	p.record("StartNode", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
 	if p.StartNodeFn != nil {
 		return p.StartNodeFn(instanceName, nodeName)
 	}
 
-	return p.transition(instanceName, nodeName, deployment.NodeStates.Running)
+	return p.transition(instanceName, nodeName, NodeStates.Running)
 }
 
-func (p *FakeProvider) StopNode(_ context.Context, instanceName string, nodeName string) error {
+func (p *DummyProvider) StopNode(_ context.Context, instanceName string, nodeName string) error {
 	p.record("StopNode", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
 	if p.StopNodeFn != nil {
 		return p.StopNodeFn(instanceName, nodeName)
 	}
 
-	return p.transition(instanceName, nodeName, deployment.NodeStates.Stopped)
+	return p.transition(instanceName, nodeName, NodeStates.Stopped)
 }
 
-func (p *FakeProvider) RestartNode(_ context.Context, instanceName string, nodeName string) error {
+func (p *DummyProvider) RestartNode(_ context.Context, instanceName string, nodeName string) error {
 	p.record("RestartNode", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
 	if p.RestartNodeFn != nil {
 		return p.RestartNodeFn(instanceName, nodeName)
 	}
 
-	return p.transition(instanceName, nodeName, deployment.NodeStates.Running)
+	return p.transition(instanceName, nodeName, NodeStates.Running)
 }
 
-func (p *FakeProvider) StreamContainerLogs(
+func (p *DummyProvider) StreamContainerLogs(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
-	onLog deployment.LogFunc,
+	onLog LogFunc,
 ) error {
 	p.record("StreamContainerLogs", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
@@ -548,11 +549,11 @@ func (p *FakeProvider) StreamContainerLogs(
 	return nil
 }
 
-func (p *FakeProvider) GetNetworkInterfaces(
+func (p *DummyProvider) GetNetworkInterfaces(
 	_ context.Context,
 	instanceName string,
 	nodeName string,
-) ([]deployment.NodeInterface, error) {
+) ([]NodeInterface, error) {
 	p.record("GetNetworkInterfaces", map[string]any{"instanceName": instanceName, "nodeName": nodeName})
 
 	if p.InterfacesFn != nil {
@@ -563,13 +564,13 @@ func (p *FakeProvider) GetNetworkInterfaces(
 	node := p.nodeLocked(instanceName, nodeName)
 	p.mu.Unlock()
 
-	if node == nil || node.State != deployment.NodeStates.Running {
+	if node == nil || node.State != NodeStates.Running {
 		return nil, utils.ErrNodeNotRunning
 	}
 
 	// "lo" is in the default excluded-interfaces list, so its presence here makes the interface
 	// filter observable in tests.
-	return []deployment.NodeInterface{
+	return []NodeInterface{
 		{Name: "eth0", Address: "172.20.20.2/24", MTU: 1500, State: "up"},
 		{Name: "eth1", Address: "", MTU: 1500, State: "down"},
 		{Name: "lo", Address: "127.0.0.1/8", MTU: 65536, State: "up"},
@@ -580,16 +581,16 @@ func (p *FakeProvider) GetNetworkInterfaces(
  * Internals.
  */
 
-func (p *FakeProvider) record(method string, args map[string]any) {
+func (p *DummyProvider) record(method string, args map[string]any) {
 	p.mu.Lock()
-	p.calls = append(p.calls, ProviderCall{Method: method, Args: args})
+	p.calls = append(p.calls, DummyProviderCall{Method: method, Args: args})
 	p.mu.Unlock()
 }
 
-func (p *FakeProvider) deployDefault(
+func (p *DummyProvider) deployDefault(
 	topologyFile string,
 	instanceName string,
-	onLog deployment.LogFunc,
+	onLog LogFunc,
 	verb string,
 ) error {
 	nodes, err := parseTopologyNodes(topologyFile)
@@ -611,13 +612,13 @@ func (p *FakeProvider) deployDefault(
 	return nil
 }
 
-func (p *FakeProvider) transition(instanceName, nodeName string, state deployment.NodeState) error {
+func (p *DummyProvider) transition(instanceName, nodeName string, state NodeState) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	node := p.nodeLocked(instanceName, nodeName)
 	if node == nil {
-		return fmt.Errorf("%w: node %q not found in instance %q", errFakeProvider, nodeName, instanceName)
+		return fmt.Errorf("%w: node %q not found in instance %q", ErrDummyProvider, nodeName, instanceName)
 	}
 
 	node.State = state
@@ -628,8 +629,8 @@ func (p *FakeProvider) transition(instanceName, nodeName string, state deploymen
 
 // applyStateSideEffectsLocked mirrors what a real backend does around a state change: a stopped node
 // loses its container identity and addresses, a running one gets them back.
-func (p *FakeProvider) applyStateSideEffectsLocked(node *FakeNode) {
-	if node.State == deployment.NodeStates.Stopped {
+func (p *DummyProvider) applyStateSideEffectsLocked(node *DummyNode) {
+	if node.State == NodeStates.Stopped {
 		node.ContainerId = ""
 		node.ContainerName = ""
 		node.IPv4 = ""
@@ -646,8 +647,8 @@ func (p *FakeProvider) applyStateSideEffectsLocked(node *FakeNode) {
 	}
 }
 
-func (p *FakeProvider) putInstanceLocked(instanceName string, nodes []FakeNode) {
-	instance := make(map[string]*FakeNode, len(nodes))
+func (p *DummyProvider) putInstanceLocked(instanceName string, nodes []DummyNode) {
+	instance := make(map[string]*DummyNode, len(nodes))
 
 	for _, node := range nodes {
 		copied := node
@@ -658,7 +659,7 @@ func (p *FakeProvider) putInstanceLocked(instanceName string, nodes []FakeNode) 
 	p.instances[instanceName] = instance
 }
 
-func (p *FakeProvider) nodeLocked(instanceName, nodeName string) *FakeNode {
+func (p *DummyProvider) nodeLocked(instanceName, nodeName string) *DummyNode {
 	if instance, ok := p.instances[instanceName]; ok {
 		return instance[nodeName]
 	}
@@ -666,10 +667,10 @@ func (p *FakeProvider) nodeLocked(instanceName, nodeName string) *FakeNode {
 	return nil
 }
 
-func (p *FakeProvider) containersLocked(instanceName string) []deployment.InspectContainer {
+func (p *DummyProvider) containersLocked(instanceName string) []InspectContainer {
 	instance := p.instances[instanceName]
 
-	out := make([]deployment.InspectContainer, 0, len(instance))
+	out := make([]InspectContainer, 0, len(instance))
 	for _, node := range instance {
 		out = append(out, p.containerLocked(instanceName, node))
 	}
@@ -677,8 +678,8 @@ func (p *FakeProvider) containersLocked(instanceName string) []deployment.Inspec
 	return out
 }
 
-func (p *FakeProvider) containerLocked(instanceName string, node *FakeNode) deployment.InspectContainer {
-	return deployment.InspectContainer{
+func (p *DummyProvider) containerLocked(instanceName string, node *DummyNode) InspectContainer {
+	return InspectContainer{
 		Name:          node.Name,
 		LabName:       instanceName,
 		LabPath:       "/run/" + instanceName + "/topology.clab.yaml",
@@ -691,11 +692,11 @@ func (p *FakeProvider) containerLocked(instanceName string, node *FakeNode) depl
 	}
 }
 
-// parseTopologyNodes reads a containerlab topology file and returns one FakeNode per declared node.
-func parseTopologyNodes(topologyFile string) ([]FakeNode, error) {
+// parseTopologyNodes reads a containerlab topology file and returns one DummyNode per declared node.
+func parseTopologyNodes(topologyFile string) ([]DummyNode, error) {
 	data, err := os.ReadFile(topologyFile)
 	if err != nil {
-		return nil, fmt.Errorf("%w: reading topology %q: %w", errFakeProvider, topologyFile, err)
+		return nil, fmt.Errorf("%w: reading topology %q: %w", ErrDummyProvider, topologyFile, err)
 	}
 
 	var definition struct {
@@ -708,24 +709,24 @@ func parseTopologyNodes(topologyFile string) ([]FakeNode, error) {
 	}
 
 	if err := yaml.Unmarshal(data, &definition); err != nil {
-		return nil, fmt.Errorf("%w: parsing topology %q: %w", errFakeProvider, topologyFile, err)
+		return nil, fmt.Errorf("%w: parsing topology %q: %w", ErrDummyProvider, topologyFile, err)
 	}
 
-	nodes := make([]FakeNode, 0, len(definition.Topology.Nodes))
+	nodes := make([]DummyNode, 0, len(definition.Topology.Nodes))
 	for name, node := range definition.Topology.Nodes {
-		nodes = append(nodes, FakeNode{Name: name, Kind: node.Kind, Image: node.Image})
+		nodes = append(nodes, DummyNode{Name: name, Kind: node.Kind, Image: node.Image})
 	}
 
 	return nodes, nil
 }
 
 /*
- * Fake interactive shell session.
+ * Dummy interactive shell session.
  */
 
-// FakeShellSession is an in-memory deployment.ShellExecSession. Output the test pushes becomes
+// DummyShellSession is an in-memory ShellExecSession. Output the test pushes becomes
 // readable by the server; everything the server writes is captured for assertions.
-type FakeShellSession struct {
+type DummyShellSession struct {
 	mu      sync.Mutex
 	written []byte
 	resizes [][2]uint
@@ -736,15 +737,15 @@ type FakeShellSession struct {
 	closeOnce sync.Once
 }
 
-func CreateFakeShellSession() *FakeShellSession {
-	return &FakeShellSession{
+func CreateDummyShellSession() *DummyShellSession {
+	return &DummyShellSession{
 		out:    make(chan []byte, 64),
 		closed: make(chan struct{}),
 	}
 }
 
 // Push makes data readable by whoever is reading the session, as node output would be.
-func (s *FakeShellSession) Push(data string) {
+func (s *DummyShellSession) Push(data string) {
 	select {
 	case s.out <- []byte(data):
 	case <-s.closed:
@@ -752,7 +753,7 @@ func (s *FakeShellSession) Push(data string) {
 }
 
 // Written returns everything the server has written into the session so far.
-func (s *FakeShellSession) Written() string {
+func (s *DummyShellSession) Written() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -760,7 +761,7 @@ func (s *FakeShellSession) Written() string {
 }
 
 // Resizes returns the (cols, rows) pairs the session was resized to.
-func (s *FakeShellSession) Resizes() [][2]uint {
+func (s *DummyShellSession) Resizes() [][2]uint {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -771,7 +772,7 @@ func (s *FakeShellSession) Resizes() [][2]uint {
 }
 
 // IsClosed reports whether the session has been closed.
-func (s *FakeShellSession) IsClosed() bool {
+func (s *DummyShellSession) IsClosed() bool {
 	select {
 	case <-s.closed:
 		return true
@@ -780,7 +781,7 @@ func (s *FakeShellSession) IsClosed() bool {
 	}
 }
 
-func (s *FakeShellSession) Read(p []byte) (int, error) {
+func (s *DummyShellSession) Read(p []byte) (int, error) {
 	if len(s.pending) > 0 {
 		n := copy(p, s.pending)
 		s.pending = s.pending[n:]
@@ -799,7 +800,7 @@ func (s *FakeShellSession) Read(p []byte) (int, error) {
 	}
 }
 
-func (s *FakeShellSession) Write(p []byte) (int, error) {
+func (s *DummyShellSession) Write(p []byte) (int, error) {
 	if s.IsClosed() {
 		return 0, io.ErrClosedPipe
 	}
@@ -811,13 +812,13 @@ func (s *FakeShellSession) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (s *FakeShellSession) Close() error {
+func (s *DummyShellSession) Close() error {
 	s.closeOnce.Do(func() { close(s.closed) })
 
 	return nil
 }
 
-func (s *FakeShellSession) Resize(cols uint, rows uint) error {
+func (s *DummyShellSession) Resize(cols uint, rows uint) error {
 	if s.IsClosed() {
 		return io.ErrClosedPipe
 	}

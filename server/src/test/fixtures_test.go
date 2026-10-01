@@ -45,7 +45,7 @@ const (
 )
 
 // Instance names of the seeded labs. These are fixed rather than generated so that a test can
-// pre-register a running instance with the FakeProvider before the harness seeds anything, which is
+// pre-register a running instance with the DummyProvider before the harness seeds anything, which is
 // how the revive-on-startup path is set up.
 const (
 	InstanceAdminLab  = "admin-topo-adminlab"

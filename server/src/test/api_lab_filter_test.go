@@ -357,7 +357,7 @@ func TestLabFilter_StateFilterAcceptsSeveralStates(t *testing.T) {
 func TestLabFilter_StateFilterMatchesFailedLabs(t *testing.T) {
 	h := NewHarness(t)
 
-	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return errFakeProvider }
+	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return deployment.ErrDummyProvider }
 
 	instanceLab, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
 	require.NoError(t, err)

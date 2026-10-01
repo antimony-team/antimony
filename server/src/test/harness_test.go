@@ -3,6 +3,7 @@ package test
 import (
 	"antimonyBackend/auth"
 	"antimonyBackend/config"
+	"antimonyBackend/deployment"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
@@ -53,7 +54,7 @@ linux:
 `
 
 // Harness is the full Antimony service graph wired against temporary, in-process infrastructure:
-// an in-memory SQLite database, a temp-dir storage manager and a FakeProvider in place of
+// an in-memory SQLite database, a temp-dir storage manager and a DummyProvider in place of
 // containerlab. It exposes both a gin engine (for fast in-process HTTP assertions) and a real
 // httptest server (which socket.io needs, since it cannot run over httptest.ResponseRecorder).
 //
@@ -66,7 +67,7 @@ type Harness struct {
 	Storage  *storage.Manager
 	Auth     *auth.Manager
 	Sockets  *socket.Manager
-	Provider *FakeProvider
+	Provider *deployment.DummyProvider
 
 	LabEventBus *utils.EventBus[*lab.Lab]
 
@@ -122,7 +123,7 @@ type harnessOptions struct {
 	seed          bool
 	withScheduler bool
 
-	configureProvider func(*FakeProvider)
+	configureProvider func(*deployment.DummyProvider)
 }
 
 // HarnessOption customises the harness before any service is constructed.
@@ -198,9 +199,9 @@ func WithCaptureEnabled(enabled bool) HarnessOption {
 	return func(o *harnessOptions) { o.captureEnabled = enabled }
 }
 
-// WithProvider configures the FakeProvider before any service is built. This matters because
+// WithProvider configures the DummyProvider before any service is built. This matters because
 // instance.CreateService runs its revive pass during construction.
-func WithProvider(configure func(*FakeProvider)) HarnessOption {
+func WithProvider(configure func(*deployment.DummyProvider)) HarnessOption {
 	return func(o *harnessOptions) { o.configureProvider = configure }
 }
 
@@ -308,7 +309,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		authManager    = auth.CreateManager(cfg)
 		socketManager  = socket.CreateManager(authManager)
 		storageManager = storage.CreateManager(cfg)
-		provider       = CreateFakeProvider()
+		provider       = deployment.CreateDummyProvider()
 	)
 
 	if opts.configureProvider != nil {

@@ -162,7 +162,7 @@ func TestSocketStreams_MonitorStopsWatchingAFailedNode(t *testing.T) {
 
 	// Once the stats read starts failing the monitor drops the node from its list.
 	h.Provider.SetStatsFn(func(string, string) (*deployment.NodeStats, error) {
-		return nil, errFakeProvider
+		return nil, deployment.ErrDummyProvider
 	})
 
 	h.Provider.ResetCalls()

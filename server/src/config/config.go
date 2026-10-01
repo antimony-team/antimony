@@ -27,11 +27,13 @@ type DeploymentProvider int
 const (
 	Containerlab DeploymentProvider = iota
 	Clabernetes
+	Dummy
 )
 
 var deploymentProviderNames = map[string]DeploymentProvider{
 	"containerlab": Containerlab,
 	"clabernetes":  Clabernetes,
+	"dummy":        Dummy,
 }
 
 var deploymentProviderStrings = func() map[DeploymentProvider]string {

@@ -144,9 +144,11 @@ func TestParseDeploymentProvider_KnownNames(t *testing.T) {
 	cases := map[string]DeploymentProvider{
 		"containerlab":     Containerlab,
 		"clabernetes":      Clabernetes,
+		"dummy":            Dummy,
 		"CONTAINERLAB":     Containerlab,
 		"ClaberNetes":      Clabernetes,
 		"  clabernetes  ":  Clabernetes,
+		"DUMMY":            Dummy,
 		"\tcontainerlab\n": Containerlab,
 	}
 
@@ -174,6 +176,7 @@ func TestParseDeploymentProvider_UnknownNameIsAnError(t *testing.T) {
 func TestDeploymentProvider_String(t *testing.T) {
 	assert.Equal(t, "containerlab", Containerlab.String())
 	assert.Equal(t, "clabernetes", Clabernetes.String())
+	assert.Equal(t, "dummy", Dummy.String())
 }
 
 func TestDeploymentProvider_StringDescribesAnUnknownValue(t *testing.T) {
@@ -184,6 +187,7 @@ func TestDeploymentProvider_MarshalText(t *testing.T) {
 	for provider, expected := range map[DeploymentProvider]string{
 		Containerlab: "containerlab",
 		Clabernetes:  "clabernetes",
+		Dummy:        "dummy",
 	} {
 		encoded, err := provider.MarshalText()
 
@@ -207,6 +211,9 @@ func TestDeploymentProvider_UnmarshalText(t *testing.T) {
 
 	require.NoError(t, provider.UnmarshalText([]byte("containerlab")))
 	assert.Equal(t, Containerlab, provider)
+
+	require.NoError(t, provider.UnmarshalText([]byte("dummy")))
+	assert.Equal(t, Dummy, provider)
 }
 
 func TestDeploymentProvider_UnmarshalTextRejectsAnUnknownName(t *testing.T) {
@@ -216,7 +223,7 @@ func TestDeploymentProvider_UnmarshalTextRejectsAnUnknownName(t *testing.T) {
 }
 
 func TestDeploymentProvider_TextRoundTrip(t *testing.T) {
-	for _, original := range []DeploymentProvider{Containerlab, Clabernetes} {
+	for _, original := range []DeploymentProvider{Containerlab, Clabernetes, Dummy} {
 		encoded, err := original.MarshalText()
 		require.NoError(t, err)
 

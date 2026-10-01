@@ -102,7 +102,15 @@ tasks:
   test:
     dir: './src'
     cmds:
-      - go test -v ./...
+      - go test -v -shuffle=on ./...
+
+  test-race:
+    desc: Runs all tests with race detector
+    dir: './src'
+    env:
+      CGO_ENABLED: '1'
+    cmds:
+      - go test -v -race -shuffle=on ./...
 
   test-coverage:
     dir: './src'

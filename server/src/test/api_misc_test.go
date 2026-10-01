@@ -152,12 +152,16 @@ func TestGetServerConfig_ReportsCaptureAndDeploymentSettings(t *testing.T) {
 }
 
 func TestGetServerConfig_ReflectsTheConfiguredProvider(t *testing.T) {
-	h := NewHarness(t, WithDeploymentProvider(config.Clabernetes))
+	for _, provider := range []config.DeploymentProvider{config.Clabernetes, config.Dummy} {
+		t.Run(provider.String(), func(t *testing.T) {
+			h := NewHarness(t, WithDeploymentProvider(provider))
 
-	var serverConfig serverconfig.ServerConfig
-	h.GET("/server-config", h.Seed.Admin.Token).RequireOk(&serverConfig)
+			var serverConfig serverconfig.ServerConfig
+			h.GET("/server-config", h.Seed.Admin.Token).RequireOk(&serverConfig)
 
-	assert.Equal(t, "clabernetes", serverConfig.DeploymentConfig.Provider)
+			assert.Equal(t, provider.String(), serverConfig.DeploymentConfig.Provider)
+		})
+	}
 }
 
 func TestGetServerConfig_ReflectsDisabledCapture(t *testing.T) {

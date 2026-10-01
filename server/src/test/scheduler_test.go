@@ -1,6 +1,7 @@
 package test
 
 import (
+	"antimonyBackend/deployment"
 	"antimonyBackend/domain/lab"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
  * for deployments (keyed on a lab's start time) and one for destructions (keyed on its end time).
  * Run pops whatever is due every 50ms and drives the instance service.
  *
- * The queues are private, so these tests observe the scheduler through its effects on the fake
+ * The queues are private, so these tests observe the scheduler through its effects on the dummy
  * provider. Queue mechanics themselves are covered directly in utils/schedule_test.go.
  */
 
@@ -266,10 +267,10 @@ func TestCreateLab_StillRequiresTheOtherFields(t *testing.T) {
 // subscriber list and lost — which would mean that after any restart, expired labs run forever and
 // future labs never start.
 func TestScheduler_RevivedLabsAreQueuedOnStartup(t *testing.T) {
-	h := NewHarness(t, WithScheduler(), WithProvider(func(p *FakeProvider) {
+	h := NewHarness(t, WithScheduler(), WithProvider(func(p *deployment.DummyProvider) {
 		p.SeedInstance(InstancePastLab,
-			FakeNode{Name: NodeHost, Kind: "linux"},
-			FakeNode{Name: NodeSRL, Kind: "nokia_srlinux"},
+			deployment.DummyNode{Name: NodeHost, Kind: "linux"},
+			deployment.DummyNode{Name: NodeSRL, Kind: "nokia_srlinux"},
 		)
 	}))
 
