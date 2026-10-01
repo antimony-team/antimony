@@ -29,14 +29,14 @@ import (
 )
 
 type ContainerlabProvider struct {
-	client *client.Client
+	client client.APIClient
 
 	statsReader *StatsReader[dockerRef]
 }
 
 type dockerExecSession struct {
 	net.Conn
-	client *client.Client
+	client client.APIClient
 	execId string
 }
 
@@ -324,13 +324,12 @@ func (p *ContainerlabProvider) StopNode(
 	instanceName string,
 	nodeName string,
 ) error {
-	timeout := int(10 * time.Second)
 	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
 	if err != nil {
 		return err
 	}
 
-	return p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout})
+	return p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: new(10)})
 }
 
 func (p *ContainerlabProvider) RestartNode(
@@ -338,13 +337,12 @@ func (p *ContainerlabProvider) RestartNode(
 	instanceName string,
 	nodeName string,
 ) error {
-	timeout := int(10 * time.Second)
 	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
 	if err != nil {
 		return err
 	}
 
-	return p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: &timeout})
+	return p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: new(10)})
 }
 
 func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error {
@@ -370,7 +368,7 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 			}
 		case err := <-errs:
 			if err != nil {
-				log.Errorf("Failed to receive clabernetes events: %s", err.Error())
+				log.Errorf("Failed to receive docker events: %s", err.Error())
 				return err
 			}
 		case <-ctx.Done():

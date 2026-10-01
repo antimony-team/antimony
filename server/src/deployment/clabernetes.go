@@ -47,8 +47,8 @@ import (
 
 type ClabernetesProvider struct {
 	restConfig *rest.Config
-	clientset  *kubernetes.Clientset
-	c9s        *c9sclientset.Clientset
+	clientset  kubernetes.Interface
+	c9s        c9sclientset.Interface
 
 	statsReader *StatsReader[podRef]
 }

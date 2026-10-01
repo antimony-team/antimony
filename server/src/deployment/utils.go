@@ -26,7 +26,14 @@ func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
 		return nil, err
 	}
 
-	go streamOutput(stderr, onStderr)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		streamOutput(stderr, onStderr)
+	}()
+
+	// Wait closes the pipe, so all of stderr has to be read first.
+	<-done
 
 	err = cmd.Wait()
 	output := outputBuffer.String()
