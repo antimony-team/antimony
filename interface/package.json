@@ -48,7 +48,8 @@
   },
   "scripts": {
     "start": "vite",
-    "lint": "gts lint '**/*.ts'",
+    "lint": "gts lint '**/*.{ts,tsx}'",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf ./dist/ ./dist-electron/ ./release/",
     "compile": "tsc",
     "build:dev": "vite build --mode development",
