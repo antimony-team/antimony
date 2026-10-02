@@ -25,13 +25,15 @@ export enum ErrorCodes {
    */
   // Generic request errors
   ErrorAntimony = 5000,
-  ErrorProvider = 5001,
+  ErrorProvider = 5500,
   ErrorInvalidRuntimeCommand = 5400,
   ErrorSocketForbidden = 5403,
   ErrorUuidNotFound = 5404,
   ErrorSocketInvalidRequest = 5422,
 
   // Lab errors
+  ErrorLabNameExists = 5001,
+  ErrorInvalidLabName = 5002,
   ErrorLabNotFound = 5011,
   ErrorLabNotRunning = 5012,
   ErrorLabOperationInProgress = 5013,
