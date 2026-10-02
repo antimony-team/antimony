@@ -1,23 +1,33 @@
 package sshserver
 
 import (
+	"antimonyBackend/deployment"
 	"context"
 	"errors"
-	"fmt"
-	"path"
-	"strings"
 	"sync"
 
 	"github.com/gliderlabs/ssh"
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
 )
 
+// errCaptureServiceClosed is returned for captures requested after the service was closed.
+var errCaptureServiceClosed = errors.New("the capture service is shutting down")
+
+// CaptureService streams the traffic of node interfaces into SSH sessions as pcap. Every interface is only captured
+// once, no matter how many sessions are watching it, and the capture is stopped when the last of them leaves.
+type CaptureService struct {
+	deploymentProvider deployment.DeploymentProvider
+
+	openStreams      map[string]*stream
+	openStreamsMutex sync.Mutex
+	closed           bool
+}
+
 type stream struct {
 	key    string
-	source *afpacket.TPacket
+	source deployment.CaptureSource
 
 	mutex     sync.RWMutex
 	receivers map[*receiver]struct{}
@@ -35,7 +45,40 @@ type packet struct {
 	data []byte
 }
 
-func (s *Server) subscribe(
+func CreateCaptureService(deploymentProvider deployment.DeploymentProvider) *CaptureService {
+	return &CaptureService{
+		deploymentProvider: deploymentProvider,
+		openStreams:        make(map[string]*stream),
+	}
+}
+
+// Capture streams the traffic of an interface into the session until the session ends, the capture ends (e.g., because
+// the node stopped) or the service is closed.
+func (c *CaptureService) Capture(sess ssh.Session, instanceName string, nodeName string, interfaceName string) error {
+	captureStream, receiver, err := c.subscribe(sess.Context(), instanceName, nodeName, interfaceName)
+	if err != nil {
+		return err
+	}
+	defer c.unsubscribe(captureStream, receiver)
+
+	return writeStream(sess, captureStream, receiver)
+}
+
+// Close stops all running captures, which ends the sessions watching them, and refuses new ones. It is safe to call
+// more than once.
+func (c *CaptureService) Close() {
+	c.openStreamsMutex.Lock()
+	c.closed = true
+	openStreams := c.openStreams
+	c.openStreams = make(map[string]*stream)
+	c.openStreamsMutex.Unlock()
+
+	for _, openStream := range openStreams {
+		openStream.shutdown()
+	}
+}
+
+func (c *CaptureService) subscribe(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
@@ -43,28 +86,30 @@ func (s *Server) subscribe(
 ) (*stream, *receiver, error) {
 	captureKey := getCaptureKey(instanceName, nodeName, interfaceName)
 
-	s.openStreamsMutex.Lock()
+	c.openStreamsMutex.Lock()
+	defer c.openStreamsMutex.Unlock()
 
-	captureStream, ok := s.openStreams[captureKey]
+	if c.closed {
+		return nil, nil, errCaptureServiceClosed
+	}
+
+	captureStream, ok := c.openStreams[captureKey]
 	if !ok {
-		src, err := s.deploymentProvider.OpenCapture(ctx, instanceName, nodeName, interfaceName)
+		source, err := c.deploymentProvider.OpenCapture(ctx, instanceName, nodeName, interfaceName)
 		if err != nil {
-			s.openStreamsMutex.Unlock()
 			return nil, nil, err
 		}
 
 		captureStream = &stream{
 			key:       captureKey,
-			source:    src,
+			source:    source,
 			receivers: make(map[*receiver]struct{}),
 			done:      make(chan struct{}),
 		}
-		s.openStreams[captureKey] = captureStream
+		c.openStreams[captureKey] = captureStream
 
-		go s.processStream(captureStream)
+		go c.processStream(captureStream)
 	}
-
-	s.openStreamsMutex.Unlock()
 
 	receiver := &receiver{ch: make(chan packet, 1024)}
 
@@ -75,33 +120,64 @@ func (s *Server) subscribe(
 	return captureStream, receiver, nil
 }
 
-func (s *Server) unsubscribe(instanceName string, nodeName string, interfaceName string, receiver *receiver) {
-	captureKey := getCaptureKey(instanceName, nodeName, interfaceName)
+// unsubscribe removes a receiver from its stream and stops the capture once nobody is watching it anymore.
+func (c *CaptureService) unsubscribe(captureStream *stream, receiver *receiver) {
+	captureStream.mutex.Lock()
+	delete(captureStream.receivers, receiver)
+	empty := len(captureStream.receivers) == 0
+	captureStream.mutex.Unlock()
 
-	s.openStreamsMutex.Lock()
-	stream, ok := s.openStreams[captureKey]
-	if !ok {
-		s.openStreamsMutex.Unlock()
+	if !empty {
 		return
 	}
 
-	stream.mutex.Lock()
-	delete(stream.receivers, receiver)
-	empty := len(stream.receivers) == 0
-	stream.mutex.Unlock()
-
-	if empty {
-		delete(s.openStreams, captureKey)
+	c.openStreamsMutex.Lock()
+	// Only remove the entry if it is still this stream, a new capture of the same interface may have replaced it.
+	if c.openStreams[captureStream.key] == captureStream {
+		delete(c.openStreams, captureStream.key)
 	}
-	s.openStreamsMutex.Unlock()
+	c.openStreamsMutex.Unlock()
 
-	if empty {
-		stream.shutdown()
+	captureStream.shutdown()
+}
+
+// processStream reads packets from the capture source and forwards them to all receivers. Receivers that can't keep
+// up miss packets rather than slowing down the capture for everyone else.
+func (c *CaptureService) processStream(captureStream *stream) {
+	defer c.captureEnded(captureStream)
+
+	for {
+		data, ci, err := captureStream.source.ReadPacketData()
+		if err != nil {
+			// The capture ends because the node stopped or the source was closed
+			return
+		}
+
+		p := packet{ci: ci, data: data}
+		captureStream.mutex.RLock()
+		for r := range captureStream.receivers {
+			select {
+			case r.ch <- p:
+			default:
+			}
+		}
+		captureStream.mutex.RUnlock()
 	}
 }
 
-// stream is reading packets from a client's receiver channel and sending them into the client's SSH session
-func (s *Server) stream(sess ssh.Session, stream *stream, receiver *receiver) error {
+// captureEnded is called when a capture ends on its own, e.g. because the node stopped.
+func (c *CaptureService) captureEnded(captureStream *stream) {
+	c.openStreamsMutex.Lock()
+	if c.openStreams[captureStream.key] == captureStream {
+		delete(c.openStreams, captureStream.key)
+	}
+	c.openStreamsMutex.Unlock()
+
+	captureStream.shutdown()
+}
+
+// writeStream writes the packets of a receiver into the session as pcap, until the session or the stream ends.
+func writeStream(sess ssh.Session, captureStream *stream, receiver *receiver) error {
 	w := pcapgo.NewWriter(sess)
 
 	// When the client first connects, we write the pcap header to the SSH session once
@@ -119,109 +195,11 @@ func (s *Server) stream(sess ssh.Session, stream *stream, receiver *receiver) er
 		case <-ctx.Done():
 			// The SSH session is closed by the client or the connection is interrupted
 			return ctx.Err()
-		case <-stream.done:
-			// The stream ends because the container stopped or the connection is interrupted
+		case <-captureStream.done:
+			// The capture ended because the node stopped or the service is shutting down
 			return nil
 		}
 	}
-}
-
-// processStream is reading packets from the capture source and forwarding them into the client receiver channels
-func (s *Server) processStream(stream *stream) {
-	defer s.captureEnded(stream)
-
-	for {
-		data, ci, err := stream.source.ReadPacketData()
-		if err != nil {
-			// The stream ends because the container stopped or the connection is interrupted
-			return
-		}
-
-		p := packet{ci: ci, data: data}
-		stream.mutex.RLock()
-		for r := range stream.receivers {
-			select {
-			case r.ch <- p:
-			default:
-			}
-		}
-		stream.mutex.RUnlock()
-	}
-}
-
-// captureEnded is called when a stream ends because the container stopped or the connection is interrupted
-func (s *Server) captureEnded(stream *stream) {
-	// Remove the entry from the map only if it hasn't been removed yet.
-	s.openStreamsMutex.Lock()
-	if s.openStreams[stream.key] == stream {
-		delete(s.openStreams, stream.key)
-	}
-	s.openStreamsMutex.Unlock()
-
-	stream.shutdown()
-}
-
-// tcpdumpArgumentOptions are the short options of tcpdump that take an argument. They are needed to tell an
-// argument apart from a group of flags, e.g. "-w -" from "-nU".
-const tcpdumpArgumentOptions = "BcCEFGijmMQrsTVwWyzZ"
-
-// parseCaptureCommand returns the interface a capture command asks for. The command is either just the interface
-// name, or a tcpdump command line like the one Wireshark's sshdump sends ("tcpdump -U -i eth0 -w -", optionally
-// run through sudo), whose -i option names the interface. All other tcpdump options are ignored.
-func parseCaptureCommand(args []string) (string, error) {
-	if len(args) > 0 && args[0] == "sudo" {
-		args = args[1:]
-	}
-
-	if len(args) == 0 {
-		return "", errors.New("missing interface to capture")
-	}
-
-	if path.Base(args[0]) != "tcpdump" {
-		if len(args) > 1 {
-			return "", fmt.Errorf("unexpected arguments %q, expected an interface name or a tcpdump command", args[1:])
-		}
-		return args[0], nil
-	}
-
-	for i := 1; i < len(args); i++ {
-		arg := args[i]
-
-		if value, ok := strings.CutPrefix(arg, "--interface="); ok {
-			return value, nil
-		}
-		if arg == "--interface" {
-			if i+1 < len(args) {
-				return args[i+1], nil
-			}
-			break
-		}
-		if !strings.HasPrefix(arg, "-") || strings.HasPrefix(arg, "--") || arg == "-" {
-			continue
-		}
-
-		// A group of short options, where an option that takes an argument consumes the rest of the group, or the
-		// next argument if it is the last one.
-		for j := 1; j < len(arg); j++ {
-			option := arg[j]
-			if !strings.ContainsRune(tcpdumpArgumentOptions, rune(option)) {
-				continue
-			}
-
-			value := arg[j+1:]
-			if value == "" && i+1 < len(args) {
-				i++
-				value = args[i]
-			}
-
-			if option == 'i' && value != "" {
-				return value, nil
-			}
-			break
-		}
-	}
-
-	return "", errors.New("the tcpdump command has no interface (-i)")
 }
 
 func (s *stream) shutdown() {

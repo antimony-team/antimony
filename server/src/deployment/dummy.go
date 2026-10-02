@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gopacket/afpacket"
 	"gopkg.in/yaml.v3"
 )
 
@@ -506,7 +505,7 @@ func (p *DummyProvider) OpenCapture(
 	instanceName string,
 	nodeName string,
 	interfaceName string,
-) (*afpacket.TPacket, error) {
+) (CaptureSource, error) {
 	p.record("OpenCapture", map[string]any{
 		"instanceName":  instanceName,
 		"nodeName":      nodeName,

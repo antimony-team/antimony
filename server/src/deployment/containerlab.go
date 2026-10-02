@@ -284,7 +284,7 @@ func (p *ContainerlabProvider) OpenCapture(
 	instanceName string,
 	nodeName string,
 	interfaceName string,
-) (*afpacket.TPacket, error) {
+) (CaptureSource, error) {
 	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
 	if err != nil {
 		return nil, err
@@ -294,6 +294,7 @@ func (p *ContainerlabProvider) OpenCapture(
 	if err != nil {
 		return nil, fmt.Errorf("inspect %q: %w", containerId, err)
 	}
+
 	if info.State == nil || info.State.Pid == 0 {
 		return nil, fmt.Errorf("container %q is not running", containerId)
 	}

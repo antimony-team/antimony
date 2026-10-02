@@ -23,7 +23,6 @@ import (
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sclientset "github.com/clabernetes/clabernetes/generated/clientset"
 	claberneteslogging "github.com/clabernetes/clabernetes/logging"
-	"github.com/google/gopacket/afpacket"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
@@ -590,7 +589,7 @@ func (p *ClabernetesProvider) OpenCapture(
 	_ string,
 	_ string,
 	_ string,
-) (*afpacket.TPacket, error) {
+) (CaptureSource, error) {
 	return nil, utils.ErrCaptureNotSupported
 }
 

@@ -186,17 +186,18 @@ func main() {
 		isDevMode,
 	)
 
-	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	webConnection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	sshConnection := fmt.Sprintf("%s:%d", antimonyConfig.Capture.SSHHost, antimonyConfig.Capture.SSHPort)
 
 	var serverWaitGroup sync.WaitGroup
 	serverWaitGroup.Add(2)
 
-	go startCaptureServer(captureServer, &serverWaitGroup)
-	go startWebServer(webServer, connection, &serverWaitGroup)
+	go startWebServer(webServer, webConnection, &serverWaitGroup)
+	go startSshServer(captureServer, sshConnection, &serverWaitGroup)
 
 	time.Sleep(100 * time.Millisecond)
 
-	log.Info("Antimony API is running and ready to serve calls!", "conn", connection)
+	log.Info("Antimony API is running and ready to serve calls!", "api", webConnection, "ssh", sshConnection)
 	serverWaitGroup.Wait()
 }
 
@@ -349,18 +350,18 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 	return db
 }
 
-func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
+func startWebServer(server *gin.Engine, connection string, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
-	if err := server.Run(socket); err != nil {
-		log.Errorf("Failed to start web server on %s: %s", socket, err.Error())
+	if err := server.Run(connection); err != nil {
+		log.Errorf("Failed to start web server on %s: %s", connection, err.Error())
 	}
 }
 
-func startCaptureServer(server *sshserver.Server, waitGroup *sync.WaitGroup) {
+func startSshServer(server *sshserver.Server, connection string, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
 	if err := server.Start(); err != nil {
-		log.Errorf("Failed to start capture service: %s", err.Error())
+		log.Errorf("Failed to start SSH server on %s: %s", connection, err.Error())
 	}
 }

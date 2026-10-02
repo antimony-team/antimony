@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/google/gopacket/afpacket"
+	"github.com/google/gopacket"
 )
 
 type DeploymentProvider interface {
@@ -85,7 +85,7 @@ type DeploymentProvider interface {
 		instanceName string,
 		nodeName string,
 		interfaceName string,
-	) (*afpacket.TPacket, error)
+	) (CaptureSource, error)
 
 	StartNode(
 		ctx context.Context,
@@ -133,6 +133,11 @@ func (f LogFunc) Log(msg string) {
 type ShellExecSession interface {
 	io.ReadWriteCloser
 	Resize(cols uint, rows uint) error
+}
+
+type CaptureSource interface {
+	ReadPacketData() ([]byte, gopacket.CaptureInfo, error)
+	Close()
 }
 
 type InspectContainer struct {
