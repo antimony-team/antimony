@@ -30,7 +30,7 @@ func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
 		StartTime:          lab.StartTime,
 		EndTime:            lab.EndTime,
 		TopologyId:         lab.Topology.UUID,
-		CollectionId:       lab.Topology.Collection.UUID,
+		CollectionId:       lab.Collection.UUID,
 		Creator:            UserToOut(&lab.Creator),
 		TopologyDefinition: *lab.TopologyDefinition,
 		Instance:           instanceOut,

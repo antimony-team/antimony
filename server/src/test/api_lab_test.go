@@ -3,10 +3,12 @@ package test
 import (
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/lab"
+	"antimonyBackend/domain/topology"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/transport"
 	"antimonyBackend/utils"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -255,6 +257,69 @@ func TestCreateLab_OwnerCanCreateOnADeployableCollection(t *testing.T) {
 	assert.Equal(t, []string{createdID}, events.LabIdsFor("lab.created"))
 }
 
+func TestCreateLab_BelongsToTheCollectionOfItsTopology(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour)
+
+	var createdID string
+	h.POST("/labs", lab.LabIn{
+		Name:       ptr("Fresh Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(TopologyPrivateID),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+	assert.Equal(t, h.Seed.Private.UUID, stored.Collection.UUID)
+}
+
+func TestCreateLab_NameMustBeUniqueInTheCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour)
+
+	// "Admin Lab" already exists in PublicBoth, the collection of the admin topology.
+	errorResponse := h.POST("/labs", lab.LabIn{
+		Name:       ptr("Admin Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(TopologyAdminID),
+	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 5001)
+
+	assert.Contains(t, errorResponse.Message, "a lab with that name already exists")
+}
+
+func TestCreateLab_NameCanBeReusedInAnotherCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour)
+
+	// "Admin Lab" exists in PublicBoth, but the private topology is in Private.
+	var createdID string
+	h.POST("/labs", lab.LabIn{
+		Name:       ptr("Admin Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(TopologyPrivateID),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	assert.NotEmpty(t, createdID)
+}
+
+func TestCreateLab_NameCannotContainSlashes(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour)
+
+	// Slashes separate the parts of the SSH address of a node, "<collection>/<lab>/<node>".
+	errorResponse := h.POST("/labs", lab.LabIn{
+		Name:       ptr("core/edge"),
+		StartTime:  &start,
+		TopologyId: ptr(TopologyAdminID),
+	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 5002)
+
+	assert.Contains(t, errorResponse.Message, "can't contain slashes")
+}
+
 func TestCreateLab_MemberCanCreateOnAPublicDeployCollection(t *testing.T) {
 	h := NewHarness(t)
 
@@ -398,8 +463,9 @@ func TestCreateLab_RapidCreationNeverCollides(t *testing.T) {
 
 	for i := range 25 {
 		var createdID string
+		// Lab names are unique per collection, so each lab needs its own.
 		h.POST("/labs", lab.LabIn{
-			Name:       ptr("Repeat"),
+			Name:       ptr(fmt.Sprintf("Repeat %d", i)),
 			StartTime:  &start,
 			EndTime:    &end,
 			TopologyId: ptr(TopologyAdminID),
@@ -487,6 +553,56 @@ func TestUpdateLab_OwnerCanRename(t *testing.T) {
 	assert.Equal(t, "Renamed Lab", stored.Name)
 
 	assert.Zero(t, events.Count("lab.moved"), "a rename must not reschedule the lab")
+}
+
+func TestUpdateLab_KeepingTheCurrentNameIsAllowed(t *testing.T) {
+	h := NewHarness(t)
+
+	// The edit dialog always sends the name along, also when only the schedule changes.
+	start := time.Now().Add(2 * time.Hour).Truncate(time.Second)
+	end := start.Add(time.Hour)
+
+	h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{
+		Name:      ptr("Admin Lab"),
+		StartTime: &start,
+		EndTime:   &end,
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
+	require.NoError(t, err)
+	assert.Equal(t, "Admin Lab", stored.Name)
+	assert.True(t, start.Equal(stored.StartTime))
+}
+
+func TestUpdateLab_RenamingToANameTakenInTheCollectionIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	// "Member Lab" is in PublicBoth as well.
+	h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{Name: ptr("Member Lab")}, h.Seed.Admin.Token).
+		RequireError(http.StatusBadRequest, 5001)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
+	require.NoError(t, err)
+	assert.Equal(t, "Admin Lab", stored.Name, "a rejected rename must not change the lab")
+}
+
+func TestUpdateLab_RenamingToANameUsedInAnotherCollectionIsAllowed(t *testing.T) {
+	h := NewHarness(t)
+
+	// "Hidden Lab" is in Hidden, the admin lab in PublicBoth.
+	h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{Name: ptr("Hidden Lab")}, h.Seed.Admin.Token).
+		RequireOk(nil)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
+	require.NoError(t, err)
+	assert.Equal(t, "Hidden Lab", stored.Name)
+}
+
+func TestUpdateLab_NameCannotContainSlashes(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{Name: ptr("core/edge")}, h.Seed.Admin.Token).
+		RequireError(http.StatusBadRequest, 5002)
 }
 
 func TestUpdateLab_MovingTheScheduleRepublishesIt(t *testing.T) {
@@ -724,4 +840,78 @@ func TestDeleteLab_RequiresAuthentication(t *testing.T) {
 
 	h.DELETE("/labs/"+LabAdminID, "").RequireError(http.StatusUnauthorized, 401)
 	h.DELETE("/labs/"+LabAdminID, "garbage").RequireError(498, 498)
+}
+
+/*
+ * The lab's own collection
+ *
+ * A lab gets its topology's collection when it is created, but from then on only the lab's own
+ * collection counts. Moving the topology must not move its labs.
+ */
+
+// moveAdminTopology moves the admin topology, which Admin Lab was created from, into another collection.
+func moveAdminTopology(t *testing.T, h *Harness, collectionId string) {
+	t.Helper()
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		CollectionId: ptr(collectionId),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+}
+
+func TestLab_StaysInItsCollectionWhenItsTopologyMoves(t *testing.T) {
+	h := NewHarness(t)
+
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+
+	var found labDTO
+	h.GET("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireOk(&found)
+
+	assert.Equal(t, h.Seed.PublicBoth.UUID, found.CollectionId)
+	assert.Equal(t, TopologyAdminID, found.TopologyId, "the lab still references the topology it was created from")
+}
+
+func TestLab_AccessFollowsTheLabsCollectionNotItsTopologys(t *testing.T) {
+	h := NewHarness(t)
+
+	// The member can't access Hidden, but the lab stays in PublicBoth, which it can.
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+
+	var found labDTO
+	h.GET("/labs/"+LabAdminID, h.Seed.Member.Token).RequireOk(&found)
+	assert.Equal(t, "Admin Lab", found.Name)
+
+	assert.Contains(t, labNames(listLabs(t, h, h.Seed.Member.Token, "")), "Admin Lab")
+}
+
+func TestLab_CollectionFilterUsesTheLabsCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+
+	inPublicBoth := labNames(listLabs(t, h, h.Seed.Admin.Token, "collectionFilter[]="+h.Seed.PublicBoth.UUID))
+	inHidden := labNames(listLabs(t, h, h.Seed.Admin.Token, "collectionFilter[]="+h.Seed.Hidden.UUID))
+
+	assert.Contains(t, inPublicBoth, "Admin Lab")
+	assert.NotContains(t, inHidden, "Admin Lab")
+}
+
+func TestLab_NameUniquenessUsesTheLabsCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+
+	// New labs of the moved topology go into Hidden, where "Admin Lab" is not taken: the existing one
+	// stayed in PublicBoth.
+	start := time.Now().Add(time.Hour)
+
+	var createdID string
+	h.POST("/labs", lab.LabIn{
+		Name:       ptr("Admin Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(TopologyAdminID),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+	assert.Equal(t, h.Seed.Hidden.UUID, stored.Collection.UUID)
 }

@@ -149,7 +149,7 @@ func TestDeployCommand_ProviderFailureIsReported(t *testing.T) {
 	status := h.Dial("/status-messages", h.Seed.Admin.Token)
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	errorResponse := client.Emit(deployCommand(LabAdminID)).RequireError(5001)
+	errorResponse := client.Emit(deployCommand(LabAdminID)).RequireError(5500)
 	assert.Contains(t, errorResponse.Message, "provider subprocess encountered an error")
 
 	// The instance sticks around in the Failed state so the user can see and delete it.
@@ -180,7 +180,7 @@ func TestDeployCommand_InspectFailureIsReported(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	client.Emit(deployCommand(LabAdminID)).RequireError(5001)
+	client.Emit(deployCommand(LabAdminID)).RequireError(5500)
 
 	labInstance := h.InstanceService.GetInstance(LabAdminID)
 	require.NotNil(t, labInstance)
@@ -405,7 +405,7 @@ func TestDestroyCommand_ProviderFailureLeavesTheLabFailed(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	errorResponse := client.Emit(destroyCommand(LabAdminID)).RequireError(5001)
+	errorResponse := client.Emit(destroyCommand(LabAdminID)).RequireError(5500)
 	assert.Contains(t, errorResponse.Message, "provider subprocess encountered an error")
 
 	labInstance := h.InstanceService.GetInstance(LabAdminID)

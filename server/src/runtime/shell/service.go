@@ -121,12 +121,12 @@ func (s *Service) FetchShellsCommand(
 	labId string,
 	authUser *auth.AuthenticatedUser,
 ) ([]shellData, error) {
-	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
+	targetLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return nil, err
 	}
 
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, instanceLab.Topology.Collection.Name) {
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, targetLab.Collection.Name) {
 		return nil, utils.ErrNoAccessToLab
 	}
 
@@ -152,7 +152,21 @@ func (s *Service) OpenShellCommand(
 	nodeName *string,
 	authUser *auth.AuthenticatedUser,
 ) (string, error) {
-	node, instanceName, err := s.validateShellCommand(ctx, labId, nodeName, authUser)
+	if nodeName == nil {
+		return "", utils.ErrInvalidSocketRequest
+	}
+
+	targetLab, err := s.labRepo.GetByUuid(ctx, labId)
+	if err != nil {
+		return "", err
+	}
+
+	// Don't allow users to open shells on labs they don't have access to
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, targetLab.Collection.Name) {
+		return "", utils.ErrNoAccessToLab
+	}
+
+	node, err := s.instanceService.GetInstanceNode(ctx, labId, *nodeName, authUser)
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +181,7 @@ func (s *Service) OpenShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.openNodeShell(ctx, node, instanceName)
+	connection, err := s.openNodeShell(ctx, node, targetLab.InstanceName)
 	if err != nil {
 		log.Error("Failed to open shell on node.", "node", node.ContainerId)
 		return "", err
@@ -482,34 +496,6 @@ func (s *Service) runShell(
 
 		break
 	}
-}
-
-func (s *Service) validateShellCommand(
-	ctx context.Context,
-	labId string,
-	nodeName *string,
-	authUser *auth.AuthenticatedUser,
-) (instance.InstanceNode, string, error) {
-	if nodeName == nil {
-		return instance.InstanceNode{}, "", utils.ErrInvalidSocketRequest
-	}
-
-	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
-	if err != nil {
-		return instance.InstanceNode{}, "", err
-	}
-
-	// Deny request if user is not the owner of the requested lab or an admin
-	if !authUser.IsAdmin && authUser.UserId != instanceLab.Creator.UUID {
-		return instance.InstanceNode{}, "", utils.ErrNoDeployAccessToLab
-	}
-
-	instanceNode, err := s.instanceService.GetInstanceNode(ctx, labId, *nodeName, authUser)
-	if err != nil {
-		return instance.InstanceNode{}, "", err
-	}
-
-	return instanceNode, instanceLab.InstanceName, nil
 }
 
 // Read and Write must delegate to the embedded reader and writer explicitly. Naming them after the

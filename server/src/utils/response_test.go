@@ -55,6 +55,8 @@ func TestCreateErrorResponse_MapsEveryKnownError(t *testing.T) {
 		{"invalid topology", ErrInvalidTopology, http.StatusBadRequest, 3003},
 		{"bind file exists", ErrBindFileExists, http.StatusBadRequest, 4001},
 		{"invalid bind file path", ErrInvalidBindFilePath, http.StatusBadRequest, 4002},
+		{"lab name exists", ErrLabNameExists, http.StatusBadRequest, 5001},
+		{"invalid lab name", ErrInvalidLabName, http.StatusBadRequest, 5002},
 		{"database error", ErrDatabaseError, http.StatusInternalServerError, 500},
 		{"unauthorized", ErrUnauthorized, http.StatusUnauthorized, 401},
 		{"openid disabled", ErrOpenIDAuthDisabledError, http.StatusUnauthorized, 401},
@@ -175,7 +177,7 @@ func TestCreateSocketErrorResponse_MapsEveryKnownError(t *testing.T) {
 		code int
 	}{
 		{"antimony", ErrAntimony, 5000},
-		{"provider", ErrProvider, 5001},
+		{"provider", ErrProvider, 5500},
 		{"invalid runtime command", ErrInvalidRuntimeCommand, 5400},
 		{"invalid socket request", ErrInvalidSocketRequest, 5422},
 		{"uuid not found", ErrUuidNotFound, 5404},

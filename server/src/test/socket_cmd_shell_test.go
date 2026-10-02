@@ -243,15 +243,54 @@ func TestOpenShellCommand_UnknownLabIsRejected(t *testing.T) {
 	client.Emit(openShellCommand("no-such-lab", NodeHost)).RequireError(5404)
 }
 
-func TestOpenShellCommand_NonOwnerIsRejected(t *testing.T) {
+func TestOpenShellCommand_CollectionMemberCanOpenAShellOnSomeoneElsesLab(t *testing.T) {
 	h := NewHarness(t)
 
+	// The admin's lab is in PublicBoth, which the member belongs to. Shells are not restricted to the
+	// lab's creator, access to the lab's collection is enough.
 	h.DeployLab(LabAdminID)
 
 	client := h.Dial("/cmd", h.Seed.Member.Token)
 
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+	assert.NotEmpty(t, shellId)
+}
+
+func TestOpenShellCommand_UserOutsideTheLabsCollectionIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Outsider.Token)
+
 	errorResponse := client.Emit(openShellCommand(LabAdminID, NodeHost)).RequireError(5403)
-	assert.Contains(t, errorResponse.Message, "deploy access to the provided lab is not granted")
+	assert.Contains(t, errorResponse.Message, "access to the provided lab is not granted")
+	assert.Zero(t, h.Provider.CallCount("ExecInteractive"), "no shell may be opened for a user without access")
+}
+
+func TestOpenShellCommand_MemberIsRejectedOnALabInACollectionItIsNotIn(t *testing.T) {
+	h := NewHarness(t)
+
+	// The member belongs to every collection except Hidden.
+	h.DeployLab(LabHiddenID)
+
+	client := h.Dial("/cmd", h.Seed.Member.Token)
+
+	client.Emit(openShellCommand(LabHiddenID, NodeHost)).RequireError(5403)
+}
+
+func TestOpenShellCommand_AccessFollowsTheLabsCollectionNotItsTopologys(t *testing.T) {
+	h := NewHarness(t)
+
+	// The admin topology moves into Hidden, which the member can't access, but the lab stays in
+	// PublicBoth.
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Member.Token)
+
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+	assert.NotEmpty(t, shellId)
 }
 
 func TestOpenShellCommand_AdminCanOpenAShellOnSomeoneElsesLab(t *testing.T) {

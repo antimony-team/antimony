@@ -21,7 +21,8 @@ func CreateRepository(db *gorm.DB) *Repository {
 func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, error) {
 	var labs []Lab
 	query := r.db.WithContext(ctx).
-		Preload("Topology.Collection").
+		Preload("Topology").
+		Preload("Collection").
 		Preload("Creator").
 		Order("labs.start_time")
 
@@ -30,9 +31,9 @@ func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 		hasSearchQuery := labFilter.SearchQuery != nil && len(*labFilter.SearchQuery) > 0
 
 		if hasCollectionFilter || hasSearchQuery {
-			query = query.
-				Joins("JOIN topologies ON topologies.id = labs.topology_id").
-				Joins("JOIN collections ON collections.id = topologies.collection_id")
+			query = query.Joins(
+				"JOIN collections ON collections.id = labs.collection_id AND collections.deleted_at IS NULL",
+			)
 		}
 
 		if labFilter.StartDate != nil {
@@ -48,6 +49,10 @@ func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 		}
 
 		if hasSearchQuery {
+			query = query.Joins(
+				"LEFT JOIN topologies ON topologies.id = labs.topology_id AND topologies.deleted_at IS NULL",
+			)
+
 			matchQuery := "%" + *labFilter.SearchQuery + "%"
 			query = query.Where(
 				"labs.name LIKE ? OR topologies.name LIKE ? OR collections.name LIKE ?",
@@ -77,18 +82,42 @@ func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 func (r *Repository) GetByUuid(ctx context.Context, labId string) (*Lab, error) {
 	var lab Lab
 	result := r.db.WithContext(ctx).
-		Preload("Topology.Collection").
+		Preload("Topology").
+		Preload("Collection").
 		Preload("Creator").
 		Where("uuid = ?", labId).
 		Find(&lab)
+
+	if result.Error != nil {
+		log.Errorf("[DB] Failed to fetch lab by UUID. Error: %s", result.Error.Error())
+		return nil, utils.ErrDatabaseError
+	}
 
 	if result.RowsAffected < 1 {
 		return nil, utils.ErrUuidNotFound
 	}
 
+	return &lab, nil
+}
+
+// GetByCollectionAndName returns the lab with the given name in the collection with the given name.
+func (r *Repository) GetByCollectionAndName(ctx context.Context, collectionName string, labName string) (*Lab, error) {
+	var lab Lab
+	result := r.db.WithContext(ctx).
+		Preload("Topology").
+		Preload("Collection").
+		Preload("Creator").
+		Joins("JOIN collections ON collections.id = labs.collection_id AND collections.deleted_at IS NULL").
+		Where("collections.name = ? AND labs.name = ?", collectionName, labName).
+		Find(&lab)
+
 	if result.Error != nil {
-		log.Errorf("[DB] Failed to fetch lab by UUID. Error: %s", result.Error.Error())
+		log.Errorf("[DB] Failed to fetch lab by collection and name. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return nil, utils.ErrLabNotFound
 	}
 
 	return &lab, nil

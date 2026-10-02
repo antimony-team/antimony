@@ -402,6 +402,7 @@ func (h *Harness) createLab(fixture labFixture) lab.Lab {
 		StartTime:          fixture.startTime,
 		EndTime:            fixture.endTime,
 		TopologyID:         fixture.topology.ID,
+		CollectionID:       fixture.topology.CollectionID,
 		CreatorID:          fixture.creator.User.ID,
 		InstanceName:       fixture.instanceName,
 		TopologyDefinition: &definition,
@@ -410,6 +411,7 @@ func (h *Harness) createLab(fixture labFixture) lab.Lab {
 	require.NoError(h.T, h.DB.Omit(clause.Associations).Create(&row).Error)
 
 	row.Topology = fixture.topology
+	row.Collection = fixture.topology.Collection
 	row.Creator = fixture.creator.User
 
 	return row

@@ -1440,17 +1440,17 @@ func (s *Service) GetInstanceNode(
 	nodeName string,
 	authUser *auth.AuthenticatedUser,
 ) (InstanceNode, error) {
-	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
+	targetLab, err := s.labRepo.GetByUuid(ctx, labId)
 	if err != nil {
 		return InstanceNode{}, err
 	}
 
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, instanceLab.Topology.Collection.Name) {
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, targetLab.Collection.Name) {
 		return InstanceNode{}, utils.ErrNoAccessToLab
 	}
 
 	s.instancesMutex.Lock()
-	instance, hasInstance := s.instances[instanceLab.UUID]
+	instance, hasInstance := s.instances[targetLab.UUID]
 	s.instancesMutex.Unlock()
 
 	if !hasInstance {

@@ -36,6 +36,10 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 4002, Message: err.Error()}
 	case errors.Is(err, ErrLabRunning):
 		return http.StatusBadRequest, ErrorResponse{Code: 4003, Message: err.Error()}
+	case errors.Is(err, ErrLabNameExists):
+		return http.StatusBadRequest, ErrorResponse{Code: 5001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidLabName):
+		return http.StatusBadRequest, ErrorResponse{Code: 5002, Message: err.Error()}
 	case errors.Is(err, ErrDatabaseError):
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
@@ -77,7 +81,7 @@ func CreateSocketErrorResponse(err error) ErrorResponse {
 	case errors.Is(err, ErrUuidNotFound):
 		return ErrorResponse{Code: 5404, Message: err.Error()}
 	case errors.Is(err, ErrProvider):
-		return ErrorResponse{Code: 5001, Message: err.Error()}
+		return ErrorResponse{Code: 5500, Message: err.Error()}
 
 	// Lab errors
 	case errors.Is(err, ErrLabNotFound):

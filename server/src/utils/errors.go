@@ -37,6 +37,8 @@ var ErrShellNotFound = errors.New("the provided shell id does not exist")
  */
 
 var ErrLabRunning = errors.New("modifications to a running lab are not allowed")
+var ErrLabNameExists = errors.New("a lab with that name already exists in that collection")
+var ErrInvalidLabName = errors.New("the name of the lab is invalid")
 var ErrTopologyExists = errors.New("a topology with that name already exists in that collection")
 var ErrBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrCollectionExists = errors.New("a collection with that name already exists")

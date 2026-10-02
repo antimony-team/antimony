@@ -11,6 +11,7 @@ import (
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -84,7 +85,7 @@ func (s *Service) Get(ctx context.Context, labFilter LabFilter, authUser auth.Au
 	}
 
 	return lo.Filter(labs, func(lab Lab, _ int) bool {
-		return authUser.IsAdmin || slices.Contains(authUser.Collections, lab.Topology.Collection.Name)
+		return authUser.IsAdmin || slices.Contains(authUser.Collections, lab.Collection.Name)
 	}), nil
 }
 
@@ -98,7 +99,7 @@ func (s *Service) GetByUuid(ctx context.Context, labId string, authUser auth.Aut
 	}
 
 	// Deny request if user doesn't have access to the lab
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Topology.Collection.Name) {
+	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, lab.Collection.Name) {
 		return nil, utils.ErrNoAccessToLab
 	}
 
@@ -122,6 +123,18 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		return "", utils.ErrUnauthorized
 	}
 
+	// Lab name can't contain slash characters
+	if strings.Contains(*req.Name, "/") {
+		return "", fmt.Errorf("%w: the lab name can't contain slashes", utils.ErrInvalidLabName)
+	}
+
+	// Lab names have to be unique per collection
+	if _, err := s.repo.GetByCollectionAndName(ctx, labTopology.Collection.Name, *req.Name); err == nil {
+		return "", utils.ErrLabNameExists
+	} else if !errors.Is(err, utils.ErrLabNotFound) {
+		return "", err
+	}
+
 	topologyDefinition, _, err := s.topologyService.LoadTopology(labTopology.UUID, []topology.BindFile{})
 	if err != nil {
 		log.Error("Failed to read definition of topology", "topology", labTopology.UUID, "error", err.Error())
@@ -136,6 +149,7 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		EndTime:            req.EndTime,
 		Creator:            *creator,
 		Topology:           *labTopology,
+		Collection:         labTopology.Collection,
 		TopologyDefinition: &topologyDefinition,
 	}
 
@@ -173,6 +187,24 @@ func (s *Service) Update(ctx context.Context, req LabInPartial, labId string, au
 		return utils.ErrLabRunning
 	}
 
+	if req.Name != nil {
+		// Lab name can't contain slash characters
+		if strings.Contains(*req.Name, "/") {
+			return fmt.Errorf("%w: the lab name can't contain slashes", utils.ErrInvalidLabName)
+		}
+
+		// Lab names have to be unique per collection
+		if existing, err := s.repo.GetByCollectionAndName(ctx, lab.Collection.Name, *req.Name); err == nil {
+			if existing.UUID != lab.UUID {
+				return utils.ErrLabNameExists
+			}
+		} else if !errors.Is(err, utils.ErrLabNotFound) {
+			return err
+		}
+
+		lab.Name = *req.Name
+	}
+
 	timeChanged := false
 
 	if req.Indefinite != nil && *req.Indefinite {
@@ -186,10 +218,6 @@ func (s *Service) Update(ctx context.Context, req LabInPartial, labId string, au
 	if req.StartTime != nil {
 		lab.StartTime = *req.StartTime
 		timeChanged = true
-	}
-
-	if req.Name != nil {
-		lab.Name = *req.Name
 	}
 
 	if err := s.repo.Update(ctx, lab); err != nil {
