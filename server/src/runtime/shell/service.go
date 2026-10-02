@@ -95,7 +95,33 @@ func CreateService(
 	return service
 }
 
-// Close stops the shell manager worker, terminates all open shells and releases the control namespace.
+func (s *Service) OpenShell(
+	ctx context.Context,
+	instanceName string,
+	node *instance.InstanceNode,
+) (deployment.ShellExecSession, error) {
+	if connection, err := s.openSshSession(instanceName, node); err == nil {
+		return connection, nil
+	}
+
+	log.Debug(
+		"[Shell] Unable to open SSH session to node. Falling back to interactive shell.",
+		"kind",
+		node.Kind,
+		"node",
+		node.ContainerId,
+	)
+
+	return s.deploymentProvider.ExecInteractive(
+		ctx,
+		instanceName,
+		node.Name,
+		// We want to try and use /bin/bash and fall back to /bin/sh if it's not available
+		[]string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"},
+	)
+}
+
+// Close stops the shell manager worker, terminates all open shells, and releases the control namespace.
 // It is safe to call more than once.
 func (s *Service) Close() {
 	s.closeOnce.Do(func() {
@@ -156,17 +182,16 @@ func (s *Service) OpenShellCommand(
 		return "", utils.ErrInvalidSocketRequest
 	}
 
-	targetLab, err := s.labRepo.GetByUuid(ctx, labId)
-	if err != nil {
-		return "", err
-	}
-
-	// Don't allow users to open shells on labs they don't have access to
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, targetLab.Collection.Name) {
-		return "", utils.ErrNoAccessToLab
-	}
-
-	node, err := s.instanceService.GetInstanceNode(ctx, labId, *nodeName, authUser)
+	node, targetInstanceName, err := s.instanceService.GetInstanceNode(
+		ctx,
+		&labId,
+		nil,
+		nil,
+		nil,
+		nodeName,
+		nil,
+		authUser,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -181,7 +206,7 @@ func (s *Service) OpenShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.openNodeShell(ctx, node, targetLab.InstanceName)
+	connection, err := s.OpenShell(ctx, targetInstanceName, &node)
 	if err != nil {
 		log.Error("Failed to open shell on node.", "node", node.ContainerId)
 		return "", err
@@ -278,47 +303,14 @@ func (s *Service) runManager(ctx context.Context) {
 	}
 }
 
-func (s *Service) openNodeShell(
-	ctx context.Context,
-	node instance.InstanceNode,
-	instanceName string,
-) (deployment.ShellExecSession, error) {
-	var connection deployment.ShellExecSession
-	var err error
-
-	connection, err = s.openSshSession(instanceName, node.Name, node.Kind)
-	if err == nil {
-		return connection, nil
-	}
-
-	log.Info(
-		"Failed to open SSH session for node. Falling back to native bash.",
-		"kind",
-		node.Kind,
-		"node",
-		node.ContainerId,
-		"err",
-		err,
-	)
-
-	return s.deploymentProvider.ExecInteractive(
-		ctx,
-		instanceName,
-		node.Name,
-		// We want to try and use /bin/bash and fall back to /bin/sh if it's not available
-		[]string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"},
-	)
-}
-
 func (s *Service) openSshSession(
 	instanceName string,
-	nodeName string,
-	nodeKind string,
+	node *instance.InstanceNode,
 ) (deployment.ShellExecSession, error) {
 	authMethods := s.defaultSshAuth
 
 	sshUsername := "admin"
-	kindConfig, hasConfig := s.instanceService.GetNodeKindsConfig()[nodeKind]
+	kindConfig, hasConfig := s.instanceService.GetNodeKindsConfig()[node.Kind]
 
 	if hasConfig && kindConfig.SSHUsername != nil {
 		sshUsername = *kindConfig.SSHUsername
@@ -335,13 +327,13 @@ func (s *Service) openSshSession(
 	}
 
 	ctx := context.Background()
-	conn, err := s.deploymentProvider.DialNode(ctx, instanceName, nodeName, 22)
+	conn, err := s.deploymentProvider.DialNode(ctx, instanceName, node.Name, 22)
 	if err != nil {
 		return nil, err
 	}
 
 	// The host here doesn't matter, we already have the connection
-	sshConn, chans, reqs, err := ssh.NewClientConn(conn, nodeName+":22", sshConfig)
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, node.Name+":22", sshConfig)
 	if err != nil {
 		return nil, err
 	}

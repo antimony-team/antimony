@@ -2,7 +2,6 @@ package main
 
 import (
 	"antimonyBackend/auth"
-	"antimonyBackend/capture"
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	_ "antimonyBackend/docs"
@@ -19,6 +18,7 @@ import (
 	"antimonyBackend/runtime/scheduler"
 	"antimonyBackend/runtime/shell"
 	"antimonyBackend/socket"
+	"antimonyBackend/sshserver"
 	"antimonyBackend/storage"
 	collectiontransport "antimonyBackend/transport/http/collection"
 	devicetransport "antimonyBackend/transport/http/device"
@@ -171,7 +171,7 @@ func main() {
 
 	commands.CreateHandler(shellService, instanceService, socketManager)
 
-	captureServer := capture.CreateServer(antimonyConfig, deploymentProvider)
+	captureServer := sshserver.CreateServer(antimonyConfig, shellService, instanceService, deploymentProvider)
 	webServer := createWebServer(
 		authManager,
 		socketManager,
@@ -357,7 +357,7 @@ func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup
 	}
 }
 
-func startCaptureServer(server *capture.Server, waitGroup *sync.WaitGroup) {
+func startCaptureServer(server *sshserver.Server, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
 	if err := server.Start(); err != nil {

@@ -1,39 +1,19 @@
-package capture
+package sshserver
 
 import (
-	"antimonyBackend/config"
-	"antimonyBackend/deployment"
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"os"
+	"path"
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/log"
 	"github.com/gliderlabs/ssh"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
 )
-
-// Server is a service that allows clients to connect via SSH and capture network traffic from a provided
-// container's interface.
-//
-// SSH connection string: ssh://<container-id>@<host> -p <port> <interface-name>
-type Server struct {
-	captureConfig *config.CaptureConfig
-
-	openStreams      map[string]*stream
-	openStreamsMutex sync.Mutex
-
-	deploymentProvider deployment.DeploymentProvider
-}
 
 type stream struct {
 	key    string
@@ -55,37 +35,6 @@ type packet struct {
 	data []byte
 }
 
-func CreateServer(
-	config *config.AntimonyConfig,
-	deploymentProvider deployment.DeploymentProvider,
-) *Server {
-	return &Server{
-		captureConfig: &config.Capture,
-
-		deploymentProvider: deploymentProvider,
-
-		openStreams:      make(map[string]*stream),
-		openStreamsMutex: sync.Mutex{},
-	}
-}
-
-func (s *Server) Start() error {
-	if err := ensureHostKey("./key"); err != nil {
-		log.Fatalf("preparing host key: %v", err)
-	}
-
-	srv := &ssh.Server{
-		Addr:    fmt.Sprintf("%s:%d", s.captureConfig.SSHHost, s.captureConfig.SSHPort),
-		Handler: s.makeSessionHandler(),
-	}
-
-	if err := srv.SetOption(ssh.HostKeyFile(s.captureConfig.SSHKeyPath)); err != nil {
-		log.Fatalf("loading host key: %v", err)
-	}
-
-	return srv.ListenAndServe()
-}
-
 func (s *Server) subscribe(
 	ctx context.Context,
 	instanceName string,
@@ -100,6 +49,7 @@ func (s *Server) subscribe(
 	if !ok {
 		src, err := s.deploymentProvider.OpenCapture(ctx, instanceName, nodeName, interfaceName)
 		if err != nil {
+			s.openStreamsMutex.Unlock()
 			return nil, nil, err
 		}
 
@@ -211,30 +161,67 @@ func (s *Server) captureEnded(stream *stream) {
 	stream.shutdown()
 }
 
-func (s *Server) makeSessionHandler() ssh.Handler {
-	return func(sess ssh.Session) {
-		instanceName, nodeName, ok := strings.Cut(sess.User(), "/")
-		if !ok {
-			_, _ = fmt.Fprint(sess.Stderr(), "invalid container ID")
-			_ = sess.Exit(2)
-			return
-		}
+// tcpdumpArgumentOptions are the short options of tcpdump that take an argument. They are needed to tell an
+// argument apart from a group of flags, e.g. "-w -" from "-nU".
+const tcpdumpArgumentOptions = "BcCEFGijmMQrsTVwWyzZ"
 
-		args := sess.Command()
-		if len(args) == 0 {
-			_, _ = fmt.Fprint(sess.Stderr(), "missing interface argument(s)")
-			_ = sess.Exit(2)
-			return
-		}
-
-		c, r, err := s.subscribe(sess.Context(), instanceName, nodeName, args[0])
-		if err != nil {
-			return
-		}
-		defer s.unsubscribe(instanceName, nodeName, args[0], r)
-
-		_ = s.stream(sess, c, r)
+// parseCaptureCommand returns the interface a capture command asks for. The command is either just the interface
+// name, or a tcpdump command line like the one Wireshark's sshdump sends ("tcpdump -U -i eth0 -w -", optionally
+// run through sudo), whose -i option names the interface. All other tcpdump options are ignored.
+func parseCaptureCommand(args []string) (string, error) {
+	if len(args) > 0 && args[0] == "sudo" {
+		args = args[1:]
 	}
+
+	if len(args) == 0 {
+		return "", errors.New("missing interface to capture")
+	}
+
+	if path.Base(args[0]) != "tcpdump" {
+		if len(args) > 1 {
+			return "", fmt.Errorf("unexpected arguments %q, expected an interface name or a tcpdump command", args[1:])
+		}
+		return args[0], nil
+	}
+
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+
+		if value, ok := strings.CutPrefix(arg, "--interface="); ok {
+			return value, nil
+		}
+		if arg == "--interface" {
+			if i+1 < len(args) {
+				return args[i+1], nil
+			}
+			break
+		}
+		if !strings.HasPrefix(arg, "-") || strings.HasPrefix(arg, "--") || arg == "-" {
+			continue
+		}
+
+		// A group of short options, where an option that takes an argument consumes the rest of the group, or the
+		// next argument if it is the last one.
+		for j := 1; j < len(arg); j++ {
+			option := arg[j]
+			if !strings.ContainsRune(tcpdumpArgumentOptions, rune(option)) {
+				continue
+			}
+
+			value := arg[j+1:]
+			if value == "" && i+1 < len(args) {
+				i++
+				value = args[i]
+			}
+
+			if option == 'i' && value != "" {
+				return value, nil
+			}
+			break
+		}
+	}
+
+	return "", errors.New("the tcpdump command has no interface (-i)")
 }
 
 func (s *stream) shutdown() {
@@ -248,23 +235,4 @@ func (s *stream) shutdown() {
 
 func getCaptureKey(instanceName string, nodeName string, interfaceName string) string {
 	return instanceName + "/" + nodeName + "/" + interfaceName
-}
-
-func ensureHostKey(path string) error {
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	_, private, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return err
-	}
-
-	keyBytes, err := x509.MarshalPKCS8PrivateKey(private)
-	if err != nil {
-		return err
-	}
-	block := &pem.Block{Type: "PRIVATE KEY", Bytes: keyBytes}
-	return os.WriteFile(path, pem.EncodeToMemory(block), 0o600)
 }

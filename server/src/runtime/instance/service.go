@@ -470,9 +470,9 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 
 	// Manually set node states to exited to mark the nodes no longer running
 	instance.DataMutex.Lock()
-	for _, node := range instance.Nodes {
-		node.State = deployment.NodeStates.Stopped
-		node.Interfaces = make([]deployment.NodeInterface, 0)
+	for k := range instance.Nodes {
+		instance.Nodes[k].State = deployment.NodeStates.Stopped
+		instance.Nodes[k].Interfaces = make([]deployment.NodeInterface, 0)
 	}
 	instance.DataMutex.Unlock()
 
@@ -515,8 +515,8 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	instance.DataMutex.Unlock()
 
 	instance.LogNamespace.Release()
-	for i := range instance.Nodes {
-		instance.Nodes[i].LogNamespace.Release()
+	for k := range instance.Nodes {
+		instance.Nodes[k].LogNamespace.Release()
 	}
 
 	s.instancesMutex.Lock()
@@ -639,8 +639,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	if instanceRunning {
 		instance.DataMutex.Lock()
-		for _, node := range instance.Nodes {
-			node.Reset()
+		for k := range instance.Nodes {
+			instance.Nodes[k].Reset()
 		}
 		instance.DataMutex.Unlock()
 
@@ -735,16 +735,16 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	instance.Deployed = time.Now()
 	instance.DataMutex.Unlock()
 
-	for i := range instance.Nodes {
-		if instance.Nodes[i].State == deployment.NodeStates.Stopped {
+	for k := range instance.Nodes {
+		if instance.Nodes[k].State == deployment.NodeStates.Stopped {
 			continue
 		}
 
 		err = s.deploymentProvider.StreamContainerLogs(
 			ctx,
 			instance.Name,
-			instance.Nodes[i].Name,
-			instance.Nodes[i].LogNamespace.Send,
+			instance.Nodes[k].Name,
+			instance.Nodes[k].LogNamespace.Send,
 		)
 
 		if err != nil {
@@ -757,12 +757,12 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 				"name", instance.Name,
 				"id", lab.UUID,
 				"instance", instance.Name,
-				"nodeName", instance.Nodes[i].Name,
+				"nodeName", instance.Nodes[k].Name,
 				"err", err.Error(),
 			)
 		}
 
-		go s.startNodeStartupListener(lab.UUID, instance, instance.Nodes[i], false)
+		go s.startNodeStartupListener(lab.UUID, instance, instance.Nodes[k], false)
 	}
 
 	log.Info(
@@ -798,11 +798,7 @@ func (s *Service) registerProviderEventListener(ctx context.Context) {
 		for labId, instance := range instances {
 			instance.DataMutex.Lock()
 
-			node, hasMatched := lo.Find(instance.Nodes, func(item *InstanceNode) bool {
-				return item.Name == nodeName
-			})
-
-			if hasMatched {
+			if node, ok := instance.Nodes[nodeName]; ok {
 				targetLabId = labId
 				targetInstance = instance
 				targetNode = node
@@ -1055,7 +1051,7 @@ func (s *Service) createInstance(
 	}, nil
 }
 
-func (s *Service) createNodesFromTopology(topologyDefinition any, labId string) ([]*InstanceNode, error) {
+func (s *Service) createNodesFromTopology(topologyDefinition any, labId string) (map[string]*InstanceNode, error) {
 	topologyMap, ok := topologyDefinition.(map[string]any)
 	if !ok {
 		return nil, errors.New("topology definition is not a map")
@@ -1076,7 +1072,7 @@ func (s *Service) createNodesFromTopology(topologyDefinition any, labId string) 
 		defaultKind, _ = defaults["kind"].(string)
 	}
 
-	result := make([]*InstanceNode, 0, len(nodes))
+	result := make(map[string]*InstanceNode)
 	for nodeName, nodeVal := range nodes {
 		kind := defaultKind
 		if node, ok := nodeVal.(map[string]any); ok {
@@ -1104,19 +1100,15 @@ func (s *Service) createNodesFromTopology(topologyDefinition any, labId string) 
 			canRestart = kindConfig.CanRestart != nil && *kindConfig.CanRestart
 		}
 
-		result = append(result, &InstanceNode{
+		result[nodeName] = &InstanceNode{
 			Name:         nodeName,
 			Kind:         kind,
 			CanRestart:   canRestart,
 			State:        deployment.NodeStates.Stopped,
 			Interfaces:   make([]deployment.NodeInterface, 0),
 			LogNamespace: nodeLogNamespace,
-		})
+		}
 	}
-
-	slices.SortFunc(result, func(a, b *InstanceNode) int {
-		return strings.Compare(a.Name, b.Name)
-	})
 
 	return result, nil
 }
@@ -1188,37 +1180,39 @@ func (s *Service) inspectLabAndUpdateNodes(
 	instance.DataMutex.Lock()
 	defer instance.DataMutex.Unlock()
 
-	for i := range instance.Nodes {
+	for k := range instance.Nodes {
 		// If the inspect failed, just set all nodes to the stopped state
 		if err != nil {
-			instance.Nodes[i].State = deployment.NodeStates.Stopped
+			instance.Nodes[k].State = deployment.NodeStates.Stopped
 			continue
 		}
 
 		targetContainer, ok := lo.Find(inspectContainers, func(container deployment.InspectContainer) bool {
-			return container.Name == instance.Nodes[i].Name
+			return container.Name == instance.Nodes[k].Name
 		})
 		if !ok {
-			instance.Nodes[i].State = deployment.NodeStates.Stopped
-			log.Warn("Failed to find node in inspect output", "node", instance.Nodes[i].Name, "lab", instanceName)
+			instance.Nodes[k].State = deployment.NodeStates.Stopped
+			log.Warn("Failed to find node in inspect output", "node", instance.Nodes[k].Name, "lab", instanceName)
 			continue
 		}
 
-		instance.Nodes[i].Reset()
-		s.updateNodeWithContainer(instance.Nodes[i], targetContainer)
+		instance.Nodes[k].Reset()
+		s.updateNodeWithContainer(instance.Nodes[k], targetContainer)
 	}
 
 	return err
 }
 
+// updateNodeWithContainer updates a node with the information from a container inspect.
+// It is expected that the [instance.DataMutex] of the node is locked during the call of this function.
 func (s *Service) updateNodeWithContainer(
 	node *InstanceNode,
 	container deployment.InspectContainer,
 ) {
 	node.State = container.State
 
-	// For consistency, we clear the IP, container ID and container name fields when the container is stopped,
-	// even though the deployment provider might supply them.
+	// For consistency, we clear the IP, container ID and container name fields when the node is stopped, even though
+	// the deployment provider might supply them.
 	if container.State == deployment.NodeStates.Stopped {
 		node.ContainerId = ""
 		node.ContainerName = ""
@@ -1439,44 +1433,114 @@ func (s *Service) GetNodeKindsConfig() map[string]NodeKindConfig {
 	return s.nodeKindConfigs
 }
 
-// GetInstanceNode returns a copy of the instance node with the given name and lab ID.
+// GetInstanceNode returns a copy of the instance node with a given combination of identifiers.
+//
+// Possible identifiers:
+//   - containerId
+//   - labId + nodeName
+//   - instanceName + nodeName
+//   - collectionName + labName + nodeName
+//
+// Optinally, an [auth.AuthenticatedUser] can be provided to only allow access if the user has access to the lab.
 func (s *Service) GetInstanceNode(
 	ctx context.Context,
-	labId string,
-	nodeName string,
+	labId *string,
+	instanceName *string,
+	collectionName *string,
+	labName *string,
+	nodeName *string,
+	containerId *string,
 	authUser *auth.AuthenticatedUser,
-) (InstanceNode, error) {
-	targetLab, err := s.labRepo.GetByUuid(ctx, labId)
-	if err != nil {
-		return InstanceNode{}, err
+) (InstanceNode, string, error) {
+	var targetLab *lab.Lab
+	var labError error
+
+	var targetInstance *Instance
+	var targetNodeName string
+
+	switch {
+	case containerId != nil:
+		s.instancesMutex.Lock()
+		instancesCopy := maps.Clone(s.instances)
+		s.instancesMutex.Unlock()
+
+		for k := range instancesCopy {
+			instancesCopy[k].DataMutex.Lock()
+			nodeName, ok := lo.FindKeyBy(instancesCopy[k].Nodes, func(k string, n *InstanceNode) bool {
+				return n.ContainerId == *containerId
+			})
+			instancesCopy[k].DataMutex.Unlock()
+
+			if ok {
+				if targetLab, labError = s.labRepo.GetByUuid(ctx, k); labError == nil {
+					targetInstance, targetNodeName = instancesCopy[k], nodeName
+				}
+				break
+			}
+		}
+
+		// If the target instance was not found but the lab was, the node is missing
+		if targetInstance == nil && labError == nil {
+			return InstanceNode{}, "", utils.ErrNodeNotFound
+		}
+	case labId != nil && nodeName != nil:
+		if targetLab, labError = s.labRepo.GetByUuid(ctx, *labId); labError == nil {
+			s.instancesMutex.Lock()
+			targetInstance, targetNodeName = s.instances[targetLab.UUID], *nodeName
+			s.instancesMutex.Unlock()
+		}
+	case instanceName != nil && nodeName != nil:
+		s.instancesMutex.Lock()
+		instancesCopy := maps.Clone(s.instances)
+		s.instancesMutex.Unlock()
+
+		labId, ok := lo.FindKeyBy(instancesCopy, func(k string, i *Instance) bool {
+			return i.Name == *instanceName
+		})
+
+		if ok {
+			if targetLab, labError = s.labRepo.GetByUuid(ctx, labId); labError == nil {
+				instancesCopy[labId].DataMutex.Lock()
+				targetInstance, targetNodeName = instancesCopy[labId], *nodeName
+				instancesCopy[labId].DataMutex.Unlock()
+			}
+		}
+	case collectionName != nil && labName != nil && nodeName != nil:
+		if targetLab, labError = s.labRepo.GetByCollectionAndName(ctx, *collectionName, *labName); labError == nil {
+			s.instancesMutex.Lock()
+			targetInstance, targetNodeName = s.instances[targetLab.UUID], *nodeName
+			s.instancesMutex.Unlock()
+		}
+	default:
+		return InstanceNode{}, "", utils.ErrInvalidSocketRequest
 	}
 
-	if !authUser.IsAdmin && !slices.Contains(authUser.Collections, targetLab.Collection.Name) {
-		return InstanceNode{}, utils.ErrNoAccessToLab
+	if labError != nil {
+		return InstanceNode{}, "", fmt.Errorf("%w: %s", utils.ErrNodeNotFound, labError.Error())
 	}
 
-	s.instancesMutex.Lock()
-	instance, hasInstance := s.instances[targetLab.UUID]
-	s.instancesMutex.Unlock()
-
-	if !hasInstance {
-		return InstanceNode{}, utils.ErrLabNotRunning
+	// Deny action if the user doesn't have access to the node's lab
+	if targetLab != nil && authUser != nil && !authUser.IsAdmin &&
+		!slices.Contains(authUser.Collections, targetLab.Collection.Name) {
+		return InstanceNode{}, "", utils.ErrNoAccessToLab
 	}
 
-	instance.DataMutex.Lock()
-	defer instance.DataMutex.Unlock()
+	if targetInstance == nil {
+		return InstanceNode{}, "", utils.ErrLabNotRunning
+	}
 
-	node, hasNode := lo.Find(instance.Nodes, func(node *InstanceNode) bool {
-		return node.Name == nodeName
-	})
-	if !hasNode {
-		return InstanceNode{}, utils.ErrNodeNotFound
+	targetInstance.DataMutex.Lock()
+	defer targetInstance.DataMutex.Unlock()
+
+	node, ok := targetInstance.Nodes[targetNodeName]
+	if !ok {
+		return InstanceNode{}, "", utils.ErrNodeNotFound
 	}
 
 	nodeCopy := *node
 	nodeCopy.Interfaces = slices.Clone(node.Interfaces)
 
-	return nodeCopy, nil
+	return nodeCopy, targetInstance.Name, nil
 }
 
 func (s *Service) IsRunning(labId string) bool {

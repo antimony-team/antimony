@@ -614,3 +614,34 @@ func TestStartupProbe_InterfaceFailureLeavesTheNodeReadyWithNoInterfaces(t *test
 
 	assert.Empty(t, findNode(t, labOut.Instance.Nodes, NodeHost).Interfaces)
 }
+
+/*
+ * GetNodeState, the lookup the capture server uses for "<lab>/<node>".
+ */
+
+func TestGetNodeState_FindsTheNodeByInstanceName(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+
+	state, err := h.InstanceService.GetNodeState(InstanceAdminLab, NodeHost)
+
+	require.NoError(t, err)
+	assert.Equal(t, nodeState(t, h, LabAdminID, NodeHost), state)
+}
+
+func TestGetNodeState_ReportsAnUnknownNode(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+
+	_, err := h.InstanceService.GetNodeState(InstanceAdminLab, "missing")
+
+	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+}
+
+func TestGetNodeState_ReportsALabThatIsNotDeployed(t *testing.T) {
+	h := NewHarness(t)
+
+	_, err := h.InstanceService.GetNodeState(InstanceAdminLab, NodeHost)
+
+	assert.ErrorIs(t, err, utils.ErrLabNotRunning)
+}

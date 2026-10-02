@@ -12,3 +12,9 @@ func GenerateUuid() string {
 
 	return uuid1.String()
 }
+
+// IsUuid reports whether str is a UUID in the form GenerateUuid produces.
+func IsUuid(str string) bool {
+	parsed, err := uuid.Parse(str)
+	return err == nil && parsed.String() == str
+}
