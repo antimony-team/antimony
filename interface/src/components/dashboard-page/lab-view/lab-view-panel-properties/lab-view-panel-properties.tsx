@@ -1,8 +1,4 @@
-import {
-  useCollectionStore,
-  useServerConfig,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
+import {useCollectionStore, useServerConfig} from '@sb/lib/stores/root-store';
 import {Lab} from '@sb/types/domain/lab';
 import dayjs from 'dayjs';
 
@@ -21,31 +17,41 @@ interface LabDialogPanelProps {
 
 const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   const serverConfig = useServerConfig();
-  const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
 
-  const topology = topologyStore.lookup.get(props.lab.topologyId)!;
   const collection = collectionStore.lookup.get(props.lab.collectionId)!;
 
   const navigate = useNavigate();
 
   function onGotoTopology() {
-    void navigate(`/editor?f=${topology?.id}`);
+    void navigate(`/editor?f=${props.lab.topologyId}`);
   }
 
   function copyLabLink() {
     void navigator.clipboard.writeText(location.href);
   }
 
+  const topologyName = useMemo(() => {
+    return props.lab.topologyDefinition.definition.get('name')! as string;
+  }, [props.lab.topologyDefinition]);
+
   const [nodeCount, linkCount] = useMemo(() => {
-    const nodes = topology.definition.getIn(['topology', 'nodes']);
-    const links = topology.definition.getIn(['topology', 'links']);
+    console.log('DEFINITION:', props.lab.topologyDefinition);
+
+    const nodes = props.lab.topologyDefinition.definition.getIn([
+      'topology',
+      'nodes',
+    ]);
+    const links = props.lab.topologyDefinition.definition.getIn([
+      'topology',
+      'links',
+    ]);
 
     return [
       nodes instanceof YAMLMap ? nodes.items.length : 0,
       links instanceof YAMLSeq ? links.items.length : 0,
     ];
-  }, [topology.definition]);
+  }, [props.lab.topologyDefinition]);
 
   return (
     <>
@@ -105,10 +111,10 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
           <dt>Topology</dt>
           <dd className="lab-props-facts">
             <a
-              href={`/editor/${props.lab.topologyId}`}
+              href={`/#/editor?f=${props.lab.topologyId}`}
               className="lab-props-link"
             >
-              {topology?.name}
+              {topologyName}
             </a>
             <span>
               <i className="pi pi-circle" aria-hidden="true" />

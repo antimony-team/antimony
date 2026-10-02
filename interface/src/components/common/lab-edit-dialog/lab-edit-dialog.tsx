@@ -69,6 +69,13 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   async function onSubmit() {
     if (!props.dialogState.state) return;
 
+    if (editingLab.name.includes('/')) {
+      labNameRef.current?.setValidationError(
+        "Lab names can't contain slashes. ",
+      );
+      return;
+    }
+
     if (editingLab.name === '') {
       labNameRef.current?.setValidationError("Name can't be empty");
       return;
@@ -89,10 +96,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         },
       );
       if (result.isErr()) {
-        notificationStore.error(
-          result.error.message,
-          'Failed to edit topology',
-        );
+        notificationStore.error(result.error.message, 'Failed to edit lab');
       } else {
         notificationStore.success('Lab has been updated successfully.');
         props.dialogState.close();

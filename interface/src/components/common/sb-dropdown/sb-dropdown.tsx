@@ -107,7 +107,7 @@ const SBDropdown = (props: SBDropdownProps) => {
         onChange={onValueSubmit}
         itemTemplate={props.useItemTemplate ? dropdownTemplate : undefined}
         valueTemplate={props.useSelectTemplate ? dropdownTemplate : undefined}
-        className={classNames(props.className, {
+        className={classNames('sb-dropdown', props.className, {
           'sb-dropdown-hidden': props.isHidden,
           'sb-dropdown-edited': props.wasEdited,
         })}

@@ -207,13 +207,14 @@
 .p-inputtextarea
   resize: none
 
-.p-inputtext,.p-dropdown
-  background: var(--input-color)
-  border-color: transparent
-  border-radius: 8px
+.p-calendar
+  .p-inputtext
+    background: var(--input-color)
+    border-color: transparent
+    border-radius: 8px
 
-  &:focus
-    border-color: var(--border-color)
+    &:not(.sb-input-error):focus
+      border-color: var(--border-color)
 
 .p-inputtext
   // If the input borders a datepicker button, make the right side flat to they are connected

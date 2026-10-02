@@ -1,5 +1,11 @@
 .sb-input
+  background: var(--input-color)
+  border-color: transparent
+  border-radius: 8px
   text-overflow: ellipsis
+
+  &:not(.sb-input-error):focus
+    border-color: var(--border-color)
 
   &:placeholder-shown
     font-weight: 200

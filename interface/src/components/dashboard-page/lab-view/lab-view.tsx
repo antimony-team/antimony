@@ -464,38 +464,42 @@ const LabView = observer((props: LabDialogProps) => {
 
   useEffect(() => {
     const cy = cyRef.current;
-    if (!isCyReady || !cy) return;
+    if (!isCyReady || !cy || !props.lab?.instance) return;
 
-    const nodes = props.lab?.instance?.nodes ?? [];
-    const labState = props.lab?.state;
+    const nodes = props.lab.instance.nodes;
+    // const labState = props.lab.state;
 
     cy.batch(() => {
-      if (nodes.length > 0) {
-        for (const node of nodes) {
-          const el = cy.getElementById(node.name);
-          if (el.nonempty()) applyNodeState(el, node);
-        }
-        return;
+      for (const node of nodes) {
+        const el = cy.getElementById(node.name);
+        if (el.nonempty()) applyNodeState(el, node);
       }
+      // if (nodes.length > 0) {
+      //   for (const node of nodes) {
+      //     const el = cy.getElementById(node.name);
+      //     if (el.nonempty()) applyNodeState(el, node);
+      //   }
+      //   return;
+      // }
 
-      // No per-node information yet: derive from the lab's own state.
-      const all = cy.nodes('.topology-node');
-      if (
-        labState === InstanceState.Deploying ||
-        labState === InstanceState.Stopping
-      ) {
-        const cls =
-          labState === InstanceState.Deploying ? 'starting' : 'stopping';
-        all.forEach(el => {
-          if (el.hasClass(cls)) return;
-          el.removeClass(ALL_STATE_CLASSES.join(' ')).addClass(cls);
-          el.scratch('pulseStart', performance.now());
-        });
-      } else {
-        all
-          .removeClass(ALL_STATE_CLASSES.join(' '))
-          .removeStyle('underlay-color underlay-padding underlay-opacity');
-      }
+      // // No per-node information yet: derive from the lab's own state.
+      // const all = cy.nodes('.topology-node');
+      // if (
+      //   labState === InstanceState.Deploying ||
+      //   labState === InstanceState.Stopping
+      // ) {
+      //   const cls =
+      //     labState === InstanceState.Deploying ? 'starting' : 'stopping';
+      //   all.forEach(el => {
+      //     if (el.hasClass(cls)) return;
+      //     el.removeClass(ALL_STATE_CLASSES.join(' ')).addClass(cls);
+      //     el.scratch('pulseStart', performance.now());
+      //   });
+      // } else {
+      //   all
+      //     .removeClass(ALL_STATE_CLASSES.join(' '))
+      //     .removeStyle('underlay-color underlay-padding underlay-opacity');
+      // }
     });
   }, [isCyReady, props.lab?.instance?.nodes, props.lab?.state]);
 
