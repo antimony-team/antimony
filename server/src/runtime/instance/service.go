@@ -594,9 +594,15 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			runTopologyDefinition,
 			lab.UUID,
 		)
+
 		if err != nil {
 			s.instancesMutex.Unlock()
 			return err
+		}
+
+		// Set all node state to starting immediately
+		for i := range instance.Nodes {
+			instance.Nodes[i].State = deployment.NodeStates.Starting
 		}
 
 		s.instances[lab.UUID] = instance
