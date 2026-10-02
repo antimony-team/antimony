@@ -31,6 +31,8 @@ interface SBDropdownProps {
   emptyMessage?: string;
   filterPlaceholder?: string;
 
+  disabled?: boolean;
+
   className?: string;
 
   useItemTemplate?: boolean;
@@ -91,7 +93,7 @@ const SBDropdown = (props: SBDropdownProps) => {
         </label>
       </If>
       <Dropdown
-        disabled={false}
+        disabled={props.disabled}
         inputId={props.id}
         showClear={false}
         value={props.value}

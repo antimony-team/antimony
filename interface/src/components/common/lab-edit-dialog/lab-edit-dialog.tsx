@@ -20,12 +20,13 @@ import {Calendar} from 'primereact/calendar';
 import {SelectItem} from 'primereact/selectitem';
 import {Nullable} from 'primereact/ts-helpers';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {If} from '@sb/types/control';
 
 export interface LabEditDialogState {
   // Set to null if the dialog is meant to add a new lab
   editingLab: Lab | null;
 
-  topologyId: string;
+  topologyId?: string;
   action: DialogAction;
 }
 
@@ -83,7 +84,6 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         props.dialogState.state.editingLab!.id,
         {
           name: editingLab.name,
-          topologyId: editingLab.topologyId,
           startTime: editingLab.startTime.toISOString(),
           endTime: editingLab.endTime.toISOString(),
         },
@@ -187,22 +187,24 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             label="Lab Name"
           />
         </div>
-        <div className="mb-3">
-          <SBDropdown
-            id="edit-lab-topology"
-            label="Topology"
-            icon={
-              <span className="material-symbols-outlined">network_node</span>
-            }
-            hasFilter={true}
-            useSelectTemplate={true}
-            useItemTemplate={true}
-            value={editingLab.topologyId}
-            options={topologyOptions}
-            emptyMessage="No topologies found"
-            onValueSubmit={topologyId => (editingLab.topologyId = topologyId)}
-          />
-        </div>
+        <If condition={props.dialogState.state?.action === DialogAction.Add}>
+          <div className="mb-3">
+            <SBDropdown
+              id="edit-lab-topology"
+              label="Topology"
+              icon={
+                <span className="material-symbols-outlined">network_node</span>
+              }
+              hasFilter={true}
+              useSelectTemplate={true}
+              useItemTemplate={true}
+              value={editingLab.topologyId}
+              options={topologyOptions}
+              emptyMessage="No topologies found"
+              onValueSubmit={topologyId => (editingLab.topologyId = topologyId)}
+            />
+          </div>
+        </If>
         <div className="flex-auto">
           <label htmlFor="deploy-date-start" className="font-bold block mb-2">
             Start Time

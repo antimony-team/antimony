@@ -31,7 +31,6 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
   function onLabClick(lab: Lab) {
     labEditDialogState.openWith({
       editingLab: lab!,
-      topologyId: lab!.topologyId,
       action: DialogAction.Edit,
     });
   }

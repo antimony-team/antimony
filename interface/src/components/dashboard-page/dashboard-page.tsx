@@ -199,7 +199,6 @@ const DashboardPage = observer(() => {
                         onRescheduleLab={() =>
                           labEditDialogState.openWith({
                             editingLab: lab,
-                            topologyId: lab.topologyId,
                             action: DialogAction.Edit,
                           })
                         }
