@@ -39,13 +39,13 @@ func (r *Repository) GetByUuid(ctx context.Context, collectionId string) (*Colle
 		Where("uuid = ?", collectionId).
 		Find(&collection)
 
-	if result.RowsAffected < 1 {
-		return nil, utils.ErrUuidNotFound
-	}
-
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to get collection by UUID. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return nil, utils.ErrUuidNotFound
 	}
 
 	return &collection, result.Error

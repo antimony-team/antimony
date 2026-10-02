@@ -40,13 +40,13 @@ func (r *Repository) GetByUuid(ctx context.Context, topologyId string) (*Topolog
 		Preload("Creator").
 		Find(&topology)
 
-	if result.RowsAffected < 1 {
-		return nil, utils.ErrUuidNotFound
-	}
-
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch topology by UUID. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return nil, utils.ErrUuidNotFound
 	}
 
 	return &topology, nil

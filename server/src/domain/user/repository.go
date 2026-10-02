@@ -22,13 +22,13 @@ func (r *Repository) GetByUuid(ctx context.Context, userId string) (*User, error
 	var user User
 	result := r.db.WithContext(ctx).Where("uuid = ?", userId).Limit(1).Find(&user)
 
-	if result.RowsAffected < 1 {
-		return nil, utils.ErrUuidNotFound
-	}
-
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch user by UUID. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return nil, utils.ErrUuidNotFound
 	}
 
 	return &user, nil
