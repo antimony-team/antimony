@@ -20,14 +20,14 @@
     background-color: #1e1e2d
     color: #e0e0e0
     margin: 0 -1px -1px -1px
-    border-color: var(--border-color) !important
+    border-color: var(--border) !important
 
 .rbc-day-slot .rbc-time-slot
-  border-color: var(--border-color)
+  border-color: var(--border)
   filter: brightness(0.6)
 
 .rbc-toolbar
-  background-color: var(--overlay-color)
+  background-color: var(--surface-overlay)
   padding: 10px
   text-align: center
   margin-bottom: 0
@@ -43,8 +43,8 @@
 
     button
       background-color: transparent
-      border: 1px solid var(--border-color)
-      color: var(--border-color)
+      border: 1px solid var(--border)
+      color: var(--border)
       padding: 10px 14px
       border-radius: 4px !important
       font-size: 14px
@@ -53,14 +53,14 @@
       transition: background-color 0.2s
 
       &.rbc-active
-        background-color: var(--border-color)
-        border-color: var(--border-color)
-        color: var(--primary-color)
+        background-color: var(--border)
+        border-color: var(--border)
+        color: var(--surface-selected)
 
       &:active:not(.rbc-active)
-        color: var(--border-color)
+        color: var(--border)
         background-color: transparent
-        border: 1px solid var(--border-color)
+        border: 1px solid var(--border)
         filter: brightness(1.4)
 
       &:hover
@@ -68,11 +68,11 @@
 
 .rbc-header
   background-color: #252537
-  color: var(--primary-color-text)
+  color: var(--text)
   padding: 5px
-  border-left-color: var(--border-color) !important
-  border-right-color: var(--border-color) !important
-  border-bottom-color: var(--border-color) !important
+  border-left-color: var(--border) !important
+  border-right-color: var(--border) !important
+  border-bottom-color: var(--border) !important
 
 .rbc-time-view,.rbc-month-row
   .rbc-row
@@ -114,7 +114,7 @@
   color: #fff
 
 .rbc-time-view
-  border-color: var(--border-color)
+  border-color: var(--border)
   .rbc-time-header
     border-bottom: 1px solid #3e3e4e
 
@@ -128,28 +128,28 @@
   background-color: #1A2B34
 
 .rbc-time-content
-  border: 1px solid var(--border-color)
+  border: 1px solid var(--border)
 
 .rbc-time-content > * + * > *
-  border-left: 1px solid var(--border-color)
+  border-left: 1px solid var(--border)
 
 .rbc-day-bg + .rbc-day-bg
-  border-left: 1px solid var(--border-color)
+  border-left: 1px solid var(--border)
 
 .rbc-time-header-content
-  border-color: var(--border-color)
+  border-color: var(--border)
 
 .rbc-month-view
-  border-color: var(--border-color)
+  border-color: var(--border)
 
 .rbc-month-view .rbc-row
-  border-color: var(--border-color)
+  border-color: var(--border)
 
 .rbc-month-row + .rbc-month-row
-  border-color: var(--border-color)
+  border-color: var(--border)
 
 .rbc-show-more
-  background-color: var(--border-color)
+  background-color: var(--border)
   color: black
   border-radius: 4px
   padding: 1px

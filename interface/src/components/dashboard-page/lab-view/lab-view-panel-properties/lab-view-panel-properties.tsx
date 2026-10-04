@@ -36,8 +36,6 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   }, [props.lab.topologyDefinition]);
 
   const [nodeCount, linkCount] = useMemo(() => {
-    console.log('DEFINITION:', props.lab.topologyDefinition);
-
     const nodes = props.lab.topologyDefinition.definition.getIn([
       'topology',
       'nodes',

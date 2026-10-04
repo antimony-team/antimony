@@ -12,7 +12,7 @@
     display: flex
     flex-direction: row
     justify-content: space-between
-    background-color: var(--highlight-color)
+    background-color: var(--surface-selected)
 
     .sb-dock-status-messages-left
       display: flex
@@ -20,7 +20,7 @@
       gap: 10px
 
       > span
-        color: var(--primary-color-text)
+        color: var(--text)
 
     .p-button
       height: 40px
@@ -33,7 +33,7 @@
       font-size: 12pt
       border-radius: 6px
       background-color: transparent
-      border: 1px solid var(--primary-color-text-darker)
+      border: 1px solid var(--text-muted)
       cursor: pointer
 
       &.selected,&:active
@@ -53,7 +53,7 @@
         color: var(--success-color-text)
 
       &:hover
-        border-color: var(--primary-color-text-darker)
+        border-color: var(--text-muted)
 
       .p-chip-text
         margin: 0
@@ -72,10 +72,10 @@
       border: none
       width: 100% !important
       overflow-y: scroll
-      background-color: var(--island-color)
+      background-color: var(--surface-raised)
 
       li:not(:first-child)
-        border-top: 1px solid var(--border-color)
+        border-top: 1px solid var(--border)
 
       .p-listbox-list
         padding: 0
@@ -88,11 +88,11 @@
 
   // Change the background color of the overlay triangle
   &::after
-    background-color: var(--highlight-color) !important
+    background-color: var(--surface-selected) !important
 
     // Account for border aliasing by lowering the brightness of the border
-    border-top-color: color-mix(in srgb, var(--border-color) 80%, black) !important
-    border-left-color: color-mix(in srgb, var(--border-color) 80%, black) !important
+    border-top-color: color-mix(in srgb, var(--border) 80%, black) !important
+    border-left-color: color-mix(in srgb, var(--border) 80%, black) !important
 
 .sb-dock-status-messages-item-container
   display: flex
@@ -132,7 +132,7 @@
     font-size: 11pt
     margin-right: 8px
     font-family: Iosevka, monospace
-    color: var(--primary-color-text)
+    color: var(--text)
 
     :nth-child(2)
       font-size: 10pt

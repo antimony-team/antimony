@@ -4,13 +4,15 @@
   display: flex
   align-items: center
   justify-content: space-between
-  font-size: 21px
-  background-color: var(--dialog-color)
-  border-bottom: 2px solid var(--border-color)
+  background-color: var(--surface-overlay)
+  border-bottom: 1px solid var(--border)
+
+  .sb-dialog-title
+    font-size: 16px
 
   .sb-dialog-subtitle
     font-size: 16px
-    color: var(--primary-color-text-darker)
+    color: var(--text-muted)
 
     &::before
       content: ""
@@ -19,7 +21,7 @@
       height: 0.3ch
       display: inline-block
       margin-right: 0.7ch
-      background: var(--primary-color-text-darker)
+      background: var(--text-muted)
       vertical-align: middle
 
 .sb-dialog-heading
@@ -49,16 +51,13 @@
   //margin-top: 1px
   flex-grow: 1
   overflow-y: auto
-  background-color: var(--dialog-color)
+  background-color: var(--surface-overlay)
 
 .sb-dialog-footer
   display: flex
   justify-content: end
   gap: 16px
   padding: 16px
-  background-color: var(--dialog-color)
-  border-top: 2px solid var(--border-color)
+  background-color: var(--surface-overlay)
+  border-top: 1px solid var(--border)
   border-radius: 0 0 12px 12px
-
-  .p-button
-    margin: -1px

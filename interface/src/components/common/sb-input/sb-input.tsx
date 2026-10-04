@@ -15,7 +15,7 @@ import classNames from 'classnames';
 import {InputText} from 'primereact/inputtext';
 import {KeyFilterType} from 'primereact/keyfilter';
 
-import {If} from '@sb/types/control';
+import {Choose, If, When} from '@sb/types/control';
 
 import './sb-input.sass';
 
@@ -36,6 +36,8 @@ interface SBInputProps {
   keyfilter?: KeyFilterType;
   tooltip?: string;
   autoFocus?: boolean;
+  autoComplete?: string;
+  invalid?: boolean;
 
   doubleClick?: boolean;
   ignoreBlurSubmit?: boolean;
@@ -110,7 +112,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
   }
 
   return (
-    <div className="flex flex-column gap-2">
+    <div className="flex flex-column gap-1 w-full">
       <If condition={props.id && props.label}>
         <label className="sb-input-label" htmlFor={props.id}>
           {props.label}
@@ -124,6 +126,9 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
         place="right"
         className="sb-input-validation-tooltip"
       />
+      <Choose>
+        <When condition={props.doubleClick}></When>
+      </Choose>
       <InputText
         ref={inputFieldRef}
         id={props.id}
@@ -134,6 +139,8 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
         capture={false}
         disabled={false}
         value={content}
+        invalid={props.invalid}
+        autoComplete={props.autoComplete}
         autoFocus={props.autoFocus}
         className={classNames('sb-input', {
           'sb-input-disabled': !isEditing && props.isHidden,

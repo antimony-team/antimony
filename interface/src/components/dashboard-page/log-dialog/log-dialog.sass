@@ -5,7 +5,7 @@
   .sb-dialog-content
     padding: 0
     position: relative
-    background-color: var(--secondary-color)
+    background-color: var(--surface-sunken)
 
     .sb-log-dialog-loading
       margin-top: 8px
@@ -27,7 +27,7 @@
       width: 100%
       overflow: auto
       position: relative
-      background-color: var(--secondary-color)
+      background-color: var(--surface-sunken)
 
       .sb-log-dialog-empty
         margin: auto
@@ -61,15 +61,15 @@
       position: absolute
       height: 100%
       width: 60px
-      border-right: 1px solid var(--border-color)
-      background-color: var(--island-color)
+      border-right: 1px solid var(--border)
+      background-color: var(--surface-raised)
       z-index: 1
 
 .hljs-linenumber-separator
   display: none
 
 .hljs-timestamp
-  color: var(--primary-color-text-darker)
+  color: var(--text-muted)
   font-style: italic
 
 .hljs-log-source
@@ -122,7 +122,7 @@
       content: "✕"
 
   &.wait
-    color: var(--primary-color-text-darker)
+    color: var(--text-muted)
 
     &::before
       content: "⠋"
@@ -141,7 +141,7 @@
     text-align: center
 
 .hljs-keyvalue
-  color: var(--primary-color-text-darker)
+  color: var(--text-muted)
 
 .hljs-info
   font-weight: 800
@@ -164,7 +164,7 @@
   color: var(--danger-color-text)
 
 .hljs-linenumber
-  border-right: solid 1px var(--border-color)
+  border-right: solid 1px var(--border)
   display: inline-block
   position: sticky
   left: 0
@@ -172,7 +172,7 @@
   padding: 3px 6px
   width: 60px
   text-align: right
-  background-color: var(--island-color)
+  background-color: var(--surface-raised)
   user-select: none
   margin-right: 8px
 

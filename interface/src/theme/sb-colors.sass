@@ -1,35 +1,32 @@
 :root
-  //--primary-color: #00E08F
-  //--primary-color-text: #063339
-  //--inverted-color-text: #bae1e6
-  --background-color: #101114
-  --primary-color: #222225
-  --island-color: #18191e
-  --secondary-color: #121111
-  --graph-color: #101013
-  --accent-color: #3fcfad
-  --dialog-color: #18191e
-  --input-color: #272930
-  //--primary-color: #121111
-  //--secondary-color: #161619
-  --border-color: rgba(255,255,255,.08)
-  --highlight-color: #2c2e37
-  //--p-primary-color: #141f29
-  //--primary-color: #141f29
-  //--secondary-color: #1b3154
-  //--primary-color-border: #609e9f
-  //--primary-color-border: #283239
-  --primary-color-text: #cfcfcf
-  --primary-color-text-darker: #8a8a8a
-  --primary-color-brighter: hsl(from var(--primary-color) h s calc(l + 5))
-  --primary-color-brightest: hsl(from var(--primary-color) h s calc(l + 8))
-  --inverted-color-text: #c8d7da
+  --surface-page: #101114
 
-  //--overlay-color: #1a2730
-  //--overlay-color-darker: #162129
-  --overlay-color: #151717
-  --overlay-color-darker: #282c30
-  --header-color: #303034
+  // Islands, raised content
+  --surface-raised: #18191e
+
+  // Dialogs, popovers, menus
+  --surface-overlay: #1f2025
+
+  // Terminals, graphs, log windows
+  --surface-sunken: #101013
+
+  // Input elements, dropdowns
+  --surface-inset: #15161a
+
+  --surface-selected: #2a2b31
+
+  --hover: rgba(255,255,255,.06)
+  --active: rgba(255,255,255,.10)
+
+  // Border colors
+  --border: rgb(255, 255, 255, 0.08)
+  --border-strong: rgba(255, 255, 255, 0.22)
+
+  // Text colors
+  --text: rgba(255, 255, 255, 0.87)
+  --text-muted: rgba(255, 255, 255, 0.5)
+
+  --accent: #3fcfad
 
   --danger-color: #882f31
   --danger-color-text: #f83f4d
@@ -42,4 +39,4 @@
   --info-color: #2d3f93
   --info-color-text: #96a9f3
   --neutral-color: #4f5357
-  --neutral-color-text: var(--primary-color-text)
+  --neutral-color-text: var(--text)

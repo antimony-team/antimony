@@ -3,7 +3,7 @@
   height: 625px
 
   .xterm-viewport
-    background: var(--secondary-color) !important
+    background: var(--surface-sunken) !important
 
   .sb-dialog-content
     position: relative
@@ -41,7 +41,7 @@
       font-size: 48px
       font-weight: 700
       margin-bottom: 10px
-      color: var(--border-color)
+      color: var(--border)
 
     .sb-terminal-expired-text
       font-size: 20px
@@ -49,8 +49,8 @@
       color: rgba(255, 255, 255, 0.6)
 
 .sb-terminal-new-tab-overlay
-  background-color: var(--overlay-color)
-  border-color: var(--border-color)
+  background-color: var(--surface-overlay)
+  border-color: var(--border)
 
   .p-listbox
     width: unset !important
@@ -92,7 +92,7 @@
   height: 20px
   line-height: 20px
   align-content: center
-  color: var(--primary-color-text)
+  color: var(--text)
 
   i
     font-size: 10px
@@ -140,14 +140,14 @@
       &:not(:last-child)
         &.p-tabview-selected
           .p-tabview-nav-link
-            color: var(--border-color)
-            background-color: var(--highlight-color)
+            color: var(--border)
+            background-color: var(--surface-selected)
 
         &:active
           .p-tabview-nav-link
-            color: var(--border-color)
-            background-color: var(--highlight-color)
+            color: var(--border)
+            background-color: var(--surface-selected)
 
         &:hover
           .p-tabview-nav-link
-            border-color: var(--primary-color-text-darker)
+            border-color: var(--text-muted)

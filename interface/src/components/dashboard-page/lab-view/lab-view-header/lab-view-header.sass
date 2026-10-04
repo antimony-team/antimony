@@ -2,8 +2,8 @@
   display: flex
   justify-content: space-between
   align-items: center
-  background-color: var(--island-color)
-  border-bottom: 2px solid var(--border-color)
+  background-color: var(--surface-raised)
+  border-bottom: 1px solid var(--border)
   gap: 8px
   border-radius: 12px 12px 0 0
   height: 70px
@@ -24,14 +24,14 @@
 
       .header-group
         font-size: 20px
-        color: var(--primary-color-text-darker)
+        color: var(--text-muted)
 
       .header-name
         font-size: 20px
 
       .header-meta
         font-size: 14px
-        color: var(--primary-color-text-darker)
+        color: var(--text-muted)
 
         > span:not(:first-child)::before
           content: ""
@@ -39,13 +39,13 @@
           width: 3px
           height: 3px
           border-radius: 50%
-          background: var(--primary-color-text-darker)
+          background: var(--text-muted)
           margin: 0 .7ch
           vertical-align: middle
 
         .highlight
           font-weight: 400
-          color: var(--primary-color-text)
+          color: var(--text)
           font-variant-numeric: tabular-nums
 
   .sb-lab-view-header-buttons

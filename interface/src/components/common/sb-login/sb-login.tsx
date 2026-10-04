@@ -1,10 +1,8 @@
-import React, {ChangeEvent, FormEvent, useEffect, useState} from 'react';
+import React, {FormEvent, useEffect, useState} from 'react';
 
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {Message} from 'primereact/message';
-import {Password} from 'primereact/password';
-import {InputText} from 'primereact/inputtext';
 import {loadLinksPreset} from '@tsparticles/preset-links';
 import Particles, {initParticlesEngine} from '@tsparticles/react';
 
@@ -14,6 +12,8 @@ import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
 import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
 
 import './sb-login.sass';
+import SBInput from '@sb/components/common/sb-input/sb-input';
+import {Image} from 'primereact/image';
 
 interface SBLoginProps {
   visible: boolean;
@@ -70,70 +70,66 @@ const LoginForm = observer(() => {
       });
   }
 
-  function onUsernameChange(event: ChangeEvent<HTMLInputElement>) {
+  function onUsernameChange(value: string) {
     setLoginError(null);
-    setUsernameValue(event.target.value);
+    setUsernameValue(value);
   }
 
-  function onPasswordChange(event: ChangeEvent<HTMLInputElement>) {
+  function onPasswordChange(value: string) {
     setLoginError(null);
-    setPasswordValue(event.target.value);
+    setPasswordValue(value);
   }
 
   return (
     <form onSubmit={onFormSubmit} className="sb-login-content">
-      <div className="sb-login-content-icon">
-        <div className="sb-login-header-icon">
-          <i className="pi pi-user"></i>
-        </div>
+      <div className="sb-login-header">
+        <Image
+          src="./antimony-logo-outline.svg"
+          width="55px"
+          alt="Antimony Logo"
+        />
+        <div className="sb-login-header-title">Antimony</div>
+        <div className="sb-login-header-subtitle">Sign in to continue</div>
       </div>
       <If condition={loginError}>
         <Message severity="error" text={loginError} />
       </If>
 
       <If condition={dataBinder.isNativeAuthEnabled}>
-        <div className="p-inputgroup">
-          <span className="p-inputgroup-addon">
-            <i className="pi pi-user"></i>
-          </span>
-          <InputText
-            autoComplete="username"
-            invalid={loginError !== null}
-            value={usernameValue}
-            onChange={onUsernameChange}
-            name="username"
-            placeholder="Username"
-          />
-        </div>
-        <div className="p-inputgroup">
-          <span className="p-inputgroup-addon">
-            <i className="pi pi-lock"></i>
-          </span>
-          <Password
-            autoComplete="current-password"
-            invalid={loginError !== null}
-            value={passwordValue}
-            onChange={onPasswordChange}
-            feedback={false}
-            name="password"
-            placeholder="Password"
-          />
-        </div>
-        <Button className="login-button" label="LOG IN" type="submit" />
+        <SBInput
+          label="Username"
+          id="username"
+          autoComplete="username"
+          invalid={loginError !== null}
+          onValueSubmit={onUsernameChange}
+          placeholder="Username"
+        />
+        <SBInput
+          label="Password"
+          id="password"
+          autoComplete="password"
+          invalid={loginError !== null}
+          onValueSubmit={onPasswordChange}
+          placeholder="Password"
+        />
+        <Button
+          outlined
+          className="sb-login-button"
+          label="Sign In"
+          type="submit"
+        />
       </If>
 
       <If condition={dataBinder.isOpenIdAuthEnabled}>
+        <div className="sb-login-divider">or</div>
         <Button
-          label="Login with OpenID Connect"
+          outlined
+          label="Continue with OpenID Connect"
           icon="pi pi-external-link"
           type="button"
           onClick={() => dataBinder.loginWithOpenId()}
         />
       </If>
-
-      <div className="sb-login-content-header">
-        <span>SIGN IN</span>
-      </div>
     </form>
   );
 });

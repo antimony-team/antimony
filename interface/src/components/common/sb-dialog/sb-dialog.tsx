@@ -87,7 +87,6 @@ const SBDialog = (props: SBDialogProps) => {
         <div className="sb-dialog-footer w-full">
           <Button
             outlined
-            icon="pi pi-times"
             label={props.cancelLabel ?? 'Cancel'}
             onClick={() =>
               props.onCancel?.call(null) ?? props.onClose?.call(null)
@@ -95,8 +94,7 @@ const SBDialog = (props: SBDialogProps) => {
             aria-label={props.cancelLabel ?? 'Cancel'}
           />
           <Button
-            outlined
-            icon="pi pi-check"
+            className="sb-button-accent"
             label={props.submitLabel ?? 'Submit'}
             onClick={() => {
               props.onSubmit?.call(null);

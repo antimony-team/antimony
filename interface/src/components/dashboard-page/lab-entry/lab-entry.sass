@@ -5,15 +5,15 @@
   min-height: 80px
   justify-content: space-between
   align-items: center
-  background-color: var(--primary-color)
+  background-color: var(--surface-overlay)
   border-radius: 12px
   cursor: pointer
   position: relative
   //box-shadow: 0 0 33px -18px rgba(0,0,0,0.75)
-  border: 1px solid var(--border-color)
+  border: 1px solid var(--border)
 
   &:hover
-    border-color: var(--primary-color-text-darker)
+    border-color: var(--text-muted)
 
     .lab-state-buttons
       transform: translateX(0)
@@ -27,7 +27,7 @@
   border-radius: 12px 0 0 12px
   align-self: stretch
   align-items: center
-  background-color: var(--highlight-color)
+  background-color: var(--surface-selected)
 
   p
     margin: 0
@@ -60,7 +60,7 @@
     left: 0
     right: 0
     border-radius: 0 12px 12px 0
-    background-color: var(--highlight-color)
+    background-color: var(--surface-selected)
     display: flex
     justify-content: space-evenly
     align-items: center
@@ -80,7 +80,7 @@
     gap: 8px
 
     .lab-state-date
-      color: var(--primary-color-text)
+      color: var(--text)
       display: flex
       align-items: center
       font-size: 12px
