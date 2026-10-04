@@ -15,7 +15,7 @@ import {Button} from 'primereact/button';
 
 import {Image} from 'primereact/image';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useMemo, useRef, useState} from 'react';
+import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate} from 'react-router';
 
 import './sb-dock.sass';
@@ -45,43 +45,72 @@ const SBDock = observer(() => {
 
   const windowLocation = window.location.hash.split('?')[0];
 
+  const pageButtonsRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const nav = pageButtonsRef.current;
+    if (!nav) return;
+
+    const update = () => {
+      const selected = nav.querySelector<HTMLElement>('.p-button.selected');
+      nav.style.setProperty('--indicator-x', `${selected?.offsetLeft ?? 0}px`);
+      nav.style.setProperty('--indicator-w', `${selected?.offsetWidth ?? 0}px`);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    const frame = requestAnimationFrame(() => (nav.dataset.ready = ''));
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [windowLocation]);
+
   return (
     <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
       <div className="flex align-items-center gap-3">
-        <div className="sb-logo-tab" onClick={() => navigate('/')}>
+        <div className="sb-dock-logo" onClick={() => navigate('/')}>
           <Image
             src="./antimony-logo-outline.svg"
-            width="30px"
+            width="25px"
             alt="Antimony Logo"
           />
+          <span>Antimony</span>
+          <span className="sb-dock-separator" />
         </div>
         <Choose>
           {/* Only show buttons in online mode and if the user has access to the editor */}
           <When condition={hasEditorAccess}>
-            <Button
-              text
-              icon={
-                <span className="material-symbols-outlined">dashboard</span>
-              }
-              className={classNames('sb-dock-page-button', {
-                selected: windowLocation === '#/' || windowLocation === '',
-              })}
-              label="Dashboard"
-              onMouseDown={() => navigate('/')}
-              aria-label="Dashboard Page"
-            />
-            <Button
-              text
-              icon={
-                <span className="material-symbols-outlined">construction</span>
-              }
-              className={classNames('sb-dock-page-button', {
-                selected: windowLocation === '#/editor',
-              })}
-              label="Topology Editor"
-              onMouseDown={() => navigate('/editor')}
-              aria-label="Topology Editor Page"
-            />
+            <div className="sb-dock-page-buttons" ref={pageButtonsRef}>
+              <Button
+                text
+                icon={
+                  <span className="material-symbols-outlined">dashboard</span>
+                }
+                className={classNames('sb-dock-page-button', {
+                  selected: windowLocation === '#/' || windowLocation === '',
+                })}
+                label="Dashboard"
+                onMouseDown={() => navigate('/')}
+                aria-label="Dashboard Page"
+              />
+              <Button
+                text
+                icon={
+                  <span className="material-symbols-outlined">
+                    network_node
+                  </span>
+                }
+                className={classNames('sb-dock-page-button', {
+                  selected: windowLocation === '#/editor',
+                })}
+                label="Topology Editor"
+                onMouseDown={() => navigate('/editor')}
+                aria-label="Topology Editor Page"
+              />
+            </div>
           </When>
           <Otherwise>
             <span className="sb-dock-title">Antimony</span>

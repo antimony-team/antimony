@@ -3,6 +3,19 @@
   height: 65px
   margin-bottom: 8px
 
+  .sb-dock-logo
+    display: flex
+    gap: 12px
+    align-self: stretch
+    justify-content: center
+    align-items: center
+    cursor: pointer
+    margin-left: 16px
+    font-weight: 600
+
+    span
+      font-size: 20px
+
   .sb-dock-title
     font-size: 32px
     font-weight: 600
@@ -16,22 +29,56 @@
   .p-button-icon-only
     width: 40px
 
-  .sb-dock-page-button
-    width: 180px
-
-    &.selected
-      background-color: var(--surface-selected)
-
   .material-symbols-outlined
     font-size: 20px
 
   .sb-dock-logout
     font-size: 1.25rem
 
-.sb-logo-tab
-  align-self: stretch
-  width: 60px
-  display: flex
-  justify-content: center
-  align-items: center
-  cursor: pointer
+.sb-dock-separator
+  flex: 0 0 auto
+  width: 1px
+  height: 20px
+  background-color: var(--border)
+
+.sb-dock-page-buttons
+  position: relative
+  display: inline-flex
+  gap: 2px
+  padding: 3px
+  background-color: var(--surface-inset)
+  border: 1px solid var(--border)
+  border-radius: 10px
+
+  &::before
+    content: ''
+    position: absolute
+    top: 3px
+    bottom: 3px
+    left: 0
+    width: var(--indicator-w, 0)
+    transform: translateX(var(--indicator-x, 0))
+    border-radius: 7px
+    background-color: var(--surface-selected)
+
+  &[data-ready]::before
+    transition: transform 0.22s cubic-bezier(0.3, 0.7, 0.4, 1), width 0.22s cubic-bezier(0.3, 0.7, 0.4, 1)
+
+  .p-button, .p-button.p-button-text
+    position: relative
+    z-index: 1
+    height: 35px
+    padding: 0 14px !important
+    border-color: transparent
+    border-radius: 7px
+    background-color: transparent
+    color: var(--text-muted)
+    font-weight: 500
+
+    &:enabled:hover, &:enabled:active
+      background-color: transparent
+      filter: none
+      color: var(--text)
+
+    &.selected
+      color: var(--text)
