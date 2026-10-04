@@ -1,0 +1,109 @@
+// Popup menus: Menu, ContextMenu, TieredMenu
+.p-menu, .p-contextmenu, .p-tieredmenu
+  padding: 4px
+  min-width: 200px
+  width: auto
+  background-color: var(--surface-overlay)
+  border: 1px solid var(--border)
+  border-radius: 10px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+  overflow-y: auto
+
+  .p-menuitem-content
+    background-color: transparent
+    border-radius: 6px
+    transition: background-color 0.08s ease-in
+
+  .p-menuitem-link
+    display: flex
+    align-items: center
+    gap: 10px
+    height: 34px
+    padding: 0 10px
+    color: var(--text)
+    font-size: 14px
+
+    &:focus-visible
+      outline: none
+
+  .p-menuitem-text
+    color: var(--text)
+
+  .p-menuitem-icon, .material-symbols-outlined
+    width: 18px
+    margin: 0
+    font-size: 18px
+    color: var(--text-muted)
+
+  .p-submenu-icon
+    margin-left: auto
+    color: var(--text-faint)
+
+  .p-menuitem:not(.p-disabled)
+    > .p-menuitem-content:hover,
+    > .p-menuitem-content.p-focus
+      background-color: var(--hover)
+
+      .p-menuitem-icon, .material-symbols-outlined
+        color: var(--text)
+
+    > .p-menuitem-content:active
+      background-color: var(--active)
+
+  .p-menuitem.p-disabled .p-menuitem-content
+    opacity: 0.4
+
+  .p-menuitem-separator
+    height: 1px
+    margin: 4px 6px
+    background-color: var(--border)
+    border: none
+
+  .p-submenu-header
+    padding: 8px 10px 4px
+    background-color: transparent
+    font-size: 11px
+    font-weight: 500
+    letter-spacing: .04em
+    text-transform: uppercase
+    color: var(--text-faint)
+
+  // Severity items: colour on text + icon, tinted hover wash
+  .p-menuitem.sb-menuitem-danger
+    .p-menuitem-text, .p-menuitem-icon, .material-symbols-outlined
+      color: var(--danger-color-text)
+
+    &:not(.p-disabled) > .p-menuitem-content:hover
+      background-color: color-mix(in oklab, var(--danger-color-text) 10%, transparent)
+
+      .p-menuitem-icon, .material-symbols-outlined
+        color: var(--danger-color-text)
+
+  .p-menuitem.sb-menuitem-success
+    .p-menuitem-text, .p-menuitem-icon, .material-symbols-outlined
+      color: var(--success-color-text)
+
+    &:not(.p-disabled) > .p-menuitem-content:hover
+      background-color: color-mix(in oklab, var(--success-color-text) 10%, transparent)
+
+      .p-menuitem-icon, .material-symbols-outlined
+        color: var(--success-color-text)
+
+// Submenus of a tiered/context menu are their own panels
+.p-contextmenu .p-submenu-list, .p-tieredmenu .p-submenu-list
+  padding: 4px
+  background-color: var(--surface-overlay)
+  border: 1px solid var(--border)
+  border-radius: 10px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+
+// Unchanged
+.p-menubar
+  background-color: var(--primary-color)
+  border: var(--border) solid 1px
+  border-radius: 0 0 4px 4px
+  margin-right: -1px
+
+.p-megamenu-panel
+  background-color: var(--primary-color)
+  border-radius: 4px

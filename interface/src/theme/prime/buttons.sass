@@ -1,0 +1,127 @@
+.p-button
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  padding: 8px 16px
+  border: 1px solid transparent
+  border-radius: 8px
+  color: var(--text)
+  background-color: var(--header-color)
+  transition: background-color 0.08s ease-in, border-color 0.08s ease-in, color 0.08s ease-in, filter 0.08s ease-in
+
+  .p-button-label
+    flex-grow: 0
+    font-weight: 500
+
+  .p-button-icon, .material-symbols-outlined
+    color: inherit
+
+  // Make this consistent with PrimeReact's native icons
+  .material-symbols-outlined
+    margin-right: .5rem
+
+  // Filled buttons
+  &:enabled:hover
+    filter: brightness(1.2)
+
+  &:enabled:active
+    filter: brightness(1.1)
+
+  &.p-button-danger
+    color: var(--surface-sunken)
+    background-color: var(--danger-color-text)
+
+  &.p-button-success
+    background-color: var(--success-color-text)
+
+  &.p-button-warning
+    background-color: var(--warning-color-text)
+
+  // Accent buttons (filled)
+  &.sb-button-accent
+    color: black
+    background-color: var(--accent)
+
+    &:enabled:hover
+      filter: none
+      background-color: color-mix(in oklab, var(--accent) 88%, white)
+
+    &:enabled:active
+      filter: none
+      background-color: color-mix(in oklab, var(--accent) 88%, black)
+
+  // Outlined buttons
+  &.p-button-outlined
+    color: var(--text)
+    border-color: var(--border-strong)
+    background-color: transparent
+
+    &:enabled:hover
+      filter: none
+      background-color: var(--hover)
+
+    &:enabled:active
+      filter: none
+      background-color: var(--active)
+
+    &.p-button-danger
+      color: var(--danger-color-text)
+      border-color: var(--danger-color-text)
+
+    &.p-button-success
+      color: var(--success-color-text)
+      border-color: var(--success-color-text)
+
+    &.p-button-warning
+      color: var(--warning-color-text)
+      border-color: var(--warning-color-text)
+
+  // Text / Ghost buttons
+  &.p-button-text
+    color: var(--text)
+    background-color: transparent
+
+    &:enabled:hover
+      filter: none
+      background-color: var(--hover)
+
+    &:enabled:active
+      filter: none
+      background-color: var(--active)
+
+    &.p-button-danger
+      color: var(--danger-color-text)
+      &:enabled:hover
+        border-color: var(--danger-color)
+
+    &.p-button-success
+      color: var(--success-color-text)
+      &:enabled:hover
+        border-color: var(--success-color)
+
+    &.p-button-warning
+      color: var(--warning-color-text)
+      &:enabled:hover
+        border-color: var(--warning-color)
+
+  &:focus-visible
+    outline: 2px solid color-mix(in oklab, var(--accent) 45%, transparent)
+    outline-offset: 1px
+
+  &:disabled, &.p-disabled
+    opacity: 0.5
+    filter: none
+    cursor: default
+    pointer-events: none
+
+  &.p-button-icon-only
+    padding: 8px
+
+  // iconoir icons are slightly smaller, so give them less padding
+  &.sb-iconoir-button
+    padding: 6px
+
+  .p-badge
+    width: 0.75rem
+    height: 0.75rem
+    min-width: unset

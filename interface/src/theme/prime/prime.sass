@@ -1,0 +1,271 @@
+@use "buttons"
+@use "menu"
+
+.p-tooltip
+  transition: opacity 0.2s ease-in-out !important
+  opacity: 0 !important
+
+  .p-tooltip-text
+    background-color: var(--surface-overlay)
+
+  .p-tooltip-arrow
+    color: var(--primary-color)
+
+  &.p-tooltip-active
+    opacity: 1 !important
+
+.p-dialog
+  border: 1px solid var(--border) !important
+  border-radius: 12px !important
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .3)
+
+  .p-dialog-header
+    border-radius: 12px 12px 0 0
+
+  .p-dialog-content
+    border-radius: 0 0 12px 12px
+
+  &:not(.p-confirm-dialog)
+    .p-dialog-content
+      padding: 0
+      display: flex
+      flex-direction: column
+      align-items: stretch
+      overflow: hidden
+
+    .p-dialog-header
+      padding: 0
+
+      .p-dialog-header-icon
+        display: none
+
+.p-tree
+  background-color: transparent
+  border: none
+  padding: 8px
+
+.p-tree-filter
+  background-color: transparent
+
+.p-tree-container
+  overflow-x: hidden
+
+.p-treenode
+  border-radius: 4px
+
+.p-treenode-content
+  padding: 0
+  box-shadow: none
+  outline: none
+  transition: background-color 0.08s ease
+
+  &:hover
+    background-color: unset
+
+.p-treenode-label
+  text-wrap: nowrap
+  text-overflow: ellipsis
+  overflow: hidden
+  max-width: 140px
+
+.p-splitter
+  background-color: transparent
+  border: none
+  width: 100%
+
+  .p-splitter-gutter
+    background-color: var(--primary-color)
+
+  .p-splitter-panel
+    min-width: 0
+
+.p-inputtextarea
+  resize: none
+
+.p-inputtext
+  background: var(--surface-inset)
+  border-color: var(--border)
+  border-radius: 8px
+  text-overflow: ellipsis
+
+  &:not(.sb-input-error):focus
+    border-color: var(--border-strong)
+
+  // If the input borders a datepicker button, make the right side flat so they are connected
+  &:has(+ .p-datepicker-trigger)
+    border-radius: 8px 0 0 8px
+
+.p-calendar .p-inputtext
+  border-color: transparent
+
+  &:not(.sb-input-error):focus
+    border-color: var(--border)
+
+.p-datepicker-trigger
+  background-color: var(--surface-inset)
+  border-color: transparent
+  border-radius: 0 6px 6px 0
+
+  &:active
+    background-color: var(--header-color)
+
+.p-inputgroup-addon
+  border: none
+
+.p-inputtext, .p-dropdown, .p-button, .p-calendar
+  &:focus, &.p-focus
+    outline: none
+    box-shadow: none
+
+    > .p-inputtext
+      outline: none
+      box-shadow: none
+
+.p-dropdown
+  border-color: var(--border)
+
+  &:has(svg[data-pr-overlay-visible="true"])
+    border-radius: 6px 6px 0 0
+
+.p-dropdown-label:focus
+  border: none
+
+.p-dropdown-panel
+  background-color: var(--surface-raised)
+  border-color: var(--border)
+  border-radius: 0 0 6px 6px
+  border-top-color: var(--surface-raised)
+
+  .p-dropdown-item
+    background-color: transparent
+
+    &:focus-visible
+      outline: none
+
+    &:hover
+      backdrop-filter: brightness(1.2)
+
+  .p-dropdown-header
+    background-color: transparent
+    border-color: var(--border)
+    padding: 10px 10px
+
+    .p-dropdown-filter
+      padding: 8px
+
+.p-placeholder
+  font-style: italic
+  opacity: 0.7
+
+.p-checkbox-box
+  background-color: var(--primary-color)
+  border: 1px solid var(--border)
+
+  svg
+    color: var(--text)
+
+.p-chip
+  transition: all 0.08s ease-in
+  user-select: none
+  background: var(--primary-color)
+
+.p-accordion-header-link
+  background-color: transparent
+  border: none
+  padding: 12px 0
+
+.p-accordion-header-text
+  font-size: 22px
+  font-weight: 400
+
+.p-accordion-content
+  background-color: transparent
+  border: none
+  padding: 8px
+
+.p-image
+  display: flex
+
+.p-inline-message.sb-mini-message
+  padding: 4px
+  margin-top: 1px
+
+  .p-inline-message-text
+    font-size: 12px
+
+  .p-inline-message-icon
+    display: none
+
+.pi-severity-success
+  color: var(--success-color-text)
+
+.pi-severity-danger
+  color: var(--danger-color-text)
+
+.pi-severity-warning
+  color: var(--warning-color-text)
+
+.p-overlaypanel
+  border: 2px solid var(--border)
+  background-color: var(--surface-raised)
+  padding: 12px
+
+  .p-overlaypanel-content
+    padding: 0
+
+  // Replace the built-in arrow with a rotated square
+  &::before
+    display: none
+
+  &::after
+    content: ""
+    position: absolute
+    width: 12px
+    height: 12px
+    background: var(--surface-raised)
+    border-left: 2px solid var(--border)
+    border-top: 2px solid var(--border)
+    border-bottom: unset
+    border-right: unset
+    transform: rotate(45deg)
+    top: -7px
+
+.p-datepicker
+  background-color: var(--surface-raised)
+  border: 1px solid var(--border)
+
+  .p-highlight
+    background-color: var(--surface-selected)
+
+  .p-datepicker-today > span
+    color: var(--accent)
+
+  .p-datepicker-header
+    padding-top: 0
+    background-color: transparent
+    border-color: var(--border)
+
+  .p-timepicker
+    border-color: var(--border)
+
+  .p-datepicker-buttonbar
+    padding: 8px 4px 0 4px
+    border-color: var(--border)
+
+    button
+      background-color: transparent
+      border-color: var(--border)
+      color: var(--border)
+      width: 100px
+
+  td
+    padding: 3px
+
+.p-slider-handle
+  border-color: var(--border)
+
+  &:hover
+    background-color: var(--border)
+
+.p-slider-range
+  background-color: var(--border)
