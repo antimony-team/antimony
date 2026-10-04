@@ -17,14 +17,14 @@ import classNames from 'classnames';
 
 import {observer} from 'mobx-react-lite';
 import {IconField} from 'primereact/iconfield';
-import {Image} from 'primereact/image';
 import {InputIcon} from 'primereact/inputicon';
 import {InputText} from 'primereact/inputtext';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {useSearchParams} from 'react-router';
+import {useNavigate, useSearchParams} from 'react-router';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 import {Button} from 'primereact/button';
+import EmptyState from './empty-state/empty-state';
 
 const stateOrder: Record<InstanceState, number> = {
   [InstanceState.Running]: 0,
@@ -79,6 +79,8 @@ const DashboardPage = observer(() => {
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (searchQueryFieldRef.current && labStore.searchQuery === '') {
       searchQueryFieldRef.current.value = '';
@@ -129,14 +131,16 @@ const DashboardPage = observer(() => {
     return labStore.data
       .filter(
         lab =>
-          collectionFilter === null || lab.collectionId === collectionFilter,
+          (collectionFilter === null ||
+            lab.collectionId === collectionFilter) &&
+          !stateFilter.has(lab.state),
       )
       .sort(
         (a, b) =>
           stateOrder[a.state] - stateOrder[b.state] ||
           a.name.localeCompare(b.name, undefined, {numeric: true}),
       );
-  }, [collectionStore.data, labStore.data, collectionFilter]);
+  }, [collectionStore.data, labStore.data, collectionFilter, stateFilter]);
 
   const [collectionLabCounts, collectionLabStateCounts] = useMemo(() => {
     const labCounts: {[collectionId: string]: number} = {};
@@ -224,14 +228,11 @@ const DashboardPage = observer(() => {
               <span className="sb-explorer-item-label">{collection.name}</span>
               <div className="sb-explorer-item-count">
                 <div className="sb-explorer-item-dots">
-                  {Object.keys(collectionLabStateCounts[collection.id]).map(
-                    (state, i) => (
-                      <span
-                        key={i}
-                        className={`sb-explorer-item-dot ${state}`}
-                      />
-                    ),
-                  )}
+                  {Object.keys(
+                    collectionLabStateCounts[collection.id] ?? {},
+                  ).map((state, i) => (
+                    <span key={i} className={`sb-explorer-item-dot ${state}`} />
+                  ))}
                 </div>
                 <span className="sb-explorer-item-count">
                   {collectionLabCounts[collection.id] ?? 0}
@@ -245,7 +246,7 @@ const DashboardPage = observer(() => {
           minSize={60}
         >
           <div className="sb-dashboard-container-header">
-            <div>
+            <div className="flex-grow-1">
               <span className="sb-dashboard-container-header-title">
                 {collectionFilter
                   ? collectionStore.lookup.get(collectionFilter)!.name
@@ -351,10 +352,77 @@ const DashboardPage = observer(() => {
                 </div>
               </When>
               <Otherwise>
-                <div className="sb-dashboard-empty">
-                  <Image src="/icons/no-results.png" width="200px" />
-                  <span>No labs found :(</span>
-                </div>
+                <Choose>
+                  <When condition={labStore.data.length === 0}>
+                    <EmptyState
+                      icon={
+                        <span className="material-symbols-outlined">
+                          network_node
+                        </span>
+                      }
+                      accent
+                      title="Deploy your first lab"
+                      text="A lab is a running copy of a topology. Build one in the editor, then deploy it here."
+                    >
+                      <Button
+                        outlined
+                        label="Open topology editor"
+                        onClick={() => navigate('/editor')}
+                      />
+                    </EmptyState>
+                  </When>
+                  <When
+                    condition={
+                      collectionFilter !== null &&
+                      !collectionLabCounts[collectionFilter] &&
+                      labStore.searchQuery === ''
+                    }
+                  >
+                    <EmptyState
+                      icon="pi pi-folder"
+                      title={`No labs in ${collectionStore.lookup.get(collectionFilter!)?.name} yet`}
+                      text="Deploy one of this collection's topologies to start a lab."
+                    >
+                      <Button
+                        outlined
+                        icon="pi pi-plus"
+                        label="New lab"
+                        onClick={() => {
+                          labEditDialogState.openWith({
+                            editingLab: null,
+                            action: DialogAction.Add,
+                          });
+                        }}
+                      />
+                    </EmptyState>
+                  </When>
+                  <When condition={stateFilter.size > 0}>
+                    <EmptyState
+                      icon="pi pi-filter"
+                      title="All labs are filtered out"
+                      text="The state filters above hide every lab in this view."
+                    >
+                      <Button
+                        outlined
+                        label="Show all states"
+                        onClick={() => setStateFilter(new Set())}
+                      />
+                    </EmptyState>
+                  </When>
+                  <Otherwise>
+                    <EmptyState
+                      icon="pi pi-search"
+                      title={`No labs match "${labStore.searchQuery}"`}
+                      text="Check the spelling or search for part of the name."
+                    >
+                      <Button
+                        outlined
+                        label="Clear search"
+                        onClick={() => labStore.setSearchQuery('')}
+                      />
+                    </EmptyState>
+                  </Otherwise>
+                </Choose>
               </Otherwise>
             </Choose>
           </div>

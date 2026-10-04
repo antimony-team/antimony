@@ -1,11 +1,11 @@
 .sb-dialog-header
-  height: 50px
   border-radius: 12px 12px 0 0
   display: flex
   align-items: center
   justify-content: space-between
   background-color: var(--surface-overlay)
   border-bottom: 1px solid var(--border)
+  padding: 18px 0 18px 18px
 
   .sb-dialog-title
     font-size: 16px
@@ -32,22 +32,23 @@
 .sb-dialog-header-title
   font-weight: 400
   user-select: none
-  margin-left: 12px
   display: flex
   align-items: center
   gap: 8px
 
 .sb-dialog-header-close
   button
-    height: 50px
-    width: 50px
     border: none
+    padding: 0 !important
+
+    span
+      font-size: 16px
 
     &:hover
       background-color: unset !important
 
 .sb-dialog-content
-  padding: 16px
+  padding: 20px
   //margin-top: 1px
   flex-grow: 1
   overflow-y: auto

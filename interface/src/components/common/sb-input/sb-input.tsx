@@ -112,7 +112,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
   }
 
   return (
-    <div className="flex flex-column gap-1 w-full">
+    <div className="flex flex-column gap-2 w-full">
       <If condition={props.id && props.label}>
         <label className="sb-input-label" htmlFor={props.id}>
           {props.label}

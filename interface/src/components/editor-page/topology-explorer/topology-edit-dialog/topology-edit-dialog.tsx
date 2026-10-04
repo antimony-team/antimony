@@ -208,6 +208,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       <SBDropdown
         id="edit-topology-collection"
         label="Collection"
+        placeholder="Select a collection"
         icon={<span className="material-symbols-outlined">folder</span>}
         hasFilter={false}
         useSelectTemplate={true}

@@ -26,6 +26,8 @@ interface SBDropdownProps {
     | ReactElement
     | ((option: SelectItem) => string | ReactElement);
   options?: SelectItem[];
+  optionGroupLabel?: string;
+  optionGroupChildren?: string;
   optionLabel?: string;
   placeholder?: string;
   emptyMessage?: string;
@@ -47,11 +49,16 @@ const SBDropdown = (props: SBDropdownProps) => {
   }
 
   const dropdownTemplate = (
-    option: SelectItem,
+    option: SelectItem & {prefix?: string},
     dropdownProps?: DropdownProps,
+    isValue = false,
   ) => {
     if (!option) {
-      return <span>{dropdownProps?.placeholder}</span>;
+      return (
+        <span className="sb-dropdown-value sb-dropdown-placeholder">
+          {dropdownProps?.placeholder ?? '\u00a0'}
+        </span>
+      );
     }
 
     let icon: ReactElement;
@@ -80,6 +87,9 @@ const SBDropdown = (props: SBDropdownProps) => {
     return (
       <div className="flex align-items-center gap-2">
         <If condition={props.icon}>{icon}</If>
+        <If condition={isValue && option.prefix}>
+          <span className="sb-dropdown-value-prefix">{option.prefix} /</span>
+        </If>
         <span>{option.label ?? option.value}</span>
       </div>
     );
@@ -98,6 +108,8 @@ const SBDropdown = (props: SBDropdownProps) => {
         showClear={false}
         value={props.value}
         optionLabel={props.optionLabel}
+        optionGroupLabel={props.optionGroupLabel}
+        optionGroupChildren={props.optionGroupChildren}
         placeholder={props.placeholder}
         options={props.options}
         filter={props.hasFilter}
@@ -105,8 +117,17 @@ const SBDropdown = (props: SBDropdownProps) => {
         emptyMessage={props.emptyMessage}
         filterPlaceholder={props.filterPlaceholder ?? 'Search...'}
         onChange={onValueSubmit}
-        itemTemplate={props.useItemTemplate ? dropdownTemplate : undefined}
-        valueTemplate={props.useSelectTemplate ? dropdownTemplate : undefined}
+        itemTemplate={
+          props.useItemTemplate
+            ? (option: SelectItem) => dropdownTemplate(option)
+            : undefined
+        }
+        valueTemplate={
+          props.useSelectTemplate
+            ? (option: SelectItem, dropdownProps: DropdownProps) =>
+                dropdownTemplate(option, dropdownProps, true)
+            : undefined
+        }
         className={classNames('sb-dropdown', props.className, {
           'sb-dropdown-hidden': props.isHidden,
           'sb-dropdown-edited': props.wasEdited,

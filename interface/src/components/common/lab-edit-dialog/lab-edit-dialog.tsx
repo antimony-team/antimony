@@ -5,6 +5,7 @@ import './lab-edit-dialog.sass';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 
 import {
+  useCollectionStore,
   useLabStore,
   useStatusMessages,
   useTopologyStore,
@@ -17,7 +18,6 @@ import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 
 import {Calendar} from 'primereact/calendar';
-import {SelectItem} from 'primereact/selectitem';
 import {Nullable} from 'primereact/ts-helpers';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {If} from '@sb/types/control';
@@ -123,6 +123,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
 
   const labStore = useLabStore();
   const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
   // Reset editing object when the dialog is opened
@@ -147,13 +148,6 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
     }
   }, [props.dialogState.isOpen]);
 
-  const topologyOptions: SelectItem[] = useMemo(() => {
-    return topologyStore.data.map(topology => ({
-      label: topology.name as string,
-      value: topology.id,
-    }));
-  }, [topologyStore.data]);
-
   function getDialogHeader(): string {
     if (!props.dialogState.state) return '';
 
@@ -170,6 +164,23 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   const submitButtonLabel =
     props.dialogState.state?.action === DialogAction.Add ? 'Deploy' : 'Submit';
 
+  const topologyGroups = useMemo(
+    () =>
+      collectionStore.data
+        .map(collection => ({
+          label: collection.name,
+          items: topologyStore.data
+            .filter(t => t.collectionId === collection.id)
+            .map(topology => ({
+              label: topology.name,
+              value: topology.id,
+              prefix: collection.name,
+            })),
+        }))
+        .filter(group => group.items.length > 0),
+    [collectionStore.data, topologyStore.data],
+  );
+
   return (
     <SBDialog
       onClose={props.dialogState.close}
@@ -180,80 +191,79 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       onSubmit={onSubmit}
       onShow={() => labNameRef.current?.input.current?.focus()}
     >
-      <div className="flex gap-2 flex-column">
-        <div className="mb-3">
-          <SBInput
-            ref={labNameRef}
-            onValueSubmit={onNameChange}
-            defaultValue={editingLab.name}
-            placeholder="e.g. OSPF Lab"
-            id="lab-edit-name"
-            label="Lab Name"
-          />
-        </div>
+      <div className="flex gap-4 flex-column">
+        <SBInput
+          ref={labNameRef}
+          onValueSubmit={onNameChange}
+          defaultValue={editingLab.name}
+          placeholder="e.g. OSPF Lab"
+          id="lab-edit-name"
+          label="Lab name"
+        />
         <If condition={props.dialogState.state?.action === DialogAction.Add}>
-          <div className="mb-3">
-            <SBDropdown
-              id="edit-lab-topology"
-              label="Topology"
-              icon={
-                <span className="material-symbols-outlined">network_node</span>
-              }
-              hasFilter={true}
-              useSelectTemplate={true}
-              useItemTemplate={true}
-              value={editingLab.topologyId}
-              options={topologyOptions}
-              emptyMessage="No topologies found"
-              onValueSubmit={topologyId => (editingLab.topologyId = topologyId)}
+          <SBDropdown
+            id="edit-lab-topology"
+            label="Topology"
+            icon={
+              <span className="material-symbols-outlined">network_node</span>
+            }
+            options={topologyGroups}
+            optionGroupLabel="label"
+            optionGroupChildren="items"
+            hasFilter={true}
+            useSelectTemplate={true}
+            useItemTemplate={true}
+            value={editingLab.topologyId}
+            emptyMessage="No topologies found"
+            placeholder="Select a topology"
+            onValueSubmit={topologyId => (editingLab.topologyId = topologyId)}
+          />
+        </If>
+        <div className="flex gap-3">
+          <div className="flex flex-column gap-2">
+            <label htmlFor="deploy-date-start" className="sb-input-label">
+              Start time
+            </label>
+            <Calendar
+              id="edit-lab-date-start"
+              inputId="deploy-date-start"
+              className="w-full"
+              value={editingLab.startTime}
+              onChange={e => {
+                const date = e.value as Nullable<Date | null>;
+                if (date) runInAction(() => (editingLab.startTime = date));
+              }}
+              selectionMode="single"
+              formatDateTime={date => {
+                return dayjs(date).format('YYYY-MM-DD hh:mm:ss');
+              }}
+              showIcon
+              showTime
+              showSeconds
             />
           </div>
-        </If>
-        <div className="flex-auto">
-          <label htmlFor="deploy-date-start" className="font-bold block mb-2">
-            Start Time
-          </label>
-          <Calendar
-            id="edit-lab-date-start"
-            inputId="deploy-date-start"
-            className="w-full"
-            value={editingLab.startTime}
-            onChange={e => {
-              const date = e.value as Nullable<Date | null>;
-              if (date) runInAction(() => (editingLab.startTime = date));
-            }}
-            selectionMode="single"
-            placeholder="Start Time"
-            formatDateTime={date => {
-              return dayjs(date).format('YYYY-MM-DD hh:mm:ss');
-            }}
-            showIcon
-            showTime
-            showSeconds
-          />
-        </div>
-        <div className="flex-auto">
-          <label htmlFor="deploy-date-end" className="font-bold block mb-2">
-            End Time
-          </label>
-          <Calendar
-            id="edit-lab-date-end"
-            inputId="deploy-date-end"
-            className="w-full"
-            value={editingLab.endTime}
-            onChange={e => {
-              const date = e.value as Nullable<Date | null>;
-              if (date) runInAction(() => (editingLab.endTime = date));
-            }}
-            selectionMode="single"
-            placeholder="End Time"
-            formatDateTime={date => {
-              return dayjs(date).format('YYYY-MM-DD hh:mm:ss');
-            }}
-            showIcon
-            showTime
-            showSeconds
-          />
+          <div className="flex flex-column gap-2">
+            <label htmlFor="deploy-date-end" className="sb-input-label">
+              End time
+            </label>
+            <Calendar
+              id="edit-lab-date-end"
+              inputId="deploy-date-end"
+              className="w-full"
+              value={editingLab.endTime}
+              onChange={e => {
+                const date = e.value as Nullable<Date | null>;
+                if (date) runInAction(() => (editingLab.endTime = date));
+              }}
+              selectionMode="single"
+              formatDateTime={date => {
+                return dayjs(date).format('YYYY-MM-DD hh:mm:ss');
+              }}
+              showIcon
+              showTime
+              showSeconds
+            />
+          </div>
         </div>
       </div>
     </SBDialog>
