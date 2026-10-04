@@ -173,7 +173,10 @@ const LabEntry = observer((props: LabEntryProps) => {
                   severity="warning"
                   tooltip="Redeploy"
                   aria-label="Redeploy Lab"
-                  onClick={() => labStore.deployLab(props.lab)}
+                  onClick={e => {
+                    e.stopPropagation();
+                    void labStore.deployLab(props.lab);
+                  }}
                   {...defaultLabButtonProps}
                 />
                 <Button

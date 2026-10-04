@@ -585,7 +585,7 @@ const LabView = observer((props: LabDialogProps) => {
   return (
     <>
       <div
-        className={classNames('sb-card sb-lab-view', {
+        className={classNames('sb-island sb-lab-view', {
           open: props.lab,
         })}
       >

@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import React from 'react';
 
 import './state-indicator.sass';
+import {observer} from 'mobx-react-lite';
 
 export const LabStateStatusIcons: Record<InstanceState, string> = {
   [InstanceState.Deploying]: 'pi pi-sync pi-spin',
@@ -28,7 +29,7 @@ interface StateIndicatorProps {
   showText: boolean;
 }
 
-const StateIndicator = (props: StateIndicatorProps) => {
+const StateIndicator = observer((props: StateIndicatorProps) => {
   return (
     <div
       className={classNames(
@@ -42,6 +43,6 @@ const StateIndicator = (props: StateIndicatorProps) => {
       </If>
     </div>
   );
-};
+});
 
 export default StateIndicator;

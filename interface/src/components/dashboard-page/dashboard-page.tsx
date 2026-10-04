@@ -1,4 +1,3 @@
-import useResizeObserver from '@react-hook/resize-observer';
 import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
@@ -24,13 +23,13 @@ import {Image} from 'primereact/image';
 import {InputIcon} from 'primereact/inputicon';
 import {InputText} from 'primereact/inputtext';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import {Paginator} from 'primereact/paginator';
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
 
 const DashboardPage = observer(() => {
-  const [currentPage, setCurrentPage] = useState<number>(0);
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
 
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
 
@@ -46,29 +45,12 @@ const DashboardPage = observer(() => {
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
-  const calculatePageSize = useCallback(() => {
-    if (!containerRef.current) return;
-
-    const {height} = containerRef.current.getBoundingClientRect();
-    const adjustedHeight = height - 68;
-    const pageSize = Math.floor(adjustedHeight / 80);
-    labStore.setLimit(pageSize);
-    labStore.setOffset(pageSize * currentPage);
-  }, [currentPage, labStore]);
 
   useEffect(() => {
     if (searchQueryFieldRef.current && labStore.searchQuery === '') {
       searchQueryFieldRef.current.value = '';
     }
   }, [labStore.searchQuery]);
-
-  useResizeObserver(containerRef, () => {
-    calculatePageSize();
-  });
-
-  useEffect(() => {
-    calculatePageSize();
-  }, [calculatePageSize, labStore.totalEntries]);
 
   useEffect(() => {
     if (searchParams.has('l') && labStore.lookup.has(searchParams.get('l')!)) {
@@ -108,127 +90,196 @@ const DashboardPage = observer(() => {
     });
   }
 
-  // if (labStore.fetchReport.state !== FetchState.Done) {
-  //   return <></>;
-  // }
+  const filteredCollections = useMemo(() => {
+    return labStore.data.filter(
+      lab => collectionFilter === null || lab.collectionId === collectionFilter,
+    );
+  }, [collectionStore.data, labStore.data, collectionFilter]);
+
+  const [collectionLabCounts, collectionLabStateCounts] = useMemo(() => {
+    const labCounts: {[collectionId: string]: number} = {};
+    const stateCounts: {[collectionId: string]: {[state: string]: number}} = {};
+
+    labStore.data.forEach(lab => {
+      if (lab.collectionId in labCounts) {
+        labCounts[lab.collectionId]++;
+      } else {
+        labCounts[lab.collectionId] = 1;
+      }
+
+      if (!(lab.collectionId in stateCounts)) {
+        stateCounts[lab.collectionId] = {};
+      }
+
+      const state = InstanceState[lab.state].toLowerCase();
+      if (state in stateCounts[lab.collectionId]) {
+        stateCounts[lab.collectionId][state]++;
+      } else {
+        stateCounts[lab.collectionId][state] = 1;
+      }
+    });
+    return [labCounts, stateCounts];
+  }, [filteredCollections]);
 
   return (
-    <>
-      <Choose>
-        <When condition={false}></When>
-        {/*<When condition={labDialogState.isOpen}>*/}
-        {/*  <LabDialog*/}
-        {/*    dialogState={labDialogState}*/}
-        {/*    onDestroyLabRequest={onDestroyLabRequest}*/}
-        {/*  />*/}
-        {/*</When>*/}
-        <Otherwise>
-          <div className="height-100 width-100 sb-dashboard-container">
-            <LabView
-              lab={openLab}
-              onClose={onCloseLabView}
-              // dialogState={onCloseLabView}
-              onDestroyLabRequest={onDestroyLabRequest}
+    <div className="sb-dashboard">
+      <Splitter>
+        <SplitterPanel
+          className="sb-dashboard-explorer sb-island"
+          minSize={15}
+          size={1}
+        >
+          <IconField iconPosition="left">
+            <InputIcon className="pi pi-search" />
+            <InputText
+              ref={searchQueryFieldRef}
+              className="width-100"
+              placeholder="Search labs"
+              onChange={e => handleSearchChange(e.target.value)}
             />
-            <div className="height-100 overflow-y-hidden overflow-x-hidden sb-labs-container sb-island">
-              <div className="sb-dashboard-filter">
-                {/*<div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>*/}
-                <div className="sb-dashboard-filter-chips">
-                  {InstanceStates.map((state, i) => (
-                    <div
-                      key={i}
-                      className={classNames('fake-state-filter-chip', {
-                        hidden: !labStore.stateFilter.includes(state),
-                      })}
-                    >
-                      {InstanceState[state]}
-                      <i
-                        className="pi pi-times-circle"
-                        role="button"
-                        aria-label={`Remove ${InstanceState[state]} Filter`}
-                        onClick={() => labStore.toggleState(state)}
-                      ></i>
-                    </div>
-                  ))}
-                  {labStore.collectionFilter.map((collectionId, i) => {
-                    return (
-                      <Chip
+          </IconField>
+          <a
+            className={classNames('sb-dashboard-explorer-item', {
+              selected: collectionFilter === null,
+            })}
+            onClick={() => setCollectionFilter(null)}
+          >
+            <span className="material-symbols-outlined">stacks</span>
+            <span className="sb-explorer-item-label">All labs</span>
+            <span className="sb-explorer-item-count">
+              {collectionStore.data.length}
+            </span>
+          </a>
+          <span className="sb-dashboard-explorer-title">Collections</span>
+          {collectionStore.data.map((collection, i) => (
+            <a
+              key={i}
+              className={classNames('sb-dashboard-explorer-item', {
+                selected: collectionFilter === collection.id,
+              })}
+              onClick={() => setCollectionFilter(collection.id)}
+            >
+              <i className="pi pi-folder"></i>
+              <span className="sb-explorer-item-label">{collection.name}</span>
+              <div className="sb-explorer-item-count">
+                <div className="sb-explorer-item-dots">
+                  {Object.keys(collectionLabStateCounts[collection.id]).map(
+                    (state, i) => (
+                      <span
                         key={i}
-                        label={collectionStore.lookup.get(collectionId)!.name}
-                        removable={true}
-                        onRemove={() => {
-                          labStore.toggleCollection(collectionId);
-                          return true;
-                        }}
-                        className="state-filter-chip"
+                        className={`sb-explorer-item-dot ${state}`}
                       />
-                    );
+                    ),
+                  )}
+                </div>
+                <span className="sb-explorer-item-count">
+                  {collectionLabCounts[collection.id] ?? 0}
+                </span>
+              </div>
+              {/*<span className="sb-explorer-item-count">*/}
+              {/*  {collectionLabCounts[collection.id] ?? 0}*/}
+              {/*</span>*/}
+            </a>
+          ))}
+        </SplitterPanel>
+        <SplitterPanel
+          className="sb-dashboard-container sb-island"
+          minSize={60}
+        >
+          <div className="sb-dashboard-filter">
+            {/*<div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>*/}
+            <div className="sb-dashboard-filter-chips">
+              {InstanceStates.map((state, i) => (
+                <div
+                  key={i}
+                  className={classNames('fake-state-filter-chip', {
+                    hidden: !labStore.stateFilter.includes(state),
                   })}
-                </div>
-                <div className="sb-dashboard-filter-search">
-                  <IconField
-                    className="sb-dashboard-filter-search-field"
-                    iconPosition="right"
-                  >
-                    <InputText
-                      ref={searchQueryFieldRef}
-                      className="width-100"
-                      placeholder="Search"
-                      onChange={e => handleSearchChange(e.target.value)}
-                    />
-                    <InputIcon className="pi pi-search" />
-                  </IconField>
-                  <span
-                    className="search-bar-icon"
+                >
+                  {InstanceState[state]}
+                  <i
+                    className="pi pi-times-circle"
                     role="button"
-                    aria-label="Filter Labs"
-                    onClick={e => labFilterOverlay.current?.toggle(e)}
-                  >
-                    <i className="pi pi-filter" />
-                  </span>
+                    aria-label={`Remove ${InstanceState[state]} Filter`}
+                    onClick={() => labStore.toggleState(state)}
+                  ></i>
                 </div>
-              </div>
-              <div className="sb-dashboard-content" ref={containerRef}>
-                <Choose>
-                  <When condition={labStore.data!.length > 0}>
-                    {labStore.data!.map((lab, i) => (
-                      <LabEntry
-                        key={i}
-                        lab={lab}
-                        onOpenLab={() => onOpenLabView(lab)}
-                        onRescheduleLab={() =>
-                          labEditDialogState.openWith({
-                            editingLab: lab,
-                            action: DialogAction.Edit,
-                          })
-                        }
-                        onDestroyLabRequest={() => onDestroyLabRequest(lab)}
-                      />
-                    ))}
-                  </When>
-                  <Otherwise>
-                    <div className="sb-dashboard-empty">
-                      <Image src="/icons/no-results.png" width="200px" />
-                      <span>No labs found :(</span>
-                    </div>
-                  </Otherwise>
-                </Choose>
-                <div className="sb-dashboard-pagination-controls">
-                  <Paginator
-                    first={currentPage * labStore.limit}
-                    rows={labStore.limit}
-                    totalRecords={labStore.totalEntries ?? 0}
-                    onPageChange={e => setCurrentPage(e.page)}
+              ))}
+              {labStore.collectionFilter.map((collectionId, i) => {
+                return (
+                  <Chip
+                    key={i}
+                    label={collectionStore.lookup.get(collectionId)!.name}
+                    removable={true}
+                    onRemove={() => {
+                      labStore.toggleCollection(collectionId);
+                      return true;
+                    }}
+                    className="state-filter-chip"
                   />
-                </div>
-              </div>
+                );
+              })}
+            </div>
+            <div className="sb-dashboard-filter-search">
+              <IconField
+                className="sb-dashboard-filter-search-field"
+                iconPosition="right"
+              >
+                <InputText
+                  ref={searchQueryFieldRef}
+                  className="width-100"
+                  placeholder="Search"
+                  onChange={e => handleSearchChange(e.target.value)}
+                />
+                <InputIcon className="pi pi-search" />
+              </IconField>
+              <span
+                className="search-bar-icon"
+                role="button"
+                aria-label="Filter Labs"
+                onClick={e => labFilterOverlay.current?.toggle(e)}
+              >
+                <i className="pi pi-filter" />
+              </span>
             </div>
           </div>
-        </Otherwise>
-      </Choose>
+          <div className="sb-dashboard-content" ref={containerRef}>
+            <Choose>
+              <When condition={filteredCollections.length > 0}>
+                {filteredCollections.map((lab, i) => (
+                  <LabEntry
+                    key={i}
+                    lab={lab}
+                    onOpenLab={() => onOpenLabView(lab)}
+                    onRescheduleLab={() =>
+                      labEditDialogState.openWith({
+                        editingLab: lab,
+                        action: DialogAction.Edit,
+                      })
+                    }
+                    onDestroyLabRequest={() => onDestroyLabRequest(lab)}
+                  />
+                ))}
+              </When>
+              <Otherwise>
+                <div className="sb-dashboard-empty">
+                  <Image src="/icons/no-results.png" width="200px" />
+                  <span>No labs found :(</span>
+                </div>
+              </Otherwise>
+            </Choose>
+          </div>
+        </SplitterPanel>
+      </Splitter>
+      <LabView
+        lab={openLab}
+        onClose={onCloseLabView}
+        // dialogState={onCloseLabView}
+        onDestroyLabRequest={onDestroyLabRequest}
+      />
       <LabFilterOverlay popOverRef={labFilterOverlay} />
       <LabEditDialog dialogState={labEditDialogState} />
-    </>
+    </div>
   );
 });
 

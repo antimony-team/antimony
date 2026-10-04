@@ -1,3 +1,100 @@
+.sb-dashboard
+  width: 100%
+  display: flex
+  position: relative
+
+  .p-splitter-gutter
+    background-color: var(--surface-page) !important
+    width: 8px !important
+
+  .p-splitter-gutter-handle
+    background-color: var(--surface-page)
+
+.sb-dashboard-explorer
+  display: flex
+  flex-direction: column
+  padding: 16px
+  gap: 6px
+
+  .p-icon-field
+    margin-bottom: 6px
+
+  .sb-dashboard-explorer-item
+    display: flex
+    align-items: center
+    gap: 8px
+    padding: 12px 16px
+    border-radius: 8px
+    color: var(--text)
+    user-select: none
+    cursor: pointer
+
+    .sb-explorer-item-label
+      margin-left: 8px
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+
+    .sb-explorer-item-count
+      display: flex
+      align-items: center
+      color: var(--text-muted)
+      margin-left: auto
+      justify-self: flex-end
+      font-variant-numeric: tabular-nums
+
+    &:hover
+      background-color: var(--hover)
+
+    &:active
+      background-color: var(--active)
+
+    .material-symbols-outlined
+      flex: 0 0 18px
+      width: 18px
+      font-size: 19px
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20
+
+    &.selected
+      background-color: var(--surface-selected)
+
+    .sb-explorer-item-dots
+      display: inline-flex
+      gap: 6px
+      margin: 0 12px
+
+      .sb-explorer-item-dot
+        width: 8px
+        height: 8px
+        border-radius: 50%
+        background-color: var(--text)
+
+        &.running
+          background-color: var(--success-color-text)
+
+        &.deploying, &.stopping
+          background-color: var(--warning-color-text)
+          box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning-color-text) 25%, transparent)
+
+        &.scheduled
+          background-color: var(--info-color-text)
+
+        &.failed
+          background-color: var(--danger-color-text)
+
+  .sb-dashboard-explorer-title
+    font-size: 14px
+    color: var(--text-muted)
+    font-weight: 500
+    text-transform: uppercase
+    margin-top: 8px
+    padding-left: 14px
+
+.sb-dashboard-container
+  display: flex
+  flex-direction: column
+  flex: 1
+
 .sb-dashboard-filter
   display: flex
   gap: 28px
@@ -28,6 +125,7 @@
   position: relative
 
 .sb-labs-container
+  height: 100%
   display: flex
   flex-direction: column
   background-color: var(--surface-raised)

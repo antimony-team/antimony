@@ -8,7 +8,6 @@ import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {QueryBuilder} from '@sb/lib/utils/query-builder';
 import {
   Instance,
   InstanceOut,
@@ -111,15 +110,18 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   @computed
   protected get getParams() {
-    return new QueryBuilder()
-      .add('limit', this.limit)
-      .add('offset', this.offset)
-      .add('searchQuery', this.searchQuery)
-      .addList('stateFilter', this.stateFilter)
-      .addList('collectionFilter', this.collectionFilter)
-      .add('startDate', this.startDate)
-      .add('endDate', this.endDate)
-      .toString();
+    return '';
+
+    // TODO(kian): For now, we fetch all collections
+    // return new QueryBuilder()
+    //   .add('limit', this.limit)
+    //   .add('offset', this.offset)
+    //   .add('searchQuery', this.searchQuery)
+    //   .addList('stateFilter', this.stateFilter)
+    //   .addList('collectionFilter', this.collectionFilter)
+    //   .add('startDate', this.startDate)
+    //   .add('endDate', this.endDate)
+    //   .toString();
   }
 
   private async sendRuntimeCommand(
