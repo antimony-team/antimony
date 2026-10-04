@@ -130,7 +130,7 @@ const DashboardPage = observer(() => {
               // dialogState={onCloseLabView}
               onDestroyLabRequest={onDestroyLabRequest}
             />
-            <div className="height-100 overflow-y-hidden overflow-x-hidden sb-labs-container sb-card">
+            <div className="height-100 overflow-y-hidden overflow-x-hidden sb-labs-container sb-island">
               <div className="sb-dashboard-filter">
                 {/*<div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>*/}
                 <div className="sb-dashboard-filter-chips">

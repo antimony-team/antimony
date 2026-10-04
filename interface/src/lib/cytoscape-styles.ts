@@ -1,13 +1,16 @@
 export const topologyStyle = [
+  // shared label style
   {
-    selector: '.topology-node, .drawn-shape', // Group shared styles
+    selector: '.topology-node, .drawn-shape',
     style: {
       'font-family': 'Figtree',
-      color: '#42b5ac',
+      color: '#e0e0e1',
       'text-valign': 'bottom',
       'text-halign': 'center',
     },
   },
+
+  // nodes
   {
     selector: '.topology-node',
     style: {
@@ -20,11 +23,11 @@ export const topologyStyle = [
       'underlay-color': '#d8a657',
       'transition-property': 'opacity',
       'transition-duration': '250ms',
-      'background-opacity': 1,
       'background-clip': 'none',
       'background-image': 'data(image)',
       'background-fit': 'contain',
-      'background-color': 'transparent',
+      'background-color': '#000000',
+      'background-opacity': 0,
       label: 'data(label)',
       'font-size': 12,
       'text-margin-y': 4,
@@ -41,16 +44,22 @@ export const topologyStyle = [
       'underlay-opacity': 0.5,
     },
   },
+
+  // groups
   {
     selector: '.drawn-shape',
     style: {
-      shape: 'roundrectangle',
-      'background-opacity': 0,
-      'border-color': '#42b5ac',
-      'border-width': 2,
-      'border-opacity': 1,
-      'text-margin-y': 6,
-      padding: 16,
+      shape: 'round-rectangle',
+      'background-color': '#ffffff',
+      'background-opacity': 0.03,
+      'border-color': '#ffffff',
+      'border-opacity': 0.22,
+      'border-width': 1,
+      padding: 24,
+      color: '#9e9ea0',
+      'font-weight': 'bold',
+      'font-size': 12,
+      'text-margin-y': 8,
     },
   },
   {
@@ -60,6 +69,16 @@ export const topologyStyle = [
       'z-index': 9999,
     },
   },
+  {
+    selector: '.drawn-shape:selected',
+    style: {
+      'border-color': '#3fcfad',
+      'border-opacity': 1,
+      color: '#e0e0e1',
+    },
+  },
+
+  // helpers
   {
     selector: '.ghost-node',
     style: {
@@ -76,36 +95,42 @@ export const topologyStyle = [
     selector: '.ghost-edge',
     style: {
       'line-style': 'dashed',
-      'line-color': '#aaa',
+      'line-color': '#ffffff',
+      'line-opacity': 0.3,
       width: 2,
     },
   },
+
+  // edges
   {
     selector: 'edge',
     style: {
-      'line-color': '#888',
-      'target-arrow-color': '#888',
+      'line-color': '#ffffff',
+      'line-opacity': 0.45,
+      'target-arrow-color': '#ffffff',
       'curve-style': 'bezier',
       'control-point-step-size': 40,
-      width: 3,
-      //interfaces
+      width: 2,
       'source-label': 'data(sourceLabel)',
       'target-label': 'data(targetLabel)',
-
       'source-text-offset': 14,
       'target-text-offset': 14,
-      'font-family': 'Figtree',
       'z-index': 999999,
       'z-index-compare': 'manual',
-      'font-size': 12,
-      color: '#000000',
-
-      'text-background-color': '#888',
+      'font-family': 'JetBrains Mono, monospace',
+      'font-size': 10,
+      color: '#e0e0e1',
+      'text-background-color': '#141519',
       'text-background-opacity': 1,
-      'text-background-shape': 'roundrectangle',
-      'text-background-padding': 2,
+      'text-background-shape': 'round-rectangle',
+      'text-background-padding': 3,
+      'text-border-width': 1,
+      'text-border-color': '#ffffff',
+      'text-border-opacity': 0.22,
     },
   },
+
+  // group close button
   {
     selector: 'node.compound-close-btn',
     style: {
@@ -116,11 +141,11 @@ export const topologyStyle = [
       'font-size': 14,
       'text-valign': 'center',
       'text-halign': 'center',
-      'background-color': '#d9534f',
-      color: '#fff',
+      'background-color': '#ff5c6c',
+      color: '#1a0a0c',
       'overlay-padding': 0,
       visibility: 'hidden',
-      zIndex: 9999,
+      'z-index': 9999,
     },
   },
 ];

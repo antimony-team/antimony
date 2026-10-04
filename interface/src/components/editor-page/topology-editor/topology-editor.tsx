@@ -356,7 +356,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   return (
     <>
       <div
-        className="sb-topology-editor-container"
+        className="sb-topology-editor-container sb-island"
         style={{
           opacity: openTopology || openBindFile ? '1' : '0',
         }}

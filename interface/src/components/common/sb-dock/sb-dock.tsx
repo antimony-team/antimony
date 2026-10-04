@@ -46,7 +46,7 @@ const SBDock = observer(() => {
   const windowLocation = window.location.hash.split('?')[0];
 
   return (
-    <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
+    <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
       <div className="flex align-items-center gap-3">
         <div className="sb-logo-tab" onClick={() => navigate('/')}>
           <Image
