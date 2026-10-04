@@ -1,0 +1,88 @@
+// Dropdown trigger
+.p-dropdown
+  background: var(--surface-inset)
+  border: 1px solid var(--border)
+  border-radius: 8px
+  transition: border-color 0.08s ease-in
+
+  &:not(.p-disabled):hover
+    border-color: var(--border-strong)
+
+  &.p-focus, &.p-dropdown-open
+    border-color: var(--border-strong)
+
+  .p-dropdown-label:focus
+    border: none
+
+  .p-dropdown-trigger
+    color: var(--text-muted)
+
+// Dropdown panel: same overlay as the menus
+.p-dropdown-panel
+  margin-top: 6px
+  background-color: var(--surface-overlay)
+  border: 1px solid var(--border)
+  border-radius: 10px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+  overflow: hidden
+
+  // Opened above the input instead of below
+  &[style*="transform-origin: bottom"]
+    margin-top: -6px
+
+  .p-dropdown-header
+    padding: 8px
+    background-color: transparent
+    border-bottom: 1px solid var(--border)
+
+    .p-dropdown-filter
+      padding: 8px
+
+  .p-dropdown-items
+    display: flex
+    flex-direction: column
+    padding: 8px
+    gap: 4px
+
+  .p-dropdown-item
+    display: flex
+    align-items: center
+    gap: 10px
+    min-height: 36px
+    padding: 0 10px
+    border-radius: 6px
+    background-color: transparent
+    color: var(--text)
+    font-size: 1rem
+    transition: background-color 0.08s ease-in
+
+    &:focus-visible
+      outline: none
+
+    &:not(.p-disabled):hover
+      background-color: var(--hover)
+
+    &.p-highlight
+      background-color: transparent
+
+      &::after
+        content: ''
+        flex: 0 0 16px
+        width: 16px
+        height: 16px
+        margin-left: auto
+        background-color: var(--accent)
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat
+
+      &:not(.p-disabled):hover
+        background-color: var(--hover)
+
+    &.p-disabled
+      opacity: 0.4
+
+    .pi, .material-symbols-outlined, > svg
+      color: var(--text-muted)
+
+  .p-dropdown-empty-message
+    padding: 10px
+    color: var(--text-muted)

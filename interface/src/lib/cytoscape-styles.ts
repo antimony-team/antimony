@@ -1,3 +1,47 @@
+const GRAPH_BG = '#17171a';
+
+const svgUri = (svg: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+const STATUS_NONE = svgUri(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"/>',
+);
+
+const STATUS_READY = svgUri(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+    `<circle cx="12" cy="12" r="8.5" fill="${GRAPH_BG}"/>` +
+    '<circle cx="12" cy="12" r="6" fill="#80e163"/>' +
+    '</svg>',
+);
+
+const STATUS_PENDING = svgUri(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+    '<circle cx="12" cy="12" r="12" fill="#d8a657" fill-opacity="0.25"/>' +
+    `<circle cx="12" cy="12" r="8.5" fill="${GRAPH_BG}"/>` +
+    '<circle cx="12" cy="12" r="6" fill="#d8a657"/>' +
+    '</svg>',
+);
+
+function nodeImage(ele: cytoscape.NodeSingular): string {
+  const image: string | undefined = ele.data('image');
+  if (!image) return STATUS_NONE;
+  return ele.hasClass('stopped')
+    ? image.replace(/\.svg$/, '-stopped.svg')
+    : image;
+}
+
+function statusImage(ele: cytoscape.NodeSingular): string {
+  if (ele.hasClass('ready')) return STATUS_READY;
+  if (
+    ele.hasClass('starting') ||
+    ele.hasClass('stopping') ||
+    ele.hasClass('settling')
+  ) {
+    return STATUS_PENDING;
+  }
+  return STATUS_NONE;
+}
+
 export const topologyStyle = [
   // shared label style
   {
@@ -17,17 +61,24 @@ export const topologyStyle = [
       height: 64,
       width: 64,
       shape: 'data(shape)',
-      'underlay-shape': 'ellipse',
-      'underlay-padding': 2,
-      'underlay-opacity': 0,
-      'underlay-color': '#d8a657',
       'transition-property': 'opacity',
       'transition-duration': '250ms',
-      'background-clip': 'none',
-      'background-image': 'data(image)',
-      'background-fit': 'contain',
-      'background-color': '#000000',
       'background-opacity': 0,
+      'background-color': '#000000',
+      'background-clip': ['none', 'none'],
+      'background-image': (ele: cytoscape.NodeSingular) => [
+        nodeImage(ele),
+        statusImage(ele),
+      ],
+      'background-fit': ['contain', 'none'],
+      'background-width': ['auto', 28],
+      'background-height': ['auto', 28],
+      'background-position-x': ['50%', '100%'],
+      'background-position-y': ['50%', '0%'],
+      'background-offset-x': [0, 5],
+      'background-offset-y': [0, -5],
+      'background-image-containment': ['inside', 'over'],
+      'background-image-opacity': [1, 1],
       label: 'data(label)',
       'font-size': 12,
       'text-margin-y': 4,
@@ -37,11 +88,9 @@ export const topologyStyle = [
     },
   },
   {
-    selector: '.topology-node.ready',
+    selector: '.topology-node.stopped',
     style: {
-      'underlay-color': '#80e163',
-      'underlay-padding': 6,
-      'underlay-opacity': 0.5,
+      color: '#9e9ea0',
     },
   },
 
@@ -113,8 +162,8 @@ export const topologyStyle = [
       width: 2,
       'source-label': 'data(sourceLabel)',
       'target-label': 'data(targetLabel)',
-      'source-text-offset': 14,
-      'target-text-offset': 14,
+      'source-text-offset': 22,
+      'target-text-offset': 22,
       'z-index': 999999,
       'z-index-compare': 'manual',
       'font-family': 'JetBrains Mono, monospace',

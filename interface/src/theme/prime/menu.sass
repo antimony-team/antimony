@@ -18,22 +18,38 @@
     display: flex
     align-items: center
     gap: 10px
-    height: 34px
-    padding: 0 10px
+    height: 36px
+    padding: 0 12px 0 10px
     color: var(--text)
-    font-size: 14px
 
     &:focus-visible
       outline: none
 
   .p-menuitem-text
+    font-size: 16px
     color: var(--text)
 
-  .p-menuitem-icon, .material-symbols-outlined
-    width: 18px
-    margin: 0
-    font-size: 18px
-    color: var(--text-muted)
+  // Icons: one 18px box for PrimeIcons, Material Symbols and SVG icons
+  .p-menuitem-link
+    .p-menuitem-icon, .pi, .material-symbols-outlined, > svg
+      flex: 0 0 18px
+      width: 18px
+      height: 18px
+      margin: 0
+      display: inline-flex
+      align-items: center
+      justify-content: center
+      color: var(--text-muted)
+
+    .pi
+      font-size: 16px
+
+    .material-symbols-outlined
+      font-size: 20px
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20
+
+    > svg
+      stroke-width: 1.8
 
   .p-submenu-icon
     margin-left: auto
@@ -43,9 +59,6 @@
     > .p-menuitem-content:hover,
     > .p-menuitem-content.p-focus
       background-color: var(--hover)
-
-      .p-menuitem-icon, .material-symbols-outlined
-        color: var(--text)
 
     > .p-menuitem-content:active
       background-color: var(--active)
@@ -70,24 +83,18 @@
 
   // Severity items: colour on text + icon, tinted hover wash
   .p-menuitem.sb-menuitem-danger
-    .p-menuitem-text, .p-menuitem-icon, .material-symbols-outlined
+    .p-menuitem-text, .p-menuitem-icon, .pi, .material-symbols-outlined, .p-menuitem-link > svg
       color: var(--danger-color-text)
 
     &:not(.p-disabled) > .p-menuitem-content:hover
       background-color: color-mix(in oklab, var(--danger-color-text) 10%, transparent)
 
-      .p-menuitem-icon, .material-symbols-outlined
-        color: var(--danger-color-text)
-
   .p-menuitem.sb-menuitem-success
-    .p-menuitem-text, .p-menuitem-icon, .material-symbols-outlined
+    .p-menuitem-text, .p-menuitem-icon, .pi, .material-symbols-outlined, .p-menuitem-link > svg
       color: var(--success-color-text)
 
     &:not(.p-disabled) > .p-menuitem-content:hover
       background-color: color-mix(in oklab, var(--success-color-text) 10%, transparent)
-
-      .p-menuitem-icon, .material-symbols-outlined
-        color: var(--success-color-text)
 
 // Submenus of a tiered/context menu are their own panels
 .p-contextmenu .p-submenu-list, .p-tieredmenu .p-submenu-list
@@ -97,7 +104,6 @@
   border-radius: 10px
   box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
 
-// Unchanged
 .p-menubar
   background-color: var(--primary-color)
   border: var(--border) solid 1px

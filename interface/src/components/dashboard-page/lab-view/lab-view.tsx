@@ -57,12 +57,6 @@ const ALL_STATE_CLASSES = [
   'settling',
 ];
 
-const READY_UNDERLAY = {
-  'underlay-color': '#80e163',
-  'underlay-padding': 6,
-  'underlay-opacity': 0.5,
-};
-
 const PULSING = ['starting', 'stopping', 'settling'];
 
 const LabView = observer((props: LabDialogProps) => {
@@ -416,33 +410,19 @@ const LabView = observer((props: LabDialogProps) => {
   ): void {
     const cls = getNodeStateClass(node);
     if (cyNode.hasClass(cls)) return;
-    if (cls === 'ready' && cyNode.hasClass('settling')) return; // bloom already scheduled
+    if (cls === 'ready' && cyNode.hasClass('settling')) return; // switch already scheduled
 
     const wasPulsing = PULSING.some(c => cyNode.hasClass(c));
     cyNode.removeClass(ALL_STATE_CLASSES.join(' '));
 
-    // Pulsing → ready: let the current pulse finish, then grow the green ring.
+    // Pulsing → ready: let the current pulse finish, then switch to green.
     if (cls === 'ready' && wasPulsing) {
       cyNode.addClass('settling');
       setTimeout(() => {
         if (!cyNode.hasClass('settling')) return; // state changed again meanwhile
 
         cyNode.removeClass('settling').addClass('ready');
-        cyNode.style({
-          'underlay-color': READY_UNDERLAY['underlay-color'],
-          'underlay-padding': 0,
-          'underlay-opacity': READY_UNDERLAY['underlay-opacity'],
-        });
-        void cyNode.animate({
-          style: {'underlay-padding': READY_UNDERLAY['underlay-padding']},
-          duration: 350,
-          easing: 'ease-out',
-          queue: false,
-          complete: () =>
-            cyNode.removeStyle(
-              'underlay-color underlay-padding underlay-opacity',
-            ),
-        });
+        cyNode.removeStyle('background-image-opacity');
       }, pulseRemainingRef.current(cyNode));
       return;
     }
@@ -450,15 +430,15 @@ const LabView = observer((props: LabDialogProps) => {
     cyNode.addClass(cls);
 
     if (cls === 'starting' || cls === 'stopping') {
-      // Entering a pulse: start from radius 0 on this node's own clock.
+      // Entering a pulse: start on this node's own clock.
       if (!wasPulsing) cyNode.scratch('pulseStart', performance.now());
       return;
     }
 
-    // Settled state reached without a bloom (stopped, or ready from a cold start):
-    // hand the underlay back to the stylesheet.
+    // Settled state reached without pulsing to completion:
+    // hand the status dot back to the stylesheet.
     if (wasPulsing) {
-      cyNode.removeStyle('underlay-color underlay-padding underlay-opacity');
+      cyNode.removeStyle('background-image-opacity');
     }
   }
 
@@ -504,11 +484,11 @@ const LabView = observer((props: LabDialogProps) => {
   }, [isCyReady, props.lab?.instance?.nodes, props.lab?.state]);
 
   function startStatePing(cy: cytoscape.Core) {
-    const period = 1100;
-    const maxPad = 15;
+    const period = 1400;
+    const minOpacity = 0.3;
     let frame = 0;
 
-    // ms until the current pulse reaches full expansion / zero opacity
+    // ms until the current pulse is back at full opacity
     pulseRemainingRef.current = (n: cytoscape.NodeSingular) => {
       const s = n.scratch('pulseStart');
       return s === undefined ? 0 : period - ((performance.now() - s) % period);
@@ -523,10 +503,9 @@ const LabView = observer((props: LabDialogProps) => {
           active.forEach(n => {
             const s = n.scratch('pulseStart') ?? now;
             const t = ((now - s) % period) / period;
-            n.style({
-              'underlay-padding': 2 + t * maxPad,
-              'underlay-opacity': 0.6 * (1 - t),
-            });
+            const wave = (1 + Math.cos(t * 2 * Math.PI)) / 2;
+            const dotOpacity = minOpacity + (1 - minOpacity) * wave;
+            n.style({'background-image-opacity': `1 ${dotOpacity}`});
           });
         });
       }

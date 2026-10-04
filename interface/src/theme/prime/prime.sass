@@ -1,5 +1,6 @@
 @use "buttons"
 @use "menu"
+@use "dropdown"
 
 .p-tooltip
   transition: opacity 0.2s ease-in-out !important
@@ -120,38 +121,6 @@
     > .p-inputtext
       outline: none
       box-shadow: none
-
-.p-dropdown
-  border-color: var(--border)
-
-  &:has(svg[data-pr-overlay-visible="true"])
-    border-radius: 6px 6px 0 0
-
-.p-dropdown-label:focus
-  border: none
-
-.p-dropdown-panel
-  background-color: var(--surface-raised)
-  border-color: var(--border)
-  border-radius: 0 0 6px 6px
-  border-top-color: var(--surface-raised)
-
-  .p-dropdown-item
-    background-color: transparent
-
-    &:focus-visible
-      outline: none
-
-    &:hover
-      backdrop-filter: brightness(1.2)
-
-  .p-dropdown-header
-    background-color: transparent
-    border-color: var(--border)
-    padding: 10px 10px
-
-    .p-dropdown-filter
-      padding: 8px
 
 .p-placeholder
   font-style: italic
