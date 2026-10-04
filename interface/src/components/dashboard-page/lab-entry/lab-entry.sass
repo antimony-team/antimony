@@ -1,89 +1,85 @@
-.lab-item-card
-  display: flex
-  flex-grow: 1
-  max-height: 80px
-  min-height: 80px
-  justify-content: space-between
-  align-items: center
-  background-color: var(--surface-overlay)
-  border-radius: 12px
-  cursor: pointer
-  position: relative
-  //box-shadow: 0 0 33px -18px rgba(0,0,0,0.75)
+.sb-dashboard-lab-card
+  background-color: var(--surface-inset)
   border: 1px solid var(--border)
+  border-radius: 8px
+  overflow: hidden
+  cursor: pointer
 
   &:hover
-    border-color: var(--text-muted)
+    border-color: var(--border-strong)
 
-    .lab-state-buttons
-      transform: translateX(0)
+  --status-color: var(--text-muted)
+  --status-shadow: none
 
-.lab-group
-  width: 180px
-  padding-left: 20px
-  font-size: 20px
-  display: flex
-  text-align: center
-  border-radius: 12px 0 0 12px
-  align-self: stretch
-  align-items: center
-  background-color: var(--surface-selected)
+  &.running
+    --status-color: var(--success-color-text)
 
-  p
-    margin: 0
+  &.deploying
+    --status-color: var(--warning-color-text)
+    --status-shadow: 0 0 0 3px color-mix(in oklab, var(--warning-color-text) 25%, transparent)
 
-.lab-name
-  display: flex
-  flex-direction: column
-  justify-content: center
-  flex: 3
-  padding-left: 1em
+  &.stopping
+    --status-color: var(--subtle-color-text)
+    --status-shadow: 0 0 0 3px color-mix(in oklab, var(--subtle-color-text) 25%, transparent)
 
-  p
-    margin: 0
+  &.failed
+    --status-color: var(--danger-color-text)
 
-.lab-state
-  display: flex
-  min-width: 150px
-  padding: 0 16px 0 16px
-  text-align: center
-  border-radius: 0 12px 12px 0
-  align-self: stretch
-  align-items: center
+  &.scheduled
+    --status-color: var(--info-color-text)
+
+  .sb-dashboard-lab-content
+    display: flex
+    flex-direction: column
+    gap: 8px
+    padding: 14px
+
+    .sb-dashboard-lab-card-footer
+      display: flex
+      justify-content: space-between
+      font-size: 14px
+      color: var(--text-muted)
+
+.sb-dashboard-lab-card-band
   position: relative
-  overflow: hidden
+  display: flex
+  align-items: center
+  gap: 8px
+  height: 36px
+  padding: 0 14px
+  font-size: 14px
+  font-weight: 500
+  color: var(--status-color)
+  background-color: color-mix(in oklab, var(--status-color) 10%, transparent)
+  border-bottom: 1px solid var(--border)
 
-  .lab-state-buttons
+  // the progress line, drawn over the divider
+  &::after
+    content: ''
     position: absolute
-    bottom: 0
-    top: 0
     left: 0
     right: 0
-    border-radius: 0 12px 12px 0
-    background-color: var(--surface-selected)
-    display: flex
-    justify-content: space-evenly
-    align-items: center
-    z-index: 2
-    transform: translateX(100%)
-    transition: transform ease 0.2s
+    bottom: -1px
+    height: 2px
+    background-color: color-mix(in oklab, var(--status-color) 55%, transparent)
+    transform: scaleX(var(--progress, 0))
+    transform-origin: left
+    transition: transform 0.6s ease-out
 
-  .lab-state-label
-    display: flex
-    border-radius: 4px
-    text-align: center
-    transition: margin-right ease 0.3s
-    flex-direction: column
-    justify-content: center
-    align-items: center
-    height: 100%
-    gap: 8px
+  .sb-dashboard-lab-card-band-state
+    flex-grow: 1
 
-    .lab-state-date
-      color: var(--text)
-      display: flex
-      align-items: center
-      font-size: 12px
+  .sb-dashboard-lab-card-band-time
+    font-weight: 400
+    color: var(--text-muted)
 
-      span
-        padding-left: 4px
+  .dot
+    width: 8px
+    height: 8px
+    border-radius: 50%
+    background-color: var(--status-color)
+    box-shadow: var(--status-shadow)
+
+  @media (prefers-reduced-motion: reduce)
+    &::after
+      transition: none

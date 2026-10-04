@@ -72,9 +72,13 @@
         &.running
           background-color: var(--success-color-text)
 
-        &.deploying, &.stopping
+        &.deploying
           background-color: var(--warning-color-text)
           box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning-color-text) 25%, transparent)
+
+        &.stopping
+          background-color: var(--subtle-color-text)
+          box-shadow: 0 0 0 3px color-mix(in oklab, var(--subtle-color-text) 25%, transparent)
 
         &.scheduled
           background-color: var(--info-color-text)
@@ -95,79 +99,191 @@
   flex-direction: column
   flex: 1
 
-.sb-dashboard-filter
-  display: flex
-  gap: 28px
-  justify-content: space-between
-  align-items: baseline
-  border-bottom: 1px solid var(--border)
-
-  .sb-dashboard-filter-chips
+  .sb-dashboard-container-header
     display: flex
-    flex-wrap: wrap
+    flex-direction: row
+    align-items: center
+    padding: 16px 16px 8px
+    gap: 12px
+    justify-content: space-between
+
+    .sb-dashboard-container-header-title
+      font-size: 20px
+
+      &::after
+        display: inline-block
+        content: ""
+        width: 3px
+        height: 3px
+        border-radius: 50%
+        background: var(--text-muted)
+        margin: 0 8px
+        vertical-align: calc(0.35em - 2px)
+
+    .sb-dashboard-container-header-subtitle
+      color: var(--text-muted)
+
+    .sb-dashboard-filter-chips
+      display: flex
+
+      .sb-dashboard-filter-chip
+        display: inline-flex
+        align-items: center
+        gap: 8px
+        user-select: none
+        cursor: pointer
+        padding: 8px 12px
+        border-radius: 8px
+        background-color: transparent
+        margin-right: 8px
+        border: 1px solid var(--border)
+        color: var(--text-muted)
+
+        &:hover
+          background-color: var(--hover)
+          color: var(--text)
+
+        &:active
+          background-color: var(--active)
+
+        &.selected
+          background-color: var(--surface-selected)
+          border-color: var(--border)
+          color: var(--text)
+
+          &:hover
+            border-color: var(--border-strong)
+
+          &:active
+            background-color: color-mix(in oklab, var(--surface-selected) 90%, white)
+
+        .dot
+          width: 8px
+          height: 8px
+          border-radius: 50%
+          background-color: var(--text)
+
+          &.running
+            background-color: var(--success-color-text)
+
+          &.deploying
+            background-color: var(--warning-color-text)
+
+          &.stopping
+            background-color: var(--subtle-color-text)
+
+          &.scheduled
+            background-color: var(--info-color-text)
+
+          &.failed
+            background-color: var(--danger-color-text)
+
+  .sb-dashboard-container-content
+    display: flex
+    flex-direction: column
     gap: 8px
-    margin: 12px 16px 12px 16px
+    align-items: start
+    padding: 16px
 
-  .sb-dashboard-filter-search
-    display: flex
-    margin: 12px 8px 12px 12px
+    .sb-dashboard-lab-card-footer-owner
+      display: flex
+      align-items: center
+      gap: 8px
 
-.sb-dashboard-search-bar
-  display: flex
-  align-items: center
-  padding: 8px
-  border-bottom: 1px solid var(--border)
+    // stretch, the content column aligns its children to the start
+    .sb-dashboard-lab-groups
+      align-self: stretch
+      display: flex
+      flex-direction: column
+      gap: 8px
+
+    .sb-dashboard-lab-group-header
+      display: flex
+      align-items: center
+      gap: 10px
+      height: 32px
+      // the hover wash extends past the cards, the content stays aligned with them
+      margin: 0 -8px
+      padding: 0 8px
+      border: 0
+      border-radius: 8px
+      background: transparent
+      font-family: inherit
+      font-size: 15px
+      font-weight: 500
+      color: var(--text)
+      text-align: left
+      cursor: pointer
+      width: calc(100% + 16px)
+
+      &::after
+        content: ''
+        flex-grow: 1
+        height: 1px
+        margin-left: 6px
+        background-color: var(--border)
+
+      &:hover
+        background-color: var(--hover)
+
+      &:active
+        background-color: var(--active)
+
+      &:focus-visible
+        outline: 2px solid var(--accent)
+        outline-offset: -2px
+
+      i
+        font-size: 16px
+
+      &[aria-expanded="false"] .sb-dashboard-lab-group-chevron
+        transform: rotate(-90deg)
+
+      .sb-dashboard-lab-group-chevron
+        font-size: 12px
+        color: var(--text-faint)
+        transition: transform 0.25s ease-out
+
+    .sb-dashboard-lab-group-count
+      display: inline-flex
+      align-items: center
+      height: 18px
+      padding: 0 7px
+      border-radius: 9px
+      font-size: 12px
+      font-weight: 400
+      color: var(--text-muted)
+      background-color: var(--hover)
+      font-variant-numeric: tabular-nums
+
+    .sb-dashboard-lab-group-body
+      display: grid
+      grid-template-rows: 1fr
+      transition: grid-template-rows 0.25s ease-out, opacity 0.2s ease-out
+
+    .sb-dashboard-lab-group.collapsed .sb-dashboard-lab-group-body
+      grid-template-rows: 0fr
+      opacity: 0
+
+    // min-height: 0 lets the row shrink below its content
+    .sb-dashboard-lab-group-inner
+      min-height: 0
+      overflow: hidden
+
+    .sb-dashboard-lab-grid
+      display: grid
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr))
+      gap: 12px
+      align-items: start
+      padding: 10px 0 20px
+
+    @media (prefers-reduced-motion: reduce)
+      .sb-dashboard-lab-group-body,
+      .sb-dashboard-lab-group-chevron
+        transition: none
 
 .sb-dashboard-search-bar-input
   flex-grow: 1
-
-.sb-dashboard-container
-  position: relative
-
-.sb-labs-container
-  height: 100%
-  display: flex
-  flex-direction: column
-  background-color: var(--surface-raised)
-  gap: 16px
-  margin-bottom: 16px
-
-.sb-dashboard-content
-  position: relative
-  min-height: 0
-  flex-grow: 1
-  display: flex
-  flex-direction: column
-  margin: 0 16px
-  gap: 12px
-
-.search-bar-icon
-  flex-shrink: 0
-  display: flex
-  align-items: center
-  justify-content: center
-  padding: 0 0.75em
-  color: var(--text)
-  font-size: 1.2em
-  width: auto
-  cursor: pointer
-
-.sb-dashboard-pagination-controls
-  position: absolute
-  bottom: 0
-  left: 0
-  right: 0
-  display: flex
-  justify-content: space-around
-  align-items: center
-  flex-direction: row
-
-  svg
-    color: var(--text)
-
-  .p-paginator
-    background-color: transparent
-    border: none
 
 .sb-dashboard-empty
   width: 100%
@@ -181,4 +297,3 @@
   img
     filter: invert(1)
     opacity: 0.3
-

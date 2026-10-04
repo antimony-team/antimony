@@ -310,3 +310,17 @@ export function formatUptime(deployed: string | Date, now = dayjs()) {
   if (d.asMinutes() >= 1) return `${d.minutes()} min ${d.seconds()} s`;
   return `${d.seconds()} s`;
 }
+
+export function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  if (seconds < 60) return `${seconds} s`;
+
+  const minutes = Math.ceil(seconds / 60);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+
+  if (days) return hours ? `${days} d ${hours} h` : `${days} d`;
+  if (hours) return mins ? `${hours} h ${mins} min` : `${hours} h`;
+  return `${mins} min`;
+}

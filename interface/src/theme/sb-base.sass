@@ -11,6 +11,12 @@ $material-symbols-font-path: '~material-symbols/'
   --rt-opacity: 1 !important
   font-family: var(--font-family), system-ui, sans-serif
 
+// Disable keyboard focus ring for everything
+*:focus,
+*:focus-visible
+  outline: none !important
+  box-shadow: none !important
+
 html
   height: 100%
   background-color: var(--surface-page)
