@@ -171,13 +171,18 @@ definitions:
         items:
           type: string
         type: array
-      port:
-        type: integer
     type: object
   serverconfig.DeploymentConfig:
     properties:
       provider:
         type: string
+    type: object
+  serverconfig.SSHConfig:
+    properties:
+      enabled:
+        type: boolean
+      port:
+        type: integer
     type: object
   serverconfig.ServerConfig:
     properties:
@@ -185,6 +190,8 @@ definitions:
         $ref: '#/definitions/serverconfig.CaptureConfig'
       deployment:
         $ref: '#/definitions/serverconfig.DeploymentConfig'
+      ssh:
+        $ref: '#/definitions/serverconfig.SSHConfig'
     type: object
   topology.BindFileIn:
     properties:

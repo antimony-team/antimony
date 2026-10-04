@@ -21,14 +21,9 @@ import (
 	"github.com/gliderlabs/ssh"
 )
 
-// Server is an SSH server that gives clients a shell on a node, or streams the traffic of one of its interfaces.
-//
-// The SSH user addresses the node, either as "<container-id>", "<lab-id>/<node>", "<instance-name>/<node>" or
-// "<collection>/<lab>/<node>". Without a command, the session is an interactive shell on the node. With a command,
-// the command is the interface to capture, either just its name or the tcpdump command Wireshark's sshdump sends, in
-// which case the interface is taken from its -i option.
+// Server is the SSH proxy that gives clients a shell on a node or streams the traffic of one of its interfaces.
 type Server struct {
-	captureConfig *config.CaptureConfig
+	sshConfig *config.SSHConfig
 
 	shellService    *shell.Service
 	instanceService *instance.Service
@@ -37,7 +32,8 @@ type Server struct {
 	// sshServer is the running server, kept to close all connections on shutdown.
 	sshServer      *ssh.Server
 	sshServerMutex sync.Mutex
-	closed         bool
+
+	closed bool
 }
 
 const (
@@ -57,7 +53,7 @@ func CreateServer(
 	deploymentProvider deployment.DeploymentProvider,
 ) *Server {
 	return &Server{
-		captureConfig: &config.Capture,
+		sshConfig: &config.SSH,
 
 		shellService:    shellService,
 		instanceService: instanceService,
@@ -106,16 +102,16 @@ func (s *Server) Close() {
 
 // createSSHServer sets up the SSH server, generating the host key at the configured path if it doesn't exist yet.
 func (s *Server) createSSHServer() (*ssh.Server, error) {
-	if err := ensureHostKey(s.captureConfig.SSHKeyPath); err != nil {
+	if err := ensureHostKey(s.sshConfig.SSHKeyPath); err != nil {
 		return nil, fmt.Errorf("preparing host key: %w", err)
 	}
 
 	sshServer := &ssh.Server{
-		Addr:    fmt.Sprintf("%s:%d", s.captureConfig.SSHHost, s.captureConfig.SSHPort),
+		Addr:    fmt.Sprintf("%s:%d", s.sshConfig.SSHHost, s.sshConfig.SSHPort),
 		Handler: s.handleSession,
 	}
 
-	if err := sshServer.SetOption(ssh.HostKeyFile(s.captureConfig.SSHKeyPath)); err != nil {
+	if err := sshServer.SetOption(ssh.HostKeyFile(s.sshConfig.SSHKeyPath)); err != nil {
 		return nil, fmt.Errorf("loading host key: %w", err)
 	}
 

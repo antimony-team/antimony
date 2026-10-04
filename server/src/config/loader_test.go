@@ -136,6 +136,24 @@ capture:
 	assert.Equal(t, []string{"lo", "mgmt0*"}, loaded.Capture.ExcludedInterfaces)
 }
 
+func TestLoad_ParsesTheSSHServerSettings(t *testing.T) {
+	path := writeConfig(t, `
+ssh:
+  enabled: true
+  sshHost: 0.0.0.0
+  sshPort: 2222
+  sshKeyPath: ./host_key
+capture:
+  enabled: false
+`)
+
+	loaded, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, SSHConfig{Enabled: true, SSHHost: "0.0.0.0", SSHPort: 2222, SSHKeyPath: "./host_key"}, loaded.SSH)
+	assert.False(t, loaded.Capture.Enabled, "capture is switched separately from the SSH server")
+}
+
 /*
  * DeploymentProvider
  */

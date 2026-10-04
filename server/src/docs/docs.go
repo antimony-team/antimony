@@ -1312,9 +1312,6 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
-                },
-                "port": {
-                    "type": "integer"
                 }
             }
         },
@@ -1326,6 +1323,17 @@ const docTemplate = `{
                 }
             }
         },
+        "serverconfig.SSHConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "integer"
+                }
+            }
+        },
         "serverconfig.ServerConfig": {
             "type": "object",
             "properties": {
@@ -1334,6 +1342,9 @@ const docTemplate = `{
                 },
                 "deployment": {
                     "$ref": "#/definitions/serverconfig.DeploymentConfig"
+                },
+                "ssh": {
+                    "$ref": "#/definitions/serverconfig.SSHConfig"
                 }
             }
         },

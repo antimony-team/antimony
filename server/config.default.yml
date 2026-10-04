@@ -47,20 +47,24 @@ database:
   # The DB file that is used if the local database flag is set.
   # Default: ./db/antimony.db
   localFile: ./db/antimony.db
-capture:
-  # Whether the interface traffic capture SSH server is enabled.
+ssh:
+  # Whether the SSH server is enabled.
   # Default: yes
   enabled: yes
-  # The host to which the capture server will be bound.
+  # The host to which the SSH server will be bound.
   # Default: 0.0.0.0
   sshHost: 0.0.0.0
-  # The port to which the capture server will be bound.
-  # Default: 6969
-  sshPort: 6969
-  # The path to the SSH key that is used to authenticate the traffic capture SSH server.
+  # The port to which the SSH server will be bound.
+  # Default: 22
+  sshPort: 22
+  # The path to the host SSH key that is used to authenticate the SSH server.
   # Default: ./key
   sshKeyPath: ./key
-  # Interfaces that are excluded from traffic capture and monitoring.
+capture:
+  # Whether the interface traffic capture via SSH server is enabled. This presupposes the SSH server being enabled.
+  # Default: yes
+  enabled: yes
+  # Interfaces that are excluded from SSH traffic capture and monitoring.
   # Default: ["lo", "gway-*", "monit_in", "mgmt0-0"]
   excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
 streaming:

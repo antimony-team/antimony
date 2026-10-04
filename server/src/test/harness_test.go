@@ -119,6 +119,7 @@ type harnessOptions struct {
 	kindsConfig        string
 	deploymentProvider config.DeploymentProvider
 	captureEnabled     bool
+	sshEnabled         bool
 
 	seed          bool
 	withScheduler bool
@@ -205,6 +206,11 @@ func WithCaptureEnabled(enabled bool) HarnessOption {
 	return func(o *harnessOptions) { o.captureEnabled = enabled }
 }
 
+// WithSSHEnabled sets the SSH server flag reported by /server-config.
+func WithSSHEnabled(enabled bool) HarnessOption {
+	return func(o *harnessOptions) { o.sshEnabled = enabled }
+}
+
 // WithProvider configures the DummyProvider before any service is built. This matters because
 // instance.CreateService runs its revive pass during construction.
 func WithProvider(configure func(*deployment.DummyProvider)) HarnessOption {
@@ -234,6 +240,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		kindsConfig:         defaultKindsConfig,
 		deploymentProvider:  config.Containerlab,
 		captureEnabled:      true,
+		sshEnabled:          true,
 		seed:                true,
 	}
 
@@ -273,11 +280,14 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 			UserLimit: opts.shellUserLimit,
 			Timeout:   opts.shellTimeout,
 		},
+		SSH: config.SSHConfig{
+			Enabled:    opts.sshEnabled,
+			SSHHost:    "127.0.0.1",
+			SSHPort:    6969,
+			SSHKeyPath: filepath.Join(tempDir, "key"),
+		},
 		Capture: config.CaptureConfig{
 			Enabled:            opts.captureEnabled,
-			SSHHost:            "127.0.0.1",
-			SSHPort:            6969,
-			SSHKeyPath:         filepath.Join(tempDir, "key"),
 			ExcludedInterfaces: opts.excludedInterfaces,
 		},
 		Streaming: config.StreamingConfig{

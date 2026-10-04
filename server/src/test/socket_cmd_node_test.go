@@ -1,7 +1,9 @@
 package test
 
 import (
+	"antimonyBackend/auth"
 	"antimonyBackend/deployment"
+	"antimonyBackend/runtime/instance"
 	"antimonyBackend/utils"
 	"sync/atomic"
 	"testing"
@@ -616,32 +618,155 @@ func TestStartupProbe_InterfaceFailureLeavesTheNodeReadyWithNoInterfaces(t *test
 }
 
 /*
- * GetNodeState, the lookup the capture server uses for "<lab>/<node>".
+ * GetInstanceNode, the node lookup behind shells and the SSH server. A node is addressed by its container ID, by lab
+ * ID or instance name plus node name, or by collection, lab and node name.
  */
 
-func TestGetNodeState_FindsTheNodeByInstanceName(t *testing.T) {
+// nodeAddress holds the optional arguments of GetInstanceNode, so each test only names the ones it uses.
+type nodeAddress struct {
+	labId, instanceName, collectionName, labName, nodeName, containerId *string
+}
+
+func getInstanceNode(
+	h *Harness,
+	address nodeAddress,
+	authUser *auth.AuthenticatedUser,
+) (instance.InstanceNode, string, error) {
+	return h.InstanceService.GetInstanceNode(
+		h.T.Context(),
+		address.labId, address.instanceName, address.collectionName, address.labName, address.nodeName,
+		address.containerId,
+		authUser,
+	)
+}
+
+func TestGetInstanceNode_FindsTheNodeByEveryAddress(t *testing.T) {
 	h := NewHarness(t)
 	h.DeployLab(LabAdminID)
 
-	state, err := h.InstanceService.GetNodeState(InstanceAdminLab, NodeHost)
+	containerId := h.Provider.Node(InstanceAdminLab, NodeHost).ContainerId
 
+	cases := map[string]nodeAddress{
+		"container id":      {containerId: &containerId},
+		"lab id and node":   {labId: ptr(LabAdminID), nodeName: ptr(NodeHost)},
+		"instance and node": {instanceName: ptr(InstanceAdminLab), nodeName: ptr(NodeHost)},
+		"collection and node": {
+			collectionName: ptr(CollectionPublicBoth),
+			labName:        ptr("Admin Lab"),
+			nodeName:       ptr(NodeHost),
+		},
+	}
+
+	for name, address := range cases {
+		t.Run(name, func(t *testing.T) {
+			node, instanceName, err := getInstanceNode(h, address, nil)
+
+			require.NoError(t, err)
+			assert.Equal(t, NodeHost, node.Name)
+			assert.Equal(t, InstanceAdminLab, instanceName)
+			assert.Equal(t, nodeState(t, h, LabAdminID, NodeHost), node.State)
+		})
+	}
+}
+
+func TestGetInstanceNode_ReturnsACopy(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+
+	node, _, err := getInstanceNode(h, nodeAddress{labId: ptr(LabAdminID), nodeName: ptr(NodeHost)}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, nodeState(t, h, LabAdminID, NodeHost), state)
+
+	node.State = deployment.NodeStates.Stopping
+	node.Interfaces = append(node.Interfaces, deployment.NodeInterface{Name: "injected"})
+
+	again, _, err := getInstanceNode(h, nodeAddress{labId: ptr(LabAdminID), nodeName: ptr(NodeHost)}, nil)
+	require.NoError(t, err)
+	assert.NotEqual(t, deployment.NodeStates.Stopping, again.State, "changing the copy must not change the node")
+	assert.NotContains(t, again.Interfaces, deployment.NodeInterface{Name: "injected"})
 }
 
-func TestGetNodeState_ReportsAnUnknownNode(t *testing.T) {
+func TestGetInstanceNode_ReportsALabThatIsNotDeployed(t *testing.T) {
+	h := NewHarness(t)
+
+	cases := map[string]nodeAddress{
+		"lab id and node":   {labId: ptr(LabAdminID), nodeName: ptr(NodeHost)},
+		"instance and node": {instanceName: ptr(InstanceAdminLab), nodeName: ptr(NodeHost)},
+		"collection and node": {
+			collectionName: ptr(CollectionPublicBoth),
+			labName:        ptr("Admin Lab"),
+			nodeName:       ptr(NodeHost),
+		},
+	}
+
+	for name, address := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := getInstanceNode(h, address, nil)
+
+			assert.ErrorIs(t, err, utils.ErrLabNotRunning)
+		})
+	}
+}
+
+func TestGetInstanceNode_ReportsUnknownNodesAndLabs(t *testing.T) {
 	h := NewHarness(t)
 	h.DeployLab(LabAdminID)
 
-	_, err := h.InstanceService.GetNodeState(InstanceAdminLab, "missing")
+	cases := map[string]nodeAddress{
+		"unknown container id": {containerId: ptr("no-such-container")},
+		"unknown node":         {labId: ptr(LabAdminID), nodeName: ptr("missing")},
+		"unknown lab id":       {labId: ptr("no-such-lab"), nodeName: ptr(NodeHost)},
+		"unknown lab name": {
+			collectionName: ptr(CollectionPublicBoth),
+			labName:        ptr("Missing Lab"),
+			nodeName:       ptr(NodeHost),
+		},
+		"lab in another collection": {
+			collectionName: ptr(CollectionHidden),
+			labName:        ptr("Admin Lab"),
+			nodeName:       ptr(NodeHost),
+		},
+	}
 
-	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+	for name, address := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := getInstanceNode(h, address, nil)
+
+			assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+		})
+	}
 }
 
-func TestGetNodeState_ReportsALabThatIsNotDeployed(t *testing.T) {
+func TestGetInstanceNode_RejectsAnIncompleteAddress(t *testing.T) {
 	h := NewHarness(t)
 
-	_, err := h.InstanceService.GetNodeState(InstanceAdminLab, NodeHost)
+	_, _, err := getInstanceNode(h, nodeAddress{labId: ptr(LabAdminID)}, nil)
 
-	assert.ErrorIs(t, err, utils.ErrLabNotRunning)
+	assert.ErrorIs(t, err, utils.ErrInvalidSocketRequest)
+}
+
+func TestGetInstanceNode_ChecksAccessToTheLabsCollection(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+
+	address := nodeAddress{labId: ptr(LabAdminID), nodeName: ptr(NodeHost)}
+
+	// The member belongs to PublicBoth, the outsider to no collection at all.
+	_, _, err := getInstanceNode(h, address, &h.Seed.Member.Auth)
+	require.NoError(t, err)
+
+	_, _, err = getInstanceNode(h, address, &h.Seed.Outsider.Auth)
+	require.ErrorIs(t, err, utils.ErrNoAccessToLab)
+
+	// Without a user, as for the SSH server while it has no authentication, nothing is checked.
+	_, _, err = getInstanceNode(h, address, nil)
+	assert.NoError(t, err)
+}
+
+func TestGetInstanceNode_DoesNotRevealWhetherALabRunsToUsersWithoutAccess(t *testing.T) {
+	h := NewHarness(t)
+
+	// The admin lab is not deployed, but an outsider must learn that it has no access, not that the lab is down.
+	_, _, err := getInstanceNode(h, nodeAddress{labId: ptr(LabAdminID), nodeName: ptr(NodeHost)}, &h.Seed.Outsider.Auth)
+
+	assert.ErrorIs(t, err, utils.ErrNoAccessToLab)
 }

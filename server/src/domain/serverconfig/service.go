@@ -16,9 +16,12 @@ func CreateService(config *config.AntimonyConfig) *Service {
 
 func (s *Service) GetServerConfig() ServerConfig {
 	return ServerConfig{
+		SSHConfig: SSHConfig{
+			Enabled: s.config.SSH.Enabled,
+			Port:    s.config.SSH.SSHPort,
+		},
 		CaptureConfig: CaptureConfig{
 			Enabled:            s.config.Capture.Enabled,
-			Port:               s.config.Capture.SSHPort,
 			ExcludedInterfaces: s.config.Capture.ExcludedInterfaces,
 		},
 		DeploymentConfig: DeploymentConfig{

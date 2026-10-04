@@ -144,8 +144,9 @@ func TestGetServerConfig_ReportsCaptureAndDeploymentSettings(t *testing.T) {
 	var serverConfig serverconfig.ServerConfig
 	h.GET("/server-config", h.Seed.Admin.Token).RequireOk(&serverConfig)
 
+	assert.True(t, serverConfig.SSHConfig.Enabled)
+	assert.Equal(t, 6969, serverConfig.SSHConfig.Port)
 	assert.True(t, serverConfig.CaptureConfig.Enabled)
-	assert.Equal(t, 6969, serverConfig.CaptureConfig.Port)
 	assert.Equal(t, []string{"lo", "gway-*", "monit_in", "mgmt0*"},
 		serverConfig.CaptureConfig.ExcludedInterfaces)
 	assert.Equal(t, "containerlab", serverConfig.DeploymentConfig.Provider)
@@ -171,6 +172,17 @@ func TestGetServerConfig_ReflectsDisabledCapture(t *testing.T) {
 	h.GET("/server-config", h.Seed.Admin.Token).RequireOk(&serverConfig)
 
 	assert.False(t, serverConfig.CaptureConfig.Enabled)
+	assert.True(t, serverConfig.SSHConfig.Enabled, "capture and the SSH server are switched separately")
+}
+
+func TestGetServerConfig_ReflectsADisabledSSHServer(t *testing.T) {
+	h := NewHarness(t, WithSSHEnabled(false))
+
+	var serverConfig serverconfig.ServerConfig
+	h.GET("/server-config", h.Seed.Admin.Token).RequireOk(&serverConfig)
+
+	assert.False(t, serverConfig.SSHConfig.Enabled)
+	assert.True(t, serverConfig.CaptureConfig.Enabled, "capture and the SSH server are switched separately")
 }
 
 func TestGetServerConfig_ReflectsCustomExcludedInterfaces(t *testing.T) {

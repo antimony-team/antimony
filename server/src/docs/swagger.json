@@ -1304,9 +1304,6 @@
                     "items": {
                         "type": "string"
                     }
-                },
-                "port": {
-                    "type": "integer"
                 }
             }
         },
@@ -1318,6 +1315,17 @@
                 }
             }
         },
+        "serverconfig.SSHConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "integer"
+                }
+            }
+        },
         "serverconfig.ServerConfig": {
             "type": "object",
             "properties": {
@@ -1326,6 +1334,9 @@
                 },
                 "deployment": {
                     "$ref": "#/definitions/serverconfig.DeploymentConfig"
+                },
+                "ssh": {
+                    "$ref": "#/definitions/serverconfig.SSHConfig"
                 }
             }
         },

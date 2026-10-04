@@ -187,7 +187,7 @@ func main() {
 	)
 
 	webConnection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
-	sshConnection := fmt.Sprintf("%s:%d", antimonyConfig.Capture.SSHHost, antimonyConfig.Capture.SSHPort)
+	sshConnection := fmt.Sprintf("%s:%d", antimonyConfig.SSH.SSHHost, antimonyConfig.SSH.SSHPort)
 
 	var serverWaitGroup sync.WaitGroup
 	serverWaitGroup.Add(2)

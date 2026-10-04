@@ -20,11 +20,13 @@ database:
   database: antimony
   user: antimony
   localFile: ./db/antimony.db
-capture:
+ssh:
   enabled: yes
   sshHost: 0.0.0.0
   sshPort: 6969
   sshKeyPath: ./key
+capture:
+  enabled: yes
   excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
 streaming:
   containerLogBacklog: 1000

@@ -54,12 +54,15 @@ func defaultConfig() *AntimonyConfig {
 			Port:      5432,
 			LocalFile: "./test.db",
 		},
+		SSH: SSHConfig{
+			Enabled:    true,
+			SSHHost:    "0.0.0.0",
+			SSHPort:    6969,
+			SSHKeyPath: "./key",
+		},
 		Capture: CaptureConfig{
 			Enabled:            true,
-			SSHPort:            6969,
-			SSHHost:            "0.0.0.0",
-			SSHKeyPath:         "./key",
-			ExcludedInterfaces: []string{"gway-2800", "monit_in", "lo", "mgmt0-0"},
+			ExcludedInterfaces: []string{"lo", "gway-*", "monit_in", "mgmt0*", "c9s*"},
 		},
 		Streaming: StreamingConfig{
 			ContainerLogBacklog: 1000,

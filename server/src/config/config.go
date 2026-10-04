@@ -11,6 +11,7 @@ type AntimonyConfig struct {
 	Auth         AuthConfig       `yaml:"auth"`
 	Shell        ShellConfig      `yaml:"shell"`
 	Database     DatabaseConfig   `yaml:"database"`
+	SSH          SSHConfig        `yaml:"ssh"`
 	Capture      CaptureConfig    `yaml:"capture"`
 	Streaming    StreamingConfig  `yaml:"streaming"`
 	FileSystem   FilesystemConfig `yaml:"fileSystem"`
@@ -80,11 +81,15 @@ type DeploymentConfig struct {
 	Provider DeploymentProvider `yaml:"provider"`
 }
 
+type SSHConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	SSHHost    string `yaml:"sshHost"`
+	SSHPort    int    `yaml:"sshPort"`
+	SSHKeyPath string `yaml:"sshKeyPath"`
+}
+
 type CaptureConfig struct {
 	Enabled            bool     `yaml:"enabled"`
-	SSHHost            string   `yaml:"sshHost"`
-	SSHPort            int      `yaml:"sshPort"`
-	SSHKeyPath         string   `yaml:"sshKeyPath"`
 	ExcludedInterfaces []string `yaml:"excludedInterfaces"`
 }
 
