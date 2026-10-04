@@ -125,11 +125,13 @@ func (s *Server) handleSession(sess ssh.Session) {
 
 	switch userParts := strings.Split(sess.User(), "/"); len(userParts) {
 	case 1:
-		// Only one argument means that the argument is the container id
-		targetNode, targetInstanceName, err = s.instanceService.GetInstanceNode(
-			sess.Context(),
-			nil, nil, nil, nil, nil, &userParts[0], nil,
-		)
+		if userParts[0] != "" {
+			// Only one argument means that the argument is the container id
+			targetNode, targetInstanceName, err = s.instanceService.GetInstanceNode(
+				sess.Context(),
+				nil, nil, nil, nil, nil, &userParts[0], nil,
+			)
+		}
 	case 2:
 		// Two arguments mean the first argument is either the lab id or the instance name, and the second argument
 		// is the node name.
@@ -195,9 +197,12 @@ func (s *Server) runShell(sess ssh.Session, instanceName string, node *instance.
 		_ = shellSession.Close()
 	}()
 
-	// Client input to the node ends when the session is closed
+	// Client input to the node ends when the client closes the session. The session's context can't tell, it only
+	// ends with the whole connection, which a client sharing one connection for several sessions keeps open.
+	inputDone := make(chan struct{})
 	go func() {
 		_, _ = io.Copy(shellSession, sess)
+		close(inputDone)
 	}()
 
 	// Node output to the client ends when the shell exits or is closed
@@ -219,6 +224,9 @@ func (s *Server) runShell(sess ssh.Session, instanceName string, node *instance.
 		case <-outputDone:
 			// The shell exited on its own
 			_ = sess.Exit(0)
+			return
+		case <-inputDone:
+			// The client closed the session
 			return
 		case <-sess.Context().Done():
 			// The client disconnected or the server closed the connection

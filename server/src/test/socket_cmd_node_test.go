@@ -713,8 +713,10 @@ func TestGetInstanceNode_ReportsUnknownNodesAndLabs(t *testing.T) {
 
 	cases := map[string]nodeAddress{
 		"unknown container id": {containerId: ptr("no-such-container")},
-		"unknown node":         {labId: ptr(LabAdminID), nodeName: ptr("missing")},
-		"unknown lab id":       {labId: ptr("no-such-lab"), nodeName: ptr(NodeHost)},
+		// Stopped nodes have no container ID, so an empty one must not match them.
+		"empty container id": {containerId: ptr("")},
+		"unknown node":       {labId: ptr(LabAdminID), nodeName: ptr("missing")},
+		"unknown lab id":     {labId: ptr("no-such-lab"), nodeName: ptr(NodeHost)},
 		"unknown lab name": {
 			collectionName: ptr(CollectionPublicBoth),
 			labName:        ptr("Missing Lab"),

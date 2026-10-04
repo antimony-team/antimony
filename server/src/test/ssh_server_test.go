@@ -384,6 +384,32 @@ func TestSSH_DisconnectingClosesTheNodeShell(t *testing.T) {
 	requireEventually(t, node.IsClosed, "the node's shell must be closed when the client disconnects")
 }
 
+func TestSSH_ClosingTheSessionClosesTheNodeShellOnASharedConnection(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	// OpenSSH's connection sharing (ControlMaster) runs several sessions over one connection and keeps it open when
+	// a session ends.
+	client := server.dial(t, InstanceAdminLab+"/"+NodeHost)
+	session, err := client.NewSession()
+	require.NoError(t, err)
+	require.NoError(t, session.RequestPty("xterm", 24, 80, gossh.TerminalModes{}))
+	require.NoError(t, session.Shell())
+
+	node := nodeShell(t, h, InstanceAdminLab)
+
+	// The server closes its end in response, so the client's close may report EOF
+	_ = session.Close()
+
+	requireEventually(t, node.IsClosed, "the node's shell must be closed when its session ends")
+
+	// The connection itself stays usable for further sessions.
+	second, err := client.NewSession()
+	require.NoError(t, err)
+	_ = second.Close()
+}
+
 func TestSSH_TheShellExitingEndsTheSession(t *testing.T) {
 	h := NewHarness(t)
 	h.DeployLab(LabAdminID)

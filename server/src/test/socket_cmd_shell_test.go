@@ -240,7 +240,7 @@ func TestOpenShellCommand_UnknownLabIsRejected(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	// GetInstanceNode reports a lab it can't find as a node it can't find.
+	// An unknown lab is reported the same way as an unknown node, 5021, whichever part of the address is wrong.
 	errorResponse := client.Emit(openShellCommand("no-such-lab", NodeHost)).RequireError(5021)
 	assert.Contains(t, errorResponse.Message, "uuid was not found")
 }
