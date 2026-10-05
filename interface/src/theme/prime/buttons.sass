@@ -104,6 +104,16 @@
       &:enabled:hover
         border-color: var(--warning-color)
 
+  // Icon buttons
+  &.p-button-icon-only
+    padding: 8px
+
+    .material-symbols-outlined
+      margin: 0
+      font-size: 24px
+      line-height: 1
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24
+
   &:focus-visible
     outline: 2px solid color-mix(in oklab, var(--accent) 45%, transparent)
     outline-offset: 1px
@@ -113,9 +123,6 @@
     filter: none
     cursor: default
     pointer-events: none
-
-  &.p-button-icon-only
-    padding: 8px
 
   // iconoir icons are slightly smaller, so give them less padding
   &.sb-iconoir-button

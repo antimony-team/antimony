@@ -1,22 +1,16 @@
-.sb-admin-page-left
-  flex: 0 0 420px
+.sb-editor
+  width: 100%
+  display: flex
 
-  transition: transform ease 0.3s
+  .sb-editor-setup-container
+    flex-grow: 1
 
-  &.sb-admin-page-left-maximized
-    transform: translateX(-436px)
+  .p-splitter-panel
+    overflow: hidden
 
-.sb-admin-page-right
-  flex-grow: 1
-  transition: margin-left ease 0.3s
-  margin-left: 0
+  .p-splitter-gutter
+    background-color: var(--surface-page) !important
+    width: 8px !important
 
-  &.sb-admin-page-right-maximized
-    margin-left: -428px
-
-.sb-admin-page-content
-  margin: 0
-  transition: margin-top ease 0.3s
-
-  &.sb-admin-page-content-maximized
-    margin: -90px
+    .p-splitter-gutter-handle
+      background-color: var(--surface-page)

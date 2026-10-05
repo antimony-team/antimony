@@ -5,27 +5,89 @@
   border-radius: 12px
   height: 100%
   overflow: hidden
-
+  flex-grow: 1
   transition: opacity 0.08s ease-in
 
-.sb-topology-editor-node-editor-panel,.sb-topology-editor-splitter-gutter
+.sb-editor-graph,.sb-topology-editor-splitter-gutter
   transition: opacity 0.08s ease-in
 
 .sb-topology-editor-toolbar
   display: flex
   flex-direction: row
-  justify-content: space-between
-  padding: 8px
+  align-items: center
+  padding: 0 8px
+  gap: 8px
+  height: 60px
   border-bottom: 1px solid var(--border)
 
-  button
-    padding: 10px !important
+  .sb-topology-editor-toolbar-subtitle
+    margin-left: 8px
+    margin-right: 0.5ch
+    color: var(--text-muted)
+    font-size: 17px
+
+  .sb-topology-editor-toolbar-title
+    color: var(--text)
+    font-size: 17px
+
+  .sb-editor-toolbar-separator
+    flex: 0 0 auto
+    width: 1px
+    height: 20px
+    background-color: var(--border)
+    margin: 0 12px
+
+  .sb-editor-view-switch
+    margin: auto
+
+  .sb-topology-editor-deploy-button
+    height: 40px
+    padding: 4px 16px
+
+    .pi
+      color: var(--success-color-text)
+
+  .p-button.p-button-icon-only
+    width: 42px
+    height: 42px
 
   // This makes it so the node editor menu can hide between the topbar
   z-index: 2
 
 .sb-topology-editor-content
   flex-grow: 1
+  min-height: 0
+
+  .p-splitter
+    height: 100%
+
+  .p-splitter-gutter
+    background-color: var(--surface-sunken) !important
+    width: 4px !important
+
+  .p-splitter-gutter-handle
+    height: 40px
+    background-color: var(--surface-overlay) !important
+
+  .sb-editor-monaco
+    background-color: var(--surface-sunken)
+
+  .sb-editor-graph
+    background-color: var(--surface-sunken)
+
+.sb-topology-editor-footer
+  display: flex
+  flex-direction: row
+  align-items: center
+  padding: 0 16px
+  border-top: 1px solid var(--border)
+  height: 40px
+  gap: 16px
+  color: var(--text-muted)
+
+  i
+    font-size: 14px
+    margin-right: 8px
 
 .sb-toplogy-editor-validation
   overflow: hidden

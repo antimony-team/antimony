@@ -3,18 +3,39 @@ import LabEditDialog, {
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 
 import './editor-page.sass';
-import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
+import {
+  useCollectionStore,
+  useStatusMessages,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
 
 import {uuid4} from '@sb/types/types';
 
-import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 import React, {useCallback, useEffect, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import TopologyEditor from './topology-editor/topology-editor';
 import TopologyExplorer from './topology-explorer/topology-explorer';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+import {Choose, Otherwise, When} from '@sb/types/control';
+import EditorSetup from './editor-setup/editor-setup';
+import CollectionEditDialog, {
+  CollectionEditDialogState,
+} from './collection-edit-dialog/collection-edit-dialog';
+import TopologyEditDialog, {
+  TopologyEditDialogState,
+} from './topology-edit-dialog/topology-edit-dialog';
+import ArchiveUploadDialog, {
+  ArchiveUploadDialogState,
+} from './archive-upload-dialog/archive-upload-dialog';
+import BindFileEditDialog, {
+  BindFileEditDialogState,
+} from './bind-file-edit-dialog/bind-file-edit-dialog';
+import BindFileDirectoryEditDialog, {
+  BindFileDirectoryEditDialogState,
+} from './bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
 
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
@@ -23,7 +44,15 @@ const EditorPage = observer(() => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
+
+  const editCollectionState = useDialogState<CollectionEditDialogState>(null);
+  const editTopologyState = useDialogState<TopologyEditDialogState>(null);
+  const archiveUploadState = useDialogState<ArchiveUploadDialogState>(null);
+  const editBindFileState = useDialogState<BindFileEditDialogState>(null);
+  const editBindFileDirectoryState =
+    useDialogState<BindFileDirectoryEditDialogState>(null);
 
   const onTopologyOpen = useCallback(
     (topology: Topology) => {
@@ -32,6 +61,8 @@ const EditorPage = observer(() => {
     },
     [setSearchParams],
   );
+
+  const isSetup = topologyStore.data.length === 0;
 
   const onBindFileOpen = useCallback(
     (bindFile: BindFile) => {
@@ -98,39 +129,98 @@ const EditorPage = observer(() => {
   }
 
   return (
-    <>
-      <div
-        className={classNames(
-          'font-bold',
-          'height-100',
-          'sb-card',
-          'overflow-y-auto',
-          'overflow-x-hidden',
-          'sb-admin-page-left',
-          {
-            'sb-admin-page-left-maximized': isMaximized,
-          },
-        )}
-      >
-        <TopologyExplorer
-          selectedId={openFile?.id}
-          onFileSelect={onOpenFile}
-          onTopologyDeploy={onDeployTopology}
-        />
-      </div>
-      <div
-        className={classNames('sb-admin-page-right', {
-          'sb-admin-page-right-maximized': isMaximized,
-        })}
-      >
-        <TopologyEditor
-          isMaximized={isMaximized}
-          setMaximized={setMaximized}
-          onTopologyDeploy={onDeployTopology}
-        />
-      </div>
+    <div className="sb-editor">
+      {/*<div*/}
+      {/*  className={classNames(*/}
+      {/*    'font-bold',*/}
+      {/*    'overflow-y-auto',*/}
+      {/*    'overflow-x-hidden',*/}
+      {/*    'sb-admin-page-left',*/}
+      {/*    {*/}
+      {/*      'sb-admin-page-left-maximized': isMaximized,*/}
+      {/*    },*/}
+      {/*  )}*/}
+      {/*>*/}
+      {/*  <TopologyExplorer*/}
+      {/*    selectedId={openFile?.id}*/}
+      {/*    onFileSelect={onOpenFile}*/}
+      {/*    onTopologyDeploy={onDeployTopology}*/}
+      {/*  />*/}
+      {/*</div>*/}
+      {/*<div*/}
+      {/*  className={classNames('sb-admin-page-right', {*/}
+      {/*    'sb-admin-page-right-maximized': isMaximized,*/}
+      {/*  })}*/}
+      {/*>*/}
+      {/*  <TopologyEditor*/}
+      {/*    isMaximized={isMaximized}*/}
+      {/*    setMaximized={setMaximized}*/}
+      {/*    onTopologyDeploy={onDeployTopology}*/}
+      {/*  />*/}
+      {/*</div>*/}
+      <Choose>
+        <When condition={isSetup}>
+          <div className="sb-editor-setup-container sb-island">
+            <EditorSetup
+              collectionName="test"
+              onCreateCollection={() =>
+                editCollectionState.openWith({
+                  editingCollection: null,
+                  action: DialogAction.Add,
+                })
+              }
+              onCreateTopology={() =>
+                editTopologyState.openWith({
+                  editingTopology: null,
+                  collectionId: collectionStore.data[0].id,
+                  action: DialogAction.Add,
+                })
+              }
+            />
+          </div>
+        </When>
+        <Otherwise>
+          <Splitter>
+            <SplitterPanel className="sb-island" minSize={28} size={10}>
+              <TopologyExplorer
+                selectedId={openFile?.id}
+                onFileSelect={onOpenFile}
+                onTopologyDeploy={onDeployTopology}
+              />
+            </SplitterPanel>
+            <SplitterPanel className="sb-island" minSize={40}>
+              <TopologyEditor
+                isMaximized={isMaximized}
+                setMaximized={setMaximized}
+                onTopologyDeploy={onDeployTopology}
+              />
+            </SplitterPanel>
+          </Splitter>
+        </Otherwise>
+      </Choose>
       <LabEditDialog dialogState={labEditDialogState} />
-    </>
+      <TopologyEditDialog
+        key={editTopologyState.state?.editingTopology?.id}
+        dialogState={editTopologyState}
+        onCreated={() => {}}
+      />
+      <CollectionEditDialog
+        key={editCollectionState.state?.editingCollection?.id}
+        dialogState={editCollectionState}
+      />
+      <BindFileEditDialog
+        key={editBindFileState.state?.editingBindingFile?.id}
+        dialogState={editBindFileState}
+      />
+      <BindFileDirectoryEditDialog
+        key={editBindFileDirectoryState.state?.filePath}
+        dialogState={editBindFileDirectoryState}
+      />
+      <ArchiveUploadDialog
+        dialogState={archiveUploadState}
+        onApply={() => {}}
+      />
+    </div>
   );
 });
 

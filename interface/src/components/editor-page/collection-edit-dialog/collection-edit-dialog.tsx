@@ -10,8 +10,10 @@ import {ErrorCodes} from '@sb/types/error-codes';
 import {isEqual} from 'lodash';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
-import {Checkbox} from 'primereact/checkbox';
+import {InputSwitch} from 'primereact/inputswitch';
 import React, {useEffect, useRef, useState} from 'react';
+
+import './collection-edit-dialog.sass';
 
 export interface CollectionEditDialogState {
   // Set to null if the dialog is meant to add a new collection
@@ -22,6 +24,33 @@ export interface CollectionEditDialogState {
 interface CollectionEditDialogProps {
   dialogState: DialogState<CollectionEditDialogState>;
 }
+
+interface PermissionRowProps {
+  id: string;
+  icon: string;
+  title: string;
+  text: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+// The whole row is a label, so clicking anywhere on it toggles the switch
+const PermissionRow = (props: PermissionRowProps) => (
+  <label className="sb-collection-permission" htmlFor={props.id}>
+    <span className="sb-collection-permission-icon">
+      <span className="material-symbols-outlined">{props.icon}</span>
+    </span>
+    <span className="sb-collection-permission-text">
+      <span className="sb-collection-permission-title">{props.title}</span>
+      <span>{props.text}</span>
+    </span>
+    <InputSwitch
+      inputId={props.id}
+      checked={props.checked}
+      onChange={e => props.onChange(e.value)}
+    />
+  </label>
+);
 
 const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
   const collectionNameRef = useRef<SBInputRef>(null);
@@ -128,13 +157,16 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
 
     switch (props.dialogState.state.action) {
       case DialogAction.Add:
-        return 'Add Collection';
+        return 'New collection';
       case DialogAction.Edit:
-        return 'Edit Collection';
+        return 'Edit collection';
       case DialogAction.Duplicate:
-        return 'Duplicate Collection';
+        return 'Duplicate collection';
     }
   }
+
+  const submitLabel =
+    props.dialogState.state?.action === DialogAction.Edit ? 'Save' : 'Create';
 
   return (
     <SBDialog
@@ -142,38 +174,43 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
       isOpen={props.dialogState.isOpen}
       headerTitle={getDialogHeader()}
       className="sb-edit-dialog"
-      submitLabel="Apply"
+      submitLabel={submitLabel}
       onSubmit={onSubmit}
       onShow={() => collectionNameRef.current?.input.current?.focus()}
     >
-      <div className="flex gap-4 flex-column">
+      <div className="sb-form">
         <SBInput
           ref={collectionNameRef}
           onValueSubmit={onNameChange}
           placeholder="e.g. CN2"
           id="collection-edit-name"
           defaultValue={editingCollection.name}
-          label="Collection Name"
+          label="Name"
         />
-        <div className="flex align-items-center">
-          <Checkbox
-            inputId="collection-edit-candeploy"
-            onChange={e => (editingCollection.publicDeploy = e.checked!)}
-            checked={editingCollection.publicDeploy}
-          />
-          <label htmlFor="collection-edit-candeploy" className="ml-2">
-            Public Deploy
-          </label>
-        </div>
-        <div className="flex align-items-center">
-          <Checkbox
-            inputId="collection-edit-publicwrite"
-            onChange={e => (editingCollection.publicWrite = e.checked!)}
-            checked={editingCollection.publicWrite}
-          />
-          <label htmlFor="collection-edit-publicwrite" className="ml-2">
-            Public Write
-          </label>
+        <div className="sb-form-field">
+          <span className="sb-input-label">Permissions</span>
+          <div className="sb-collection-permissions">
+            <PermissionRow
+              id="collection-edit-publicdeploy"
+              icon="play_arrow"
+              title="Anyone can deploy"
+              text="Everyone can start labs from this collection's topologies."
+              checked={editingCollection.publicDeploy}
+              onChange={checked =>
+                runInAction(() => (editingCollection.publicDeploy = checked))
+              }
+            />
+            <PermissionRow
+              id="collection-edit-publicwrite"
+              icon="edit"
+              title="Anyone can edit"
+              text="Everyone can add, change and delete topologies here."
+              checked={editingCollection.publicWrite}
+              onChange={checked =>
+                runInAction(() => (editingCollection.publicWrite = checked))
+              }
+            />
+          </div>
         </div>
       </div>
     </SBDialog>

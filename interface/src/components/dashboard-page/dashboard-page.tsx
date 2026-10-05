@@ -24,7 +24,7 @@ import {useNavigate, useSearchParams} from 'react-router';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 import {Button} from 'primereact/button';
-import EmptyState from './empty-state/empty-state';
+import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
 
 const stateOrder: Record<InstanceState, number> = {
   [InstanceState.Running]: 0,
@@ -354,7 +354,7 @@ const DashboardPage = observer(() => {
               <Otherwise>
                 <Choose>
                   <When condition={labStore.data.length === 0}>
-                    <EmptyState
+                    <SBEmptyState
                       icon={
                         <span className="material-symbols-outlined">
                           network_node
@@ -369,7 +369,7 @@ const DashboardPage = observer(() => {
                         label="Open topology editor"
                         onClick={() => navigate('/editor')}
                       />
-                    </EmptyState>
+                    </SBEmptyState>
                   </When>
                   <When
                     condition={
@@ -378,7 +378,7 @@ const DashboardPage = observer(() => {
                       labStore.searchQuery === ''
                     }
                   >
-                    <EmptyState
+                    <SBEmptyState
                       icon="pi pi-folder"
                       title={`No labs in ${collectionStore.lookup.get(collectionFilter!)?.name} yet`}
                       text="Deploy one of this collection's topologies to start a lab."
@@ -394,10 +394,10 @@ const DashboardPage = observer(() => {
                           });
                         }}
                       />
-                    </EmptyState>
+                    </SBEmptyState>
                   </When>
                   <When condition={stateFilter.size > 0}>
-                    <EmptyState
+                    <SBEmptyState
                       icon="pi pi-filter"
                       title="All labs are filtered out"
                       text="The state filters above hide every lab in this view."
@@ -407,10 +407,10 @@ const DashboardPage = observer(() => {
                         label="Show all states"
                         onClick={() => setStateFilter(new Set())}
                       />
-                    </EmptyState>
+                    </SBEmptyState>
                   </When>
                   <Otherwise>
-                    <EmptyState
+                    <SBEmptyState
                       icon="pi pi-search"
                       title={`No labs match "${labStore.searchQuery}"`}
                       text="Check the spelling or search for part of the name."
@@ -420,7 +420,7 @@ const DashboardPage = observer(() => {
                         label="Clear search"
                         onClick={() => labStore.setSearchQuery('')}
                       />
-                    </EmptyState>
+                    </SBEmptyState>
                   </Otherwise>
                 </Choose>
               </Otherwise>

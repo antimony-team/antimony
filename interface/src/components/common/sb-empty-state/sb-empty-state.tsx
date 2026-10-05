@@ -1,5 +1,5 @@
 import React, {ReactElement} from 'react';
-import './empty-state.sass';
+import './sb-empty-state.sass';
 import {If} from '@sb/types/control';
 import classNames from 'classnames';
 import {SelectItem} from 'primereact/selectitem';
@@ -15,7 +15,7 @@ interface EmptyStateProps {
   children?: React.ReactNode;
 }
 
-const EmptyState = (props: EmptyStateProps) => {
+const SBEmptyState = (props: EmptyStateProps) => {
   function getIcon() {
     if (typeof props.icon === 'string') {
       // Provided icon is a name of a prime icon
@@ -44,4 +44,4 @@ const EmptyState = (props: EmptyStateProps) => {
   );
 };
 
-export default EmptyState;
+export default SBEmptyState;

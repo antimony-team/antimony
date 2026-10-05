@@ -18,7 +18,7 @@ import {validate} from 'jsonschema';
 import {action, observable, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
-import {ArchiveUploadFile} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
+import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
 
 export class TopologyStore extends DataStore<
   Topology,

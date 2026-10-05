@@ -1,0 +1,55 @@
+// Switch: 36 × 20 track, 16px handle, accent when on
+.p-inputswitch
+  position: relative
+  flex: 0 0 auto
+  width: 36px
+  height: 20px
+
+  .p-inputswitch-slider
+    position: absolute
+    inset: 0
+    padding: 0
+    border: 0
+    border-radius: 10px
+    background-color: rgba(255, 255, 255, 0.16)
+    transition: background-color 0.15s ease-out
+
+    &::before
+      position: absolute
+      top: 2px
+      left: 2px
+      right: auto
+      width: 16px
+      height: 16px
+      margin: 0
+      border-radius: 50%
+      background-color: #e6e6e8
+      transform: none
+      transition: left 0.15s ease-out, background-color 0.15s ease-out
+
+  &:not(.p-disabled):hover .p-inputswitch-slider
+    background-color: rgba(255, 255, 255, 0.22)
+
+  // On, whatever class this PrimeReact version uses for it
+  &.p-inputswitch-checked,
+  &.p-highlight,
+  &:has(input:checked)
+    .p-inputswitch-slider
+      background-color: var(--accent)
+
+      &::before
+        left: 18px
+        margin: 0
+        background-color: #0f1a17
+        transform: none
+
+    &:not(.p-disabled):hover .p-inputswitch-slider
+      background-color: color-mix(in oklab, var(--accent) 88%, white)
+
+  &.p-focus .p-inputswitch-slider
+    box-shadow: none
+    outline: 2px solid var(--accent)
+    outline-offset: 2px
+
+  &.p-disabled
+    opacity: 0.4

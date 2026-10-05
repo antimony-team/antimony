@@ -9,14 +9,13 @@ import React, {
 
 import {toJS} from 'mobx';
 import {observer} from 'mobx-react-lite';
-import {Tooltip} from 'primereact/tooltip';
 import {configureMonacoYaml} from 'monaco-yaml';
 import {AntimonyTheme, MonacoOptions} from './monaco.conf';
 
 import * as monaco from 'monaco-editor';
 
 import {BindFile, Topology} from '@sb/types/domain/topology';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {If} from '@sb/types/control';
 import {
   useAuthUser,
   useSchemaStore,
@@ -83,6 +82,9 @@ interface MonacoWrapperProps {
 
   openTopology: Topology | null;
   openBindFile: BindFile | null;
+
+  onLanguageChange: (language: string) => void;
+  onCursorChange: (line: number, column: number) => void;
 }
 
 export interface MonacoWrapperRef {
@@ -141,6 +143,8 @@ const MonacoWrapper = observer(
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
         textModelRef.current.setValue(props.openTopology.definition.toString());
         currentlyOpenFileId.current = props.openTopology.id;
+
+        props.onLanguageChange(textModelRef.current.getLanguageId());
       }
     }, [props.openTopology]);
 
@@ -369,7 +373,12 @@ const MonacoWrapper = observer(
       editorRef.current.updateOptions(MonacoOptions);
       editorRef.current.onDidChangeModelContent(onContentChange);
 
+      const cursorListener = editorRef.current.onDidChangeCursorPosition(e => {
+        props.onCursorChange?.(e.position.lineNumber, e.position.column);
+      });
+
       return () => {
+        cursorListener.dispose();
         editorRef.current?.dispose();
         textModelRef.current?.dispose();
         yamlPlugin.dispose();
@@ -404,6 +413,8 @@ const MonacoWrapper = observer(
       if (textModelRef.current) {
         props.setContent(textModelRef.current.getValue());
       }
+
+      console.log(textModelRef.current?.getLanguageId());
     }
 
     return (
@@ -422,48 +433,6 @@ const MonacoWrapper = observer(
             </div>
           </If>
           <div className="sb-monaco-wrapper">
-            <div
-              className="sb-monaco-wrapper-error"
-              data-testid="validation-status"
-              data-validation-state={ValidationState[
-                props.validationState
-              ]?.toLowerCase()}
-              data-pr-tooltip={props.validationError ?? 'Schema Valid'}
-              data-pr-position="right"
-            >
-              {props.showValidation && (
-                <Choose>
-                  <When
-                    condition={props.validationState === ValidationState.Error}
-                  >
-                    <i
-                      className="pi pi-times"
-                      style={{color: 'var(--danger-color-text)'}}
-                    />
-                  </When>
-                  <When
-                    condition={
-                      props.validationState === ValidationState.Working
-                    }
-                  >
-                    <i
-                      className="pi pi-spinner pi-spin"
-                      style={{color: 'var(--warning-color-text)'}}
-                    />
-                  </When>
-                  <Otherwise>
-                    <i
-                      className="pi pi-check"
-                      style={{color: 'var(--success-color-text)'}}
-                    />
-                  </Otherwise>
-                </Choose>
-              )}
-              <Tooltip
-                className="sb-monaco-wrapper-error-tooltip"
-                target=".sb-monaco-wrapper-error"
-              />
-            </div>
             <div ref={editorContainerRef} style={{height: '100%'}}></div>
           </div>
         </div>

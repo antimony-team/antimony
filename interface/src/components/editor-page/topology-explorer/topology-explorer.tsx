@@ -1,13 +1,4 @@
 import SBConfirm from '@sb/components/common/sb-confirm/sb-confirm';
-import BindFileEditDialog, {
-  BindFileEditDialogState,
-} from '@sb/components/editor-page/topology-explorer/bind-file-edit-dialog/bind-file-edit-dialog';
-import CollectionEditDialog, {
-  CollectionEditDialogState,
-} from '@sb/components/editor-page/topology-explorer/collection-edit-dialog/collection-edit-dialog';
-import TopologyEditDialog, {
-  TopologyEditDialogState,
-} from '@sb/components/editor-page/topology-explorer/topology-edit-dialog/topology-edit-dialog';
 
 import './topology-explorer.sass';
 
@@ -17,7 +8,7 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
+import {DialogAction} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {BindFile, Topology} from '@sb/types/domain/topology';
 import {FetchState, uuid4} from '@sb/types/types';
@@ -48,14 +39,8 @@ import ExplorerTreeNode, {
   ExplorerTreeNodeData,
   ExplorerTreeNodeType,
 } from './explorer-tree-node/explorer-tree-node';
-import ArchiveUploadDialog, {
-  ArchiveUploadDialogState,
-  ArchiveUploadFile,
-} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
+import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
-import BindFileDirectoryEditDialog, {
-  BindFileDirectoryEditDialogState,
-} from '@sb/components/editor-page/topology-explorer/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
 
 interface TopologyBrowserProps {
   selectedId?: string | null;
@@ -66,13 +51,6 @@ interface TopologyBrowserProps {
 
 const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const [expandedKeys, setExpandedKeys] = useState<TreeExpandedKeysType>({});
-
-  const editCollectionState = useDialogState<CollectionEditDialogState>(null);
-  const editTopologyState = useDialogState<TopologyEditDialogState>(null);
-  const archiveUploadState = useDialogState<ArchiveUploadDialogState>(null);
-  const editBindFileState = useDialogState<BindFileEditDialogState>(null);
-  const editBindFileDirectoryState =
-    useDialogState<BindFileDirectoryEditDialogState>(null);
 
   const [contextMenuModel, setContextMenuModel] = useState<MenuItem[]>();
 
@@ -1136,27 +1114,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         onContextMenu={onContextMenuTree}
         onSelectionChange={onSelectionChange}
         onToggle={e => setExpandedKeys(e.value)}
-      />
-      <TopologyEditDialog
-        key={editTopologyState.state?.editingTopology?.id}
-        dialogState={editTopologyState}
-        onCreated={onTopologyAdded}
-      />
-      <CollectionEditDialog
-        key={editCollectionState.state?.editingCollection?.id}
-        dialogState={editCollectionState}
-      />
-      <BindFileEditDialog
-        key={editBindFileState.state?.editingBindingFile?.id}
-        dialogState={editBindFileState}
-      />
-      <BindFileDirectoryEditDialog
-        key={editBindFileDirectoryState.state?.filePath}
-        dialogState={editBindFileDirectoryState}
-      />
-      <ArchiveUploadDialog
-        dialogState={archiveUploadState}
-        onApply={onArchiveUploadConfirm}
       />
       <SBConfirm />
       <ContextMenu model={contextMenuModel} ref={contextMenuRef} />

@@ -1,9 +1,8 @@
 import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
-import {Badge} from 'primereact/badge';
 import {Button} from 'primereact/button';
 
 import {FetchState, uuid4} from '@sb/types/types';
@@ -35,6 +34,11 @@ import {
   SimulationConfigContext,
 } from './node-editor/state/simulation-config';
 import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
+import EditorViewSwitch, {
+  EditorView,
+} from './editor-view-switch/editor-view-switch';
+import {Badge} from 'primereact/badge';
+import {Tooltip} from 'primereact/tooltip';
 
 export enum ValidationState {
   Working,
@@ -50,8 +54,14 @@ interface TopologyEditorProps {
 }
 
 const TopologyEditor = observer((props: TopologyEditorProps) => {
-  const [, setValidationError] = useState<string | null>(null);
-  // const [validationError, setValidationError] = useState<string | null>(null);
+  // const [, setValidationError] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string>();
+  const [currentCursorPosition, setCurrentCursorPosition] = useState<{
+    x: number;
+    y: number;
+  }>({x: 0, y: 0});
+
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [validationState, setValidationState] = useState<ValidationState>(
     ValidationState.Done,
   );
@@ -77,6 +87,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
+
+  const [view, setView] = useState<EditorView>('split');
 
   const onTopologyOpen = useCallback((topology: Topology) => {
     setOpenTopology(topology);
@@ -165,6 +177,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     onBindFileOpen,
     onBindFileEdit,
   ]);
+
+  const topologyCollection = useMemo(() => {
+    if (!openTopology) return null;
+
+    return collectionStore.lookup.get(openTopology.collectionId)!;
+  }, [collectionStore.data, openTopology]);
 
   const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -267,15 +285,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   function onDownload() {
     if (openTopology) {
-      const topologyGroup = collectionStore.lookup.get(
-        openTopology.collectionId,
-      )!;
       const blob = new Blob([openTopology.definition.toString()], {
         type: 'text/yaml;charset=utf-8',
       });
       FileSaver.saveAs(
         blob,
-        `${topologyGroup.name}_${openTopology.definition.get('name')}.yaml`,
+        `${topologyCollection!.name}_${openTopology.definition.get('name')}.yaml`,
       );
     } else if (openBindFile) {
       const topology = topologyStore.lookup.get(openBindFile.id);
@@ -356,111 +371,90 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   return (
     <>
       <div
-        className="sb-topology-editor-container sb-island"
+        className="sb-topology-editor-container"
         style={{
           opacity: openTopology || openBindFile ? '1' : '0',
         }}
       >
         <div className="sb-topology-editor-toolbar">
-          <div className="flex gap-2 justify-content-center left-tab">
-            <Button
-              text
-              icon="pi pi-undo"
-              tooltip="Undo"
-              onClick={() => monacoWrapperRef.current?.undo()}
-              tooltipOptions={{position: 'bottom', showDelay: 500}}
-              aria-label="Undo"
-            />
-            <Button
-              text
-              icon="pi pi-refresh"
-              tooltip="Redo"
-              onClick={() => monacoWrapperRef.current?.redo()}
-              tooltipOptions={{position: 'bottom', showDelay: 500}}
-              aria-label="Redo"
-            />
+          <div>
+            <span className="sb-topology-editor-toolbar-subtitle">
+              {topologyCollection?.name} /
+            </span>
+            <span className="sb-topology-editor-toolbar-title">
+              {openTopology?.name}
+            </span>
           </div>
-          <div className="flex gap-2">
-            {openTopology && (
-              <Button
-                text
-                icon="pi pi-sync"
-                onClick={e => syncOverlayRef.current?.toggle(e)}
-                tooltip="Sync Options"
-                tooltipOptions={{position: 'bottom', showDelay: 500}}
-                aria-label="Sync Options"
-              />
-            )}
+          <span className="sb-editor-toolbar-separator" />
+          <Button
+            text
+            icon={<span className="material-symbols-outlined">undo</span>}
+            onClick={() => monacoWrapperRef.current?.undo()}
+            aria-label="Undo"
+          />
+          <Button
+            text
+            icon={<span className="material-symbols-outlined">redo</span>}
+            onClick={() => monacoWrapperRef.current?.redo()}
+            aria-label="Redo"
+          />
+          <EditorViewSwitch value={view} onChange={setView} />
+          {openTopology && (
             <Button
               text
-              size="large"
-              icon="pi pi-save"
-              disabled={
-                (validationEnabled &&
-                  validationState !== ValidationState.Done) ||
-                !hasPendingEdits
-              }
-              tooltip="Save"
-              onClick={onSaveFile}
+              icon="pi pi-sync"
+              onClick={e => syncOverlayRef.current?.toggle(e)}
+              tooltip="Sync Options"
               tooltipOptions={{position: 'bottom', showDelay: 500}}
-              pt={{
-                icon: {
-                  className: 'p-overlay-badge',
-                  children: (
-                    <If condition={hasPendingEdits}>
-                      <Badge severity="danger" />
-                    </If>
-                  ),
-                },
-              }}
-              aria-label="Save"
+              aria-label="Sync Options"
             />
+          )}
+          <Button
+            text
+            size="large"
+            icon="pi pi-save"
+            disabled={
+              (validationEnabled && validationState !== ValidationState.Done) ||
+              !hasPendingEdits
+            }
+            tooltip="Save"
+            onClick={onSaveFile}
+            tooltipOptions={{position: 'bottom', showDelay: 500}}
+            pt={{
+              icon: {
+                className: 'p-overlay-badge',
+                children: (
+                  <If condition={hasPendingEdits}>
+                    <Badge severity="danger" />
+                  </If>
+                ),
+              },
+            }}
+            aria-label="Save"
+          />
+          <Button
+            text
+            icon="pi pi-download"
+            size="large"
+            onClick={onDownload}
+            tooltip="Download"
+            tooltipOptions={{position: 'bottom', showDelay: 500}}
+            aria-label="Download"
+          />
+          <If condition={openTopology}>
+            <span className="sb-editor-toolbar-separator" />
             <Button
-              text
-              icon="pi pi-download"
-              size="large"
-              onClick={onDownload}
-              tooltip="Download"
-              tooltipOptions={{position: 'bottom', showDelay: 500}}
-              aria-label="Download"
+              outlined
+              className="sb-topology-editor-deploy-button"
+              icon="pi pi-play"
+              label="Deploy"
+              onClick={onDeployTopoplogy}
+              aria-label="Deploy Topology"
             />
-          </div>
-          <div className="flex gap-2 justify-content-center">
-            <If condition={openTopology}>
-              <Button
-                text
-                icon="pi pi-play"
-                severity="success"
-                size="large"
-                onClick={onDeployTopoplogy}
-                aria-label="Deploy Topology"
-              />
-            </If>
-            <Choose>
-              <When condition={props.isMaximized}>
-                <Button
-                  text
-                  icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
-                  size="large"
-                  onClick={() => props.setMaximized(false)}
-                  aria-label="Minimize"
-                />
-              </When>
-              <Otherwise>
-                <Button
-                  text
-                  icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
-                  size="large"
-                  onClick={() => props.setMaximized(true)}
-                  aria-label="Maximize"
-                />
-              </Otherwise>
-            </Choose>
-          </div>
+          </If>
         </div>
         <div className="sb-topology-editor-content">
           <Splitter
-            className="h-full"
             pt={{
               gutter: {
                 style: {opacity: openTopology ? '1' : '0'},
@@ -468,7 +462,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               },
             }}
           >
-            <SplitterPanel size={50}>
+            <SplitterPanel className="sb-editor-monaco" size={50}>
               <If condition={schemaStore.fetchReport.state === FetchState.Done}>
                 <MonacoWrapper
                   ref={monacoWrapperRef}
@@ -481,12 +475,16 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   openBindFile={openBindFile}
                   setValidationError={onSetValidationError}
                   onBindFileLinkClick={onBindFileLinkClick}
+                  onLanguageChange={setCurrentLanguage}
+                  onCursorChange={(row, col) =>
+                    setCurrentCursorPosition({x: row, y: col})
+                  }
                 />
               </If>
             </SplitterPanel>
             <SplitterPanel
               size={50}
-              className="sb-topology-editor-node-editor-panel"
+              className="sb-editor-graph"
               style={{
                 opacity: openTopology ? '1' : '0',
               }}
@@ -500,6 +498,47 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               </SimulationConfigContext.Provider>
             </SplitterPanel>
           </Splitter>
+        </div>
+        <div className="sb-topology-editor-footer">
+          <div
+            className="sb-monaco-wrapper-error"
+            data-testid="validation-status"
+            data-validation-state={ValidationState[
+              validationState
+            ]?.toLowerCase()}
+            data-pr-tooltip={validationError ?? 'Schema Valid'}
+            data-pr-position="right"
+          >
+            <Choose>
+              <When condition={validationState === ValidationState.Error}>
+                <i
+                  className="pi pi-times"
+                  style={{color: 'var(--danger-color-text)'}}
+                />
+                <span>Error</span>
+              </When>
+              <When condition={validationState === ValidationState.Working}>
+                <i
+                  className="pi pi-spinner pi-spin"
+                  style={{color: 'var(--warning-color-text)'}}
+                />
+                <span>Pending</span>
+              </When>
+              <Otherwise>
+                <i
+                  className="pi pi-check"
+                  style={{color: 'var(--success-color-text)'}}
+                />
+                <span>Valid</span>
+              </Otherwise>
+            </Choose>
+            <Tooltip
+              className="sb-monaco-wrapper-error-tooltip"
+              target=".sb-monaco-wrapper-error"
+            />
+          </div>
+          <span>{currentLanguage}</span>
+          <span>{`Ln ${currentCursorPosition.x}, Col ${currentCursorPosition.y}`}</span>
         </div>
       </div>
       <SyncOverlay
