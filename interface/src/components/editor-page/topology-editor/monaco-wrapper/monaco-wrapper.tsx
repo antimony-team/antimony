@@ -237,7 +237,20 @@ const MonacoWrapper = observer(
     function setContent(content: string) {
       if (!textModelRef.current) return;
 
-      textModelRef.current.setValue(content);
+      const editor = editorRef.current;
+      const model = editor?.getModel();
+      if (!editor || !model || model.getValue() === content) return;
+
+      editor.pushUndoStop();
+      editor.executeEdits('sync', [
+        {
+          range: model.getFullModelRange(),
+          text: content,
+          forceMoveMarkers: true,
+        },
+      ]);
+      editor.pushUndoStop();
+      // textModelRef.current.setValue(content);
     }
 
     const onGlobalKeyPress = useCallback(

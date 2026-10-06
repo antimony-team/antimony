@@ -133,10 +133,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }, [topologyStore.lookup]);
 
-  useEffect(() => {
+  const pageTitle = useMemo(() => {
     if (!openTopology && !openBindFile) {
-      document.title = 'Antimony | Editor';
-      return;
+      return 'Antimony | Editor';
     }
 
     let tabTitle = 'Antimony';
@@ -150,7 +149,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       tabTitle += '*';
     }
 
-    document.title = tabTitle;
+    return tabTitle;
   }, [hasPendingEdits, openTopology, openBindFile]);
 
   useBeforeUnload(ev => {
@@ -379,6 +378,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   return (
     <>
+      <title>{pageTitle}</title>
       <div
         className="sb-topology-editor-container"
         style={{
@@ -386,85 +386,88 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         }}
       >
         <div className="sb-topology-editor-toolbar">
-          <div>
+          <div className="sb-topology-editor-toolbar-left">
             <span className="sb-topology-editor-toolbar-subtitle">
               {topologyCollection?.name} /
             </span>
             <span className="sb-topology-editor-toolbar-title">
-              {openTopology?.name}
+              {`${openTopology?.name}${topologyStore.manager.hasEdits() ? '*' : ''}`}
             </span>
+            <span className="sb-editor-toolbar-separator" />
+            <Button
+              text
+              icon={<span className="material-symbols-outlined">undo</span>}
+              onClick={() => monacoWrapperRef.current?.undo()}
+              aria-label="Undo"
+            />
+            <Button
+              text
+              icon={<span className="material-symbols-outlined">redo</span>}
+              onClick={() => monacoWrapperRef.current?.redo()}
+              aria-label="Redo"
+            />
           </div>
-          <span className="sb-editor-toolbar-separator" />
-          <Button
-            text
-            icon={<span className="material-symbols-outlined">undo</span>}
-            onClick={() => monacoWrapperRef.current?.undo()}
-            aria-label="Undo"
-          />
-          <Button
-            text
-            icon={<span className="material-symbols-outlined">redo</span>}
-            onClick={() => monacoWrapperRef.current?.redo()}
-            aria-label="Redo"
-          />
           <EditorViewSwitch
             value={effectiveView}
             onChange={setView}
             disabledViews={openBindFile ? ['split', 'graph'] : []}
           />
-          {openTopology && (
+          <div className="sb-topology-editor-toolbar-right">
+            {openTopology && (
+              <Button
+                text
+                icon="pi pi-sync"
+                onClick={e => syncOverlayRef.current?.toggle(e)}
+                tooltip="Sync Options"
+                tooltipOptions={{position: 'bottom', showDelay: 500}}
+                aria-label="Sync Options"
+              />
+            )}
             <Button
               text
-              icon="pi pi-sync"
-              onClick={e => syncOverlayRef.current?.toggle(e)}
-              tooltip="Sync Options"
+              size="large"
+              icon="pi pi-save"
+              disabled={
+                (validationEnabled &&
+                  validationState !== ValidationState.Done) ||
+                !hasPendingEdits
+              }
+              tooltip="Save"
+              onClick={onSaveFile}
               tooltipOptions={{position: 'bottom', showDelay: 500}}
-              aria-label="Sync Options"
+              pt={{
+                icon: {
+                  className: 'p-overlay-badge',
+                  children: (
+                    <If condition={hasPendingEdits}>
+                      <Badge severity="danger" />
+                    </If>
+                  ),
+                },
+              }}
+              aria-label="Save"
             />
-          )}
-          <Button
-            text
-            size="large"
-            icon="pi pi-save"
-            disabled={
-              (validationEnabled && validationState !== ValidationState.Done) ||
-              !hasPendingEdits
-            }
-            tooltip="Save"
-            onClick={onSaveFile}
-            tooltipOptions={{position: 'bottom', showDelay: 500}}
-            pt={{
-              icon: {
-                className: 'p-overlay-badge',
-                children: (
-                  <If condition={hasPendingEdits}>
-                    <Badge severity="danger" />
-                  </If>
-                ),
-              },
-            }}
-            aria-label="Save"
-          />
-          <Button
-            text
-            icon="pi pi-download"
-            size="large"
-            onClick={onDownload}
-            tooltip="Download"
-            tooltipOptions={{position: 'bottom', showDelay: 500}}
-            aria-label="Download"
-          />
-          <If condition={openTopology}>
-            <span className="sb-editor-toolbar-separator" />
             <Button
-              outlined
-              className="sb-topology-editor-deploy-button"
-              icon="pi pi-play"
-              label="Deploy"
-              onClick={onDeployTopoplogy}
-              aria-label="Deploy Topology"
+              text
+              icon="pi pi-download"
+              size="large"
+              onClick={onDownload}
+              tooltip="Download"
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Download"
             />
-          </If>
+            <If condition={openTopology}>
+              <span className="sb-editor-toolbar-separator" />
+              <Button
+                outlined
+                className="sb-topology-editor-deploy-button"
+                icon="pi pi-play"
+                label="Deploy"
+                onClick={onDeployTopoplogy}
+                aria-label="Deploy Topology"
+              />
+            </If>
+          </div>
         </div>
         <div className={`sb-topology-editor-content view-${effectiveView}`}>
           <Splitter>

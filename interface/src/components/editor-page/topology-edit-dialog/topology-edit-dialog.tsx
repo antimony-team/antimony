@@ -17,6 +17,7 @@ import {SelectItem} from 'primereact/selectitem';
 import React, {useMemo, useRef} from 'react';
 
 import YAML from 'yaml';
+import {fetchSyncUrl} from '@sb/lib/utils/utils';
 
 export interface TopologyEditDialogState {
   // Set to null if the dialog is meant to add a new topology
@@ -37,44 +38,31 @@ interface TopologyEditDialogProps {
  */
 interface TopologyEdit {
   name: string;
+  syncUrl: string;
   collectionId: string;
 }
 
 const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const editingTopology = useLocalObservable<TopologyEdit>(() => ({
     name: props.dialogState.state?.editingTopology?.name ?? '',
+    syncUrl: props.dialogState.state?.editingTopology?.syncUrl ?? '',
     collectionId: props.dialogState.state?.collectionId ?? '',
   }));
 
-  // const [originalTopology, setOriginalTopology] = useState<TopologyEdit>({
-  //   name: props.dialogState.state?.editingTopology?.name ?? '',
-  //   collectionId: props.dialogState.state?.collectionId ?? '',
-  // });
-
   const authUser = useAuthUser();
-
-  const topologyNameRef = useRef<SBInputRef>(null);
-
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
+  const topologyNameRef = useRef<SBInputRef>(null);
+  const topologySyncUrlRef = useRef<SBInputRef>(null);
+
   function onShow() {
-    // console.log('original topology: ', originalTopology);
-
-    // const editTopology = {
-    //   name: props.dialogState.state.editingTopology?.name ?? '',
-    //   collectionId: props.dialogState.state.collectionId ?? '',
-    // };
-    // setOriginalTopology(editTopology);
-
-    // if (topologyNameRef.current?.input.current) {
-    //   topologyNameRef.current.input.current.value = editTopology.name;
-    // }
-
     runInAction(() => {
       editingTopology.name =
         props.dialogState.state?.editingTopology?.name ?? '';
+      editingTopology.syncUrl =
+        props.dialogState.state?.editingTopology?.syncUrl ?? '';
       editingTopology.collectionId =
         props.dialogState.state?.collectionId ?? '';
     });
@@ -82,20 +70,19 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
     topologyNameRef.current?.input.current?.focus();
   }
 
-  function onClose() {
-    // runInAction(() => {
-    //   editingTopology.name = originalTopology.name;
-    //   editingTopology.collectionId = originalTopology.collectionId;
-    // });
+  function onNameChange(_: string, isImplicit: boolean) {
+    if (!isImplicit) void onSubmit();
   }
 
-  function onNameChange(_: string, isImplicit: boolean) {
+  function onSyncUrlChange(_: string, isImplicit: boolean) {
     if (!isImplicit) void onSubmit();
   }
 
   function hasChanges() {
     return (
       props.dialogState.state?.editingTopology?.name !== editingTopology.name ||
+      props.dialogState.state?.editingTopology?.syncUrl !==
+        editingTopology.syncUrl ||
       props.dialogState.state?.collectionId !== editingTopology.collectionId
     );
   }
@@ -105,6 +92,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
     runInAction(() => {
       editingTopology.name = topologyNameRef.current!.input.current!.value;
+      editingTopology.syncUrl =
+        topologySyncUrlRef.current!.input.current!.value;
     });
 
     if (editingTopology.name === '') {
@@ -118,6 +107,18 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         return;
       }
 
+      if (
+        editingTopology.syncUrl &&
+        editingTopology.syncUrl !==
+          props.dialogState.state.editingTopology?.syncUrl
+      ) {
+        const [validationError] = await fetchSyncUrl(editingTopology.syncUrl);
+        if (validationError !== null) {
+          topologySyncUrlRef.current?.setValidationError(validationError);
+          return;
+        }
+      }
+
       const newDefinition =
         props.dialogState.state.editingTopology!.definition.clone();
       newDefinition.set('name', editingTopology.name);
@@ -126,7 +127,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         props.dialogState.state.editingTopology!.id,
         {
           definition: TopologyManager.serializeTopology(newDefinition),
-          syncUrl: props.dialogState.state.editingTopology!.syncUrl,
+          syncUrl: editingTopology.syncUrl,
           collectionId: editingTopology.collectionId,
         },
       );
@@ -217,9 +218,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       submitLabel="Apply"
       onSubmit={onSubmit}
       onShow={onShow}
-      onCancel={onClose}
     >
-      <div className="mb-3">
+      <div className="flex flex-column gap-4">
         <SBInput
           ref={topologyNameRef}
           onValueSubmit={onNameChange}
@@ -228,22 +228,31 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           id="topology-edit-name"
           label="Name"
         />
+        <SBInput
+          ref={topologySyncUrlRef}
+          onValueSubmit={onSyncUrlChange}
+          defaultValue={props.dialogState.state?.editingTopology?.syncUrl ?? ''}
+          placeholder="e.g. https://example.com/topology.yaml"
+          id="topology-edit-syncurl"
+          label="Sync URL"
+        />
+
+        <SBDropdown
+          id="edit-topology-collection"
+          label="Collection"
+          placeholder="Select a collection"
+          icon={<span className="material-symbols-outlined">folder</span>}
+          hasFilter={false}
+          useSelectTemplate={true}
+          useItemTemplate={true}
+          value={editingTopology.collectionId}
+          options={collectionOptions}
+          emptyMessage="No collections found"
+          onValueSubmit={collectionId =>
+            (editingTopology.collectionId = collectionId)
+          }
+        />
       </div>
-      <SBDropdown
-        id="edit-topology-collection"
-        label="Collection"
-        placeholder="Select a collection"
-        icon={<span className="material-symbols-outlined">folder</span>}
-        hasFilter={false}
-        useSelectTemplate={true}
-        useItemTemplate={true}
-        value={editingTopology.collectionId}
-        options={collectionOptions}
-        emptyMessage="No collections found"
-        onValueSubmit={collectionId =>
-          (editingTopology.collectionId = collectionId)
-        }
-      />
     </SBDialog>
   );
 });

@@ -328,3 +328,24 @@ export function formatDuration(ms: number): string {
 export function pluralize(count: number, singular: string, plural: string) {
   return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
 }
+
+export async function fetchSyncUrl(
+  value: string,
+): Promise<[string | null, string | null]> {
+  if (value !== '' && !isValidURL(value)) {
+    return ['Specified URL is not valid', null];
+  }
+
+  const response = await fetchResource(value);
+
+  if (!response?.ok) {
+    return ['Unable to fetch from the provided resource.', null];
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('text')) {
+    return ['Unable to fetch from the provided resource.', null];
+  } else {
+    return [null, await response.text()];
+  }
+}
