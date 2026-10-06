@@ -25,20 +25,33 @@
     display: flex
     align-items: center
 
+    :first-child
+      margin-left: 4px
+
   .sb-topology-editor-toolbar-right
     display: flex
     align-items: center
     justify-content: flex-end
 
   .sb-topology-editor-toolbar-subtitle
-    margin-left: 8px
-    margin-right: 0.5ch
+    display: flex
+    align-items: center
     color: var(--text-muted)
     font-size: 17px
+    gap: 4px
+
+    .material-symbols-outlined
+      font-size: 16px
 
   .sb-topology-editor-toolbar-title
+    display: flex
+    align-items: center
     color: var(--text)
     font-size: 17px
+    gap: 4px
+
+    .material-symbols-outlined
+      font-size: 16px
 
   .sb-editor-toolbar-separator
     flex: 0 0 auto
@@ -104,11 +117,21 @@
   display: flex
   flex-direction: row
   align-items: center
-  padding: 0 16px
+  padding: 0 16px 0 10px
   border-top: 1px solid var(--border)
   height: 40px
-  gap: 16px
+  gap: 8px
   color: var(--text-muted)
+
+  .sb-monaco-wrapper-error
+    display: flex
+    align-items: center
+    user-select: none
+    padding: 4px 8px
+    border-radius: 8px
+
+    &:hover
+      background-color: var(--hover)
 
   .sb-topology-editor-footer-position
     flex-grow: 1

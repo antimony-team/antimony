@@ -15,6 +15,8 @@ interface SBDialogProps {
   headerTitle: string | React.ReactNode;
   headerIcon?: string | React.ReactNode;
 
+  width?: string;
+
   draggable?: boolean;
   resizeable?: boolean;
   disableModal?: boolean;
@@ -42,7 +44,7 @@ const SBDialog = (props: SBDialogProps) => {
     <Dialog
       visible={props.isOpen}
       dismissableMask={true}
-      className={props.className}
+      className={`sb-dialog ${props.className ?? ''}`}
       onHide={props.onClose}
       onShow={props.onShow}
       draggable={props.draggable}
@@ -52,6 +54,7 @@ const SBDialog = (props: SBDialogProps) => {
       onDragEnd={props.onDragEnd}
       keepInViewport={false}
       onResizeEnd={props.onResizeEnd}
+      style={{width: props.width}}
       header={
         <div className="sb-dialog-header">
           <div className="sb-dialog-header-title">

@@ -1,7 +1,6 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 
-import './lab-edit-dialog.sass';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 
 import {
@@ -186,7 +185,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       onClose={props.dialogState.close}
       isOpen={props.dialogState.isOpen}
       headerTitle={getDialogHeader()}
-      className="sb-lab-edit-dialog"
+      className="sb-edit-dialog"
       submitLabel={submitButtonLabel}
       onSubmit={onSubmit}
       onShow={() => labNameRef.current?.input.current?.focus()}

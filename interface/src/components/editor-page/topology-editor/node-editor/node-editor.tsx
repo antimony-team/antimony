@@ -63,7 +63,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   const cyRef = useRef<cytoscape.Core | null>(null);
   const radialMenuTarget = useRef<string | null>(null);
-  const nodeConnectTarget = useRef<string | null>(null);
+  const nodeConnectionSource = useRef<string | null>(null);
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<ContextMenu | null>(null);
@@ -201,16 +201,16 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
   }
 
-  function onNodeConnect() {
+  function onNodeConnectStart() {
     const cy = cyRef.current;
     if (!cy || menuTargetRef.current === null) return;
 
     const nodeId = menuTargetRef.current;
-    const node = cy.getElementById(nodeId);
 
+    const node = cy.getElementById(nodeId);
     if (!node) return;
 
-    nodeConnectTarget.current = nodeId;
+    nodeConnectionSource.current = nodeId;
   }
 
   function onNodeEdit() {
@@ -247,7 +247,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onMouseMove(event: MouseEvent<HTMLDivElement>) {
-    if (!cyRef.current || !nodeConnectTarget.current) return;
+    if (!cyRef.current || !nodeConnectionSource.current) return;
 
     const cy = cyRef.current as cytoscape.Core & {
       renderer: () => {
@@ -259,7 +259,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       .renderer()
       .projectIntoViewport(event.clientX, event.clientY);
 
-    drawConnectionLine(nodeConnectTarget.current, x, y);
+    drawConnectionLine(nodeConnectionSource.current, x, y);
   }
 
   function onGroupDelete(groupId: string) {
@@ -317,8 +317,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       return;
     }
 
-    if (nodeConnectTarget.current && nodeConnectTarget !== nodeId) {
-      topologyStore.manager.connectNodes(nodeConnectTarget.current, nodeId);
+    if (nodeConnectionSource.current && nodeConnectionSource !== nodeId) {
+      topologyStore.manager.connectNodes(nodeConnectionSource.current, nodeId);
       exitConnectionMode();
       return;
     }
@@ -524,7 +524,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function exitConnectionMode() {
-    nodeConnectTarget.current = null;
+    nodeConnectionSource.current = null;
 
     if (cyRef.current) {
       cyRef.current.remove(`.${GHOST_NODE_ID}`);
@@ -741,22 +741,49 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   const groupContextMenuModel = [
-    {label: 'Edit', icon: 'pi pi-pen-to-square', command: onGroupEdit},
-    {label: 'Delete', icon: 'pi pi-trash', command: onGroupDeleteContext},
+    {
+      label: 'Edit',
+      icon: <span className="material-symbols-outlined">edit_square</span>,
+      command: onGroupEdit,
+    },
+    {
+      separator: true,
+    },
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: onGroupDeleteContext,
+    },
   ];
 
   const edgeContextMenuModel = [
-    {label: 'Delete', icon: 'pi pi-trash', command: onEdgeDelete},
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: onEdgeDelete,
+    },
   ];
 
   const nodeContextMenuModel = [
     {
+      label: 'Edit',
+      icon: <span className="material-symbols-outlined">edit_square</span>,
+      command: onNodeEdit,
+    },
+    {
       label: 'Connect',
       icon: 'pi pi-arrow-right-arrow-left',
-      command: onNodeConnect,
+      command: onNodeConnectStart,
     },
-    {label: 'Edit', icon: 'pi pi-pen-to-square', command: onNodeEdit},
-    {label: 'Delete', icon: 'pi pi-trash', command: onNodeDelete},
+    {separator: true},
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: onNodeDelete,
+    },
   ];
 
   const graphContextMenuModel = [
@@ -790,11 +817,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     {
       label: 'Connect',
       icon: 'pi pi-arrow-right-arrow-left',
-      command: onNodeConnect,
+      command: onNodeConnectStart,
     },
     {
       label: 'Edit',
-      icon: 'pi pi-pen-to-square',
+      icon: <span className="material-symbols-outlined">edit_square</span>,
       command: onNodeEdit,
     },
     {
@@ -849,9 +876,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
             false,
           );
         }}
-        headerTitle="Set Group Label"
+        headerTitle="Edit group"
         submitLabel="Ok"
         onShow={() => groupRenameInput.current?.input.current?.focus()}
+        width="400px"
       >
         <SBInput
           ref={groupRenameInput}
@@ -861,7 +889,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           }
           placeholder="e.g. Backbone"
           id="node-editor-group-name"
-          label="Group Name"
+          label="Name"
         />
       </SBDialog>
     </div>

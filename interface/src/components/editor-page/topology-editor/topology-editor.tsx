@@ -376,6 +376,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }
 
+  console.log('OPEN BIND FGILE:', openBindFile);
+
   return (
     <>
       <title>{pageTitle}</title>
@@ -387,12 +389,27 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       >
         <div className="sb-topology-editor-toolbar">
           <div className="sb-topology-editor-toolbar-left">
-            <span className="sb-topology-editor-toolbar-subtitle">
-              {topologyCollection?.name} /
-            </span>
-            <span className="sb-topology-editor-toolbar-title">
-              {`${openTopology?.name}${topologyStore.manager.hasEdits() ? '*' : ''}`}
-            </span>
+            <Choose>
+              <When condition={openTopology}>
+                <span className="sb-topology-editor-toolbar-subtitle">
+                  <span className="material-symbols-outlined">inventory_2</span>
+                  {topologyCollection!.name} /
+                </span>
+                <div className="sb-topology-editor-toolbar-title">
+                  <span className="material-symbols-outlined">
+                    network_node
+                  </span>
+                  {`${openTopology?.name}${topologyStore.manager.hasEdits() ? '*' : ''}`}
+                </div>
+              </When>
+              <When condition={openBindFile}>
+                <span className="sb-topology-editor-toolbar-title">
+                  <span className="material-symbols-outlined">description</span>
+                  {openBindFile!.filePath}
+                </span>
+              </When>
+              <Otherwise></Otherwise>
+            </Choose>
             <span className="sb-editor-toolbar-separator" />
             <Button
               text
@@ -505,7 +522,6 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         <div className="sb-topology-editor-footer">
           <div
             className="sb-monaco-wrapper-error"
-            data-testid="validation-status"
             data-validation-state={ValidationState[
               validationState
             ]?.toLowerCase()}
@@ -535,10 +551,6 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 <span>Valid</span>
               </Otherwise>
             </Choose>
-            <Tooltip
-              className="sb-monaco-wrapper-error-tooltip"
-              target=".sb-monaco-wrapper-error"
-            />
           </div>
           <span>{currentLanguage}</span>
           <div className="sb-topology-editor-footer-position">
@@ -554,6 +566,10 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
           </If>
         </div>
       </div>
+      <Tooltip
+        className="sb-monaco-wrapper-error-tooltip"
+        target=".sb-monaco-wrapper-error"
+      />
       <SyncOverlay
         popOverRef={syncOverlayRef}
         topology={openTopology}

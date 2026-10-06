@@ -241,7 +241,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           id="edit-topology-collection"
           label="Collection"
           placeholder="Select a collection"
-          icon={<span className="material-symbols-outlined">folder</span>}
+          icon={<span className="material-symbols-outlined">inventory_2</span>}
           hasFilter={false}
           useSelectTemplate={true}
           useItemTemplate={true}

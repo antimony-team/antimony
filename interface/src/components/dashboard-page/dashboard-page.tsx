@@ -224,7 +224,7 @@ const DashboardPage = observer(() => {
               })}
               onClick={() => setCollectionFilter(collection.id)}
             >
-              <i className="pi pi-folder"></i>
+              <span className="material-symbols-outlined">inventory_2</span>
               <span className="sb-explorer-item-label">{collection.name}</span>
               <div className="sb-explorer-item-count">
                 <div className="sb-explorer-item-dots">

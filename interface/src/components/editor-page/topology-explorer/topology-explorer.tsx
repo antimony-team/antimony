@@ -94,13 +94,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         key: collection.id,
         label: collection.name,
         className: 'sb-explorer-collection-node',
-        icon: (
-          <span className="material-symbols-outlined">
-            {authUser.isAdmin || collection.publicWrite
-              ? 'bookmark_manager'
-              : 'folder_eye'}
-          </span>
-        ),
+        icon: <span className="material-symbols-outlined">inventory_2</span>,
         selectable: true,
         leaf: false,
         draggable: false,
@@ -219,6 +213,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onSelectionChange(e: TreeSelectionEvent) {
     if (e.value === null) return;
 
+    // If the node is a collection or a bind file directory
     if (
       collectionStore.lookup.get(e.value as string) ||
       (e.value as string).split('-').length === 6
@@ -229,7 +224,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         else next[e.value as string] = true;
         return next;
       });
-    } else if (topologyStore.lookup.get(e.value as string)) {
+    } else {
       executeEditDiscardingAction(() => props.onOpenFile(e.value as string));
     }
   }
@@ -704,7 +699,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           {
             id: 'edit',
             label: 'Edit',
-            icon: 'pi pi-file-edit',
+            icon: (
+              <span className="material-symbols-outlined">edit_square</span>
+            ),
             command: onEditCollectionContext,
           },
           {
@@ -750,7 +747,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           {
             id: 'new-file',
             label: 'New file',
-            icon: 'pi pi-file-edit',
+            icon: <span className="material-symbols-outlined">note_add</span>,
             command: onAddBindFileContext,
           },
           {
@@ -765,7 +762,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           {
             id: 'edit',
             label: 'Edit',
-            icon: 'pi pi-file-edit',
+            icon: (
+              <span className="material-symbols-outlined">edit_square</span>
+            ),
             command: onEditTopologyContext,
           },
           {
@@ -810,7 +809,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           {
             id: 'edit',
             label: 'Edit',
-            icon: 'pi pi-file-edit',
+            icon: (
+              <span className="material-symbols-outlined">edit_square</span>
+            ),
             command: onEditBindFileContext,
           },
           {
@@ -843,7 +844,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           {
             id: 'edit',
             label: 'Edit',
-            icon: 'pi pi-file-edit',
+            icon: (
+              <span className="material-symbols-outlined">edit_square</span>
+            ),
             command: onEditBindFileDirectoryContext,
           },
           {
