@@ -19,7 +19,6 @@ import cytoscape, {NodeSingular} from 'cytoscape';
 
 // @ts-expect-error This library does not have a type declaration
 import coseBilkent from 'cytoscape-cose-bilkent';
-import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
@@ -762,32 +761,27 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   const graphContextMenuModel = [
     {
-      label: 'Add Node',
+      label: 'Add node',
       icon: 'pi pi-plus',
       command: props.onAddNode,
     },
     {
-      label: 'Group Nodes',
-      icon: <span className="material-symbols-outlined">Ink_Selection</span>,
+      label: 'Create group',
+      icon: <span className="material-symbols-outlined">select</span>,
       command: onDrawStart,
     },
     {
-      label: 'Fit Graph',
-      icon: (
-        <ExpandLines
-          style={{transform: 'rotate(90deg)'}}
-          width={24}
-          height={24}
-        />
-      ),
+      label: 'Fit graph',
+      icon: <span className="material-symbols-outlined">fit_screen</span>,
       command: onFitGraph,
     },
     {
       separator: true,
     },
     {
-      label: 'Clear Graph',
+      label: 'Clear graph',
       icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
       command: onClearGraph,
     },
   ];

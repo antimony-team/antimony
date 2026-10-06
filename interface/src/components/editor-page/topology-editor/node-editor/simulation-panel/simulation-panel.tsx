@@ -4,7 +4,6 @@ import classNames from 'classnames';
 import {Button} from 'primereact/button';
 import {Slider} from 'primereact/slider';
 import {observer} from 'mobx-react-lite';
-import {Divider} from 'primereact/divider';
 
 import {
   SimulationConfig,
@@ -12,6 +11,7 @@ import {
 } from '../state/simulation-config';
 
 import './simulation-panel.sass';
+import {If} from '@sb/types/control';
 
 interface SimulationPanelProps {
   onStabilizeGraph: () => void;
@@ -19,6 +19,18 @@ interface SimulationPanelProps {
 
 const SimulationPanel = observer((props: SimulationPanelProps) => {
   const simulationConfig = useSimulationConfig();
+  const defaults = SimulationConfig.DefaultPhysics;
+
+  const isDefault =
+    simulationConfig.edgeElasticity === defaults.edgeElasticity &&
+    simulationConfig.idealEdgeLength === defaults.idealEdgeLength &&
+    simulationConfig.nodeRepulsion === defaults.nodeRepulsion;
+
+  function onResetAll() {
+    simulationConfig.setSpringConstant(defaults.edgeElasticity);
+    simulationConfig.setSpringLength(defaults.idealEdgeLength);
+    simulationConfig.setNodeRepulsion(defaults.nodeRepulsion);
+  }
 
   return (
     <div
@@ -29,49 +41,64 @@ const SimulationPanel = observer((props: SimulationPanelProps) => {
         },
       )}
     >
-      <span className="simulation-panel-title">Graph Stabilization</span>
-      <ConfigSlider
-        header="Edge Elasticity"
-        minValue={0.01}
-        maxValue={0.2}
-        step={0.01}
-        value={simulationConfig.edgeElasticity}
-        onChange={simulationConfig.setSpringConstant}
-        defaultValue={SimulationConfig.DefaultPhysics.edgeElasticity}
-      />
-      <ConfigSlider
-        header="Edge Length"
-        minValue={10}
-        maxValue={300}
-        value={simulationConfig.idealEdgeLength}
-        onChange={simulationConfig.setSpringLength}
-        defaultValue={SimulationConfig.DefaultPhysics.idealEdgeLength}
-      />
-      <ConfigSlider
-        header="Node Repulsion"
-        minValue={1}
-        maxValue={100}
-        multiplier={1000}
-        value={simulationConfig.nodeRepulsion}
-        onChange={simulationConfig.setNodeRepulsion}
-        defaultValue={SimulationConfig.DefaultPhysics.nodeRepulsion}
-      />
-      <Divider />
-      <Button
-        className="simulation-panel-stabilize"
-        outlined
-        icon={
-          simulationConfig.isStabilizing
-            ? 'pi pi-spin pi-spinner'
-            : 'pi pi-sparkles'
-        }
-        label="Stabilize Graph"
-        disabled={
-          simulationConfig.liveSimulation || simulationConfig.isStabilizing
-        }
-        onClick={props.onStabilizeGraph}
-        aria-label="Stabilize Graph"
-      />
+      <div className="simulation-panel-header">
+        <span className="simulation-panel-title">Graph stabilization</span>
+        <Button
+          text
+          className="simulation-panel-reset-all"
+          label="Reset"
+          disabled={isDefault || simulationConfig.isStabilizing}
+          onClick={onResetAll}
+        />
+      </div>
+      <div className="simulation-panel-content">
+        <ConfigSlider
+          header="Edge elasticity"
+          minValue={0.01}
+          maxValue={0.2}
+          step={0.01}
+          value={simulationConfig.edgeElasticity}
+          onChange={simulationConfig.setSpringConstant}
+          defaultValue={defaults.edgeElasticity}
+          disabled={simulationConfig.isStabilizing}
+        />
+        <ConfigSlider
+          header="Edge length"
+          minValue={10}
+          maxValue={300}
+          value={simulationConfig.idealEdgeLength}
+          onChange={simulationConfig.setSpringLength}
+          defaultValue={defaults.idealEdgeLength}
+          disabled={simulationConfig.isStabilizing}
+        />
+        <ConfigSlider
+          header="Node repulsion"
+          minValue={1}
+          maxValue={100}
+          multiplier={1000}
+          value={simulationConfig.nodeRepulsion}
+          onChange={simulationConfig.setNodeRepulsion}
+          defaultValue={defaults.nodeRepulsion}
+          disabled={simulationConfig.isStabilizing}
+        />
+      </div>
+      <div className="simulation-panel-footer">
+        <Button
+          className="simulation-panel-stabilize"
+          outlined
+          icon={
+            simulationConfig.isStabilizing
+              ? 'pi pi-spin pi-spinner'
+              : 'pi pi-sparkles'
+          }
+          label={simulationConfig.isStabilizing ? 'Stabilizing…' : 'Stabilize'}
+          disabled={
+            simulationConfig.liveSimulation || simulationConfig.isStabilizing
+          }
+          onClick={props.onStabilizeGraph}
+          aria-label="Stabilize graph"
+        />
+      </div>
     </div>
   );
 });
@@ -88,34 +115,52 @@ interface ConfigSliderProps {
   onChange: (value: number) => void;
 
   step?: number;
+  disabled?: boolean;
 }
 
-const ConfigSlider = (props: ConfigSliderProps) => (
-  <>
-    <span className="simulation-panel-heading">{props.header}</span>
-    <div className="flex simulation-panel-group">
-      <span className="simulation-panel-value">{props.minValue}</span>
+const ConfigSlider = (props: ConfigSliderProps) => {
+  const normalized = props.value / (props.multiplier ?? 1); // normalize for slider
+  const isModified = props.value !== props.defaultValue;
+
+  return (
+    <div className="simulation-panel-slider">
+      <div className="simulation-panel-heading">
+        <span className="simulation-panel-label">{props.header}</span>
+        <If condition={isModified}>
+          <Button
+            className="simulation-panel-reset"
+            icon="pi pi-undo"
+            text
+            disabled={props.disabled}
+            onClick={() => props.onChange(props.defaultValue)}
+            aria-label="Reset to default"
+          />
+        </If>
+        <span
+          className={classNames('simulation-panel-value', {
+            modified: isModified,
+          })}
+        >
+          {Number(normalized.toFixed(2))}
+        </span>
+      </div>
       <Slider
         min={props.minValue}
         max={props.maxValue}
-        value={props.value / (props.multiplier ?? 1)} // normalize for slider
+        value={normalized}
         step={props.step}
+        disabled={props.disabled}
         onChange={e => {
           const scaled = (e.value as number) * (props.multiplier ?? 1);
           props.onChange(scaled);
         }}
       />
-      <span className="simulation-panel-value">{props.maxValue}</span>
-      <Button
-        className="simulation-panel-reset"
-        icon="pi pi-undo"
-        outlined
-        text
-        onClick={() => props.onChange(props.defaultValue)}
-        aria-label="Reset"
-      />
+      <div className="simulation-panel-range">
+        <span>{props.minValue}</span>
+        <span>{props.maxValue}</span>
+      </div>
     </div>
-  </>
-);
+  );
+};
 
 export default SimulationPanel;

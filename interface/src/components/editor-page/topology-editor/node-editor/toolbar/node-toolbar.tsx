@@ -1,7 +1,6 @@
 import React from 'react';
 
 import classNames from 'classnames';
-import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
 import {Button} from 'primereact/button';
 import {Divider} from 'primereact/divider';
@@ -27,37 +26,30 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
       <Button
         icon="pi pi-plus"
         text
-        tooltip="Add Node"
+        tooltip="Add node"
         onClick={props.onAddNode}
-        aria-label="Add Node"
+        aria-label="Add node"
+      />
+      <Button
+        icon={<span className="material-symbols-outlined">select</span>}
+        text
+        onClick={props.onDrawGroup}
+        tooltip="Create group"
+        aria-label="Create group"
+      />
+      <Button
+        icon={<span className="material-symbols-outlined">fit_screen</span>}
+        text
+        tooltip="Fit graph"
+        onClick={props.onFitGraph}
+        aria-label="Fit graph"
       />
       <Button
         icon="pi pi-trash"
         text
         onClick={topologyStore.manager.clear}
-        tooltip="Clear Graph"
-        aria-label="Clear Graph"
-      />
-      <Button
-        icon={<span className="material-symbols-outlined">Ink_Selection</span>}
-        text
-        onClick={props.onDrawGroup}
-        tooltip="Group Nodes"
-        aria-label="Group Nodes"
-      />
-      <Button
-        className="sb-iconoir-button"
-        icon={
-          <ExpandLines
-            style={{transform: 'rotate(90deg)'}}
-            width={24}
-            height={24}
-          />
-        }
-        text
-        tooltip="Fit Graph"
-        onClick={props.onFitGraph}
-        aria-label="Fit Graph"
+        tooltip="Clear graph"
+        aria-label="Clear graph"
       />
       <Divider />
       <Button

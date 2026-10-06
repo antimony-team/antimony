@@ -156,7 +156,6 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
   return (
     <SBDialog
       isOpen={props.isOpen}
-      headerIcon={deviceStore.getNodeIcon(nodeEditor?.getNode())}
       headerTitle={!props.editingNode ? 'Add Node' : 'Edit Node'}
       className="sb-node-edit-dialog"
       submitLabel="Save"

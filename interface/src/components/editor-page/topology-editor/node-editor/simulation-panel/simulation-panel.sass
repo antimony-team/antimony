@@ -1,56 +1,143 @@
 .sb-node-editor-simulation-panel
   position: absolute
-  right: 8px
-  top: 8px
-  background-color: var(--surface-overlay)
+  left: 78px
+  top: 12px
+  background-color: var(--surface-raised)
   border: 1px solid var(--border)
   z-index: 10
-  border-radius: 4px
+  border-radius: 12px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
   display: flex
   flex-direction: column
-  padding: 12px
-  width: 230px
+  width: 280px
 
-  .simulation-panel-title
-    font-size: 16pt
-    font-weight: 700
-
-  .simulation-panel-value
-    font-size: 11pt
-    width: 30px
-
-  .simulation-panel-heading
-    font-weight: 600
-    margin-top: 8px
-
-  .simulation-panel-group
+  .simulation-panel-header
     display: flex
     align-items: center
-    gap: 4px
+    justify-content: space-between
+    height: 44px
+    padding: 0 8px 0 14px
+    border-bottom: 1px solid var(--border)
+
+  .simulation-panel-title
+    font-size: 18px
+    font-weight: 600
+
+  .simulation-panel-reset-all
+    display: flex
+    align-items: center
+    height: 26px
+    padding: 0 8px
+    gap: 6px
+    font-size: 14px
+    color: var(--text-muted)
+
+    .p-button-icon
+      font-size: 12px
+
+    &:disabled
+      color: var(--text-faint)
+      opacity: 1
+
+  .simulation-panel-content
+    display: flex
+    flex-direction: column
+    gap: 14px
+    padding: 14px 14px 12px
+
+  .simulation-panel-slider
+    display: flex
+    flex-direction: column
+    gap: 6px
+
+  .simulation-panel-heading
+    display: flex
+    align-items: center
+    gap: 6px
+    height: 22px
+
+  .simulation-panel-label
+    flex-grow: 1
+    font-size: 15px
+    color: var(--text-muted)
+
+  .simulation-panel-value
+    min-width: 44px
+    text-align: right
+    font-family: 'JetBrains Mono', monospace
+    font-size: 14px
+    font-variant-numeric: tabular-nums
+
+    &.modified
+      color: var(--accent)
 
   .simulation-panel-reset
-    padding: 4px !important
-    width: 28px
-    margin-left: 4px
+    width: 22px
+    height: 22px
+    padding: 0
+    border-radius: 6px
+    background: var(--hover)
+    color: var(--text-muted)
+
+    .p-button-icon
+      font-size: 14px
+
+  .simulation-panel-range
+    display: flex
+    justify-content: space-between
+    font-family: 'JetBrains Mono', monospace
+    font-size: 12px
+    color: var(--text-faint)
+
+  .p-slider
+    height: 5px
+    margin: 6px 0
+    border-radius: 2px
+    background: var(--active)
+
+    .p-slider-range
+      border-radius: 2px
+      background: var(--accent)
+
+    .p-slider-handle
+      width: 18px
+      height: 18px
+      margin-top: -9px
+      margin-left: -9px
+      border: 2px solid var(--surface-overlay)
+      background: #e9eaec
+      transition: box-shadow .15s
+
+      &:hover,
+      &:focus-visible
+        background: #e9eaec
+        border-color: var(--surface-overlay)
+        box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent)
+
+    &.p-disabled
+      opacity: 1
+
+      .p-slider-range
+        background: var(--border-strong)
+
+      .p-slider-handle
+        background: var(--text-muted)
+
+  .simulation-panel-footer
+    padding: 12px 14px 14px
+    border-top: 1px solid var(--border)
 
   .simulation-panel-stabilize
-    margin-top: 4px
+    width: 100%
+    height: 36px
     justify-content: center
-    padding: 8px
+    gap: 8px
+    font-weight: 500
+    color: var(--text)
+    border-color: var(--border-strong)
+
+    .p-button-icon
+      color: var(--accent)
 
     .p-button-label
       flex: 0 0 auto
-
-  .p-slider
-    flex-grow: 1
-    margin-right: 10px
-    margin-left: 10px
-
-  .p-divider
-    padding: 0
-    margin-top: 4px
-    margin-bottom: 4px
-
-    &::before
-      border-top-color: var(--border)
-      filter: brightness(0.7)
