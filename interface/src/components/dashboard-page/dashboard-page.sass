@@ -106,6 +106,9 @@
     padding: 16px 16px 8px
     gap: 12px
 
+    .p-button
+      flex-shrink: 0
+
     .sb-dashboard-container-header-title
       font-size: 20px
 
@@ -124,6 +127,8 @@
 
     .sb-dashboard-filter-chips
       display: flex
+      flex-wrap: wrap
+      gap: 8px
 
       .sb-dashboard-filter-chip
         display: inline-flex
@@ -134,7 +139,6 @@
         padding: 8px 12px
         border-radius: 8px
         background-color: transparent
-        margin-right: 8px
         border: 1px solid var(--border)
         color: var(--text-muted)
 
@@ -183,6 +187,7 @@
     gap: 8px
     align-items: start
     padding: 16px
+    overflow-y: auto
 
     .sb-dashboard-lab-card-footer-owner
       display: flex

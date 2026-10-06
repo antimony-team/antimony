@@ -49,13 +49,12 @@ interface SBInputProps {
 }
 
 const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
-  const inputFieldRef = useRef<HTMLInputElement>(null);
-
   const [isEditing, setEditing] = useState(false);
   const [content, setContent] = useState(props.defaultValue);
   const [validationError, setValidationError] = useState<string | null>(null);
   const inputId = useId();
 
+  const inputFieldRef = useRef<HTMLInputElement>(null);
   const tooltipRef = useRef<TooltipRefProps>(null);
 
   useImperativeHandle(ref, () => {
@@ -124,7 +123,6 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
         isOpen={!!validationError}
         content={validationError ?? undefined}
         place="right"
-        className="sb-input-validation-tooltip"
       />
       <Choose>
         <When condition={props.doubleClick}></When>

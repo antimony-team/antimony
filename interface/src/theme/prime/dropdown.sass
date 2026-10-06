@@ -19,10 +19,10 @@
       flex: 0 0 auto
       line-height: 1
 
-  &:not(.p-disabled):hover
+  &:not(.p-disabled):not(.sb-dropdown-error):hover
     border-color: var(--border-strong)
 
-  &.p-focus, &.p-dropdown-open
+  &.p-focus:not(.sb-dropdown-error), &.p-dropdown-open:not(.sb-dropdown-error)
     border-color: var(--border-strong)
 
   .p-dropdown-label:focus

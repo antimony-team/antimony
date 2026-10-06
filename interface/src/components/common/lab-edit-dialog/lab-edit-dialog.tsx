@@ -1,5 +1,7 @@
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
+import SBDropdown, {
+  SBDropdownRef,
+} from '@sb/components/common/sb-dropdown/sb-dropdown';
 
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 
@@ -20,6 +22,7 @@ import {Calendar} from 'primereact/calendar';
 import {Nullable} from 'primereact/ts-helpers';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {If} from '@sb/types/control';
+import {ErrorCodes} from '@sb/types/error-codes';
 
 export interface LabEditDialogState {
   // Set to null if the dialog is meant to add a new lab
@@ -51,6 +54,14 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
     endTime: dayjs(new Date()).add(2, 'hour').toDate(),
   }));
 
+  const labNameRef = useRef<SBInputRef>(null);
+  const topologyDropdownRef = useRef<SBDropdownRef>(null);
+
+  const labStore = useLabStore();
+  const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
+  const notificationStore = useStatusMessages();
+
   const [originalLab, setOriginalLab] = useState<LabEdit>({
     name: props.dialogState.state?.editingLab?.name ?? '',
     topologyId: props.dialogState.state?.topologyId ?? '',
@@ -75,10 +86,21 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       return;
     }
 
+    let isError = false;
+
     if (editingLab.name === '') {
       labNameRef.current?.setValidationError("Name can't be empty");
-      return;
+      isError = true;
     }
+
+    if (editingLab.topologyId === '') {
+      topologyDropdownRef.current?.setValidationError(
+        "You didn't select a topology",
+      );
+      isError = true;
+    }
+
+    if (isError) return;
 
     if (props.dialogState.state.action === DialogAction.Edit) {
       if (isEqual(originalLab, editingLab)) {
@@ -95,7 +117,13 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         },
       );
       if (result.isErr()) {
-        notificationStore.error(result.error.message, 'Failed to edit lab');
+        if (result.error.code === ErrorCodes.ErrorLabNameExists) {
+          labNameRef.current?.setValidationError(
+            'A lab with that name already exists.',
+          );
+        } else {
+          notificationStore.error(result.error.message, 'Failed to edit lab');
+        }
       } else {
         notificationStore.success('Lab has been updated successfully.');
         props.dialogState.close();
@@ -109,7 +137,16 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       };
       void labStore.add<string>(newLab).then(result => {
         if (result.isErr()) {
-          notificationStore.error(result.error.message, 'Failed to update lab');
+          if (result.error.code === ErrorCodes.ErrorLabNameExists) {
+            labNameRef.current?.setValidationError(
+              'A lab with that name already exists',
+            );
+          } else {
+            notificationStore.error(
+              result.error.message,
+              'Failed to update lab',
+            );
+          }
         } else {
           notificationStore.success('Lab has been created successfully.');
           props.dialogState.close();
@@ -117,13 +154,6 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       });
     }
   }
-
-  const labNameRef = useRef<SBInputRef>(null);
-
-  const labStore = useLabStore();
-  const topologyStore = useTopologyStore();
-  const collectionStore = useCollectionStore();
-  const notificationStore = useStatusMessages();
 
   // Reset editing object when the dialog is opened
   useEffect(() => {
@@ -152,11 +182,11 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
 
     switch (props.dialogState.state.action) {
       case DialogAction.Add:
-        return 'Deploy Topology';
+        return 'Deploy topology';
       case DialogAction.Edit:
-        return 'Edit Lab';
+        return 'Edit lab';
       case DialogAction.Duplicate:
-        return 'Redeploy Lab';
+        return 'Redeploy lab';
     }
   }
 
@@ -201,6 +231,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         />
         <If condition={props.dialogState.state?.action === DialogAction.Add}>
           <SBDropdown
+            ref={topologyDropdownRef}
             id="edit-lab-topology"
             label="Topology"
             icon={

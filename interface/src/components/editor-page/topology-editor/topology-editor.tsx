@@ -41,7 +41,7 @@ import EditorViewSwitch, {
 import {Badge} from 'primereact/badge';
 import {Tooltip} from 'primereact/tooltip';
 import {pluralize} from '@sb/lib/utils/utils';
-import {usePersistentState} from '@sb/lib/utils/hooks';
+import {usePersistentState} from '@sb/lib/utils/persistent-state';
 
 export enum ValidationState {
   Working,

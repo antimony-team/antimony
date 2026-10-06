@@ -1,0 +1,34 @@
+.sb-lab-preview
+  height: 96px
+  display: flex
+  align-items: center
+  justify-content: center
+  background-color: var(--surface-sunken)
+  background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px)
+  background-size: 14px 14px
+  border-bottom: 1px solid var(--border)
+
+  svg
+    width: 100%
+    height: 100%
+
+  line
+    stroke: var(--text)
+
+  rect
+    fill: var(--text-faint)
+
+  &.running rect
+    fill: var(--accent)
+
+  &.scheduled rect
+    fill: var(--surface-sunken)
+    stroke: var(--info-color-text)
+    stroke-width: 1.5
+
+  .sb-lab-preview-empty
+    display: flex
+    align-items: center
+    gap: 10px
+    font-size: 12px
+    color: var(--text-faint)

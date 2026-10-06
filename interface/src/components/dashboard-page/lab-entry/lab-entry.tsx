@@ -6,13 +6,13 @@ import {
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
-import {ButtonProps} from 'primereact/button';
 import React, {useMemo} from 'react';
 
 import './lab-entry.sass';
 import {observer} from 'mobx-react-lite';
 import {If} from '@sb/types/control';
 import classNames from 'classnames';
+import LabEntryPreview from '@sb/components/dashboard-page/lab-entry/lab-entry-preview/lab-entry-preview';
 import {formatDuration} from '@sb/lib/utils/utils';
 
 interface LabEntryProps {
@@ -23,15 +23,6 @@ interface LabEntryProps {
 
   onDestroyLabRequest: () => void;
 }
-
-const defaultLabButtonProps: ButtonProps = {
-  text: true,
-  size: 'large',
-  tooltipOptions: {
-    position: 'bottom',
-    showDelay: 200,
-  },
-};
 
 const LabEntry = observer((props: LabEntryProps) => {
   const authUser = useAuthUser();
@@ -45,30 +36,49 @@ const LabEntry = observer((props: LabEntryProps) => {
     return authUser.isAdmin || props.lab.creator.id === authUser.id;
   }, [authUser]);
 
-  function generateDisplayDate(lab: Lab): string {
-    switch (lab.state) {
+  const [stateProgress, stateText] = useMemo((): [number, string] => {
+    switch (props.lab.state) {
+      case InstanceState.Running: {
+        if (!props.lab.instance?.deployed) return [0, ''];
+
+        const start = props.lab.instance.deployed.getTime();
+        const end = props.lab.endTime?.getTime();
+        const uptime = `up ${formatDuration(clock.now - start)}`;
+
+        if (!end || clock.now >= end) return [1, uptime];
+
+        const remaining = Math.min(
+          1,
+          Math.max(0, (end - clock.now) / (end - start)),
+        );
+        return [remaining, `${formatDuration(end - clock.now)} left`];
+      }
+      case InstanceState.Deploying: {
+        const nodes = props.lab.instance?.nodes ?? [];
+        if (!nodes.length) return [0, ''];
+
+        const ready = nodes.filter(n => n.isReady).length;
+        return [ready / nodes.length, `${ready} of ${nodes.length} ready`];
+      }
       case InstanceState.Scheduled:
-        return lab.startTime.toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-      case InstanceState.Deploying:
-      case InstanceState.Running:
-        return lab.startTime.toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-      case InstanceState.Inactive:
-      case InstanceState.Stopping:
+        return [0, `starts ${formatWhen(props.lab.startTime, clock.now)}`];
       case InstanceState.Failed:
-        return lab.startTime.toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        return props.lab.instance!.deployed
+          ? [1, `failed ${formatWhen(props.lab.instance!.deployed, clock.now)}`]
+          : [1, ''];
       default:
-        return '';
+        return [0, ''];
     }
-  }
+  }, [props.lab, clock.now]);
+
+  const topologyName = useMemo(() => {
+    const topologyName = props.lab.topologyDefinition.definition.getIn([
+      'name',
+    ]);
+    const collectionName =
+      collectionStore.lookup.get(props.lab.collectionId)?.name ?? 'unknown';
+    return `${collectionName} / ${topologyName}`;
+  }, [props.lab]);
 
   function onDeleteScheduledLab() {
     notificationStore.confirm({
@@ -110,41 +120,6 @@ const LabEntry = observer((props: LabEntryProps) => {
     return `${date.toLocaleDateString([], {day: 'numeric', month: 'short'})} ${time}`;
   }
 
-  const [stateProgress, stateText] = useMemo((): [number, string] => {
-    switch (props.lab.state) {
-      case InstanceState.Running: {
-        if (!props.lab.instance?.deployed) return [0, ''];
-
-        const start = props.lab.instance.deployed.getTime();
-        const end = props.lab.endTime?.getTime();
-        const uptime = `up ${formatDuration(clock.now - start)}`;
-
-        if (!end || clock.now >= end) return [1, uptime];
-
-        const remaining = Math.min(
-          1,
-          Math.max(0, (end - clock.now) / (end - start)),
-        );
-        return [remaining, `${formatDuration(end - clock.now)} left`];
-      }
-      case InstanceState.Deploying: {
-        const nodes = props.lab.instance?.nodes ?? [];
-        if (!nodes.length) return [0, ''];
-
-        const ready = nodes.filter(n => n.isReady).length;
-        return [ready / nodes.length, `${ready} of ${nodes.length} ready`];
-      }
-      case InstanceState.Scheduled:
-        return [0, `starts ${formatWhen(props.lab.startTime, clock.now)}`];
-      case InstanceState.Failed:
-        return props.lab.instance!.deployed
-          ? [1, `failed ${formatWhen(props.lab.instance!.deployed, clock.now)}`]
-          : [1, ''];
-      default:
-        return [0, ''];
-    }
-  }, [props.lab, clock.now]);
-
   return (
     <div
       className={classNames(
@@ -161,15 +136,20 @@ const LabEntry = observer((props: LabEntryProps) => {
         </span>
         <span className="sb-dashboard-lab-card-band-time">{stateText}</span>
       </div>
+      <LabEntryPreview
+        topology={props.lab.topologyDefinition}
+        className={InstanceState[props.lab.state]?.toLowerCase()}
+      />
       <div className="sb-dashboard-lab-content">
         <div className="sb-dashboard-lab-card-header">
           <span>{props.lab.name}</span>
+          <span className="sb-dashboard-lab-card-header-nodes">
+            {props.lab.topologyDefinition.nodeCount} nodes
+          </span>
         </div>
         <div className="sb-dashboard-lab-card-footer">
-          <span>
-            {collectionStore.lookup.get(props.lab.collectionId)?.name ??
-              'unknown'}
-          </span>
+          <span className="material-symbols-outlined">network_node</span>
+          <span>{topologyName}</span>
           <div className="sb-dashboard-lab-card-footer-owner">
             <i className="pi pi-user" />
             <span>{props.lab.creator.name}</span>

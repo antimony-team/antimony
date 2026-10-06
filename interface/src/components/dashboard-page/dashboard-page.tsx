@@ -25,6 +25,7 @@ import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 import {Button} from 'primereact/button';
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
+import {oneOf, setOf, usePersistentState} from '@sb/lib/utils/persistent-state';
 
 const stateOrder: Record<InstanceState, number> = {
   [InstanceState.Running]: 0,
@@ -73,7 +74,12 @@ const DashboardPage = observer(() => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [openLab, setOpenLab] = useState<Lab | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const [collapsed, setCollapsed] = usePersistentState<Set<string>>(
+    'dashboard-collapsed-groups',
+    new Set(['Inactive']),
+    setOf(oneOf('Active', 'Inactive', 'Archived')),
+  );
 
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
@@ -212,7 +218,7 @@ const DashboardPage = observer(() => {
             <span className="material-symbols-outlined">stacks</span>
             <span className="sb-explorer-item-label">All labs</span>
             <span className="sb-explorer-item-count">
-              {collectionStore.data.length}
+              {labStore.data.length}
             </span>
           </a>
           <span className="sb-dashboard-explorer-title">Collections</span>
@@ -246,7 +252,7 @@ const DashboardPage = observer(() => {
           minSize={60}
         >
           <div className="sb-dashboard-container-header">
-            <div className="flex-grow-1">
+            <div className="flex-grow-1 flex-shrink-0">
               <span className="sb-dashboard-container-header-title">
                 {collectionFilter
                   ? collectionStore.lookup.get(collectionFilter)!.name

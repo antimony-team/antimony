@@ -1,4 +1,12 @@
-import React, {ReactElement} from 'react';
+import React, {
+  forwardRef,
+  ReactElement,
+  RefObject,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 
 import classNames from 'classnames';
 import {SelectItem} from 'primereact/selectitem';
@@ -11,6 +19,7 @@ import {
 import {If} from '@sb/types/control';
 
 import './sb-dropdown.sass';
+import {Tooltip, TooltipRefProps} from 'react-tooltip';
 
 interface SBDropdownProps {
   id?: string;
@@ -43,8 +52,30 @@ interface SBDropdownProps {
   onValueSubmit: (value: string) => void;
 }
 
-const SBDropdown = (props: SBDropdownProps) => {
+export interface SBDropdownRef {
+  setValidationError: (msg: string) => void;
+  input: RefObject<HTMLSelectElement | null>;
+}
+
+const SBDropdown = forwardRef<SBDropdownRef, SBDropdownProps>((props, ref) => {
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const inputId = useId();
+
+  const inputFieldRef = useRef<HTMLSelectElement>(null);
+  const tooltipRef = useRef<TooltipRefProps>(null);
+
+  useImperativeHandle(ref, () => {
+    return {
+      setValidationError(msg: string) {
+        setValidationError(msg);
+      },
+      input: inputFieldRef,
+    };
+  }, []);
+
   function onValueSubmit(event: DropdownChangeEvent) {
+    setValidationError(null);
     props.onValueSubmit(event.value);
   }
 
@@ -102,11 +133,20 @@ const SBDropdown = (props: SBDropdownProps) => {
           {props.label}
         </label>
       </If>
+      <Tooltip
+        id={inputId}
+        ref={tooltipRef}
+        isOpen={!!validationError}
+        content={validationError ?? undefined}
+        place="right"
+      />
       <Dropdown
+        inputRef={inputFieldRef}
         disabled={props.disabled}
         inputId={props.id}
         showClear={false}
         value={props.value}
+        data-tooltip-id={inputId}
         optionLabel={props.optionLabel}
         optionGroupLabel={props.optionGroupLabel}
         optionGroupChildren={props.optionGroupChildren}
@@ -129,12 +169,12 @@ const SBDropdown = (props: SBDropdownProps) => {
             : undefined
         }
         className={classNames('sb-dropdown', props.className, {
+          'sb-dropdown-error': !!validationError,
           'sb-dropdown-hidden': props.isHidden,
-          'sb-dropdown-edited': props.wasEdited,
         })}
       />
     </div>
   );
-};
+});
 
 export default SBDropdown;
