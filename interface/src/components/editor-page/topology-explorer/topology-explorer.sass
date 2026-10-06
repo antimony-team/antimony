@@ -1,8 +1,9 @@
 .sb-topology-explorer
   width: 100%
-  height: 100%
-  position: relative
+  border-radius: 12px
   background-color: var(--surface-raised)
+  overflow-y: auto
+  contain: size
 
   // A little workaround to match the separator border with the dashboard page
   .p-tree-header
@@ -30,6 +31,10 @@
 .p-treenode-droppoint
   height: 0
 
+.p-treenode
+  &.sb-explorer-bindfile-directory-node,&.sb-explorer-bindfile-node
+    padding-right: 0
+
 .p-treenode-content
   border: 1px transparent solid
 
@@ -37,10 +42,9 @@
     margin-right: 8px
     color: rgba(255, 255, 255, 0.6)
 
-  &.sb-explorer-bindfile-node, &.sb-explorer-bindfile-directory-node
-    height: 35px
-
   &.sb-explorer-bindfile-node, &.sb-explorer-topology-node, &.sb-explorer-collection-node, &.sb-explorer-bindfile-directory-node
+    padding: 0 4px
+
     .p-button-icon-only
       opacity: 0
 
@@ -48,6 +52,8 @@
         border: unset
 
     &:hover
+      background-color: var(--surface-hover)
+
       .p-button-icon-only
         opacity: 1
 
@@ -56,10 +62,6 @@
 
       .p-button-icon-only
         opacity: 1
-
-  &.sb-explorer-bindfile-node, &.sb-explorer-topology-node
-    &:hover
-      border-color: var(--border)
 
   .sb-input
     width: 160px

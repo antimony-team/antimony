@@ -1,4 +1,6 @@
-import SBConfirm from '@sb/components/common/sb-confirm/sb-confirm';
+import SBConfirm, {
+  SBConfirmDeletePreset,
+} from '@sb/components/common/sb-confirm/sb-confirm';
 
 import './topology-explorer.sass';
 
@@ -8,7 +10,7 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {DialogAction} from '@sb/lib/utils/hooks';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {BindFile, Topology} from '@sb/types/domain/topology';
 import {FetchState, uuid4} from '@sb/types/types';
@@ -39,14 +41,24 @@ import ExplorerTreeNode, {
   ExplorerTreeNodeData,
   ExplorerTreeNodeType,
 } from './explorer-tree-node/explorer-tree-node';
-import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
+import {ArchiveUploadDialogState} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
+import {CollectionEditDialogState} from '@sb/components/editor-page/collection-edit-dialog/collection-edit-dialog';
+import {TopologyEditDialogState} from '@sb/components/editor-page/topology-edit-dialog/topology-edit-dialog';
+import {BindFileEditDialogState} from '@sb/components/editor-page/bind-file-edit-dialog/bind-file-edit-dialog';
+import {BindFileDirectoryEditDialogState} from '@sb/components/editor-page/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
 
 interface TopologyBrowserProps {
   selectedId?: string | null;
 
   onFileSelect: (id: uuid4) => void;
   onTopologyDeploy: (id: uuid4) => void;
+
+  editCollectionState: DialogState<CollectionEditDialogState>;
+  editTopologyState: DialogState<TopologyEditDialogState>;
+  archiveUploadState: DialogState<ArchiveUploadDialogState>;
+  editBindFileState: DialogState<BindFileEditDialogState>;
+  editBindFileDirectoryState: DialogState<BindFileDirectoryEditDialogState>;
 }
 
 const TopologyExplorer = observer((props: TopologyBrowserProps) => {
@@ -61,6 +73,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   const contextMenuRef = useRef<ContextMenu | null>(null);
   const contextMenuTarget = useRef<string | null>(null);
+  const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const topologyTree = useMemo(() => {
     if (collectionStore.data.length === 0) return [];
@@ -88,7 +101,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
               : 'folder_eye'}
           </span>
         ),
-        selectable: false,
+        selectable: true,
         leaf: false,
         draggable: false,
         type: ExplorerTreeNodeType.Collection,
@@ -142,7 +155,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
               icon: <span className="material-symbols-outlined">folder</span>,
               droppable: true,
               leaf: false,
-              selectable: false,
+              selectable: true,
               type: ExplorerTreeNodeType.BindFileDirectory,
               children: [],
             };
@@ -206,11 +219,25 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onSelectionChange(e: TreeSelectionEvent) {
     if (e.value === null) return;
 
+    console.log('e.value: ', e.value);
+
+    if (
+      collectionStore.lookup.get(e.value as string) ||
+      (e.value as string).split('-').length === 6
+    ) {
+      setExpandedKeys(prev => {
+        const next = {...prev};
+        if (next[e.value as string]) delete next[e.value as string];
+        else next[e.value as string] = true;
+        return next;
+      });
+    }
+
     props.onFileSelect(e.value as string);
   }
 
   function onAddBindFile(topologyId: string) {
-    editBindFileState.openWith({
+    props.editBindFileState.openWith({
       editingBindingFile: null,
       owningTopologyId: topologyId,
       action: DialogAction.Add,
@@ -221,7 +248,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (!topologyStore.bindFileLookup.has(bindFileId)) return;
 
     const bindFile = topologyStore.bindFileLookup.get(bindFileId)!;
-    editBindFileState.openWith({
+    props.editBindFileState.openWith({
       editingBindingFile: bindFile,
       owningTopologyId: bindFile.topologyId,
       action: DialogAction.Edit,
@@ -231,7 +258,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onEditBindFileDirectory(topologyId: uuid4, filePath: string) {
     const topology = topologyStore.lookup.get(topologyId)!;
 
-    editBindFileDirectoryState.openWith({
+    props.editBindFileDirectoryState.openWith({
       topology: topology,
       filePath: filePath,
     });
@@ -286,7 +313,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   }
 
   function onAddCollection() {
-    editCollectionState.openWith({
+    props.editCollectionState.openWith({
       editingCollection: null,
       action: DialogAction.Add,
     });
@@ -295,7 +322,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onEditCollection(id: uuid4) {
     if (!collectionStore.lookup.has(id)) return;
 
-    editCollectionState.openWith({
+    props.editCollectionState.openWith({
       editingCollection: collectionStore.lookup.get(id)!,
       action: DialogAction.Edit,
     });
@@ -355,7 +382,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onAddTopology(collectionId: uuid4 | null) {
     if (!collectionId || !collectionStore.lookup.has(collectionId)) return;
 
-    editTopologyState.openWith({
+    props.editTopologyState.openWith({
       editingTopology: null,
       collectionId: collectionId,
       action: DialogAction.Add,
@@ -366,7 +393,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (!topologyStore.lookup.has(topologyId)) return;
 
     const topology = topologyStore.lookup.get(topologyId)!;
-    editTopologyState.openWith({
+    props.editTopologyState.openWith({
       editingTopology: topology,
       collectionId: topology.collectionId,
       action: DialogAction.Edit,
@@ -477,9 +504,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     const bindFile = topologyStore.bindFileLookup.get(bindFileId)!;
 
     notificationStore.confirm({
-      header: `Delete File "${bindFile.filePath}"?`,
-      icon: 'pi pi-exclamation-triangle',
-      severity: 'danger',
+      ...SBConfirmDeletePreset('file'),
+      confirmText: bindFile.filePath,
+      message: `Are you sure you want to delete the file "${bindFile.filePath}"?`,
       onAccept: () => onDeleteBindFileConfirm(bindFileId, bindFile.topologyId),
     });
   }
@@ -521,32 +548,33 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     );
   }
 
-  function onContextMenuTree(e: TreeEventNodeEvent) {
-    e.originalEvent.preventDefault();
-
-    const nodeType = (e.node as ExplorerTreeNodeData).type;
+  function openPopupMenu(e: React.SyntheticEvent, node: ExplorerTreeNodeData) {
     let contextMenuEntries: MenuItem[] = [];
 
-    if (nodeType === ExplorerTreeNodeType.Topology) {
-      contextMenuEntries = getTopologyContextMenu(e.node.key as string);
-    } else if (nodeType === ExplorerTreeNodeType.Collection) {
-      contextMenuEntries = getCollectionContextMenu(e.node.key as string);
-    } else if (nodeType === ExplorerTreeNodeType.BindFile) {
-      contextMenuEntries = getBindFileContextMenu(e.node.key as string);
-    } else if (nodeType === ExplorerTreeNodeType.BindFileDirectory) {
-      contextMenuEntries = getBindFileDirectoryContextMenu(
-        e.node.key as string,
-      );
+    if (node.type === ExplorerTreeNodeType.Topology) {
+      contextMenuEntries = getTopologyContextMenu(node.key as string);
+    } else if (node.type === ExplorerTreeNodeType.Collection) {
+      contextMenuEntries = getCollectionContextMenu(node.key as string);
+    } else if (node.type === ExplorerTreeNodeType.BindFile) {
+      contextMenuEntries = getBindFileContextMenu(node.key as string);
+    } else if (node.type === ExplorerTreeNodeType.BindFileDirectory) {
+      contextMenuEntries = getBindFileDirectoryContextMenu(node.key as string);
     } else {
-      e.originalEvent.stopPropagation();
+      e.stopPropagation();
       return;
     }
 
     if (contextMenuEntries.length > 0) {
       setContextMenuModel(contextMenuEntries);
-      contextMenuTarget.current = e.node.key as string;
-      contextMenuRef!.current!.show(e.originalEvent);
+      contextMenuTarget.current = node.key as string;
+      contextMenuRef!.current!.show(e);
     }
+  }
+
+  function onContextMenuTree(e: TreeEventNodeEvent) {
+    e.originalEvent.preventDefault();
+
+    openPopupMenu(e.originalEvent, e.node as ExplorerTreeNodeData);
   }
 
   const onEditCollectionContext = () => {
@@ -572,6 +600,11 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const onDuplicateTopologyContext = () => {
     if (!contextMenuTarget.current) return;
     onDuplicateTopology(contextMenuTarget.current ?? undefined);
+  };
+
+  const onDownloadTopologyContext = () => {
+    if (!contextMenuTarget.current) return;
+    // onDuplicateTopology(contextMenuTarget.current ?? undefined);
   };
 
   const onDeployTopologyContext = () => {
@@ -613,7 +646,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return [
         {
           id: 'create',
-          label: 'Add Collection',
+          label: 'New collection',
           icon: 'pi pi-plus',
           command: onAddCollection,
         },
@@ -628,26 +661,23 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       const collection = collectionStore.lookup.get(collectionId);
       if (!collection) return [];
 
-      const isWritable = authUser.isAdmin;
+      if (!collection.publicWrite && !authUser.isAdmin) return [];
 
       const entries = [];
 
-      if (collection.publicWrite || authUser.isAdmin) {
-        entries.push({
-          id: 'create',
-          label: 'Add Topology',
-          icon: 'pi pi-plus',
-          command: onAddTopologyContext,
-        });
-      }
+      entries.push({
+        id: 'create',
+        label: 'New topology',
+        icon: 'pi pi-plus',
+        command: onAddTopologyContext,
+      });
 
       if (authUser.isAdmin) {
         entries.push(
           {
             id: 'edit',
-            label: 'Edit Collection',
+            label: 'Edit',
             icon: 'pi pi-file-edit',
-            disabled: !isWritable,
             command: onEditCollectionContext,
           },
           {
@@ -655,9 +685,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           },
           {
             id: 'delete',
-            label: 'Delete Collection',
+            label: 'Delete',
             icon: 'pi pi-trash',
-            disabled: !isWritable,
+            className: 'sb-menuitem-danger',
             command: onDeleteCollectionContext,
           },
         );
@@ -680,7 +710,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
       if (authUser.isAdmin || collection.publicDeploy) {
         entries.push({
-          id: 'create',
+          id: 'deploy',
           label: 'Deploy',
           icon: 'pi pi-play',
           className: 'sb-menuitem-success',
@@ -691,23 +721,44 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       if (authUser.isAdmin || topology.creator.id === authUser.id) {
         entries.push(
           {
+            id: 'new-file',
+            label: 'New file',
+            icon: 'pi pi-file-edit',
+            command: onAddBindFile,
+          },
+          {
+            id: 'new-file',
+            label: 'Upload files',
+            icon: 'pi pi-upload',
+            command: onUploadBindFileArchive,
+          },
+          {
+            separator: true,
+          },
+          {
             id: 'edit',
-            label: 'Edit Topology',
+            label: 'Edit',
             icon: 'pi pi-file-edit',
             command: onEditTopologyContext,
           },
           {
             id: 'duplicate',
-            label: 'Duplicate Topology',
+            label: 'Duplicate',
             icon: 'pi pi-clone',
             command: onDuplicateTopologyContext,
+          },
+          {
+            id: 'download',
+            label: 'Download YAML',
+            icon: 'pi pi-download',
+            command: onDownloadTopologyContext,
           },
           {
             separator: true,
           },
           {
             id: 'delete',
-            label: 'Delete Topology',
+            label: 'Delete',
             icon: 'pi pi-trash',
             className: 'sb-menuitem-danger',
             command: onDeleteTopologyContext,
@@ -731,7 +782,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         entries.push(
           {
             id: 'edit',
-            label: 'Edit File',
+            label: 'Edit',
             icon: 'pi pi-file-edit',
             command: onEditBindFileContext,
           },
@@ -740,7 +791,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           },
           {
             id: 'delete',
-            label: 'Delete File',
+            label: 'Delete',
             icon: 'pi pi-trash',
             className: 'sb-menuitem-danger',
             command: onDeleteBindFileContext,
@@ -764,7 +815,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         entries.push(
           {
             id: 'edit',
-            label: 'Edit Directory',
+            label: 'Edit',
             icon: 'pi pi-file-edit',
             command: onEditBindFileDirectoryContext,
           },
@@ -773,7 +824,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           },
           {
             id: 'delete',
-            label: 'Delete Directory',
+            label: 'Delete',
             icon: 'pi pi-trash',
             className: 'sb-menuitem-danger',
             command: onDeleteBindFileDirectoryContext,
@@ -1029,38 +1080,26 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
   }
 
-  async function onArchiveUpload(topologyId: uuid4, file: File) {
-    const topology = topologyStore.lookup.get(topologyId)!;
+  function onUploadBindFileArchive() {
+    if (!fileUploadInputRef.current) return;
 
-    archiveUploadState.openWith({
+    fileUploadInputRef.current.value = '';
+    fileUploadInputRef.current.click();
+  }
+
+  async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const topology = topologyStore.lookup.get(contextMenuTarget.current)!;
+
+    props.archiveUploadState.openWith({
       topology,
       file,
     });
   }
 
-  function onArchiveUploadConfirm(
-    topology: Topology,
-    files: ArchiveUploadFile[],
-  ) {
-    console.log(
-      'UPLOADING FILES:',
-      files.map(file => {
-        if (file.filePath.startsWith(`${topology.name}/`)) {
-          file.filePath = file.filePath.substring(topology.name.length + 1);
-        }
-        return file;
-      }),
-    );
-
-    const bindFiles = files.map(file => {
-      if (file.filePath.startsWith(`${topology.name}/`)) {
-        file.filePath = file.filePath.substring(topology.name.length + 1);
-      }
-      return file;
-    });
-
-    void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
-  }
+  const fileUploadTargetRef = useRef<string>('');
 
   if (topologyStore.fetchReport.state === FetchState.Pending) {
     return <></>;
@@ -1072,7 +1111,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       <Tree
         filter
         filterMode="lenient"
-        filterPlaceholder="Search"
+        filterPlaceholder="Search Topologies"
         value={topologyTree}
         className="w-full"
         emptyMessage={
@@ -1096,19 +1135,8 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         nodeTemplate={node => (
           <ExplorerTreeNode
             node={node as ExplorerTreeNodeData}
-            onEditCollection={onEditCollection}
-            onDeleteCollection={onDeleteCollection}
+            onOpenMenu={openPopupMenu}
             onAddTopology={onAddTopology}
-            onEditTopology={onEditTopology}
-            onDuplicateTopology={onDuplicateTopology}
-            onDeployTopology={props.onTopologyDeploy}
-            onDeleteTopology={onDeleteTopology}
-            onAddBindFile={onAddBindFile}
-            onEditBindFile={onEditBindFile}
-            onEditBindFileDirectory={onEditBindFileDirectory}
-            onDeleteBindFileDirectory={onDeleteBindFileDirectory}
-            onDeleteBindFile={onDeleteBindFile}
-            onArchiveUpload={onArchiveUpload}
           />
         )}
         onContextMenu={onContextMenuTree}
@@ -1126,6 +1154,14 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
           aria-label="Add Group"
         />
       </If>
+      <input
+        ref={fileUploadInputRef}
+        type="file"
+        accept=".zip,.tar,.gz,.tgz,.7z,.rar,.bz2"
+        style={{display: 'none'}}
+        // onInput={handleFile}
+        onChange={handleFile}
+      />
     </div>
   );
 });

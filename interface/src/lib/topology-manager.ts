@@ -509,6 +509,7 @@ export class TopologyManager {
   ): TopologyMeta {
     if (!topology.hasIn(['topology', 'links'])) {
       return {
+        nodeCount: 0,
         connections: [],
         connectionMap: new Map<string, NodeConnection[]>(),
       };
@@ -517,6 +518,10 @@ export class TopologyManager {
     const links = (topology.getIn(['topology', 'links']) as YAMLSeq).toJS(
       topology,
     );
+
+    const nodeCount = Object.keys(
+      (topology.getIn(['topology', 'nodes']) as YAMLMap).toJS(topology),
+    ).length;
 
     let index = 0;
     const connections: NodeConnection[] = [];
@@ -601,7 +606,7 @@ export class TopologyManager {
       index++;
     }
 
-    return {connections, connectionMap};
+    return {nodeCount, connections, connectionMap};
   }
 
   /**
@@ -705,6 +710,7 @@ export class TopologyManager {
         id: topology.creator.id,
         name: topology.creator.name,
       },
+      nodeCount: topology.nodeCount,
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),

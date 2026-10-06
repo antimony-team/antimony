@@ -36,9 +36,12 @@ import {
 import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
 import EditorViewSwitch, {
   EditorView,
+  isValidEditorView,
 } from './editor-view-switch/editor-view-switch';
 import {Badge} from 'primereact/badge';
 import {Tooltip} from 'primereact/tooltip';
+import {pluralize} from '@sb/lib/utils/utils';
+import {usePersistentState} from '@sb/lib/utils/hooks';
 
 export enum ValidationState {
   Working,
@@ -83,12 +86,16 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const topologyStore = useTopologyStore();
   const notificationStore = useStatusMessages();
 
+  const [view, setView] = usePersistentState<EditorView>(
+    'editor-view',
+    'split',
+    isValidEditorView,
+  );
+
   // const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
-
-  const [view, setView] = useState<EditorView>('split');
 
   const onTopologyOpen = useCallback((topology: Topology) => {
     setOpenTopology(topology);
@@ -177,6 +184,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     onBindFileOpen,
     onBindFileEdit,
   ]);
+
+  const effectiveView: EditorView = openBindFile ? 'code' : view;
 
   const topologyCollection = useMemo(() => {
     if (!openTopology) return null;
@@ -398,7 +407,11 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             onClick={() => monacoWrapperRef.current?.redo()}
             aria-label="Redo"
           />
-          <EditorViewSwitch value={view} onChange={setView} />
+          <EditorViewSwitch
+            value={effectiveView}
+            onChange={setView}
+            disabledViews={openBindFile ? ['split', 'graph'] : []}
+          />
           {openTopology && (
             <Button
               text
@@ -453,15 +466,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             />
           </If>
         </div>
-        <div className="sb-topology-editor-content">
-          <Splitter
-            pt={{
-              gutter: {
-                style: {opacity: openTopology ? '1' : '0'},
-                className: 'sb-topology-editor-splitter-gutter',
-              },
-            }}
-          >
+        <div className={`sb-topology-editor-content view-${effectiveView}`}>
+          <Splitter>
             <SplitterPanel className="sb-editor-monaco" size={50}>
               <If condition={schemaStore.fetchReport.state === FetchState.Done}>
                 <MonacoWrapper
@@ -482,13 +488,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 />
               </If>
             </SplitterPanel>
-            <SplitterPanel
-              size={50}
-              className="sb-editor-graph"
-              style={{
-                opacity: openTopology ? '1' : '0',
-              }}
-            >
+            <SplitterPanel size={50} className="sb-editor-graph">
               <SimulationConfigContext.Provider value={new SimulationConfig()}>
                 <NodeEditor
                   onAddNode={onAddNode}
@@ -538,7 +538,17 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             />
           </div>
           <span>{currentLanguage}</span>
-          <span>{`Ln ${currentCursorPosition.x}, Col ${currentCursorPosition.y}`}</span>
+          <div className="sb-topology-editor-footer-position">
+            {`Ln ${currentCursorPosition.x}, Col ${currentCursorPosition.y}`}
+          </div>
+          <If condition={openTopology}>
+            <div className="sb-dot-separated">
+              <div>{pluralize(openTopology!.nodeCount, 'node', 'nodes')}</div>
+              <div>
+                {pluralize(openTopology!.connections.length, 'link', 'links')}
+              </div>
+            </div>
+          </If>
         </div>
       </div>
       <SyncOverlay

@@ -4,15 +4,24 @@ import './editor-view-switch.sass';
 
 export type EditorView = 'code' | 'split' | 'graph';
 
+const editorViews: readonly EditorView[] = ['code', 'split', 'graph'];
+
 const views: {value: EditorView; label: string; icon: string}[] = [
   {value: 'code', label: 'Code', icon: 'code'},
   {value: 'split', label: 'Split', icon: 'view_column_2'},
   {value: 'graph', label: 'Graph', icon: 'network_node'},
 ];
 
+export const isValidEditorView = (
+  value: unknown,
+): value is (typeof editorViews)[number] => {
+  return editorViews.includes(value as (typeof editorViews)[number]);
+};
+
 interface EditorViewSwitchProps {
   value: EditorView;
   onChange: (view: EditorView) => void;
+  disabledViews?: EditorView[];
 }
 
 const EditorViewSwitch = (props: EditorViewSwitchProps) => {
@@ -58,6 +67,7 @@ const EditorViewSwitch = (props: EditorViewSwitchProps) => {
           role="radio"
           aria-checked={view.value === props.value}
           className="sb-editor-view-switch-option"
+          disabled={props.disabledViews?.includes(view.value) || false}
           onClick={() => props.onChange(view.value)}
         >
           <span className="material-symbols-outlined">{view.icon}</span>

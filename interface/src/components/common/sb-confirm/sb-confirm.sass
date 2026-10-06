@@ -2,9 +2,48 @@
   background-color: var(--surface-overlay)
   border: 1px solid var(--border)
 
+  --severity-color: var(--border)
+
+  .sb-dialog-content
+    display: flex
+    flex-direction: column
+    gap: 16px
+
+  &.danger
+    --severity-color: var(--danger-color-text)
+
+  &.warning
+    --severity-color: var(--warning-color-text)
+
+  &.info
+    --severity-color: var(--info-color-text)
+
+  &.success
+    --severity-color: var(--success-color-text)
+
+  .p-dialog-header
+    border-top: 2px solid var(--severity-color)
+
+  .sb-dialog-footer > .sb-button-accent
+    background-color: var(--severity-color) !important
+
   .border-circle
     border: 1px solid var(--border)
     background-color: var(--surface-overlay) !important
+
+  .sb-confirm-dialog-message
+    color: var(--text-muted)
+
+  .sb-confirm-dialog-confirm-label
+    display: flex
+    gap: 0.5ch
+    color: var(--text-muted)
+
+    .sb-confirm-dialog-confirm-code
+      color: var(--text)
+      backdrop-filter: brightness(1.2)
+      font-family: Iosevka, monospace
+      font-size: 14px
 
 .sb-confirm-list
   display: flex

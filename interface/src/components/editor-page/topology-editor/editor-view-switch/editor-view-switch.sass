@@ -43,6 +43,13 @@
   cursor: pointer
   transition: color 0.15s ease-out
 
+  &:disabled
+    opacity: 0.4
+    cursor: default
+
+    &:hover
+      color: var(--text-muted)
+
   &:hover,
   &[aria-checked="true"]
     color: var(--text)

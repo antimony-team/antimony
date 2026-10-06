@@ -59,6 +59,7 @@ export interface TopologyDefinition {
  * This object is generated from the definition object and is not persisted.
  */
 export type TopologyMeta = {
+  nodeCount: number;
   connections: NodeConnection[];
   connectionMap: Map<string, NodeConnection[]>;
 };

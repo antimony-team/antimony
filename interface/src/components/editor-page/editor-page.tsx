@@ -29,6 +29,7 @@ import TopologyEditDialog, {
 } from './topology-edit-dialog/topology-edit-dialog';
 import ArchiveUploadDialog, {
   ArchiveUploadDialogState,
+  ArchiveUploadFile,
 } from './archive-upload-dialog/archive-upload-dialog';
 import BindFileEditDialog, {
   BindFileEditDialogState,
@@ -128,36 +129,32 @@ const EditorPage = observer(() => {
     }
   }
 
+  function onArchiveUploadConfirm(
+    topology: Topology,
+    files: ArchiveUploadFile[],
+  ) {
+    console.log(
+      'UPLOADING FILES:',
+      files.map(file => {
+        if (file.filePath.startsWith(`${topology.name}/`)) {
+          file.filePath = file.filePath.substring(topology.name.length + 1);
+        }
+        return file;
+      }),
+    );
+
+    const bindFiles = files.map(file => {
+      if (file.filePath.startsWith(`${topology.name}/`)) {
+        file.filePath = file.filePath.substring(topology.name.length + 1);
+      }
+      return file;
+    });
+
+    void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
+  }
+
   return (
     <div className="sb-editor">
-      {/*<div*/}
-      {/*  className={classNames(*/}
-      {/*    'font-bold',*/}
-      {/*    'overflow-y-auto',*/}
-      {/*    'overflow-x-hidden',*/}
-      {/*    'sb-admin-page-left',*/}
-      {/*    {*/}
-      {/*      'sb-admin-page-left-maximized': isMaximized,*/}
-      {/*    },*/}
-      {/*  )}*/}
-      {/*>*/}
-      {/*  <TopologyExplorer*/}
-      {/*    selectedId={openFile?.id}*/}
-      {/*    onFileSelect={onOpenFile}*/}
-      {/*    onTopologyDeploy={onDeployTopology}*/}
-      {/*  />*/}
-      {/*</div>*/}
-      {/*<div*/}
-      {/*  className={classNames('sb-admin-page-right', {*/}
-      {/*    'sb-admin-page-right-maximized': isMaximized,*/}
-      {/*  })}*/}
-      {/*>*/}
-      {/*  <TopologyEditor*/}
-      {/*    isMaximized={isMaximized}*/}
-      {/*    setMaximized={setMaximized}*/}
-      {/*    onTopologyDeploy={onDeployTopology}*/}
-      {/*  />*/}
-      {/*</div>*/}
       <Choose>
         <When condition={isSetup}>
           <div className="sb-editor-setup-container sb-island">
@@ -181,11 +178,16 @@ const EditorPage = observer(() => {
         </When>
         <Otherwise>
           <Splitter>
-            <SplitterPanel className="sb-island" minSize={28} size={10}>
+            <SplitterPanel className="sb-island" minSize={20} size={10}>
               <TopologyExplorer
                 selectedId={openFile?.id}
                 onFileSelect={onOpenFile}
                 onTopologyDeploy={onDeployTopology}
+                archiveUploadState={archiveUploadState}
+                editBindFileState={editBindFileState}
+                editTopologyState={editTopologyState}
+                editBindFileDirectoryState={editBindFileDirectoryState}
+                editCollectionState={editCollectionState}
               />
             </SplitterPanel>
             <SplitterPanel className="sb-island" minSize={40}>
@@ -218,7 +220,7 @@ const EditorPage = observer(() => {
       />
       <ArchiveUploadDialog
         dialogState={archiveUploadState}
-        onApply={() => {}}
+        onApply={onArchiveUploadConfirm}
       />
     </div>
   );

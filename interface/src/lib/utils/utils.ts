@@ -324,3 +324,7 @@ export function formatDuration(ms: number): string {
   if (hours) return mins ? `${hours} h ${mins} min` : `${hours} h`;
   return `${mins} min`;
 }
+
+export function pluralize(count: number, singular: string, plural: string) {
+  return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
+}

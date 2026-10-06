@@ -62,6 +62,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
     if (!props.dialogState.state) return;
 
     props.onApply(props.dialogState.state.topology, [...selectedFiles]);
+    props.dialogState.close();
   }
 
   useEffect(() => {
@@ -290,7 +291,6 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
       headerTitle="Upload Bind Files"
       className="sb-archive-upload-dialog"
       submitLabel="Upload"
-      headerIcon={<i className="pi pi-upload" />}
       onSubmit={onSubmit}
       canSubmit={selectedFiles.size > 0}
     >

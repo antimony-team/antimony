@@ -128,3 +128,24 @@ label
   display: flex
   flex-direction: column
   gap: 6px
+
+.sb-dot-separated
+  --dot-size: 3px
+  --dot-gap: 8px
+  --dot-color: var(--text-muted)
+
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+
+  > * + *::before
+    content: ''
+    display: inline-block
+    flex: 0 0 auto
+    width: var(--dot-size)
+    height: var(--dot-size)
+    margin: 0 var(--dot-gap)
+    border-radius: 50%
+    background-color: var(--dot-color)
+    // Centres the dot on the cap height rather than the baseline
+    vertical-align: calc(0.5cap - var(--dot-size) / 2)

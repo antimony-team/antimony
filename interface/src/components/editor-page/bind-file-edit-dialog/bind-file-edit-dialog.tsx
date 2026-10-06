@@ -137,12 +137,32 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
 
     switch (props.dialogState.state.action) {
       case DialogAction.Add:
-        return 'Add File';
+        return 'Add file';
       case DialogAction.Edit:
-        return 'Rename File';
+        return 'Edit file';
       case DialogAction.Duplicate:
-        return 'Duplicate File';
+        return 'Duplicate file';
     }
+  }
+
+  useEffect(() => {
+    if (props.dialogState.isOpen && bindFileNameRef.current) {
+      const value = editingBindFile.filePath;
+      bindFileNameRef.current!.input.current!.setSelectionRange(
+        0,
+        value.lastIndexOf('.'),
+      );
+    }
+  }, [props.dialogState.isOpen]);
+
+  function onShow() {
+    const value = editingBindFile.filePath;
+    bindFileNameRef.current!.input.current!.setSelectionRange(
+      0,
+      value.lastIndexOf('.'),
+    );
+
+    bindFileNameRef.current?.input.current?.focus();
   }
 
   return (
@@ -153,7 +173,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
       className="sb-bind-file-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onShow={() => bindFileNameRef.current?.input.current?.focus()}
+      onShow={onShow}
     >
       <div className="mb-3">
         <SBInput
@@ -162,7 +182,7 @@ const BindFileEditDialog = observer((props: BindFileEditDialogProps) => {
           placeholder="e.g. node01/interfaces"
           id="bind-file-path"
           defaultValue={editingBindFile.filePath}
-          label="File Path"
+          label="File path"
         />
       </div>
     </SBDialog>

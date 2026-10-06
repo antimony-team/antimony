@@ -81,7 +81,7 @@ const BindFileDirectoryEditDialog = observer(
       <SBDialog
         onClose={props.dialogState.close}
         isOpen={props.dialogState.isOpen}
-        headerTitle="Rename Directory"
+        headerTitle="Edit directory"
         className="sb-bind-file-directory-edit-dialog"
         submitLabel="Apply"
         onSubmit={onSubmit}

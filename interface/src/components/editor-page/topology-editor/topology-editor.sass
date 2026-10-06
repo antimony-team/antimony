@@ -58,6 +58,21 @@
   flex-grow: 1
   min-height: 0
 
+  &.view-code
+    .sb-editor-graph, .p-splitter-gutter
+      display: none
+
+    .sb-editor-monaco
+      flex-basis: 100% !important
+
+  // Graph only, the same the other way round
+  &.view-graph
+    .sb-editor-monaco, .p-splitter-gutter
+      display: none
+
+    .sb-editor-graph
+      flex-basis: 100% !important
+
   .p-splitter
     height: 100%
 
@@ -84,6 +99,9 @@
   height: 40px
   gap: 16px
   color: var(--text-muted)
+
+  .sb-topology-editor-footer-position
+    flex-grow: 1
 
   i
     font-size: 14px
