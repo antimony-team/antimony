@@ -94,7 +94,7 @@ const BindFileDirectoryEditDialog = observer(
             placeholder="e.g. node01/interfaces"
             id="bind-file-directory-path"
             defaultValue={editingFilePath}
-            label="Directory Name"
+            label="Name"
           />
         </div>
       </SBDialog>

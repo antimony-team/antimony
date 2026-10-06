@@ -49,7 +49,7 @@ const SBConfirm = forwardRef<SBConfirmRef, object>((props, ref) => {
     show: (props: SBConfirmOpenProps) => {
       dialogState.current = {
         ...props,
-        icon: props.icon ?? 'pi pi-question',
+        icon: props.icon,
         acceptText: props.acceptText ?? 'Ok',
         rejectText: props.rejectText ?? 'Cancel',
       };

@@ -141,6 +141,7 @@ const MonacoWrapper = observer(
 
       if (textModelRef.current) {
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
+        console.log('SET TEXT: ', props.openTopology.definition.toString());
         textModelRef.current.setValue(props.openTopology.definition.toString());
         currentlyOpenFileId.current = props.openTopology.id;
 
@@ -193,6 +194,7 @@ const MonacoWrapper = observer(
       const existingContentStripped = existingContent.replaceAll(' ', '');
 
       if (updatedContentStripped !== existingContentStripped) {
+        console.log('Topology content changed');
         setContent(updatedContent);
       }
     }, []);

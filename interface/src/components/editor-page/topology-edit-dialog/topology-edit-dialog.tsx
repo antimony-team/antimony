@@ -11,11 +11,10 @@ import {TopologyManager} from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {Topology, TopologyIn} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
-import {isEqual} from 'lodash';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 import {SelectItem} from 'primereact/selectitem';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useMemo, useRef} from 'react';
 
 import YAML from 'yaml';
 
@@ -43,14 +42,14 @@ interface TopologyEdit {
 
 const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const editingTopology = useLocalObservable<TopologyEdit>(() => ({
-    name: '',
-    collectionId: '',
-  }));
-
-  const [originalTopology, setOriginalTopology] = useState<TopologyEdit>({
     name: props.dialogState.state?.editingTopology?.name ?? '',
     collectionId: props.dialogState.state?.collectionId ?? '',
-  });
+  }));
+
+  // const [originalTopology, setOriginalTopology] = useState<TopologyEdit>({
+  //   name: props.dialogState.state?.editingTopology?.name ?? '',
+  //   collectionId: props.dialogState.state?.collectionId ?? '',
+  // });
 
   const authUser = useAuthUser();
 
@@ -60,29 +59,53 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
-  // Reset editing object when the dialog is opened
-  useEffect(() => {
-    if (props.dialogState.isOpen && props.dialogState.state) {
-      const editTopology = {
-        name: props.dialogState.state.editingTopology?.name ?? '',
-        collectionId: props.dialogState.state.collectionId ?? '',
-      };
-      setOriginalTopology(editTopology);
+  function onShow() {
+    // console.log('original topology: ', originalTopology);
 
-      runInAction(() => {
-        editingTopology.name = editTopology.name;
-        editingTopology.collectionId = editTopology.collectionId;
-      });
-    }
-  }, [props.dialogState.isOpen]);
+    // const editTopology = {
+    //   name: props.dialogState.state.editingTopology?.name ?? '',
+    //   collectionId: props.dialogState.state.collectionId ?? '',
+    // };
+    // setOriginalTopology(editTopology);
 
-  function onNameChange(name: string, isImplicit: boolean) {
-    runInAction(() => (editingTopology.name = name));
+    // if (topologyNameRef.current?.input.current) {
+    //   topologyNameRef.current.input.current.value = editTopology.name;
+    // }
+
+    runInAction(() => {
+      editingTopology.name =
+        props.dialogState.state?.editingTopology?.name ?? '';
+      editingTopology.collectionId =
+        props.dialogState.state?.collectionId ?? '';
+    });
+
+    topologyNameRef.current?.input.current?.focus();
+  }
+
+  function onClose() {
+    // runInAction(() => {
+    //   editingTopology.name = originalTopology.name;
+    //   editingTopology.collectionId = originalTopology.collectionId;
+    // });
+  }
+
+  function onNameChange(_: string, isImplicit: boolean) {
     if (!isImplicit) void onSubmit();
+  }
+
+  function hasChanges() {
+    return (
+      props.dialogState.state?.editingTopology?.name !== editingTopology.name ||
+      props.dialogState.state?.collectionId !== editingTopology.collectionId
+    );
   }
 
   async function onSubmit() {
     if (!props.dialogState.state) return;
+
+    runInAction(() => {
+      editingTopology.name = topologyNameRef.current!.input.current!.value;
+    });
 
     if (editingTopology.name === '') {
       topologyNameRef.current?.setValidationError("Name can't be empty");
@@ -90,21 +113,19 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
     }
 
     if (props.dialogState.state.action === DialogAction.Edit) {
-      if (isEqual(originalTopology, editingTopology)) {
+      if (!hasChanges()) {
         props.dialogState.close();
         return;
       }
 
-      props.dialogState.state.editingTopology!.definition.set(
-        'name',
-        editingTopology.name,
-      );
+      const newDefinition =
+        props.dialogState.state.editingTopology!.definition.clone();
+      newDefinition.set('name', editingTopology.name);
+
       const result = await topologyStore.update(
         props.dialogState.state.editingTopology!.id,
         {
-          definition: TopologyManager.serializeTopology(
-            props.dialogState.state.editingTopology!.definition,
-          ),
+          definition: TopologyManager.serializeTopology(newDefinition),
           syncUrl: props.dialogState.state.editingTopology!.syncUrl,
           collectionId: editingTopology.collectionId,
         },
@@ -121,6 +142,12 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           );
         }
       } else {
+        topologyStore.manager.replaceTopology(
+          topologyStore.lookup.get(
+            props.dialogState.state.editingTopology!.id,
+          )!,
+        );
+
         notificationStore.success('Topology has been updated successfully.');
         props.dialogState.close();
       }
@@ -173,11 +200,11 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
     switch (props.dialogState.state.action) {
       case DialogAction.Add:
-        return 'Add Topology';
+        return 'Add topology';
       case DialogAction.Edit:
-        return 'Edit Topology';
+        return 'Edit topology';
       case DialogAction.Duplicate:
-        return 'Duplicate Topology';
+        return 'Duplicate topology';
     }
   }
 
@@ -189,20 +216,17 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       className="sb-edit-dialog"
       submitLabel="Apply"
       onSubmit={onSubmit}
-      onShow={() => topologyNameRef.current?.input.current?.focus()}
+      onShow={onShow}
+      onCancel={onClose}
     >
       <div className="mb-3">
         <SBInput
           ref={topologyNameRef}
           onValueSubmit={onNameChange}
-          defaultValue={
-            (props.dialogState.state?.editingTopology?.definition.get(
-              'name',
-            ) as string) ?? ''
-          }
+          defaultValue={props.dialogState.state?.editingTopology?.name ?? ''}
           placeholder="e.g. OSPF Lab"
           id="topology-edit-name"
-          label="Topology Name"
+          label="Name"
         />
       </div>
       <SBDropdown

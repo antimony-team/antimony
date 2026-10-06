@@ -93,6 +93,11 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
     props.node.draggable = isWritable;
   }, [isWritable, props.node]);
 
+  function onOpenMenu(e: React.SyntheticEvent) {
+    e.stopPropagation();
+    props.onOpenMenu(e, props.node);
+  }
+
   return (
     <div className="sb-explorer-node">
       <span className="tree-node p-treenode-label">{props.node.label}</span>
@@ -105,7 +110,10 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                 text
                 icon="pi pi-plus"
                 severity="secondary"
-                onClick={() => props.onAddTopology(props.node.key as uuid4)}
+                onClick={e => {
+                  e.stopPropagation();
+                  props.onAddTopology(props.node.key as uuid4);
+                }}
                 aria-label="Add Topology"
               />
               <Button
@@ -113,7 +121,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                 icon={
                   <span className="material-symbols-outlined">more_horiz</span>
                 }
-                onClick={e => props.onOpenMenu(e, props.node)}
+                onClick={onOpenMenu}
                 aria-label="Edit Collection"
               />
             </If>
@@ -126,7 +134,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
               icon={
                 <span className="material-symbols-outlined">more_horiz</span>
               }
-              onClick={e => props.onOpenMenu(e, props.node)}
+              onClick={onOpenMenu}
               aria-label="Edit Collection"
             />
           </When>
@@ -138,7 +146,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
               icon={
                 <span className="material-symbols-outlined">more_horiz</span>
               }
-              onClick={e => props.onOpenMenu(e, props.node)}
+              onClick={onOpenMenu}
               aria-label="Edit Collection"
             />
           </When>
@@ -152,7 +160,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
               icon={
                 <span className="material-symbols-outlined">more_horiz</span>
               }
-              onClick={e => props.onOpenMenu(e, props.node)}
+              onClick={onOpenMenu}
               aria-label="Edit Collection"
             />
           </When>

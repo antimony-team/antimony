@@ -287,6 +287,27 @@ export class TopologyManager {
     this.onClose.update();
   }
 
+  /**
+   * Replaces the currently opened topoloogy with the provided topology.
+   *
+   * Contrary to a regular edit, the provided topology is treated as the new
+   * original, and an onTopologyEdit event is fired with isEdited set to false.
+   *
+   * This can be used when the topology has been updated in the background and
+   * needs to be refreshed (e.g., when the user changes the topology's name
+   * via the edit dialog).
+   */
+  public replaceTopology(originalTopology: Topology) {
+    this.editingTopology = originalTopology;
+    this.originalTopology = TopologyManager.cloneTopology(originalTopology);
+
+    this.onTopologyEdit.update({
+      updatedTopology: this.editingTopology,
+      isEdited: false,
+      source: TopologyEditSource.System,
+    });
+  }
+
   public editTopology(
     updatedTopology: YAMLDocument<TopologyDefinition>,
     source: TopologyEditSource,

@@ -3,11 +3,7 @@ import LabEditDialog, {
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 
 import './editor-page.sass';
-import {
-  useCollectionStore,
-  useStatusMessages,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
+import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
 
@@ -46,7 +42,6 @@ const EditorPage = observer(() => {
 
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
-  const notificationStore = useStatusMessages();
 
   const editCollectionState = useDialogState<CollectionEditDialogState>(null);
   const editTopologyState = useDialogState<TopologyEditDialogState>(null);
@@ -107,42 +102,10 @@ const EditorPage = observer(() => {
     });
   }
 
-  function onOpenFile(id: string) {
-    if (topologyStore.manager.hasEdits()) {
-      notificationStore.confirm({
-        message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
-        icon: 'pi pi-info-circle',
-        severity: 'warning',
-        onAccept: () => openFileConfirm(id),
-      });
-    } else {
-      openFileConfirm(id);
-    }
-  }
-
-  function openFileConfirm(id: string) {
-    if (topologyStore.lookup.has(id)) {
-      topologyStore.manager.openTopology(topologyStore.lookup.get(id)!);
-    } else if (topologyStore.bindFileLookup.has(id)) {
-      topologyStore.manager.openBindFile(topologyStore.bindFileLookup.get(id)!);
-    }
-  }
-
   function onArchiveUploadConfirm(
     topology: Topology,
     files: ArchiveUploadFile[],
   ) {
-    console.log(
-      'UPLOADING FILES:',
-      files.map(file => {
-        if (file.filePath.startsWith(`${topology.name}/`)) {
-          file.filePath = file.filePath.substring(topology.name.length + 1);
-        }
-        return file;
-      }),
-    );
-
     const bindFiles = files.map(file => {
       if (file.filePath.startsWith(`${topology.name}/`)) {
         file.filePath = file.filePath.substring(topology.name.length + 1);
@@ -151,6 +114,14 @@ const EditorPage = observer(() => {
     });
 
     void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
+  }
+
+  function onOpenFile(id: string) {
+    if (topologyStore.lookup.has(id)) {
+      topologyStore.manager.openTopology(topologyStore.lookup.get(id)!);
+    } else if (topologyStore.bindFileLookup.has(id)) {
+      topologyStore.manager.openBindFile(topologyStore.bindFileLookup.get(id)!);
+    }
   }
 
   return (
@@ -181,7 +152,7 @@ const EditorPage = observer(() => {
             <SplitterPanel className="sb-island" minSize={20} size={10}>
               <TopologyExplorer
                 selectedId={openFile?.id}
-                onFileSelect={onOpenFile}
+                onOpenFile={onOpenFile}
                 onTopologyDeploy={onDeployTopology}
                 archiveUploadState={archiveUploadState}
                 editBindFileState={editBindFileState}
@@ -204,7 +175,7 @@ const EditorPage = observer(() => {
       <TopologyEditDialog
         key={editTopologyState.state?.editingTopology?.id}
         dialogState={editTopologyState}
-        onCreated={() => {}}
+        onCreated={onOpenFile}
       />
       <CollectionEditDialog
         key={editCollectionState.state?.editingCollection?.id}
