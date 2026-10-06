@@ -385,7 +385,7 @@ const LabView = observer((props: LabDialogProps) => {
       containerId,
       ifName,
       window.location.hostname,
-      serverConfig.capture.port,
+      serverConfig.ssh.port,
     );
     void navigator.clipboard.writeText(cmd);
 

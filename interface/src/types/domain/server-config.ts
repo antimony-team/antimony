@@ -5,8 +5,8 @@ export type ServerConfig = {
 };
 
 export type SSHConfig = {
-  Enabled: boolean;
-  Port: number;
+  enabled: boolean;
+  port: number;
 };
 
 export type CaptureConfig = {
