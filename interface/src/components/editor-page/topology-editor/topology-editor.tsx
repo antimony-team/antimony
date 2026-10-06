@@ -301,7 +301,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         `${topologyCollection!.name}_${openTopology.definition.get('name')}.yaml`,
       );
     } else if (openBindFile) {
-      const topology = topologyStore.lookup.get(openBindFile.id);
+      const topology = topologyStore.bindFileLookup.get(openBindFile.id);
       if (!topology) return;
 
       const blob = new Blob([openBindFile.content], {
