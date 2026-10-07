@@ -708,7 +708,29 @@ func clabToInspectContainer(labName string, raw []clabInspectContainer) []Inspec
 	return converted
 }
 
+// openCaptureInNetns opens a capture on an interface in the network namespace of a process. The socket stays in that
+// namespace, so it can be read from any thread afterward.
 func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
+	type result struct {
+		tp  *afpacket.TPacket
+		err error
+	}
+
+	// The namespace is switched on a thread of its own, which is thrown away if it can't switch back, so the caller's
+	// goroutine always gets a result
+	done := make(chan result, 1)
+	go func() {
+		tp, err := switchNetnsAndOpenCapture(pid, interfaceName)
+		done <- result{tp, err}
+	}()
+
+	r := <-done
+	return r.tp, r.err
+}
+
+// switchNetnsAndOpenCapture opens the capture on the calling goroutine's thread. If the thread can't return to its
+// original namespace, it stays locked, and Go terminates it once the goroutine ends instead of reusing it.
+func switchNetnsAndOpenCapture(pid int, interfaceName string) (*afpacket.TPacket, error) {
 	runtime.LockOSThread()
 
 	orig, err := netns.Get()
@@ -716,17 +738,16 @@ func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error
 		runtime.UnlockOSThread()
 		return nil, fmt.Errorf("get current netns: %w", err)
 	}
+	defer orig.Close()
 
 	targetNs, err := netns.GetFromPid(pid)
 	if err != nil {
-		_ = orig.Close()
 		runtime.UnlockOSThread()
 		return nil, fmt.Errorf("get netns for pid %d: %w", pid, err)
 	}
 	defer targetNs.Close()
 
 	if err := netns.Set(targetNs); err != nil {
-		_ = orig.Close()
 		runtime.UnlockOSThread()
 		return nil, fmt.Errorf("enter target netns: %w", err)
 	}
@@ -737,15 +758,12 @@ func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error
 	)
 
 	if revertErr := netns.Set(orig); revertErr != nil {
-		_ = orig.Close()
 		if tp != nil {
 			tp.Close()
 		}
-		runtime.Goexit()
+		return nil, fmt.Errorf("return to the original netns: %w", revertErr)
 	}
 
-	_ = orig.Close()
 	runtime.UnlockOSThread()
-
 	return tp, err
 }

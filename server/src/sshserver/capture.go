@@ -4,7 +4,9 @@ import (
 	"antimonyBackend/deployment"
 	"context"
 	"errors"
+	"io"
 	"sync"
+	"time"
 
 	"github.com/gliderlabs/ssh"
 	"github.com/google/gopacket"
@@ -14,6 +16,13 @@ import (
 
 // errCaptureServiceClosed is returned for captures requested after the service was closed.
 var errCaptureServiceClosed = errors.New("the capture service is shutting down")
+
+const (
+	// sessionProbeInterval is how often a capture checks that its session is still open.
+	sessionProbeInterval = 10 * time.Second
+	// keepaliveRequest is the request OpenSSH servers send to check that a client is still there.
+	keepaliveRequest = "keepalive@openssh.com"
+)
 
 type (
 	// CaptureService streams the traffic of node interfaces into SSH sessions as pcap. Every interface is only captured
@@ -250,21 +259,66 @@ func writeStream(sess ssh.Session, captureStream *stream, receiver *receiver) er
 		return err
 	}
 
-	ctx := sess.Context()
+	ctx, cancel := context.WithCancel(sess.Context())
+	defer cancel()
+
+	sessionClosed := watchSessionClose(ctx, sess)
 	for {
 		select {
 		case p := <-receiver.ch:
 			if err := w.WritePacket(p.ci, p.data); err != nil {
 				return err
 			}
+		case <-sessionClosed:
+			// The client closed the session, but may keep the connection open for others
+			return nil
 		case <-ctx.Done():
-			// The SSH session is closed by the client or the connection is interrupted
+			// The client disconnected or the server closed the connection
 			return ctx.Err()
 		case <-captureStream.done:
 			// The capture ended because the node stopped or the service is shutting down
 			return nil
 		}
 	}
+}
+
+// watchSessionClose returns a channel that is closed once the client has closed the session, or ctx ends. The session's
+// context only ends with the whole connection, which a client sharing it for several sessions keeps open. The input
+// doesn't tell either, a client without input (ssh -n) ends it right away and keeps watching. So the session is probed
+// with a keepalive request, like OpenSSH's ClientAliveInterval does, which fails once the session is closed. Clients
+// answer it with a failure, which is fine.
+func watchSessionClose(ctx context.Context, sess ssh.Session) <-chan struct{} {
+	closed := make(chan struct{})
+
+	inputDone := make(chan struct{})
+	go func() {
+		// The input ends when the client closes the session, so the session is probed right away then
+		_, _ = io.Copy(io.Discard, sess)
+		close(inputDone)
+	}()
+
+	go func() {
+		ticker := time.NewTicker(sessionProbeInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-inputDone:
+				// A nil channel never receives, the input only triggers one probe
+				inputDone = nil
+			case <-ticker.C:
+			case <-ctx.Done():
+				return
+			}
+
+			if _, err := sess.SendRequest(keepaliveRequest, true, nil); err != nil {
+				close(closed)
+				return
+			}
+		}
+	}()
+
+	return closed
 }
 
 func getCaptureKey(instanceName string, nodeName string, interfaceName string) string {

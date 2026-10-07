@@ -579,13 +579,20 @@ type captureClient struct {
 	headerOnce sync.Once
 }
 
-// startCaptureClient starts a capture session, without waiting for the capture to open.
+// startCaptureClient starts a capture session on a connection of its own, without waiting for the capture to open.
 func (s *sshTestServer) startCaptureClient(t *testing.T, command string) *captureClient {
 	t.Helper()
 
-	client := s.dial(t, InstanceAdminLab+"/"+NodeHost)
+	return startCaptureSession(t, s.dial(t, InstanceAdminLab+"/"+NodeHost), command, nil)
+}
+
+// startCaptureSession starts a capture session on an existing connection, with the given input, if any.
+func startCaptureSession(t *testing.T, client *gossh.Client, command string, stdin io.Reader) *captureClient {
+	t.Helper()
+
 	session, err := client.NewSession()
 	require.NoError(t, err)
+	session.Stdin = stdin
 
 	stdout, err := session.StdoutPipe()
 	require.NoError(t, err)
@@ -752,6 +759,47 @@ func TestSSH_CaptureStopsWhenTheLastSessionLeaves(t *testing.T) {
 
 	require.NoError(t, second.client.Close())
 	requireEventually(t, source.IsClosed, "the capture must stop when its last session leaves")
+}
+
+func TestSSH_ClosingACaptureSessionStopsItOnASharedConnection(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	// Clients like sshdump or ssh with ControlMaster keep the connection open after a session is closed
+	client := server.dial(t, InstanceAdminLab+"/"+NodeHost)
+	capture := startCaptureSession(t, client, "eth1", nil)
+	require.True(t, capture.waitForHeader(t, 5*time.Second))
+
+	_ = capture.session.Close()
+	requireEventually(t, source.IsClosed, "closing the session must stop the capture while the connection stays open")
+
+	second, err := client.NewSession()
+	require.NoError(t, err, "the connection must stay usable")
+	_ = second.Close()
+}
+
+func TestSSH_ACaptureWithoutInputKeepsRunning(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	// Like ssh -n, the client ends its input right away, but keeps watching the capture
+	client := server.dial(t, InstanceAdminLab+"/"+NodeHost)
+	capture := startCaptureSession(t, client, "eth1", strings.NewReader(""))
+	require.True(t, capture.waitForHeader(t, 5*time.Second))
+
+	time.Sleep(200 * time.Millisecond)
+	assert.False(t, source.IsClosed(), "the end of the input must not stop the capture")
+
+	source.packets <- capturePacket
+	capture.requirePacket(t, capturePacket)
 }
 
 func TestSSH_ASlowOpeningDoesNotBlockOtherCaptures(t *testing.T) {
