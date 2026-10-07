@@ -319,19 +319,19 @@ const LabView = observer((props: LabDialogProps) => {
 
     const entries: MenuItem[] = [
       {
-        label: 'Start Node',
+        label: 'Start node',
         icon: 'pi pi-power-off',
         command: () => onNodeStart(contextTargetNode),
         disabled: !nodeActionChecker.canStart,
       },
       {
-        label: 'Stop Node',
+        label: 'Stop node',
         icon: 'pi pi-power-off',
         command: () => onNodeStop(contextTargetNode),
         disabled: !nodeActionChecker.canStop,
       },
       {
-        label: 'Restart Node',
+        label: 'Restart node',
         icon: 'pi pi-sync',
         command: () => onNodeRestart(contextTargetNode),
         disabled: !nodeActionChecker.canRestart,
@@ -340,13 +340,13 @@ const LabView = observer((props: LabDialogProps) => {
         separator: true,
       },
       {
-        label: 'Open Terminal',
+        label: 'Open terminal',
         icon: <span className="material-symbols-outlined">terminal</span>,
         command: () => onOpenTerminal(contextTargetNode),
         disabled: !nodeActionChecker.canOpenTerminal,
       },
       {
-        label: 'Show Logs',
+        label: 'Show logs',
         icon: (
           <span className="material-symbols-outlined">quick_reference_all</span>
         ),

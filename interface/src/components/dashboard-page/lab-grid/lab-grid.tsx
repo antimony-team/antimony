@@ -8,7 +8,7 @@ import {Button} from 'primereact/button';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {LabEditDialogState} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 import {Choose, Otherwise, When} from '@sb/types/control';
-import LabEntry from '@sb/components/dashboard-page/lab-entry/lab-entry';
+import LabEntry from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry';
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
 
 import './lab-grid.sass';

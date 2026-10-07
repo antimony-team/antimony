@@ -12,7 +12,7 @@ import './lab-entry.sass';
 import {observer} from 'mobx-react-lite';
 import {If} from '@sb/types/control';
 import classNames from 'classnames';
-import LabEntryPreview from '@sb/components/dashboard-page/lab-entry/lab-entry-preview/lab-entry-preview';
+import LabEntryPreview from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry-preview/lab-entry-preview';
 import {formatDuration} from '@sb/lib/utils/utils';
 
 interface LabEntryProps {

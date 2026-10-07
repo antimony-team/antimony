@@ -90,8 +90,8 @@ typings/
 
 src/**/*.js
 
-.css
-.css.map
+*.css
+*.css.map
 
 build/
 release/
