@@ -128,7 +128,7 @@ const SBDock = observer(() => {
               className: 'p-overlay-badge',
               children: (
                 <If condition={notificationStore.hasUnreadMessages}>
-                  <Badge severity="danger" />
+                  <Badge severity="secondary" />
                 </If>
               ),
             },

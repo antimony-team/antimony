@@ -613,7 +613,6 @@ const LabView = observer((props: LabDialogProps) => {
                         ? '1'
                         : '0',
                   },
-                  className: 'sb-lab-view-drawer-gutter',
                 },
               }}
             >

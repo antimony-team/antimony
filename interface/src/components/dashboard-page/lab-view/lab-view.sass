@@ -29,6 +29,11 @@
 
       .p-splitter-gutter
         pointer-events: all
+        width: 8px !important
+        border-right: 1px solid var(--border)
+
+      .p-splitter-gutter-handle
+        background-color: transparent
 
       .sb-lab-view-drawer
         background-color: var(--surface-sunken)
@@ -41,9 +46,6 @@
 
       .sb-lab-view-drawer,.sb-lab-view-drawer-gutter
         transition: opacity 0.12s ease-in-out
-
-      .sb-lab-view-drawer-gutter
-        width: 3px !important
 
       .sb-lab-view-drawer-decoy
         pointer-events: none
