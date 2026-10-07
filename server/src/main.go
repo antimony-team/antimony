@@ -147,6 +147,8 @@ func main() {
 		)
 	)
 
+	collectionService.SetLabRemover(labService)
+
 	// Runtime services and components
 	instanceService, shellService := createRuntime(
 		antimonyConfig,

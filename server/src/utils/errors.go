@@ -36,7 +36,7 @@ var ErrShellNotFound = errors.New("the provided shell id does not exist")
  * Input processing errors.
  */
 
-var ErrLabRunning = errors.New("modifications to a running lab are not allowed")
+var ErrLabRunning = errors.New("the lab is still running")
 var ErrLabNameExists = errors.New("a lab with that name already exists in that collection")
 var ErrInvalidLabName = errors.New("the name of the lab is invalid")
 var ErrTopologyExists = errors.New("a topology with that name already exists in that collection")

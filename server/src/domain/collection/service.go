@@ -7,10 +7,20 @@ import (
 	"context"
 )
 
-type Service struct {
-	repo     *Repository
-	userRepo *user.Repository
-}
+type (
+	// LabRemover deletes the labs of a collection. Implemented by lab.Service and wired in main.go, since the
+	// collection package can't depend on the lab package.
+	LabRemover interface {
+		DeleteLabsOfCollection(ctx context.Context, collectionId string) error
+	}
+
+	Service struct {
+		repo     *Repository
+		userRepo *user.Repository
+
+		labRemover LabRemover
+	}
+)
 
 func CreateService(repo *Repository, userRepo *user.Repository) *Service {
 	return &Service{
@@ -19,22 +29,22 @@ func CreateService(repo *Repository, userRepo *user.Repository) *Service {
 	}
 }
 
-func (u *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
+func (s *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]Collection, error) {
 	var (
 		collections []Collection
 		err         error
 	)
 
 	if authUser.IsAdmin {
-		collections, err = u.repo.GetAll(ctx)
+		collections, err = s.repo.GetAll(ctx)
 	} else {
-		collections, err = u.repo.GetByNames(ctx, authUser.Collections)
+		collections, err = s.repo.GetByNames(ctx, authUser.Collections)
 	}
 
 	return collections, err
 }
 
-func (u *Service) Create(
+func (s *Service) Create(
 	ctx context.Context,
 	req CollectionIn,
 	authUser auth.AuthenticatedUser,
@@ -45,7 +55,7 @@ func (u *Service) Create(
 	}
 
 	// Don't allow duplicate collection names
-	if nameExists, err := u.repo.DoesNameExist(ctx, *req.Name); err != nil {
+	if nameExists, err := s.repo.DoesNameExist(ctx, *req.Name); err != nil {
 		return "", err
 	} else if nameExists {
 		return "", utils.ErrCollectionExists
@@ -53,12 +63,12 @@ func (u *Service) Create(
 
 	newUuid := utils.GenerateUuid()
 
-	creator, err := u.userRepo.GetByUuid(ctx, authUser.UserId)
+	creator, err := s.userRepo.GetByUuid(ctx, authUser.UserId)
 	if err != nil {
 		return "", err
 	}
 
-	return newUuid, u.repo.Create(ctx, &Collection{
+	return newUuid, s.repo.Create(ctx, &Collection{
 		UUID:         newUuid,
 		Name:         *req.Name,
 		PublicWrite:  *req.PublicWrite,
@@ -67,13 +77,13 @@ func (u *Service) Create(
 	})
 }
 
-func (u *Service) Update(
+func (s *Service) Update(
 	ctx context.Context,
 	req CollectionInPartial,
 	collectionId string,
 	authUser auth.AuthenticatedUser,
 ) error {
-	collection, err := u.repo.GetByUuid(ctx, collectionId)
+	collection, err := s.repo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
 	}
@@ -86,7 +96,7 @@ func (u *Service) Update(
 	if req.Name != nil {
 		// Don't allow duplicate collection names
 		if collection.Name != *req.Name {
-			if nameExists, err := u.repo.DoesNameExist(ctx, *req.Name); err != nil {
+			if nameExists, err := s.repo.DoesNameExist(ctx, *req.Name); err != nil {
 				return err
 			} else if nameExists {
 				return utils.ErrCollectionExists
@@ -104,11 +114,11 @@ func (u *Service) Update(
 		collection.PublicDeploy = *req.PublicDeploy
 	}
 
-	return u.repo.Update(ctx, collection)
+	return s.repo.Update(ctx, collection)
 }
 
-func (u *Service) Delete(ctx context.Context, collectionId string, authUser auth.AuthenticatedUser) error {
-	collection, err := u.repo.GetByUuid(ctx, collectionId)
+func (s *Service) Delete(ctx context.Context, collectionId string, authUser auth.AuthenticatedUser) error {
+	collection, err := s.repo.GetByUuid(ctx, collectionId)
 	if err != nil {
 		return err
 	}
@@ -118,5 +128,13 @@ func (u *Service) Delete(ctx context.Context, collectionId string, authUser auth
 		return utils.ErrNoWriteAccessToCollection
 	}
 
-	return u.repo.Delete(ctx, collection)
+	if err := s.labRemover.DeleteLabsOfCollection(ctx, collectionId); err != nil {
+		return err
+	}
+
+	return s.repo.Delete(ctx, collection)
+}
+
+func (s *Service) SetLabRemover(labRemover LabRemover) {
+	s.labRemover = labRemover
 }

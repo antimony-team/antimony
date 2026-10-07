@@ -242,6 +242,40 @@ func (s *Service) Delete(ctx context.Context, labId string, authUser auth.Authen
 		return utils.ErrNoWriteAccessToLab
 	}
 
+	return s.deleteLab(ctx, lab)
+}
+
+// DeleteLabsOfCollection deletes all labs of the collection with the given UUID. If any of them are running, it
+// deletes none of them and returns utils.ErrLabRunning.
+//
+// It doesn't check permissions; the caller has already decided that the collection may be deleted.
+func (s *Service) DeleteLabsOfCollection(ctx context.Context, collectionId string) error {
+	labs, err := s.repo.GetByCollection(ctx, collectionId)
+	if err != nil {
+		return err
+	}
+
+	// Check all labs first, so a running lab doesn't leave the collection half deleted
+	for i := range labs {
+		if s.runtimeInfo == nil || !s.runtimeInfo.CanDelete(labs[i].UUID) {
+			return fmt.Errorf("%w: lab %q is still running", utils.ErrLabRunning, labs[i].Name)
+		}
+	}
+
+	for i := range labs {
+		if err := s.deleteLab(ctx, &labs[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) SetRuntimeInfo(runtimeInfo RuntimeInfo) {
+	s.runtimeInfo = runtimeInfo
+}
+
+func (s *Service) deleteLab(ctx context.Context, lab *Lab) error {
 	// Don't allow the deletion of running labs
 	if s.runtimeInfo == nil || !s.runtimeInfo.CanDelete(lab.UUID) {
 		return utils.ErrLabRunning
@@ -260,10 +294,6 @@ func (s *Service) Delete(ctx context.Context, labId string, authUser auth.Authen
 	s.labEventBus.Publish("lab.deleted", lab)
 
 	return s.repo.Delete(ctx, lab)
-}
-
-func (s *Service) SetRuntimeInfo(runtimeInfo RuntimeInfo) {
-	s.runtimeInfo = runtimeInfo
 }
 
 func (s *Service) createLabEnvironment(lab *Lab) (string, error) {

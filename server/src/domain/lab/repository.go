@@ -100,6 +100,25 @@ func (r *Repository) GetByUuid(ctx context.Context, labId string) (*Lab, error) 
 	return &lab, nil
 }
 
+// GetByCollection returns all labs of the collection with the given UUID.
+func (r *Repository) GetByCollection(ctx context.Context, collectionId string) ([]Lab, error) {
+	var labs []Lab
+	result := r.db.WithContext(ctx).
+		Preload("Topology").
+		Preload("Collection").
+		Preload("Creator").
+		Joins("JOIN collections ON collections.id = labs.collection_id").
+		Where("collections.uuid = ?", collectionId).
+		Find(&labs)
+
+	if result.Error != nil {
+		log.Errorf("[DB] Failed to fetch labs of collection. Error: %s", result.Error.Error())
+		return nil, utils.ErrDatabaseError
+	}
+
+	return labs, nil
+}
+
 // GetByCollectionAndName returns the lab with the given name in the collection with the given name.
 func (r *Repository) GetByCollectionAndName(ctx context.Context, collectionName string, labName string) (*Lab, error) {
 	var lab Lab
