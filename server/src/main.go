@@ -177,7 +177,7 @@ func main() {
 
 	commands.CreateHandler(shellService, instanceService, socketManager)
 
-	captureServer := sshserver.CreateServer(antimonyConfig, shellService, instanceService, deploymentProvider)
+	sshServer := sshserver.Create(antimonyConfig, shellService, instanceService, deploymentProvider)
 	webServer := createWebServer(
 		authManager,
 		socketManager,
@@ -199,7 +199,10 @@ func main() {
 	serverWaitGroup.Add(2)
 
 	go startWebServer(webServer, webConnection, &serverWaitGroup)
-	go startSshServer(captureServer, sshConnection, &serverWaitGroup)
+
+	if antimonyConfig.SSH.Enabled {
+		go startSshServer(sshServer, sshConnection, &serverWaitGroup)
+	}
 
 	time.Sleep(100 * time.Millisecond)
 

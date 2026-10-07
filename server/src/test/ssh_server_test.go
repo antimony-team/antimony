@@ -50,7 +50,7 @@ func startSSHServer(t *testing.T, h *Harness) *sshTestServer {
 	cfg := *h.Config
 	cfg.SSH.SSHPort = listener.Addr().(*net.TCPAddr).Port
 
-	server := sshserver.CreateServer(&cfg, h.ShellService, h.InstanceService, h.Provider)
+	server := sshserver.Create(&cfg, h.ShellService, h.InstanceService, h.Provider)
 	go func() { _ = server.Start() }()
 	t.Cleanup(server.Close)
 

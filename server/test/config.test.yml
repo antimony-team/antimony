@@ -27,7 +27,7 @@ ssh:
   sshPort: 6969
   sshKeyPath: ./key
 capture:
-  enabled: yes
+  enabled: no
   excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
 streaming:
   containerLogBacklog: 1000

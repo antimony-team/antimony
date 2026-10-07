@@ -23,7 +23,8 @@ import (
 
 // Server is the SSH proxy that gives clients a shell on a node or streams the traffic of one of its interfaces.
 type Server struct {
-	sshConfig *config.SSHConfig
+	sshConfig     *config.SSHConfig
+	captureConfig *config.CaptureConfig
 
 	shellService    *shell.Service
 	instanceService *instance.Service
@@ -46,14 +47,15 @@ const (
 // errServerClosed is returned by Start when the server was closed before it started listening.
 var errServerClosed = errors.New("the SSH server has been closed")
 
-func CreateServer(
+func Create(
 	config *config.AntimonyConfig,
 	shellService *shell.Service,
 	instanceService *instance.Service,
 	deploymentProvider deployment.DeploymentProvider,
 ) *Server {
 	return &Server{
-		sshConfig: &config.SSH,
+		sshConfig:     &config.SSH,
+		captureConfig: &config.Capture,
 
 		shellService:    shellService,
 		instanceService: instanceService,
@@ -122,6 +124,15 @@ func (s *Server) handleSession(sess ssh.Session) {
 	var targetNode instance.InstanceNode
 	var targetInstanceName string
 	var err error
+
+	if len(sess.Command()) > 0 && !s.captureConfig.Enabled {
+		endSessionf(
+			sess,
+			exitUsage,
+			"traffic capture is not enabled",
+		)
+		return
+	}
 
 	switch userParts := strings.Split(sess.User(), "/"); len(userParts) {
 	case 1:
