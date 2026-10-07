@@ -1,0 +1,170 @@
+.sb-edit-dialog
+  transition: width .25s ease
+
+  &.sb-lab-edit-batch
+    width: min(90vw, 900px)
+
+.sb-lab-edit-body
+  display: flex
+
+.sb-lab-edit-form
+  flex: 1 1 auto
+  min-width: 0
+
+.sb-lab-edit-mode.p-selectbutton
+  display: flex
+  gap: 2px
+  padding: 3px
+  border: 1px solid var(--border)
+  border-radius: 8px
+  background: var(--surface-inset)
+
+  .p-button
+    flex: 1
+    justify-content: center
+    height: 36px
+    padding: 0 12px
+    border: 0
+    border-radius: 6px
+    background: transparent
+    box-shadow: none
+    color: var(--text-muted)
+    font-size: 14px
+
+    &:not(.p-highlight):hover
+      background: var(--hover)
+      color: var(--text)
+
+    &.p-highlight
+      background: var(--surface-selected)
+      color: var(--text)
+      font-weight: 500
+
+    &:focus-visible
+      outline: 2px solid var(--accent)
+      outline-offset: -2px
+
+.sb-lab-edit-instances.p-inputnumber
+  width: 136px
+  height: 44px
+  box-sizing: border-box
+  display: flex
+  align-items: center
+  gap: 4px
+  padding: 0 6px
+  border: 1px solid var(--border)
+  border-radius: 8px
+  background: var(--surface-inset)
+
+  &:focus-within
+    border-color: var(--border-strong)
+
+  .p-inputnumber-input
+    flex: 1
+    min-width: 0
+    width: 100%
+    height: 100%
+    padding: 0
+    border: 0
+    border-radius: 0
+    background: transparent
+    box-shadow: none
+    color: var(--text)
+    font-size: 15px
+    font-variant-numeric: tabular-nums
+    text-align: center
+
+  .p-button.p-inputnumber-button
+    flex: 0 0 30px
+    width: 30px
+    height: 30px
+    padding: 0
+    border: 0
+    border-radius: 6px
+    background: var(--hover)
+    color: var(--text-muted)
+
+    &:hover
+      background: var(--active)
+      color: var(--text)
+
+    .p-button-icon
+      font-size: 12px
+
+.sb-lab-edit-names
+  flex: 0 0 0
+  display: flex
+  flex-direction: column
+  gap: 8px
+  margin-left: 0
+  overflow: hidden
+  opacity: 0
+  visibility: hidden
+  transition: flex-basis .25s ease, margin-left .25s ease, opacity .15s ease, visibility 0s .25s
+
+  &.sb-lab-edit-names-open
+    flex-basis: 300px
+    margin-left: 20px
+    opacity: 1
+    visibility: visible
+    transition: flex-basis .25s ease, margin-left .25s ease, opacity .2s ease .05s, visibility 0s
+
+.sb-lab-edit-names-label,
+.sb-lab-edit-names-list
+  width: 300px
+  box-sizing: border-box
+
+.sb-lab-edit-names-label
+  display: flex
+  align-items: baseline
+  justify-content: space-between
+
+  > span:last-child
+    font-size: 13px
+    color: var(--text-faint)
+
+.sb-lab-edit-names-list
+  flex: 1
+  min-height: 0
+  overflow-y: auto
+  contain: size
+  border: 1px solid var(--border)
+  border-radius: 8px
+  background: var(--surface-inset)
+
+.sb-lab-edit-names-row
+  display: grid
+  grid-template-columns: 40px 1fr
+  align-items: center
+  height: 40px
+
+  & + &
+    border-top: 1px solid var(--border)
+
+  &:focus-within
+    background: var(--hover)
+
+  > span
+    padding-right: 12px
+    text-align: right
+    font-size: 13px
+    font-variant-numeric: tabular-nums
+    color: var(--text-faint)
+
+  input
+    height: 100%
+    padding: 0 12px 0 0
+    border: 0
+    outline: 0
+    background: transparent
+    color: var(--text)
+    font: inherit
+    font-size: 14px
+
+    &::placeholder
+      color: var(--text-faint)
+      font-style: italic
+      opacity: 1
+
+    &:focus
+      box-shadow: inset 0 -1px 0 var(--accent)
