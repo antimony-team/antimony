@@ -704,7 +704,7 @@ func TestUpdateLab_RunningLabIsRejected(t *testing.T) {
 	response := h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{Name: ptr("Nope")}, h.Seed.Admin.Token)
 
 	errorResponse := response.RequireError(http.StatusBadRequest, 4003)
-	assert.Contains(t, errorResponse.Message, "modifications to a running lab are not allowed")
+	assert.Contains(t, errorResponse.Message, "the lab is still running")
 
 	stored, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
 	require.NoError(t, err)
@@ -796,7 +796,7 @@ func TestDeleteLab_RunningLabIsRejected(t *testing.T) {
 	response := h.DELETE("/labs/"+LabAdminID, h.Seed.Admin.Token)
 
 	errorResponse := response.RequireError(http.StatusBadRequest, 4003)
-	assert.Contains(t, errorResponse.Message, "modifications to a running lab are not allowed")
+	assert.Contains(t, errorResponse.Message, "the lab is still running")
 
 	_, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
 	require.NoError(t, err)

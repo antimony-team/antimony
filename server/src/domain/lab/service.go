@@ -24,7 +24,7 @@ import (
 const ShellTimeout = 60
 
 type (
-	RuntimeInfo interface {
+	RuntimeService interface {
 		IsRunning(labId string) bool
 		CanDelete(labId string) bool
 	}
@@ -39,7 +39,7 @@ type (
 		topologyService *topology.Service
 		storageManager  *storage.Manager
 
-		runtimeInfo RuntimeInfo
+		runtimeService RuntimeService
 
 		labEventBus *utils.EventBus[*Lab]
 
@@ -67,7 +67,7 @@ func CreateService(
 		topologyService:        topologyService,
 		storageManager:         storageManager,
 		labEventBus:            labEventBus,
-		runtimeInfo:            nil,
+		runtimeService:         nil,
 		statusMessageNamespace: statusMessageNamespace,
 	}
 
@@ -183,7 +183,7 @@ func (s *Service) Update(ctx context.Context, req LabInPartial, labId string, au
 	}
 
 	// Don't allow modifications to running labs
-	if s.runtimeInfo == nil || s.runtimeInfo.IsRunning(lab.UUID) {
+	if s.runtimeService == nil || s.runtimeService.IsRunning(lab.UUID) {
 		return utils.ErrLabRunning
 	}
 
@@ -257,7 +257,7 @@ func (s *Service) DeleteLabsOfCollection(ctx context.Context, collectionId strin
 
 	// Check all labs first, so a running lab doesn't leave the collection half deleted
 	for i := range labs {
-		if s.runtimeInfo == nil || !s.runtimeInfo.CanDelete(labs[i].UUID) {
+		if s.runtimeService == nil || !s.runtimeService.CanDelete(labs[i].UUID) {
 			return fmt.Errorf("%w: lab %q is still running", utils.ErrLabRunning, labs[i].Name)
 		}
 	}
@@ -271,13 +271,13 @@ func (s *Service) DeleteLabsOfCollection(ctx context.Context, collectionId strin
 	return nil
 }
 
-func (s *Service) SetRuntimeInfo(runtimeInfo RuntimeInfo) {
-	s.runtimeInfo = runtimeInfo
+func (s *Service) SetRuntimeService(runtimeService RuntimeService) {
+	s.runtimeService = runtimeService
 }
 
 func (s *Service) deleteLab(ctx context.Context, lab *Lab) error {
 	// Don't allow the deletion of running labs
-	if s.runtimeInfo == nil || !s.runtimeInfo.CanDelete(lab.UUID) {
+	if s.runtimeService == nil || !s.runtimeService.CanDelete(lab.UUID) {
 		return utils.ErrLabRunning
 	}
 

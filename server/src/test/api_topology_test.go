@@ -238,7 +238,7 @@ func TestCreateTopology_InvalidYamlIsRejected(t *testing.T) {
 	}, h.Seed.Admin.Token)
 
 	errorResponse := response.RequireError(http.StatusBadRequest, 3003)
-	assert.Contains(t, errorResponse.Message, "topology provided were invalid")
+	assert.Contains(t, errorResponse.Message, "topology provided was invalid")
 }
 
 // TestCreateTopology_SchemaViolationIsRejected covers a definition that parses as YAML but does not
@@ -267,7 +267,7 @@ func TestCreateTopology_SchemaViolationIsRejected(t *testing.T) {
 
 			errorResponse := response.RequireError(http.StatusBadRequest, 3003)
 
-			assert.Contains(t, errorResponse.Message, "topology provided were invalid")
+			assert.Contains(t, errorResponse.Message, "topology provided was invalid")
 			assert.NotContains(t, errorResponse.Message, "jsonschema",
 				"the raw validator error must not reach the client")
 			assert.NotContains(t, errorResponse.Message, "containerlab.dev",

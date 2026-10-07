@@ -108,7 +108,7 @@ func TestCreateErrorResponse_MapsLabRunningToBadRequest(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, status)
 	assert.Equal(t, 4003, response.Code)
-	assert.Contains(t, response.Message, "modifications to a running lab are not allowed")
+	assert.Contains(t, response.Message, "the lab is still running")
 }
 
 // TestCreateErrorResponse_ServerFailuresAre500 covers the errors for which a 500 is the right

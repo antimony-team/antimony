@@ -2,9 +2,12 @@ package test
 
 import (
 	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/lab"
 	"antimonyBackend/transport"
+	"antimonyBackend/utils"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -363,6 +366,148 @@ func TestDeleteCollection_DuplicateNameIsStillRejectedForLiveCollections(t *test
 		PublicWrite:  ptr(false),
 		PublicDeploy: ptr(false),
 	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 2001)
+}
+
+/*
+ * Deleting a collection deletes its labs, unless one of them is running
+ */
+
+// requireLabGone asserts that a lab and its run environment were deleted.
+func requireLabGone(t *testing.T, h *Harness, labId string) {
+	t.Helper()
+
+	_, err := h.LabRepo.GetByUuid(t.Context(), labId)
+	require.ErrorIs(t, err, utils.ErrUuidNotFound, "lab %s must be deleted", labId)
+
+	var runDefinition string
+	assert.Error(t, h.Storage.ReadRunTopologyDefinition(labId, &runDefinition),
+		"the run environment of lab %s must be deleted", labId)
+}
+
+// requireLabKept asserts that a lab and its run environment still exist.
+func requireLabKept(t *testing.T, h *Harness, labId string) {
+	t.Helper()
+
+	_, err := h.LabRepo.GetByUuid(t.Context(), labId)
+	require.NoError(t, err, "lab %s must still exist", labId)
+
+	var runDefinition string
+	assert.NoError(t, h.Storage.ReadRunTopologyDefinition(labId, &runDefinition),
+		"the run environment of lab %s must still exist", labId)
+}
+
+func TestDeleteCollection_DeletesItsLabs(t *testing.T) {
+	h := NewHarness(t)
+
+	events := h.RecordLabEvents("lab.deleted")
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	requireLabGone(t, h, LabHiddenID)
+	assert.Equal(t, []string{LabHiddenID}, events.LabIdsFor("lab.deleted"),
+		"the scheduler must learn about every deleted lab")
+}
+
+func TestDeleteCollection_DeletesEndedAndScheduledLabs(t *testing.T) {
+	h := NewHarness(t)
+
+	events := h.RecordLabEvents("lab.deleted")
+
+	// PublicBoth holds labs that never ran, one that ended and one scheduled for later. None of them is running.
+	h.DELETE("/collections/"+h.Seed.PublicBoth.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	for _, labId := range []string{LabAdminID, LabMemberID, LabPastID, LabFutureID} {
+		requireLabGone(t, h, labId)
+	}
+	assert.ElementsMatch(t, []string{LabAdminID, LabMemberID, LabPastID, LabFutureID}, events.LabIdsFor("lab.deleted"))
+}
+
+func TestDeleteCollection_KeepsTheLabsOfOtherCollections(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	for _, labId := range []string{LabAdminID, LabMemberID, LabPastID, LabFutureID} {
+		requireLabKept(t, h, labId)
+	}
+}
+
+func TestDeleteCollection_IsRefusedWhileOneOfItsLabsRuns(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabHiddenID)
+
+	errorResponse := h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).
+		RequireError(http.StatusBadRequest, 4003)
+	assert.Contains(t, errorResponse.Message, "Hidden Lab", "the error must name the running lab")
+
+	_, err := h.CollectionRepo.GetByUuid(t.Context(), h.Seed.Hidden.UUID)
+	require.NoError(t, err, "the collection must not be deleted")
+	requireLabKept(t, h, LabHiddenID)
+}
+
+func TestDeleteCollection_DeletesNothingWhileAnyOfItsLabsRuns(t *testing.T) {
+	h := NewHarness(t)
+
+	events := h.RecordLabEvents("lab.deleted")
+
+	// Only one of PublicBoth's four labs runs, the others must not be deleted either. It is the last one created, so
+	// deleting lab by lab without checking all of them first would already have deleted the others.
+	h.DeployLab(LabFutureID)
+
+	h.DELETE("/collections/"+h.Seed.PublicBoth.UUID, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 4003)
+
+	for _, labId := range []string{LabAdminID, LabMemberID, LabPastID, LabFutureID} {
+		requireLabKept(t, h, labId)
+	}
+	assert.Zero(t, events.Count("lab.deleted"))
+}
+
+func TestDeleteCollection_CanBeDeletedOnceItsLabsAreDestroyed(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabHiddenID)
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 4003)
+
+	h.DestroyLab(LabHiddenID)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+	requireLabGone(t, h, LabHiddenID)
+}
+
+func TestDeleteCollection_FollowsTheLabsOwnCollectionNotItsTopologys(t *testing.T) {
+	h := NewHarness(t)
+
+	// Admin Lab stays in PublicBoth when its topology moves to Hidden, so deleting Hidden must not take it along.
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	requireLabKept(t, h, LabAdminID)
+	requireLabGone(t, h, LabHiddenID)
+}
+
+func TestDeleteCollection_LabNamesCanBeReusedAfterwards(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	// The deleted "Hidden Lab" must not block the name in a collection created under the same name again.
+	var recreatedId string
+	h.POST("/collections", collection.CollectionIn{
+		Name:         ptr(CollectionHidden),
+		PublicWrite:  ptr(true),
+		PublicDeploy: ptr(true),
+	}, h.Seed.Admin.Token).RequireOk(&recreatedId)
+
+	recreated, err := h.CollectionRepo.GetByUuid(t.Context(), recreatedId)
+	require.NoError(t, err)
+	recreatedTopology := h.createTopology("topo-recreated", HiddenTopologyDefinition, *recreated, h.Seed.Admin)
+
+	start := time.Now().Add(time.Hour)
+	h.POST("/labs", lab.LabIn{
+		Name:       ptr("Hidden Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(recreatedTopology.UUID),
+	}, h.Seed.Admin.Token).RequireOk(nil)
 }
 
 func TestDeleteCollection_RequiresAuthentication(t *testing.T) {

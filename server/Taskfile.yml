@@ -80,7 +80,7 @@ tasks:
       - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend:dev .
 
   run-docker:
-    dir: './docker'
+    dir: './build/docker'
     cmds:
       - task: build-docker
       - mkdir -p ./db

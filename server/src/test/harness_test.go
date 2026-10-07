@@ -324,7 +324,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	var (
 		authManager    = auth.CreateManager(cfg)
 		socketManager  = socket.CreateManager(authManager)
-		storageManager = storage.CreateManager(cfg)
+		storageManager = storage.CreateManager(cfg, opts.devMode)
 		provider       = deployment.CreateDummyProvider()
 	)
 
@@ -362,6 +362,9 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 			storageManager, cfg, labEventBus, statusMessages,
 		)
 	)
+
+	// Mirrors main.go: deleting a collection deletes its labs through the lab service.
+	collectionService.SetLabRemover(labService)
 
 	h := &Harness{
 		T:                   t,
@@ -405,7 +408,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	h.ShellService = shell.CreateService(cfg, labRepo, h.InstanceService, socketManager, provider)
 	t.Cleanup(h.ShellService.Close)
 
-	labService.SetRuntimeInfo(h.InstanceService)
+	labService.SetRuntimeService(h.InstanceService)
 
 	commands.CreateHandler(h.ShellService, h.InstanceService, socketManager)
 
