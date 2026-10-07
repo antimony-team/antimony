@@ -3,10 +3,14 @@ package deployment
 import (
 	"antimonyBackend/utils"
 	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +19,9 @@ import (
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sfake "github.com/clabernetes/clabernetes/generated/clientset/fake"
 	claberneteslogging "github.com/clabernetes/clabernetes/logging"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -34,7 +41,7 @@ import (
  * The pure helpers come first: the translation between Antimony's topologies, c9s's objects and
  * the shared provider types. After them, everything that only reads and writes API objects runs
  * against fake Kubernetes and c9s clients. Exec, port forwarding and log streaming need a real
- * API server and are not covered here.
+ * API server and are not covered here, except for the capture's pcap stream, which runs on fakes.
  */
 
 // antimonyTopologyFixture is a topology as Antimony writes it: the UI's graph metadata lives in
@@ -956,4 +963,351 @@ func TestRegisterListener_ReportsNodesBeingScaled(t *testing.T) {
 	require.NoError(t, cluster.provider.StopNode(context.Background(), "demo", "a1"))
 
 	assert.Eventually(t, func() bool { return slices.Contains(updates(), "a1") }, 2*time.Second, 10*time.Millisecond)
+}
+
+/*
+ * OpenCapture
+ *
+ * The capture runs in the connectivity sidecar through a pods/exec stream, which needs a real API
+ * server. The command and the pod lookups are covered here, the pcap stream with fake runs.
+ */
+
+// capturePod is the pod of the running node a1 of the direct device runtime, with the connectivity sidecar.
+func capturePod() *corev1.Pod {
+	pod := nodePod("a1-pod", "a1", corev1.PodRunning, true)
+	pod.Annotations[nodeUIDAnnotation] = "node-uid-a1"
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: connectivityContainer})
+
+	return pod
+}
+
+// flagValue returns the value following a flag in a command, or "" if the command doesn't have the flag.
+func flagValue(cmd []string, flag string) string {
+	index := slices.Index(cmd, flag)
+	if index < 0 || index+1 >= len(cmd) {
+		return ""
+	}
+	return cmd[index+1]
+}
+
+func TestPacketCaptureCommand_CapturesTheInterfaceOfThePodsNode(t *testing.T) {
+	cmd, err := packetCaptureCommand(capturePod(), "e1-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/clabernetes/manager", "node-runtime", "packet-capture"}, cmd[:3])
+	assert.Equal(t, "node-uid-a1", flagValue(cmd, "--nodeID"))
+	assert.Equal(t, "e1-1", flagValue(cmd, "--interface"))
+	assert.Equal(t, "/var/run/clabernetes/plan/plan.json", flagValue(cmd, "--plan"))
+	assert.Equal(t, "/var/run/clabernetes/input/input.json", flagValue(cmd, "--input"))
+	assert.Equal(t,
+		"/var/run/clabernetes/connectivity-revision/revision.json",
+		flagValue(cmd, "--connectivityRevision"),
+	)
+}
+
+func TestPacketCaptureCommand_StaysWithinTheSidecarsBounds(t *testing.T) {
+	cmd, err := packetCaptureCommand(capturePod(), "e1-1")
+	require.NoError(t, err)
+
+	// The sidecar refuses captures without a bound, longer than an hour, or with a snap length outside 64 B to 1 MiB
+	duration, err := time.ParseDuration(flagValue(cmd, "--duration"))
+	require.NoError(t, err)
+	assert.Positive(t, duration)
+	assert.LessOrEqual(t, duration, time.Hour)
+
+	snapLength, err := strconv.Atoi(flagValue(cmd, "--snapLength"))
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, snapLength, 64)
+	assert.LessOrEqual(t, snapLength, 1<<20)
+}
+
+func TestPacketCaptureCommand_IsNotSupportedForPodsWithoutTheSidecar(t *testing.T) {
+	withoutUID := capturePod()
+	delete(withoutUID.Annotations, nodeUIDAnnotation)
+
+	withoutSidecar := capturePod()
+	withoutSidecar.Spec.Containers = withoutSidecar.Spec.Containers[:1]
+
+	cases := map[string]*corev1.Pod{"without node UID": withoutUID, "without sidecar": withoutSidecar}
+
+	for name, pod := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := packetCaptureCommand(pod, "e1-1")
+
+			assert.ErrorIs(t, err, utils.ErrCaptureNotSupported)
+		})
+	}
+}
+
+func TestCaptureRunError_AddsTheReasonTheSidecarReports(t *testing.T) {
+	exitErr := errors.New("command terminated with exit code 1")
+	stderr := `{"schemaVersion":"c9s.direct-packet-capture-audit/v1alpha1","status":"Denied",` +
+		`"reason":"packet capture interface \"eth0\" is not uniquely planned for logical Node"}` + "\n" +
+		"Error: packet capture interface \"eth0\" is not uniquely planned for logical Node\n"
+
+	err := captureRunError(exitErr, []byte(stderr))
+
+	require.ErrorIs(t, err, exitErr)
+	assert.Contains(t, err.Error(), `interface "eth0" is not uniquely planned`)
+}
+
+func TestCaptureRunError_KeepsTheErrorWithoutAReason(t *testing.T) {
+	exitErr := errors.New("command terminated with exit code 1")
+
+	assert.Equal(t, exitErr, captureRunError(exitErr, []byte("not json\n")))
+	assert.Equal(t, exitErr, captureRunError(exitErr, nil))
+}
+
+func TestOpenCapture_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
+	cluster := newFakeCluster(t, nil, nil)
+
+	_, err := cluster.provider.OpenCapture(context.Background(), "demo", "a1", "e1-1")
+
+	assert.ErrorIs(t, err, utils.ErrNodeNotRunning)
+}
+
+func TestOpenCapture_IsNotSupportedForANodeWithoutTheSidecar(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{nodePod("a1-pod", "a1", corev1.PodRunning, true)}, nil)
+
+	_, err := cluster.provider.OpenCapture(context.Background(), "demo", "a1", "e1-1")
+
+	assert.ErrorIs(t, err, utils.ErrCaptureNotSupported)
+}
+
+/*
+ * sidecarCapture
+ */
+
+// fakePacket is a packet a fake sidecar run streams.
+type fakePacket struct {
+	at   time.Time
+	data []byte
+}
+
+// writeCaptureStream writes a pcap stream like the sidecar does: the header, then the packets.
+func writeCaptureStream(t *testing.T, stdout io.Writer, packets ...fakePacket) {
+	t.Helper()
+
+	w := pcapgo.NewWriter(stdout)
+	if err := w.WriteFileHeader(captureSnapLength, layers.LinkTypeEthernet); err != nil {
+		return
+	}
+	for _, p := range packets {
+		ci := gopacket.CaptureInfo{Timestamp: p.at, CaptureLength: len(p.data), Length: len(p.data)}
+		if err := w.WritePacket(ci, p.data); err != nil {
+			return
+		}
+	}
+}
+
+// fakeRuns serves sidecar runs from a list, one per run, and counts them.
+type fakeRuns struct {
+	mutex sync.Mutex
+	runs  []runCaptureFunc
+	count int
+}
+
+func (f *fakeRuns) run(ctx context.Context, stdout, stderr io.Writer) error {
+	f.mutex.Lock()
+	if f.count >= len(f.runs) {
+		f.mutex.Unlock()
+		return errors.New("unexpected run")
+	}
+	run := f.runs[f.count]
+	f.count++
+	f.mutex.Unlock()
+
+	return run(ctx, stdout, stderr)
+}
+
+func (f *fakeRuns) started() int {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	return f.count
+}
+
+// streamUntilCanceled streams packets, then keeps the run going like a capture on a quiet interface.
+func streamUntilCanceled(t *testing.T, packets ...fakePacket) runCaptureFunc {
+	return func(ctx context.Context, stdout, _ io.Writer) error {
+		writeCaptureStream(t, stdout, packets...)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+}
+
+type readResult struct {
+	data []byte
+	ci   gopacket.CaptureInfo
+	err  error
+}
+
+// readPacket reads the next packet, failing the test if the read doesn't return in time.
+func readPacket(t *testing.T, capture *sidecarCapture) readResult {
+	t.Helper()
+
+	result := make(chan readResult, 1)
+	go func() {
+		data, ci, err := capture.ReadPacketData()
+		result <- readResult{data, ci, err}
+	}()
+
+	select {
+	case r := <-result:
+		return r
+	case <-time.After(2 * time.Second):
+		t.Fatal("the read didn't return")
+		return readResult{}
+	}
+}
+
+func TestSidecarCapture_ReadsThePacketsTheSidecarStreams(t *testing.T) {
+	first := fakePacket{at: time.Unix(1700000000, 1000).UTC(), data: []byte("first packet")}
+	second := fakePacket{at: time.Unix(1700000001, 2000).UTC(), data: []byte("second packet")}
+	runs := &fakeRuns{runs: []runCaptureFunc{streamUntilCanceled(t, first, second)}}
+
+	capture, err := openSidecarCapture(context.Background(), runs.run)
+	require.NoError(t, err)
+	t.Cleanup(capture.Close)
+
+	for _, expected := range []fakePacket{first, second} {
+		r := readPacket(t, capture)
+		require.NoError(t, r.err)
+		assert.Equal(t, expected.data, r.data)
+		assert.Equal(t, expected.at, r.ci.Timestamp)
+		assert.Equal(t, len(expected.data), r.ci.Length)
+	}
+}
+
+func TestSidecarCapture_ContinuesWithANewRunWhenOneReachesItsTimeBound(t *testing.T) {
+	first := fakePacket{at: time.Unix(1700000000, 0).UTC(), data: []byte("before the bound")}
+	second := fakePacket{at: time.Unix(1700003600, 0).UTC(), data: []byte("after the bound")}
+	runs := &fakeRuns{runs: []runCaptureFunc{
+		func(_ context.Context, stdout, _ io.Writer) error {
+			writeCaptureStream(t, stdout, first)
+			return nil
+		},
+		streamUntilCanceled(t, second),
+	}}
+
+	capture, err := openSidecarCapture(context.Background(), runs.run)
+	require.NoError(t, err)
+	t.Cleanup(capture.Close)
+
+	assert.Equal(t, first.data, readPacket(t, capture).data)
+	r := readPacket(t, capture)
+	require.NoError(t, r.err)
+	assert.Equal(t, second.data, r.data, "the second run's header must not show up as a packet")
+	assert.Equal(t, 2, runs.started())
+}
+
+func TestSidecarCapture_ReportsWhyTheCaptureCantStart(t *testing.T) {
+	runs := &fakeRuns{runs: []runCaptureFunc{
+		func(_ context.Context, _, stderr io.Writer) error {
+			_, _ = io.WriteString(stderr, `{"status":"Denied","reason":"interface \"mgmt0\" is not planned"}`+"\n")
+			return errors.New("command terminated with exit code 1")
+		},
+	}}
+
+	_, err := openSidecarCapture(context.Background(), runs.run)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `interface "mgmt0" is not planned`)
+	assert.Equal(t, 1, runs.started(), "a capture that can't start isn't retried")
+}
+
+func TestSidecarCapture_FailsWhenTheFirstRunEndsWithoutStreaming(t *testing.T) {
+	runs := &fakeRuns{runs: []runCaptureFunc{
+		func(context.Context, io.Writer, io.Writer) error { return nil },
+	}}
+
+	_, err := openSidecarCapture(context.Background(), runs.run)
+
+	assert.Error(t, err)
+}
+
+func TestSidecarCapture_EndsWhenARunFails(t *testing.T) {
+	packet := fakePacket{at: time.Unix(1700000000, 0).UTC(), data: []byte("last packet")}
+	runs := &fakeRuns{runs: []runCaptureFunc{
+		func(_ context.Context, stdout, stderr io.Writer) error {
+			writeCaptureStream(t, stdout, packet)
+			_, _ = io.WriteString(stderr, `{"status":"Failed","reason":"reading packet capture interface: link down"}`)
+			return errors.New("command terminated with exit code 1")
+		},
+	}}
+
+	capture, err := openSidecarCapture(context.Background(), runs.run)
+	require.NoError(t, err)
+	t.Cleanup(capture.Close)
+
+	assert.Equal(t, packet.data, readPacket(t, capture).data)
+	r := readPacket(t, capture)
+	require.Error(t, r.err)
+	assert.Contains(t, r.err.Error(), "link down")
+	assert.Equal(t, 1, runs.started(), "a failed run isn't restarted")
+}
+
+func TestSidecarCapture_CloseEndsAWaitingReadAndTheRun(t *testing.T) {
+	runEnded := make(chan error, 1)
+	runs := &fakeRuns{runs: []runCaptureFunc{
+		func(ctx context.Context, stdout, stderr io.Writer) error {
+			err := streamUntilCanceled(t)(ctx, stdout, stderr)
+			runEnded <- err
+			return err
+		},
+	}}
+
+	capture, err := openSidecarCapture(context.Background(), runs.run)
+	require.NoError(t, err)
+
+	result := make(chan error, 1)
+	go func() {
+		_, _, err := capture.ReadPacketData()
+		result <- err
+	}()
+
+	// Let the read wait for packets before closing
+	time.Sleep(50 * time.Millisecond)
+	capture.Close()
+	capture.Close()
+
+	select {
+	case err := <-result:
+		require.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the read didn't end after the capture was closed")
+	}
+
+	select {
+	case err := <-runEnded:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the sidecar run wasn't stopped")
+	}
+	assert.Equal(t, 1, runs.started(), "a closed capture doesn't start a new run")
+}
+
+func TestSidecarCapture_OpeningEndsWithTheContext(t *testing.T) {
+	runs := &fakeRuns{runs: []runCaptureFunc{
+		// The exec stream is never established, e.g. because the API server doesn't answer
+		func(ctx context.Context, _, _ io.Writer) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	opened := make(chan error, 1)
+	go func() {
+		_, err := openSidecarCapture(ctx, runs.run)
+		opened <- err
+	}()
+
+	select {
+	case err := <-opened:
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(2 * time.Second):
+		t.Fatal("opening didn't end with the context")
+	}
 }
