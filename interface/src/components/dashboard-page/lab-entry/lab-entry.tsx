@@ -20,8 +20,7 @@ interface LabEntryProps {
 
   onOpenLab: () => void;
   onRescheduleLab: () => void;
-
-  onDestroyLabRequest: () => void;
+  onDestroyLab: () => void;
 }
 
 const LabEntry = observer((props: LabEntryProps) => {
@@ -150,7 +149,7 @@ const LabEntry = observer((props: LabEntryProps) => {
         <div className="sb-dashboard-lab-card-footer">
           <span className="material-symbols-outlined">network_node</span>
           <span>{topologyName}</span>
-          <div className="sb-dashboard-lab-card-footer-owner">
+          <div className="sb-lab-grid-card-footer-owner">
             <i className="pi pi-user" />
             <span>{props.lab.creator.name}</span>
           </div>

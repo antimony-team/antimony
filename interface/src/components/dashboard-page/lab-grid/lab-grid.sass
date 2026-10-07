@@ -1,0 +1,186 @@
+.sb-lab-grid-header
+  display: flex
+  flex-direction: row
+  align-items: center
+  padding: 16px 16px 8px
+  gap: 12px
+
+  .p-button
+    flex-shrink: 0
+
+  .sb-lab-grid-header-title
+    font-size: 20px
+
+    &::after
+      display: inline-block
+      content: ""
+      width: 3px
+      height: 3px
+      border-radius: 50%
+      background: var(--text-muted)
+      margin: 0 8px
+      vertical-align: calc(0.35em - 2px)
+
+  .sb-lab-grid-header-subtitle
+    color: var(--text-muted)
+
+  .sb-lab-grid-filter-chips
+    display: flex
+    flex-wrap: wrap
+    gap: 8px
+
+    .sb-lab-grid-filter-chip
+      display: inline-flex
+      align-items: center
+      gap: 8px
+      user-select: none
+      cursor: pointer
+      padding: 8px 12px
+      border-radius: 8px
+      background-color: transparent
+      border: 1px solid var(--border)
+      color: var(--text-muted)
+
+      &:hover
+        background-color: var(--hover)
+        color: var(--text)
+
+      &:active
+        background-color: var(--active)
+
+      &.selected
+        background-color: var(--surface-selected)
+        border-color: var(--border)
+        color: var(--text)
+
+        &:hover
+          border-color: var(--border-strong)
+
+        &:active
+          background-color: color-mix(in oklab, var(--surface-selected) 90%, white)
+
+      .dot
+        width: 8px
+        height: 8px
+        border-radius: 50%
+        background-color: var(--text)
+
+        &.running
+          background-color: var(--success-color-text)
+
+        &.deploying
+          background-color: var(--warning-color-text)
+
+        &.stopping
+          background-color: var(--subtle-color-text)
+
+        &.scheduled
+          background-color: var(--info-color-text)
+
+        &.failed
+          background-color: var(--danger-color-text)
+
+.sb-lab-grid-content
+  display: flex
+  flex-direction: column
+  gap: 8px
+  align-items: start
+  padding: 16px
+  overflow-y: auto
+
+  .sb-lab-grid-card-footer-owner
+    display: flex
+    align-items: center
+    gap: 8px
+
+  // stretch, the content column aligns its children to the start
+  .sb-lab-grid-groups
+    align-self: stretch
+    display: flex
+    flex-direction: column
+    gap: 8px
+
+  .sb-lab-grid-group-header
+    display: flex
+    align-items: center
+    gap: 10px
+    height: 32px
+    // the hover wash extends past the cards, the content stays aligned with them
+    margin: 0 -8px
+    padding: 0 8px
+    border: 0
+    border-radius: 8px
+    background: transparent
+    font-family: inherit
+    font-size: 15px
+    font-weight: 500
+    color: var(--text)
+    text-align: left
+    cursor: pointer
+    width: calc(100% + 16px)
+
+    &::after
+      content: ''
+      flex-grow: 1
+      height: 1px
+      margin-left: 6px
+      background-color: var(--border)
+
+    &:hover
+      background-color: var(--hover)
+
+    &:active
+      background-color: var(--active)
+
+    &:focus-visible
+      outline: 2px solid var(--accent)
+      outline-offset: -2px
+
+    i
+      font-size: 16px
+
+    &[aria-expanded="false"] .sb-lab-grid-group-chevron
+      transform: rotate(-90deg)
+
+    .sb-lab-grid-group-chevron
+      font-size: 12px
+      color: var(--text-faint)
+      transition: transform 0.25s ease-out
+
+  .sb-lab-grid-group-count
+    display: inline-flex
+    align-items: center
+    height: 18px
+    padding: 0 7px
+    border-radius: 9px
+    font-size: 12px
+    font-weight: 400
+    color: var(--text-muted)
+    background-color: var(--hover)
+    font-variant-numeric: tabular-nums
+
+  .sb-lab-grid-group-body
+    display: grid
+    grid-template-rows: 1fr
+    transition: grid-template-rows 0.25s ease-out, opacity 0.2s ease-out
+
+  .sb-lab-grid-group.collapsed .sb-lab-grid-group-body
+    grid-template-rows: 0fr
+    opacity: 0
+
+  // min-height: 0 lets the row shrink below its content
+  .sb-lab-grid-group-inner
+    min-height: 0
+    overflow: hidden
+
+  .sb-lab-grid-grid
+    display: grid
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr))
+    gap: 12px
+    align-items: start
+    padding: 10px 0 20px
+
+  @media (prefers-reduced-motion: reduce)
+    .sb-lab-grid-group-body,
+    .sb-lab-grid-group-chevron
+      transition: none
