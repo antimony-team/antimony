@@ -86,21 +86,10 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       return;
     }
 
-    let isError = false;
-
     if (editingLab.name === '') {
       labNameRef.current?.setValidationError("Name can't be empty");
-      isError = true;
+      return;
     }
-
-    if (editingLab.topologyId === '') {
-      topologyDropdownRef.current?.setValidationError(
-        "You didn't select a topology",
-      );
-      isError = true;
-    }
-
-    if (isError) return;
 
     if (props.dialogState.state.action === DialogAction.Edit) {
       if (isEqual(originalLab, editingLab)) {
@@ -129,6 +118,13 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         props.dialogState.close();
       }
     } else if (props.dialogState.state.action === DialogAction.Add) {
+      if (editingLab.topologyId === '') {
+        topologyDropdownRef.current?.setValidationError(
+          "You didn't select a topology",
+        );
+        return;
+      }
+
       const newLab: LabIn = {
         name: editingLab.name,
         topologyId: editingLab.topologyId,

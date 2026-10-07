@@ -21,7 +21,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
       onClose={props.onClose}
       headerTitle="Antimony"
       hideButtons={true}
-      headerIcon="./icons/favicon-dark.png"
+      headerIcon="./antimony-logo-outline.svg"
       className="sb-credits-dialog"
     >
       <div className="flex flex-row gap-2 align-items-end">
@@ -29,7 +29,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
           <div className="mb-4">
             A visual approach to designing and managing Containerlab networks.
           </div>
-          <div>
+          <div className="flex flex-column gap-2">
             <div className="sb-credits-header">Version</div>
             <div className="mb-2">v1.0.0</div>
             <div className="sb-credits-header">Authors</div>

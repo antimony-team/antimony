@@ -39,6 +39,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
     <SBDialog
       className="calender-dialog"
       headerTitle="Lab Schedule"
+      headerIcon={<i className="pi pi-calendar" />}
       isOpen={props.isOpen}
       onClose={props.onClose}
       hideButtons={true}
@@ -74,19 +75,25 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
     );
   }
 
-  const events = useMemo(
-    () =>
-      labStore.data
-        .filter(lab => lab.endTime !== null)
-        .map(lab => ({
+  const events = useMemo(() => {
+    const now = new Date();
+
+    return labStore.data
+      .filter(lab => lab.endTime !== null)
+      .map(lab => {
+        const end = new Date(lab.endTime!);
+
+        return {
           title: lab.name,
           id: lab.id,
-          state: lab.instance?.state ?? InstanceState.Scheduled,
+          state:
+            lab.instance?.state ??
+            (end < now ? InstanceState.Inactive : InstanceState.Scheduled),
           start: new Date(lab.startTime),
-          end: new Date(lab.endTime!),
-        })),
-    [labStore.data],
-  );
+          end,
+        };
+      });
+  }, [labStore.data]);
 
   useEffect(() => {
     labStore.setDates(
@@ -126,18 +133,6 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
     }
   }
 
-  function eventStyleGenerator(event: CalendarEvent) {
-    return {
-      style: {
-        backgroundColor: StateEventColors[event.state],
-        borderRadius: '5px',
-        color: 'white',
-        border: 'none',
-        display: 'block',
-      },
-    };
-  }
-
   return (
     <div className="calendar-container">
       <Calendar
@@ -153,9 +148,30 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
         date={currentDate}
         onView={view => setCurrentView(view)}
         onNavigate={date => setCurrentDate(date)}
-        eventPropGetter={eventStyleGenerator}
         onRangeChange={onRangeChange}
         onSelectEvent={onEventSelect}
+        eventPropGetter={event => ({
+          className: InstanceState[event.state]?.toLowerCase(),
+        })}
+        messages={{
+          today: 'Today',
+          previous: <i className="pi pi-chevron-left" />,
+          next: <i className="pi pi-chevron-right" />,
+          month: 'Month',
+          week: 'Week',
+          agenda: 'Agenda',
+          allDay: 'All day',
+          event: 'Lab',
+          showMore: total => `+${total} more`,
+        }}
+        formats={{
+          timeGutterFormat: 'HH:mm',
+          agendaTimeFormat: 'HH:mm',
+          eventTimeRangeFormat: ({start, end}, culture, localizer) =>
+            `${localizer!.format(start, 'HH:mm', culture)} – ${localizer!.format(end, 'HH:mm', culture)}`,
+          agendaTimeRangeFormat: ({start, end}, culture, localizer) =>
+            `${localizer!.format(start, 'HH:mm', culture)} – ${localizer!.format(end, 'HH:mm', culture)}`,
+        }}
         onDrillDown={date => {
           setCurrentView('week');
           setCurrentDate(date);
@@ -183,13 +199,5 @@ interface CalendarEvent {
 interface CustomEventProps {
   event: CalendarEvent;
 }
-
-const StateEventColors: {[key: number]: string} = {
-  0: 'var(--info-color)',
-  1: 'var(--warning-color)',
-  2: 'var(--success-color)',
-  3: 'var(--danger-color)',
-  4: 'var(--neutral-color)',
-};
 
 export default CalendarDialog;

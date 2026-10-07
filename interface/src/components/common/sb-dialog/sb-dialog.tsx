@@ -61,7 +61,7 @@ const SBDialog = (props: SBDialogProps) => {
             <If condition={props.headerIcon}>
               <Choose>
                 <When condition={typeof props.headerIcon === 'string'}>
-                  <Image src={props.headerIcon as string} width="35px" />
+                  <Image src={props.headerIcon as string} height="24px" />
                 </When>
                 <Otherwise>{props.headerIcon}</Otherwise>
               </Choose>

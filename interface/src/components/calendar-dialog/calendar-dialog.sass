@@ -9,148 +9,339 @@
     padding: 0
     overflow: hidden
 
-  .calendar-container
-    // Compensation for the -1px border
-    height: calc(100% + 1px)
-
-  .rbc-time-view
-    margin: 0 -1px -1px -1px
+.calendar-container
+  height: 100%
 
   .rbc-calendar
-    background-color: #1e1e2d
-    color: #e0e0e0
-    margin: 0 -1px -1px -1px
-    border-color: var(--border) !important
+    color: var(--text)
+    font-size: 13px
 
-.rbc-day-slot .rbc-time-slot
-  border-color: var(--border)
-  filter: brightness(0.6)
+  // Event colours come from eventPropGetter's className
+  .rbc-event,
+  .rbc-agenda-table tbody > tr
+    --event-color: var(--text-muted)
 
-.rbc-toolbar
-  background-color: var(--surface-overlay)
-  padding: 10px
-  text-align: center
-  margin-bottom: 0
+    &.running
+      --event-color: var(--success-color-text)
 
-  .rbc-toolbar-label
-    font-size: 20px
-    font-weight: 600
+    &.deploying
+      --event-color: var(--warning-color-text)
 
-  .rbc-btn-group
-    display: flex
-    justify-content: center
-    gap: 10px
+    &.scheduled
+      --event-color: var(--info-color-text)
 
-    button
-      background-color: transparent
-      border: 1px solid var(--border)
-      color: var(--border)
-      padding: 10px 14px
-      border-radius: 4px !important
-      font-size: 14px
+    &.failed
+      --event-color: var(--danger-color-text)
+
+  // Toolbar
+  .rbc-toolbar
+    display: grid
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)
+    align-items: center
+    gap: 12px
+    margin: 0
+    padding: 12px 16px
+    border-bottom: 1px solid var(--border)
+    font-size: 14px
+
+    .rbc-toolbar-label
+      padding: 0
+      font-size: 16px
       font-weight: 600
-      cursor: pointer
-      transition: background-color 0.2s
 
-      &.rbc-active
-        background-color: var(--border)
-        border-color: var(--border)
-        color: var(--surface-selected)
+    .rbc-btn-group
+      display: flex
+      align-items: center
+      margin: 0
 
-      &:active:not(.rbc-active)
-        color: var(--border)
-        background-color: transparent
+      &:last-child
+        justify-self: end
+        gap: 2px
+        padding: 3px
         border: 1px solid var(--border)
-        filter: brightness(1.4)
+        border-radius: 8px
+        background: var(--surface-inset)
 
-      &:hover
-        filter: brightness(1.2)
+      &:first-child
+        gap: 4px
 
-.rbc-header
-  background-color: #252537
-  color: var(--text)
-  padding: 5px
-  border-left-color: var(--border) !important
-  border-right-color: var(--border) !important
-  border-bottom-color: var(--border) !important
+      > button
+        display: inline-flex
+        align-items: center
+        justify-content: center
+        height: 34px
+        margin: 0
+        padding: 0 12px
+        border: 0
+        border-radius: 8px
+        background: transparent
+        box-shadow: none
+        color: var(--text-muted)
+        font: inherit
+        font-weight: 500
+        transition: background-color .15s, color .15s
 
-.rbc-time-view,.rbc-month-row
-  .rbc-row
-    min-height: 30px
+        &:hover,
+        &:focus
+          background: var(--hover)
+          color: var(--text)
 
-.rbc-agenda-view
-  .rbc-agenda-empty
-    margin: 8px
+        &:focus-visible
+          outline: 2px solid var(--accent)
+          outline-offset: 1px
 
-.rbc-date-cell
-  color: #e0e0e0
+        &.rbc-active,
+        &.rbc-active:hover,
+        &.rbc-active:focus
+          background: var(--surface-selected)
+          box-shadow: none
+          color: var(--text)
 
-//.rbc-month-view
-  //.rbc-row
-  //  border-bottom: 1px solid #3e3e4e
+    .rbc-btn-group:first-child > button
+      &:first-child
+        margin-right: 4px
+        border: 1px solid var(--border-strong)
+        color: var(--text)
 
-  //.rbc-date-cell
-  //  transition: background-color 0.2s
+      &:not(:first-child)
+        width: 34px
+        padding: 0
 
-//.rbc-day-bg
-//  &:hover
-//    background-color: #3e3e4e
+    .rbc-btn-group:last-child > button
+      height: 28px
+      padding: 0 12px
+      border-radius: 6px
+      font-size: 13px
 
-.rbc-today
-  background-color: #2e2e3e
+  // Shared grid
+  .rbc-month-view,
+  .rbc-time-view
+    border: 0
 
-.rbc-event
-  background-color: #00bcd4
-  border-radius: 5px
-  color: #fff
-  font-size: 14px
-  padding: 2px 4px
-  transition: background-color 0.2s
+  .rbc-header
+    padding: 8px
+    line-height: 16px
+    border-bottom: 1px solid var(--border)
+    color: var(--text-muted)
+    font-size: 11px
+    font-weight: 500
+    letter-spacing: .04em
+    text-transform: uppercase
 
-  &:hover
-    background-color: #0097a7
+    & + .rbc-header
+      border-left: 1px solid var(--border)
 
-.rbc-event-label
-  color: #fff
+  .rbc-today
+    background-color: color-mix(in oklab, var(--accent) 5%, transparent)
 
-.rbc-time-view
-  border-color: var(--border)
+  .rbc-off-range-bg
+    background: var(--surface-sunken)
+
+  .rbc-selected-cell
+    background-color: var(--hover)
+
+  // Month
+  .rbc-month-row + .rbc-month-row
+    border-top: 1px solid var(--border)
+
+  .rbc-day-bg + .rbc-day-bg
+    border-left: 1px solid var(--border)
+
+  .rbc-date-cell
+    padding: 6px 8px 4px
+    color: var(--text-muted)
+    font-size: 12px
+    text-align: left
+
+    &.rbc-off-range
+      color: var(--text-faint)
+
+    &.rbc-now
+      font-weight: 600
+
+      .rbc-button-link
+        display: inline-flex
+        align-items: center
+        justify-content: center
+        min-width: 22px
+        height: 22px
+        padding: 0 6px
+        border-radius: 9999px
+        background: var(--accent)
+        color: var(--surface-sunken)
+
+  .rbc-row-segment
+    padding: 0 4px 2px
+
+  .rbc-show-more
+    margin: 0 4px
+    padding: 2px 4px
+    border-radius: 4px
+    background: transparent
+    color: var(--text-muted)
+    font-size: 12px
+    font-weight: 500
+
+    &:hover,
+    &:focus
+      background: var(--hover)
+      color: var(--text)
+
+  // Events
+  .rbc-event
+    padding: 3px 8px
+    border: 0
+    border-radius: 6px
+    background-color: color-mix(in oklab, var(--event-color) 16%, transparent)
+    box-shadow: inset 3px 0 0 var(--event-color)
+    color: var(--event-color)
+    font-size: 12px
+    font-weight: 500
+    transition: background-color .15s
+
+    &:hover
+      background-color: color-mix(in oklab, var(--event-color) 24%, transparent)
+
+    &.rbc-selected
+      background-color: color-mix(in oklab, var(--event-color) 30%, transparent)
+
+    &:focus
+      outline: none
+
+    &:focus-visible
+      outline: 2px solid var(--accent)
+      outline-offset: 1px
+
+    &.rbc-event-continues-prior
+      box-shadow: none
+
+  .rbc-event-label
+    color: inherit
+    font-size: 11px
+    font-weight: 400
+    opacity: .8
+
+  // Week / day
   .rbc-time-header
-    border-bottom: 1px solid #3e3e4e
+    &.rbc-overflowing
+      border-right: 1px solid var(--border)
+
+    > .rbc-row:first-child
+      border-bottom: 1px solid var(--border)
+
+  .rbc-time-header-content
+    border-left: 1px solid var(--border)
+
+  .rbc-time-view
+    .rbc-row
+      min-height: 28px
+
+    .rbc-allday-cell + .rbc-allday-cell
+      border-left: 1px solid var(--border)
+
+  .rbc-time-content
+    border-top: 1px solid var(--border)
+
+    > * + * > *
+      border-left: 1px solid var(--border)
 
   .rbc-timeslot-group
-    border-color: transparent
+    border-bottom: 1px solid var(--border)
 
-.rbc-time-header.rbc-overflowing
-  border-color: transparent
+  .rbc-day-slot
+    .rbc-time-slot
+      border-top: 0
 
-.rbc-off-range-bg
-  background-color: #1A2B34
+    .rbc-event
+      border: 1px solid var(--surface-raised)
 
-.rbc-time-content
+  .rbc-time-gutter .rbc-label
+    padding: 0 10px
+    color: var(--text-faint)
+    font-size: 11px
+    font-variant-numeric: tabular-nums
+
+  .rbc-current-time-indicator
+    height: 2px
+    background-color: var(--accent)
+
+    &::before
+      content: ''
+      position: absolute
+      left: -4px
+      top: -3px
+      width: 8px
+      height: 8px
+      border-radius: 50%
+      background: var(--accent)
+
+  .rbc-slot-selection
+    background-color: color-mix(in oklab, var(--accent) 20%, transparent)
+    color: var(--text)
+
+  // Agenda
+  .rbc-agenda-view
+    table.rbc-agenda-table
+      border: 0
+
+      thead > tr > th
+        height: 36px
+        padding: 0 16px
+        border-bottom: 1px solid var(--border)
+        border-left: 0
+        color: var(--text-muted)
+        font-size: 11px
+        font-weight: 500
+        letter-spacing: .04em
+        text-transform: uppercase
+
+      tbody > tr
+        background: none
+
+        > td
+          height: 40px
+          padding: 0 16px
+          vertical-align: middle
+
+        > td + td
+          border-left: 0
+
+      tbody > tr + tr
+        border-top: 1px solid var(--border)
+
+      .rbc-agenda-date-cell
+        border-right: 1px solid var(--border)
+        color: var(--text-muted)
+
+      .rbc-agenda-time-cell
+        color: var(--text-muted)
+        font-variant-numeric: tabular-nums
+        text-transform: none
+
+      .rbc-agenda-event-cell
+        box-shadow: inset 3px 0 0 var(--event-color)
+        color: var(--text)
+
+  .rbc-agenda-empty
+    padding: 24px
+    color: var(--text-muted)
+    text-align: center
+
+// "+n more" popup, rendered next to the calendar
+.rbc-overlay
+  padding: 6px
   border: 1px solid var(--border)
+  border-radius: 10px
+  background-color: var(--surface-overlay)
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
 
-.rbc-time-content > * + * > *
-  border-left: 1px solid var(--border)
+  > * + *
+    margin-top: 2px
 
-.rbc-day-bg + .rbc-day-bg
-  border-left: 1px solid var(--border)
-
-.rbc-time-header-content
-  border-color: var(--border)
-
-.rbc-month-view
-  border-color: var(--border)
-
-.rbc-month-view .rbc-row
-  border-color: var(--border)
-
-.rbc-month-row + .rbc-month-row
-  border-color: var(--border)
-
-.rbc-show-more
-  background-color: var(--border)
-  color: black
-  border-radius: 4px
-  padding: 1px
-
+.rbc-overlay-header
+  margin: -6px -6px 6px
+  padding: 8px 12px
+  border-bottom: 1px solid var(--border)
+  color: var(--text-muted)
+  font-size: 12px
+  font-weight: 500
