@@ -1165,6 +1165,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             node={node as ExplorerTreeNodeData}
             onOpenMenu={openPopupMenu}
             onAddTopology={onAddTopology}
+            onDeployTopology={props.onTopologyDeploy}
           />
         )}
         onContextMenu={onContextMenuTree}

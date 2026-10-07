@@ -18,6 +18,7 @@ interface ExplorerTreeNodeProps {
 
   onOpenMenu: (e: React.SyntheticEvent, node: ExplorerTreeNodeData) => void;
   onAddTopology: (collectionId: uuid4) => void;
+  onDeployTopology: (topologyId: uuid4) => void;
 }
 
 export interface ExplorerTreeNodeData extends TreeNode {
@@ -129,6 +130,16 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
 
           {/* Topology */}
           <When condition={props.node.type === ExplorerTreeNodeType.Topology}>
+            <Button
+              text
+              icon="pi pi-play"
+              onClick={e => {
+                e.stopPropagation();
+                props.onDeployTopology(props.node.key as uuid4);
+              }}
+              aria-label="Deploy Topology"
+              className="sb-button-green"
+            />
             <Button
               text
               icon={

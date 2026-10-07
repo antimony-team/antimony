@@ -13,58 +13,6 @@
   .p-tree-container
     margin-top: 8px
 
-.sb-explorer-node-buttons
-  height: 40px
-  display: flex
-  align-items: center
-
-  .p-button-icon-only
-    width: 2rem
-    height: 2rem
-    padding: 0
-    transition: opacity 0.1s ease
-
-    &:hover
-      filter: brightness(1.2) !important
-
-.p-treenode-droppoint
-  height: 0
-
-.p-treenode
-  &.sb-explorer-bindfile-directory-node,&.sb-explorer-bindfile-node
-    padding-right: 0
-
-.p-treenode-content
-  border: 1px transparent solid
-
-  span.material-symbols-outlined
-    margin-right: 8px
-    color: rgba(255, 255, 255, 0.6)
-
-  &.sb-explorer-bindfile-node, &.sb-explorer-topology-node, &.sb-explorer-collection-node, &.sb-explorer-bindfile-directory-node
-    padding: 0 4px
-
-    .p-button-icon-only
-      opacity: 0
-
-      &:hover
-        border: unset
-
-    &:hover
-      background-color: var(--surface-hover)
-
-      .p-button-icon-only
-        opacity: 1
-
-    &.p-highlight
-      background-color: var(--surface-selected)
-
-      .p-button-icon-only
-        opacity: 1
-
-  .sb-input
-    width: 160px
-
 .sb-topology-explorer-empty
   margin-top: 16px
   width: 100%
