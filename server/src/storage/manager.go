@@ -18,9 +18,12 @@ type Manager struct {
 	fileCache      map[string]string
 	fileCacheMutex sync.Mutex
 	copyOptions    cp.Options
+
+	dirPerm  os.FileMode
+	filePerm os.FileMode
 }
 
-func CreateManager(config *config.AntimonyConfig) *Manager {
+func CreateManager(config *config.AntimonyConfig, isDevMode bool) *Manager {
 	manager := &Manager{
 		storagePath:    config.FileSystem.Storage,
 		runPath:        config.FileSystem.Run,
@@ -31,137 +34,145 @@ func CreateManager(config *config.AntimonyConfig) *Manager {
 		},
 	}
 
+	if isDevMode {
+		manager.dirPerm = 0777
+		manager.filePerm = 0666
+	} else {
+		manager.dirPerm = 0750
+		manager.filePerm = 0640
+	}
+
 	manager.setupDirectories()
 
 	return manager
 }
 
-func (s *Manager) CreateRunEnvironment(
+func (m *Manager) CreateRunEnvironment(
 	topologyId string,
 	labId string,
 	topologyDefinition string,
 	topologyFilePath *string,
 ) error {
-	absoluteStoragePath := filepath.Join(s.storagePath, topologyId)
-	absoluteRunPath := filepath.Join(s.runPath, labId)
+	absoluteStoragePath := filepath.Join(m.storagePath, topologyId)
+	absoluteRunPath := filepath.Join(m.runPath, labId)
 
-	if err := cp.Copy(absoluteStoragePath, absoluteRunPath, s.copyOptions); err != nil {
+	if err := cp.Copy(absoluteStoragePath, absoluteRunPath, m.copyOptions); err != nil {
 		log.Errorf("Failed to create run directory for lab: %s", err.Error())
 		return err
 	}
 
 	runDefinitionPath := getRunDefinitionFilePath(labId)
-	if err := s.writeRun(runDefinitionPath, topologyDefinition); err != nil {
+	if err := m.writeRun(runDefinitionPath, topologyDefinition); err != nil {
 		log.Errorf("Failed to write run definition for lab: %s", err.Error())
 		return err
 	}
 
-	*topologyFilePath = filepath.Join(s.runPath, runDefinitionPath)
+	*topologyFilePath = filepath.Join(m.runPath, runDefinitionPath)
 	return nil
 }
 
-func (s *Manager) GetRunTopologyFile(labId string) string {
+func (m *Manager) GetRunTopologyFile(labId string) string {
 	runDefinitionPath := getRunDefinitionFilePath(labId)
-	return filepath.Join(s.runPath, runDefinitionPath)
+	return filepath.Join(m.runPath, runDefinitionPath)
 }
 
-func (s *Manager) ReadRunTopologyDefinition(labId string, content *string) error {
-	return s.readRun(getRunDefinitionFilePath(labId), content)
+func (m *Manager) ReadRunTopologyDefinition(labId string, content *string) error {
+	return m.readRun(getRunDefinitionFilePath(labId), content)
 }
 
-func (s *Manager) GetRunEnvironment(labId string, content *string) (*string, error) {
+func (m *Manager) GetRunEnvironment(labId string, content *string) (*string, error) {
 	filePath := getRunDefinitionFilePath(labId)
 
-	if err := s.readRun(filePath, content); err != nil {
+	if err := m.readRun(filePath, content); err != nil {
 		return nil, err
 	}
 
-	runTopologyPath := filepath.Join(s.runPath, filePath)
+	runTopologyPath := filepath.Join(m.runPath, filePath)
 	return &runTopologyPath, nil
 }
 
-func (s *Manager) ReadTopology(topologyId string, content *string) error {
-	return s.readStorage(getDefinitionFilePath(topologyId), content)
+func (m *Manager) ReadTopology(topologyId string, content *string) error {
+	return m.readStorage(getDefinitionFilePath(topologyId), content)
 }
 
-func (s *Manager) WriteTopology(topologyId string, content string) error {
-	return s.writeStorage(getDefinitionFilePath(topologyId), content)
+func (m *Manager) WriteTopology(topologyId string, content string) error {
+	return m.writeStorage(getDefinitionFilePath(topologyId), content)
 }
 
-func (s *Manager) ReadBindFile(topologyId string, filePath string, content *string) error {
+func (m *Manager) ReadBindFile(topologyId string, filePath string, content *string) error {
 	relativePath, err := bindFilePath(topologyId, filePath)
 	if err != nil {
 		return err
 	}
 
-	return s.readStorage(relativePath, content)
+	return m.readStorage(relativePath, content)
 }
 
-func (s *Manager) WriteBindFile(topologyId string, filePath string, content string) error {
+func (m *Manager) WriteBindFile(topologyId string, filePath string, content string) error {
 	relativePath, err := bindFilePath(topologyId, filePath)
 	if err != nil {
 		return err
 	}
 
-	return s.writeStorage(relativePath, content)
+	return m.writeStorage(relativePath, content)
 }
 
-func (s *Manager) DeleteBindFile(topologyId string, filePath string) error {
+func (m *Manager) DeleteBindFile(topologyId string, filePath string) error {
 	relativePath, err := bindFilePath(topologyId, filePath)
 	if err != nil {
 		return err
 	}
 
-	return s.deleteStorage(relativePath)
+	return m.deleteStorage(relativePath)
 }
 
-func (s *Manager) DeleteRunEnvironment(labId string) error {
-	return s.deleteRun(labId)
+func (m *Manager) DeleteRunEnvironment(labId string) error {
+	return m.deleteRun(labId)
 }
 
-func (s *Manager) setupDirectories() {
-	if _, err := os.ReadDir(s.storagePath); err != nil || !isDirectoryWritable(s.storagePath) {
-		log.Info("Storage directory not found. Creating.", "dir", s.storagePath)
-		if err = os.MkdirAll(s.storagePath, 0750); err != nil {
-			log.Fatal("Storage directory is not accessible. Exiting.", "dir", s.storagePath)
+func (m *Manager) setupDirectories() {
+	if _, err := os.ReadDir(m.storagePath); err != nil || !isDirectoryWritable(m.storagePath) {
+		log.Info("Storage directory not found. Creating.", "dir", m.storagePath)
+		if err = os.MkdirAll(m.storagePath, 0750); err != nil {
+			log.Fatal("Storage directory is not accessible. Exiting.", "dir", m.storagePath)
 			return
 		}
 	}
 
-	if _, err := os.ReadDir(s.runPath); err != nil || !isDirectoryWritable(s.runPath) {
-		log.Info("Run directory not found. Creating.", "dir", s.runPath)
-		if err = os.MkdirAll(s.runPath, 0750); err != nil {
-			log.Fatal("Run directory is not accessible. Exiting.", "dir", s.runPath)
+	if _, err := os.ReadDir(m.runPath); err != nil || !isDirectoryWritable(m.runPath) {
+		log.Info("Run directory not found. Creating.", "dir", m.runPath)
+		if err = os.MkdirAll(m.runPath, 0750); err != nil {
+			log.Fatal("Run directory is not accessible. Exiting.", "dir", m.runPath)
 			return
 		}
 	}
 }
 
-func (s *Manager) writeStorage(relativeFilePath string, content string) error {
-	return s.write(filepath.Join(s.storagePath, relativeFilePath), content)
+func (m *Manager) writeStorage(relativeFilePath string, content string) error {
+	return m.write(filepath.Join(m.storagePath, relativeFilePath), content)
 }
 
-func (s *Manager) writeRun(relativeFilePath string, content string) error {
-	return s.write(filepath.Join(s.runPath, relativeFilePath), content)
+func (m *Manager) writeRun(relativeFilePath string, content string) error {
+	return m.write(filepath.Join(m.runPath, relativeFilePath), content)
 }
 
-func (s *Manager) readStorage(relativeFilePath string, content *string) error {
-	return s.read(filepath.Join(s.storagePath, relativeFilePath), content)
+func (m *Manager) readStorage(relativeFilePath string, content *string) error {
+	return m.read(filepath.Join(m.storagePath, relativeFilePath), content)
 }
 
-func (s *Manager) readRun(relativeFilePath string, content *string) error {
-	return s.read(filepath.Join(s.runPath, relativeFilePath), content)
+func (m *Manager) readRun(relativeFilePath string, content *string) error {
+	return m.read(filepath.Join(m.runPath, relativeFilePath), content)
 }
 
-func (s *Manager) deleteStorage(relativePath string) error {
-	return s.delete(filepath.Join(s.storagePath, relativePath))
+func (m *Manager) deleteStorage(relativePath string) error {
+	return m.delete(filepath.Join(m.storagePath, relativePath))
 }
 
-func (s *Manager) deleteRun(relativePath string) error {
-	return s.delete(filepath.Join(s.runPath, relativePath))
+func (m *Manager) deleteRun(relativePath string) error {
+	return m.delete(filepath.Join(m.runPath, relativePath))
 }
 
-func (s *Manager) read(absoluteFilePath string, content *string) error {
+func (m *Manager) read(absoluteFilePath string, content *string) error {
 	if data, err := os.ReadFile(absoluteFilePath); err != nil {
 		return err
 	} else {
@@ -171,18 +182,18 @@ func (s *Manager) read(absoluteFilePath string, content *string) error {
 	return nil
 }
 
-func (s *Manager) write(absoluteFilePath string, content string) error {
+func (m *Manager) write(absoluteFilePath string, content string) error {
 	if _, err := os.ReadDir(filepath.Dir(absoluteFilePath)); err != nil {
-		if err = os.MkdirAll(filepath.Dir(absoluteFilePath), 0750); err != nil {
+		if err = os.MkdirAll(filepath.Dir(absoluteFilePath), m.dirPerm); err != nil {
 			return utils.ErrFileStorage
 		}
 	}
 
 	//nolint:gosec // We need this file to be accessible
-	return os.WriteFile(absoluteFilePath, ([]byte)(content), 0750)
+	return os.WriteFile(absoluteFilePath, ([]byte)(content), m.filePerm)
 }
 
-func (s *Manager) delete(absolutePath string) error {
+func (m *Manager) delete(absolutePath string) error {
 	if err := os.RemoveAll(absolutePath); err != nil {
 		return err
 	}

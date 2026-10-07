@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -67,6 +68,9 @@ func main() {
 
 	if isDevMode {
 		log.Warn("Antimony is starting Development mode. Do not use in production.")
+
+		// Set the umask to 0 so that lab and topology files are created with loose permissions
+		syscall.Umask(0)
 	}
 
 	if lvl, err := log.ParseLevel(os.Getenv("SB_LOG_LEVEL")); err == nil {
@@ -89,7 +93,7 @@ func main() {
 		db                 = connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
 		authManager        = auth.CreateManager(antimonyConfig)
 		socketManager      = socket.CreateManager(authManager)
-		storageManager     = storage.CreateManager(antimonyConfig)
+		storageManager     = storage.CreateManager(antimonyConfig, isDevMode)
 		deploymentProvider = deployment.CreateProvider(antimonyConfig)
 	)
 
@@ -281,7 +285,7 @@ func createRuntime(
 	shellService := shell.CreateService(config, labRepo, instanceService, socketManager, deploymentProvider)
 
 	// Wire instance service back to lab service through shared interface
-	labService.SetRuntimeInfo(instanceService)
+	labService.SetRuntimeService(instanceService)
 
 	return instanceService, shellService
 }
