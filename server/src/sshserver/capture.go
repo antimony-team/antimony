@@ -15,35 +15,45 @@ import (
 // errCaptureServiceClosed is returned for captures requested after the service was closed.
 var errCaptureServiceClosed = errors.New("the capture service is shutting down")
 
-// CaptureService streams the traffic of node interfaces into SSH sessions as pcap. Every interface is only captured
-// once, no matter how many sessions are watching it, and the capture is stopped when the last of them leaves.
-type CaptureService struct {
-	deploymentProvider deployment.DeploymentProvider
+type (
+	// CaptureService streams the traffic of node interfaces into SSH sessions as pcap. Every interface is only captured
+	// once, no matter how many sessions are watching it, and the capture is stopped when the last of them leaves.
+	CaptureService struct {
+		deploymentProvider deployment.DeploymentProvider
 
-	openStreams      map[string]*stream
-	openStreamsMutex sync.Mutex
-	closed           bool
-}
+		openStreams      map[string]*stream
+		openStreamsMutex sync.Mutex
+		closed           bool
+	}
 
-type stream struct {
-	key    string
-	source deployment.CaptureSource
+	stream struct {
+		key    string
+		source deployment.CaptureSource
 
-	mutex     sync.RWMutex
-	receivers map[*receiver]struct{}
+		// opened is closed once opening the capture has finished, openErr tells whether it failed.
+		opened  chan struct{}
+		openErr error
 
-	done      chan struct{}
-	closeOnce sync.Once
-}
+		// ctx belongs to the capture, not to any one session, so the capture outlives the session that started it.
+		ctx    context.Context
+		cancel context.CancelFunc
 
-type receiver struct {
-	ch chan packet
-}
+		mutex     sync.RWMutex
+		receivers map[*receiver]struct{}
 
-type packet struct {
-	ci   gopacket.CaptureInfo
-	data []byte
-}
+		done      chan struct{}
+		closeOnce sync.Once
+	}
+
+	receiver struct {
+		ch chan packet
+	}
+
+	packet struct {
+		ci   gopacket.CaptureInfo
+		data []byte
+	}
+)
 
 func CreateCaptureService(deploymentProvider deployment.DeploymentProvider) *CaptureService {
 	return &CaptureService{
@@ -64,7 +74,7 @@ func (c *CaptureService) Capture(sess ssh.Session, instanceName string, nodeName
 	return writeStream(sess, captureStream, receiver)
 }
 
-// Close stops all running captures, which ends the sessions watching them, and refuses new ones. It is safe to call
+// Close stops all running captures, which ends the sessions watching them and refuses new ones. It is safe to call
 // more than once.
 func (c *CaptureService) Close() {
 	c.openStreamsMutex.Lock()
@@ -85,60 +95,98 @@ func (c *CaptureService) subscribe(
 	interfaceName string,
 ) (*stream, *receiver, error) {
 	captureKey := getCaptureKey(instanceName, nodeName, interfaceName)
+	newReceiver := &receiver{ch: make(chan packet, 1024)}
 
 	c.openStreamsMutex.Lock()
-	defer c.openStreamsMutex.Unlock()
-
 	if c.closed {
+		c.openStreamsMutex.Unlock()
 		return nil, nil, errCaptureServiceClosed
 	}
 
 	captureStream, ok := c.openStreams[captureKey]
 	if !ok {
-		source, err := c.deploymentProvider.OpenCapture(ctx, instanceName, nodeName, interfaceName)
-		if err != nil {
-			return nil, nil, err
-		}
-
+		streamCtx, cancel := context.WithCancel(context.Background())
 		captureStream = &stream{
 			key:       captureKey,
-			source:    source,
+			opened:    make(chan struct{}),
+			ctx:       streamCtx,
+			cancel:    cancel,
 			receivers: make(map[*receiver]struct{}),
 			done:      make(chan struct{}),
 		}
 		c.openStreams[captureKey] = captureStream
 
-		go c.processStream(captureStream)
+		// Opening can take a while (an exec request on clabernetes), so it runs without the registry lock
+		go c.openStream(captureStream, instanceName, nodeName, interfaceName)
 	}
 
-	receiver := &receiver{ch: make(chan packet, 1024)}
-
+	// Registered right away, so the stream isn't left without receivers if this session gives up while waiting
 	captureStream.mutex.Lock()
-	captureStream.receivers[receiver] = struct{}{}
+	captureStream.receivers[newReceiver] = struct{}{}
 	captureStream.mutex.Unlock()
 
-	return captureStream, receiver, nil
+	c.openStreamsMutex.Unlock()
+
+	select {
+	case <-captureStream.opened:
+	case <-ctx.Done():
+		c.unsubscribe(captureStream, newReceiver)
+		return nil, nil, ctx.Err()
+	}
+
+	if captureStream.openErr != nil {
+		c.unsubscribe(captureStream, newReceiver)
+		return nil, nil, captureStream.openErr
+	}
+
+	return captureStream, newReceiver, nil
 }
 
-// unsubscribe removes a receiver from its stream and stops the capture once nobody is watching it anymore.
+// openStream opens the capture of a registered stream and starts forwarding its packets.
+func (c *CaptureService) openStream(captureStream *stream, instanceName string, nodeName string, interfaceName string) {
+	defer close(captureStream.opened)
+
+	source, err := c.deploymentProvider.OpenCapture(captureStream.ctx, instanceName, nodeName, interfaceName)
+	if err != nil {
+		captureStream.openErr = err
+		c.captureEnded(captureStream)
+		return
+	}
+
+	captureStream.mutex.Lock()
+	select {
+	case <-captureStream.done:
+		// The stream was shut down while opening, e.g., its last session left, or the service closed
+		captureStream.mutex.Unlock()
+		source.Close()
+		captureStream.openErr = errCaptureServiceClosed
+		return
+	default:
+	}
+	captureStream.source = source
+	captureStream.mutex.Unlock()
+
+	go c.processStream(captureStream)
+}
+
+// unsubscribe removes a receiver from its stream and stops the capture once nobody is watching it anymore. It takes
+// the registry lock before the stream's, like subscribe, so a session can't join a stream that is being shut down.
 func (c *CaptureService) unsubscribe(captureStream *stream, receiver *receiver) {
+	c.openStreamsMutex.Lock()
 	captureStream.mutex.Lock()
 	delete(captureStream.receivers, receiver)
 	empty := len(captureStream.receivers) == 0
 	captureStream.mutex.Unlock()
 
-	if !empty {
-		return
-	}
-
-	c.openStreamsMutex.Lock()
 	// Only remove the entry if it is still this stream, a new capture of the same interface may have replaced it.
-	if c.openStreams[captureStream.key] == captureStream {
+	if empty && c.openStreams[captureStream.key] == captureStream {
 		delete(c.openStreams, captureStream.key)
 	}
 	c.openStreamsMutex.Unlock()
 
-	captureStream.shutdown()
+	if empty {
+		captureStream.shutdown()
+	}
 }
 
 // processStream reads packets from the capture source and forwards them to all receivers. Receivers that can't keep
@@ -176,6 +224,23 @@ func (c *CaptureService) captureEnded(captureStream *stream) {
 	captureStream.shutdown()
 }
 
+func (s *stream) shutdown() {
+	s.closeOnce.Do(func() {
+		// Cancels an opening that is still running
+		s.cancel()
+		close(s.done)
+
+		// The source is set while opening, which may run at the same time
+		s.mutex.Lock()
+		source := s.source
+		s.mutex.Unlock()
+
+		if source != nil {
+			source.Close()
+		}
+	})
+}
+
 // writeStream writes the packets of a receiver into the session as pcap, until the session or the stream ends.
 func writeStream(sess ssh.Session, captureStream *stream, receiver *receiver) error {
 	w := pcapgo.NewWriter(sess)
@@ -200,15 +265,6 @@ func writeStream(sess ssh.Session, captureStream *stream, receiver *receiver) er
 			return nil
 		}
 	}
-}
-
-func (s *stream) shutdown() {
-	s.closeOnce.Do(func() {
-		close(s.done)
-		if s.source != nil {
-			s.source.Close()
-		}
-	})
 }
 
 func getCaptureKey(instanceName string, nodeName string, interfaceName string) string {

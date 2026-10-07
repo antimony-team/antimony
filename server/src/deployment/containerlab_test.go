@@ -26,6 +26,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+	afpacket "github.com/google/gopacket/afpacket"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1094,4 +1095,55 @@ func TestContainerlabGetNetworkInterfaces_ReportsAStoppedNodeAsNotRunning(t *tes
 	_, err := (&ContainerlabProvider{client: docker}).GetNetworkInterfaces(context.Background(), "demo", "srl1")
 
 	assert.ErrorIs(t, err, utils.ErrNodeNotRunning)
+}
+
+/*
+ * tpacketSource
+ */
+
+// openLoopbackCapture captures on the loopback interface of the test's own namespace, which needs CAP_NET_RAW.
+func openLoopbackCapture(t *testing.T) *tpacketSource {
+	t.Helper()
+
+	tp, err := afpacket.NewTPacket(afpacket.OptInterface("lo"), afpacket.OptPollTimeout(capturePollTimeout))
+	if err != nil {
+		t.Skipf("opening a packet capture needs CAP_NET_RAW: %s", err)
+	}
+
+	return &tpacketSource{tp: tp}
+}
+
+func TestTpacketSource_CloseEndsAWaitingRead(t *testing.T) {
+	source := openLoopbackCapture(t)
+
+	readErr := make(chan error, 1)
+	go func() {
+		for {
+			if _, _, err := source.ReadPacketData(); err != nil {
+				readErr <- err
+				return
+			}
+		}
+	}()
+
+	// Let the read wait in poll before closing, the way a capture on a quiet interface does
+	time.Sleep(2 * capturePollTimeout)
+	source.Close()
+
+	select {
+	case err := <-readErr:
+		require.ErrorIs(t, err, io.EOF)
+	case <-time.After(5 * capturePollTimeout):
+		t.Fatal("the read didn't end after the capture was closed")
+	}
+}
+
+func TestTpacketSource_CloseWithoutReaderReleasesTheCapture(t *testing.T) {
+	source := openLoopbackCapture(t)
+
+	source.Close()
+	source.Close()
+
+	_, _, err := source.ReadPacketData()
+	assert.ErrorIs(t, err, io.EOF)
 }

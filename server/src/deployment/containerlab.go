@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -14,6 +16,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -23,22 +27,39 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/google/gopacket"
 	afpacket "github.com/google/gopacket/afpacket"
 	"github.com/samber/lo"
 	"github.com/vishvananda/netns"
 )
 
-type ContainerlabProvider struct {
-	client client.APIClient
+// capturePollTimeout bounds how long a capture read waits for a packet, and with it how long closing a capture takes.
+const capturePollTimeout = 200 * time.Millisecond
 
-	statsReader *StatsReader[dockerRef]
-}
+type (
+	ContainerlabProvider struct {
+		client client.APIClient
 
-type dockerExecSession struct {
-	net.Conn
-	client client.APIClient
-	execId string
-}
+		statsReader *StatsReader[dockerRef]
+	}
+
+	// tpacketSource makes an afpacket capture safe to close from another goroutine. TPacket.Close unmaps the packet ring
+	// that a running read may still use, which crashes the process, so the capture is only released while no read runs.
+	tpacketSource struct {
+		tp *afpacket.TPacket
+
+		// readMutex is held while a read uses the packet ring
+		readMutex sync.Mutex
+		closed    atomic.Bool
+		released  bool
+	}
+
+	dockerExecSession struct {
+		net.Conn
+		client client.APIClient
+		execId string
+	}
+)
 
 func CreateContainerlabProvider() *ContainerlabProvider {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -304,7 +325,7 @@ func (p *ContainerlabProvider) OpenCapture(
 		return nil, fmt.Errorf("open capture on %q/%s: %w", containerId, interfaceName, err)
 	}
 
-	return tp, nil
+	return &tpacketSource{tp: tp}, nil
 }
 
 func (p *ContainerlabProvider) StartNode(
@@ -537,8 +558,37 @@ func (p *ContainerlabProvider) resolveNode(
 	return dockerTarget{fullContainerId: insp.ID, pid: insp.State.Pid}, nil
 }
 
-func (t *dockerExecSession) Resize(cols uint, rows uint) error {
-	return t.client.ContainerExecResize(context.Background(), t.execId, container.ResizeOptions{
+func (s *tpacketSource) ReadPacketData() ([]byte, gopacket.CaptureInfo, error) {
+	s.readMutex.Lock()
+	defer s.readMutex.Unlock()
+
+	for !s.closed.Load() {
+		// ReadPacketData copies the packet out of the ring, so the data stays valid after the capture is released
+		data, ci, err := s.tp.ReadPacketData()
+		if errors.Is(err, afpacket.ErrTimeout) {
+			continue
+		}
+		return data, ci, err
+	}
+
+	return nil, gopacket.CaptureInfo{}, io.EOF
+}
+
+// Close stops the capture. A running read notices within one poll timeout, and Close waits for it before releasing.
+func (s *tpacketSource) Close() {
+	s.closed.Store(true)
+
+	s.readMutex.Lock()
+	defer s.readMutex.Unlock()
+
+	if !s.released {
+		s.released = true
+		s.tp.Close()
+	}
+}
+
+func (s *dockerExecSession) Resize(cols uint, rows uint) error {
+	return s.client.ContainerExecResize(context.Background(), s.execId, container.ResizeOptions{
 		Width:  cols,
 		Height: rows,
 	})
@@ -580,7 +630,10 @@ func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error
 		return nil, fmt.Errorf("enter target netns: %w", err)
 	}
 
-	tp, err := afpacket.NewTPacket(afpacket.OptInterface(interfaceName))
+	tp, err := afpacket.NewTPacket(
+		afpacket.OptInterface(interfaceName),
+		afpacket.OptPollTimeout(capturePollTimeout),
+	)
 
 	if revertErr := netns.Set(orig); revertErr != nil {
 		_ = orig.Close()
@@ -624,7 +677,7 @@ var dockerStates = map[string]NodeState{
 // clabInspectContainer mirrors the JSON that "containerlab inspect --format json" produces.
 //
 // It exists so that NodeState does not need a text unmarshaller of its own. NodeState used to carry
-// one — so that Docker's status strings could be decoded straight into InspectContainer — with no
+// one so that Docker's status strings could be decoded straight into InspectContainer — with no
 // matching marshaller, which made the type asymmetric: encoding/json wrote it as a number and then
 // refused to read that number back, so a client could not decode this API's own response using the
 // transport types. Keeping the string handling local to the provider that needs it leaves NodeState

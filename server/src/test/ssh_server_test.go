@@ -5,6 +5,7 @@ import (
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/sshserver"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -13,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
@@ -516,4 +520,397 @@ func TestSSH_RejectsCapturesOnAStoppedNode(t *testing.T) {
 	assert.Equal(t, 1, result.exitCode)
 	assert.Contains(t, result.stderr, "is not running")
 	assert.Zero(t, h.Provider.CallCount("OpenCapture"))
+}
+
+/*
+ * Capture streams, with a fake capture source the test feeds with packets
+ */
+
+// fakeCaptureSource is a capture source whose packets the test sends.
+type fakeCaptureSource struct {
+	packets   chan []byte
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func newFakeCaptureSource() *fakeCaptureSource {
+	return &fakeCaptureSource{packets: make(chan []byte, 16), closed: make(chan struct{})}
+}
+
+func (f *fakeCaptureSource) ReadPacketData() ([]byte, gopacket.CaptureInfo, error) {
+	select {
+	case data := <-f.packets:
+		return data, gopacket.CaptureInfo{Timestamp: time.Now(), CaptureLength: len(data), Length: len(data)}, nil
+	case <-f.closed:
+		return nil, gopacket.CaptureInfo{}, io.EOF
+	}
+}
+
+func (f *fakeCaptureSource) Close() {
+	f.closeOnce.Do(func() { close(f.closed) })
+}
+
+func (f *fakeCaptureSource) IsClosed() bool {
+	select {
+	case <-f.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+// capturePacket is an Ethernet frame for the fake sources to send.
+var capturePacket = append(
+	[]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02, 0x42, 0xac, 0x14, 0x00, 0x02, 0x08, 0x06},
+	bytes.Repeat([]byte{0xab}, 46)...,
+)
+
+// captureClient is a running capture session, reading the pcap stream like Wireshark does.
+type captureClient struct {
+	client  *gossh.Client
+	session *gossh.Session
+	stdout  io.Reader
+	stderr  *lockedBuffer
+	done    chan error
+
+	// reader is set once the pcap header has arrived. header delivers it, the read is only started once.
+	reader     *pcapgo.Reader
+	header     chan *pcapgo.Reader
+	headerOnce sync.Once
+}
+
+// startCaptureClient starts a capture session, without waiting for the capture to open.
+func (s *sshTestServer) startCaptureClient(t *testing.T, command string) *captureClient {
+	t.Helper()
+
+	client := s.dial(t, InstanceAdminLab+"/"+NodeHost)
+	session, err := client.NewSession()
+	require.NoError(t, err)
+
+	stdout, err := session.StdoutPipe()
+	require.NoError(t, err)
+	stderr := &lockedBuffer{}
+	session.Stderr = stderr
+
+	require.NoError(t, session.Start(command))
+
+	capture := &captureClient{
+		client:  client,
+		session: session,
+		stdout:  stdout,
+		stderr:  stderr,
+		done:    make(chan error, 1),
+	}
+	go func() { capture.done <- session.Wait() }()
+
+	return capture
+}
+
+// waitForHeader waits until the server has sent the pcap header, which it does once the capture is open. It can be
+// called again after a timeout, it keeps waiting for the same header.
+func (c *captureClient) waitForHeader(t *testing.T, timeout time.Duration) bool {
+	t.Helper()
+
+	if c.reader != nil {
+		return true
+	}
+
+	c.headerOnce.Do(func() {
+		c.header = make(chan *pcapgo.Reader, 1)
+		go func() {
+			reader, err := pcapgo.NewReader(c.stdout)
+			if err == nil {
+				c.header <- reader
+			}
+		}()
+	})
+
+	select {
+	case c.reader = <-c.header:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+// requirePacket waits for the next packet of the capture and checks its content.
+func (c *captureClient) requirePacket(t *testing.T, expected []byte) {
+	t.Helper()
+
+	result := make(chan []byte, 1)
+	go func() {
+		data, _, err := c.reader.ReadPacketData()
+		if err == nil {
+			result <- data
+		}
+	}()
+
+	select {
+	case data := <-result:
+		assert.Equal(t, expected, data)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "no packet arrived")
+	}
+}
+
+// requireEnded waits for the capture session to end and returns its exit code.
+func (c *captureClient) requireEnded(t *testing.T) int {
+	t.Helper()
+
+	select {
+	case err := <-c.done:
+		var exitErr *gossh.ExitError
+		if errors.As(err, &exitErr) {
+			return exitErr.ExitStatus()
+		}
+		require.NoError(t, err)
+		return 0
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the capture session did not end")
+		return -1
+	}
+}
+
+// countingCaptures makes every capture open the given source and counts the openings per interface.
+func countingCaptures(h *Harness, source func(interfaceName string) *fakeCaptureSource) func(string) int {
+	var mu sync.Mutex
+	openings := map[string]int{}
+
+	h.Provider.SetOpenCaptureFn(func(_ context.Context, _, _, interfaceName string) (deployment.CaptureSource, error) {
+		mu.Lock()
+		openings[interfaceName]++
+		mu.Unlock()
+
+		return source(interfaceName), nil
+	})
+
+	return func(interfaceName string) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return openings[interfaceName]
+	}
+}
+
+func TestSSH_CaptureStreamsPacketsAsPcap(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	capture := server.startCaptureClient(t, "tcpdump -U -i eth1 -w -")
+	defer capture.client.Close()
+
+	require.True(t, capture.waitForHeader(t, 5*time.Second), "the pcap header must arrive")
+	assert.Equal(t, layers.LinkTypeEthernet, capture.reader.LinkType())
+
+	source.packets <- capturePacket
+	capture.requirePacket(t, capturePacket)
+}
+
+func TestSSH_SessionsOnTheSameInterfaceShareOneCapture(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	openings := countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	first := server.startCaptureClient(t, "eth1")
+	defer first.client.Close()
+	require.True(t, first.waitForHeader(t, 5*time.Second))
+
+	second := server.startCaptureClient(t, "eth1")
+	defer second.client.Close()
+	require.True(t, second.waitForHeader(t, 5*time.Second))
+
+	assert.Equal(t, 1, openings("eth1"), "the interface must only be captured once")
+
+	source.packets <- capturePacket
+	first.requirePacket(t, capturePacket)
+	second.requirePacket(t, capturePacket)
+}
+
+func TestSSH_CaptureStopsWhenTheLastSessionLeaves(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	first := server.startCaptureClient(t, "eth1")
+	require.True(t, first.waitForHeader(t, 5*time.Second))
+	second := server.startCaptureClient(t, "eth1")
+	require.True(t, second.waitForHeader(t, 5*time.Second))
+
+	require.NoError(t, first.client.Close())
+	<-first.done
+	time.Sleep(100 * time.Millisecond)
+	assert.False(t, source.IsClosed(), "the capture must keep running while a session still watches it")
+
+	require.NoError(t, second.client.Close())
+	requireEventually(t, source.IsClosed, "the capture must stop when its last session leaves")
+}
+
+func TestSSH_ASlowOpeningDoesNotBlockOtherCaptures(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	opening := make(chan struct{})
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	// Released on every exit, so a failing test doesn't leave the opening blocking the server's shutdown
+	t.Cleanup(releaseOnce)
+	slowSource := newFakeCaptureSource()
+
+	var mu sync.Mutex
+	openings := map[string]int{}
+	h.Provider.SetOpenCaptureFn(func(_ context.Context, _, _, interfaceName string) (deployment.CaptureSource, error) {
+		mu.Lock()
+		openings[interfaceName]++
+		mu.Unlock()
+
+		if interfaceName == "eth1" {
+			close(opening)
+			<-release
+			return slowSource, nil
+		}
+		return newFakeCaptureSource(), nil
+	})
+
+	slow := server.startCaptureClient(t, "eth1")
+	defer slow.client.Close()
+	<-opening
+
+	// Another interface opens right away, although eth1 is still opening
+	other := server.startCaptureClient(t, "eth2")
+	defer other.client.Close()
+	require.True(t, other.waitForHeader(t, 2*time.Second), "a slow opening must not block captures of other interfaces")
+
+	// A second session on eth1 joins the opening instead of starting another one
+	joining := server.startCaptureClient(t, "eth1")
+	defer joining.client.Close()
+	assert.False(t, joining.waitForHeader(t, 200*time.Millisecond), "the joining session must wait for the opening")
+
+	releaseOnce()
+	require.True(t, slow.waitForHeader(t, 5*time.Second))
+	require.True(t, joining.waitForHeader(t, 5*time.Second))
+
+	mu.Lock()
+	assert.Equal(t, 1, openings["eth1"], "eth1 must only be opened once")
+	mu.Unlock()
+
+	slowSource.packets <- capturePacket
+	slow.requirePacket(t, capturePacket)
+	joining.requirePacket(t, capturePacket)
+}
+
+func TestSSH_LeavingDuringTheOpeningCancelsIt(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	opening := make(chan struct{})
+	canceled := make(chan struct{})
+	h.Provider.SetOpenCaptureFn(func(ctx context.Context, _, _, _ string) (deployment.CaptureSource, error) {
+		close(opening)
+		<-ctx.Done()
+		close(canceled)
+		return nil, ctx.Err()
+	})
+
+	capture := server.startCaptureClient(t, "eth1")
+	<-opening
+
+	require.NoError(t, capture.client.Close())
+
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the opening must be canceled when its only session leaves")
+	}
+}
+
+func TestSSH_AFailedOpeningIsReportedToEveryWaitingSession(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	release := make(chan struct{})
+	var mu sync.Mutex
+	attempts := 0
+	h.Provider.SetOpenCaptureFn(func(_ context.Context, _, _, _ string) (deployment.CaptureSource, error) {
+		mu.Lock()
+		attempts++
+		mu.Unlock()
+
+		<-release
+		return nil, errors.New("interface does not exist")
+	})
+
+	first := server.startCaptureClient(t, "eth9")
+	defer first.client.Close()
+	second := server.startCaptureClient(t, "eth9")
+	defer second.client.Close()
+
+	// Both sessions wait for the same opening
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+
+	for _, capture := range []*captureClient{first, second} {
+		assert.Equal(t, 1, capture.requireEnded(t))
+		assert.Contains(t, capture.stderr.String(), "interface does not exist")
+	}
+
+	// The failed capture is forgotten, the next session tries again
+	retry := server.startCaptureClient(t, "eth9")
+	defer retry.client.Close()
+	assert.Equal(t, 1, retry.requireEnded(t))
+
+	mu.Lock()
+	assert.Equal(t, 2, attempts)
+	mu.Unlock()
+}
+
+func TestSSH_ACaptureEndingEndsItsSessions(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	capture := server.startCaptureClient(t, "eth1")
+	defer capture.client.Close()
+	require.True(t, capture.waitForHeader(t, 5*time.Second))
+
+	// The node stopped, so its capture ends
+	source.Close()
+
+	assert.Equal(t, 0, capture.requireEnded(t))
+}
+
+func TestSSH_ClosingTheServerEndsCaptures(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	capture := server.startCaptureClient(t, "eth1")
+	defer capture.client.Close()
+	require.True(t, capture.waitForHeader(t, 5*time.Second))
+
+	server.server.Close()
+
+	requireEventually(t, source.IsClosed, "closing the server must stop the capture")
+	select {
+	case <-capture.done:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the capture session did not end when the server was closed")
+	}
 }

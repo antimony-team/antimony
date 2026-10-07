@@ -83,6 +83,8 @@ type DummyProvider struct {
 	StreamLogsFn      func(instanceName, nodeName string, onLog LogFunc) error
 	InterfacesFn      func(instanceName, nodeName string) ([]NodeInterface, error)
 	StatsFn           func(instanceName, nodeName string) (*NodeStats, error)
+	// OpenCaptureFn also gets the context, so a test can see an opening being canceled.
+	OpenCaptureFn func(ctx context.Context, instanceName, nodeName, interfaceName string) (CaptureSource, error)
 }
 
 // DummyNode is one node in the dummy provider's world.
@@ -260,6 +262,22 @@ func (p *DummyProvider) SetStatsFn(fn func(instanceName, nodeName string) (*Node
 	p.mu.Lock()
 	p.StatsFn = fn
 	p.mu.Unlock()
+}
+
+// SetOpenCaptureFn replaces the OpenCapture behaviour. Safe to call while the dummy is in use.
+func (p *DummyProvider) SetOpenCaptureFn(
+	fn func(ctx context.Context, instanceName, nodeName, interfaceName string) (CaptureSource, error),
+) {
+	p.mu.Lock()
+	p.OpenCaptureFn = fn
+	p.mu.Unlock()
+}
+
+func (p *DummyProvider) openCaptureFn() func(context.Context, string, string, string) (CaptureSource, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.OpenCaptureFn
 }
 
 func (p *DummyProvider) execFn() func(string, string, []string) (string, int, error) {
@@ -501,7 +519,7 @@ func (p *DummyProvider) ReadNodeStats(
 }
 
 func (p *DummyProvider) OpenCapture(
-	_ context.Context,
+	ctx context.Context,
 	instanceName string,
 	nodeName string,
 	interfaceName string,
@@ -511,6 +529,10 @@ func (p *DummyProvider) OpenCapture(
 		"nodeName":      nodeName,
 		"interfaceName": interfaceName,
 	})
+
+	if fn := p.openCaptureFn(); fn != nil {
+		return fn(ctx, instanceName, nodeName, interfaceName)
+	}
 
 	return nil, fmt.Errorf("%w: packet capture cannot be faked", ErrDummyProvider)
 }
