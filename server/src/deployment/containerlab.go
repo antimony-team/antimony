@@ -36,6 +36,17 @@ import (
 // capturePollTimeout bounds how long a capture read waits for a packet, and with it how long closing a capture takes.
 const capturePollTimeout = 200 * time.Millisecond
 
+// dockerStates maps Docker's container statuses (as relayed by Containerlab's Inspect) onto NodeState.
+var dockerStates = map[string]NodeState{
+	"created":    NodeStates.Stopped,
+	"exited":     NodeStates.Stopped,
+	"dead":       NodeStates.Stopped,
+	"paused":     NodeStates.Stopped,
+	"restarting": NodeStates.Starting,
+	"running":    NodeStates.Running,
+	"removing":   NodeStates.Stopping,
+}
+
 type (
 	ContainerlabProvider struct {
 		client client.APIClient
@@ -58,6 +69,26 @@ type (
 		net.Conn
 		client client.APIClient
 		execId string
+	}
+
+	// clabInspectContainer mirrors the JSON that "containerlab inspect --format json" produces.
+	//
+	// It exists so that NodeState does not need a text unmarshaller of its own. NodeState used to carry
+	// one so that Docker's status strings could be decoded straight into InspectContainer — with no
+	// matching marshaller, which made the type asymmetric: encoding/json wrote it as a number and then
+	// refused to read that number back, so a client could not decode this API's own response using the
+	// transport types. Keeping the string handling local to the provider that needs it leaves NodeState
+	// a plain integer in both directions.
+	clabInspectContainer struct {
+		Name          string `json:"name"`
+		LabName       string `json:"lab_name"`
+		LabPath       string `json:"labPath"`
+		Image         string `json:"image"`
+		State         string `json:"state"`
+		ContainerId   string `json:"container_id"`
+		ContainerName string `json:"container_name"`
+		IPv4Address   string `json:"ipv4_address"`
+		IPv6Address   string `json:"ipv6_address"`
 	}
 )
 
@@ -300,6 +331,48 @@ func (p *ContainerlabProvider) DialNode(
 	return d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", ip, port))
 }
 
+func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error {
+	eventFilter := filters.NewArgs()
+	eventFilter.Add("type", "container")
+	eventFilter.Add("event", "start")
+	eventFilter.Add("event", "stop")
+	eventFilter.Add("event", "die")
+	eventFilter.Add("event", "destroy")
+	eventFilter.Add("event", "create")
+
+	channel, errs := p.client.Events(ctx, events.ListOptions{
+		Filters: eventFilter,
+	})
+
+	for {
+		select {
+		case msg := <-channel:
+			nodeName := msg.Actor.Attributes["clab-node-name"]
+			// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
+			if nodeName != "" {
+				onUpdate(nodeName)
+			}
+		case err := <-errs:
+			if err != nil {
+				log.Errorf("Failed to receive docker events: %s", err.Error())
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (p *ContainerlabProvider) ReadNodeStats(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) (*NodeStats, error) {
+	nodeId := instanceName + "/" + nodeName
+
+	return p.statsReader.Read(ctx, nodeId, dockerRef{instanceName, nodeName})
+}
+
 func (p *ContainerlabProvider) OpenCapture(
 	ctx context.Context,
 	instanceName string,
@@ -365,38 +438,6 @@ func (p *ContainerlabProvider) RestartNode(
 	}
 
 	return p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: new(10)})
-}
-
-func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error {
-	eventFilter := filters.NewArgs()
-	eventFilter.Add("type", "container")
-	eventFilter.Add("event", "start")
-	eventFilter.Add("event", "stop")
-	eventFilter.Add("event", "die")
-	eventFilter.Add("event", "destroy")
-	eventFilter.Add("event", "create")
-
-	channel, errs := p.client.Events(ctx, events.ListOptions{
-		Filters: eventFilter,
-	})
-
-	for {
-		select {
-		case msg := <-channel:
-			nodeName := msg.Actor.Attributes["clab-node-name"]
-			// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
-			if nodeName != "" {
-				onUpdate(nodeName)
-			}
-		case err := <-errs:
-			if err != nil {
-				log.Errorf("Failed to receive docker events: %s", err.Error())
-				return err
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
 }
 
 func (p *ContainerlabProvider) StreamContainerLogs(
@@ -481,16 +522,6 @@ func (p *ContainerlabProvider) GetNetworkInterfaces(
 	}
 
 	return result, nil
-}
-
-func (p *ContainerlabProvider) ReadNodeStats(
-	ctx context.Context,
-	instanceName string,
-	nodeName string,
-) (*NodeStats, error) {
-	nodeId := instanceName + "/" + nodeName
-
-	return p.statsReader.Read(ctx, nodeId, dockerRef{instanceName, nodeName})
 }
 
 func (p *ContainerlabProvider) createExec(
@@ -594,6 +625,20 @@ func (s *dockerExecSession) Resize(cols uint, rows uint) error {
 	})
 }
 
+func (c clabInspectContainer) toInspectContainer() InspectContainer {
+	return InspectContainer{
+		Name:          c.Name,
+		LabName:       c.LabName,
+		LabPath:       c.LabPath,
+		Image:         c.Image,
+		State:         parseDockerState(c.State),
+		ContainerId:   c.ContainerId,
+		ContainerName: c.ContainerName,
+		IPv4Address:   c.IPv4Address,
+		IPv6Address:   c.IPv6Address,
+	}
+}
+
 // sendClabOutput sends the data from the containerlab stdout to the log
 // This function strips all ansi characters and splits the data into lines
 func sendClabOutput(output *string, onLog LogFunc) {
@@ -607,48 +652,6 @@ func sendClabOutput(output *string, onLog LogFunc) {
 	}
 }
 
-func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
-	runtime.LockOSThread()
-
-	orig, err := netns.Get()
-	if err != nil {
-		runtime.UnlockOSThread()
-		return nil, fmt.Errorf("get current netns: %w", err)
-	}
-
-	targetNs, err := netns.GetFromPid(pid)
-	if err != nil {
-		_ = orig.Close()
-		runtime.UnlockOSThread()
-		return nil, fmt.Errorf("get netns for pid %d: %w", pid, err)
-	}
-	defer targetNs.Close()
-
-	if err := netns.Set(targetNs); err != nil {
-		_ = orig.Close()
-		runtime.UnlockOSThread()
-		return nil, fmt.Errorf("enter target netns: %w", err)
-	}
-
-	tp, err := afpacket.NewTPacket(
-		afpacket.OptInterface(interfaceName),
-		afpacket.OptPollTimeout(capturePollTimeout),
-	)
-
-	if revertErr := netns.Set(orig); revertErr != nil {
-		_ = orig.Close()
-		if tp != nil {
-			tp.Close()
-		}
-		runtime.Goexit()
-	}
-
-	_ = orig.Close()
-	runtime.UnlockOSThread()
-
-	return tp, err
-}
-
 // parseInspectContainer parses the containerlab inspect output to fit the InspectContainer requirements
 func parseInspectContainer(container *InspectContainer, containerNamePrefix string) {
 	container.ContainerName = container.Name
@@ -660,51 +663,6 @@ func parseInspectContainer(container *InspectContainer, containerNamePrefix stri
 
 	if container.IPv6Address == "N/A" {
 		container.IPv6Address = ""
-	}
-}
-
-// dockerStates maps Docker's container statuses (as relayed by Containerlab's Inspect) onto NodeState.
-var dockerStates = map[string]NodeState{
-	"created":    NodeStates.Stopped,
-	"exited":     NodeStates.Stopped,
-	"dead":       NodeStates.Stopped,
-	"paused":     NodeStates.Stopped,
-	"restarting": NodeStates.Starting,
-	"running":    NodeStates.Running,
-	"removing":   NodeStates.Stopping,
-}
-
-// clabInspectContainer mirrors the JSON that "containerlab inspect --format json" produces.
-//
-// It exists so that NodeState does not need a text unmarshaller of its own. NodeState used to carry
-// one so that Docker's status strings could be decoded straight into InspectContainer — with no
-// matching marshaller, which made the type asymmetric: encoding/json wrote it as a number and then
-// refused to read that number back, so a client could not decode this API's own response using the
-// transport types. Keeping the string handling local to the provider that needs it leaves NodeState
-// a plain integer in both directions.
-type clabInspectContainer struct {
-	Name          string `json:"name"`
-	LabName       string `json:"lab_name"`
-	LabPath       string `json:"labPath"`
-	Image         string `json:"image"`
-	State         string `json:"state"`
-	ContainerId   string `json:"container_id"`
-	ContainerName string `json:"container_name"`
-	IPv4Address   string `json:"ipv4_address"`
-	IPv6Address   string `json:"ipv6_address"`
-}
-
-func (c clabInspectContainer) toInspectContainer() InspectContainer {
-	return InspectContainer{
-		Name:          c.Name,
-		LabName:       c.LabName,
-		LabPath:       c.LabPath,
-		Image:         c.Image,
-		State:         parseDockerState(c.State),
-		ContainerId:   c.ContainerId,
-		ContainerName: c.ContainerName,
-		IPv4Address:   c.IPv4Address,
-		IPv6Address:   c.IPv6Address,
 	}
 }
 
@@ -748,4 +706,46 @@ func clabToInspectContainer(labName string, raw []clabInspectContainer) []Inspec
 	}
 
 	return converted
+}
+
+func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
+	runtime.LockOSThread()
+
+	orig, err := netns.Get()
+	if err != nil {
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("get current netns: %w", err)
+	}
+
+	targetNs, err := netns.GetFromPid(pid)
+	if err != nil {
+		_ = orig.Close()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("get netns for pid %d: %w", pid, err)
+	}
+	defer targetNs.Close()
+
+	if err := netns.Set(targetNs); err != nil {
+		_ = orig.Close()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("enter target netns: %w", err)
+	}
+
+	tp, err := afpacket.NewTPacket(
+		afpacket.OptInterface(interfaceName),
+		afpacket.OptPollTimeout(capturePollTimeout),
+	)
+
+	if revertErr := netns.Set(orig); revertErr != nil {
+		_ = orig.Close()
+		if tp != nil {
+			tp.Close()
+		}
+		runtime.Goexit()
+	}
+
+	_ = orig.Close()
+	runtime.UnlockOSThread()
+
+	return tp, err
 }
