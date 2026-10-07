@@ -277,13 +277,24 @@ export function isValidURL(url: string) {
   }
 }
 
-export function getInterfaceCaptureCommand(
-  containerId: string,
-  ifName: string,
+export function getSSHCommand(
+  collectionName: string,
+  labName: string,
+  nodeName: string,
   serverHost: string,
   serverPort: number,
+  captureInterface?: string,
 ) {
-  return `ssh -o StrictHostKeyChecking=no ${containerId}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
+  let command = `ssh ${collectionName}/${labName}/${nodeName}@${serverHost}`;
+  if (serverPort !== 22) {
+    command += ` -p ${serverPort}`;
+  }
+
+  if (captureInterface) {
+    command += ` ${captureInterface} | wireshark -k -i -`;
+  }
+
+  return command;
 }
 
 export function formatBytes(v: number | null) {

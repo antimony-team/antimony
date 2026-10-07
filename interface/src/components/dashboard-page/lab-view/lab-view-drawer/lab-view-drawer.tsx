@@ -9,12 +9,13 @@ import {
 } from '@sb/types/domain/lab';
 import UplotReact from 'uplot-react';
 import {
+  useCollectionStore,
   useLabStore,
   useServerConfig,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
 import uPlot from 'uplot';
-import {formatBytes, getInterfaceCaptureCommand} from '@sb/lib/utils/utils';
+import {formatBytes, getSSHCommand} from '@sb/lib/utils/utils';
 import {Divider} from 'primereact/divider';
 import {Button} from 'primereact/button';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
@@ -40,6 +41,7 @@ interface LabViewDrawer {
 const LabDialogDrawer = (props: LabViewDrawer) => {
   const labStore = useLabStore();
   const serverConfig = useServerConfig();
+  const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
   const wrapperRef = useRef(null);
@@ -75,6 +77,12 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     }
     return new NodeActionChecker(props.lab.instance, node);
   }, [props.lab, node]);
+
+  const labCollection = useMemo(() => {
+    if (!props.lab) return null;
+
+    return collectionStore.lookup.get(props.lab.collectionId)!;
+  }, [props.lab]);
 
   const memoryOptions = useMemo(() => getMemoryUsagePlotOptions(), []);
   const cpuOptions = useMemo(() => getCPUPlotOptions(), []);
@@ -343,18 +351,23 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     trafficChartsRef.current.get(ifName)!.setData([ts, txs, rxs]);
   }
 
-  function copyCaptureToClipboard(ifName: string) {
-    if (!node) return;
+  function copyCaptureToClipboard(
+    node: InstanceNode | null,
+    captureInterface?: string,
+  ) {
+    if (!node || !props.lab || !labCollection) return;
 
-    const cmd = getInterfaceCaptureCommand(
-      node.containerId,
-      ifName,
+    const cmd = getSSHCommand(
+      labCollection.name,
+      props.lab.name,
+      node.name,
       window.location.hostname,
-      serverConfig.capture.port,
+      serverConfig.ssh.port,
+      captureInterface,
     );
     void navigator.clipboard.writeText(cmd);
 
-    statusMessageStore.success('Capture command copied to clipboard!');
+    statusMessageStore.success('Command copied to clipboard!');
   }
 
   function runtimeValue(value: string | undefined) {
@@ -520,9 +533,9 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 <Button
                   outlined
                   icon="pi pi-copy"
-                  label="Copy Capture Command"
-                  onClick={() => copyCaptureToClipboard(iface.name)}
-                  aria-label={`Copy Capture Command for ${iface.name}`}
+                  label="Copy capture command"
+                  onClick={() => copyCaptureToClipboard(node, iface.name)}
+                  aria-label={`Copy capture command for ${iface.name}`}
                 />
               </div>
               <UplotReact

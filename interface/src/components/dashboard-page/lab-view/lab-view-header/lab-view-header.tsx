@@ -94,8 +94,8 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
               quick_reference_all
             </span>
           }
-          label="View Logs"
-          aria-label="View Logs"
+          label="View logs"
+          aria-label="View logs"
           onClick={props.onOpenLabLogs}
           disabled={!props.canOpenLabLogs()}
         />
@@ -105,7 +105,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
               outlined
               icon="pi pi-play"
               severity="success"
-              aria-label="Deploy Lab"
+              aria-label="Deploy lab"
               onClick={() => labStore.deployLab(props.lab)}
             />
           </When>

@@ -9,6 +9,7 @@ import TerminalDialog, {
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
 import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {
+  useCollectionStore,
   useDeviceStore,
   useLabStore,
   useServerConfig,
@@ -20,14 +21,13 @@ import {
   drawGraphGrid,
   generateGraph,
   getFitPadding,
-  getInterfaceCaptureCommand,
   getNodeStateClass,
+  getSSHCommand,
 } from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {InstanceNode, InstanceState, Lab} from '@sb/types/domain/lab';
 
 import cytoscape from 'cytoscape';
-import {ExpandLines} from 'iconoir-react';
 import {observer} from 'mobx-react-lite';
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
@@ -83,6 +83,7 @@ const LabView = observer((props: LabDialogProps) => {
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
   const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
   const cyHasInitialized = useRef(false);
@@ -125,6 +126,12 @@ const LabView = observer((props: LabDialogProps) => {
       false,
     );
   }, [props.lab?.id]);
+
+  const labCollection = useMemo(() => {
+    if (!props.lab) return null;
+
+    return collectionStore.lookup.get(props.lab.collectionId)!;
+  }, [props.lab]);
 
   function onGraphContext(event: cytoscape.EventObject) {
     if (!contextMenuRef.current || !cyRef.current) return;
@@ -248,13 +255,13 @@ const LabView = observer((props: LabDialogProps) => {
 
   const graphContextMenuModel = [
     {
-      label: 'Deploy Lab',
+      label: 'Deploy lab',
       icon: 'pi pi-play',
       disabled: !canDeployLab(),
       command: () => labStore.deployLab(props.lab!),
     },
     {
-      label: 'Redeploy Lab',
+      label: 'Redeploy lab',
       icon:
         props.lab?.state === InstanceState.Deploying
           ? 'pi pi-sync pi-spin'
@@ -263,7 +270,7 @@ const LabView = observer((props: LabDialogProps) => {
       command: () => labStore.deployLab(props.lab!),
     },
     {
-      label: 'Destroy Lab',
+      label: 'Destroy lab',
       icon: 'pi pi-power-off',
       disabled: !canDestroylab(),
       command: () => props.onDestroyLabRequest(props.lab!),
@@ -272,7 +279,7 @@ const LabView = observer((props: LabDialogProps) => {
       separator: true,
     },
     {
-      label: 'View Logs',
+      label: 'View logs',
       icon: (
         <span className="material-symbols-outlined">quick_reference_all</span>
       ),
@@ -283,14 +290,8 @@ const LabView = observer((props: LabDialogProps) => {
       separator: true,
     },
     {
-      label: 'Fit Graph',
-      icon: (
-        <ExpandLines
-          style={{transform: 'rotate(90deg)'}}
-          width={24}
-          height={24}
-        />
-      ),
+      label: 'Fit graph',
+      icon: <span className="material-symbols-outlined">fit_screen</span>,
       command: onFitGraph,
     },
   ];
@@ -353,6 +354,12 @@ const LabView = observer((props: LabDialogProps) => {
         disabled: !nodeActionChecker.canShowLogs,
         command: () => onOpenLogs(contextTargetNode),
       },
+      {
+        label: 'Copy SSH command',
+        icon: <span className="material-symbols-outlined">terminal</span>,
+        disabled: !nodeActionChecker.canShowLogs,
+        command: () => copyCaptureToClipboard(node),
+      },
     ];
 
     if (serverConfig.capture.enabled && node) {
@@ -362,9 +369,9 @@ const LabView = observer((props: LabDialogProps) => {
 
       for (const iface of node.interfaces) {
         entries.push({
-          label: 'Copy Capture for ' + iface.name,
+          label: 'Copy capture for ' + iface.name,
           icon: 'pi pi-copy',
-          command: () => copyCaptureToClipboard(node.containerId, iface.name),
+          command: () => copyCaptureToClipboard(node, iface.name),
         });
       }
     }
@@ -380,16 +387,23 @@ const LabView = observer((props: LabDialogProps) => {
     return entries;
   }, [contextTargetNode, props.lab]);
 
-  function copyCaptureToClipboard(containerId: string, ifName: string) {
-    const cmd = getInterfaceCaptureCommand(
-      containerId,
-      ifName,
+  function copyCaptureToClipboard(
+    node?: InstanceNode,
+    captureInterface?: string,
+  ) {
+    if (!node || !props.lab || !labCollection) return;
+
+    const cmd = getSSHCommand(
+      labCollection.name,
+      props.lab.name,
+      node.name,
       window.location.hostname,
       serverConfig.ssh.port,
+      captureInterface,
     );
     void navigator.clipboard.writeText(cmd);
 
-    statusMessageStore.success('Capture command copied to clipboard!');
+    statusMessageStore.success('Command copied to clipboard!');
   }
 
   function initCytoscape(cy: cytoscape.Core) {

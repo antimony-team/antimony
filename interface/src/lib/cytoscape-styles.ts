@@ -99,14 +99,14 @@ export const topologyStyle = [
     selector: '.drawn-shape',
     style: {
       shape: 'round-rectangle',
-      'background-color': '#ffffff',
-      'background-opacity': 0.03,
-      'border-color': '#ffffff',
-      'border-opacity': 0.22,
+      'background-color': '#3fcfad',
+      'background-opacity': 0.045,
+      'border-color': '#3fcfad',
+      'border-opacity': 0.28,
       'border-width': 1,
       padding: 24,
-      color: '#9e9ea0',
-      'font-weight': 'bold',
+      color: '#3fcfad',
+      'font-weight': 'normal',
       'font-size': 12,
       'text-margin-y': 8,
     },
@@ -123,7 +123,7 @@ export const topologyStyle = [
     style: {
       'border-color': '#3fcfad',
       'border-opacity': 1,
-      color: '#e0e0e1',
+      'background-opacity': 0.08,
     },
   },
 
@@ -176,6 +176,23 @@ export const topologyStyle = [
       'text-border-width': 1,
       'text-border-color': '#ffffff',
       'text-border-opacity': 0.22,
+    },
+  },
+  {
+    selector: 'edge[state = "down"]',
+    style: {
+      'line-color': '#ff5c6c',
+      'line-opacity': 0.8,
+      'line-style': 'dashed',
+      'line-dash-pattern': [6, 4],
+      'text-border-color': '#ff5c6c',
+      'text-border-opacity': 0.6,
+    },
+  },
+  {
+    selector: 'edge[state = "unknown"]',
+    style: {
+      'line-opacity': 0.2,
     },
   },
 
