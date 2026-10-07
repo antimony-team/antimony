@@ -1,3 +1,5 @@
+import cytoscape from 'cytoscape';
+
 const GRAPH_BG = '#17171a';
 
 const svgUri = (svg: string) =>
@@ -21,6 +23,8 @@ const STATUS_PENDING = svgUri(
     '<circle cx="12" cy="12" r="6" fill="#d8a657"/>' +
     '</svg>',
 );
+
+const labelOffset = (text?: string) => 12 + (text?.length ?? 0) * 3;
 
 function nodeImage(ele: cytoscape.NodeSingular): string {
   const image: string | undefined = ele.data('image');
@@ -162,20 +166,19 @@ export const topologyStyle = [
       width: 2,
       'source-label': 'data(sourceLabel)',
       'target-label': 'data(targetLabel)',
-      'source-text-offset': 22,
-      'target-text-offset': 22,
-      'z-index': 999999,
-      'z-index-compare': 'manual',
+      'source-text-offset': (ele: cytoscape.EdgeSingular) =>
+        labelOffset(ele.data('sourceLabel')),
+      'target-text-offset': (ele: cytoscape.EdgeSingular) =>
+        labelOffset(ele.data('targetLabel')),
+      'source-text-rotation': 'autorotate',
+      'target-text-rotation': 'autorotate',
+      'source-text-margin-y': -8,
+      'target-text-margin-y': -8,
       'font-family': 'JetBrains Mono, monospace',
       'font-size': 10,
-      color: '#e0e0e1',
-      'text-background-color': '#141519',
-      'text-background-opacity': 1,
-      'text-background-shape': 'round-rectangle',
-      'text-background-padding': 3,
-      'text-border-width': 1,
-      'text-border-color': '#ffffff',
-      'text-border-opacity': 0.22,
+      color: 'rgba(255, 255, 255, 0.6)',
+      'text-background-opacity': 0,
+      'text-border-width': 0,
     },
   },
   {
