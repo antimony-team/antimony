@@ -42,7 +42,7 @@ var ErrInvalidLabName = errors.New("the name of the lab is invalid")
 var ErrTopologyExists = errors.New("a topology with that name already exists in that collection")
 var ErrBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrCollectionExists = errors.New("a collection with that name already exists")
-var ErrInvalidTopology = errors.New("the topology provided were invalid")
+var ErrInvalidTopology = errors.New("the topology provided was invalid")
 var ErrInvalidBindFilePath = errors.New("the provided bind file path was invalid")
 
 /*
