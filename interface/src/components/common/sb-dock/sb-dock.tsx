@@ -72,11 +72,7 @@ const SBDock = observer(() => {
     <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
       <div className="flex align-items-center gap-3">
         <div className="sb-dock-logo" onClick={() => navigate('/')}>
-          <Image
-            src="./antimony-logo-outline.svg"
-            width="25px"
-            alt="Antimony Logo"
-          />
+          <Image src="./antimony-logo.svg" width="25px" alt="Antimony Logo" />
           <span>Antimony</span>
           <span className="sb-dock-separator" />
         </div>

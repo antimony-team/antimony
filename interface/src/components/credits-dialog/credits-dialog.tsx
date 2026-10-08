@@ -21,7 +21,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
       onClose={props.onClose}
       headerTitle="Antimony"
       hideButtons={true}
-      headerIcon="./antimony-logo-outline.svg"
+      headerIcon="./antimony-logo.svg"
       className="sb-credits-dialog"
     >
       <div className="flex flex-row gap-2 align-items-end">
@@ -48,7 +48,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
           </div>
         </div>
         <Image
-          src="./icons/zoey-transparent.png"
+          src="./zoey.png"
           height="200px"
           title="Zoey, the Antimony girl"
         />

@@ -83,11 +83,7 @@ const LoginForm = observer(() => {
   return (
     <form onSubmit={onFormSubmit} className="sb-login-content">
       <div className="sb-login-header">
-        <Image
-          src="./antimony-logo-outline.svg"
-          width="55px"
-          alt="Antimony Logo"
-        />
+        <Image src="./antimony-logo.svg" width="55px" alt="Antimony Logo" />
         <div className="sb-login-header-title">Antimony</div>
         <div className="sb-login-header-subtitle">Sign in to continue</div>
       </div>

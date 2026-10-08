@@ -116,6 +116,9 @@ const SBConfirm = forwardRef<SBConfirmRef, object>((props, ref) => {
         <span className="sb-confirm-dialog-message">
           {dialogState.current!.message}
         </span>
+        <If condition={dialogState.current!.content}>
+          {dialogState.current!.content}
+        </If>
         <If condition={dialogState.current!.confirmText}>
           <div className="flex flex-column gap-2">
             <div className="sb-confirm-dialog-confirm-label">
