@@ -123,6 +123,20 @@ func (r *Repository) Delete(ctx context.Context, topology *Topology) error {
 	return nil
 }
 
+// DeleteByCollection deletes all topologies of the collection with the given UUID.
+func (r *Repository) DeleteByCollection(ctx context.Context, collectionId string) error {
+	err := r.db.WithContext(ctx).
+		Where("collection_id IN (SELECT id FROM collections WHERE uuid = ?)", collectionId).
+		Delete(&Topology{}).Error
+
+	if err != nil {
+		log.Errorf("[DB] Failed to delete topologies of collection. Error: %s", err.Error())
+		return utils.ErrDatabaseError
+	}
+
+	return nil
+}
+
 func (r *Repository) GetBindFileByUuid(ctx context.Context, bindFileId string) (*BindFile, error) {
 	var bindFile BindFile
 	result := r.db.WithContext(ctx).

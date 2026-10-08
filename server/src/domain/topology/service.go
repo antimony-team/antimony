@@ -263,6 +263,13 @@ func (s *Service) Delete(ctx context.Context, topologyId string, authUser auth.A
 	return s.repo.Delete(ctx, topology)
 }
 
+// DeleteTopologiesOfCollection deletes all topologies of the collection with the given UUID.
+//
+// It doesn't check permissions; the caller has already decided that the collection may be deleted.
+func (s *Service) DeleteTopologiesOfCollection(ctx context.Context, collectionId string) error {
+	return s.repo.DeleteByCollection(ctx, collectionId)
+}
+
 func (s *Service) CreateBindFile(
 	ctx context.Context,
 	topologyId string,

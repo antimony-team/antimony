@@ -365,6 +365,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 
 	// Mirrors main.go: deleting a collection deletes its labs through the lab service.
 	collectionService.SetLabRemover(labService)
+	collectionService.SetTopologyRemover(topologyService)
 
 	h := &Harness{
 		T:                   t,

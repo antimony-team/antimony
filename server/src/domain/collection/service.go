@@ -14,11 +14,18 @@ type (
 		DeleteLabsOfCollection(ctx context.Context, collectionId string) error
 	}
 
+	// TopologyRemover deletes the topologies of a collection. Implemented by topology.Service and wired in main.go,
+	// since the collection package can't depend on the topology package.
+	TopologyRemover interface {
+		DeleteTopologiesOfCollection(ctx context.Context, collectionId string) error
+	}
+
 	Service struct {
 		repo     *Repository
 		userRepo *user.Repository
 
-		labRemover LabRemover
+		labRemover      LabRemover
+		topologyRemover TopologyRemover
 	}
 )
 
@@ -132,9 +139,17 @@ func (s *Service) Delete(ctx context.Context, collectionId string, authUser auth
 		return err
 	}
 
+	if err := s.topologyRemover.DeleteTopologiesOfCollection(ctx, collectionId); err != nil {
+		return err
+	}
+
 	return s.repo.Delete(ctx, collection)
 }
 
 func (s *Service) SetLabRemover(labRemover LabRemover) {
 	s.labRemover = labRemover
+}
+
+func (s *Service) SetTopologyRemover(topologyRemover TopologyRemover) {
+	s.topologyRemover = topologyRemover
 }

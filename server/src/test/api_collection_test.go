@@ -369,7 +369,7 @@ func TestDeleteCollection_DuplicateNameIsStillRejectedForLiveCollections(t *test
 }
 
 /*
- * Deleting a collection deletes its labs, unless one of them is running
+ * Deleting a collection deletes its labs and topologies, unless one of its labs is running
  */
 
 // requireLabGone asserts that a lab and its run environment were deleted.
@@ -508,6 +508,36 @@ func TestDeleteCollection_LabNamesCanBeReusedAfterwards(t *testing.T) {
 		StartTime:  &start,
 		TopologyId: ptr(recreatedTopology.UUID),
 	}, h.Seed.Admin.Token).RequireOk(nil)
+}
+
+func TestDeleteCollection_DeletesItsTopologies(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	_, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyHiddenID)
+	require.ErrorIs(t, err, utils.ErrUuidNotFound, "the topology must be deleted with its collection")
+}
+
+func TestDeleteCollection_KeepsTheTopologiesOfOtherCollections(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireOk(nil)
+
+	for _, topologyId := range []string{TopologyAdminID, TopologyMemberID, TopologyPrivateID} {
+		_, err := h.TopologyRepo.GetByUuid(t.Context(), topologyId)
+		require.NoError(t, err, "topology %s must still exist", topologyId)
+	}
+}
+
+func TestDeleteCollection_KeepsItsTopologiesWhileOneOfItsLabsRuns(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabHiddenID)
+
+	h.DELETE("/collections/"+h.Seed.Hidden.UUID, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 4003)
+
+	_, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyHiddenID)
+	require.NoError(t, err, "the topology must not be deleted")
 }
 
 func TestDeleteCollection_RequiresAuthentication(t *testing.T) {

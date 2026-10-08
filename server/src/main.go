@@ -159,6 +159,7 @@ func main() {
 	)
 
 	collectionService.SetLabRemover(labService)
+	collectionService.SetTopologyRemover(topologyService)
 
 	// Runtime services and components
 	instanceService, shellService := createRuntime(
