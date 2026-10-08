@@ -7,7 +7,9 @@ import YAML from 'yaml';
 import {SelectItem} from 'primereact/selectitem';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
+import SBDropdown, {
+  SBDropdownRef,
+} from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {
   useAuthUser,
@@ -25,7 +27,7 @@ export interface TopologyEditDialogState {
   // Set to null if the dialog is meant to add a new topology
   editingTopology: Topology | null;
 
-  collectionId: string;
+  collectionId: string | null;
   action: DialogAction;
 }
 
@@ -58,6 +60,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   const topologyNameRef = useRef<SBInputRef>(null);
   const topologySyncUrlRef = useRef<SBInputRef>(null);
+  const collectionDropdownRef = useRef<SBDropdownRef>(null);
 
   function onShow() {
     runInAction(() => {
@@ -103,6 +106,13 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       return;
     }
 
+    if (editingTopology.collectionId === '') {
+      collectionDropdownRef.current?.setValidationError(
+        "You didn't select a collection",
+      );
+      return;
+    }
+
     if (props.dialogState.state.action === DialogAction.Edit) {
       if (!hasChanges()) {
         props.dialogState.close();
@@ -145,11 +155,16 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           );
         }
       } else {
-        topologyStore.manager.replaceTopology(
-          topologyStore.lookup.get(
-            props.dialogState.state.editingTopology!.id,
-          )!,
-        );
+        if (
+          topologyStore.manager.topology?.id ===
+          props.dialogState.state.editingTopology!.id
+        ) {
+          topologyStore.manager.replaceTopology(
+            topologyStore.lookup.get(
+              props.dialogState.state.editingTopology!.id,
+            )!,
+          );
+        }
 
         notificationStore.success('Topology has been updated successfully.');
         props.dialogState.close();
@@ -240,6 +255,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         />
 
         <SBDropdown
+          ref={collectionDropdownRef}
           id="edit-topology-collection"
           label="Collection"
           placeholder="Select a collection"

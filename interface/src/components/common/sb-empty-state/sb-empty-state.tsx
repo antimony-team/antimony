@@ -1,16 +1,22 @@
 import React, {ReactElement} from 'react';
-import './sb-empty-state.sass';
-import {If} from '@sb/types/control';
+
 import classNames from 'classnames';
+
 import {SelectItem} from 'primereact/selectitem';
 
+import {If} from '@sb/types/control';
+
+import './sb-empty-state.sass';
+
 interface EmptyStateProps {
+  title: string;
+  text: string;
+
   icon?:
     | string
     | ReactElement
     | ((option: SelectItem) => string | ReactElement);
-  title: string;
-  text: string;
+
   accent?: boolean;
   children?: React.ReactNode;
 }

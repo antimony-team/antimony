@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
 import {observer} from 'mobx-react-lite';
-import {useBeforeUnload} from 'react-router';
+import {useBeforeUnload, useSearchParams} from 'react-router';
 
 import {Badge} from 'primereact/badge';
 import {Button} from 'primereact/button';
@@ -10,6 +10,8 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 import {Tooltip} from 'primereact/tooltip';
 
+import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
+import {TopologyEditDialogState} from '@sb/components/editor-page/topology-edit-dialog/topology-edit-dialog';
 import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
 import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
 import {
@@ -25,6 +27,7 @@ import {
   TopologyEditReport,
   TopologyEditSource,
 } from '@sb/lib/topology-manager';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {usePersistentState} from '@sb/lib/utils/persistent-state';
 import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
@@ -55,6 +58,8 @@ interface TopologyEditorProps {
   setMaximized: (isMinimized: boolean) => void;
 
   onTopologyDeploy: (id: uuid4) => void;
+
+  editTopologyState: DialogState<TopologyEditDialogState>;
 }
 
 const TopologyEditor = observer((props: TopologyEditorProps) => {
@@ -69,6 +74,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const [validationState, setValidationState] = useState<ValidationState>(
     ValidationState.Done,
   );
+
+  const [searchParams] = useSearchParams();
 
   // Set to true if topology has pending changes and validation succeeded
   const [hasPendingEdits, setPendingEdits] = useState(false);
@@ -377,6 +384,34 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }
 
+  function onAddTopology() {
+    props.editTopologyState.openWith({
+      editingTopology: null,
+      collectionId: null,
+      action: DialogAction.Add,
+    });
+  }
+
+  if (!searchParams.has('f')) {
+    return (
+      <div className="sb-topology-editor-empty">
+        <SBEmptyState
+          title="No topology open"
+          text="Pick a topology from the left sidebar."
+          icon={<span className="material-symbols-outlined">network_node</span>}
+          children={
+            <Button
+              icon="pi pi-plus"
+              label="New topology"
+              className="sb-button-accent"
+              onClick={onAddTopology}
+            />
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <title>{pageTitle}</title>
@@ -485,6 +520,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             </If>
           </div>
         </div>
+
         <div className={`sb-topology-editor-content view-${effectiveView}`}>
           <Splitter>
             <SplitterPanel className="sb-editor-monaco" size={50}>
@@ -565,6 +601,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
           </If>
         </div>
       </div>
+
       <Tooltip
         className="sb-monaco-wrapper-error-tooltip"
         target=".sb-monaco-wrapper-error"

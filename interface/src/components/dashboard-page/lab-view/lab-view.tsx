@@ -62,9 +62,9 @@ const PULSING = ['starting', 'stopping', 'settling'];
 
 const LabView = observer((props: LabDialogProps) => {
   const cyRef = useRef<cytoscape.Core | null>(null);
+
   const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // const [hostsHidden, setHostsHidden] = useState(false);
   const contextMenuRef = useRef<ContextMenu | null>(null);
 
   // The node that is currently selected and active in the drawer
@@ -75,10 +75,11 @@ const LabView = observer((props: LabDialogProps) => {
     null,
   );
 
+  // Only a dependency for effects that have to run again for a new instance. Read the instance through cyRef.
+  const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
+
   const logDialogState = useDialogState<LogDialogState>();
   const terminalDialogState = useDialogState<TerminalDialogState>();
-
-  const [isCyReady, setCyReady] = useState<boolean>(false);
 
   const serverConfig = useServerConfig();
   const deviceStore = useDeviceStore();
@@ -87,35 +88,40 @@ const LabView = observer((props: LabDialogProps) => {
   const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
-  const cyHasInitialized = useRef(false);
   const currentLabIdRef = useRef<string | null>(null);
 
+  // Pulsing node states, restarted for a new instance
   useEffect(() => {
-    if (!isCyReady || !cyRef.current) return;
-    return startStatePing(cyRef.current);
-  }, [isCyReady]);
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    return startStatePing(cy);
+  }, [cyInstance]);
+
+  // Fit the graph when another lab opens
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || !props.lab || currentLabIdRef.current === props.lab.id) return;
+
+    currentLabIdRef.current = props.lab.id;
+    cy.nodes().lock();
+    cy.fit(cy.elements(), getFitPadding(cy));
+  }, [cyInstance, props.lab]);
 
   useEffect(() => {
-    if (isCyReady && cyRef.current && props.lab) {
-      if (currentLabIdRef.current !== props.lab.id) {
-        currentLabIdRef.current = props.lab.id;
+    if (!cyInstance || !cyRef.current || !props.lab?.instance) return;
 
-        cyRef.current.nodes().lock();
-        cyRef.current.animate({
-          fit: {
-            padding: getFitPadding(cyRef.current),
-            eles: cyRef.current.elements(),
-          },
-          duration: 50,
-        });
-      }
+    const nodes = props.lab.instance.nodes;
 
-      if (!cyHasInitialized.current) {
-        initCytoscape(cyRef.current);
-        cyHasInitialized.current = true;
+    cyRef.current.batch(() => {
+      if (!cyRef.current) return;
+
+      for (const node of nodes) {
+        const el = cyRef.current.getElementById(node.name);
+        if (el.nonempty()) applyNodeState(el, node);
       }
-    }
-  }, [isCyReady, props.lab]);
+    });
+  }, [cyInstance, props.lab?.instance?.nodes, props.lab?.state]);
 
   const elements = useMemo(() => {
     if (!props.lab) return [];
@@ -237,21 +243,6 @@ const LabView = observer((props: LabDialogProps) => {
       lab: props.lab!,
       node: nodeId,
     });
-  }
-
-  function openWebSsh() {
-    // if (
-    //   !nodeId ||
-    //   !props.lab?.instance ||
-    //   !props.lab.instance.nodeMap.has(nodeId)
-    // ) {
-    //   return;
-    // }
-    //
-    // const instance = props.lab.instance;
-    // const webSshUrl = instance.nodeMap.get(selectedNode)!.webSSH;
-    //
-    // window.open(webSshUrl, '_blank');
   }
 
   const graphContextMenuModel = [
@@ -377,14 +368,6 @@ const LabView = observer((props: LabDialogProps) => {
       }
     }
 
-    if (node?.webSSH) {
-      entries.push({
-        label: 'Web SSH',
-        icon: 'pi pi-external-link',
-        command: () => openWebSsh(),
-      });
-    }
-
     return entries;
   }, [contextTargetNode, props.lab]);
 
@@ -456,47 +439,6 @@ const LabView = observer((props: LabDialogProps) => {
       cyNode.removeStyle('background-image-opacity');
     }
   }
-
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!isCyReady || !cy || !props.lab?.instance) return;
-
-    const nodes = props.lab.instance.nodes;
-    // const labState = props.lab.state;
-
-    cy.batch(() => {
-      for (const node of nodes) {
-        const el = cy.getElementById(node.name);
-        if (el.nonempty()) applyNodeState(el, node);
-      }
-      // if (nodes.length > 0) {
-      //   for (const node of nodes) {
-      //     const el = cy.getElementById(node.name);
-      //     if (el.nonempty()) applyNodeState(el, node);
-      //   }
-      //   return;
-      // }
-
-      // // No per-node information yet: derive from the lab's own state.
-      // const all = cy.nodes('.topology-node');
-      // if (
-      //   labState === InstanceState.Deploying ||
-      //   labState === InstanceState.Stopping
-      // ) {
-      //   const cls =
-      //     labState === InstanceState.Deploying ? 'starting' : 'stopping';
-      //   all.forEach(el => {
-      //     if (el.hasClass(cls)) return;
-      //     el.removeClass(ALL_STATE_CLASSES.join(' ')).addClass(cls);
-      //     el.scratch('pulseStart', performance.now());
-      //   });
-      // } else {
-      //   all
-      //     .removeClass(ALL_STATE_CLASSES.join(' '))
-      //     .removeStyle('underlay-color underlay-padding underlay-opacity');
-      // }
-    });
-  }, [isCyReady, props.lab?.instance?.nodes, props.lab?.state]);
 
   function startStatePing(cy: cytoscape.Core) {
     const period = 1400;
@@ -660,8 +602,13 @@ const LabView = observer((props: LabDialogProps) => {
               className="cytoscape-container"
               elements={elements}
               cy={(cy: cytoscape.Core) => {
+                // Called after every update, and StrictMode creates a second instance on mount
+                if (cyRef.current === cy) return;
+
                 cyRef.current = cy;
-                setCyReady(true);
+                currentLabIdRef.current = null;
+                initCytoscape(cy);
+                setCyInstance(cy);
               }}
             />
           </div>

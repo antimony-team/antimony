@@ -8,11 +8,7 @@ import {Button} from 'primereact/button';
 import {Tooltip} from 'primereact/tooltip';
 
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
-import {
-  useCollectionStore,
-  useServerConfig,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
+import {useCollectionStore, useServerConfig} from '@sb/lib/stores/root-store';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
@@ -24,16 +20,11 @@ interface LabDialogPanelProps {
 
 const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   const serverConfig = useServerConfig();
-  const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
 
   const collection = collectionStore.lookup.get(props.lab.collectionId)!;
 
   const navigate = useNavigate();
-
-  const topologyExists = useMemo(() => {
-    return topologyStore.lookup.get(props.lab.topologyId) !== undefined;
-  }, [props.lab]);
 
   function onGotoTopology() {
     void navigate(`/editor?f=${props.lab.topologyId}`);
@@ -143,7 +134,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             label="Copy Link"
             onClick={copyLabLink}
             aria-label="Copy Link"
-            disabled={!topologyExists}
+            disabled={!props.lab.topologyId}
           />
           <Button
             outlined
@@ -153,7 +144,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             label="Open Topology"
             onClick={onGotoTopology}
             aria-label="Open Topology"
-            disabled={!topologyExists}
+            disabled={!props.lab.topologyId}
           />
         </div>
       </div>

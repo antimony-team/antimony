@@ -1,3 +1,15 @@
+import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
+
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+import {useLocation, useNavigate} from 'react-router';
+
+import {Badge} from 'primereact/badge';
+import {Button} from 'primereact/button';
+import {Image} from 'primereact/image';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
+
 import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
 import StatusMessagePanel from '@sb/components/common/sb-dock/status-message-panel/status-message-panel';
 import CreditsDialog from '@sb/components/credits-dialog/credits-dialog';
@@ -7,20 +19,10 @@ import {
   useDataBinder,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
-
+import {readPersistentValue} from '@sb/lib/utils/persistent-state';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {observer} from 'mobx-react-lite';
-import {Badge} from 'primereact/badge';
-import {Button} from 'primereact/button';
-
-import {Image} from 'primereact/image';
-import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {useLocation, useNavigate} from 'react-router';
 
 import './sb-dock.sass';
-import classNames from 'classnames';
-import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 const SBDock = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
@@ -68,6 +70,15 @@ const SBDock = observer(() => {
     };
   }, [pathname]);
 
+  function openEditor() {
+    let path = '/editor';
+    const lastOpenFile = readPersistentValue('last-open-file');
+    if (lastOpenFile) {
+      path += `?f=${lastOpenFile}`;
+    }
+    void navigate(path);
+  }
+
   return (
     <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
       <div className="flex align-items-center gap-3">
@@ -103,7 +114,7 @@ const SBDock = observer(() => {
                   selected: pathname === '/editor',
                 })}
                 label="Topology Editor"
-                onMouseDown={() => navigate('/editor')}
+                onMouseDown={openEditor}
                 aria-label="Topology Editor Page"
               />
             </div>

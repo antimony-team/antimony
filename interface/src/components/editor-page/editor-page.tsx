@@ -14,7 +14,11 @@ import LabEditDialog, {
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {
+  isNumber,
+  isString,
+  usePersistentState,
+} from '@sb/lib/utils/persistent-state';
 import {Choose, Otherwise, When} from '@sb/types/control';
 import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
 import {uuid4} from '@sb/types/types';
@@ -63,9 +67,16 @@ const EditorPage = observer(() => {
     isNumber,
   );
 
+  const [, setLastOpenFile] = usePersistentState<string>(
+    'last-open-file',
+    '',
+    isString,
+  );
+
   const onTopologyOpen = useCallback(
     (topology: Topology) => {
       setOpenFile(topology);
+      setLastOpenFile(topology.id);
       setSearchParams({f: topology.id});
     },
     [setSearchParams],
@@ -76,6 +87,7 @@ const EditorPage = observer(() => {
   const onBindFileOpen = useCallback(
     (bindFile: BindFile) => {
       setOpenFile(bindFile);
+      setLastOpenFile(bindFile.id);
       setSearchParams({f: bindFile.id});
     },
     [setSearchParams],
@@ -187,6 +199,7 @@ const EditorPage = observer(() => {
                 isMaximized={isMaximized}
                 setMaximized={setMaximized}
                 onTopologyDeploy={onDeployTopology}
+                editTopologyState={editTopologyState}
               />
             </SplitterPanel>
           </Splitter>

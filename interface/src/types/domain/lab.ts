@@ -54,7 +54,6 @@ export type InstanceNode = {
   ipv6: string;
   port: number;
   user: string;
-  webSSH: string;
   containerId: string;
   containerName: string;
   interfaces: NodeInterface[];

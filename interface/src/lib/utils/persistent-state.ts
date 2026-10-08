@@ -48,6 +48,23 @@ function reviver(_key: string, value: unknown) {
 const serialize = (value: unknown) => JSON.stringify(value, replacer);
 const deserialize = (text: string): unknown => JSON.parse(text, reviver);
 
+export function readPersistentValue<T>(
+  key: string,
+  isValid?: (value: unknown) => value is T,
+): T | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_PREFIX + key);
+    if (stored === null) return null;
+
+    const parsed = deserialize(stored);
+    if (isValid && !isValid(parsed)) return null;
+
+    return parsed as T;
+  } catch {
+    return null;
+  }
+}
+
 export function usePersistentState<T>(
   key: string,
   defaultValue: T,
