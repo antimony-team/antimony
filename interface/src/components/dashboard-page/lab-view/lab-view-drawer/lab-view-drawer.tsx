@@ -1,5 +1,23 @@
-import './lab-view-drawer.sass';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
+
+import uPlot from 'uplot';
+import UplotReact from 'uplot-react';
+
+import {Button} from 'primereact/button';
+import {Divider} from 'primereact/divider';
+import {Message} from 'primereact/message';
+import {ProgressBar} from 'primereact/progressbar';
+
+import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
+import {
+  useCollectionStore,
+  useLabStore,
+  useServerConfig,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
+import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
+import {formatBytes, getSSHCommand} from '@sb/lib/utils/utils';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {
   InstanceNode,
   InstanceNodeState,
@@ -7,24 +25,9 @@ import {
   NodeInterfaceStats,
   NodeStats,
 } from '@sb/types/domain/lab';
-import UplotReact from 'uplot-react';
-import {
-  useCollectionStore,
-  useLabStore,
-  useServerConfig,
-  useStatusMessages,
-} from '@sb/lib/stores/root-store';
-import uPlot from 'uplot';
-import {formatBytes, getSSHCommand} from '@sb/lib/utils/utils';
-import {Divider} from 'primereact/divider';
-import {Button} from 'primereact/button';
-import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
 
+import './lab-view-drawer.sass';
 import 'uplot/dist/uPlot.min.css';
-import {Message} from 'primereact/message';
-import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
-import {ProgressBar} from 'primereact/progressbar';
 
 interface LabViewDrawer {
   lab: Lab | null;

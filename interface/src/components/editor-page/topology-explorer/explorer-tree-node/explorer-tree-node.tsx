@@ -1,15 +1,15 @@
+import React, {useEffect, useMemo} from 'react';
+
+import {Button} from 'primereact/button';
+import {TreeNode} from 'primereact/treenode';
+
 import {
   useAuthUser,
   useCollectionStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {Choose, If, When} from '@sb/types/control';
-
 import {uuid4} from '@sb/types/types';
-
-import {Button} from 'primereact/button';
-import {TreeNode} from 'primereact/treenode';
-import React, {useEffect, useMemo} from 'react';
 
 import './explorer-tree-node.sass';
 

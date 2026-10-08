@@ -9,13 +9,16 @@ import React, {
 
 import {toJS} from 'mobx';
 import {observer} from 'mobx-react-lite';
-import {configureMonacoYaml} from 'monaco-yaml';
-import {AntimonyTheme, MonacoOptions} from './monaco.conf';
-
 import * as monaco from 'monaco-editor';
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import {configureMonacoYaml} from 'monaco-yaml';
+import YamlWorker from 'monaco-yaml/yaml.worker?worker';
 
-import {BindFile, Topology} from '@sb/types/domain/topology';
-import {If} from '@sb/types/control';
+import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
 import {
   useAuthUser,
   useSchemaStore,
@@ -28,22 +31,17 @@ import {
   TopologyEditSource,
   TopologyManager,
 } from '@sb/lib/topology-manager';
-import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
+import {usePromiseWithResolvers} from '@sb/lib/utils/hooks';
+import {If} from '@sb/types/control';
+import {BindFile, Topology} from '@sb/types/domain/topology';
+
+import {AntimonyTheme, MonacoOptions} from './monaco.conf';
 
 import './monaco-wrapper.sass';
-
 import ICodeEditor = monaco.editor.ICodeEditor;
 import ITextModel = monaco.editor.ITextModel;
-import {usePromiseWithResolvers} from '@sb/lib/utils/hooks';
 
 const schemaModelUri = 'inmemory://schema.yaml';
-
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
-import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
-import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
-import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
-import YamlWorker from 'monaco-yaml/yaml.worker?worker';
 
 window.MonacoEnvironment = {
   getWorker(_, label) {

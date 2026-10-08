@@ -1,3 +1,7 @@
+import Cookies from 'js-cookie';
+import {action, autorun, computed, observable, runInAction} from 'mobx';
+import {io, Socket} from 'socket.io-client';
+
 import {fetchResource} from '@sb/lib/utils/utils';
 import {
   AuthConfig,
@@ -6,9 +10,6 @@ import {
 } from '@sb/types/domain/user';
 import {Result} from '@sb/types/result';
 import {ConnectionState, UserCredentials} from '@sb/types/types';
-import Cookies from 'js-cookie';
-import {action, autorun, computed, observable, runInAction} from 'mobx';
-import {io, Socket} from 'socket.io-client';
 
 type AuthResponse = {
   token: string;
@@ -42,27 +43,20 @@ const FETCH_RETRY_TIMER = 5000;
 const INVALID_NAMESPACE_RETRY_TIMER = 5000;
 
 export class DataBinder {
+  // Set to true when all preloading and auth processes have finished
+  @observable accessor isReady = false;
+  // Set to true if the client is authenticated and has access to the resources
+  @observable accessor isLoggedIn = false;
+  @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
+  @observable accessor hasAPIError = false;
+  @observable accessor hasSocketError = false;
+  @observable accessor isOpenIdAuthEnabled = false;
+  @observable accessor isNativeAuthEnabled = false;
+  @observable accessor useNativeAutoLogin = false;
   private readonly apiUrl =
     import.meta.env.SB_API_SERVER_URL ?? window.location.host;
   private readonly socketUrl =
     import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.host;
-
-  // Set to true when all preloading and auth processes have finished
-  @observable accessor isReady = false;
-
-  // Set to true if the client is authenticated and has access to the resources
-  @observable accessor isLoggedIn = false;
-
-  @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
-
-  @observable accessor hasAPIError = false;
-  @observable accessor hasSocketError = false;
-
-  @observable accessor isOpenIdAuthEnabled = false;
-
-  @observable accessor isNativeAuthEnabled = false;
-  @observable accessor useNativeAutoLogin = false;
-
   private refreshTokenPromise: Promise<Result<null>> | null = null;
   private accessToken: string = '';
 
@@ -88,81 +82,8 @@ export class DataBinder {
     void this.initAuth();
   }
 
-  private async initAuth() {
-    const authConfigResponse = await this.get<AuthConfig>(
-      '/users/login/auth-config',
-      false,
-    );
-    if (authConfigResponse.isErr()) {
-      runInAction(() => (this.hasAPIError = true));
-
-      /*
-       * `fetch` only retries on network failures and gateway timeouts, so a
-       * server-side error here would leave the client stuck on the connection
-       * screen forever. Retry on our own to recover once the server is back.
-       */
-      setTimeout(() => void this.initAuth(), FETCH_RETRY_TIMER);
-      return;
-    }
-
-    const authConfig = authConfigResponse.data.payload;
-    runInAction(() => {
-      this.isOpenIdAuthEnabled = authConfig.openId.enabled;
-      this.isNativeAuthEnabled = authConfig.native.enabled;
-      this.useNativeAutoLogin = authConfig.native.allowEmpty;
-    });
-
-    if (this.isAuthDisabled) {
-      runInAction(() => {
-        this.isLoggedIn = true;
-        this.authUser = {
-          id: '',
-          isAdmin: true,
-          name: 'Admin',
-        };
-      });
-    } else if (Cookies.get('accessToken') !== undefined) {
-      // If access token has been set previously, attempt to refresh token
-      const refreshResult = await this.refreshToken();
-
-      if (refreshResult.isOk()) {
-        runInAction(() => (this.isLoggedIn = true));
-      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
-        /*
-         * Redirect to OpenID login if existing auth token is invalid, auth via
-         * OpenID is enabled, and the user has previously logged in via OpenID.
-         */
-        this.loginWithOpenId();
-        return;
-      }
-    } else if (
-      this.isNativeAuthEnabled &&
-      authConfig.native.allowEmpty &&
-      !authConfig.openId.enabled
-    ) {
-      await this.loginNative({
-        username: '',
-        password: '',
-      });
-    }
-
-    runInAction(() => (this.isReady = true));
-  }
-
   public get isAuthenticatedWithOidc() {
     return Cookies.get('authOidc') === 'true';
-  }
-
-  private connectSubscriptions() {
-    for (const [, subscription] of this.subscriptions) {
-      this.connectSubscription(subscription);
-    }
-  }
-
-  private disconnectSubscriptions() {
-    for (const [, subscription] of this.subscriptions) {
-      subscription.socket?.close();
-    }
   }
 
   @computed
@@ -171,111 +92,32 @@ export class DataBinder {
   }
 
   /**
-   * Creates a socket and registers callbacks for a given subscription.
-   * @param subscription
-   * @private
+   * Whether the connection was interrupted after the user has already logged in.
+   *
+   * The app stays usable in that case, so this only drives the connection
+   * banner rather than a full-screen takeover.
    */
-  private connectSubscription(subscription: Subscription) {
-    if (subscription.isAnonymous) {
-      try {
-        subscription.socket = io(
-          `${this.socketUrl}/${subscription.namespace}`,
-          SOCKETIO_CONFIG,
-        );
-      } catch {
-        subscription.socket?.close();
-        return;
-      }
-    } else {
-      try {
-        subscription.socket = io(
-          `${this.socketUrl}/${subscription.namespace}`,
-          {
-            ...SOCKETIO_CONFIG,
-            auth: {
-              token: this.accessToken,
-            },
-          },
-        );
-      } catch {
-        subscription.socket?.close();
-        return;
-      }
-    }
+  @computed
+  public get connectionWasInterrupted() {
+    return this.isLoggedIn && this.hasConnectionError;
+  }
 
-    subscription.socket.on('connect', () => {
-      console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
-      runInAction(() => (this.hasSocketError = false));
+  @computed
+  public get hasConnectionError() {
+    return this.hasAPIError || this.hasSocketError;
+  }
 
-      subscription.onConnectCallbacks.forEach(callback => callback());
-    });
+  @computed
+  public get apiState(): ConnectionState {
+    return this.hasAPIError ? ConnectionState.Retrying : ConnectionState.Ok;
+  }
 
-    subscription.socket.on('disconnect', () => {
-      console.log(`[SOCK] Disconnected from ns ${subscription.namespace}`);
+  @computed
+  public get socketState(): ConnectionState {
+    // The sockets are only connected once the user is logged in.
+    if (!this.isLoggedIn) return ConnectionState.Unknown;
 
-      subscription.onDisconnectCallbacks.forEach(callback => callback());
-    });
-
-    subscription.socket.on('connect_error', e => {
-      if (e.message === 'Invalid Token') {
-        void this.refreshToken().then(result => {
-          if (result.isOk()) {
-            // Retry socket subscription if token was refreshed successfully
-            this.connectSubscription(subscription);
-          } else {
-            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
-              this.loginWithOpenId();
-            }
-          }
-        });
-
-        return;
-      }
-
-      if (e.message === 'Invalid namespace') {
-        console.warn(
-          '[SOCK] Tried to connect to invalid namespace:',
-          subscription.namespace,
-        );
-
-        subscription.socket?.disconnect();
-        setTimeout(() => {
-          subscription.socket?.connect();
-        }, INVALID_NAMESPACE_RETRY_TIMER);
-
-        return;
-      }
-
-      runInAction(() => (this.hasSocketError = true));
-      console.error(
-        '[SOCK] Socket Error:',
-        e,
-        'namespace:',
-        subscription.namespace,
-      );
-    });
-
-    subscription.socket.on('backlog', (data: unknown) => {
-      const items = data instanceof ArrayBuffer ? [data] : (data as unknown[]);
-      for (const msg of items) {
-        subscription.onDataCallbacks.forEach(cb => cb(msg));
-      }
-    });
-
-    subscription.socket.on('data', (data: unknown) => {
-      subscription.onDataCallbacks.forEach(cb => cb(data));
-    });
-
-    // subscription.onDataCallbacks.forEach(callback => {
-    //   subscription.socket!.on('backlog', data => {
-    //     if (data instanceof ArrayBuffer) {
-    //       callback(data);
-    //     } else {
-    //       for (const msg of data) callback(msg);
-    //     }
-    //   });
-    //   subscription.socket!.on('data', callback);
-    // });
+    return this.hasSocketError ? ConnectionState.Retrying : ConnectionState.Ok;
   }
 
   /**
@@ -405,6 +247,77 @@ export class DataBinder {
     return true;
   }
 
+  @action
+  public logout(reloadApp: boolean = false) {
+    // Make sure logout is only executed once
+    if (!this.isLoggedIn) return;
+
+    void fetchResource(this.apiUrl + '/users/logout', 'POST');
+
+    if (reloadApp) {
+      window.location.reload();
+    } else {
+      this.isLoggedIn = false;
+      this.hasSocketError = false;
+      this.hasAPIError = false;
+      this.authUser = EMPTY_AUTH_USER;
+    }
+  }
+
+  public async get<T>(
+    path: string,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>>> {
+    return this.fetch<void, T>(path, 'GET', undefined, authenticated);
+  }
+
+  /**
+   * Like get(), but if a newer getLatest() for the same path starts before this
+   * one returns, this one resolves to null and its result must be discarded.
+   */
+  public async getLatest<T>(
+    path: string,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>> | null> {
+    const seq = (this.runningRequests.get(path) ?? 0) + 1;
+    this.runningRequests.set(path, seq);
+
+    const result = await this.get<T>(path, authenticated);
+
+    return this.runningRequests.get(path) === seq ? result : null;
+  }
+
+  public async delete<T>(
+    path: string,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>>> {
+    return this.fetch<void, T>(path, 'DELETE', undefined, authenticated);
+  }
+
+  public async post<R, T>(
+    path: string,
+    body: R,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>>> {
+    return this.fetch<R, T>(path, 'POST', body, authenticated);
+  }
+
+  public async put<R, T>(
+    path: string,
+    body: R,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>>> {
+    return this.fetch<R, T>(path, 'PUT', body, authenticated);
+  }
+
+  public async patch<R, T>(
+    path: string,
+    body: Partial<R>,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>>> {
+    return this.fetch<Partial<R>, T>(path, 'PATCH', body, authenticated);
+  }
+
   protected async fetch<R, T>(
     path: string,
     method: string,
@@ -478,6 +391,187 @@ export class DataBinder {
     });
   }
 
+  private async initAuth() {
+    const authConfigResponse = await this.get<AuthConfig>(
+      '/users/login/auth-config',
+      false,
+    );
+    if (authConfigResponse.isErr()) {
+      runInAction(() => (this.hasAPIError = true));
+
+      /*
+       * `fetch` only retries on network failures and gateway timeouts, so a
+       * server-side error here would leave the client stuck on the connection
+       * screen forever. Retry on our own to recover once the server is back.
+       */
+      setTimeout(() => void this.initAuth(), FETCH_RETRY_TIMER);
+      return;
+    }
+
+    const authConfig = authConfigResponse.data.payload;
+    runInAction(() => {
+      this.isOpenIdAuthEnabled = authConfig.openId.enabled;
+      this.isNativeAuthEnabled = authConfig.native.enabled;
+      this.useNativeAutoLogin = authConfig.native.allowEmpty;
+    });
+
+    if (this.isAuthDisabled) {
+      runInAction(() => {
+        this.isLoggedIn = true;
+        this.authUser = {
+          id: '',
+          isAdmin: true,
+          name: 'Admin',
+        };
+      });
+    } else if (Cookies.get('accessToken') !== undefined) {
+      // If access token has been set previously, attempt to refresh token
+      const refreshResult = await this.refreshToken();
+
+      if (refreshResult.isOk()) {
+        runInAction(() => (this.isLoggedIn = true));
+      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
+        /*
+         * Redirect to OpenID login if existing auth token is invalid, auth via
+         * OpenID is enabled, and the user has previously logged in via OpenID.
+         */
+        this.loginWithOpenId();
+        return;
+      }
+    } else if (
+      this.isNativeAuthEnabled &&
+      authConfig.native.allowEmpty &&
+      !authConfig.openId.enabled
+    ) {
+      await this.loginNative({
+        username: '',
+        password: '',
+      });
+    }
+
+    runInAction(() => (this.isReady = true));
+  }
+
+  private connectSubscriptions() {
+    for (const [, subscription] of this.subscriptions) {
+      this.connectSubscription(subscription);
+    }
+  }
+
+  private disconnectSubscriptions() {
+    for (const [, subscription] of this.subscriptions) {
+      subscription.socket?.close();
+    }
+  }
+
+  /**
+   * Creates a socket and registers callbacks for a given subscription.
+   * @param subscription
+   * @private
+   */
+  private connectSubscription(subscription: Subscription) {
+    if (subscription.isAnonymous) {
+      try {
+        subscription.socket = io(
+          `${this.socketUrl}/${subscription.namespace}`,
+          SOCKETIO_CONFIG,
+        );
+      } catch {
+        subscription.socket?.close();
+        return;
+      }
+    } else {
+      try {
+        subscription.socket = io(
+          `${this.socketUrl}/${subscription.namespace}`,
+          {
+            ...SOCKETIO_CONFIG,
+            auth: {
+              token: this.accessToken,
+            },
+          },
+        );
+      } catch {
+        subscription.socket?.close();
+        return;
+      }
+    }
+
+    subscription.socket.on('connect', () => {
+      console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
+      runInAction(() => (this.hasSocketError = false));
+
+      subscription.onConnectCallbacks.forEach(callback => callback());
+    });
+
+    subscription.socket.on('disconnect', () => {
+      console.log(`[SOCK] Disconnected from ns ${subscription.namespace}`);
+
+      subscription.onDisconnectCallbacks.forEach(callback => callback());
+    });
+
+    subscription.socket.on('connect_error', e => {
+      if (e.message === 'Invalid Token') {
+        void this.refreshToken().then(result => {
+          if (result.isOk()) {
+            // Retry socket subscription if token was refreshed successfully
+            this.connectSubscription(subscription);
+          } else {
+            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
+              this.loginWithOpenId();
+            }
+          }
+        });
+
+        return;
+      }
+
+      if (e.message === 'Invalid namespace') {
+        console.warn(
+          '[SOCK] Tried to connect to invalid namespace:',
+          subscription.namespace,
+        );
+
+        subscription.socket?.disconnect();
+        setTimeout(() => {
+          subscription.socket?.connect();
+        }, INVALID_NAMESPACE_RETRY_TIMER);
+
+        return;
+      }
+
+      runInAction(() => (this.hasSocketError = true));
+      console.error(
+        '[SOCK] Socket Error:',
+        e,
+        'namespace:',
+        subscription.namespace,
+      );
+    });
+
+    subscription.socket.on('backlog', (data: unknown) => {
+      const items = data instanceof ArrayBuffer ? [data] : (data as unknown[]);
+      for (const msg of items) {
+        subscription.onDataCallbacks.forEach(cb => cb(msg));
+      }
+    });
+
+    subscription.socket.on('data', (data: unknown) => {
+      subscription.onDataCallbacks.forEach(cb => cb(data));
+    });
+
+    // subscription.onDataCallbacks.forEach(callback => {
+    //   subscription.socket!.on('backlog', data => {
+    //     if (data instanceof ArrayBuffer) {
+    //       callback(data);
+    //     } else {
+    //       for (const msg of data) callback(msg);
+    //     }
+    //   });
+    //   subscription.socket!.on('data', callback);
+    // });
+  }
+
   /**
    * Sets the auth user based on the access token.
    */
@@ -521,105 +615,5 @@ export class DataBinder {
     }
 
     return this.refreshTokenPromise;
-  }
-
-  @action
-  public logout(reloadApp: boolean = false) {
-    // Make sure logout is only executed once
-    if (!this.isLoggedIn) return;
-
-    void fetchResource(this.apiUrl + '/users/logout', 'POST');
-
-    if (reloadApp) {
-      window.location.reload();
-    } else {
-      this.isLoggedIn = false;
-      this.hasSocketError = false;
-      this.hasAPIError = false;
-      this.authUser = EMPTY_AUTH_USER;
-    }
-  }
-
-  /**
-   * Whether the connection was interrupted after the user has already logged in.
-   *
-   * The app stays usable in that case, so this only drives the connection
-   * banner rather than a full-screen takeover.
-   */
-  @computed
-  public get connectionWasInterrupted() {
-    return this.isLoggedIn && this.hasConnectionError;
-  }
-
-  @computed
-  public get hasConnectionError() {
-    return this.hasAPIError || this.hasSocketError;
-  }
-
-  @computed
-  public get apiState(): ConnectionState {
-    return this.hasAPIError ? ConnectionState.Retrying : ConnectionState.Ok;
-  }
-
-  @computed
-  public get socketState(): ConnectionState {
-    // The sockets are only connected once the user is logged in.
-    if (!this.isLoggedIn) return ConnectionState.Unknown;
-
-    return this.hasSocketError ? ConnectionState.Retrying : ConnectionState.Ok;
-  }
-
-  public async get<T>(
-    path: string,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<void, T>(path, 'GET', undefined, authenticated);
-  }
-
-  /**
-   * Like get(), but if a newer getLatest() for the same path starts before this
-   * one returns, this one resolves to null and its result must be discarded.
-   */
-  public async getLatest<T>(
-    path: string,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>> | null> {
-    const seq = (this.runningRequests.get(path) ?? 0) + 1;
-    this.runningRequests.set(path, seq);
-
-    const result = await this.get<T>(path, authenticated);
-
-    return this.runningRequests.get(path) === seq ? result : null;
-  }
-
-  public async delete<T>(
-    path: string,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<void, T>(path, 'DELETE', undefined, authenticated);
-  }
-
-  public async post<R, T>(
-    path: string,
-    body: R,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(path, 'POST', body, authenticated);
-  }
-
-  public async put<R, T>(
-    path: string,
-    body: R,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<R, T>(path, 'PUT', body, authenticated);
-  }
-
-  public async patch<R, T>(
-    path: string,
-    body: Partial<R>,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>>> {
-    return this.fetch<Partial<R>, T>(path, 'PATCH', body, authenticated);
   }
 }

@@ -1,9 +1,22 @@
 // import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
+import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+
+import classNames from 'classnames';
+import cytoscape from 'cytoscape';
+import {observer} from 'mobx-react-lite';
+import CytoscapeComponent from 'react-cytoscapejs';
+
+import {ContextMenu} from 'primereact/contextmenu';
+import {MenuItem} from 'primereact/menuitem';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+
+import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
+import LabViewHeader from '@sb/components/dashboard-page/lab-view/lab-view-header/lab-view-header';
+import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
 import LogDialog, {
   ANTIMONY_LOG,
   LogDialogState,
 } from '@sb/components/dashboard-page/log-dialog/log-dialog';
-
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
@@ -17,6 +30,7 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {useDialogState} from '@sb/lib/utils/hooks';
+import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {
   drawGraphGrid,
   generateGraph,
@@ -27,20 +41,7 @@ import {
 import {If} from '@sb/types/control';
 import {InstanceNode, InstanceState, Lab} from '@sb/types/domain/lab';
 
-import cytoscape from 'cytoscape';
-import {observer} from 'mobx-react-lite';
-import {ContextMenu} from 'primereact/contextmenu';
-import {MenuItem} from 'primereact/menuitem';
-import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
-import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
-import classNames from 'classnames';
-
 import './lab-view.sass';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
-import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
-import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
-import CytoscapeComponent from 'react-cytoscapejs';
-import LabViewHeader from '@sb/components/dashboard-page/lab-view/lab-view-header/lab-view-header';
 
 interface LabDialogProps {
   lab: Lab | null;

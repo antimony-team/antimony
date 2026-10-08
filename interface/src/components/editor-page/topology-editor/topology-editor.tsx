@@ -1,11 +1,23 @@
-import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
-import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import FileSaver from 'file-saver';
-import {Button} from 'primereact/button';
+import {observer} from 'mobx-react-lite';
+import {useBeforeUnload} from 'react-router';
 
-import {FetchState, uuid4} from '@sb/types/types';
+import {Badge} from 'primereact/badge';
+import {Button} from 'primereact/button';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+import {Tooltip} from 'primereact/tooltip';
+
+import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
+import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
+import {
+  useCollectionStore,
+  useSchemaStore,
+  useStatusMessages,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
 import {
   BindFileEditReport,
   BindFileEditSource,
@@ -13,35 +25,24 @@ import {
   TopologyEditReport,
   TopologyEditSource,
 } from '@sb/lib/topology-manager';
-import {
-  useCollectionStore,
-  useSchemaStore,
-  useStatusMessages,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
-import {useBeforeUnload} from 'react-router';
-
+import {usePersistentState} from '@sb/lib/utils/persistent-state';
+import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import NodeEditDialog from './node-edit-dialog/node-edit-dialog';
-import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
-
-import './topology-editor.sass';
 import {BindFile, Topology} from '@sb/types/domain/topology';
-import {observer} from 'mobx-react-lite';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
-import {
-  SimulationConfig,
-  SimulationConfigContext,
-} from './node-editor/state/simulation-config';
-import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
+import {FetchState, uuid4} from '@sb/types/types';
+
 import EditorViewSwitch, {
   EditorView,
   isValidEditorView,
 } from './editor-view-switch/editor-view-switch';
-import {Badge} from 'primereact/badge';
-import {Tooltip} from 'primereact/tooltip';
-import {pluralize} from '@sb/lib/utils/utils';
-import {usePersistentState} from '@sb/lib/utils/persistent-state';
+import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
+import NodeEditDialog from './node-edit-dialog/node-edit-dialog';
+import {
+  SimulationConfig,
+  SimulationConfigContext,
+} from './node-editor/state/simulation-config';
+
+import './topology-editor.sass';
 
 export enum ValidationState {
   Working,

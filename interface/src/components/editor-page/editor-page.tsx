@@ -1,32 +1,24 @@
-import LabEditDialog, {
-  LabEditDialogState,
-} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
-
-import './editor-page.sass';
-import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
-import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
-
-import {uuid4} from '@sb/types/types';
+import React, {useCallback, useEffect, useState} from 'react';
 
 import {observer} from 'mobx-react-lite';
-import React, {useCallback, useEffect, useState} from 'react';
 import {useSearchParams} from 'react-router';
-import TopologyEditor from './topology-editor/topology-editor';
-import TopologyExplorer from './topology-explorer/topology-explorer';
+
 import {
   Splitter,
   SplitterPanel,
   SplitterResizeEndEvent,
 } from 'primereact/splitter';
+
+import LabEditDialog, {
+  LabEditDialogState,
+} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
+import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
+import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 import {Choose, Otherwise, When} from '@sb/types/control';
-import EditorSetup from './editor-setup/editor-setup';
-import CollectionEditDialog, {
-  CollectionEditDialogState,
-} from './collection-edit-dialog/collection-edit-dialog';
-import TopologyEditDialog, {
-  TopologyEditDialogState,
-} from './topology-edit-dialog/topology-edit-dialog';
+import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
+import {uuid4} from '@sb/types/types';
+
 import ArchiveUploadDialog, {
   ArchiveUploadDialogState,
   ArchiveUploadFile,
@@ -37,7 +29,17 @@ import BindFileEditDialog, {
 import BindFileDirectoryEditDialog, {
   BindFileDirectoryEditDialogState,
 } from './bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
-import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
+import CollectionEditDialog, {
+  CollectionEditDialogState,
+} from './collection-edit-dialog/collection-edit-dialog';
+import EditorSetup from './editor-setup/editor-setup';
+import TopologyEditDialog, {
+  TopologyEditDialogState,
+} from './topology-edit-dialog/topology-edit-dialog';
+import TopologyEditor from './topology-editor/topology-editor';
+import TopologyExplorer from './topology-explorer/topology-explorer';
+
+import './editor-page.sass';
 
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);

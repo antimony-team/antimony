@@ -1,25 +1,20 @@
 import {action, computed, observable, ObservableMap, reaction} from 'mobx';
 
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {RootStore} from '@sb/lib/stores/root-store';
+import {Result} from '@sb/types/result';
 import {
   DefaultFetchReport,
   FetchReport,
   FetchState,
   uuid4,
 } from '@sb/types/types';
-import {RootStore} from '@sb/lib/stores/root-store';
-import {Result} from '@sb/types/result';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 
 export abstract class DataStore<T, I, O> {
-  protected rootStore: RootStore;
-
   @observable accessor data: T[] = [];
   @observable accessor lookup: Map<string, T> = new ObservableMap();
   @observable accessor fetchReport: FetchReport = DefaultFetchReport;
-
-  protected abstract get resourcePath(): string;
-  protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
-
+  protected rootStore: RootStore;
   protected disposers: (() => void)[] = [];
 
   constructor(rootStore: RootStore, dependencies: DataStoreDependency[] = []) {
@@ -46,11 +41,26 @@ export abstract class DataStore<T, I, O> {
     );
   }
 
-  @action
-  protected reset() {
-    this.data = [];
-    this.lookup = new ObservableMap();
-    this.fetchReport = DefaultFetchReport;
+  protected abstract get resourcePath(): string;
+
+  @computed
+  protected get getParams() {
+    return '';
+  }
+
+  @computed
+  protected get postParams() {
+    return '';
+  }
+
+  @computed
+  protected get patchParams() {
+    return '';
+  }
+
+  @computed
+  protected get deleteParams() {
+    return '';
   }
 
   public dispose() {
@@ -110,6 +120,15 @@ export abstract class DataStore<T, I, O> {
     return result;
   }
 
+  protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
+
+  @action
+  protected reset() {
+    this.data = [];
+    this.lookup = new ObservableMap();
+    this.fetchReport = DefaultFetchReport;
+  }
+
   @action
   private handleData(result: Result<DataResponse<O | O[]>>) {
     if (result.isOk()) {
@@ -124,26 +143,6 @@ export abstract class DataStore<T, I, O> {
         errorMessage: result.error.message,
       };
     }
-  }
-
-  @computed
-  protected get getParams() {
-    return '';
-  }
-
-  @computed
-  protected get postParams() {
-    return '';
-  }
-
-  @computed
-  protected get patchParams() {
-    return '';
-  }
-
-  @computed
-  protected get deleteParams() {
-    return '';
   }
 }
 

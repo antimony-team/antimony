@@ -1,18 +1,5 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import SBDropdown, {
-  SBDropdownRef,
-} from '@sb/components/common/sb-dropdown/sb-dropdown';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 
-import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-
-import {
-  useCollectionStore,
-  useLabStore,
-  useStatusMessages,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
-import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
-import {Lab, LabIn} from '@sb/types/domain/lab';
 import classNames from 'classnames';
 import dayjs from 'dayjs';
 import {isEqual} from 'lodash';
@@ -23,8 +10,21 @@ import {Calendar} from 'primereact/calendar';
 import {InputNumber} from 'primereact/inputnumber';
 import {SelectButton} from 'primereact/selectbutton';
 import {Nullable} from 'primereact/ts-helpers';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import SBDropdown, {
+  SBDropdownRef,
+} from '@sb/components/common/sb-dropdown/sb-dropdown';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {
+  useCollectionStore,
+  useLabStore,
+  useStatusMessages,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
+import {Lab, LabIn} from '@sb/types/domain/lab';
 import {ErrorCodes} from '@sb/types/error-codes';
 
 import './lab-edit-dialog.sass';

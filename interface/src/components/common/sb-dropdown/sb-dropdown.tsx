@@ -9,17 +9,18 @@ import React, {
 } from 'react';
 
 import classNames from 'classnames';
-import {SelectItem} from 'primereact/selectitem';
+import {Tooltip, TooltipRefProps} from 'react-tooltip';
+
 import {
   Dropdown,
   DropdownChangeEvent,
   DropdownProps,
 } from 'primereact/dropdown';
+import {SelectItem} from 'primereact/selectitem';
 
 import {If} from '@sb/types/control';
 
 import './sb-dropdown.sass';
-import {Tooltip, TooltipRefProps} from 'react-tooltip';
 
 interface SBDropdownProps {
   id?: string;

@@ -1,8 +1,11 @@
-import _, {isEqual} from 'lodash';
 import {validate} from 'jsonschema';
+import _, {isEqual} from 'lodash';
 import objectPath from 'object-path';
 import {YAMLMap, YAMLSeq} from 'yaml';
 
+import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+import {Binding} from '@sb/lib/utils/binding';
+import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
 import {
   ClabSchema,
   PatternPropertyDefinition,
@@ -14,10 +17,7 @@ import {
   TopologyDefinition,
   TopologyNode,
 } from '@sb/types/domain/topology';
-import {Binding} from '@sb/lib/utils/binding';
 import {FieldType, YAMLDocument} from '@sb/types/types';
-import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
-import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 
 /*
  * Object used by the view to communicate with the Node Editor.
@@ -44,13 +44,11 @@ export type PropertyDefinition = {
 };
 
 export class NodeEditor {
-  private readonly originalTopology: YAMLDocument<TopologyDefinition>;
-  private readonly statusMessageStore: StatusMessageStore;
   public readonly clabSchema: ClabSchema;
-
   public readonly onEdit: Binding<YAMLDocument<TopologyDefinition>> =
     new Binding();
-
+  private readonly originalTopology: YAMLDocument<TopologyDefinition>;
+  private readonly statusMessageStore: StatusMessageStore;
   private editingNode: string;
   private editingTopology: YAMLDocument<TopologyDefinition>;
 
@@ -310,6 +308,38 @@ export class NodeEditor {
     return (
       !isEqual(this.originalTopology.toJS(), this.editingTopology.toJS()) ||
       this.hasChangedName
+    );
+  }
+
+  public modifyConnection(updatedConnection: NodeConnection) {
+    if (!this.editingTopology) return;
+
+    const updatedTopology = this.editingTopology.clone();
+
+    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
+
+    const updatedHostInterface =
+      updatedConnection.hostInterfaceConfig.interfacePattern.replaceAll(
+        '$',
+        String(updatedConnection.hostInterfaceIndex),
+      );
+
+    const updatedTargetInterface =
+      updatedConnection.targetInterfaceConfig.interfacePattern.replaceAll(
+        '$',
+        String(updatedConnection.targetInterfaceIndex),
+      );
+
+    links.set(updatedConnection.index, {
+      endpoints: [
+        `${updatedConnection.hostNode}:${updatedHostInterface}`,
+        `${updatedConnection.targetNode}:${updatedTargetInterface}`,
+      ],
+    });
+
+    this.validateAndSetTopology(
+      updatedTopology,
+      'Failed to update connection.',
     );
   }
 
@@ -631,38 +661,6 @@ export class NodeEditor {
     }
 
     return {type};
-  }
-
-  public modifyConnection(updatedConnection: NodeConnection) {
-    if (!this.editingTopology) return;
-
-    const updatedTopology = this.editingTopology.clone();
-
-    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
-
-    const updatedHostInterface =
-      updatedConnection.hostInterfaceConfig.interfacePattern.replaceAll(
-        '$',
-        String(updatedConnection.hostInterfaceIndex),
-      );
-
-    const updatedTargetInterface =
-      updatedConnection.targetInterfaceConfig.interfacePattern.replaceAll(
-        '$',
-        String(updatedConnection.targetInterfaceIndex),
-      );
-
-    links.set(updatedConnection.index, {
-      endpoints: [
-        `${updatedConnection.hostNode}:${updatedHostInterface}`,
-        `${updatedConnection.targetNode}:${updatedTargetInterface}`,
-      ],
-    });
-
-    this.validateAndSetTopology(
-      updatedTopology,
-      'Failed to update connection.',
-    );
   }
 
   /**

@@ -1,26 +1,28 @@
-import {Image} from 'primereact/image';
-import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import objectPath from 'object-path';
-import {Accordion, AccordionTab} from 'primereact/accordion';
 
-import {
-  useDeviceStore,
-  useStatusMessages,
-  useSchemaStore,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
-import {If} from '@sb/types/control';
-import {YAMLDocument} from '@sb/types/types';
-import {NodeEditor} from '@sb/lib/node-editor';
-import {TopologyEditSource} from '@sb/lib/topology-manager';
-import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {TopologyDefinition} from '@sb/types/domain/topology';
+import {Accordion, AccordionTab} from 'primereact/accordion';
+import {Image} from 'primereact/image';
+import {OverlayPanel} from 'primereact/overlaypanel';
+
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
-import NodePropertyTable from './node-property-table/node-property-table';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {NodeEditor} from '@sb/lib/node-editor';
+import {
+  useDeviceStore,
+  useSchemaStore,
+  useStatusMessages,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {TopologyEditSource} from '@sb/lib/topology-manager';
+import {If} from '@sb/types/control';
+import {TopologyDefinition} from '@sb/types/domain/topology';
+import {YAMLDocument} from '@sb/types/types';
+
 import NodeConnectionTable from './node-connection-table/node-connection-table';
+import NodePropertyTable from './node-property-table/node-property-table';
 
 import './node-edit-dialog.sass';
 

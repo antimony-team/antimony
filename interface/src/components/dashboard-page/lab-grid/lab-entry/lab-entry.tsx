@@ -1,3 +1,9 @@
+import React, {useMemo} from 'react';
+
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+
+import LabEntryPreview from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry-preview/lab-entry-preview';
 import {
   useAuthUser,
   useClock,
@@ -5,15 +11,11 @@ import {
   useLabStore,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
+import {formatDuration} from '@sb/lib/utils/utils';
+import {If} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
-import React, {useMemo} from 'react';
 
 import './lab-entry.sass';
-import {observer} from 'mobx-react-lite';
-import {If} from '@sb/types/control';
-import classNames from 'classnames';
-import LabEntryPreview from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry-preview/lab-entry-preview';
-import {formatDuration} from '@sb/lib/utils/utils';
 
 interface LabEntryProps {
   lab: Lab;

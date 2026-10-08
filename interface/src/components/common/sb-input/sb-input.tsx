@@ -9,9 +9,9 @@ import React, {
   useState,
 } from 'react';
 
+import classNames from 'classnames';
 import {Tooltip, TooltipRefProps} from 'react-tooltip';
 
-import classNames from 'classnames';
 import {InputText} from 'primereact/inputtext';
 import {KeyFilterType} from 'primereact/keyfilter';
 

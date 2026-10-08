@@ -1,17 +1,18 @@
 import React from 'react';
 
 import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+
 import {Button} from 'primereact/button';
 import {Slider} from 'primereact/slider';
-import {observer} from 'mobx-react-lite';
 
 import {
   SimulationConfig,
   useSimulationConfig,
-} from '../state/simulation-config';
+} from '@sb/components/editor-page/topology-editor/node-editor/state/simulation-config';
+import {If} from '@sb/types/control';
 
 import './simulation-panel.sass';
-import {If} from '@sb/types/control';
 
 interface SimulationPanelProps {
   onStabilizeGraph: () => void;

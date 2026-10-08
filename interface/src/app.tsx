@@ -1,31 +1,31 @@
 import React, {useEffect, useRef} from 'react';
 
-import {Outlet} from 'react-router';
-import {Toast} from 'primereact/toast';
 import {observer} from 'mobx-react-lite';
-import {PrimeReactProvider} from 'primereact/api';
+import {Outlet} from 'react-router';
 
-import {
-  RootStoreContext,
-  useDataBinder,
-  useStatusMessages,
-  useRootStore,
-} from '@sb/lib/stores/root-store';
+import {PrimeReactProvider} from 'primereact/api';
+import {Toast} from 'primereact/toast';
+
 import SBConfirm, {
   SBConfirmRef,
 } from '@sb/components/common/sb-confirm/sb-confirm';
-import {AppPhase} from '@sb/types/types';
 import SBDock from '@sb/components/common/sb-dock/sb-dock';
 import SBLogin from '@sb/components/common/sb-login/sb-login';
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
-import LoadingScreen from '@sb/components/loading-screen/loading-screen';
 import ConnectionErrorBanner from '@sb/components/connection-error/connection-error-banner';
 import ConnectionErrorOverlay from '@sb/components/connection-error/connection-error-overlay';
+import LoadingScreen from '@sb/components/loading-screen/loading-screen';
+import {
+  RootStoreContext,
+  useDataBinder,
+  useRootStore,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
+import {AppPhase} from '@sb/types/types';
 
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
 import 'material-symbols/outlined.css';
-
 import './app.sass';
 import 'primereact/resources/themes/lara-dark-blue/theme.css';
 

@@ -1,7 +1,11 @@
+import {validate} from 'jsonschema';
+import {action, observable, runInAction} from 'mobx';
+import {parseDocument} from 'yaml';
+
+import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {DeviceStore} from '@sb/lib/stores/device-store';
-
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
@@ -13,12 +17,8 @@ import {
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
-import {uuid4, YAMLDocument} from '@sb/types/types';
-import {validate} from 'jsonschema';
-import {action, observable, runInAction} from 'mobx';
-import {parseDocument} from 'yaml';
 import {Result} from '@sb/types/result';
-import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
+import {uuid4, YAMLDocument} from '@sb/types/types';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -48,35 +48,6 @@ export class TopologyStore extends DataStore<
 
   protected get resourcePath(): string {
     return '/topologies';
-  }
-
-  @action
-  protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
-    if (!this.schemaStore.clabSchema) return;
-
-    const topologies: Topology[] = [];
-    const bindFiles: BindFile[] = [];
-
-    for (const topologyOut of response.payload) {
-      const existingTopology = this.lookup.get(topologyOut.id);
-      if (existingTopology) {
-        this.updateTopologyValues(existingTopology, topologyOut);
-        topologies.push(existingTopology);
-      } else {
-        const topology = this.parseTopology(topologyOut);
-        if (!topology) continue;
-
-        topologies.push(topology);
-      }
-
-      for (const bindFile of topologyOut.bindFiles) {
-        bindFiles.push(bindFile);
-      }
-    }
-
-    this.data = topologies;
-    this.lookup = new Map(this.data.map(topology => [topology.id, topology]));
-    this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
   }
 
   public override async update(
@@ -211,6 +182,51 @@ export class TopologyStore extends DataStore<
     return result;
   }
 
+  public parseTopologyDefinition(
+    definitionString: string,
+  ): YAMLDocument<TopologyDefinition> | null {
+    const definition = parseDocument(definitionString, {
+      keepSourceTokens: true,
+    });
+    if (
+      definition.errors.length > 0 ||
+      validate(definition.toJS(), this.schemaStore.clabSchema).errors.length > 0
+    ) {
+      return null;
+    }
+
+    return definition;
+  }
+
+  @action
+  protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
+    if (!this.schemaStore.clabSchema) return;
+
+    const topologies: Topology[] = [];
+    const bindFiles: BindFile[] = [];
+
+    for (const topologyOut of response.payload) {
+      const existingTopology = this.lookup.get(topologyOut.id);
+      if (existingTopology) {
+        this.updateTopologyValues(existingTopology, topologyOut);
+        topologies.push(existingTopology);
+      } else {
+        const topology = this.parseTopology(topologyOut);
+        if (!topology) continue;
+
+        topologies.push(topology);
+      }
+
+      for (const bindFile of topologyOut.bindFiles) {
+        bindFiles.push(bindFile);
+      }
+    }
+
+    this.data = topologies;
+    this.lookup = new Map(this.data.map(topology => [topology.id, topology]));
+    this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
+  }
+
   @action
   private updateTopologyValues(
     target: Topology,
@@ -268,21 +284,5 @@ export class TopologyStore extends DataStore<
       definitionString: input.definition,
       ...this.manager.buildTopologyMetadata(definition),
     });
-  }
-
-  public parseTopologyDefinition(
-    definitionString: string,
-  ): YAMLDocument<TopologyDefinition> | null {
-    const definition = parseDocument(definitionString, {
-      keepSourceTokens: true,
-    });
-    if (
-      definition.errors.length > 0 ||
-      validate(definition.toJS(), this.schemaStore.clabSchema).errors.length > 0
-    ) {
-      return null;
-    }
-
-    return definition;
   }
 }

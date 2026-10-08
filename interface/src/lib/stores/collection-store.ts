@@ -1,13 +1,19 @@
+import {action, computed} from 'mobx';
+
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore} from '@sb/lib/stores/data-store';
 import {Collection, CollectionIn} from '@sb/types/domain/collection';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
-import {action, computed} from 'mobx';
 
 export class CollectionStore extends DataStore<
   Collection,
   CollectionIn,
   Collection
 > {
+  @computed
+  public get hasAccessibleCollections(): boolean {
+    return this.data.length > 0;
+  }
+
   protected get resourcePath(): string {
     return '/collections';
   }
@@ -20,10 +26,5 @@ export class CollectionStore extends DataStore<
     this.lookup = new Map(
       this.data.map(collection => [collection.id, collection]),
     );
-  }
-
-  @computed
-  public get hasAccessibleCollections(): boolean {
-    return this.data.length > 0;
   }
 }

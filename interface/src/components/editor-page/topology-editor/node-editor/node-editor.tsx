@@ -1,9 +1,21 @@
+import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+
+import type {EventObject} from 'cytoscape';
+import cytoscape, {NodeSingular} from 'cytoscape';
+// @ts-expect-error This library does not have a type declaration
+import coseBilkent from 'cytoscape-cose-bilkent';
+import {observer} from 'mobx-react-lite';
+import CytoscapeComponent from 'react-cytoscapejs';
+import {isMap} from 'yaml';
+
+import {ContextMenu} from 'primereact/contextmenu';
+import {MenuItem} from 'primereact/menuitem';
+import {SpeedDial} from 'primereact/speeddial';
+
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {topologyStyle} from '@sb/lib/cytoscape-styles';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
-
-import './node-editor.sass';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {
   convertXYToLatLng,
@@ -14,22 +26,12 @@ import {
 } from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
-import type {EventObject} from 'cytoscape';
-import cytoscape, {NodeSingular} from 'cytoscape';
 
-// @ts-expect-error This library does not have a type declaration
-import coseBilkent from 'cytoscape-cose-bilkent';
-import {observer} from 'mobx-react-lite';
-import {ContextMenu} from 'primereact/contextmenu';
-import {MenuItem} from 'primereact/menuitem';
-import {SpeedDial} from 'primereact/speeddial';
-import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
-import CytoscapeComponent from 'react-cytoscapejs';
-import {isMap} from 'yaml';
 import SimulationPanel from './simulation-panel/simulation-panel';
 import {useSimulationConfig} from './state/simulation-config';
-
 import NodeToolbar from './toolbar/node-toolbar';
+
+import './node-editor.sass';
 
 cytoscape.use(coseBilkent);
 

@@ -1,18 +1,21 @@
-import {Button} from 'primereact/button';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
 import React, {useMemo} from 'react';
+
+import dayjs from 'dayjs';
+import {observer} from 'mobx-react-lite';
+
+import {Button} from 'primereact/button';
+
+import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
 import {
   useClock,
   useCollectionStore,
   useLabStore,
 } from '@sb/lib/stores/root-store';
+import {formatUptime} from '@sb/lib/utils/utils';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import './lab-view-header.sass';
-import {formatUptime} from '@sb/lib/utils/utils';
-import dayjs from 'dayjs';
-import {observer} from 'mobx-react-lite';
 
 export interface LabViewHeaderProps {
   lab: Lab;

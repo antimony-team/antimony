@@ -1,23 +1,24 @@
 import React, {forwardRef} from 'react';
 
 import classNames from 'classnames';
-import {Chip} from 'primereact/chip';
-import {Badge} from 'primereact/badge';
 import {observer} from 'mobx-react-lite';
+
+import {Badge} from 'primereact/badge';
 import {Button} from 'primereact/button';
+import {Chip} from 'primereact/chip';
 import {ListBox} from 'primereact/listbox';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
-import {If} from '@sb/types/control';
 import {useStatusMessages} from '@sb/lib/stores/root-store';
+import {If} from '@sb/types/control';
+import {
+  Severity,
+  SeverityIconMap,
+  SeverityMapping,
+  StatusMessage,
+} from '@sb/types/domain/status-message';
 
 import './status-message-panel.sass';
-import {
-  StatusMessage,
-  Severity,
-  SeverityMapping,
-  SeverityIconMap,
-} from '@sb/types/domain/status-message';
 
 const StatusMessagePanel = observer(
   forwardRef<OverlayPanel>((_, overlayRef) => {

@@ -1,3 +1,5 @@
+import {action, observable, ObservableMap, runInAction} from 'mobx';
+
 import {
   DataBinder,
   DataResponse,
@@ -16,16 +18,13 @@ import {
 import {ErrorCodes} from '@sb/types/error-codes';
 import {Result} from '@sb/types/result';
 import {uuid4} from '@sb/types/types';
-import {action, observable, ObservableMap, runInAction} from 'mobx';
 
 export class ShellStore {
   @observable accessor currentShell: ShellData | null = null;
   @observable accessor openShells: Map<string, ShellData[]> =
     new ObservableMap();
-
-  private readonly commandsSubscription: Subscription;
   public readonly onData: Binding<ArrayBuffer> = new Binding();
-
+  private readonly commandsSubscription: Subscription;
   private currentDataSubscription: Subscription | null = null;
 
   private dataBinder: DataBinder;
@@ -41,53 +40,6 @@ export class ShellStore {
     this.handleControl = this.handleControl.bind(this);
 
     this.dataBinder.subscribeNamespace('shell-control', this.handleControl);
-  }
-
-  private handleData(data: ArrayBuffer) {
-    this.onData.update(data);
-  }
-
-  @action
-  private handleControl(data: DataResponse<ShellCommandData>) {
-    if (!this.openShells.has(data.payload.labId)) return;
-
-    switch (data.payload.command) {
-      case ShellCommand.ShellError:
-        this.handleShellError(data.payload);
-        break;
-      case ShellCommand.ShellClose:
-        this.handleShellClose(data.payload);
-        break;
-    }
-  }
-
-  private handleShellError(data: ShellCommandData) {
-    console.error('Received error in shell', data);
-    this.handleShellClose(data);
-  }
-
-  @action
-  private handleShellClose(data: ShellCommandData) {
-    this.openShells.set(
-      data.labId,
-      this.openShells.get(data.labId)!.map(shell => {
-        if (shell.id === data.shellId) {
-          return {
-            ...shell,
-            expired: true,
-          };
-        }
-
-        return shell;
-      }),
-    );
-
-    if (this.currentShell?.id === data.shellId) {
-      this.currentShell = {
-        ...this.currentShell,
-        expired: true,
-      };
-    }
   }
 
   @action
@@ -277,5 +229,52 @@ export class ShellStore {
         labShells.filter(shell => shell.id !== shellId),
       );
     });
+  }
+
+  private handleData(data: ArrayBuffer) {
+    this.onData.update(data);
+  }
+
+  @action
+  private handleControl(data: DataResponse<ShellCommandData>) {
+    if (!this.openShells.has(data.payload.labId)) return;
+
+    switch (data.payload.command) {
+      case ShellCommand.ShellError:
+        this.handleShellError(data.payload);
+        break;
+      case ShellCommand.ShellClose:
+        this.handleShellClose(data.payload);
+        break;
+    }
+  }
+
+  private handleShellError(data: ShellCommandData) {
+    console.error('Received error in shell', data);
+    this.handleShellClose(data);
+  }
+
+  @action
+  private handleShellClose(data: ShellCommandData) {
+    this.openShells.set(
+      data.labId,
+      this.openShells.get(data.labId)!.map(shell => {
+        if (shell.id === data.shellId) {
+          return {
+            ...shell,
+            expired: true,
+          };
+        }
+
+        return shell;
+      }),
+    );
+
+    if (this.currentShell?.id === data.shellId) {
+      this.currentShell = {
+        ...this.currentShell,
+        expired: true,
+      };
+    }
   }
 }

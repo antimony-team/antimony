@@ -1,3 +1,11 @@
+import React, {useMemo, useRef} from 'react';
+
+import {runInAction} from 'mobx';
+import {observer, useLocalObservable} from 'mobx-react-lite';
+import YAML from 'yaml';
+
+import {SelectItem} from 'primereact/selectitem';
+
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
@@ -9,15 +17,9 @@ import {
 } from '@sb/lib/stores/root-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+import {fetchSyncUrl} from '@sb/lib/utils/utils';
 import {Topology, TopologyIn} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
-import {runInAction} from 'mobx';
-import {observer, useLocalObservable} from 'mobx-react-lite';
-import {SelectItem} from 'primereact/selectitem';
-import React, {useMemo, useRef} from 'react';
-
-import YAML from 'yaml';
-import {fetchSyncUrl} from '@sb/lib/utils/utils';
 
 export interface TopologyEditDialogState {
   // Set to null if the dialog is meant to add a new topology

@@ -1,6 +1,6 @@
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore} from '@sb/lib/stores/data-store';
 import {DeviceInfo, InterfaceConfig} from '@sb/types/domain/device-info';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {TopologyNode} from '@sb/types/domain/topology';
 
 export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
@@ -8,11 +8,6 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
 
   protected get resourcePath(): string {
     return '/devices';
-  }
-
-  protected handleUpdate(response: DataResponse<DeviceInfo[]>): void {
-    this.data = response.payload;
-    this.lookup = new Map(this.data.map(device => [device.kind, device]));
   }
 
   public getNodeIcon(node?: TopologyNode | null): string {
@@ -63,6 +58,11 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     if (!nodeKind) return DefaultDeviceConfig;
 
     return this.lookup.get(nodeKind) ?? DefaultDeviceConfig;
+  }
+
+  protected handleUpdate(response: DataResponse<DeviceInfo[]>): void {
+    this.data = response.payload;
+    this.lookup = new Map(this.data.map(device => [device.kind, device]));
   }
 }
 

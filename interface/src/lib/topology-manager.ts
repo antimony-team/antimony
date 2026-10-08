@@ -1,7 +1,10 @@
+import {cloneDeep, isEqual} from 'lodash-es';
+import {runInAction} from 'mobx';
+import {isMap, YAMLMap, YAMLSeq} from 'yaml';
+
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-
 import {Binding} from '@sb/lib/utils/binding';
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {
@@ -13,9 +16,6 @@ import {
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
-import {cloneDeep, isEqual} from 'lodash-es';
-import {isMap, YAMLMap, YAMLSeq} from 'yaml';
-import {runInAction} from 'mobx';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -60,29 +60,21 @@ export enum OpenFileType {
 }
 
 export class TopologyManager {
-  private deviceStore: DeviceStore;
-  private topologyStore: TopologyStore;
-
-  private isFileOpen: boolean = false;
-  private openFileType: OpenFileType = OpenFileType.Topology;
-
-  private editingTopology: Topology | null = null;
-
-  // Backup of the topology to restore when discarding edits.
-  private originalTopology: Topology | null = null;
-
-  private editingBindFile: BindFile | null = null;
-
-  // Backup of the bind file to restore when discarding edits.
-  private originalBindFile: BindFile | null = null;
-
   public readonly onTopologyOpen: Binding<Topology> = new Binding();
   public readonly onTopologyEdit: Binding<TopologyEditReport> = new Binding();
-
   public readonly onBindFileOpen: Binding<BindFile> = new Binding();
   public readonly onBindFileEdit: Binding<BindFileEditReport> = new Binding();
-
   public readonly onClose: Binding<void> = new Binding();
+  private deviceStore: DeviceStore;
+  private topologyStore: TopologyStore;
+  private isFileOpen: boolean = false;
+  private openFileType: OpenFileType = OpenFileType.Topology;
+  private editingTopology: Topology | null = null;
+  // Backup of the topology to restore when discarding edits.
+  private originalTopology: Topology | null = null;
+  private editingBindFile: BindFile | null = null;
+  // Backup of the bind file to restore when discarding edits.
+  private originalBindFile: BindFile | null = null;
 
   constructor(topologyStore: TopologyStore, deviceStore: DeviceStore) {
     this.deviceStore = deviceStore;
@@ -105,6 +97,87 @@ export class TopologyManager {
     return null;
   }
 
+  public get currentFileType() {
+    return this.openFileType;
+  }
+
+  public get topology() {
+    return this.editingTopology;
+  }
+
+  public get bindFile() {
+    return this.editingBindFile;
+  }
+
+  public static serializeTopology(
+    definition: YAMLDocument<TopologyDefinition>,
+  ) {
+    return definition.toString({
+      collectionStyle: 'block',
+    });
+  }
+
+  /**
+   * Parses a position string to a position object. Returns null if the parsing
+   * failed.
+   *
+   * Format: pos=[x, y]
+   */
+  private static readPosition(
+    value: string | null | undefined,
+  ): Position | null {
+    if (!value) return null;
+
+    const matches = value.replaceAll(' ', '').match(/pos=\[(-?\d+),(-?\d+)]/);
+    if (matches && matches.length === 3) {
+      const x = Number(matches[1]);
+      const y = Number(matches[2]);
+      if (!isNaN(x) && !isNaN(y)) {
+        return {x, y};
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Creates a position string from a position object.
+   *
+   * Format: pos=[x, y]
+   */
+  private static writePosition(position: Position) {
+    return ' pos=[' + position.x + ',' + position.y + ']';
+  }
+
+  private static cloneBindFile(bindFile: BindFile): BindFile {
+    return {
+      id: bindFile.id,
+      filePath: bindFile.filePath,
+      content: bindFile.content,
+      topologyId: bindFile.topologyId,
+    };
+  }
+
+  private static cloneTopology(topology: Topology): Topology {
+    return {
+      id: topology.id,
+      name: topology.name,
+      collectionId: topology.collectionId,
+      creator: {
+        id: topology.creator.id,
+        name: topology.creator.name,
+      },
+      nodeCount: topology.nodeCount,
+      connections: cloneDeep(topology.connections),
+      connectionMap: cloneDeep(topology.connectionMap),
+      definition: topology.definition.clone(),
+      definitionString: topology.definitionString,
+      syncUrl: topology.syncUrl,
+      bindFiles: cloneDeep(topology.bindFiles),
+      lastDeployFailed: topology.lastDeployFailed,
+    };
+  }
+
   public async save(): Promise<Result<DataResponse<void>> | null> {
     if (this.openFileType === OpenFileType.Topology) {
       return this.saveTopology();
@@ -113,56 +186,6 @@ export class TopologyManager {
     }
 
     return null;
-  }
-
-  private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
-    if (!this.editingTopology) return null;
-
-    const result = await this.topologyStore.update(this.editingTopology.id, {
-      definition: TopologyManager.serializeTopology(
-        this.editingTopology.definition,
-      ),
-    });
-
-    if (result.isOk()) {
-      this.originalTopology = TopologyManager.cloneTopology(
-        this.editingTopology,
-      );
-
-      this.onTopologyEdit.update({
-        updatedTopology: this.editingTopology,
-        isEdited: false,
-        source: TopologyEditSource.System,
-      });
-    }
-
-    return result;
-  }
-
-  private async saveBindFile(): Promise<Result<DataResponse<void>> | null> {
-    if (!this.editingBindFile) return null;
-
-    const result = await this.topologyStore.updateBindFile(
-      this.editingBindFile.topologyId,
-      this.editingBindFile.id,
-      {
-        content: this.editingBindFile.content,
-      },
-    );
-
-    if (result.isOk()) {
-      this.originalBindFile = TopologyManager.cloneBindFile(
-        this.editingBindFile,
-      );
-
-      this.onBindFileEdit.update({
-        updatedBindFile: this.editingBindFile,
-        isEdited: false,
-        source: BindFileEditSource.System,
-      });
-    }
-
-    return result;
   }
 
   public discardEdits() {
@@ -221,10 +244,6 @@ export class TopologyManager {
     return this.isFileOpen;
   }
 
-  public get currentFileType() {
-    return this.openFileType;
-  }
-
   /**
    * Opens a new topology to edit.
    *
@@ -258,18 +277,6 @@ export class TopologyManager {
     this.originalBindFile = TopologyManager.cloneBindFile(bindFile);
 
     this.onBindFileOpen.update(this.editingBindFile);
-  }
-
-  private restoreCurrentFile() {
-    if (this.openFileType === OpenFileType.Topology) {
-      if (!this.editingTopology || !this.originalTopology) return;
-
-      void this.topologyStore.fetchSingle(this.editingTopology.id);
-    } else {
-      if (!this.editingBindFile) return;
-
-      void this.topologyStore.fetchSingle(this.editingBindFile.topologyId);
-    }
   }
 
   /**
@@ -481,14 +488,6 @@ export class TopologyManager {
     }
   }
 
-  public get topology() {
-    return this.editingTopology;
-  }
-
-  public get bindFile() {
-    return this.editingBindFile;
-  }
-
   public getNodeTooltip(nodeName: string) {
     if (!this.editingTopology) return;
 
@@ -504,25 +503,6 @@ export class TopologyManager {
 
   public getEdgeTooltip(connection: NodeConnection) {
     return `${connection.hostNode}:${connection.hostInterface} <···> ${connection.targetNode}:${connection.targetInterface}`;
-  }
-
-  /**
-   * Returns all connections of a node.
-   */
-  private getNodeConnections(nodeName: string) {
-    if (!this.editingTopology) return [];
-    this.editingTopology?.connections.filter(
-      connection =>
-        connection.hostNode === nodeName || connection.targetNode === nodeName,
-    );
-  }
-
-  public static serializeTopology(
-    definition: YAMLDocument<TopologyDefinition>,
-  ) {
-    return definition.toString({
-      collectionStyle: 'block',
-    });
   }
 
   public buildTopologyMetadata(
@@ -630,6 +610,87 @@ export class TopologyManager {
     return {nodeCount, connections, connectionMap};
   }
 
+  public parseInterface(value: string, interfacePattern: string): number {
+    const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
+    const match = value.match(pattern);
+
+    if (!match || match.length < 2) return 99;
+    return Number(match[1]);
+  }
+
+  private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
+    if (!this.editingTopology) return null;
+
+    const result = await this.topologyStore.update(this.editingTopology.id, {
+      definition: TopologyManager.serializeTopology(
+        this.editingTopology.definition,
+      ),
+    });
+
+    if (result.isOk()) {
+      this.originalTopology = TopologyManager.cloneTopology(
+        this.editingTopology,
+      );
+
+      this.onTopologyEdit.update({
+        updatedTopology: this.editingTopology,
+        isEdited: false,
+        source: TopologyEditSource.System,
+      });
+    }
+
+    return result;
+  }
+
+  private async saveBindFile(): Promise<Result<DataResponse<void>> | null> {
+    if (!this.editingBindFile) return null;
+
+    const result = await this.topologyStore.updateBindFile(
+      this.editingBindFile.topologyId,
+      this.editingBindFile.id,
+      {
+        content: this.editingBindFile.content,
+      },
+    );
+
+    if (result.isOk()) {
+      this.originalBindFile = TopologyManager.cloneBindFile(
+        this.editingBindFile,
+      );
+
+      this.onBindFileEdit.update({
+        updatedBindFile: this.editingBindFile,
+        isEdited: false,
+        source: BindFileEditSource.System,
+      });
+    }
+
+    return result;
+  }
+
+  private restoreCurrentFile() {
+    if (this.openFileType === OpenFileType.Topology) {
+      if (!this.editingTopology || !this.originalTopology) return;
+
+      void this.topologyStore.fetchSingle(this.editingTopology.id);
+    } else {
+      if (!this.editingBindFile) return;
+
+      void this.topologyStore.fetchSingle(this.editingBindFile.topologyId);
+    }
+  }
+
+  /**
+   * Returns all connections of a node.
+   */
+  private getNodeConnections(nodeName: string) {
+    if (!this.editingTopology) return [];
+    this.editingTopology?.connections.filter(
+      connection =>
+        connection.hostNode === nodeName || connection.targetNode === nodeName,
+    );
+  }
+
   /**
    * Generates a valid interface ID for a given node.
    */
@@ -671,74 +732,5 @@ export class TopologyManager {
         this.parseInterface(connection.hostInterface, interfacePattern),
       )
       .filter(index => index >= 0);
-  }
-
-  public parseInterface(value: string, interfacePattern: string): number {
-    const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
-    const match = value.match(pattern);
-
-    if (!match || match.length < 2) return 99;
-    return Number(match[1]);
-  }
-
-  /**
-   * Parses a position string to a position object. Returns null if the parsing
-   * failed.
-   *
-   * Format: pos=[x, y]
-   */
-  private static readPosition(
-    value: string | null | undefined,
-  ): Position | null {
-    if (!value) return null;
-
-    const matches = value.replaceAll(' ', '').match(/pos=\[(-?\d+),(-?\d+)]/);
-    if (matches && matches.length === 3) {
-      const x = Number(matches[1]);
-      const y = Number(matches[2]);
-      if (!isNaN(x) && !isNaN(y)) {
-        return {x, y};
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Creates a position string from a position object.
-   *
-   * Format: pos=[x, y]
-   */
-  private static writePosition(position: Position) {
-    return ' pos=[' + position.x + ',' + position.y + ']';
-  }
-
-  private static cloneBindFile(bindFile: BindFile): BindFile {
-    return {
-      id: bindFile.id,
-      filePath: bindFile.filePath,
-      content: bindFile.content,
-      topologyId: bindFile.topologyId,
-    };
-  }
-
-  private static cloneTopology(topology: Topology): Topology {
-    return {
-      id: topology.id,
-      name: topology.name,
-      collectionId: topology.collectionId,
-      creator: {
-        id: topology.creator.id,
-        name: topology.creator.name,
-      },
-      nodeCount: topology.nodeCount,
-      connections: cloneDeep(topology.connections),
-      connectionMap: cloneDeep(topology.connectionMap),
-      definition: topology.definition.clone(),
-      definitionString: topology.definitionString,
-      syncUrl: topology.syncUrl,
-      bindFiles: cloneDeep(topology.bindFiles),
-      lastDeployFailed: topology.lastDeployFailed,
-    };
   }
 }

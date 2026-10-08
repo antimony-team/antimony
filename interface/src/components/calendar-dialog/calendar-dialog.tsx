@@ -1,3 +1,9 @@
+import React, {useEffect, useMemo, useState} from 'react';
+
+import {observer} from 'mobx-react-lite';
+import moment from 'moment';
+import {Calendar, momentLocalizer, View, Views} from 'react-big-calendar';
+
 import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
@@ -7,15 +13,9 @@ import {
   useDialogState,
   useScopedLabStore,
 } from '@sb/lib/utils/hooks';
-
 import {InstanceState, Lab} from '@sb/types/domain/lab';
-
 import {uuid4} from '@sb/types/types';
-import {observer} from 'mobx-react-lite';
 
-import moment from 'moment';
-import React, {useEffect, useMemo, useState} from 'react';
-import {Calendar, momentLocalizer, View, Views} from 'react-big-calendar';
 import './calendar-dialog.sass';
 
 const localizer = momentLocalizer(moment);

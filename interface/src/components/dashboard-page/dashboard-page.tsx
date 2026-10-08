@@ -1,25 +1,26 @@
-import LabEditDialog, {
-  LabEditDialogState,
-} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
-
-import './dashboard-page.sass';
-
-import {useLabStore, useStatusMessages} from '@sb/lib/stores/root-store';
-import {useDialogState} from '@sb/lib/utils/hooks';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
+import React, {useEffect, useMemo, useState} from 'react';
 
 import {observer} from 'mobx-react-lite';
-import React, {useEffect, useMemo, useState} from 'react';
 import {useSearchParams} from 'react-router';
-import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
+
 import {
   Splitter,
   SplitterPanel,
   SplitterResizeEndEvent,
 } from 'primereact/splitter';
+
+import LabEditDialog, {
+  LabEditDialogState,
+} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 import LabExplorer from '@sb/components/dashboard-page/lab-explorer/lab-explorer';
 import LabGrid from '@sb/components/dashboard-page/lab-grid/lab-grid';
+import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
+import {useLabStore, useStatusMessages} from '@sb/lib/stores/root-store';
+import {useDialogState} from '@sb/lib/utils/hooks';
 import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
+
+import './dashboard-page.sass';
 
 const DashboardPage = observer(() => {
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
