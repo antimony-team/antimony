@@ -27,7 +27,7 @@ export type Lab = {
   creator: User;
   state: InstanceState;
 
-  topologyId: uuid4;
+  topologyId: uuid4 | null;
   collectionId: uuid4;
   topologyDefinition: RunTopology;
 

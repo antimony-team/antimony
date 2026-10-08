@@ -1,15 +1,18 @@
 import React, {useMemo, useRef, useState} from 'react';
-import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
-import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
-import {oneOf, setOf, usePersistentState} from '@sb/lib/utils/persistent-state';
-import {useNavigate, useSearchParams} from 'react-router';
+
 import classNames from 'classnames';
+import {useNavigate, useSearchParams} from 'react-router';
+
 import {Button} from 'primereact/button';
-import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+
 import {LabEditDialogState} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
-import {Choose, Otherwise, When} from '@sb/types/control';
-import LabEntry from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry';
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
+import LabEntry from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry';
+import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+import {oneOf, setOf, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {Choose, Otherwise, When} from '@sb/types/control';
+import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
 
 import './lab-grid.sass';
 
@@ -222,7 +225,7 @@ const LabGrid = (props: LabGridProps) => {
                     </button>
                     <div className="sb-lab-grid-group-body" inert={isCollapsed}>
                       <div className="sb-lab-grid-group-inner">
-                        <div className="sb-lab-grid-grid">
+                        <div className="sb-lab-grid-container">
                           {labs.map(lab => (
                             <LabEntry
                               key={lab.id}

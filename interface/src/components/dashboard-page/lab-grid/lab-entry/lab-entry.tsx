@@ -10,9 +10,10 @@ import {
   useCollectionStore,
   useLabStore,
   useStatusMessages,
+  useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {formatDuration} from '@sb/lib/utils/utils';
-import {If} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import './lab-entry.sass';
@@ -28,6 +29,7 @@ interface LabEntryProps {
 const LabEntry = observer((props: LabEntryProps) => {
   const authUser = useAuthUser();
   const labStore = useLabStore();
+  const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
@@ -73,12 +75,20 @@ const LabEntry = observer((props: LabEntryProps) => {
   }, [props.lab, clock.now]);
 
   const topologyName = useMemo(() => {
+    if (!props.lab.topologyId) return null;
+
     const topologyName = props.lab.topologyDefinition.definition.getIn([
       'name',
     ]);
-    const collectionName =
-      collectionStore.lookup.get(props.lab.collectionId)?.name ?? 'unknown';
+    const topology = topologyStore.lookup.get(props.lab.topologyId)!;
+    const collectionName = collectionStore.lookup.get(
+      topology.collectionId,
+    )!.name;
     return `${collectionName} / ${topologyName}`;
+  }, [props.lab]);
+
+  const collectionName = useMemo(() => {
+    return collectionStore.lookup.get(props.lab.collectionId)!.name;
   }, [props.lab]);
 
   function onDeleteScheduledLab() {
@@ -149,9 +159,24 @@ const LabEntry = observer((props: LabEntryProps) => {
           </span>
         </div>
         <div className="sb-dashboard-lab-card-footer">
-          <span className="material-symbols-outlined">network_node</span>
-          <span>{topologyName}</span>
-          <div className="sb-lab-grid-card-footer-owner">
+          <div>
+            <span className="material-symbols-outlined">inventory_2</span>
+            <span>{collectionName}</span>
+          </div>
+          <div>
+            <Choose>
+              <When condition={topologyName}>
+                <span className="material-symbols-outlined">network_node</span>
+                <span>{topologyName}</span>
+              </When>
+              <Otherwise>
+                <span className="sb-dashboard-lab-card-footer-deleted">
+                  {'<unknown>'}
+                </span>
+              </Otherwise>
+            </Choose>
+          </div>
+          <div>
             <i className="pi pi-user" />
             <span>{props.lab.creator.name}</span>
           </div>

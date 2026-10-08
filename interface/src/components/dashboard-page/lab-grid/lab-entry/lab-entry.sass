@@ -45,11 +45,21 @@
       border-radius: 9999px
 
     .sb-dashboard-lab-card-footer
-      display: flex
-      align-items: center
+      display: grid
+      grid-template-columns: minmax(max-content, 1fr) auto 1fr
       font-size: 14px
       color: var(--text-muted)
-      gap: 4px
+
+      > div
+        display: flex
+        align-items: center
+        gap: 4px
+
+        &:last-child
+          justify-self: end
+
+      .sb-dashboard-lab-card-footer-deleted
+        font-style: italic
 
       .material-symbols-outlined
         font-size: 16px
