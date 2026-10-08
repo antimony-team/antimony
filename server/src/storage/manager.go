@@ -87,8 +87,7 @@ func (m *Manager) GetRunEnvironment(labId string, content *string) (*string, err
 		return nil, err
 	}
 
-	runTopologyPath := filepath.Join(m.runPath, filePath)
-	return &runTopologyPath, nil
+	return new(filepath.Join(m.runPath, filePath)), nil
 }
 
 func (m *Manager) ReadTopology(topologyId string, content *string) error {

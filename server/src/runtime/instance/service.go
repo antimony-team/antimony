@@ -1268,7 +1268,7 @@ func (s *Service) reviveInstances() {
 
 	savedLabs, err := s.labRepo.GetAll(ctx, nil)
 	if err != nil {
-		log.Fatal("[RUntime] Failed to load labs from database. Exiting.", "err", err.Error())
+		log.Fatal("[Runtime] Failed to load labs from database. Exiting.", "err", err.Error())
 		return
 	}
 
@@ -1295,7 +1295,7 @@ func (s *Service) reviveInstances() {
 		var topologyDefinition string
 		var topologyDefinitionParsed *any
 
-		if err = s.storageManager.ReadTopology(savedLab.Topology.UUID, &topologyDefinition); err != nil {
+		if err = s.storageManager.ReadRunTopologyDefinition(savedLab.UUID, &topologyDefinition); err != nil {
 			log.Error(
 				"[NECRO] Failed to read topology for revived lab. Skipping",
 				"lab", savedLab.UUID,
