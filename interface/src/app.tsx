@@ -72,7 +72,7 @@ const App = observer(() => {
           message={
             phase === AppPhase.Connecting
               ? 'Connecting to the server...'
-              : 'Loading resources...'
+              : 'Loading app...'
           }
         />
 

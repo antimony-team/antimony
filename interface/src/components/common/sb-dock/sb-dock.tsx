@@ -16,7 +16,7 @@ import {Button} from 'primereact/button';
 import {Image} from 'primereact/image';
 import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {useNavigate} from 'react-router';
+import {useLocation, useNavigate} from 'react-router';
 
 import './sb-dock.sass';
 import classNames from 'classnames';
@@ -32,6 +32,8 @@ const SBDock = observer(() => {
   const navigate = useNavigate();
   const notificationStore = useStatusMessages();
 
+  const {pathname} = useLocation();
+
   const overlayRef = useRef<OverlayPanel>(null);
 
   const hasEditorAccess = useMemo(() => {
@@ -42,8 +44,6 @@ const SBDock = observer(() => {
     position: 'bottom',
     showDelay: 500,
   };
-
-  const windowLocation = window.location.hash.split('?')[0];
 
   const pageButtonsRef = useRef<HTMLDivElement>(null);
 
@@ -66,7 +66,7 @@ const SBDock = observer(() => {
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [windowLocation]);
+  }, [pathname]);
 
   return (
     <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
@@ -90,7 +90,7 @@ const SBDock = observer(() => {
                   <span className="material-symbols-outlined">dashboard</span>
                 }
                 className={classNames('sb-dock-page-button', {
-                  selected: windowLocation === '#/' || windowLocation === '',
+                  selected: pathname === '/' || pathname === '',
                 })}
                 label="Dashboard"
                 onMouseDown={() => navigate('/')}
@@ -104,7 +104,7 @@ const SBDock = observer(() => {
                   </span>
                 }
                 className={classNames('sb-dock-page-button', {
-                  selected: windowLocation === '#/editor',
+                  selected: pathname === '/editor',
                 })}
                 label="Topology Editor"
                 onMouseDown={() => navigate('/editor')}
