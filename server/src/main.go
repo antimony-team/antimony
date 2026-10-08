@@ -28,8 +28,12 @@ import (
 	topologytransport "antimonyBackend/transport/http/topology"
 	usertransport "antimonyBackend/transport/http/user"
 	"antimonyBackend/utils"
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -55,6 +59,9 @@ import (
 //	@Contact.email	antimony@network.garden
 
 //	@BasePath	/
+
+// shutdownTimeout is how long running HTTP requests get to finish when the server shuts down.
+const shutdownTimeout = 10 * time.Second
 
 // @securityDefinitions.basic	BasicAuth
 func main() {
@@ -194,20 +201,75 @@ func main() {
 
 	webConnection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
 	sshConnection := fmt.Sprintf("%s:%d", antimonyConfig.SSH.SSHHost, antimonyConfig.SSH.SSHPort)
+	httpServer := &http.Server{Addr: webConnection, Handler: webServer}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	var serverWaitGroup sync.WaitGroup
-	serverWaitGroup.Add(2)
 
-	go startWebServer(webServer, webConnection, &serverWaitGroup)
+	serverWaitGroup.Add(1)
+	go startWebServer(httpServer, webConnection, &serverWaitGroup)
 
 	if antimonyConfig.SSH.Enabled {
+		serverWaitGroup.Add(1)
 		go startSshServer(sshServer, sshConnection, &serverWaitGroup)
 	}
 
 	time.Sleep(100 * time.Millisecond)
 
-	log.Info("Antimony API is running and ready to serve calls!", "api", webConnection, "ssh", sshConnection)
+	if antimonyConfig.SSH.Enabled {
+		log.Info("Antimony API is running and ready to serve calls!", "api", webConnection, "ssh", sshConnection)
+	} else {
+		log.Info("Antimony API is running and ready to serve calls!", "api", webConnection)
+	}
+
+	serversDone := make(chan struct{})
+	go func() {
+		serverWaitGroup.Wait()
+		close(serversDone)
+	}()
+
+	select {
+	case <-ctx.Done():
+		// From now on, another signal ends the process right away
+		stop()
+		log.Info("Shutting down, press Ctrl+C again to force it")
+	case <-serversDone:
+		// The servers failed to start
+	}
+
+	shutdown(httpServer, socketManager, sshServer, labScheduler, shellService, instanceService)
 	serverWaitGroup.Wait()
+
+	log.Info("Antimony has shut down")
+}
+
+// shutdown stops taking new requests, sessions, and deployments, then closes everything that is still running. The
+// labs keep running, Revive picks them up again on the next start.
+func shutdown(
+	httpServer *http.Server,
+	socketManager *socket.Manager,
+	sshServer *sshserver.Server,
+	labScheduler *scheduler.Scheduler,
+	shellService *shell.Service,
+	instanceService *instance.Service,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	// The HTTP server doesn't wait for or close hijacked connections, i.e., websockets. Closing socket.io first also
+	// ends its long-polling requests, which the HTTP server would otherwise wait for.
+	socketManager.Server().Close(nil)
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Warn("Failed to shut down the web server gracefully", "err", err.Error())
+	}
+	sshServer.Close()
+
+	labScheduler.Close()
+	shellService.Close()
+	instanceService.Close()
 }
 
 func createWebServer(
@@ -359,10 +421,10 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 	return db
 }
 
-func startWebServer(server *gin.Engine, connection string, waitGroup *sync.WaitGroup) {
+func startWebServer(server *http.Server, connection string, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
-	if err := server.Run(connection); err != nil {
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Errorf("Failed to start web server on %s: %s", connection, err.Error())
 	}
 }
