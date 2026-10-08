@@ -14,7 +14,11 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import TopologyEditor from './topology-editor/topology-editor';
 import TopologyExplorer from './topology-explorer/topology-explorer';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
+import {
+  Splitter,
+  SplitterPanel,
+  SplitterResizeEndEvent,
+} from 'primereact/splitter';
 import {Choose, Otherwise, When} from '@sb/types/control';
 import EditorSetup from './editor-setup/editor-setup';
 import CollectionEditDialog, {
@@ -33,6 +37,7 @@ import BindFileEditDialog, {
 import BindFileDirectoryEditDialog, {
   BindFileDirectoryEditDialogState,
 } from './bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
@@ -49,6 +54,12 @@ const EditorPage = observer(() => {
   const editBindFileState = useDialogState<BindFileEditDialogState>(null);
   const editBindFileDirectoryState =
     useDialogState<BindFileDirectoryEditDialogState>(null);
+
+  const [splitterPosition, setSplitterPosition] = usePersistentState<number>(
+    'main-splitter',
+    20,
+    isNumber,
+  );
 
   const onTopologyOpen = useCallback(
     (topology: Topology) => {
@@ -148,8 +159,12 @@ const EditorPage = observer(() => {
           </div>
         </When>
         <Otherwise>
-          <Splitter>
-            <SplitterPanel className="sb-island" minSize={20} size={10}>
+          <Splitter
+            onResizeEnd={(e: SplitterResizeEndEvent) =>
+              setSplitterPosition(e.sizes[0])
+            }
+          >
+            <SplitterPanel className="sb-island" size={splitterPosition}>
               <TopologyExplorer
                 selectedId={openFile?.id}
                 onOpenFile={onOpenFile}
@@ -161,7 +176,11 @@ const EditorPage = observer(() => {
                 editCollectionState={editCollectionState}
               />
             </SplitterPanel>
-            <SplitterPanel className="sb-island" minSize={40}>
+            <SplitterPanel
+              className="sb-island"
+              minSize={40}
+              size={100 - splitterPosition}
+            >
               <TopologyEditor
                 isMaximized={isMaximized}
                 setMaximized={setMaximized}

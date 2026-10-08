@@ -376,8 +376,6 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }
 
-  console.log('OPEN BIND FGILE:', openBindFile);
-
   return (
     <>
       <title>{pageTitle}</title>

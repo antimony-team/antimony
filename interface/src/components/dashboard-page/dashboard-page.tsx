@@ -12,9 +12,14 @@ import {observer} from 'mobx-react-lite';
 import React, {useEffect, useMemo, useState} from 'react';
 import {useSearchParams} from 'react-router';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
+import {
+  Splitter,
+  SplitterPanel,
+  SplitterResizeEndEvent,
+} from 'primereact/splitter';
 import LabExplorer from '@sb/components/dashboard-page/lab-explorer/lab-explorer';
 import LabGrid from '@sb/components/dashboard-page/lab-grid/lab-grid';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 
 const DashboardPage = observer(() => {
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
@@ -26,6 +31,12 @@ const DashboardPage = observer(() => {
   const [openLab, setOpenLab] = useState<Lab | null>(null);
   const labStore = useLabStore();
   const notificationStore = useStatusMessages();
+
+  const [splitterPosition, setSplitterPosition] = usePersistentState<number>(
+    'main-splitter',
+    20,
+    isNumber,
+  );
 
   useEffect(() => {
     if (searchParams.has('l') && labStore.lookup.has(searchParams.get('l')!)) {
@@ -78,11 +89,14 @@ const DashboardPage = observer(() => {
 
   return (
     <div className="sb-dashboard">
-      <Splitter>
+      <Splitter
+        onResizeEnd={(e: SplitterResizeEndEvent) =>
+          setSplitterPosition(e.sizes[0])
+        }
+      >
         <SplitterPanel
           className="sb-lab-explorer sb-island"
-          minSize={15}
-          size={1}
+          size={splitterPosition}
         >
           <LabExplorer
             collectionFilter={collectionFilter}
@@ -93,7 +107,7 @@ const DashboardPage = observer(() => {
         </SplitterPanel>
         <SplitterPanel
           className="sb-dashboard-container sb-island"
-          minSize={60}
+          size={100 - splitterPosition}
         >
           <LabGrid
             collectionFilter={collectionFilter}
