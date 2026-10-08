@@ -83,10 +83,10 @@ export class RootStore {
   }
 
   /**
-   * The single source of truth for which top-level screen is shown.
+   * The single source of truth for which the top-level screen is shown.
    *
    * Note that a connection error while the user is logged in does not produce
-   * a phase of its own. The app stays mounted in that case and only the
+   * a phase of its own. The app stays mounted in that case, and only the
    * connection banner is shown, see `DataBinder.hasDegradedConnection`.
    */
   @computed
@@ -105,6 +105,7 @@ export class RootStore {
   @computed
   public get fetchState() {
     return combinedFetchState(
+      this._serverConfigStore.fetchReport.state,
       this._topologyStore.fetchReport.state,
       this._serverConfigStore.fetchReport.state,
       this._labStore.fetchReport.state,

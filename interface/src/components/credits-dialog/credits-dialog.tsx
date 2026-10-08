@@ -35,7 +35,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
             <div className="sb-credits-header">Authors</div>
             <div className="mb-2">Kian Gribi, Tom Stromer</div>
             <div className="sb-credits-header">Deployment Provider</div>
-            <div className="mb-2">{serverConfig.deployment.provider}</div>
+            <div className="mb-2">{serverConfig?.deployment?.provider}</div>
             <div className="sb-credits-header">Provided by</div>
             <div className="mb-2">
               <a
