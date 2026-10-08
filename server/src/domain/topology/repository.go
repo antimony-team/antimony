@@ -64,13 +64,13 @@ func (r *Repository) GetByName(
 		Limit(1).
 		Find(&topologies)
 
-	if result.RowsAffected < 1 {
-		return topologies, nil
-	}
-
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch topologies by name. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return topologies, nil
 	}
 
 	return topologies, nil
@@ -84,13 +84,13 @@ func (r *Repository) GetFromCollections(ctx context.Context, collectionNames []s
 		Where("collections.name IN ?", collectionNames).
 		Find(&topologies)
 
-	if result.RowsAffected < 1 {
-		return topologies, nil
-	}
-
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to fetch topologies from collections. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return topologies, nil
 	}
 
 	return topologies, nil
@@ -144,13 +144,13 @@ func (r *Repository) GetBindFileByUuid(ctx context.Context, bindFileId string) (
 		Where("uuid = ?", bindFileId).
 		Find(&bindFile)
 
-	if result.RowsAffected < 1 {
-		return nil, utils.ErrUuidNotFound
-	}
-
 	if result.Error != nil {
 		log.Errorf("[DB] Failed to find bind file by UUID. Error: %s", result.Error.Error())
 		return nil, utils.ErrDatabaseError
+	}
+
+	if result.RowsAffected < 1 {
+		return nil, utils.ErrUuidNotFound
 	}
 
 	return &bindFile, nil

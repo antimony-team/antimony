@@ -10,10 +10,10 @@ import (
 type Topology struct {
 	gorm.Model
 	UUID         string `gorm:"uniqueIndex;not null"`
-	Name         string `gorm:"index;not null"`
+	Name         string `gorm:"index:idx_topologies_collection_name,unique,priority:2,where:deleted_at IS NULL;not null"`
 	SyncUrl      string
 	Collection   collection.Collection
-	CollectionID uint `gorm:"not null"`
+	CollectionID uint `gorm:"index:idx_topologies_collection_name,unique,priority:1;not null"`
 	Creator      user.User
 	CreatorID    uint `gorm:"not null"`
 

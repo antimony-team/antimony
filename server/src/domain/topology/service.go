@@ -225,7 +225,7 @@ func (s *Service) Update(
 	}
 
 	// Don't allow duplicate topology names within the same collection
-	if topologyName != topology.Name {
+	if topologyName != topology.Name || topologyCollection.ID != topology.Collection.ID {
 		if topologies, err := s.repo.GetByName(ctx, topologyName, topologyCollection.UUID); err != nil {
 			return err
 		} else if len(topologies) > 0 {
