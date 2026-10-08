@@ -11,7 +11,7 @@ type LabOut struct {
 	Name               string       `json:"name"`
 	StartTime          time.Time    `json:"startTime"`
 	EndTime            *time.Time   `json:"endTime"`
-	TopologyId         string       `json:"topologyId"`
+	TopologyId         *string      `json:"topologyId"`
 	CollectionId       string       `json:"collectionId"`
 	Creator            UserOut      `json:"creator"`
 	TopologyDefinition string       `json:"topologyDefinition"`
@@ -24,12 +24,17 @@ func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
 		instanceOut = InstanceToOut(instance, lab.InstanceName)
 	}
 
+	var topologyId *string
+	if lab.Topology.UUID != "" {
+		topologyId = &lab.Topology.UUID
+	}
+
 	return &LabOut{
 		ID:                 lab.UUID,
 		Name:               lab.Name,
 		StartTime:          lab.StartTime,
 		EndTime:            lab.EndTime,
-		TopologyId:         lab.Topology.UUID,
+		TopologyId:         topologyId,
 		CollectionId:       lab.Collection.UUID,
 		Creator:            UserToOut(&lab.Creator),
 		TopologyDefinition: *lab.TopologyDefinition,
