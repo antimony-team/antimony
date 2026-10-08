@@ -4062,6 +4062,11 @@ eslint-plugin-n@^17.19.0:
     semver "^7.6.3"
     ts-declaration-location "^1.0.6"
 
+eslint-plugin-no-relative-import-paths@^1.7.3:
+  version "1.7.3"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-no-relative-import-paths/-/eslint-plugin-no-relative-import-paths-1.7.3.tgz#817d8cd9ea556d2f67a90dc8ceb8e42c5487b617"
+  integrity sha512-vEpNX0fvhoHdBu8eI05+XXYswnGHW2HJYmnJJeR8zOwgo59GgWv98z22XyZvMEHHcjSX4yGX2Ni/GyxGpBjfgw==
+
 eslint-plugin-prettier@5.2.1:
   version "5.2.1"
   resolved "https://registry.yarnpkg.com/eslint-plugin-prettier/-/eslint-plugin-prettier-5.2.1.tgz#d1c8f972d8f60e414c25465c163d16f209411f95"
@@ -4077,6 +4082,11 @@ eslint-plugin-prettier@^5.4.1:
   dependencies:
     prettier-linter-helpers "^1.0.0"
     synckit "^0.11.7"
+
+eslint-plugin-simple-import-sort@^14.0.0:
+  version "14.0.0"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-simple-import-sort/-/eslint-plugin-simple-import-sort-14.0.0.tgz#a07d4aa63ebf043e8d55497b4e2a3035bf800849"
+  integrity sha512-NUJO0+XFCkk+o5EsAJruTgnfMEpeWrPWeJS15UVF60GgXmqz1BJ9/3hzlvG7lkL8Bubzos5cCLptThbFfPnSMQ==
 
 eslint-plugin-unused-imports@^4.1.4:
   version "4.1.4"
