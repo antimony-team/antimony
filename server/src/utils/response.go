@@ -26,7 +26,7 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 1001, Message: err.Error()}
 	case errors.Is(err, ErrCollectionExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 2001, Message: err.Error()}
-	case errors.Is(err, ErrTopologyExists):
+	case errors.Is(err, ErrTopologyNameExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 3001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidTopology):
 		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}

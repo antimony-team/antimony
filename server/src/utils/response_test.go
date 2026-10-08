@@ -51,7 +51,7 @@ func TestCreateErrorResponse_MapsEveryKnownError(t *testing.T) {
 		{"uuid not found", ErrUuidNotFound, http.StatusNotFound, -1},
 		{"invalid credentials", ErrInvalidCredentials, http.StatusBadRequest, 1001},
 		{"collection exists", ErrCollectionExists, http.StatusBadRequest, 2001},
-		{"topology exists", ErrTopologyExists, http.StatusBadRequest, 3001},
+		{"topology exists", ErrTopologyNameExists, http.StatusBadRequest, 3001},
 		{"invalid topology", ErrInvalidTopology, http.StatusBadRequest, 3003},
 		{"bind file exists", ErrBindFileExists, http.StatusBadRequest, 4001},
 		{"invalid bind file path", ErrInvalidBindFilePath, http.StatusBadRequest, 4002},

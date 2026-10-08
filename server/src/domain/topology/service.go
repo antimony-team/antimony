@@ -151,7 +151,7 @@ func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.Auth
 	if topologies, err := s.repo.GetByName(ctx, topologyName, *req.CollectionId); err != nil {
 		return "", err
 	} else if len(topologies) > 0 {
-		return "", utils.ErrTopologyExists
+		return "", utils.ErrTopologyNameExists
 	}
 
 	newUuid := utils.GenerateUuid()
@@ -229,7 +229,7 @@ func (s *Service) Update(
 		if topologies, err := s.repo.GetByName(ctx, topologyName, topologyCollection.UUID); err != nil {
 			return err
 		} else if len(topologies) > 0 {
-			return utils.ErrTopologyExists
+			return utils.ErrTopologyNameExists
 		}
 	}
 
