@@ -58,6 +58,7 @@ func (s *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]T
 	for _, topology := range topologies {
 		var (
 			definition    string
+			annotations   string
 			bindFilesFull []BindFileFull
 		)
 
@@ -67,7 +68,7 @@ func (s *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]T
 			continue
 		}
 
-		if definition, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
+		if definition, annotations, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
 			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 			continue
 		}
@@ -75,6 +76,7 @@ func (s *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]T
 		result = append(result, TopologyFull{
 			ID:               topology.UUID,
 			Definition:       definition,
+			Annotations:      annotations,
 			SyncUrl:          topology.SyncUrl,
 			Collection:       topology.Collection,
 			Creator:          topology.Creator,
@@ -94,6 +96,7 @@ func (s *Service) GetByUuid(
 	var (
 		topology      *Topology
 		definition    string
+		annotations   string
 		bindFilesFull []BindFileFull
 		err           error
 	)
@@ -112,7 +115,7 @@ func (s *Service) GetByUuid(
 		return nil, utils.ErrInvalidTopology
 	}
 
-	if definition, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
+	if definition, annotations, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
 		log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
 		return nil, utils.ErrInvalidTopology
 	}
@@ -120,6 +123,7 @@ func (s *Service) GetByUuid(
 	result := &TopologyFull{
 		ID:               topology.UUID,
 		Definition:       definition,
+		Annotations:      annotations,
 		SyncUrl:          topology.SyncUrl,
 		Collection:       topology.Collection,
 		Creator:          topology.Creator,
@@ -155,7 +159,7 @@ func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.Auth
 	}
 
 	newUuid := utils.GenerateUuid()
-	if err := s.saveTopology(newUuid, *req.Definition); err != nil {
+	if err := s.saveTopology(newUuid, req.Definition, req.Annotations); err != nil {
 		return "", err
 	}
 
@@ -233,8 +237,8 @@ func (s *Service) Update(
 		}
 	}
 
-	if req.Definition != nil {
-		if err := s.saveTopology(topology.UUID, *req.Definition); err != nil {
+	if req.Definition != nil || req.Annotations != nil {
+		if err := s.saveTopology(topology.UUID, req.Definition, req.Annotations); err != nil {
 			return err
 		}
 	}
@@ -415,8 +419,8 @@ func (s *Service) DeleteBindFile(ctx context.Context, bindFileId string, authUse
 	return s.repo.DeleteBindFile(ctx, bindFile)
 }
 
-func (s *Service) saveTopology(topologyId string, definition string) error {
-	if err := s.storageManager.WriteTopology(topologyId, definition); err != nil {
+func (s *Service) saveTopology(topologyId string, definition *string, annotations *string) error {
+	if err := s.storageManager.WriteTopology(topologyId, definition, annotations); err != nil {
 		log.Errorf("Failed to write topology definition for %s: %s", topologyId, err.Error())
 		return err
 	}
@@ -424,25 +428,26 @@ func (s *Service) saveTopology(topologyId string, definition string) error {
 	return nil
 }
 
-func (s *Service) LoadTopology(topologyId string, bindFiles []BindFile) (string, []BindFileFull, error) {
+func (s *Service) LoadTopology(topologyId string, bindFiles []BindFile) (string, string, []BindFileFull, error) {
 	var definition string
+	var annotations string
 
-	if err := s.storageManager.ReadTopology(topologyId, &definition); err != nil {
-		log.Errorf("Failed to read topology definition for %s: %s", topologyId, err.Error())
-		return "", nil, err
+	if err := s.storageManager.ReadTopology(topologyId, &definition, &annotations); err != nil {
+		log.Errorf("Failed to read topology for %s: %s", topologyId, err.Error())
+		return "", "", nil, err
 	}
 
 	bindFilesFull := make([]BindFileFull, 0)
 	for _, bindFile := range bindFiles {
 		bindFileOut, err := s.loadBindFile(topologyId, bindFile)
 		if err != nil {
-			return "", nil, err
+			return "", "", nil, err
 		}
 
 		bindFilesFull = append(bindFilesFull, *bindFileOut)
 	}
 
-	return definition, bindFilesFull, nil
+	return definition, annotations, bindFilesFull, nil
 }
 
 func (s *Service) SetLastDeployFailed(ctx context.Context, topology *Topology, hasFailed bool) {

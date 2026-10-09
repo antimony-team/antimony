@@ -9,6 +9,7 @@ import (
 type TopologyOut struct {
 	ID               string        `json:"id"`
 	Definition       string        `json:"definition"`
+	Annotations      string        `json:"annotations"`
 	SyncUrl          string        `json:"syncUrl"`
 	CollectionId     string        `json:"collectionId"`
 	Creator          UserOut       `json:"creator"`
@@ -31,6 +32,7 @@ func TopologyToOut(topologyFull *topology.TopologyFull) *TopologyOut {
 	return &TopologyOut{
 		ID:               topologyFull.ID,
 		Definition:       topologyFull.Definition,
+		Annotations:      topologyFull.Annotations,
 		SyncUrl:          topologyFull.SyncUrl,
 		CollectionId:     topologyFull.Collection.UUID,
 		Creator:          UserToOut(&topologyFull.Creator),

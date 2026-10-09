@@ -31,9 +31,13 @@ type Lab struct {
 	CreatorID    uint   `gorm:"not null"`
 	InstanceName string `gorm:"uniqueIndex"`
 
-	// TopologyDefinition is the topology definition of the lab. It is the topology's definition at the time the
+	// TopologyDefinition is the topology definition YAML of the lab. It is the topology's definition at the time the
 	// lab was created.
 	TopologyDefinition *string
+
+	// TopologyAnnotations is the topology annotations JSON of the lab. It is the topology's annotations at the time the
+	// lab was created.
+	TopologyAnnotations *string
 }
 
 // LabIn is used to create a lab.

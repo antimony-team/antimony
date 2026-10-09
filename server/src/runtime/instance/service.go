@@ -552,7 +552,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 
 	if !instanceRunning {
 		var runTopologyDefinition string
-		runTopologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &runTopologyDefinition)
+		topologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &runTopologyDefinition)
 
 		if err != nil {
 			log.Error(
@@ -594,7 +594,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		instance, err = s.createInstance(
 			lab.InstanceName,
 			logNamespace,
-			*runTopologyFile,
+			*topologyFile,
 			runTopologyDefinition,
 			lab.UUID,
 		)
@@ -1384,7 +1384,7 @@ func (s *Service) reviveInstances() {
 			Deployed:          time.Now(),
 			LatestStateChange: time.Now(),
 			Recovered:         true,
-			TopologyFile:      s.storageManager.GetRunTopologyFile(savedLab.UUID),
+			TopologyFile:      s.storageManager.GetRunTopologyDefinitionFile(savedLab.UUID),
 			LogNamespace:      logNamespace,
 			DeploymentCtx:     deploymentCtx,
 			DeploymentCancel:  deploymentCancel,

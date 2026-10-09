@@ -10,9 +10,10 @@ import (
 
 type Instance struct {
 	// Immutable after construction; safe to read without locking.
-	Name         string
-	TopologyFile string
-	LogNamespace *socket.OutputNamespace[string]
+	Name            string
+	TopologyFile    string
+	AnnotationsFile string
+	LogNamespace    *socket.OutputNamespace[string]
 	// Nodes are the nodes of the lab indexed by their name.
 	// While the map is immutable, the nodes themselves are mutable and have to be protected with [DataMutex].
 	Nodes map[string]*InstanceNode

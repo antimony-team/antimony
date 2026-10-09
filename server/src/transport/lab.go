@@ -7,15 +7,16 @@ import (
 )
 
 type LabOut struct {
-	ID                 string       `json:"id"`
-	Name               string       `json:"name"`
-	StartTime          time.Time    `json:"startTime"`
-	EndTime            *time.Time   `json:"endTime"`
-	TopologyId         *string      `json:"topologyId"`
-	CollectionId       string       `json:"collectionId"`
-	Creator            UserOut      `json:"creator"`
-	TopologyDefinition string       `json:"topologyDefinition"`
-	Instance           *InstanceOut `json:"instance"           extensions:"x-nullable"`
+	ID                  string       `json:"id"`
+	Name                string       `json:"name"`
+	StartTime           time.Time    `json:"startTime"`
+	EndTime             *time.Time   `json:"endTime"`
+	TopologyId          *string      `json:"topologyId"`
+	CollectionId        string       `json:"collectionId"`
+	Creator             UserOut      `json:"creator"`
+	TopologyDefinition  string       `json:"topologyDefinition"`
+	TopologyAnnotations string       `json:"topologyAnnotations"`
+	Instance            *InstanceOut `json:"instance"            extensions:"x-nullable"`
 }
 
 func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
@@ -30,14 +31,15 @@ func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
 	}
 
 	return &LabOut{
-		ID:                 lab.UUID,
-		Name:               lab.Name,
-		StartTime:          lab.StartTime,
-		EndTime:            lab.EndTime,
-		TopologyId:         topologyId,
-		CollectionId:       lab.Collection.UUID,
-		Creator:            UserToOut(&lab.Creator),
-		TopologyDefinition: *lab.TopologyDefinition,
-		Instance:           instanceOut,
+		ID:                  lab.UUID,
+		Name:                lab.Name,
+		StartTime:           lab.StartTime,
+		EndTime:             lab.EndTime,
+		TopologyId:          topologyId,
+		CollectionId:        lab.Collection.UUID,
+		Creator:             UserToOut(&lab.Creator),
+		TopologyDefinition:  *lab.TopologyDefinition,
+		TopologyAnnotations: *lab.TopologyDefinition,
+		Instance:            instanceOut,
 	}
 }

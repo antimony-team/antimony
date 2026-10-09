@@ -135,7 +135,10 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		return "", err
 	}
 
-	topologyDefinition, _, err := s.topologyService.LoadTopology(labTopology.UUID, []topology.BindFile{})
+	topologyDefinition, topologyAnnotations, _, err := s.topologyService.LoadTopology(
+		labTopology.UUID,
+		[]topology.BindFile{},
+	)
 	if err != nil {
 		log.Error("Failed to read definition of topology", "topology", labTopology.UUID, "error", err.Error())
 		return "", utils.ErrAntimony
@@ -143,14 +146,15 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 
 	labUuid := utils.GenerateUuid()
 	lab := &Lab{
-		UUID:               labUuid,
-		Name:               *req.Name,
-		StartTime:          *req.StartTime,
-		EndTime:            req.EndTime,
-		Creator:            *creator,
-		Topology:           *labTopology,
-		Collection:         labTopology.Collection,
-		TopologyDefinition: &topologyDefinition,
+		UUID:                labUuid,
+		Name:                *req.Name,
+		StartTime:           *req.StartTime,
+		EndTime:             req.EndTime,
+		Creator:             *creator,
+		Topology:            *labTopology,
+		Collection:          labTopology.Collection,
+		TopologyDefinition:  &topologyDefinition,
+		TopologyAnnotations: &topologyAnnotations,
 	}
 
 	var instanceName string
@@ -329,7 +333,7 @@ func (s *Service) renameTopology(topologyId string, topologyName string, runTopo
 		topologyRaw        string
 		topologyDefinition = make(map[interface{}]interface{})
 	)
-	if err := s.storageManager.ReadTopology(topologyId, &topologyRaw); err != nil {
+	if err := s.storageManager.ReadTopology(topologyId, &topologyRaw, new(string)); err != nil {
 		return err
 	}
 

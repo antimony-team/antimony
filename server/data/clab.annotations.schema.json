@@ -1,0 +1,260 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Containerlab topology annotations file",
+  "type": "object",
+  "definitions": {
+    "position": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "required": ["x", "y"]
+    },
+    "geo-coordinates": {
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number" },
+        "lng": { "type": "number" }
+      },
+      "required": ["lat", "lng"]
+    },
+    "border-style": {
+      "type": "string",
+      "enum": ["solid", "dashed", "dotted", "double"]
+    },
+    "free-text-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "position": { "$ref": "#/definitions/position" },
+        "geoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "groupId": { "type": "string" },
+        "zIndex": { "type": "number" },
+        "fontSize": { "type": "number" },
+        "fontColor": { "type": "string" },
+        "backgroundColor": { "type": "string" },
+        "fontWeight": { "type": "string", "enum": ["normal", "bold"] },
+        "fontStyle": { "type": "string", "enum": ["normal", "italic"] },
+        "textDecoration": { "type": "string", "enum": ["none", "underline"] },
+        "textAlign": { "type": "string", "enum": ["left", "center", "right"] },
+        "fontFamily": { "type": "string" },
+        "rotation": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "roundedBackground": { "type": "boolean" }
+      },
+      "required": ["id", "text", "position"]
+    },
+    "free-shape-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shapeType": { "type": "string", "enum": ["rectangle", "circle", "line"] },
+        "position": { "$ref": "#/definitions/position" },
+        "geoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "groupId": { "type": "string" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "endPosition": { "$ref": "#/definitions/position" },
+        "endGeoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "fillColor": { "type": "string" },
+        "fillOpacity": { "type": "number" },
+        "borderColor": { "type": "string" },
+        "borderWidth": { "type": "number" },
+        "borderStyle": { "type": "string", "enum": ["solid", "dashed", "dotted"] },
+        "rotation": { "type": "number" },
+        "zIndex": { "type": "number" },
+        "lineStartArrow": { "type": "boolean" },
+        "lineEndArrow": { "type": "boolean" },
+        "lineArrowSize": { "type": "number" },
+        "cornerRadius": { "type": "number" }
+      },
+      "required": ["id", "shapeType", "position"]
+    },
+    "traffic-rate-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "position": { "$ref": "#/definitions/position" },
+        "geoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "groupId": { "type": "string" },
+        "nodeId": { "type": "string" },
+        "interfaceName": { "type": "string" },
+        "mode": { "type": "string", "enum": ["chart", "text"] },
+        "textMetric": { "type": "string", "enum": ["combined", "rx", "tx"] },
+        "showLegend": { "type": "boolean" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "backgroundColor": { "type": "string" },
+        "backgroundOpacity": { "type": "number" },
+        "borderColor": { "type": "string" },
+        "borderWidth": { "type": "number" },
+        "borderStyle": { "$ref": "#/definitions/border-style" },
+        "borderRadius": { "type": "number" },
+        "titleColor": { "type": "string" },
+        "textColor": { "type": "string" },
+        "zIndex": { "type": "number" }
+      },
+      "required": ["id", "position"]
+    },
+    "group-style-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "level": { "type": "string" },
+        "parentId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "position": { "$ref": "#/definitions/position" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "geoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "color": { "type": "string" },
+        "zIndex": { "type": "number" },
+        "backgroundColor": { "type": "string" },
+        "backgroundOpacity": { "type": "number" },
+        "borderColor": { "type": "string" },
+        "borderWidth": { "type": "number" },
+        "borderStyle": { "$ref": "#/definitions/border-style" },
+        "borderRadius": { "type": "number" },
+        "labelColor": { "type": "string" },
+        "labelPosition": { "type": "string" }
+      },
+      "required": ["id", "name", "level", "position", "width", "height"]
+    },
+    "network-node-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["host", "mgmt-net", "macvlan", "vxlan", "vxlan-stitch", "dummy", "bridge", "ovs-bridge"]
+        },
+        "label": { "type": "string" },
+        "position": { "$ref": "#/definitions/position" },
+        "geoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "group": { "type": "string" },
+        "level": { "type": "string" }
+      },
+      "required": ["id", "type", "position"]
+    },
+    "node-box-appearance": {
+      "type": "object",
+      "properties": {
+        "color": { "type": "string" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 100 },
+        "blur": { "type": "number", "minimum": 0 },
+        "borderColor": { "type": "string" },
+        "borderWidth": { "type": "number", "minimum": 0, "maximum": 4 },
+        "cornerRadius": { "type": "number" },
+        "textColor": { "type": "string" },
+        "shadow": { "type": "boolean" }
+      }
+    },
+    "node-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "copyFrom": { "type": "string" },
+        "yamlNodeId": { "type": "string" },
+        "yamlInterface": { "type": "string" },
+        "position": { "$ref": "#/definitions/position" },
+        "geoCoordinates": { "$ref": "#/definitions/geo-coordinates" },
+        "icon": { "type": "string" },
+        "iconColor": { "type": "string" },
+        "iconCornerRadius": { "type": "number" },
+        "labelPosition": { "type": "string" },
+        "direction": { "type": "string" },
+        "labelBackgroundColor": { "type": "string" },
+        "box": { "$ref": "#/definitions/node-box-appearance" },
+        "groupLabelPos": { "type": "string" },
+        "groupId": { "type": "string" },
+        "group": { "type": "string" },
+        "level": { "type": "string" },
+        "interfacePattern": { "type": "string" }
+      },
+      "required": ["id"]
+    },
+    "edge-annotation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "sourceEndpoint": { "type": "string" },
+        "targetEndpoint": { "type": "string" },
+        "endpointLabelOffsetEnabled": { "type": "boolean" },
+        "endpointLabelOffset": { "type": "number" }
+      }
+    },
+    "alias-endpoint-annotation": {
+      "type": "object",
+      "properties": {
+        "yamlNodeId": { "type": "string" },
+        "interface": { "type": "string" },
+        "aliasNodeId": { "type": "string" }
+      },
+      "required": ["yamlNodeId", "interface", "aliasNodeId"]
+    },
+    "viewer-settings": {
+      "type": "object",
+      "properties": {
+        "gridLineWidth": { "type": "number" },
+        "gridStyle": { "type": "string", "enum": ["dotted", "quadratic"] },
+        "endpointLabelOffset": { "type": "number" },
+        "gridColor": { "type": ["string", "null"] },
+        "gridBgColor": { "type": ["string", "null"] },
+        "style": { "type": "string", "enum": ["default", "telemetry-style"] },
+        "linkLabelMode": { "type": "string", "enum": ["show-all", "on-select", "hide", "telemetry-style"] },
+        "lastNonTelemetryLinkLabelMode": { "type": "string", "enum": ["show-all", "on-select", "hide"] },
+        "nodeStyle": { "type": "string", "enum": ["icon", "boxed"] },
+        "nodeBoxSpacing": { "type": "string", "enum": ["default", "narrow"] },
+        "linkStyle": { "type": "string", "enum": ["straight", "elbow"] },
+        "telemetryNodeSizePx": { "type": "number" },
+        "telemetryInterfaceSizePercent": { "type": "number" },
+        "showRateLabels": { "type": "boolean" },
+        "showDummyLinks": { "type": "boolean" },
+        "autoCreateTrafficRateAnnotations": { "type": "boolean" }
+      }
+    }
+  },
+  "properties": {
+    "freeTextAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/free-text-annotation" }
+    },
+    "freeShapeAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/free-shape-annotation" }
+    },
+    "trafficRateAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/traffic-rate-annotation" }
+    },
+    "groupStyleAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/group-style-annotation" }
+    },
+    "networkNodeAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/network-node-annotation" }
+    },
+    "nodeAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/node-annotation" }
+    },
+    "edgeAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/edge-annotation" }
+    },
+    "aliasEndpointAnnotations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/alias-endpoint-annotation" }
+    },
+    "viewerSettings": { "$ref": "#/definitions/viewer-settings" }
+  }
+}

@@ -1366,11 +1366,15 @@ const docTemplate = `{
         "topology.TopologyIn": {
             "type": "object",
             "required": [
+                "annotations",
                 "collectionId",
                 "definition",
                 "syncUrl"
             ],
             "properties": {
+                "annotations": {
+                    "type": "string"
+                },
                 "collectionId": {
                     "type": "string"
                 },
@@ -1485,6 +1489,9 @@ const docTemplate = `{
         "transport.TopologyOut": {
             "type": "object",
             "properties": {
+                "annotations": {
+                    "type": "string"
+                },
                 "bindFiles": {
                     "type": "array",
                     "items": {

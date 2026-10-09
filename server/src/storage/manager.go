@@ -71,31 +71,52 @@ func (m *Manager) CreateRunEnvironment(
 	return nil
 }
 
-func (m *Manager) GetRunTopologyFile(labId string) string {
+func (m *Manager) GetRunTopologyDefinitionFile(labId string) string {
 	runDefinitionPath := getRunDefinitionFilePath(labId)
 	return filepath.Join(m.runPath, runDefinitionPath)
+}
+
+func (m *Manager) GetRunTopologyDefinitionAnnotationsFile(labId string) string {
+	runAnnotationPath := getRunAnnotationFilePath(labId)
+	return filepath.Join(m.runPath, runAnnotationPath)
 }
 
 func (m *Manager) ReadRunTopologyDefinition(labId string, content *string) error {
 	return m.readRun(getRunDefinitionFilePath(labId), content)
 }
 
-func (m *Manager) GetRunEnvironment(labId string, content *string) (*string, error) {
-	filePath := getRunDefinitionFilePath(labId)
+func (m *Manager) GetRunEnvironment(labId string, definition *string) (*string, error) {
+	definitionPath := getRunDefinitionFilePath(labId)
 
-	if err := m.readRun(filePath, content); err != nil {
+	if err := m.readRun(definitionPath, definition); err != nil {
 		return nil, err
 	}
 
-	return new(filepath.Join(m.runPath, filePath)), nil
+	return new(filepath.Join(m.runPath, definitionPath)), nil
 }
 
-func (m *Manager) ReadTopology(topologyId string, content *string) error {
-	return m.readStorage(getDefinitionFilePath(topologyId), content)
+func (m *Manager) ReadTopology(topologyId string, definition *string, annotations *string) error {
+	if err := m.readStorage(getDefinitionFilePath(topologyId), definition); err != nil {
+		return err
+	}
+
+	return m.readStorage(getAnnotationFilePath(topologyId), annotations)
 }
 
-func (m *Manager) WriteTopology(topologyId string, content string) error {
-	return m.writeStorage(getDefinitionFilePath(topologyId), content)
+func (m *Manager) WriteTopology(topologyId string, definition *string, annotations *string) error {
+	if definition != nil {
+		if err := m.writeStorage(getDefinitionFilePath(topologyId), *definition); err != nil {
+			return err
+		}
+	}
+
+	if annotations != nil {
+		if err := m.writeStorage(getAnnotationFilePath(topologyId), *annotations); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (m *Manager) ReadBindFile(topologyId string, filePath string, content *string) error {
@@ -215,8 +236,16 @@ func getDefinitionFilePath(topologyId string) string {
 	return filepath.Join(topologyId, "topology.clab.yaml")
 }
 
+func getAnnotationFilePath(topologyId string) string {
+	return filepath.Join(topologyId, "topology.clab.yaml.annotations.json")
+}
+
 func getRunDefinitionFilePath(labId string) string {
 	return filepath.Join(labId, "topology.clab.yaml")
+}
+
+func getRunAnnotationFilePath(labId string) string {
+	return filepath.Join(labId, "topology.clab.yaml.annotations.json")
 }
 
 func bindFilePath(topologyId string, filePath string) (string, error) {

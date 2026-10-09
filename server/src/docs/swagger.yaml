@@ -205,6 +205,8 @@ definitions:
     type: object
   topology.TopologyIn:
     properties:
+      annotations:
+        type: string
       collectionId:
         type: string
       definition:
@@ -212,6 +214,7 @@ definitions:
       syncUrl:
         type: string
     required:
+    - annotations
     - collectionId
     - definition
     - syncUrl
@@ -282,6 +285,8 @@ definitions:
     type: object
   transport.TopologyOut:
     properties:
+      annotations:
+        type: string
       bindFiles:
         items:
           $ref: '#/definitions/transport.BindFileOut'
