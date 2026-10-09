@@ -32,3 +32,18 @@ func (h *Handler) Get(ctx *gin.Context) {
 
 	ctx.JSON(utils.CreateOkResponse(schemaObj))
 }
+
+// @Summary	Returns the JSON schema to validate topology annotations
+// @Produce	json
+// @Tags		schema
+// @Success	200	{object}	utils.OkResponse[any]	"The schema as JSON object"
+// @Router		/clab-schema/annotations [get]
+func (h *Handler) GetAnnotations(ctx *gin.Context) {
+	var schemaObj any
+	if err := json.Unmarshal([]byte(h.service.GetAnnotations()), &schemaObj); err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(utils.CreateOkResponse(schemaObj))
+}

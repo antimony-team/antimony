@@ -19,6 +19,25 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/clab-schema/annotations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Returns the JSON schema to validate topology annotations",
+                "responses": {
+                    "200": {
+                        "description": "The schema as JSON object",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-any"
+                        }
+                    }
+                }
+            }
+        },
         "/collections": {
             "get": {
                 "security": [
@@ -1476,6 +1495,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "startTime": {
+                    "type": "string"
+                },
+                "topologyAnnotations": {
                     "type": "string"
                 },
                 "topologyDefinition": {

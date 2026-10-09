@@ -8,5 +8,6 @@ func RegisterRoutes(route *gin.Engine, handler *Handler) {
 	routes := route.Group("/clab-schema")
 	{
 		routes.GET("", handler.Get)
+		routes.GET("/annotations", handler.GetAnnotations)
 	}
 }

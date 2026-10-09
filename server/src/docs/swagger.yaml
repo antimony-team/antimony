@@ -278,6 +278,8 @@ definitions:
         type: string
       startTime:
         type: string
+      topologyAnnotations:
+        type: string
       topologyDefinition:
         type: string
       topologyId:
@@ -406,6 +408,18 @@ info:
   title: Antimony API
   version: "1.0"
 paths:
+  /clab-schema/annotations:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The schema as JSON object
+          schema:
+            $ref: '#/definitions/utils.OkResponse-any'
+      summary: Returns the JSON schema to validate topology annotations
+      tags:
+      - schema
   /collections:
     get:
       produces:

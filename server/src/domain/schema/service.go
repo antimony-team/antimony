@@ -15,9 +15,10 @@ import (
 )
 
 type Service struct {
-	schemaString      *string
-	clabSchema        *jsonschema.Schema
-	annotationsSchema *jsonschema.Schema
+	schemaString            *string
+	clabSchema              *jsonschema.Schema
+	annotationsSchemaString *string
+	annotationsSchema       *jsonschema.Schema
 }
 
 func CreateService(config *config.AntimonyConfig) *Service {
@@ -26,21 +27,26 @@ func CreateService(config *config.AntimonyConfig) *Service {
 		config.Containerlab.SchemaFallback,
 		"clab schema",
 	)
-	annotationsSchema, _ := loadSchema(
+	annotationsSchema, annotationsSchemaString := loadSchema(
 		config.Containerlab.AnnotationsSchemaUrl,
 		config.Containerlab.AnnotationsSchemaFallback,
 		"clab annotations schema",
 	)
 
 	return &Service{
-		schemaString:      schemaString,
-		clabSchema:        schema,
-		annotationsSchema: annotationsSchema,
+		schemaString:            schemaString,
+		clabSchema:              schema,
+		annotationsSchemaString: annotationsSchemaString,
+		annotationsSchema:       annotationsSchema,
 	}
 }
 
 func (u *Service) Get() string {
 	return *u.schemaString
+}
+
+func (u *Service) GetAnnotations() string {
+	return *u.annotationsSchemaString
 }
 
 // Parse unmarshals a topology definition and validates it against the containerlab schema.
