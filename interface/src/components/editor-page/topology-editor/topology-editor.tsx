@@ -35,7 +35,7 @@ import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {BindFile, Topology} from '@sb/types/domain/topology';
+import {BindFile, Topology, TopologyFileType} from '@sb/types/domain/topology';
 import {FetchState, uuid4} from '@sb/types/types';
 
 import EditorViewSwitch, {
@@ -48,6 +48,7 @@ import {
   SimulationConfig,
   SimulationConfigContext,
 } from './node-editor/state/simulation-config';
+import TopologyFileSwitch from './topology-file-switch/topology-file-switch';
 
 import './topology-editor.sass';
 
@@ -88,6 +89,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   const [isNodeEditDialogOpen, setNodeEditDialogOpen] = useState(false);
   const [openTopology, setOpenTopology] = useState<Topology | null>(null);
+  const [openTopologyFile, setOpenTopologyFile] = useState<TopologyFileType>(
+    TopologyFileType.Definition,
+  );
   const [openBindFile, setOpenBindFile] = useState<BindFile | null>(null);
   const [currentlyEditedNode, setCurrentlyEditedNode] = useState<string | null>(
     null,
@@ -117,6 +121,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   const onTopologyOpen = useCallback((topology: Topology) => {
     setOpenTopology(topology);
+    setOpenTopologyFile(TopologyFileType.Definition);
     setOpenBindFile(null);
     setPendingEdits(false);
     setValidationEnabled(true);
@@ -130,6 +135,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const onBindFileOpen = useCallback((bindFile: BindFile) => {
     setOpenBindFile(bindFile);
     setOpenTopology(null);
+    setOpenTopologyFile(TopologyFileType.Definition);
     setPendingEdits(false);
     setValidationEnabled(false);
   }, []);
@@ -214,9 +220,13 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function onContentChange(content: string) {
+  function onContentChange(content: string, file: TopologyFileType) {
     if (topologyStore.manager.currentFileType === OpenFileType.Topology) {
-      updateTopologyContent(content);
+      if (file === TopologyFileType.Annotations) {
+        updateAnnotationsContent(content);
+      } else {
+        updateTopologyContent(content);
+      }
     } else if (
       topologyStore.manager.currentFileType === OpenFileType.BindFile
     ) {
@@ -266,6 +276,32 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
   }
 
+  function updateAnnotationsContent(content: string) {
+    // The monaco JSON validator doesn't classify an empty file as invalid
+    if (!content) {
+      setValidationState(ValidationState.Error);
+      return;
+    }
+
+    setValidationState(ValidationState.Working);
+
+    if (validateTimeoutRef.current) {
+      clearTimeout(validateTimeoutRef.current);
+    }
+
+    validateTimeoutRef.current = setTimeout(() => {
+      if (topologyStore.parseAnnotations(content) !== null) {
+        setValidationState(ValidationState.Done);
+        topologyStore.manager.editAnnotations(
+          content,
+          TopologyEditSource.TextEditor,
+        );
+      }
+
+      // The error state is set by the monaco JSON validator
+    }, 100);
+  }
+
   function onSetValidationError(error: string | null) {
     if (!error) {
       setValidationState(ValidationState.Done);
@@ -312,7 +348,15 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   }
 
   function onDownload() {
-    if (openTopology) {
+    if (openTopology && openTopologyFile === TopologyFileType.Annotations) {
+      const blob = new Blob([openTopology.annotations], {
+        type: 'application/json;charset=utf-8',
+      });
+      FileSaver.saveAs(
+        blob,
+        `${topologyCollection!.name}_${openTopology.definition.get('name')}.annotations.json`,
+      );
+    } else if (openTopology) {
       const blob = new Blob([openTopology.definition.toString()], {
         type: 'text/yaml;charset=utf-8',
       });
@@ -447,6 +491,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   </span>
                   {`${openTopology?.name}${hasPendingEdits ? '*' : ''}`}
                 </div>
+                <span className="sb-topology-editor-toolbar-subtitle">/</span>
+                <TopologyFileSwitch
+                  value={openTopologyFile}
+                  topologyName={openTopology?.name ?? ''}
+                  onChange={setOpenTopologyFile}
+                />
               </When>
               <When condition={openBindFile}>
                 <span className="sb-topology-editor-toolbar-title">
@@ -549,6 +599,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   setContent={onContentChange}
                   onSaveFile={onSaveFile}
                   openTopology={openTopology}
+                  openTopologyFile={openTopologyFile}
                   openBindFile={openBindFile}
                   setValidationError={onSetValidationError}
                   onBindFileLinkClick={onBindFileLinkClick}

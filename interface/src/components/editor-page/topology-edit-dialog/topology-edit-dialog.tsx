@@ -176,6 +176,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           name: editingTopology.name,
           topology: {nodes: {}},
         }),
+        annotations: '{}',
         syncUrl: '',
       };
       void topologyStore.add<string>(newTopology).then(result => {

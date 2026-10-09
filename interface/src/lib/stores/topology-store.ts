@@ -201,6 +201,26 @@ export class TopologyStore extends DataStore<
     return definition;
   }
 
+  public parseAnnotations(annotationsString: string): object | null {
+    let annotations: object;
+
+    try {
+      annotations = JSON.parse(annotationsString);
+    } catch {
+      return null;
+    }
+
+    if (
+      this.schemaStore.annotationsSchema &&
+      validate(annotations, this.schemaStore.annotationsSchema).errors.length >
+        0
+    ) {
+      return null;
+    }
+
+    return annotations;
+  }
+
   @action
   protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
     if (!this.schemaStore.clabSchema) return;
@@ -251,6 +271,10 @@ export class TopologyStore extends DataStore<
       } else {
         console.error('[NET] Failed to parse incoming topology: ', source);
       }
+    }
+
+    if (source.annotations !== undefined) {
+      target.annotations = source.annotations;
     }
 
     if (source.syncUrl !== undefined) {

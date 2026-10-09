@@ -15,6 +15,7 @@ import {
   NodeConnection,
   Topology,
   TopologyDefinition,
+  TopologyIn,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
@@ -179,6 +180,7 @@ export class TopologyManager {
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),
       definitionString: topology.definitionString,
+      annotations: topology.annotations,
       syncUrl: topology.syncUrl,
       bindFiles: cloneDeep(topology.bindFiles),
       lastDeployFailed: topology.lastDeployFailed,
@@ -340,7 +342,24 @@ export class TopologyManager {
 
     this.onTopologyEdit.update({
       updatedTopology: this.editingTopology,
-      isEdited: updatedTopology.toString() !== this.getOriginalDefinition(),
+      isEdited: this.isTopologyEdited(),
+      source,
+    });
+  }
+
+  public editAnnotations(
+    updatedAnnotations: string,
+    source: TopologyEditSource,
+  ) {
+    if (!this.editingTopology) return;
+
+    runInAction(() => {
+      this.editingTopology!.annotations = updatedAnnotations;
+    });
+
+    this.onTopologyEdit.update({
+      updatedTopology: this.editingTopology,
+      isEdited: this.isTopologyEdited(),
       source,
     });
   }
@@ -482,12 +501,7 @@ export class TopologyManager {
    */
   public hasEdits() {
     if (this.openFileType === OpenFileType.Topology) {
-      if (!this.editingTopology || !this.originalTopology) return false;
-
-      return (
-        this.editingTopology.definition.toString() !==
-        this.getOriginalDefinition()
-      );
+      return this.isTopologyEdited();
     } else {
       if (!this.editingBindFile || !this.originalBindFile) return false;
 
@@ -498,11 +512,22 @@ export class TopologyManager {
   private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
     if (!this.editingTopology) return null;
 
-    const result = await this.topologyStore.update(this.editingTopology.id, {
+    const body: Partial<TopologyIn> = {
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition,
       ),
-    });
+    };
+
+    if (
+      this.editingTopology.annotations !== this.originalTopology?.annotations
+    ) {
+      body.annotations = this.editingTopology.annotations;
+    }
+
+    const result = await this.topologyStore.update(
+      this.editingTopology.id,
+      body,
+    );
 
     if (result.isOk()) {
       this.originalTopology = TopologyManager.cloneTopology(
@@ -543,6 +568,16 @@ export class TopologyManager {
     }
 
     return result;
+  }
+
+  private isTopologyEdited() {
+    if (!this.editingTopology || !this.originalTopology) return false;
+
+    return (
+      this.editingTopology.definition.toString() !==
+        this.getOriginalDefinition() ||
+      this.editingTopology.annotations !== this.originalTopology.annotations
+    );
   }
 
   /**

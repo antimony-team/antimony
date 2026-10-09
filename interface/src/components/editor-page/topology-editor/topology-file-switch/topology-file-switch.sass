@@ -1,0 +1,80 @@
+.sb-topology-file-switch
+  display: inline-flex
+  align-items: center
+  gap: 6px
+  height: 34px
+  padding: 4px 8px 4px 10px
+  border: 1px solid var(--border)
+  border-radius: 8px
+  background-color: var(--surface-inset)
+  font-family: inherit
+  font-size: 16px
+  color: var(--text)
+  cursor: pointer
+
+  &:hover
+    background-color: var(--hover)
+
+  &:focus-visible
+    outline: 2px solid var(--accent)
+    outline-offset: -2px
+
+  .material-symbols-outlined
+    font-size: 18px
+    color: var(--text-muted)
+
+.sb-topology-file-switch-icon
+  color: var(--accent) !important
+
+.sb-topology-file-switch-panel
+  margin-top: 6px
+  padding: 4px
+
+  // No arrow, the panel is a menu
+  &::after
+    display: none
+
+  [role="listbox"]
+    display: flex
+    flex-direction: column
+    gap: 2px
+
+.sb-topology-file-switch-option
+  display: flex
+  align-items: center
+  gap: 12px
+  min-width: 280px
+  padding: 8px 12px
+  border: 0
+  border-radius: 6px
+  background: transparent
+  font-family: inherit
+  font-size: 16px
+  color: var(--text)
+  text-align: left
+  cursor: pointer
+
+  &:hover
+    background-color: var(--hover)
+
+  &[aria-selected="true"]
+    background-color: var(--surface-selected)
+
+  &:focus-visible
+    outline: 2px solid var(--accent)
+    outline-offset: -2px
+
+  .material-symbols-outlined
+    font-size: 18px
+
+.sb-topology-file-switch-option-text
+  display: flex
+  flex-direction: column
+  flex-grow: 1
+
+.sb-topology-file-switch-option-file
+  font-size: 13px
+  color: var(--text-muted)
+
+.sb-topology-file-switch-check
+  color: var(--accent)

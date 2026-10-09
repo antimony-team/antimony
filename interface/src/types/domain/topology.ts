@@ -4,6 +4,12 @@ import {InterfaceConfig} from '@sb/types/domain/device-info';
 
 export type EditingFile = BindFile | Topology;
 
+// The files of a topology that can be opened in the text editor
+export enum TopologyFileType {
+  Definition,
+  Annotations,
+}
+
 export type BindFileIn = {
   filePath: string;
   content: string;
@@ -17,6 +23,7 @@ export type BindFile = BindFileIn & {
 export type TopologyIn = {
   collectionId: uuid4;
   definition: string;
+  annotations: string;
   syncUrl: string;
 };
 
@@ -32,6 +39,7 @@ export type Topology = TopologyMeta & {
   name: string;
   definition: YAMLDocument<TopologyDefinition>;
   definitionString: string;
+  annotations: string;
   collectionId: uuid4;
   creator: User;
   syncUrl: string;
