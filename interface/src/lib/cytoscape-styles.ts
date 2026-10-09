@@ -82,6 +82,7 @@ export const topologyStyle = [
       'background-offset-x': [0, 5],
       'background-offset-y': [0, -5],
       'background-image-containment': ['inside', 'over'],
+      'bounds-expansion': 6,
       'background-image-opacity': [1, 1],
       label: 'data(label)',
       'font-size': 12,
