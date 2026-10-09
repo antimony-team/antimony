@@ -5,6 +5,10 @@ type commandPayload struct {
 	Command *RuntimeCommand `json:"command"`
 	Node    *string         `json:"node"`
 	ShellId *string         `json:"shellId"`
+
+	// Cols and Rows are used for open and resize shell commands.
+	Cols *uint `json:"cols"`
+	Rows *uint `json:"rows"`
 }
 
 type RuntimeCommand int
@@ -18,6 +22,7 @@ const (
 	fetchShellsCommand
 	openShellCommand
 	closeShellCommand
+	resizeShellCommand
 )
 
 var runtimeCommands = struct {
@@ -29,6 +34,7 @@ var runtimeCommands = struct {
 	FetchShells RuntimeCommand
 	OpenShell   RuntimeCommand
 	CloseShell  RuntimeCommand
+	ResizeShell RuntimeCommand
 }{
 	DeployLab:   deployLabCommand,
 	DestroyLab:  destroyLabCommand,
@@ -38,4 +44,5 @@ var runtimeCommands = struct {
 	FetchShells: fetchShellsCommand,
 	OpenShell:   openShellCommand,
 	CloseShell:  closeShellCommand,
+	ResizeShell: resizeShellCommand,
 }

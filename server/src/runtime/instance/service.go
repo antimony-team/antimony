@@ -154,7 +154,7 @@ func (s *Service) Close() {
  * Lab (manually) redeployed -> Leave everything as-is
  */
 
-func (s *Service) DeployLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
+func (s *Service) DeployLabCommand(ctx context.Context, labId *string, authUser *auth.AuthenticatedUser) error {
 	instanceLab, err := s.validateLabCommand(ctx, labId, authUser)
 	if err != nil {
 		return err
@@ -174,7 +174,7 @@ func (s *Service) DeployLabCommand(ctx context.Context, labId string, authUser *
 	return s.DeployLab(instanceLab)
 }
 
-func (s *Service) DestroyLabCommand(ctx context.Context, labId string, authUser *auth.AuthenticatedUser) error {
+func (s *Service) DestroyLabCommand(ctx context.Context, labId *string, authUser *auth.AuthenticatedUser) error {
 	instanceLab, err := s.validateLabCommand(ctx, labId, authUser)
 	if err != nil {
 		return err
@@ -379,10 +379,14 @@ func (s *Service) RestartNodeCommand(
 
 func (s *Service) validateLabCommand(
 	ctx context.Context,
-	labId string,
+	labId *string,
 	authUser *auth.AuthenticatedUser,
 ) (*lab.Lab, error) {
-	instanceLab, err := s.labRepo.GetByUuid(ctx, labId)
+	if labId == nil {
+		return nil, fmt.Errorf("%w: no lab specified", utils.ErrLabNotFound)
+	}
+
+	instanceLab, err := s.labRepo.GetByUuid(ctx, *labId)
 	if err != nil {
 		if errors.Is(err, utils.ErrUuidNotFound) {
 			return nil, utils.ErrLabNotFound

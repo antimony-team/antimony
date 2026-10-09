@@ -96,17 +96,35 @@ func TestSocketProtocol_MissingCommandFieldsAreRejected(t *testing.T) {
 
 	for name, payload := range map[string]map[string]any{
 		"no command":      {"labId": LabAdminID},
-		"no lab":          {"command": cmdDeployLab},
 		"null command":    {"labId": LabAdminID, "command": nil},
-		"null lab":        {"labId": nil, "command": cmdDeployLab},
 		"empty object":    {},
 		"unrelated field": {"somethingElse": "value"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			// The handler requires both Command and LabId before it will dispatch anything.
+			// The handler requires a command before it will dispatch anything. Which other fields a command needs is
+			// up to the command, resizing a shell for example only needs the shell.
 			errorResponse := client.Emit(payload).RequireError(5422)
 
 			assert.Contains(t, errorResponse.Message, "socket request was invalid")
+		})
+	}
+}
+
+func TestSocketProtocol_LabCommandsWithoutALabAreRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	for name, payload := range map[string]map[string]any{
+		"deploy without lab":    {"command": cmdDeployLab},
+		"deploy with null lab":  {"labId": nil, "command": cmdDeployLab},
+		"destroy without lab":   {"command": cmdDestroyLab},
+		"destroy with null lab": {"labId": nil, "command": cmdDestroyLab},
+	} {
+		t.Run(name, func(t *testing.T) {
+			errorResponse := client.Emit(payload).RequireError(5011)
+
+			assert.Contains(t, errorResponse.Message, "no lab specified")
 		})
 	}
 }
@@ -116,7 +134,7 @@ func TestSocketProtocol_UnknownCommandIsRejected(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	for _, command := range []int{8, 42, -1, 9999} {
+	for _, command := range []int{9, 42, -1, 9999} {
 		errorResponse := client.Emit(map[string]any{
 			"labId":   LabAdminID,
 			"command": command,

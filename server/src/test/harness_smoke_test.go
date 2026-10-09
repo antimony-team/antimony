@@ -59,9 +59,9 @@ func TestHarness_Smoke(t *testing.T) {
 	t.Run("socket client can connect and reach the command namespace", func(t *testing.T) {
 		client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-		// A command with no lab ID is rejected by the handler, which proves the whole path works:
+		// A payload without a command is rejected by the handler, which proves the whole path works:
 		// handshake, middleware, JSON-string decoding, dispatch and the ack envelope.
-		client.Emit(map[string]any{"command": 0}).RequireError(5422)
+		client.Emit(map[string]any{"labId": LabAdminID}).RequireError(5422)
 	})
 
 	t.Run("a lab deploys through the dummy provider", func(t *testing.T) {
@@ -104,6 +104,13 @@ const (
 	cmdFetchShells = 5
 	cmdOpenShell   = 6
 	cmdCloseShell  = 7
+	cmdResizeShell = 8
+)
+
+// The terminal size the shell commands open shells with, unless a test asks for another one.
+const (
+	defaultShellCols = 80
+	defaultShellRows = 24
 )
 
 func deployCommand(labId string) map[string]any {
@@ -123,9 +130,18 @@ func fetchShellsCommand(labId string) map[string]any {
 }
 
 func openShellCommand(labId string, node string) map[string]any {
-	return map[string]any{"labId": labId, "command": cmdOpenShell, "node": node}
+	return openShellCommandWithSize(labId, node, defaultShellCols, defaultShellRows)
+}
+
+func openShellCommandWithSize(labId string, node string, cols int, rows int) map[string]any {
+	return map[string]any{"labId": labId, "command": cmdOpenShell, "node": node, "cols": cols, "rows": rows}
 }
 
 func closeShellCommand(labId string, shellId string) map[string]any {
 	return map[string]any{"labId": labId, "command": cmdCloseShell, "shellId": shellId}
+}
+
+// resizeShellCommand addresses the shell by its id alone, resizing doesn't need the lab.
+func resizeShellCommand(shellId string, cols int, rows int) map[string]any {
+	return map[string]any{"command": cmdResizeShell, "shellId": shellId, "cols": cols, "rows": rows}
 }

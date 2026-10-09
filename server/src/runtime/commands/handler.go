@@ -41,20 +41,20 @@ func (h *handler) handleCommand(
 	onResponse func(response utils.OkResponse[any]),
 	onError func(response utils.ErrorResponse),
 ) {
-	if data.Command == nil || data.LabId == nil {
+	if data.Command == nil {
 		onError(utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest))
 		return
 	}
 
 	switch *data.Command {
 	case runtimeCommands.DeployLab:
-		if err := h.instanceService.DeployLabCommand(ctx, *data.LabId, authUser); err != nil {
+		if err := h.instanceService.DeployLabCommand(ctx, data.LabId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
 		onResponse(utils.CreateSocketOkResponse[any](nil))
 	case runtimeCommands.DestroyLab:
-		if err := h.instanceService.DestroyLabCommand(ctx, *data.LabId, authUser); err != nil {
+		if err := h.instanceService.DestroyLabCommand(ctx, data.LabId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}
@@ -65,7 +65,8 @@ func (h *handler) handleCommand(
 		h.handleNodeCommand(ctx, data, authUser, onError, onResponse)
 	case runtimeCommands.FetchShells,
 		runtimeCommands.OpenShell,
-		runtimeCommands.CloseShell:
+		runtimeCommands.CloseShell,
+		runtimeCommands.ResizeShell:
 		h.handleShellCommand(ctx, data, authUser, onError, onResponse)
 	default:
 		onError(utils.CreateSocketErrorResponse(utils.ErrInvalidRuntimeCommand))
@@ -123,13 +124,26 @@ func (h *handler) handleShellCommand(
 			onResponse(utils.CreateSocketOkResponse[any](shells))
 		}
 	case runtimeCommands.OpenShell:
-		if shellId, err := h.shellService.OpenShellCommand(ctx, *data.LabId, data.Node, authUser); err != nil {
+		if shellId, err := h.shellService.OpenShellCommand(
+			ctx,
+			*data.LabId,
+			data.Node,
+			data.Cols,
+			data.Rows,
+			authUser,
+		); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 		} else {
 			onResponse(utils.CreateSocketOkResponse[any](shellId))
 		}
 	case runtimeCommands.CloseShell:
 		if err := h.shellService.CloseShellCommand(data.ShellId, authUser); err != nil {
+			onError(utils.CreateSocketErrorResponse(err))
+			return
+		}
+		onResponse(utils.CreateSocketOkResponse[any](nil))
+	case runtimeCommands.ResizeShell:
+		if err := h.shellService.ResizeShellCommand(data.ShellId, data.Cols, data.Rows, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 			return
 		}

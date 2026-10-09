@@ -49,7 +49,7 @@ type shellConfig struct {
 	owner            *auth.AuthenticatedUser
 	labId            string
 	node             string
-	connection       deployment.ShellExecSession
+	shellSession     deployment.ShellExecSession
 	connectionCancel context.CancelFunc
 	lastInteraction  int64
 	dataNamespace    *socket.IONamespace[string, byte]
@@ -176,9 +176,11 @@ func (s *Service) OpenShellCommand(
 	ctx context.Context,
 	labId string,
 	nodeName *string,
+	cols *uint,
+	rows *uint,
 	authUser *auth.AuthenticatedUser,
 ) (string, error) {
-	if nodeName == nil {
+	if nodeName == nil || cols == nil || rows == nil {
 		return "", utils.ErrInvalidSocketRequest
 	}
 
@@ -206,11 +208,13 @@ func (s *Service) OpenShellCommand(
 		return "", utils.ErrShellLimitReached
 	}
 
-	connection, err := s.OpenShell(ctx, targetInstanceName, &node)
+	shellSession, err := s.OpenShell(ctx, targetInstanceName, &node)
 	if err != nil {
 		log.Error("Failed to open shell on node.", "node", node.ContainerId)
 		return "", err
 	}
+
+	_ = shellSession.Resize(*cols, *rows)
 
 	shellId := utils.GenerateUuid()
 	accessGroup := []*auth.AuthenticatedUser{authUser}
@@ -234,13 +238,13 @@ func (s *Service) OpenShellCommand(
 		owner:            authUser,
 		node:             *nodeName,
 		labId:            labId,
-		connection:       connection,
+		shellSession:     shellSession,
 		connectionCancel: cancel,
 		lastInteraction:  time.Now().Unix(),
 		dataNamespace:    dataNamespace,
 	}
 
-	go s.runShell(ctx, labId, *nodeName, connection, shellId, shellConfig, dataNamespace)
+	go s.runShell(ctx, labId, *nodeName, shellSession, shellId, shellConfig, dataNamespace)
 
 	s.openShellsMutex.Lock()
 	s.openShells[shellId] = shellConfig
@@ -273,12 +277,35 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 	delete(s.openShells, *shellId)
 	s.openShellsMutex.Unlock()
 
-	err := s.closeShell(*shellId, shell, "shell was closed by the user")
-	if err != nil {
-		log.Errorf("Failed to close shell: %s", err.Error())
+	return s.closeShell(*shellId, shell, "shell was closed by the user")
+}
+
+func (s *Service) ResizeShellCommand(
+	shellId *string,
+	cols *uint,
+	rows *uint,
+	authUser *auth.AuthenticatedUser,
+) error {
+	if shellId == nil || cols == nil || rows == nil {
+		return utils.ErrInvalidSocketRequest
 	}
 
-	return nil
+	s.openShellsMutex.Lock()
+	shell, hasShell := s.openShells[*shellId]
+	s.openShellsMutex.Unlock()
+
+	if !hasShell {
+		return utils.ErrShellNotFound
+	}
+
+	// Compare by user ID rather than by pointer: the socket manager hands out a fresh
+	// *AuthenticatedUser per connection, so the owner of a shell opened on an earlier
+	// connection never matches by identity.
+	if !authUser.IsAdmin && shell.owner.UserId != authUser.UserId {
+		return utils.ErrNoAccessToShell
+	}
+
+	return shell.shellSession.Resize(*cols, *rows)
 }
 
 func (s *Service) runManager(ctx context.Context) {
@@ -386,6 +413,7 @@ func (s *Service) openSshSession(
 }
 
 func (s *Service) closeShell(shellId string, shell *shellConfig, reason string) error {
+	// Notify the user that the shell has been closed
 	s.controlNamespace.Send(shellControlData{
 		LabId:   shell.labId,
 		Node:    shell.node,
@@ -436,7 +464,7 @@ func (s *Service) handleUserData(
 
 		shell.lastInteraction = time.Now().Unix()
 
-		_, err := shell.connection.Write(([]byte)(*data))
+		_, err := shell.shellSession.Write(([]byte)(*data))
 		if err != nil {
 			log.Errorf("Failed to write shell data: %s", err.Error())
 			if onError != nil {
@@ -510,7 +538,7 @@ func (c *shellConfig) Close() error {
 	c.connectionCancel()
 	c.dataNamespace.Release()
 
-	return c.connection.Close()
+	return c.shellSession.Close()
 }
 
 func getSshKeyAuth() []ssh.AuthMethod {

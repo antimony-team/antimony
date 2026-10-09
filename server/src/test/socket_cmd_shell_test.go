@@ -519,6 +519,223 @@ func TestCloseShellCommand_OwnerCanCloseFromASecondConnection(t *testing.T) {
 }
 
 /*
+ * Terminal size: a shell is opened with the client's terminal size, and resized whenever the client's terminal changes.
+ */
+
+// requireSize asserts that the last size a shell session was set to is the given one.
+func requireSize(t *testing.T, session *deployment.DummyShellSession, cols uint, rows uint) {
+	t.Helper()
+
+	resizes := session.Resizes()
+	require.NotEmpty(t, resizes, "the session must have been given a size")
+	assert.Equal(t, [2]uint{cols, rows}, resizes[len(resizes)-1])
+}
+
+func TestOpenShellCommand_OpensTheShellWithTheClientsTerminalSize(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	client.Emit(openShellCommandWithSize(LabAdminID, NodeHost, 132, 43)).RequireOk(nil)
+
+	session := h.Provider.Shell(InstanceAdminLab, NodeHost)
+	require.NotNil(t, session)
+	assert.Equal(t, [][2]uint{{132, 43}}, session.Resizes(), "the size must be set once, right when the shell opens")
+}
+
+func TestOpenShellCommand_WithoutATerminalSizeIsRejected(t *testing.T) {
+	for name, payload := range map[string]map[string]any{
+		"no size": {"labId": LabAdminID, "command": cmdOpenShell, "node": NodeHost},
+		"no cols": {"labId": LabAdminID, "command": cmdOpenShell, "node": NodeHost, "rows": 24},
+		"no rows": {"labId": LabAdminID, "command": cmdOpenShell, "node": NodeHost, "cols": 80},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := NewHarness(t)
+
+			h.DeployLab(LabAdminID)
+
+			client := h.Dial("/cmd", h.Seed.Admin.Token)
+			client.Emit(payload).RequireError(5422)
+
+			assert.Nil(t, h.Provider.Shell(InstanceAdminLab, NodeHost), "no shell must be opened")
+		})
+	}
+}
+
+func TestResizeShellCommand_ResizesTheSession(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+
+	client.Emit(resizeShellCommand(shellId, 200, 50)).RequireOk(nil)
+
+	session := h.Provider.Shell(InstanceAdminLab, NodeHost)
+	require.NotNil(t, session)
+	assert.Equal(t, [][2]uint{{defaultShellCols, defaultShellRows}, {200, 50}}, session.Resizes())
+}
+
+func TestResizeShellCommand_EveryResizeReachesTheSession(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+
+	// The terminal dialog shrinks the terminal by a row and restores it, so the program in the shell redraws its
+	// screen. Both sizes must arrive, in order, even when one of them is the size the shell already has.
+	client.Emit(resizeShellCommand(shellId, defaultShellCols, defaultShellRows-1)).RequireOk(nil)
+	client.Emit(resizeShellCommand(shellId, defaultShellCols, defaultShellRows)).RequireOk(nil)
+	client.Emit(resizeShellCommand(shellId, defaultShellCols, defaultShellRows)).RequireOk(nil)
+
+	session := h.Provider.Shell(InstanceAdminLab, NodeHost)
+	require.NotNil(t, session)
+	assert.Equal(t, [][2]uint{
+		{defaultShellCols, defaultShellRows},
+		{defaultShellCols, defaultShellRows - 1},
+		{defaultShellCols, defaultShellRows},
+		{defaultShellCols, defaultShellRows},
+	}, session.Resizes())
+}
+
+func TestResizeShellCommand_OnlyResizesTheAddressedShell(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+	h.DeployLab(LabMemberID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	resized := openShell(t, client, LabAdminID, NodeHost)
+	openShell(t, client, LabMemberID, NodeHost)
+
+	client.Emit(resizeShellCommand(resized, 120, 40)).RequireOk(nil)
+
+	requireSize(t, h.Provider.Shell(InstanceAdminLab, NodeHost), 120, 40)
+	requireSize(t, h.Provider.Shell(InstanceMemberLab, NodeHost), defaultShellCols, defaultShellRows)
+}
+
+func TestResizeShellCommand_OwnerCanResizeFromASecondConnection(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabMemberID)
+
+	opener := h.Dial("/cmd", h.Seed.Member.Token)
+	shellId := openShell(t, opener, LabMemberID, NodeHost)
+
+	// After a page reload, the terminal reattaches to its shell over a new connection
+	resizer := h.Dial("/cmd", h.Seed.Member.Token)
+	resizer.Emit(resizeShellCommand(shellId, 100, 30)).RequireOk(nil)
+
+	requireSize(t, h.Provider.Shell(InstanceMemberLab, NodeHost), 100, 30)
+}
+
+func TestResizeShellCommand_AdminCanResizeAnyShell(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabMemberID)
+
+	memberClient := h.Dial("/cmd", h.Seed.Member.Token)
+	shellId := openShell(t, memberClient, LabMemberID, NodeHost)
+
+	adminClient := h.Dial("/cmd", h.Seed.Admin.Token)
+	adminClient.Emit(resizeShellCommand(shellId, 100, 30)).RequireOk(nil)
+
+	requireSize(t, h.Provider.Shell(InstanceMemberLab, NodeHost), 100, 30)
+}
+
+func TestResizeShellCommand_AnotherUserCannotResizeSomeoneElsesShell(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabMemberID)
+
+	memberClient := h.Dial("/cmd", h.Seed.Member.Token)
+	shellId := openShell(t, memberClient, LabMemberID, NodeHost)
+
+	outsiderClient := h.Dial("/cmd", h.Seed.Outsider.Token)
+	errorResponse := outsiderClient.Emit(resizeShellCommand(shellId, 100, 30)).RequireError(5403)
+	assert.Contains(t, errorResponse.Message, "access to the provided shell is not granted")
+
+	requireSize(t, h.Provider.Shell(InstanceMemberLab, NodeHost), defaultShellCols, defaultShellRows)
+}
+
+func TestResizeShellCommand_UnknownShellIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	errorResponse := client.Emit(resizeShellCommand("no-such-shell", 100, 30)).RequireError(5031)
+	assert.Contains(t, errorResponse.Message, "shell id does not exist")
+}
+
+func TestResizeShellCommand_ClosedShellIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+	client.Emit(closeShellCommand(LabAdminID, shellId)).RequireOk(nil)
+
+	client.Emit(resizeShellCommand(shellId, 100, 30)).RequireError(5031)
+
+	requireSize(t, h.Provider.Shell(InstanceAdminLab, NodeHost), defaultShellCols, defaultShellRows)
+}
+
+func TestResizeShellCommand_IncompleteRequestsAreRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+
+	for name, payload := range map[string]map[string]any{
+		"no shell": {"command": cmdResizeShell, "cols": 100, "rows": 30},
+		"no cols":  {"command": cmdResizeShell, "shellId": shellId, "rows": 30},
+		"no rows":  {"command": cmdResizeShell, "shellId": shellId, "cols": 100},
+	} {
+		t.Run(name, func(t *testing.T) {
+			errorResponse := client.Emit(payload).RequireError(5422)
+			assert.Contains(t, errorResponse.Message, "socket request was invalid")
+		})
+	}
+
+	requireSize(t, h.Provider.Shell(InstanceAdminLab, NodeHost), defaultShellCols, defaultShellRows)
+}
+
+func TestResizeShellCommand_SizesThatArentUnsignedIntegersAreRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+
+	for name, size := range map[string]any{
+		"negative":   -1,
+		"fractional": 80.5,
+		"string":     "80",
+	} {
+		t.Run(name, func(t *testing.T) {
+			// The payload doesn't decode into the command's unsigned fields, so the namespace rejects it
+			errorResponse := client.Emit(map[string]any{
+				"command": cmdResizeShell,
+				"shellId": shellId,
+				"cols":    size,
+				"rows":    30,
+			}).RequireError(5422)
+			assert.Contains(t, errorResponse.Message, "invalid JSON payload")
+		})
+	}
+
+	requireSize(t, h.Provider.Shell(InstanceAdminLab, NodeHost), defaultShellCols, defaultShellRows)
+}
+
+/*
  * Shell data streaming.
  *
  * The shell data namespace is an IONamespace[string, byte]: because its input type is string it
