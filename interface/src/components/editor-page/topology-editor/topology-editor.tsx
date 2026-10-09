@@ -7,7 +7,11 @@ import {useBeforeUnload, useSearchParams} from 'react-router';
 import {Badge} from 'primereact/badge';
 import {Button} from 'primereact/button';
 import {OverlayPanel} from 'primereact/overlaypanel';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
+import {
+  Splitter,
+  SplitterPanel,
+  SplitterResizeEndEvent,
+} from 'primereact/splitter';
 import {Tooltip} from 'primereact/tooltip';
 
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
@@ -28,7 +32,7 @@ import {
   TopologyEditSource,
 } from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
-import {usePersistentState} from '@sb/lib/utils/persistent-state';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {BindFile, Topology} from '@sb/types/domain/topology';
@@ -98,6 +102,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     'editor-view',
     'split',
     isValidEditorView,
+  );
+
+  const [splitterPosition, setSplitterPosition] = usePersistentState<number>(
+    'editor-splitter',
+    30,
+    isNumber,
   );
 
   // const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
@@ -522,8 +532,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         </div>
 
         <div className={`sb-topology-editor-content view-${effectiveView}`}>
-          <Splitter>
-            <SplitterPanel className="sb-editor-monaco" size={50}>
+          <Splitter
+            onResizeEnd={(e: SplitterResizeEndEvent) =>
+              setSplitterPosition(e.sizes[0])
+            }
+          >
+            <SplitterPanel className="sb-editor-monaco" size={splitterPosition}>
               <If condition={schemaStore.fetchReport.state === FetchState.Done}>
                 <MonacoWrapper
                   ref={monacoWrapperRef}
@@ -543,7 +557,10 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 />
               </If>
             </SplitterPanel>
-            <SplitterPanel size={50} className="sb-editor-graph">
+            <SplitterPanel
+              className="sb-editor-graph"
+              size={100 - splitterPosition}
+            >
               <SimulationConfigContext.Provider value={new SimulationConfig()}>
                 <NodeEditor
                   onAddNode={onAddNode}
