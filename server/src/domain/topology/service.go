@@ -150,6 +150,10 @@ func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.Auth
 		return "", err
 	}
 
+	if _, err := s.schemaService.ParseAnnotations(*req.Annotations); err != nil {
+		return "", err
+	}
+
 	// Don't allow duplicate topology names within the same collection
 	topologyName := s.getNameFromDefinition(*req.Definition)
 	if topologies, err := s.repo.GetByName(ctx, topologyName, *req.CollectionId); err != nil {
@@ -226,6 +230,12 @@ func (s *Service) Update(
 		}
 
 		topologyName = s.getNameFromDefinition(*req.Definition)
+	}
+
+	if req.Annotations != nil {
+		if _, err := s.schemaService.ParseAnnotations(*req.Annotations); err != nil {
+			return err
+		}
 	}
 
 	// Don't allow duplicate topology names within the same collection

@@ -91,6 +91,12 @@ containerlab:
   # The path to a local schema that will be used if the remote schema is not available.
   # Default: ./data/clab.schema.json
   schemaFallback: ./data/clab.schema.json
+  # The URL where the server is trying to fetch the topology annotations schema from. If empty, the local schema is used.
+  # Default: ""
+  annotationsSchemaUrl: ""
+  # The path to a local annotations schema that will be used if the remote schema is not available.
+  # Default: ./data/clab.annotations.schema.json
+  annotationsSchemaFallback: ./data/clab.annotations.schema.json
   # The path to the device config file.
   # Default: ./data/device-config.json
   deviceConfig: ./data/device-config.json

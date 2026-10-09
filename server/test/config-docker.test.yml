@@ -38,5 +38,7 @@ filesystem:
 containerlab:
   schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
   schemaFallback: ./data/clab.schema.json
+  annotationsSchemaUrl: ""
+  annotationsSchemaFallback: ./data/clab.annotations.schema.json
   deviceConfig: ./data/device-config.json
   kindsConfig: ./kinds.conf.yml

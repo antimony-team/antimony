@@ -15,16 +15,27 @@ import (
 )
 
 type Service struct {
-	schemaString *string
-	clabSchema   *jsonschema.Schema
+	schemaString      *string
+	clabSchema        *jsonschema.Schema
+	annotationsSchema *jsonschema.Schema
 }
 
 func CreateService(config *config.AntimonyConfig) *Service {
-	schema, schemaString := loadSchema(config)
+	schema, schemaString := loadSchema(
+		config.Containerlab.SchemaUrl,
+		config.Containerlab.SchemaFallback,
+		"clab schema",
+	)
+	annotationsSchema, _ := loadSchema(
+		config.Containerlab.AnnotationsSchemaUrl,
+		config.Containerlab.AnnotationsSchemaFallback,
+		"clab annotations schema",
+	)
 
 	return &Service{
-		schemaString: schemaString,
-		clabSchema:   schema,
+		schemaString:      schemaString,
+		clabSchema:        schema,
+		annotationsSchema: annotationsSchema,
 	}
 }
 
@@ -49,35 +60,40 @@ func (u *Service) Parse(data string) (*any, error) {
 	return &obj, nil
 }
 
-func loadSchema(config *config.AntimonyConfig) (*jsonschema.Schema, *string) {
-	var schema any
+// ParseAnnotations unmarshals a topology annotations file and validates it against the annotations schema.
+func (u *Service) ParseAnnotations(data string) (*any, error) {
+	var obj any
+
+	if err := json.Unmarshal([]byte(data), &obj); err != nil {
+		return nil, utils.ErrInvalidTopology
+	}
+
+	if err := u.annotationsSchema.Validate(obj); err != nil {
+		log.Warn("Topology annotations failed schema validation", "err", err.Error())
+
+		return nil, utils.ErrInvalidTopology
+	}
+
+	return &obj, nil
+}
+
+func loadSchema(url string, fallback string, name string) (*jsonschema.Schema, *string) {
 	var schemaString string
 
-	//nolint:noctx // We don't need to provide context here
-	resp, err := http.Get(config.Containerlab.SchemaUrl)
-
-	if err != nil {
-		log.Warn("Failed to download clab schema from remote resource. Falling back to local schema.")
+	if url == "" {
+		schemaString = readFallbackSchema(fallback, name)
+	} else if resp, err := http.Get(url); err != nil { //nolint:noctx // We don't need to provide context here
+		log.Warnf("Failed to download %s from remote resource. Falling back to local schema.", name)
 
 		// Try to use local fallback schema instead
-		if schemaData, err := os.ReadFile(config.Containerlab.SchemaFallback); err != nil {
-			log.Fatal("Failed to read fallback clab schema. Exiting.")
-			return nil, nil
-		} else {
-			if err := json.Unmarshal(schemaData, &schema); err != nil {
-				log.Fatal("Failed to parse fallback clab schema. Exiting.")
-				return nil, nil
-			}
-
-			schemaString = string(schemaData)
-		}
+		schemaString = readFallbackSchema(fallback, name)
 	} else {
 		buf := new(strings.Builder)
 		_, err := io.Copy(buf, resp.Body)
 		_ = resp.Body.Close()
 
 		if err != nil {
-			log.Fatal("Failed to parse remote clab schema. Exiting.")
+			log.Fatalf("Failed to parse remote %s. Exiting.", name)
 			return nil, nil
 		}
 
@@ -85,16 +101,33 @@ func loadSchema(config *config.AntimonyConfig) (*jsonschema.Schema, *string) {
 	}
 
 	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("clab-schema.json", strings.NewReader(schemaString)); err != nil {
-		log.Fatal("Failed to read clab schema. Exiting.")
+	if err := compiler.AddResource("schema.json", strings.NewReader(schemaString)); err != nil {
+		log.Fatalf("Failed to read %s. Exiting.", name)
 		return nil, nil
 	}
 
-	jsonSchema, err := compiler.Compile("clab-schema.json")
+	jsonSchema, err := compiler.Compile("schema.json")
 	if err != nil {
-		log.Fatal("Failed to compile remote clab schema. Exiting.")
+		log.Fatalf("Failed to compile %s. Exiting.", name)
 		return nil, nil
 	}
 
 	return jsonSchema, &schemaString
+}
+
+func readFallbackSchema(fallback string, name string) string {
+	var schema any
+
+	schemaData, err := os.ReadFile(fallback)
+	if err != nil {
+		log.Fatalf("Failed to read fallback %s. Exiting.", name)
+		return ""
+	}
+
+	if err := json.Unmarshal(schemaData, &schema); err != nil {
+		log.Fatalf("Failed to parse fallback %s. Exiting.", name)
+		return ""
+	}
+
+	return string(schemaData)
 }
