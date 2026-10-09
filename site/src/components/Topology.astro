@@ -1,0 +1,210 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<div class="topo" data-base={base}>
+	<svg class="topo-svg" viewBox="0 0 760 430" role="img" aria-label="An interactive network topology. Drag the nodes around.">
+		<g class="areas"></g>
+		<g class="links"></g>
+		<g class="packets"></g>
+		<g class="nodes"></g>
+	</svg>
+	<div class="topo-yaml" aria-hidden="true">
+		<div class="topo-yaml-bar"><span>lab.clab.yml</span><span class="valid">✓ valid</span></div>
+		<pre><code></code></pre>
+	</div>
+	<p class="topo-hint">drag the nodes ↖</p>
+</div>
+
+<script>
+	type Node = { id: string; kind: string; icon: string; x: number; y: number; group?: string };
+
+	const SVG = 'http://www.w3.org/2000/svg';
+	const root = document.querySelector<HTMLDivElement>('.topo')!;
+	const base = root.dataset.base ?? '';
+	const svg = root.querySelector<SVGSVGElement>('.topo-svg')!;
+	const gAreas = svg.querySelector('.areas')!;
+	const gLinks = svg.querySelector('.links')!;
+	const gPackets = svg.querySelector('.packets')!;
+	const gNodes = svg.querySelector('.nodes')!;
+	const code = root.querySelector('.topo-yaml code')!;
+
+	const nodes: Node[] = [
+		{ id: 'spine1', kind: 'nokia_srlinux', icon: 'spine', x: 270, y: 75, group: 'fabric' },
+		{ id: 'spine2', kind: 'nokia_srlinux', icon: 'spine', x: 490, y: 75, group: 'fabric' },
+		{ id: 'leaf1', kind: 'nokia_srlinux', icon: 'switch', x: 150, y: 205, group: 'fabric' },
+		{ id: 'leaf2', kind: 'nokia_srlinux', icon: 'switch', x: 380, y: 205, group: 'fabric' },
+		{ id: 'leaf3', kind: 'nokia_srlinux', icon: 'switch', x: 610, y: 205, group: 'fabric' },
+		{ id: 'srv1', kind: 'linux', icon: 'server', x: 150, y: 345, group: 'hosts' },
+		{ id: 'client1', kind: 'linux', icon: 'client', x: 380, y: 345, group: 'hosts' },
+		{ id: 'srv2', kind: 'linux', icon: 'server', x: 610, y: 345, group: 'hosts' },
+	];
+	const links: [string, string][] = [
+		['spine1', 'leaf1'], ['spine1', 'leaf2'], ['spine1', 'leaf3'],
+		['spine2', 'leaf1'], ['spine2', 'leaf2'], ['spine2', 'leaf3'],
+		['leaf1', 'srv1'], ['leaf2', 'client1'], ['leaf3', 'srv2'],
+	];
+	const byId = new Map(nodes.map((n) => [n.id, n]));
+	const R = 24;
+
+	const el = (tag: string, attrs: Record<string, string | number> = {}, parent?: Element) => {
+		const e = document.createElementNS(SVG, tag);
+		for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+		parent?.appendChild(e);
+		return e;
+	};
+
+	// Areas (auto-fit around their nodes)
+	const areas = ['fabric', 'hosts'].map((name) => {
+		const g = el('g', { class: 'area' }, gAreas);
+		const rect = el('rect', { rx: 14 }, g);
+		const label = el('text', {}, g);
+		label.textContent = name === 'fabric' ? 'area 1 · fabric' : 'area 2 · hosts';
+		return { name, rect, label };
+	});
+
+	// Links
+	const linkEls = links.map(([a, b], i) => {
+		const line = el('line', { class: 'link' }, gLinks);
+		const la = el('text', { class: 'iface' }, gLinks);
+		const lb = el('text', { class: 'iface' }, gLinks);
+		la.textContent = `e1-${(i % 3) + 1}`;
+		lb.textContent = `e1-${Math.floor(i / 3) + 1}`;
+		return { a: byId.get(a)!, b: byId.get(b)!, line, la, lb };
+	});
+
+	// Nodes
+	const nodeEls = nodes.map((n) => {
+		const g = el('g', { class: 'node', tabindex: 0, role: 'button', 'aria-label': `Node ${n.id}` }, gNodes);
+		el('circle', { r: R + 7, class: 'halo' }, g);
+		el('image', { href: `${base}/nodes/${n.icon}.svg`, x: -R, y: -R, width: R * 2, height: R * 2 }, g);
+		// Keep labels clear of the links: spines link downwards, hosts upwards, leaves both ways
+		const pos =
+			n.icon === 'spine' ? { y: -R - 10, 'text-anchor': 'middle' } : n.icon === 'switch' ? { x: R + 8, y: 4, 'text-anchor': 'start' } : { y: R + 18, 'text-anchor': 'middle' };
+		const t = el('text', { ...pos, class: 'label' }, g);
+		t.textContent = n.id;
+		return { n, g };
+	});
+
+	let selected = nodes[2];
+
+	const renderYaml = () => {
+		const n = selected;
+		const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+		const k = (s: string) => `<span class="y-k">${esc(s)}</span>`;
+		const v = (s: string) => `<span class="y-v">${esc(s)}</span>`;
+		const num = (s: string) => `<span class="y-n">${s}</span>`;
+		code.innerHTML = [
+			`${k('topology')}:`,
+			`  ${k('nodes')}:`,
+			`    ${k(n.id)}:`,
+			`      ${k('kind')}: ${v(n.kind)}`,
+			`      ${k('labels')}:`,
+			`        ${k('graph-posX')}: ${num(n.x.toFixed(2))}`,
+			`        ${k('graph-posY')}: ${num(n.y.toFixed(2))}`,
+			`        ${k('graph-icon')}: ${v(n.icon)}`,
+			`        ${k('graph-group')}: ${v(n.group ?? '')}`,
+		].join('\n');
+	};
+
+	const render = () => {
+		for (const { n, g } of nodeEls) {
+			g.setAttribute('transform', `translate(${n.x} ${n.y})`);
+			g.classList.toggle('selected', n === selected);
+		}
+		for (const { a, b, line, la, lb } of linkEls) {
+			line.setAttribute('x1', String(a.x));
+			line.setAttribute('y1', String(a.y));
+			line.setAttribute('x2', String(b.x));
+			line.setAttribute('y2', String(b.y));
+			const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+			const off = R + 22;
+			la.setAttribute('x', String(a.x + (dx / d) * off));
+			la.setAttribute('y', String(a.y + (dy / d) * off));
+			lb.setAttribute('x', String(b.x - (dx / d) * off));
+			lb.setAttribute('y', String(b.y - (dy / d) * off));
+		}
+		for (const { name, rect, label } of areas) {
+			const ns = nodes.filter((n) => n.group === name);
+			const pad = 46;
+			const x0 = Math.min(...ns.map((n) => n.x)) - pad, x1 = Math.max(...ns.map((n) => n.x)) + pad;
+			const y0 = Math.min(...ns.map((n) => n.y)) - pad, y1 = Math.max(...ns.map((n) => n.y)) + pad + 8;
+			rect.setAttribute('x', String(x0));
+			rect.setAttribute('y', String(y0));
+			rect.setAttribute('width', String(x1 - x0));
+			rect.setAttribute('height', String(y1 - y0));
+			label.setAttribute('x', String(x0 + 12));
+			label.setAttribute('y', String(y1 + 18));
+		}
+		renderYaml();
+	};
+
+	// Dragging
+	const toSvg = (e: PointerEvent) => {
+		const p = svg.createSVGPoint();
+		p.x = e.clientX;
+		p.y = e.clientY;
+		return p.matrixTransform(svg.getScreenCTM()!.inverse());
+	};
+	for (const { n, g } of nodeEls) {
+		g.addEventListener('pointerdown', (e) => {
+			const ev = e as PointerEvent;
+			selected = n;
+			root.classList.add('touched');
+			const start = toSvg(ev);
+			const ox = n.x - start.x, oy = n.y - start.y;
+			g.setPointerCapture(ev.pointerId);
+			g.classList.add('dragging');
+			const move = (m: Event) => {
+				const p = toSvg(m as PointerEvent);
+				n.x = Math.max(R + 10, Math.min(760 - R - 10, p.x + ox));
+				n.y = Math.max(R + 10, Math.min(430 - R - 30, p.y + oy));
+				render();
+			};
+			const up = () => {
+				g.classList.remove('dragging');
+				g.removeEventListener('pointermove', move);
+				g.removeEventListener('pointerup', up);
+				g.removeEventListener('pointercancel', up);
+			};
+			g.addEventListener('pointermove', move);
+			g.addEventListener('pointerup', up);
+			g.addEventListener('pointercancel', up);
+			render();
+		});
+		g.addEventListener('focus', () => {
+			selected = n;
+			render();
+		});
+	}
+
+	// Packets travelling along links
+	const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	type Packet = { link: (typeof linkEls)[number]; t: number; dir: 1 | -1; dot: Element; speed: number };
+	const packets: Packet[] = [];
+	const spawn = () => {
+		const link = linkEls[Math.floor(Math.random() * linkEls.length)];
+		const dot = el('circle', { r: 3.5, class: Math.random() < 0.2 ? 'packet packet-alt' : 'packet' }, gPackets);
+		packets.push({ link, t: 0, dir: Math.random() < 0.5 ? 1 : -1, dot, speed: 0.006 + Math.random() * 0.008 });
+	};
+	const tick = () => {
+		if (packets.length < 9 && Math.random() < 0.08) spawn();
+		for (let i = packets.length - 1; i >= 0; i--) {
+			const p = packets[i];
+			p.t += p.speed;
+			if (p.t >= 1) {
+				p.dot.remove();
+				packets.splice(i, 1);
+				continue;
+			}
+			const { a, b } = p.link;
+			const t = p.dir === 1 ? p.t : 1 - p.t;
+			p.dot.setAttribute('cx', String(a.x + (b.x - a.x) * t));
+			p.dot.setAttribute('cy', String(a.y + (b.y - a.y) * t));
+		}
+		requestAnimationFrame(tick);
+	};
+
+	render();
+	if (!reduced) requestAnimationFrame(tick);
+</script>

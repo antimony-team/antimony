@@ -1,0 +1,71 @@
+---
+title: Lab lifecycle
+description: How Antimony schedules, deploys, monitors and recovers labs.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import LabStates from '../../../../components/diagrams/LabStates.astro';
+
+A **lab** is a deployment of a topology between a start and an end time. While it's deployed, Antimony attaches an **instance** to it, which holds the live state: whether it's running, which nodes it has, their addresses and their state.
+
+## States
+
+<LabStates />
+
+| State | Value | Meaning |
+| --- | --- | --- |
+| **Scheduled** | `-2` | The lab has no instance and its start time is in the future. The scheduler deploys it when the start time arrives. |
+| **Deploying** | `0` | The provider is deploying the lab. The deployment log is available. |
+| **Running** | `1` | The deployment succeeded and Antimony knows all nodes. Node logs and statistics are available. |
+| **Stopping** | `2` | The provider is destroying the lab. Usually short. |
+| **Failed** | `3` | The deployment failed. You can redeploy or destroy the lab. |
+| **Inactive** | `-1` | The lab has no instance and its start time has passed: it has ended or was destroyed. Deploying it again starts a new instance. |
+
+The values are what the API returns in `instance.state`. Scheduled and Inactive are **pseudo-states**: an instance never has them. Antimony reports them for labs without an instance, so the interface can filter by them.
+
+## From creation to the end
+
+1. **Create.** When you create a lab, Antimony checks that you may deploy from the topology's collection, gives the lab a unique instance name, copies the topology and its bind files into the lab's run directory and stores the lab.
+2. **Schedule.** The scheduler queues the lab twice: for deployment at the start time and for destruction at the end time. A lab without an end time runs until someone destroys it. Moving a lab to another time updates both queues.
+3. **Deploy.** At the start time, or when someone clicks **Deploy**, the lab enters *Deploying* and Antimony calls the provider. Afterwards it inspects the result to learn the nodes and their addresses, and the lab becomes *Running*. If something fails, the lab becomes *Failed* and the topology is marked with `lastDeployFailed`.
+4. **Wait for nodes.** A container that is up isn't necessarily ready to use. Antimony checks every node every 2 seconds, for up to 10 minutes, by running `ssh admin@localhost true` inside it. The node counts as ready as soon as its SSH daemon answers, even with a login error, or immediately if the node has no SSH client. Once a node is ready, Antimony reads its interfaces and starts collecting statistics, and the interface enables its terminal.
+5. **Destroy.** At the end time, or when someone clicks **Destroy**, the lab enters *Stopping*. The provider removes the nodes, the instance is removed, and the lab becomes *Inactive*.
+
+<Aside type="tip">
+	Deploying a lab manually after its end time has passed removes the end time, so the lab keeps running until you destroy it.
+</Aside>
+
+A lab can only be **deleted** when it isn't deployed, or when its deployment failed. Deleting it removes its run directory.
+
+## Redeploying
+
+**Redeploy** on a running or failed lab deploys it again with the same instance name. containerlab uses `containerlab redeploy`; clabernetes destroys and deploys again.
+
+The lab's run directory still holds the topology from when the lab was created. To pick up changes to the topology, create a new lab.
+
+## Node states
+
+| State | Value | Meaning |
+| --- | --- | --- |
+| Stopped | `0` | The node isn't running. |
+| Starting | `1` | The node is starting. |
+| Running | `2` | The node is running. |
+| Stopping | `3` | The node is stopping. |
+
+Nodes can be started, stopped and restarted individually, but only for kinds marked `canRestart: true` in [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml).
+
+## Restarting the server
+
+Instances live only in memory, but the labs keep running in Docker or Kubernetes while the server is down. When the server starts again, it rebuilds its state:
+
+1. It asks the provider for all nodes it deployed (`containerlab inspect --all`, or the labelled pods in the cluster).
+2. For every lab in the database:
+   - If the provider still has nodes for the lab's instance name, Antimony creates a new instance for it and marks it as **recovered**. The lab is *Running* again.
+   - If not, and the start time is in the future, the lab is scheduled again.
+   - Otherwise the lab is *Inactive*.
+
+Recovered labs show "(Recovered)" next to their deployment time. Their deployment log starts empty, because logs from before the restart aren't kept.
+
+<Aside type="caution">
+	With the containerlab provider, the server stops at startup if `containerlab inspect` fails, for example because Docker isn't reachable.
+</Aside>

@@ -1,0 +1,173 @@
+---
+title: Development setup
+description: Run the Antimony server, interface and documentation locally to work on them.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Contributions are welcome. Antimony is split into three repositories, and you usually work on the server and the interface side by side.
+
+| Repository | Language | Run locally on |
+| --- | --- | --- |
+| [antimony-backend](https://github.com/antimony-team/antimony-backend) | Go | `localhost:3000` (API), `localhost:6969` (SSH) |
+| [antimony-interface](https://github.com/antimony-team/antimony-interface) | React, TypeScript, Vite | `localhost:8080` |
+| [antimony](https://github.com/antimony-team/antimony) | Astro, Starlight | `localhost:4321` (this documentation) |
+
+## Server
+
+### Prerequisites
+
+- [Go](https://go.dev/) 1.26
+- [Task](https://taskfile.dev/)
+- [containerlab](https://containerlab.dev/install/) and Docker, for deploying real labs
+- [golangci-lint](https://golangci-lint.run/) for linting
+
+### Run it
+
+```bash
+git clone https://github.com/antimony-team/antimony-backend
+cd antimony-backend
+
+# PostgreSQL and a Keycloak instance for OpenID Connect
+docker compose up -d
+
+# Build and run with the test configuration
+task run
+```
+
+`task run` builds the server into `build/`, copies `data/`, the test config (`test/config.test.yml`) and `test/kinds.conf.yml` next to it, and starts it with `sudo` in development mode. containerlab and packet capture need root.
+
+The development `docker-compose.yaml` starts:
+
+- **PostgreSQL 18** on port 5432. Its init script in `test/postgres` creates the `antimony` user with password `password123`.
+- **Keycloak** on port 4022 with admin `admin` / `admin` and a realm imported from `test/keycloak`. The test configuration uses it as OpenID provider (`http://localhost:4022/realms/antimony`, admin group `antimony-admin`).
+
+The native login is `admin` / `admin`.
+
+<Aside type="note" title="OpenID Connect on localhost">
+	The browser and the server must reach the OpenID provider under the same URL. With Keycloak in a container and the server on the host, both use `localhost:4022`, which works. If you run the server in a container too, OpenID login generally won't work without extra network setup; use the native login instead.
+</Aside>
+
+### Other tasks
+
+| Task | What it does |
+| --- | --- |
+| `task build` | Builds the server into `build/` without running it. |
+| `task run-c9s` | Runs with `test/config-c9s.test.yml`, using the clabernetes provider. |
+| `task setup-kind` | Creates a local [kind](https://kind.sigs.k8s.io/) cluster named `c9s` and installs clabernetes 0.9.0. |
+| `task build-docker` | Builds the Docker image `antimony-backend:dev`. |
+| `task run-docker` | Builds the image and runs it with SQLite and the Docker test configuration. |
+| `task test` | Runs the tests. |
+| `task test-race` | Runs the tests with the race detector, in random order. CI uses this. |
+| `task test-coverage` | Runs the tests with a coverage report. |
+| `task lint` / `task lint-fmt` | Lints or formats the code with golangci-lint. |
+| `task swag` | Regenerates the Swagger documentation in `src/docs/`. |
+| `task swag-check` | Fails if the committed Swagger documentation is outdated. CI uses this. |
+| `task clean` | Removes `build/` and `docker/`. |
+
+The integration tests in `src/test/` run the whole server in-process with the dummy provider and a test OpenID server, so they don't need Docker.
+
+### API documentation
+
+The REST API is documented with [swag](https://github.com/swaggo/swag) annotations on the handlers. After changing them, run `task swag` and commit `src/docs/`. A running server serves Swagger UI at `/swagger/index.html`.
+
+## Interface
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 26
+- [Yarn](https://classic.yarnpkg.com/) 1, for example through `corepack enable`
+
+### Run it
+
+```bash
+git clone https://github.com/antimony-team/antimony-interface
+cd antimony-interface
+yarn install
+yarn start
+```
+
+The development server runs on [localhost:8080](http://localhost:8080). It forwards `/api` (without the prefix) and `/socket.io` to a server on `localhost:3000`.
+
+### Scripts
+
+| Script | What it does |
+| --- | --- |
+| `yarn start` | Development server with hot reload. |
+| `yarn lint` | Lints with [gts](https://github.com/google/gts). |
+| `yarn typecheck` | Type-checks without building. |
+| `yarn build:prod` | Production build into `dist/`. |
+| `yarn build:dev` | Development build with source maps. |
+| `yarn build:docker` | Builds the Docker image `antimony-interface`. |
+| `yarn build-electron:linux` | Builds the [desktop app](/antimony/docs/deployment/desktop-app/) as an AppImage. |
+| `yarn e2e` | Runs the end-to-end tests. |
+
+### Build-time settings
+
+The interface reads its settings at **build time** from `.env` files. Variables must start with `SB_`.
+
+| Variable | Description |
+| --- | --- |
+| `SB_API_SERVER_URL` | Base URL of the REST API. If unset, the page's own host is used. |
+| `SB_SOCKET_SERVER_URL` | Base URL of the Socket.IO server. If unset, the page's own host is used. |
+| `SB_CLAB_SCHEMA_URL` | Identifier of the containerlab schema in the editor. The schema itself comes from the server. |
+
+| File | Used by | API URL |
+| --- | --- | --- |
+| `.env` | `yarn start` | `http://localhost:8080/api` (through the dev server's proxy) |
+| `docker/.env` | the Docker image | `/api` on the same origin |
+| `electron/.env` | the desktop app | `http://localhost:3000` |
+
+### End-to-end tests
+
+The [Playwright](https://playwright.dev/) tests start their own server container with the dummy provider and a test build of the interface, on ports that don't collide with development (API 3100, SSH 6100, interface 4180).
+
+```bash
+# Once: build the server image in the antimony-backend repository
+docker build -t antimony-backend:dev .
+
+# Once: install the browser
+npx playwright install chromium
+
+yarn e2e          # headless, like CI
+yarn e2e:ui       # interactive
+yarn e2e:report   # open the last report
+```
+
+To test against another server image, set `SB_E2E_BACKEND_IMAGE=<image>`.
+
+## Documentation
+
+This site is built with [Astro](https://astro.build/) and [Starlight](https://starlight.astro.build/).
+
+```bash
+git clone https://github.com/antimony-team/antimony
+cd antimony/site
+npm install
+npm run dev
+```
+
+| Path | Contents |
+| --- | --- |
+| `src/pages/index.astro` | The landing page |
+| `src/content/docs/docs/` | The documentation pages, in Markdown and MDX |
+| `src/components/diagrams/` | The diagrams, as Astro components with inline SVG |
+| `openapi/antimony.swagger.json` | Copy of the server's Swagger file for the REST API reference |
+
+Update the REST API reference after the server's API changes:
+
+```bash
+npm run sync-api                                          # from GitHub
+npm run sync-api -- ../../antimony-backend/src/docs/swagger.json   # from a local checkout
+```
+
+## Continuous integration
+
+| Repository | Workflow | Runs on | What it does |
+| --- | --- | --- | --- |
+| antimony-backend | `build.yml` | Pushes and PRs to `development` and `main` | Lint, Swagger check, build, tests with race detector |
+| antimony-backend | `publish.yml` | Tags `v*` | Builds and pushes `ghcr.io/antimony-team/antimony-backend:<version>` for amd64 and arm64 |
+| antimony-interface | `build.yml` | Pushes and PRs to `development` and `main` | Lint, type check, AppImage build (artifact `appimage`) |
+| antimony-interface | `e2e.yml` | Pushes and PRs to `development`, manually, or from the server repository | End-to-end tests against `ghcr.io/antimony-team/antimony-backend:dev` |
+| antimony-interface | `publish.yml` | Tags `v*` | Builds and pushes `ghcr.io/antimony-team/antimony-interface:<version>` for amd64 and arm64 |
+| antimony | `ci` | Pushes to `main` | Builds and publishes this documentation to GitHub Pages |

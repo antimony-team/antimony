@@ -1,98 +1,45 @@
-general:
-  # The provider that will be used to deploy nodes [containerlab, clabernetes].
-  # Note: The clabernetes provider is not yet implemented and will be available in a future release.
-  # Default: containerlab
-  provider: containerlab
+# Antimony server configuration.
+# All options: https://antimony-team.github.io/antimony/docs/deployment/configuration/
+
 server:
-  # The host to which the antimony server will be bound.
-  # Default: 127.0.0.1
+  # Only reachable through Traefik on the same host.
   host: 127.0.0.1
-  # The port to which the antimony server will be bound.
-  # Default: 3000
   port: 3000
+
+deployment:
+  # containerlab (Docker on this host), clabernetes (Kubernetes) or dummy.
+  provider: containerlab
+
 auth:
-  # Whether to enable the native admin login. Username and password have to be set via env variables.
-  # Default: true
+  # Admin login with SB_NATIVE_USERNAME and SB_NATIVE_PASSWORD from .env.
   enableNative: true
-  # Whether to enable authentication via OpenID Connect.
-  # Default: false
+  # Login through an OpenID Connect provider. The client secret goes in SB_OIDC_SECRET.
   enableOpenId: false
-  # Default: ""
   openIdIssuer: ""
-  # Default: ""
   openIdClientId: ""
-  # A list of OpenID groups that are considered admin groups.
-  # Default: []
-  openIdAdminGroups: [ ]
+  openIdRedirectHost: ""
+  openIdAdminGroups: []
+
 shell:
-  # The maximum number of shells a user can have open at the same time.
-  # Default: 20
   userLimit: 20
-  # The maximum number of seconds a shell can be idle before it is closed.
-  # Default: 1800 (30 minutes)
   timeout: 1800
+
 database:
-  # The host to connect to the postgres database.
-  # Default: 127.0.0.1
   host: 127.0.0.1
-  # The port to connect to the postgres database.
-  # Default: 5432
   port: 5432
-  # The name of the postgres database.
-  # Default: antimony
   database: antimony
-  # The user to connect to the postgres database.
-  # Default: antimony
   user: antimony
-  # The DB file that is used if the local database flag is set.
-  # Default: ./db/antimony.db
-  localFile: ./db/antimony.db
-capture:
-  # Whether the interface traffic capture SSH server is enabled.
-  # Default: no
-  enabled: no
-  # The host to which the capture server will be bound.
-  # Default: 0.0.0.0
+
+ssh:
+  # SSH server for node shells and packet capture. It doesn't authenticate
+  # clients, so only expose this port to trusted networks.
   sshHost: 0.0.0.0
-  # The port to which the capture server will be bound.
-  # Default: 6969
   sshPort: 6969
-  # The path to the SSH key that is used to authenticate the traffic capture SSH server.
-  # Default: ./key
-  sshKeyPath: ./key
-  # The host of the edgeshark server.
-  # Default: localhost
-  edgesharkHost: localhost
-  # The port of the edgeshark server.
-  # Default: 5001
-  edgesharkPort: 5001
-  # Interfaces that are excluded from traffic capture and monitoring.
-  # Default: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
-  excludedInterfaces: [ "lo", "gway-2800", "monit_in", "mgmt0-0" ]
-streaming:
-  # The maximum number of container log entries that will be kept in memory.
-  # Default: 1000
-  containerLogBacklog: 1000
-  # The maximum number of containerlab log entries that will be kept in memory.
-  # Default: 1000
-  clabLogBacklog: 1000
-  # The maximum number of lines that will be kept in memory for an open shell (scrollback buffer).
-  # Default: 1000
-  shellLinesBacklog: 1000
-filesystem:
-  # The directory in which all topology definition files will be stored.
-  # Default: ./storage/
-  storage: ./storage/
-  # The directory in which all runtime lab files will be stored.
-  # Default: ./run/
-  run: ./run/
-containerlab:
-  # The URL where the server is trying to fetch the containerlab schema from.
-  # Default: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
-  schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
-  # The path to a local schema that will be used if the remote schema is not available.
-  # Default: ./data/clab.schema.json
-  schemaFallback: ./data/clab.schema.json
-  # The path to the device config file.
-  # Default: ./data/device-config.json
-  deviceConfig: ./data/device-config.json
+  sshKeyPath: ./ssh/host_key
+
+capture:
+  excludedInterfaces: ["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]
+
+fileSystem:
+  storage: /srv/antimony/storage/
+  run: /srv/antimony/run/

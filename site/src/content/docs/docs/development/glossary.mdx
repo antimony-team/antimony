@@ -1,0 +1,24 @@
+---
+title: Glossary
+description: Terms used in Antimony and its documentation.
+---
+
+| Term | Meaning |
+| --- | --- |
+| **Administrator** | A user who can do everything in Antimony: the native admin account, or an OpenID user in one of `auth.openIdAdminGroups`. |
+| **Antimony** | This platform. Also a chemical element with the symbol Sb, which is why configuration variables start with `SB_`. |
+| **Bind file** | A file that belongs to a topology and is mounted into a node when the lab starts, for example a startup configuration. |
+| **c9s** | Short for clabernetes. |
+| **clabernetes** | A Kubernetes controller that runs containerlab topologies on a cluster. One of Antimony's deployment providers. |
+| **Collection** | A folder of topologies. Access to it is granted through OpenID groups with the same name. |
+| **containerlab** | A tool that runs network topologies as containers on a Docker host. Antimony's default deployment provider. |
+| **Deployment provider** | The part of the server that runs labs: containerlab, clabernetes or dummy. |
+| **Instance** | The live state of a deployed lab: its state and nodes. Only exists while the lab is deployed. |
+| **Instance name** | The unique name a lab is deployed under: the topology name plus a random suffix. |
+| **Kind** | The containerlab node type, such as `nokia_srlinux` or `linux`. |
+| **Lab** | A deployment of a topology with a start and end time. |
+| **Native login** | Signing in with the single admin account configured through `SB_NATIVE_USERNAME` and `SB_NATIVE_PASSWORD`. |
+| **Node** | One device in a running lab: a container or a pod. |
+| **Recovered** | A lab the server found still running after a restart and reattached to. |
+| **Run directory** | The directory with a lab's own copy of its topology and bind files. |
+| **Topology** | A containerlab topology definition: nodes, links and their settings. |

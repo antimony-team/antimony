@@ -1,0 +1,114 @@
+---
+title: Desktop app
+description: Build the experimental Antimony desktop app for Linux with Electron.
+sidebar:
+  label: Desktop app
+  badge:
+    text: Experimental
+    variant: caution
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+The interface can be packaged as a desktop app with [Electron](https://www.electronjs.org/). The app contains the same interface as the web version and connects to an Antimony server you run separately.
+
+<Aside type="caution" title="Experimental">
+	The desktop app is an early packaging of the web interface and isn't ready for everyday use yet. Read the [current limitations](#current-limitations) before you build it. For now, use the web interface in a browser.
+</Aside>
+
+## What you get
+
+| Platform | Status | Output |
+| --- | --- | --- |
+| Linux (x86_64) | Supported build target, about 220 MB | `release/Antimony-<version>-x86_64.AppImage` |
+| Windows | A build script exists but has no configuration and has never been built | An NSIS installer, by electron-builder's defaults |
+| macOS | Not supported | — |
+
+## Build for Linux
+
+<Steps>
+
+1. **Install the prerequisites:**
+
+    - **Node.js 26**. The Dockerfile and CI use it.
+    - **Yarn 1** (classic). Enable it with `corepack enable`.
+    - The tools electron-builder needs to assemble an AppImage. On Debian or Ubuntu:
+
+      ```bash
+      sudo apt install libarchive-tools rpm
+      ```
+
+2. **Clone the interface** and install its dependencies.
+
+    ```bash
+    git clone https://github.com/antimony-team/antimony-interface
+    cd antimony-interface
+    yarn install
+    ```
+
+3. **Set the server address.** The app doesn't ask for a server when it starts; the address is built into the app. Edit `electron/.env`:
+
+    ```bash title="electron/.env"
+    SB_API_SERVER_URL=http://localhost:3000
+    SB_SOCKET_SERVER_URL=ws://localhost:3000
+    SB_CLAB_SCHEMA_URL=https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
+    ```
+
+    The app talks to the server directly, not through a reverse proxy, so there's no `/api` prefix. Point both URLs at the server's API port.
+
+4. **Build the AppImage.**
+
+    ```bash
+    yarn build-electron:linux
+    ```
+
+    This builds the interface with `electron/vite.config.ts` and packages it with electron-builder. The result is in `release/`:
+
+    ```bash
+    chmod +x release/Antimony-1.0.0-x86_64.AppImage
+    ./release/Antimony-1.0.0-x86_64.AppImage
+    ```
+
+</Steps>
+
+To start over, `yarn clean` removes `dist/`, `dist-electron/` and `release/`.
+
+### Windows
+
+`yarn build-electron:win` runs the same build with electron-builder's Windows target. `electron/electron-builder.yml` has no Windows section yet, so electron-builder falls back to its default NSIS installer. Building for Windows on Linux needs Wine.
+
+## Builds from CI
+
+The interface's **build** workflow builds the AppImage on every push and pull request to `development` and `main`. You can download it from the workflow run on GitHub as the artifact **`appimage`**. Artifacts are kept for 30 days. On release tags, the workflow sets the app version from the tag.
+
+The AppImage isn't attached to GitHub releases yet.
+
+## How the app works
+
+The app opens one window (1280 × 800) and loads the interface from files inside the package. Links to other websites open in your normal browser. The app has no menu bar, no settings and no automatic updates.
+
+Because the interface is loaded from local files instead of from a web server, the browser rules about origins and cookies work differently than in the web version. That causes most of the limitations below.
+
+## Current limitations
+
+These follow from how the app is built today. Most of them haven't been tested on a running app yet.
+
+- **Fixed server address.** To connect to another server, edit `electron/.env` and rebuild. When the server can't be reached, the app shows "Unable to connect to the Antimony server." and retries every 5 seconds.
+- **Sign-in.** Login uses cookies set by the server, which the app can't store or send in its current form. The REST API also doesn't send the CORS headers a desktop app needs. Expect sign-in to fail until this is addressed.
+- **No OpenID Connect.** "Continue with OpenID Connect" navigates the app window to your identity provider, and nothing brings you back to the app afterwards.
+- **Missing images.** Some icons and the loading animation use paths that don't resolve inside the package.
+- **Copied commands.** **Copy SSH command** and **Copy capture command** use the page's host name, which is empty in the app, so the copied command has no server address. Add it by hand.
+- **Copy Link** copies a local `file://` address that's only meaningful on your machine.
+
+## Developing the app
+
+The desktop build reuses the web interface's code. Everything specific to Electron is in `electron/`:
+
+| File | Purpose |
+| --- | --- |
+| `main.ts` | Creates the window and opens external links in the system browser. |
+| `vite.config.ts` | Extends the web build with the Electron plugins. Reads its environment from `electron/.env`. |
+| `electron-builder.yml` | Packaging: app ID `ch.antimony-team.antimony`, product name `Antimony`, AppImage target. |
+| `.env` | Server addresses built into the app. |
+
+See [Development setup](/antimony/docs/development/setup/#interface) for working on the interface itself.

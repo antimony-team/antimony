@@ -1,0 +1,101 @@
+---
+// Antimony with the clabernetes provider: everything goes through the Kubernetes API server.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 860 400" role="img" aria-labelledby="c9s-title c9s-desc">
+		<title id="c9s-title">Antimony with clabernetes</title>
+		<desc id="c9s-desc">
+			The Antimony server runs outside the cluster and uses a kubeconfig to talk to the Kubernetes API server. It
+			creates a namespace and a Topology resource per lab. The clabernetes manager turns the Topology into pods. Shells,
+			logs, stats and captures reach the pods through the API server.
+		</desc>
+		<defs>
+			<marker id="c9s-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+			<marker id="c9s-aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+		</defs>
+
+		<!-- Antimony host -->
+		<rect x="20" y="40" width="200" height="320" rx="14" class="zone" />
+		<text x="36" y="64" class="t-zone">Antimony host</text>
+
+		<rect x="36" y="90" width="168" height="78" rx="10" class="box-accent" />
+		<text x="52" y="118" class="t">Antimony server</text>
+		<text x="52" y="138" class="t-sub">provider: clabernetes</text>
+		<text x="52" y="155" class="t-mono">:3000</text>
+
+		<rect x="36" y="190" width="168" height="56" rx="10" class="box" />
+		<text x="52" y="214" class="t">kubeconfig</text>
+		<text x="52" y="232" class="t-mono">~/.kube/config</text>
+
+		<rect x="36" y="268" width="168" height="70" rx="10" class="box" />
+		<text x="52" y="292" class="t">PostgreSQL</text>
+		<text x="52" y="310" class="t-sub">labs, topologies, users</text>
+		<text x="52" y="326" class="t-mono">storage/ run/</text>
+
+		<path d="M120 168 V190" class="edge edge-dashed" />
+
+		<!-- Cluster -->
+		<rect x="250" y="20" width="590" height="360" rx="14" class="zone" />
+		<text x="266" y="44" class="t-zone">Kubernetes cluster</text>
+
+		<rect x="270" y="150" width="140" height="70" rx="10" class="box" />
+		<text x="286" y="176" class="t">API server</text>
+		<text x="286" y="196" class="t-sub">exec · port-forward</text>
+		<text x="286" y="211" class="t-sub">logs</text>
+
+		<path d="M204 130 C 240 130, 240 185, 266 185" class="edge-accent" marker-end="url(#c9s-aa)" />
+		<text x="260" y="138" class="t-mono t-accent">HTTPS</text>
+
+		<!-- c9s namespace -->
+		<rect x="470" y="56" width="350" height="80" rx="12" class="box" />
+		<text x="486" y="80" class="t-zone">namespace c9s</text>
+		<rect x="486" y="90" width="170" height="34" rx="8" class="box-accent" />
+		<text x="500" y="112" class="t-mono">clabernetes-manager</text>
+		<rect x="668" y="90" width="136" height="34" rx="8" class="box" />
+		<text x="682" y="112" class="t-mono">planner-pool</text>
+
+		<!-- Lab namespace -->
+		<rect x="470" y="168" width="350" height="196" rx="12" class="box" />
+		<text x="486" y="192" class="t-zone">namespace c9s-&lt;instance&gt;</text>
+
+		<rect x="486" y="204" width="140" height="32" rx="8" class="box-warm" />
+		<text x="500" y="225" class="t-mono">Topology CR</text>
+
+		<g>
+			<rect x="486" y="250" width="140" height="98" rx="10" class="box" />
+			<text x="500" y="272" class="t">pod: leaf1</text>
+			<rect x="492" y="282" width="128" height="26" rx="6" class="box-accent" />
+			<text x="500" y="300" class="t-mono">device container</text>
+			<rect x="492" y="314" width="128" height="26" rx="6" class="box" />
+			<text x="500" y="332" class="t-mono">clabwire sidecar</text>
+		</g>
+		<g>
+			<rect x="666" y="250" width="140" height="98" rx="10" class="box" />
+			<text x="680" y="272" class="t">pod: leaf2</text>
+			<rect x="672" y="282" width="128" height="26" rx="6" class="box-accent" />
+			<text x="680" y="300" class="t-mono">device container</text>
+			<rect x="672" y="314" width="128" height="26" rx="6" class="box" />
+			<text x="680" y="332" class="t-mono">clabwire sidecar</text>
+		</g>
+		<path d="M620 327 H672" class="edge-accent" />
+		<text x="646" y="320" class="t-mono" text-anchor="middle">VXLAN</text>
+
+		<!-- edges from API server -->
+		<path d="M410 172 C 445 172, 450 220, 482 220" class="edge" marker-end="url(#c9s-a)" />
+		<text x="418" y="160" class="t-sub">creates</text>
+		<path d="M410 204 C 445 204, 450 296, 482 296" class="edge edge-dashed" marker-end="url(#c9s-a)" />
+		<text x="276" y="246" class="t-sub">shells, logs,</text>
+		<text x="276" y="261" class="t-sub">stats, capture</text>
+
+		<path d="M750 136 V164" class="edge edge-dashed" marker-end="url(#c9s-a)" />
+		<text x="742" y="155" class="t-sub" text-anchor="end">reconciles</text>
+	</svg>
+	<figcaption>
+		Antimony creates a namespace and a Topology resource per lab. clabernetes turns it into pods. Terminals, logs, statistics and packet captures all travel through the API server.
+	</figcaption>
+</figure>

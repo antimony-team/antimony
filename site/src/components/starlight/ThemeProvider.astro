@@ -1,0 +1,36 @@
+---
+// Starlight's ThemeProvider, but dark by default to match the landing page and the product.
+// Stored values: 'dark', 'light' or 'auto' (follow the system).
+import { Icon } from '@astrojs/starlight/components';
+---
+
+{/* Inlined to avoid a flash of the wrong theme. */}
+<script is:inline>
+	window.StarlightThemeProvider = (() => {
+		const stored = typeof localStorage !== 'undefined' && localStorage.getItem('antimony-theme');
+		const choice = stored === 'light' || stored === 'auto' ? stored : 'dark';
+		const resolve = (c) =>
+			c === 'auto' ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : c;
+		document.documentElement.dataset.theme = resolve(choice);
+		return {
+			choice,
+			resolve,
+			updatePickers(theme = choice) {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					const tmpl = document.querySelector('#theme-icons');
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					const oldIcon = picker.querySelector('svg.label-icon');
+					if (newIcon && oldIcon) oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+				});
+			},
+		};
+	})();
+</script>
+
+<template id="theme-icons">
+	<Icon name="sun" class="light" />
+	<Icon name="moon" class="dark" />
+	<Icon name="laptop" class="auto" />
+</template>

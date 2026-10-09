@@ -1,0 +1,117 @@
+---
+// Overview of Antimony's components, matching the package layout of antimony-backend/src.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 900 560" role="img" aria-labelledby="arch-title arch-desc">
+		<title id="arch-title">Antimony architecture</title>
+		<desc id="arch-desc">
+			Clients (web interface, desktop app, SSH clients) connect to the Antimony server through REST, Socket.IO and SSH.
+			Inside the server, the transport layer calls domain services and the runtime. The runtime drives a deployment
+			provider: containerlab on Docker, clabernetes on Kubernetes, or a dummy provider. Data is stored in PostgreSQL or
+			SQLite and in the storage and run directories. Users authenticate natively or through an OpenID provider.
+		</desc>
+		<defs>
+			<marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+			<marker id="ar-aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+		</defs>
+
+		<!-- Clients -->
+		<text x="20" y="34" class="t-zone">Clients</text>
+		<rect x="20" y="48" width="170" height="60" rx="10" class="box" />
+		<text x="36" y="72" class="t">Web interface</text>
+		<text x="36" y="92" class="t-sub">React · browser</text>
+		<rect x="20" y="122" width="170" height="60" rx="10" class="box" />
+		<text x="36" y="146" class="t">Desktop app</text>
+		<text x="36" y="166" class="t-sub">Electron · experimental</text>
+		<rect x="20" y="196" width="170" height="60" rx="10" class="box" />
+		<text x="36" y="220" class="t">SSH · Wireshark</text>
+		<text x="36" y="240" class="t-sub">shells and capture</text>
+
+		<!-- Server -->
+		<rect x="230" y="20" width="460" height="520" rx="16" class="box-accent" />
+		<text x="248" y="46" class="t">Antimony server</text>
+		<text x="400" y="46" class="t-sub">Go · antimony-backend</text>
+
+		<!-- transport -->
+		<text x="248" y="76" class="t-zone">Transport</text>
+		<rect x="248" y="86" width="132" height="54" rx="8" class="box" />
+		<text x="262" y="108" class="t">REST API</text>
+		<text x="262" y="126" class="t-mono">gin · :3000</text>
+		<rect x="392" y="86" width="132" height="54" rx="8" class="box" />
+		<text x="406" y="108" class="t">Socket.IO</text>
+		<text x="406" y="126" class="t-mono">/socket.io</text>
+		<rect x="536" y="86" width="136" height="54" rx="8" class="box" />
+		<text x="550" y="108" class="t">SSH server</text>
+		<text x="550" y="126" class="t-mono">:6969</text>
+
+		<path d="M190 78 C 215 78, 220 105, 244 105" class="edge" marker-end="url(#ar-a)" />
+		<path d="M190 152 C 215 152, 220 120, 244 120" class="edge" marker-end="url(#ar-a)" />
+		<path d="M190 226 H212 V60 H604 V82" class="edge edge-dashed" marker-end="url(#ar-a)" />
+
+		<!-- domain -->
+		<text x="248" y="172" class="t-zone">Domain services</text>
+		<rect x="248" y="182" width="424" height="76" rx="8" class="box" />
+		<text x="262" y="206" class="t-mono">collections · topologies · labs</text>
+		<text x="262" y="226" class="t-mono">users · devices · schema · server config</text>
+		<text x="262" y="246" class="t-mono">status messages</text>
+
+		<!-- auth -->
+		<rect x="560" y="200" width="100" height="44" rx="8" class="box-warm" />
+		<text x="574" y="220" class="t">Auth</text>
+		<text x="574" y="236" class="t-sub">JWT · OIDC</text>
+
+		<!-- runtime -->
+		<text x="248" y="290" class="t-zone">Runtime</text>
+		<rect x="248" y="300" width="132" height="58" rx="8" class="box" />
+		<text x="262" y="322" class="t">Scheduler</text>
+		<text x="262" y="340" class="t-sub">start and end times</text>
+		<rect x="392" y="300" width="132" height="58" rx="8" class="box" />
+		<text x="406" y="322" class="t">Instances</text>
+		<text x="406" y="340" class="t-sub">state, logs, stats</text>
+		<rect x="536" y="300" width="136" height="58" rx="8" class="box" />
+		<text x="550" y="322" class="t">Shells</text>
+		<text x="550" y="340" class="t-sub">terminals, limits</text>
+		<path d="M380 329 H388" class="edge" marker-end="url(#ar-a)" />
+
+		<!-- providers -->
+		<text x="248" y="390" class="t-zone">Providers</text>
+		<rect x="248" y="400" width="132" height="44" rx="8" class="box" />
+		<text x="262" y="427" class="t">containerlab</text>
+		<rect x="392" y="400" width="132" height="44" rx="8" class="box" />
+		<text x="406" y="427" class="t">clabernetes</text>
+		<rect x="536" y="400" width="136" height="44" rx="8" class="box" />
+		<text x="550" y="427" class="t">dummy</text>
+		<path d="M458 358 V396" class="edge-accent" marker-end="url(#ar-aa)" />
+
+		<!-- storage -->
+		<text x="248" y="476" class="t-zone">Persistence</text>
+		<rect x="248" y="486" width="200" height="40" rx="8" class="box" />
+		<text x="262" y="511" class="t-mono">GORM → PostgreSQL / SQLite</text>
+		<rect x="460" y="486" width="212" height="40" rx="8" class="box" />
+		<text x="474" y="511" class="t-mono">storage/ · run/ directories</text>
+
+		<!-- External -->
+		<text x="720" y="34" class="t-zone">External</text>
+		<rect x="720" y="196" width="160" height="60" rx="10" class="box" />
+		<text x="736" y="220" class="t">OpenID provider</text>
+		<text x="736" y="240" class="t-sub">Keycloak, Entra ID, …</text>
+		<path d="M660 222 H716" class="edge edge-dashed" marker-end="url(#ar-a)" />
+
+		<rect x="720" y="370" width="160" height="60" rx="10" class="box" />
+		<text x="736" y="394" class="t">Docker</text>
+		<text x="736" y="414" class="t-sub">lab containers</text>
+		<rect x="720" y="450" width="160" height="60" rx="10" class="box" />
+		<text x="736" y="474" class="t">Kubernetes</text>
+		<text x="736" y="494" class="t-sub">clabernetes 0.9</text>
+		<path d="M380 412 H386 V372 H704 V400 H716" class="edge" marker-end="url(#ar-a)" />
+		<path d="M458 444 C 458 462, 700 470, 716 476" class="edge" marker-end="url(#ar-a)" />
+	</svg>
+	<figcaption>
+		Antimony's components. The interface talks to the server over REST and Socket.IO; the runtime hands deployments to the configured provider.
+	</figcaption>
+</figure>

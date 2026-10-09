@@ -1,0 +1,258 @@
+---
+// Interactive overview of Antimony's concepts. Without JavaScript, all cards are shown.
+interface Concept {
+	id: string;
+	name: string;
+	summary: string;
+	example: string;
+	where: string;
+	link: { label: string; href: string };
+}
+
+const base = '/antimony/docs';
+const chain: Concept[] = [
+	{
+		id: 'collection',
+		name: 'Collection',
+		summary:
+			'A folder for topologies, usually one per course, class or team. It decides who can see, edit and deploy what: users get access through an OpenID group with the same name.',
+		example: 'hs25-cn1 with "Anyone can deploy" turned on',
+		where: 'The explorer in the topology editor, and the left panel of the dashboard',
+		link: { label: 'Users and permissions', href: `${base}/deployment/authentication/#permissions` },
+	},
+	{
+		id: 'topology',
+		name: 'Topology',
+		summary:
+			'A network design: a containerlab topology file with nodes, their kinds and images, and the links between them. The graph layout is stored in the same file as labels.',
+		example: 'ospf-multiarea: 12 FRR routers in five areas',
+		where: 'The topology editor, as YAML and as a graph',
+		link: { label: 'Topology editor', href: `${base}/manual/topology-editor/` },
+	},
+	{
+		id: 'lab',
+		name: 'Lab',
+		summary:
+			'A deployment of a topology with a start and an end time. Create as many labs from a topology as you need, for example one per student. Each lab keeps its own copy of the topology.',
+		example: 'OSPF Lab 3, Tuesday 10:00–12:00',
+		where: 'The dashboard and the lab schedule',
+		link: { label: 'Deploying labs', href: `${base}/manual/deploying-labs/` },
+	},
+	{
+		id: 'instance',
+		name: 'Instance',
+		summary:
+			'The live side of a deployed lab: its state and its nodes. It only exists while the lab is deployed, under a unique instance name.',
+		example: 'ospf-multiarea-3f9c2a1b7d4e, running',
+		where: 'The lab view and its details panel',
+		link: { label: 'Lab lifecycle', href: `${base}/architecture/lab-lifecycle/` },
+	},
+	{
+		id: 'node',
+		name: 'Node',
+		summary:
+			'One device in a running lab: a container with containerlab, or a pod with clabernetes. Open terminals on it, read its logs, watch its statistics and capture its traffic.',
+		example: 'r1, an FRR router with eth1 and eth2',
+		where: 'The graph and node panel of the lab view',
+		link: { label: 'Working with a lab', href: `${base}/manual/lab-view/` },
+	},
+];
+
+const extras: Concept[] = [
+	{
+		id: 'bind-file',
+		name: 'Bind file',
+		summary: 'A file that belongs to a topology and is mounted into a node when the lab starts, such as a startup configuration.',
+		example: 'configs/r1.conf → /etc/frr/frr.conf',
+		where: 'Under the topology in the editor explorer',
+		link: { label: 'Bind files', href: `${base}/manual/topology-editor/#bind-files` },
+	},
+	{
+		id: 'kind',
+		name: 'Kind',
+		summary:
+			'The containerlab node type, which tells containerlab how to start a node. Antimony adds per-kind settings, such as the SSH login for terminals.',
+		example: 'nokia_srlinux, ceos, linux',
+		where: 'The Kind field of a node, and kinds.conf.yml on the server',
+		link: { label: 'Node kinds', href: `${base}/deployment/configuration/#node-kinds-kindsconfyml` },
+	},
+	{
+		id: 'provider',
+		name: 'Provider',
+		summary:
+			'The part of the server that actually runs labs: containerlab on the same Docker host, clabernetes on a Kubernetes cluster, or dummy, which only pretends.',
+		example: 'deployment.provider: containerlab',
+		where: 'The Provider field in the lab details, and config.yml',
+		link: { label: 'Clabernetes', href: `${base}/deployment/clabernetes/` },
+	},
+];
+
+const all = [...chain, ...extras];
+---
+
+<div class="concepts not-content" data-concepts>
+	<div class="concepts-map" role="tablist" aria-label="Concepts">
+		<div class="concepts-chain">
+			{chain.map((c, i) => (
+				<>
+					{i > 0 && <span class="concepts-arrow" aria-hidden="true">→</span>}
+					<button type="button" role="tab" class="concept-pill" data-target={c.id} aria-selected={i === 0 ? 'true' : 'false'}>
+						{c.name}
+					</button>
+				</>
+			))}
+		</div>
+		<div class="concepts-extras">
+			<span class="concepts-also">also</span>
+			{extras.map((c) => (
+				<button type="button" role="tab" class="concept-pill concept-pill-minor" data-target={c.id} aria-selected="false">
+					{c.name}
+				</button>
+			))}
+		</div>
+	</div>
+
+	{all.map((c) => (
+		<section class="concept-card" id={`concept-${c.id}`} data-concept={c.id} role="tabpanel">
+			<h3>{c.name}</h3>
+			<p>{c.summary}</p>
+			<dl>
+				<div>
+					<dt>Example</dt>
+					<dd>{c.example}</dd>
+				</div>
+				<div>
+					<dt>Where you see it</dt>
+					<dd>{c.where}</dd>
+				</div>
+			</dl>
+			<a href={c.link.href}>{c.link.label} →</a>
+		</section>
+	))}
+</div>
+
+<script>
+	for (const root of document.querySelectorAll<HTMLElement>('[data-concepts]')) {
+		const pills = [...root.querySelectorAll<HTMLButtonElement>('.concept-pill')];
+		const cards = [...root.querySelectorAll<HTMLElement>('.concept-card')];
+		const show = (id: string) => {
+			for (const p of pills) p.setAttribute('aria-selected', String(p.dataset.target === id));
+			for (const c of cards) c.hidden = c.dataset.concept !== id;
+		};
+		root.classList.add('is-interactive');
+		pills.forEach((p) => p.addEventListener('click', () => show(p.dataset.target!)));
+		show(pills[0].dataset.target!);
+	}
+</script>
+
+<style>
+	.concepts {
+		margin-block: 1.5rem;
+		display: grid;
+		gap: 1rem;
+	}
+
+	.concepts-map {
+		display: grid;
+		gap: 0.75rem;
+		padding: 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+
+	.concepts-chain,
+	.concepts-extras {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.concepts-arrow,
+	.concepts-also {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+	}
+
+	.concepts-also {
+		margin-inline-end: 0.25rem;
+	}
+
+	.concept-pill {
+		font: inherit;
+		font-weight: 600;
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		border: 1px solid var(--sl-color-gray-4);
+		background: var(--sl-color-black);
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+
+	.concept-pill-minor {
+		font-weight: 500;
+		font-size: var(--sl-text-sm);
+	}
+
+	.concept-pill:hover {
+		border-color: var(--sl-color-accent);
+	}
+
+	.concept-pill:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+
+	.concept-pill[aria-selected='true'] {
+		background: var(--sl-color-accent-low);
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-accent-high);
+	}
+
+	.concepts:not(.is-interactive) .concepts-map {
+		display: none;
+	}
+
+	.concept-card {
+		padding: 1.25rem 1.4rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-left: 3px solid var(--sl-color-accent);
+		border-radius: 0.75rem;
+		background: var(--sl-color-black);
+	}
+
+	.concept-card h3 {
+		margin: 0 0 0.5rem;
+		font-family: 'Bricolage Grotesque Variable', var(--sl-font);
+		font-size: var(--sl-text-h4);
+		color: var(--sl-color-white);
+	}
+
+	.concept-card a {
+		color: var(--sl-color-text-accent);
+		font-weight: 600;
+	}
+
+	.concept-card p {
+		margin: 0 0 1rem;
+	}
+
+	.concept-card dl {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+		gap: 0.75rem 1.5rem;
+		margin: 0 0 1rem;
+	}
+
+	.concept-card dt {
+		font-size: var(--sl-text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--sl-color-gray-3);
+	}
+
+	.concept-card dd {
+		margin: 0.15rem 0 0;
+	}
+</style>

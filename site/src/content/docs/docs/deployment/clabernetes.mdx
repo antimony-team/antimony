@@ -1,0 +1,191 @@
+---
+title: Deploy with clabernetes
+description: Run Antimony labs on a Kubernetes cluster with clabernetes (c9s).
+sidebar:
+  label: Clabernetes (Kubernetes)
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import zoey from '../../../../assets/zoey/c9s.png';
+import C9sDiagram from '../../../../components/diagrams/Clabernetes.astro';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey hugging a bottle labelled C9S full of network nodes" width={190} />
+
+[Clabernetes](https://containerlab.dev/manual/clabernetes/) (c9s) runs containerlab topologies on Kubernetes. With the clabernetes provider, Antimony doesn't start containers itself. It hands each lab to clabernetes, which spreads the nodes across your cluster's workers.
+
+Use it when a single Docker host isn't enough: a whole class deploying labs at the same time, or topologies with many heavy network OS images.
+
+The Antimony server itself still runs outside the cluster, for example with the same Docker Compose setup as the [Docker deployment](/antimony/docs/deployment/docker/). It talks to the cluster through the Kubernetes API using a kubeconfig.
+
+<C9sDiagram />
+
+## Requirements
+
+Antimony is built against **clabernetes 0.9.0**, which uses the native "direct" runtime. Your cluster must meet the clabernetes 0.9 requirements:
+
+- **Kubernetes 1.31 or newer.** The direct runtime uses native sidecar containers.
+- **Privileged pods allowed** in lab namespaces. Antimony labels every lab namespace with `pod-security.kubernetes.io/enforce: privileged`. If you run an admission controller such as Kyverno or Gatekeeper, allow privileged pods in `c9s-*` namespaces.
+- **VXLAN and nftables** support in the worker kernels.
+- **`/dev/kvm`** on the workers if you use VM-based kinds (vrnetlab).
+- **NetworkPolicies** that allow UDP 14789 and 14790 between device pods, TCP 14791 from the kubelet, and egress to the API server.
+- **cgroup v2** on the workers, and device images that contain `sh`, `cat` and `sleep`. Antimony reads node statistics and interfaces by running small shell commands inside the device container.
+
+<Aside type="caution" title="Upgrading from clabernetes 0.8 or older">
+	Clabernetes 0.9 has no in-place upgrade path. Uninstall the old release before you install 0.9.0.
+</Aside>
+
+## Set up
+
+Start from the [Docker deployment](/antimony/docs/deployment/docker/). Then:
+
+<Steps>
+
+1. **Install clabernetes 0.9.0** in your cluster.
+
+    ```bash
+    helm upgrade --install --create-namespace --namespace c9s --version 0.9.0 \
+      clabernetes oci://ghcr.io/clabernetes/clabernetes/clabernetes
+    ```
+
+2. **Give the server your kubeconfig.** In `docker-compose.yml`, uncomment this line of the `server` service:
+
+    ```yaml title="docker-compose.yml"
+          - $HOME/.kube/config:/root/.kube/config:ro
+    ```
+
+    Antimony uses the kubeconfig's current context. Its user needs the permissions listed under [RBAC](#rbac).
+
+3. **Switch the provider** in `config.yml`:
+
+    ```yaml title="config.yml"
+    deployment:
+      provider: clabernetes
+    ```
+
+4. **Restart Antimony.**
+
+    ```bash
+    docker compose up -d
+    ```
+
+    The server log shows `Using the Clabernetes deployment provider.`
+
+</Steps>
+
+<Aside type="tip" title="Trying it locally">
+	Create a local cluster with [kind](https://kind.sigs.k8s.io/) (`kind create cluster --name c9s`) before step 1. The server uses the host network, so it can reach the kind API server on `127.0.0.1`.
+</Aside>
+
+<details>
+<summary>**Private images, terminals and other details**</summary>
+
+- **Private registries.** The cluster pulls node images itself. Add your pull secrets to the clabernetes configuration with `kubectl -n c9s edit configs.c9s.run clabernetes` (`imagePull.pullSecrets`).
+- **Terminals** log in to nodes over SSH through a Kubernetes port-forward, with the credentials from [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, they fall back to a shell inside the container.
+- **Credentials lookup.** Antimony uses the in-cluster ServiceAccount if it runs in a pod, otherwise the `KUBECONFIG` environment variable, otherwise `~/.kube/config`. If no client can be created, the server stops with `Failed to create clabernetes client`.
+- **Exec plugins.** If your kubeconfig uses a credential plugin, the plugin must also exist inside the server container.
+- **Unused settings.** The Docker socket and the privileged settings of the server container are only needed for containerlab. You can remove them when you only use clabernetes.
+
+</details>
+
+## What happens when you deploy a lab
+
+1. Antimony **compiles the topology locally** with the clabernetes compiler. Topologies that use features clabernetes doesn't support, such as `macvlan` endpoints or custom management networks, fail right away with `topology is not supported by clabernetes: …`. See the [containerlab differences](https://containerlab.dev/manual/clabernetes/) in the clabernetes docs.
+2. It **removes all containerlab `labels`** from the definition. Antimony stores graph positions in labels, and clabernetes rejects some of those values.
+3. It creates a **namespace** named `c9s-<instance name>` and a **`Topology`** resource (`topologies.c9s.run`) with the same name. Nodes are not exposed outside the cluster (`exposeType: None`); you reach them through Antimony.
+4. It **waits up to 10 minutes** for the topology to become ready. Progress (`Deployment status: 3/5 nodes ready`), pod events and image pulls appear in the lab's deployment log.
+
+You can follow along with `kubectl`:
+
+```bash
+kubectl get topologies.c9s.run -A
+kubectl -n c9s-<instance name> get pods
+```
+
+When you **stop the lab**, Antimony force-deletes the node pods and the namespace, and waits up to two minutes for it to disappear.
+
+### Node actions
+
+| Action | What Antimony does in the cluster |
+| --- | --- |
+| **Stop node** | Labels the clabernetes `Node` resource with `c9s.run/ignoreReconcile: "true"` and scales the node's Deployment to 0. |
+| **Start node** | Removes the label and scales the Deployment back to 1. |
+| **Restart node** | Deletes the node's pod; clabernetes recreates it. |
+
+### How nodes are reached
+
+Everything goes through the Kubernetes API server. Antimony never connects to pod IPs directly, so it doesn't need access to the cluster network.
+
+| Feature | Mechanism |
+| --- | --- |
+| Terminals | SSH to port 22 over `pods/portforward`, falling back to `pods/exec` with `bash` or `sh` |
+| Node logs | `pods/log` of the device container |
+| CPU, memory and interface stats | A long-running `pods/exec` that reads cgroup v2 and `/proc` |
+| Traffic capture | `packet-capture` in the pod's `clabwire` sidecar, over `pods/exec` |
+
+All of these streams pass through the API server, so its load and latency directly affect how responsive terminals and live statistics feel.
+
+## Traffic capture on clabernetes
+
+[Packet capture through Antimony's SSH server](/antimony/docs/manual/ssh-server/) works on clabernetes too, with a few differences:
+
+- Captures run inside the node pod's **`clabwire` sidecar**. Opening a capture takes a moment longer than on Docker.
+- Only the node's **lab link interfaces** can be captured, not the management or `c9s0` interfaces.
+- The sidecar limits a single capture to one hour. Antimony chains captures, so your Wireshark session keeps running without interruption.
+- Capture only works for pods created by clabernetes 0.9 or newer. Older pods return a "not supported" error.
+
+## RBAC
+
+There is no ready-made manifest yet. The kubeconfig user (or ServiceAccount) needs a **ClusterRole** with these permissions. It has to be cluster-wide, because Antimony creates namespaces and watches pods across all namespaces.
+
+```yaml title="antimony-clusterrole.yml"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: antimony
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [create, get, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, deletecollection]
+  - apiGroups: [""]
+    resources: [pods/exec, pods/portforward]
+    verbs: [create, get]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [list]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [list, watch, patch]
+  - apiGroups: [c9s.run]
+    resources: [topologies]
+    verbs: [create, get, update]
+  - apiGroups: [c9s.run]
+    resources: [nodes]
+    verbs: [patch]
+```
+
+<Aside type="note" title="Running Antimony inside the cluster">
+	The server prefers in-cluster credentials, so running it as a pod is possible in principle. There are no manifests or Helm chart for it yet. You'd need your own Deployment, persistent volumes for `storage/` and `run/`, a PostgreSQL database and a ServiceAccount bound to the ClusterRole above.
+</Aside>
+
+## Limitations
+
+- **Fixed timeouts.** Deploying times out after 10 minutes, which large images on a cold cluster can hit. Pre-pull big network OS images on the workers.
+- **No external node access.** Nodes are only reachable through Antimony's terminals and capture.
+- **Lab names.** Each lab's namespace name is derived from its topology name. Keep topology names short and lowercase so the namespace name stays valid in Kubernetes.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| Server exits with `Failed to create clabernetes client` | No usable kubeconfig in the container. Check the mount and that the API server address is reachable from the container. |
+| `topology is not supported by clabernetes: …` | The topology uses a containerlab feature clabernetes doesn't support. Remove or replace it. |
+| Deployment fails after 10 minutes | Images take too long to pull. Pre-pull them or check the pull secrets. |
+| Capture says it's not supported | The node pod wasn't created by clabernetes 0.9. Redeploy the lab after upgrading. |
+| Empty statistics or interface list | The device image lacks `sh`, `cat` or `sleep`, or the worker doesn't use cgroup v2. |

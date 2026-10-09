@@ -1,0 +1,91 @@
+---
+title: Architecture overview
+description: The parts of Antimony and how they work together.
+sidebar:
+  label: Overview
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import ArchDiagram from '../../../../components/diagrams/Architecture.astro';
+import DomainModel from '../../../../components/diagrams/DomainModel.astro';
+import zoey from '../../../../assets/zoey/plan.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey in a hard hat holding a blueprint" width={180} />
+
+Antimony is made of two applications:
+
+- **The interface** ([antimony-interface](https://github.com/antimony-team/antimony-interface)): a React single-page app. It runs in the browser, or packaged as an [Electron desktop app](/antimony/docs/deployment/desktop-app/). It has no state of its own; everything comes from the server.
+- **The server** ([antimony-backend](https://github.com/antimony-team/antimony-backend)): a Go application that stores topologies and labs, schedules and deploys labs, streams logs and statistics, and controls who can do what.
+
+The server doesn't run network nodes itself. It hands every deployment to a **deployment provider**: containerlab on the local Docker host, or clabernetes on a Kubernetes cluster.
+
+<ArchDiagram />
+
+## How the interface talks to the server
+
+| Channel | Used for |
+| --- | --- |
+| **REST** (`/api/...`) | Reading and changing data: collections, topologies, bind files, labs, devices and the containerlab schema. See the [REST API](/antimony/docs/api/rest/). |
+| **Socket.IO** (`/socket.io`) | Everything live: lab state changes, deployment and node logs, CPU and memory statistics, terminal input and output, and commands such as deploy or restart node. See [Socket.IO API](/antimony/docs/api/socket-io/). |
+| **SSH** (port 6969) | Not used by the interface itself. People connect with their own SSH client or Wireshark for [shells and packet capture](/antimony/docs/manual/ssh-server/). |
+
+In a deployment, a reverse proxy puts the interface and the server on the same origin: `/` goes to the interface, `/api` and `/socket.io` go to the server.
+
+## Inside the server
+
+The server is organised by domain. Each domain object has its own package with an entity, a repository for the database and a service with the business logic. The packages under `src/` are:
+
+| Package | Responsibility |
+| --- | --- |
+| `transport/http` | REST handlers ([gin](https://gin-gonic.com/)), request validation, the authentication middleware. |
+| `socket` | Socket.IO namespaces with authentication and backlogs, so late subscribers still see recent output. |
+| `sshserver` | The [SSH server](/antimony/docs/manual/ssh-server/) for node shells and packet capture. |
+| `domain/*` | Collections, topologies, labs, users, devices, the containerlab schema, server config and status messages. |
+| `runtime/scheduler` | Deploys labs at their start time and destroys them at their end time. |
+| `runtime/instance` | Running labs: deployment, node state, readiness checks, logs and statistics. |
+| `runtime/shell` | Browser terminals, including per-user limits and idle timeouts. |
+| `runtime/commands` | Handles commands from the interface, such as deploy lab or restart node. |
+| `deployment` | The providers: containerlab, clabernetes and dummy. |
+| `storage` | Topology files and bind files on disk, and the run directories of labs. |
+| `auth` | Login tokens, native login and OpenID Connect. |
+| `config` | Loading the [configuration](/antimony/docs/deployment/configuration/). |
+
+Services publish lab events (`lab.created`, `lab.moved`, `lab.deleted`, `lab.manually-deployed`, `lab.restored`) on an internal event bus. The scheduler listens to them to keep its queues up to date.
+
+## The domain
+
+<DomainModel />
+
+- A **collection** groups topologies. Access to a collection comes from the user's OpenID groups. See [permissions](/antimony/docs/deployment/authentication/#permissions).
+- A **topology** is a [containerlab topology definition](https://containerlab.dev/manual/topo-def-file/) plus its **bind files**, such as startup configurations.
+- A **lab** is a deployment of a topology with a start and end time. Several labs can be created from the same topology.
+- While a lab is deployed, it has an **instance** with a state and a list of **nodes**. Instances aren't stored in the database. When the server starts, it asks the provider which labs are still running and rebuilds their instances (see [lab lifecycle](/antimony/docs/architecture/lab-lifecycle/)).
+
+## Files on disk
+
+```
+storage/
+  <topology id>/
+    topology.clab.yaml        the topology definition
+    configs/r1.conf           bind files, by relative path
+run/
+  <lab id>/
+    topology.clab.yaml        copy, renamed to the instance name
+    configs/r1.conf           copies of the bind files
+    clab-<instance name>/     created by containerlab
+```
+
+When you create a lab, Antimony copies the topology's directory into a new run directory and sets the topology `name` to the lab's **instance name**. containerlab requires unique lab names, so every lab gets one of its own: the topology name followed by 12 random hex characters, for example `ospf-multiarea-3f9c2a1b7d4e`.
+
+Because each lab has its own copy, editing a topology never changes labs that already exist.
+
+Bind file paths must be relative and stay inside the topology directory. Absolute paths and `..` are rejected.
+
+## Data storage
+
+The server stores its data in **PostgreSQL**, or in a **SQLite** file when started with `-sqlite`, through the [GORM](https://gorm.io/) library. Topology definitions and bind files are stored as files in the storage directory, not in the database.
+
+<Aside type="note">
+	Instances, node states, open terminals and the log backlogs are kept in memory. They're rebuilt or start empty after a restart. Logs from before a restart aren't kept.
+</Aside>

@@ -1,0 +1,1663 @@
+{
+	"swagger": "2.0",
+	"info": {
+		"title": "Antimony API",
+		"contact": {
+			"name": "Institute for Networking at OST",
+			"url": "https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security",
+			"email": "antimony@network.garden"
+		},
+		"version": "1.0"
+	},
+	"basePath": "/api",
+	"paths": {
+		"/collections": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"collections"
+				],
+				"summary": "Retrieve all collections the user has access to",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-array_transport_CollectionOut"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"post": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"collections"
+				],
+				"summary": "Create a new collection",
+				"parameters": [
+					{
+						"description": "The collection",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/collection.CollectionIn"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The ID of the newly created collection",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-string"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/collections/{id}": {
+			"delete": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"collections"
+				],
+				"summary": "Delete an existing collection",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "The ID of the collection to edit",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"collections"
+				],
+				"summary": "Update an existing collection",
+				"parameters": [
+					{
+						"description": "A partial collection with updated values",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/collection.CollectionInPartial"
+						}
+					},
+					{
+						"type": "string",
+						"description": "The ID of the collection to edit",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/config": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "Get the server configuration",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-array_serverconfig_ServerConfig"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "The user doesn't have access to the resource",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/devices": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"devices"
+				],
+				"summary": "Get all device configurations",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-array_device_DeviceConfig"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "The user doesn't have access to the resource",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/labs": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"labs"
+				],
+				"summary": "Get all labs",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-array_transport_LabOut"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"post": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"labs"
+				],
+				"summary": "Create a new lab",
+				"parameters": [
+					{
+						"description": "The lab",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/lab.LabIn"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The ID of the newly created lab",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-string"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/labs/:labId": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"labs"
+				],
+				"summary": "Get a specific lab by UUIDp",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-transport_LabOut"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"404": {
+						"description": "The requested lab was not found.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/labs/{id}": {
+			"put": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"labs"
+				],
+				"summary": "Update an existing lab",
+				"parameters": [
+					{
+						"description": "The lab with updated values",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/lab.LabIn"
+						}
+					},
+					{
+						"type": "string",
+						"description": "The ID of the lab to edit",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"delete": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"labs"
+				],
+				"summary": "Delete an existing lab",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "The ID of the lab to delete",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/schema": {
+			"get": {
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"schema"
+				],
+				"summary": "Returns the JSON schema to validate topology definitions",
+				"responses": {
+					"200": {
+						"description": "The schema as JSON object",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-any"
+						}
+					}
+				}
+			}
+		},
+		"/topologies": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"topologies"
+				],
+				"summary": "Get all topologies",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-array_transport_TopologyOut"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"post": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"topologies"
+				],
+				"summary": "Create a new topology",
+				"parameters": [
+					{
+						"description": "The topology",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/topology.TopologyIn"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The ID of the newly created collection",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-string"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/topologies/:topologyId": {
+			"get": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"topologies"
+				],
+				"summary": "Get a specific topology by UUID",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-transport_TopologyOut"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"404": {
+						"description": "The requested topology was not found.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/topologies/{id}": {
+			"delete": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"topologies"
+				],
+				"summary": "Delete an existing topology",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "The ID of the topology to delete",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"topologies"
+				],
+				"summary": "Update an existing topology",
+				"parameters": [
+					{
+						"description": "The topology with updated values",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/topology.TopologyIn"
+						}
+					},
+					{
+						"type": "string",
+						"description": "The ID of the topology to edit",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/topologies/{topologyId}/files": {
+			"post": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"bindFiles"
+				],
+				"summary": "Create a new bind file for a topology",
+				"parameters": [
+					{
+						"description": "The bind file",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/topology.BindFileIn"
+						}
+					},
+					{
+						"type": "string",
+						"description": "The ID of the topology the bind file should belong to",
+						"name": "topologyId",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The ID of the newly created file",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-string"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/topologies/{topologyId}/files/{bindFileId}": {
+			"delete": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"bindFiles"
+				],
+				"summary": "Delete an existing bind file of a topology",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "The ID of the topology the bind file belongs to",
+						"name": "topologyId",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "The ID of the bind file to delete",
+						"name": "bindFileId",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"bindFiles"
+				],
+				"summary": "Update an existing bind file of a topology",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "The ID of the topology the bind file belongs to",
+						"name": "topologyId",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "The ID of the bind file to edit",
+						"name": "bindFileId",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "Access to the resource was denied. Details in the request body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"422": {
+						"description": "The request was invalid. Details in the response body.",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/users": {
+			"post": {
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"users"
+				],
+				"summary": "Create a non-admin native user (development mode only)",
+				"parameters": [
+					{
+						"description": "The user",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/user.NativeUserIn"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The ID of the newly created user",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-string"
+						}
+					},
+					"400": {
+						"description": "The credentials were empty or the username is taken",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"401": {
+						"description": "The user isn't authorized"
+					},
+					"403": {
+						"description": "The user is not an admin",
+						"schema": {
+							"$ref": "#/definitions/utils.ErrorResponse"
+						}
+					},
+					"498": {
+						"description": "The provided access token is not valid"
+					}
+				}
+			}
+		},
+		"/users/login/config": {
+			"get": {
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"users"
+				],
+				"summary": "Get the server's authentication config",
+				"responses": {
+					"200": {
+						"description": "The authentication config of the server",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+						}
+					}
+				}
+			}
+		},
+		"/users/login/native": {
+			"post": {
+				"consumes": [
+					"application/json"
+				],
+				"tags": [
+					"users"
+				],
+				"summary": "Authenticate via native login",
+				"parameters": [
+					{
+						"description": "The native credentials",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/user.CredentialsIn"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"400": {
+						"description": "The provided credentials were invalid"
+					},
+					"401": {
+						"description": "Authentication via native login is disabled"
+					}
+				}
+			}
+		},
+		"/users/login/openid": {
+			"get": {
+				"consumes": [
+					"application/json"
+				],
+				"tags": [
+					"users"
+				],
+				"summary": "Authenticate via OpenID provider. Redirects the client to the OpenID provider page.",
+				"responses": {
+					"302": {
+						"description": "Found"
+					},
+					"401": {
+						"description": "Authentication via OpenID is disabled"
+					}
+				}
+			}
+		},
+		"/users/login/refresh": {
+			"get": {
+				"tags": [
+					"users"
+				],
+				"summary": "Refresh the access token",
+				"responses": {
+					"200": {
+						"description": "The authentication config of the server",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+						}
+					},
+					"401": {
+						"description": "The auth token cookie is not set"
+					},
+					"403": {
+						"description": "The provided auth token was invalid"
+					}
+				}
+			}
+		},
+		"/users/logout": {
+			"post": {
+				"tags": [
+					"users"
+				],
+				"summary": "Logout and clear all authentication cookies",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			}
+		}
+	},
+	"definitions": {
+		"auth.AuthConfig": {
+			"type": "object",
+			"properties": {
+				"native": {
+					"$ref": "#/definitions/auth.NativeAuthConfig"
+				},
+				"openId": {
+					"$ref": "#/definitions/auth.OpenIdAuthConfig"
+				}
+			}
+		},
+		"auth.NativeAuthConfig": {
+			"type": "object",
+			"properties": {
+				"allowEmpty": {
+					"type": "boolean"
+				},
+				"enabled": {
+					"type": "boolean"
+				}
+			}
+		},
+		"auth.OpenIdAuthConfig": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				}
+			}
+		},
+		"collection.CollectionIn": {
+			"type": "object",
+			"required": [
+				"name",
+				"publicDeploy",
+				"publicWrite"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"publicDeploy": {
+					"type": "boolean"
+				},
+				"publicWrite": {
+					"type": "boolean"
+				}
+			}
+		},
+		"collection.CollectionInPartial": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"publicDeploy": {
+					"type": "boolean"
+				},
+				"publicWrite": {
+					"type": "boolean"
+				}
+			}
+		},
+		"deployment.NodeInterface": {
+			"type": "object",
+			"properties": {
+				"address": {
+					"type": "string"
+				},
+				"mtu": {
+					"type": "integer"
+				},
+				"name": {
+					"type": "string"
+				},
+				"state": {
+					"type": "string"
+				}
+			}
+		},
+		"deployment.NodeState": {
+			"type": "integer",
+			"enum": [
+				0,
+				1,
+				2,
+				3
+			],
+			"x-enum-varnames": [
+				"stopped",
+				"starting",
+				"running",
+				"stopping"
+			]
+		},
+		"device.DeviceConfig": {
+			"type": "object",
+			"properties": {
+				"interfacePattern": {
+					"type": "string"
+				},
+				"interfaceStart": {
+					"type": "integer"
+				},
+				"kind": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"instance.InstanceNode": {
+			"type": "object",
+			"properties": {
+				"canRestart": {
+					"description": "CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.",
+					"type": "boolean"
+				},
+				"containerId": {
+					"description": "ContainerId is the globally unique identifier for the container running the node.\n\nWith containerlab as the deployment provider, this is the node's docker container ID.\nWith clabernetes as the deployment provider, this is the node's pod UID.\n\nLeft empty if the node is currently not running.",
+					"type": "string"
+				},
+				"containerName": {
+					"description": "ContainerName is the name of the container running the node. Currently unused outside of display purposes.\n\nWith containerlab as the deployment provider, this is the node's docker container name.\nWith clabernetes as the deployment provider, this is equal to the node's name.\n\nLeft empty if the node is currently not running.",
+					"type": "string"
+				},
+				"interfaces": {
+					"description": "Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.\nLeft empty if the node is currently not running.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/deployment.NodeInterface"
+					}
+				},
+				"ipv4": {
+					"description": "IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.\n\nLeft empty if the node is currently not running or there is no IPv4 or IPv6 address assigned.",
+					"type": "string"
+				},
+				"ipv6": {
+					"type": "string"
+				},
+				"isReady": {
+					"description": "IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.\nThis is initially set to false and set to true once the node's startup listener succeeded.",
+					"type": "boolean"
+				},
+				"kind": {
+					"description": "Kind is the type of the node as defined in the topology file.",
+					"type": "string"
+				},
+				"name": {
+					"description": "Name is the name of the node as defined in the topology file.",
+					"type": "string"
+				},
+				"state": {
+					"description": "State is the current state of the node.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/deployment.NodeState"
+						}
+					]
+				}
+			}
+		},
+		"instance.InstanceState": {
+			"type": "integer",
+			"enum": [
+				0,
+				1,
+				2,
+				3,
+				-1,
+				-2
+			],
+			"x-enum-varnames": [
+				"deploying",
+				"running",
+				"stopping",
+				"failed",
+				"inactive",
+				"scheduled"
+			]
+		},
+		"lab.LabIn": {
+			"type": "object",
+			"required": [
+				"name",
+				"startTime",
+				"topologyId"
+			],
+			"properties": {
+				"endTime": {
+					"description": "EndTime is deliberately optional. A lab created without one runs indefinitely.",
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"startTime": {
+					"type": "string"
+				},
+				"topologyId": {
+					"type": "string"
+				}
+			}
+		},
+		"serverconfig.CaptureConfig": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"excludedInterfaces": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"serverconfig.DeploymentConfig": {
+			"type": "object",
+			"properties": {
+				"provider": {
+					"type": "string"
+				}
+			}
+		},
+		"serverconfig.SSHConfig": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"port": {
+					"type": "integer"
+				}
+			}
+		},
+		"serverconfig.ServerConfig": {
+			"type": "object",
+			"properties": {
+				"capture": {
+					"$ref": "#/definitions/serverconfig.CaptureConfig"
+				},
+				"deployment": {
+					"$ref": "#/definitions/serverconfig.DeploymentConfig"
+				},
+				"ssh": {
+					"$ref": "#/definitions/serverconfig.SSHConfig"
+				}
+			}
+		},
+		"topology.BindFileIn": {
+			"type": "object",
+			"required": [
+				"content",
+				"filePath"
+			],
+			"properties": {
+				"content": {
+					"type": "string"
+				},
+				"filePath": {
+					"type": "string"
+				}
+			}
+		},
+		"topology.TopologyIn": {
+			"type": "object",
+			"required": [
+				"collectionId",
+				"definition",
+				"syncUrl"
+			],
+			"properties": {
+				"collectionId": {
+					"type": "string"
+				},
+				"definition": {
+					"type": "string"
+				},
+				"syncUrl": {
+					"type": "string"
+				}
+			}
+		},
+		"transport.BindFileOut": {
+			"type": "object",
+			"properties": {
+				"content": {
+					"type": "string"
+				},
+				"filePath": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"topologyId": {
+					"type": "string"
+				}
+			}
+		},
+		"transport.CollectionOut": {
+			"type": "object",
+			"properties": {
+				"creator": {
+					"$ref": "#/definitions/transport.UserOut"
+				},
+				"id": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"publicDeploy": {
+					"type": "boolean"
+				},
+				"publicWrite": {
+					"type": "boolean"
+				}
+			}
+		},
+		"transport.InstanceOut": {
+			"type": "object",
+			"properties": {
+				"deployed": {
+					"type": "string"
+				},
+				"isRecovered": {
+					"type": "boolean"
+				},
+				"latestStateChange": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"nodes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/instance.InstanceNode"
+					}
+				},
+				"state": {
+					"$ref": "#/definitions/instance.InstanceState"
+				}
+			}
+		},
+		"transport.LabOut": {
+			"type": "object",
+			"properties": {
+				"collectionId": {
+					"type": "string"
+				},
+				"creator": {
+					"$ref": "#/definitions/transport.UserOut"
+				},
+				"endTime": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"instance": {
+					"allOf": [
+						{
+							"$ref": "#/definitions/transport.InstanceOut"
+						}
+					],
+					"x-nullable": true
+				},
+				"name": {
+					"type": "string"
+				},
+				"startTime": {
+					"type": "string"
+				},
+				"topologyDefinition": {
+					"type": "string"
+				},
+				"topologyId": {
+					"type": "string"
+				}
+			}
+		},
+		"transport.TopologyOut": {
+			"type": "object",
+			"properties": {
+				"bindFiles": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/transport.BindFileOut"
+					}
+				},
+				"collectionId": {
+					"type": "string"
+				},
+				"creator": {
+					"$ref": "#/definitions/transport.UserOut"
+				},
+				"definition": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastDeployFailed": {
+					"type": "boolean"
+				},
+				"syncUrl": {
+					"type": "string"
+				}
+			}
+		},
+		"transport.UserOut": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"user.CredentialsIn": {
+			"type": "object",
+			"properties": {
+				"password": {
+					"type": "string"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
+		},
+		"user.NativeUserIn": {
+			"type": "object",
+			"required": [
+				"password",
+				"username"
+			],
+			"properties": {
+				"collections": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"password": {
+					"type": "string"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
+		},
+		"utils.ErrorResponse": {
+			"type": "object",
+			"properties": {
+				"code": {
+					"type": "integer"
+				},
+				"message": {
+					"type": "string"
+				}
+			}
+		},
+		"utils.OkResponse-any": {
+			"type": "object",
+			"properties": {
+				"payload": {}
+			}
+		},
+		"utils.OkResponse-array_device_DeviceConfig": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/device.DeviceConfig"
+					}
+				}
+			}
+		},
+		"utils.OkResponse-array_serverconfig_ServerConfig": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/serverconfig.ServerConfig"
+					}
+				}
+			}
+		},
+		"utils.OkResponse-array_transport_CollectionOut": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/transport.CollectionOut"
+					}
+				}
+			}
+		},
+		"utils.OkResponse-array_transport_LabOut": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/transport.LabOut"
+					}
+				}
+			}
+		},
+		"utils.OkResponse-array_transport_TopologyOut": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/transport.TopologyOut"
+					}
+				}
+			}
+		},
+		"utils.OkResponse-auth_AuthConfig": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"$ref": "#/definitions/auth.AuthConfig"
+				}
+			}
+		},
+		"utils.OkResponse-string": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"type": "string"
+				}
+			}
+		},
+		"utils.OkResponse-transport_LabOut": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"$ref": "#/definitions/transport.LabOut"
+				}
+			}
+		},
+		"utils.OkResponse-transport_TopologyOut": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"$ref": "#/definitions/transport.TopologyOut"
+				}
+			}
+		}
+	},
+	"securityDefinitions": {
+		"BasicAuth": {
+			"type": "basic"
+		}
+	},
+	"host": "antimony.example.com",
+	"schemes": [
+		"https"
+	]
+}

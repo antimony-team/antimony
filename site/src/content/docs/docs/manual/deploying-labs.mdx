@@ -1,0 +1,80 @@
+---
+title: Deploying and scheduling labs
+description: Start labs right away or schedule them, alone or a whole class at once.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import deployDialog from '../../../../assets/screenshots/antimony-deploy-dialog.png';
+
+A **lab** is a running copy of a topology with a start and an end time. You can create as many labs from a topology as you like, for example one per student.
+
+## Creating a lab
+
+Open the deploy dialog in one of these ways:
+
+- **New lab** on the dashboard
+- **Deploy** in the topology editor's toolbar
+- the **▶** button or **Deploy** menu entry next to a topology in the editor's explorer
+
+<figure class="shot">
+	<Image src={deployDialog} alt="The Deploy topology dialog in Multiple labs mode, creating five labs named OSPF Lab 1 to 5" width={700} />
+	<figcaption>Creating five labs at once with "Multiple labs".</figcaption>
+</figure>
+
+| Field | Description |
+| --- | --- |
+| **Lab name** | Must be unique within the collection and can't contain `/`. |
+| **Topology** | The topology to deploy, grouped by collection. |
+| **Start time** | When Antimony deploys the lab. Defaults to now. |
+| **End time** | When Antimony destroys the lab again. Defaults to two hours from now. |
+
+Click **Deploy**. If the start time is now or in the past, the lab is deployed right away. Otherwise it's scheduled and appears under **Scheduled** on the dashboard.
+
+You need permission to deploy from the topology's collection: you're an administrator, or the collection has **Anyone can deploy** turned on.
+
+<Aside type="note">
+	A lab is a snapshot of its topology at the moment you create it. Later changes to the topology don't affect existing labs.
+</Aside>
+
+## Creating labs for a whole class
+
+Switch the dialog to **Multiple labs** to create between 2 and 50 labs from the same topology in one go, with the same start and end time.
+
+1. Enter a **Base name**, for example `OSPF Lab`, and the number of **Instances**.
+2. The **Names** list fills with `OSPF Lab 1`, `OSPF Lab 2`, and so on. Rename any of them, for example to the students' names. Paste a list of names, one per line, into a field to fill it and the fields below it.
+3. Click **Deploy N labs**.
+
+Every lab needs a different name.
+
+## Changing or rescheduling a lab
+
+Labs that haven't started yet can be moved to another time. Open the [lab schedule](#the-lab-schedule) and click the lab to open **Edit lab**. Antimony then deploys and destroys it at the new times.
+
+## Starting, stopping and redeploying
+
+The creator of a lab and administrators can control it from the [lab view](/antimony/docs/manual/lab-view/):
+
+| Action | What happens |
+| --- | --- |
+| **Deploy** | Deploys a scheduled or inactive lab now. If the lab's end time has already passed, Antimony removes it, so the lab runs until you destroy it. |
+| **Redeploy** | Deploys a running or failed lab again, from the same files. |
+| **Destroy** | Removes the lab's nodes. The lab becomes inactive. |
+
+Destroying asks for confirmation.
+
+## The lab schedule
+
+**Lab Schedule** (the calendar in the top bar) shows all labs with an end time as events. Switch between **Month**, **Week** and **Agenda** views, and use **Today** to jump back. Click a day to see that week.
+
+Scheduled labs, marked with a pen icon, can be clicked to edit and reschedule them.
+
+## When a deployment fails
+
+The lab moves to **Failed** and its card turns red. Open the lab and click **View logs** to see what went wrong in the deployment log. Common causes:
+
+- an image that can't be pulled, because it doesn't exist or needs registry credentials
+- an invalid topology for the provider, for example features clabernetes doesn't support
+- a bind file path that doesn't exist
+
+Fix the topology, then either **Redeploy** the failed lab, if the problem was outside the topology, or destroy it and create a new lab.

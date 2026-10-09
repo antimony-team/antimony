@@ -1,0 +1,172 @@
+---
+title: SSH server and packet capture
+description: Open shells on lab nodes and stream interface traffic into Wireshark through Antimony's built-in SSH server.
+sidebar:
+  label: SSH server & capture
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import SshDiagram from '../../../../components/diagrams/SshServer.astro';
+import { Image } from 'astro:assets';
+import zoey from '../../../../assets/zoey/traffic.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey inspecting HTTP, TCP, UDP and ICMP traffic with a magnifying glass" width={170} />
+
+Next to the web interface, the Antimony server runs its own SSH server. It does two things:
+
+- **Shells.** Connect to any node of a running lab from your own terminal, without knowing the node's address or setting up keys on it.
+- **Packet capture.** Stream the traffic of any node interface to your machine as a pcap stream. Pipe it into Wireshark to watch the lab live, or into a file to analyse later.
+
+You don't connect to the node itself. You connect to Antimony and tell it which node you want through the SSH **username**. Antimony then finds the node, whether it runs on the local Docker host or in a Kubernetes cluster.
+
+<SshDiagram />
+
+<Aside type="danger" title="Keep the SSH port on a trusted network">
+	The SSH server currently does **not authenticate clients** and does **not check collection permissions**. Anyone who can reach the port can open a shell on, or capture traffic from, any node of any running lab.
+
+	Only expose the port on a network you trust, or restrict it with a firewall. Don't publish it to the internet.
+</Aside>
+
+## Connecting
+
+The server listens on `ssh.sshHost` and `ssh.sshPort` from the [configuration](/antimony/docs/deployment/configuration/#ssh). If your config doesn't set a port, the server uses **6969**. The examples on this page use `antimony.example.com` and port 6969.
+
+### Choosing a node
+
+The username tells Antimony which node to use. Pick whichever form is most convenient:
+
+| Username | Example | Notes |
+| --- | --- | --- |
+| `<container ID>` | `94bc21e92ee9…` | The node's full container ID, as shown in the node panel. On clabernetes, this is the pod UID. |
+| `<lab ID>/<node>` | `76b18526-e72f-4f46-837c-f7767ede8645/alpine1` | The lab's UUID, shown in the lab info panel. |
+| `<instance name>/<node>` | `linux-b3b368e042c3/alpine1` | The lab's instance name, also shown in the lab info panel. This isn't the lab's display name. |
+| `<collection>/<lab name>/<node>` | `testing/OSPF Lab 1/r1` | The most readable form. Lab names may contain spaces, so pass this one with `-l`. |
+
+The lab must be running.
+
+### Opening a shell
+
+Connect **without a command** to get an interactive shell on the node. A terminal is required, so pass `-t`:
+
+```bash
+ssh -t -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com
+
+# Usernames with spaces
+ssh -t -p 6969 -l "testing/OSPF Lab 1/r1" antimony.example.com
+```
+
+Antimony opens the shell the same way as the [browser terminal](/antimony/docs/manual/lab-view/#terminals): it first logs in to the node over SSH on port 22, using the username and password from [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, for example on a plain Linux container without an SSH daemon, it falls back to `bash` or `sh` inside the container.
+
+Terminal resizes are passed through. When you exit the node's shell, the SSH session ends.
+
+<Aside type="note">
+	Shells opened through the SSH server don't count towards the per-user limit and don't close on idle. Those limits (`shell.userLimit`, `shell.timeout`) only apply to browser terminals.
+</Aside>
+
+### Capturing traffic
+
+Connect **with a command** to capture traffic. The command names the interface:
+
+```bash
+# Watch live in Wireshark
+ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 | wireshark -k -i -
+
+# Save to a file
+ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 > alpine1-eth1.pcap
+
+# Read with tcpdump
+ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 | tcpdump -n -r -
+```
+
+You don't have to type these. In the [lab view](/antimony/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands in the `<collection>/<lab name>/<node>` form, for example:
+
+```bash
+ssh testing/dsfsfdf/alpine1@antimony.example.com -p 6969 eth1 | wireshark -k -i -
+```
+
+The host is the one you opened Antimony with, and `-p` is left out when the server uses port 22.
+
+<Aside type="caution">
+	The copied command doesn't quote the username. If the lab name contains spaces, wrap the username in quotes or use `-l "…"` before running it.
+</Aside>
+
+#### Accepted commands
+
+The command is either just the interface name, or a `tcpdump` command line. This means tools that run `tcpdump` remotely also work, such as Wireshark's built-in **SSH remote capture** (sshdump), whose default command is `sudo tcpdump -U -i <interface> -w -`.
+
+| Command | Result |
+| --- | --- |
+| `eth1` | Captures `eth1` |
+| `tcpdump -i eth1 -w -` | Captures `eth1` |
+| `sudo tcpdump -U -i eth1 -w -` | Captures `eth1`. A leading `sudo` is ignored. |
+| `tcpdump -nUi eth1` or `tcpdump --interface=eth1` | Captures `eth1` |
+| `tcpdump -i eth1 port 179` | Captures **all** traffic on `eth1`. Filters are ignored. |
+| `ls` | Fails: Antimony tries to capture an interface called `ls`. |
+
+Only the interface option is read; every other `tcpdump` option and any filter expression is ignored. To filter, apply a display filter in Wireshark, or pipe the stream through `tcpdump -r - <filter>` locally.
+
+#### What you receive
+
+- A standard **pcap stream** (Ethernet link type, snapshot length 65 536 bytes), starting with a pcap file header. Any tool that reads pcap from standard input works.
+- **Shared captures.** If several people watch the same interface, Antimony captures it only once and sends a copy to everyone. The capture stops when the last viewer disconnects.
+- **No back-pressure.** Each viewer has a buffer of 1 024 packets. If your connection can't keep up, packets are dropped for you instead of slowing down the capture for others.
+- **Long-running.** The capture continues until you disconnect, the node stops or the server shuts down. Antimony checks every 10 seconds whether your session is still alive, so `ssh -n` and other sessions without input keep running.
+
+#### How it works per provider
+
+<Tabs>
+	<TabItem label="containerlab">
+		Antimony opens a raw packet socket (`AF_PACKET`) inside the node container's network namespace. This is why the Antimony server needs to run on the same host as the containers, with host PID visibility and elevated privileges (the `privileged` and `pid: host` settings in the [Docker deployment](/antimony/docs/deployment/docker/)).
+	</TabItem>
+	<TabItem label="clabernetes">
+		Antimony runs the packet capture tool of the pod's `clabwire` sidecar through the Kubernetes API. Only the node's lab link interfaces can be captured. The sidecar limits single captures to one hour; Antimony chains them so your stream keeps going. See [traffic capture on clabernetes](/antimony/docs/deployment/clabernetes/#traffic-capture-on-clabernetes).
+	</TabItem>
+</Tabs>
+
+## Excluded interfaces
+
+`capture.excludedInterfaces` lists interface names that Antimony hides from the interface list and statistics in the UI, such as `lo`, management interfaces and the clabernetes underlay `c9s0`. Entries are glob patterns (`mgmt0*`).
+
+<Aside type="caution">
+	The exclusion list only hides interfaces in the interface. It doesn't stop anyone from capturing an excluded interface over SSH by name.
+</Aside>
+
+## Host key
+
+On its first start, the server generates an Ed25519 host key at `ssh.sshKeyPath` (default `./key`, which is `/app/key` in the Docker image). If you don't keep that file, a new container generates a new key and SSH clients warn that the host key changed.
+
+Keep the key across restarts and upgrades by storing it on a volume.
+
+Mounting a directory is the easiest way to do this. Point `ssh.sshKeyPath` at a file inside it and the server creates the key there on the first start:
+
+```yaml title="config.yml"
+ssh:
+  sshKeyPath: ./ssh/host_key
+```
+
+```yaml title="docker-compose.yml"
+services:
+  server:
+    volumes:
+      - ./mnt/ssh:/app/ssh
+```
+
+## Enabling and disabling
+
+`ssh.enabled` and `capture.enabled` control whether the interface shows terminal and capture features that rely on the SSH server. In the current version, the SSH server **always starts**, regardless of these settings. To make sure it can't be reached, block the port in your firewall.
+
+## Errors
+
+The server writes errors to standard error and exits with code `2` for usage errors or `1` for other failures.
+
+| Message | Meaning |
+| --- | --- |
+| `invalid node "…", expected …` | The username has an unknown format. Use one of the [node identifiers](#choosing-a-node). |
+| `unable to connect to node: the specified node was not found` | No running node matches the username. Check the lab ID or names and the node name. |
+| `unable to connect to node: the specified lab is not running` | The lab exists but isn't deployed. |
+| `a terminal is required for a shell, connect with ssh -t` | You asked for a shell without a terminal. Add `-t`. |
+| `missing interface to capture` | The command was empty. |
+| `unexpected arguments [...], expected an interface name or a tcpdump command` | The command has several words but isn't a `tcpdump` command. |
+| `the tcpdump command has no interface (-i)` | Add `-i <interface>`. |
+| `node <lab>/<node> is not running` | The node is stopped. Start it from the lab view first. |
+| `failed to capture <interface> on <lab>/<node>: …` | The interface doesn't exist or the provider refused the capture. On clabernetes, only link interfaces can be captured. |

@@ -1,0 +1,83 @@
+---
+title: Authentication flow
+description: How Antimony signs users in, issues tokens and authorises requests.
+---
+
+import Sequence from '../../../../components/diagrams/Sequence.astro';
+
+Antimony uses two JSON Web Tokens, signed with HS256 and the secret in `SB_JWT_SECRET`:
+
+| Token | Cookie | Lifetime | Contents | Readable by the interface |
+| --- | --- | --- | --- | --- |
+| **Refresh token** | `authToken` | 30 days | user ID | No (HttpOnly) |
+| **Access token** | `accessToken` | 30 minutes | user ID, admin flag | Yes |
+
+Only the access token grants access to resources. The refresh token's only purpose is to get a new access token. That way the long-lived token is never exposed to scripts in the page, and a leaked access token expires quickly.
+
+How you obtain the refresh token depends on the login method. Everything after that is the same.
+
+## Native login
+
+<Sequence
+	title="Native login"
+	participants={['Interface', 'Antimony server']}
+	messages={[
+		{ from: 0, to: 1, label: 'POST /users/login/native' },
+		{ from: 1, to: 1, label: 'check credentials' },
+		{ from: 1, to: 0, label: 'set authToken, accessToken', reply: true },
+	]}
+	caption="The native admin account signs in with the credentials from the server's environment."
+/>
+
+The server compares the username and password with `SB_NATIVE_USERNAME` and `SB_NATIVE_PASSWORD` and sets both cookies.
+
+## OpenID Connect
+
+<Sequence
+	title="OpenID Connect login"
+	participants={['Browser', 'Antimony server', 'OpenID provider']}
+	messages={[
+		{ from: 0, to: 1, label: 'GET /users/login/openid' },
+		{ from: 1, to: 0, label: 'redirect to provider', reply: true },
+		{ from: 0, to: 2, label: 'sign in' },
+		{ from: 2, to: 0, label: 'redirect with code', reply: true },
+		{ from: 0, to: 1, label: 'GET /users/login/success' },
+		{ from: 1, to: 2, label: 'exchange code' },
+		{ from: 1, to: 2, label: 'read userinfo' },
+		{ from: 1, to: 1, label: 'create or update user' },
+		{ from: 1, to: 0, label: 'set cookies, redirect back', reply: true },
+	]}
+	caption="The server handles the whole OpenID exchange. The provider's tokens never reach the browser."
+/>
+
+1. The interface sends the browser to `/users/login/openid`. The server remembers the page you came from and redirects to the provider.
+2. After you sign in, the provider redirects to `/users/login/success` with an authorization code.
+3. The server exchanges the code for a token and reads `sub`, `email` and `groups` from the provider's userinfo endpoint.
+4. It creates or updates the user, sets `authToken`, `accessToken` and `authOidc`, and redirects back to the page you came from.
+
+The `groups` claim decides two things: whether the user is an administrator (`auth.openIdAdminGroups`) and which collections they can access (groups with the same name as a collection). See [permissions](/antimony/docs/deployment/authentication/#permissions).
+
+## Using and refreshing the access token
+
+<Sequence
+	title="Token refresh"
+	participants={['Interface', 'Antimony server']}
+	messages={[
+		{ from: 0, to: 1, label: 'request with accessToken' },
+		{ from: 1, to: 0, label: '498 Invalid Token', reply: true },
+		{ from: 0, to: 1, label: 'GET /users/login/refresh' },
+		{ from: 1, to: 0, label: 'new accessToken', reply: true },
+		{ from: 0, to: 1, label: 'retry the request' },
+	]}
+/>
+
+- **REST requests** are authenticated with the `accessToken` cookie. A missing cookie gives `401`; an invalid or expired token gives `498`.
+- **Socket.IO connections** pass the access token in the handshake as `auth: { token: "<access token>" }`. All namespaces require it.
+- **Logging out** (`POST /users/logout`) clears all three cookies.
+- If the user signed in with OpenID (the `authOidc` cookie is set) and the refresh token is no longer valid, the interface sends them through the OpenID login again.
+
+## After a server restart
+
+The server keeps signed-in users in memory. After a restart, OpenID users are recognised again on their next login. The native admin account is recreated at startup.
+
+Tokens survive a restart only if `SB_JWT_SECRET` is set. Without it, the server generates a new secret at every start, and every existing token becomes invalid.

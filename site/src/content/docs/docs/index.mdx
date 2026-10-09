@@ -1,0 +1,40 @@
+---
+title: Introduction
+description: What Antimony is, who it's for and where to start.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import zoey from '../../../assets/zoey/laptop.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey working on a laptop" width={170} />
+
+Antimony is an open-source platform for designing, deploying and operating network labs. It builds on [containerlab](https://containerlab.dev): you describe a network as a containerlab topology, and Antimony turns it into running routers, switches and hosts, either on a single Docker host or on a Kubernetes cluster with [clabernetes](https://containerlab.dev/manual/clabernetes/).
+
+Everything happens in the browser:
+
+- **Design** topologies in a graph editor or in YAML, side by side.
+- **Deploy** labs right away or schedule them, one at a time or for a whole class.
+- **Operate** them: open terminals on nodes, follow logs, watch CPU, memory and interface traffic, and stream packets into Wireshark.
+- **Share** them: organise topologies in collections and control who can see, change and deploy them through your organisation's login.
+
+Antimony was started as a bachelor's thesis at the [OST Eastern Switzerland University of Applied Sciences](https://www.ost.ch) and is maintained by its [Institute for Networking](https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security). It's used to teach networking: students get their own labs, and instructors prepare topologies once and deploy them for everyone.
+
+## Where to start
+
+<CardGrid>
+	<LinkCard title="Quick start" href="/antimony/docs/getting-started/quick-start/" description="Run Antimony on your machine and deploy a first lab." />
+	<LinkCard title="Concepts" href="/antimony/docs/getting-started/concepts/" description="Collections, topologies, labs and nodes." />
+	<LinkCard title="Deploy with Docker" href="/antimony/docs/deployment/docker/" description="Set up Antimony for your team or class." />
+	<LinkCard title="User manual" href="/antimony/docs/manual/dashboard/" description="Everything the interface can do." />
+</CardGrid>
+
+## Repositories
+
+| Repository | Contents |
+| --- | --- |
+| [antimony-team/antimony](https://github.com/antimony-team/antimony) | This documentation and example deployment files |
+| [antimony-team/antimony-backend](https://github.com/antimony-team/antimony-backend) | The Antimony server, written in Go |
+| [antimony-team/antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and desktop app, written in React and TypeScript |
+
+Found a bug or have an idea? Open an issue in the repository it belongs to. Antimony is released under the MIT license.

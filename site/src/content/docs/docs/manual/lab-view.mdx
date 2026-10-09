@@ -1,0 +1,118 @@
+---
+title: Working with a lab
+description: Watch a running lab, open terminals, read logs and capture traffic.
+sidebar:
+  label: Lab view
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import labView from '../../../../assets/screenshots/antimony-lab-view.png';
+import terminal from '../../../../assets/screenshots/antimony-terminal.png';
+import logs from '../../../../assets/screenshots/antimony-logs.png';
+
+Click a lab on the dashboard to open the **lab view**: the live topology of the lab, with everything you need to work with its nodes.
+
+<figure class="shot">
+	<Image src={labView} alt="The lab view: lab details in the top left, the live topology in the middle and the node panel with CPU, memory and interface charts on the right" />
+	<figcaption>A running lab with the node panel open.</figcaption>
+</figure>
+
+## The header
+
+The header shows the collection and lab name, the state, how long the lab has been running, when it ends (or "indefinitely") and who created it.
+
+| Button | What it does |
+| --- | --- |
+| **View logs** | Opens the [logs window](#logs). |
+| **Deploy** | Deploys a scheduled or inactive lab now. |
+| **Redeploy** | Deploys a running or failed lab again. |
+| **Destroy** | Removes the lab's nodes. Asks for confirmation. |
+
+Only the lab's creator and administrators can deploy, redeploy and destroy.
+
+## Lab details
+
+The panel in the top left lists the lab's details:
+
+- **ID**: the lab's unique ID. Click it to copy it.
+- **Instance**: the instance name the provider uses for the lab.
+- **Collection**, **Owner** and **Provider**.
+- **Deployed** and **Running Until**. "(Recovered)" means the server was restarted while the lab was running and has reattached to it.
+- **Topology**: the topology the lab was created from, with its number of nodes and links.
+
+**Copy Link** copies a direct link to this lab. **Open Topology** opens the topology in the editor.
+
+The ID and instance name identify the lab when you connect to it through the [SSH server](/antimony/docs/manual/ssh-server/#choosing-a-node).
+
+## The graph
+
+The graph shows the lab's nodes and links. A dot on each node shows its state; nodes that are starting or stopping pulse, and stopped nodes are greyed out.
+
+- Click a node to open the [node panel](#the-node-panel).
+- Right-click a node for **Start node**, **Stop node**, **Restart node**, **Open terminal**, **Show logs**, **Copy SSH command** and **Copy capture for &lt;interface&gt;**.
+- Right-click the background to deploy, redeploy or destroy the lab, view logs or fit the graph to the window.
+
+## The node panel
+
+The node panel shows the node's name, kind, container ID and name, management IPv4 and IPv6 addresses, and interfaces. While the node is starting, values show "Pending".
+
+| Button | What it does |
+| --- | --- |
+| **Node Logs** | Opens the logs window with this node's container log. |
+| **Open Terminal** | Opens a [terminal](#terminals) on the node. Available once the node is ready. |
+| **Restart** / **Start** / **Shutdown** | Restarts, starts or stops the node. Only available for kinds marked `canRestart` in [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml); for other kinds the panel says so. |
+
+### Statistics
+
+Once the node is ready, the panel shows live **CPU** and **Memory Usage** charts of the last 20 seconds.
+
+### Interfaces and capture
+
+Below the statistics, each interface has a chart of its transmitted (TX) and received (RX) traffic.
+
+**Copy capture command** copies a command that streams the interface's traffic into Wireshark on your machine:
+
+```bash
+ssh testing/dsfsfdf/alpine1@antimony.example.com -p 6969 eth1 | wireshark -k -i -
+```
+
+Run it in a terminal on a machine with Wireshark installed. See [SSH server and packet capture](/antimony/docs/manual/ssh-server/) for how it works and what else you can do with it.
+
+Some interfaces, such as `lo` and management interfaces, are hidden. The list is set by `capture.excludedInterfaces` in the [configuration](/antimony/docs/deployment/configuration/#capture).
+
+## Terminals
+
+**Open Terminal** opens a terminal window on the node. Antimony logs in to the node over SSH with the credentials from `kinds.conf.yml`, or opens a shell inside the container if that isn't possible.
+
+<figure class="shot">
+	<Image src={terminal} alt="A terminal window with tabs for alpine1, alpine1 and alpine2, showing the output of ip a s" width={700} />
+	<figcaption>Terminals open in tabs; several can be open on the same node.</figcaption>
+</figure>
+
+- The window can be moved and resized, and stays open while you work with the graph.
+- Each terminal is a tab. **+** opens a terminal on another node of the lab.
+- Closing a tab closes the terminal.
+- Terminals keep running when you close the window. Reopening it shows them again with their recent output.
+- A terminal that has been idle for 30 minutes is closed and marked as expired.
+- You can have up to 20 terminals open at the same time.
+
+The idle timeout and the limit are set by `shell.timeout` and `shell.userLimit` in the [configuration](/antimony/docs/deployment/configuration/#shell).
+
+## Logs
+
+**View logs** opens the logs window. Choose the source in the dropdown:
+
+- **Antimony**: the lab's deployment log, with the output of containerlab or clabernetes and Antimony's own messages
+- a node: that node's container log
+
+<figure class="shot">
+	<Image src={logs} alt="The logs window showing containerlab output while deploying a lab" width={700} />
+	<figcaption>The deployment log of a lab.</figcaption>
+</figure>
+
+Logs are streamed live. The window shows the most recent 1 000 lines from before you opened it.
+
+<Aside type="note">
+	Logs are kept in memory only. After the server restarts, a recovered lab's log starts empty.
+</Aside>

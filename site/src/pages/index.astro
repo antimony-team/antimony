@@ -1,0 +1,274 @@
+---
+import { Image } from 'astro:assets';
+import '../styles/fonts.css';
+import '../styles/landing.css';
+import logo from '../assets/logo.svg?raw';
+import editor from '../assets/screenshots/antimony-editor.png';
+import zoeyBlueprint from '../assets/zoey/plan.png';
+import zoeyDrill from '../assets/zoey/drill.png';
+import zoeyTraffic from '../assets/zoey/traffic.png';
+import zoeyClassroom from '../assets/zoey/classroom.png';
+import zoeyLaptop from '../assets/zoey/laptop.png';
+import Topology from '../components/Topology.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const docs = `${base}/docs/`;
+const quickStart = `${base}/docs/getting-started/quick-start/`;
+const github = 'https://github.com/antimony-team/antimony';
+
+const extras = [
+	{ title: 'Live logs', text: 'containerlab and per-node container logs, streamed and highlighted.' },
+	{ title: 'Node stats', text: 'CPU and memory per node, on Docker or across a cluster.' },
+	{ title: 'Git sync', text: 'Keep a topology in sync with a file in a Git repository.' },
+	{ title: 'Bind files', text: 'Attach configs and startup files to a topology, right in the editor.' },
+	{ title: 'Archive import', text: 'Drop in an existing containerlab project and keep going.' },
+	{ title: 'Desktop app', text: 'The same interface as an installable app for Linux and Windows.' },
+	{ title: 'Kubernetes', text: 'Deploy through clabernetes when one host is not enough.' },
+	{ title: 'REST + Socket.IO API', text: 'Everything the interface does is available to your scripts.' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Antimony · Draw the network. Antimony runs it.</title>
+		<meta name="description" content="Antimony is an open-source platform to design, deploy and operate containerlab network labs from the browser." />
+		<link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+	</head>
+	<body>
+		<header class="nav">
+			<a class="brand" href={`${base}/`}>
+				<span class="brand-mark" set:html={logo} />
+				<span>Antimony</span>
+			</a>
+			<nav>
+				<a href="#design">Product</a>
+				<a href="#classroom">Classrooms</a>
+				<a href={docs}>Docs</a>
+				<a href={github}>GitHub</a>
+			</nav>
+			<a class="btn btn-small" href={quickStart}>Get started</a>
+		</header>
+
+		<main>
+			<!-- Hero -->
+			<section class="hero">
+				<div class="hero-copy">
+					<p class="eyebrow"><span class="pulse"></span> Open source · built on containerlab</p>
+					<h1>Draw the network.<br /><em>Antimony</em> runs it.</h1>
+					<p class="lead">
+						Design network labs on a canvas, deploy them with one click and operate every node from your
+						browser. Made for classrooms, built for anyone who's tired of hand-editing topology files.
+					</p>
+					<div class="actions">
+						<a class="btn" href={quickStart}>Get started</a>
+						<a class="btn btn-ghost" href={github}>Star on GitHub</a>
+					</div>
+					<button class="cmd" data-copy="git clone https://github.com/antimony-team/antimony && cd antimony && docker compose up -d --build" aria-label="Copy install command">
+						<span class="prompt">$</span> docker compose up <span class="cmd-hint">copy</span>
+					</button>
+				</div>
+				<Topology />
+			</section>
+
+			<section class="stack" aria-label="Works with">
+				<span>Works with</span>
+				<ul>
+					<li>containerlab</li>
+					<li>Docker</li>
+					<li>Kubernetes · clabernetes</li>
+					<li>OpenID Connect</li>
+					<li>Wireshark</li>
+					<li>PostgreSQL · SQLite</li>
+				</ul>
+			</section>
+
+			<!-- Design -->
+			<section class="story" id="design">
+				<div class="story-copy">
+					<p class="step">01 · Design</p>
+					<h2>A canvas and a YAML file, always in agreement.</h2>
+					<p>
+						Drag nodes onto the grid, draw links between interfaces and group them into areas. The
+						schema-validated editor next to it updates as you go. Prefer typing? The canvas follows
+						along.
+					</p>
+					<ul class="ticks">
+						<li>Every containerlab kind, with icons for routers, switches, servers and clients</li>
+						<li>Auto-layout physics for untangling big topologies</li>
+						<li>Collections to organise labs by course, team or project</li>
+					</ul>
+				</div>
+				<div class="story-visual">
+					<div class="window">
+						<div class="window-bar"><i></i><i></i><i></i><span>Topology Editor</span></div>
+						<Image src={editor} alt="The Antimony topology editor: topologies on the left, YAML in the middle, the network graph on the right" widths={[800, 1400]} sizes="(min-width: 960px) 640px, 100vw" />
+					</div>
+					<Image class="zoey zoey-right" src={zoeyBlueprint} alt="" width={220} />
+				</div>
+			</section>
+
+			<!-- Deploy -->
+			<section class="story story-flip" id="deploy">
+				<div class="story-copy">
+					<p class="step">02 · Deploy</p>
+					<h2>One click to deploy. Or book it for Tuesday.</h2>
+					<p>
+						Run a lab right away, or put it on the calendar and Antimony starts it when the class does.
+						Deployment status streams in live, and every node can be started, stopped or restarted
+						on its own.
+					</p>
+					<ul class="ticks">
+						<li>Scheduled deployments from a shared calendar</li>
+						<li>Per-node start, stop and restart</li>
+						<li>Runs on a single Docker host or on Kubernetes</li>
+					</ul>
+				</div>
+				<div class="story-visual">
+					<div class="panel deploy">
+						<div class="deploy-head">
+							<div>
+								<strong>SRL Lab 1</strong>
+								<span class="muted">admin / srl-lab-1</span>
+							</div>
+							<span class="badge badge-live">running</span>
+						</div>
+						<ul class="nodes">
+							<li><img src={`${base}/nodes/spine.svg`} alt="" /><span>spine1</span><code>nokia_srlinux</code><b class="ok">up 2h 14m</b></li>
+							<li><img src={`${base}/nodes/switch.svg`} alt="" /><span>leaf1</span><code>nokia_srlinux</code><b class="ok">up 2h 14m</b></li>
+							<li><img src={`${base}/nodes/switch.svg`} alt="" /><span>leaf2</span><code>nokia_srlinux</code><b class="warn">restarting</b></li>
+							<li><img src={`${base}/nodes/server.svg`} alt="" /><span>srv1</span><code>linux</code><b class="ok">up 2h 13m</b></li>
+						</ul>
+						<div class="schedule">
+							<span class="muted">This week</span>
+							<div class="week">
+								<div><span>Mon</span></div>
+								<div><span>Tue</span><i style="--from: 30%; --to: 75%">Networks I · Lab 3</i></div>
+								<div><span>Wed</span></div>
+								<div><span>Thu</span><i style="--from: 10%; --to: 45%">Routing workshop</i></div>
+								<div><span>Fri</span></div>
+							</div>
+						</div>
+					</div>
+					<Image class="zoey zoey-left" src={zoeyDrill} alt="" width={230} />
+				</div>
+			</section>
+
+			<!-- Operate -->
+			<section class="story" id="operate">
+				<div class="story-copy">
+					<p class="step">03 · Operate</p>
+					<h2>Get into any node. Watch any wire.</h2>
+					<p>
+						Open a terminal on a node straight from the browser, with no SSH keys to hand out. Need to see
+						the packets? Antimony's built-in SSH server streams any interface into Wireshark on your
+						machine.
+					</p>
+					<ul class="ticks">
+						<li>Browser terminals with scrollback and idle timeouts</li>
+						<li>Live packet capture over SSH, straight into Wireshark</li>
+						<li>Streaming logs and live CPU and memory per node</li>
+					</ul>
+				</div>
+				<div class="story-visual">
+					<div class="panel term">
+						<div class="window-bar"><i></i><i></i><i></i><span>leaf1 · shell</span></div>
+<pre><code><span class="t-dim">--{'{'} running {'}'}--[  ]--</span>
+<span class="t-acc">A:leaf1#</span> show interface ethernet-1/1
+ethernet-1/1 is <span class="t-ok">up</span>, speed 25G, type None
+  ethernet-1/1.0 is <span class="t-ok">up</span>
+    Network-instance: default
+    IPv4 addr    : 10.0.1.1/31 (static, preferred)
+<span class="t-acc">A:leaf1#</span> <span class="caret"></span></code></pre>
+					</div>
+					<div class="panel capture">
+						<span class="muted">Capture e1-1 on leaf1</span>
+						<code>ssh 3f9c…@antimony.lab -p 22 e1-1 <b>| wireshark -k -i -</b></code>
+					</div>
+					<Image class="zoey zoey-right" src={zoeyTraffic} alt="" width={220} />
+				</div>
+			</section>
+
+			<!-- Classroom -->
+			<section class="classroom" id="classroom">
+				<Image class="zoey-plan" src={zoeyClassroom} alt="Zoey explaining a network topology on a whiteboard" width={360} />
+				<div>
+					<p class="step">Built for teaching</p>
+					<h2>One server. A whole class of labs.</h2>
+					<p>
+						Antimony started as a teaching tool. Connect your university's OpenID provider, map groups to
+						collections, and every student works in their own space while instructors see everything.
+					</p>
+					<div class="mapping" aria-label="OpenID groups mapped to collections">
+						<div class="col">
+							<span class="muted">OpenID groups</span>
+							<span class="chip">hs25-cn1</span>
+							<span class="chip">hs25-cn2</span>
+							<span class="chip chip-admin">staff</span>
+						</div>
+						<svg viewBox="0 0 60 120" aria-hidden="true"><path d="M0 20 C30 20 30 20 60 20 M0 60 C30 60 30 60 60 60 M0 100 C30 100 30 20 60 20 M0 100 C30 100 30 60 60 60 M0 100 C30 100 30 100 60 100" /></svg>
+						<div class="col">
+							<span class="muted">Collections</span>
+							<span class="chip">Computer Networks 1</span>
+							<span class="chip">Computer Networks 2</span>
+							<span class="chip">Everything (admin)</span>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Extras -->
+			<section class="extras">
+				<h2>And everything around it</h2>
+				<div class="grid">
+					{extras.map((e) => (
+						<div class="tile">
+							<h3>{e.title}</h3>
+							<p>{e.text}</p>
+						</div>
+					))}
+				</div>
+			</section>
+
+			<!-- CTA -->
+			<section class="cta">
+				<Image class="zoey-cta" src={zoeyLaptop} alt="" width={240} />
+				<div>
+					<h2>Your first lab is three commands away.</h2>
+<pre class="cta-cmd"><code><span class="prompt">$</span> git clone {github}
+<span class="prompt">$</span> cd antimony
+<span class="prompt">$</span> docker compose up -d --build</code></pre>
+					<p class="muted">Then open <code>https://localhost</code> and sign in with <code>admin</code> / <code>admin</code>.</p>
+					<div class="actions">
+						<a class="btn" href={quickStart}>Read the quick start</a>
+						<a class="btn btn-ghost" href={docs}>Browse the docs</a>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<footer class="footer">
+			<span class="brand"><span class="brand-mark" set:html={logo} /> Antimony</span>
+			<span class="muted">MIT licensed · Made by the Antimony team</span>
+			<nav>
+				<a href={docs}>Docs</a>
+				<a href={`${github}-backend/issues`}>Issues</a>
+				<a href={github}>GitHub</a>
+			</nav>
+		</footer>
+
+		<script>
+			for (const el of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+				el.addEventListener('click', async () => {
+					try {
+						await navigator.clipboard.writeText(el.dataset.copy ?? '');
+						el.classList.add('copied');
+						setTimeout(() => el.classList.remove('copied'), 1400);
+					} catch {}
+				});
+			}
+		</script>
+	</body>
+</html>

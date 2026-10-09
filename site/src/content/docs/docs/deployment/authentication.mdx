@@ -1,0 +1,134 @@
+---
+title: Authentication and permissions
+description: Set up the native admin login and OpenID Connect, and control who can see, edit and deploy what.
+sidebar:
+  label: Users & permissions
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import zoey from '../../../../assets/zoey/classroom.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey teaching with a network diagram on a whiteboard" width={220} />
+
+Antimony supports two ways to sign in:
+
+- **Native login.** A single administrator account whose username and password come from environment variables. Good for local installations and small teams.
+- **OpenID Connect.** Users sign in with your organisation's identity provider, such as Keycloak, Microsoft Entra ID or authentik. Their group memberships decide what they can access. This is the way to run Antimony for a class or a team.
+
+You can enable both at the same time. The login screen then shows the username and password form and a **Continue with OpenID Connect** button.
+
+<Aside type="danger" title="If both are disabled">
+	With `enableNative: false` and `enableOpenId: false`, Antimony doesn't ask anyone to sign in, and everybody is an administrator. Only do this on your own machine.
+</Aside>
+
+## Native login
+
+Native login is enabled by default. Set the credentials in the server's environment:
+
+```bash title=".env"
+SB_NATIVE_USERNAME=admin
+SB_NATIVE_PASSWORD=change-me
+```
+
+The native account is always an administrator. If native login is enabled but the username or password is empty, the server logs a warning and accepts empty credentials, and the interface signs in automatically. Always set both in production.
+
+To turn native login off, for example once OpenID Connect works:
+
+```yaml title="config.yml"
+auth:
+  enableNative: false
+```
+
+## OpenID Connect
+
+<Steps>
+
+1. **Register a client** in your identity provider:
+
+    - Client type: confidential, with a client secret.
+    - Redirect URI: `https://antimony.example.com/api/users/login/success`
+    - The **userinfo** response must contain a `groups` claim with the user's group names. Antimony only requests the `openid` scope, so configure the provider to include groups for that scope. In Keycloak, add a "Group Membership" mapper with **Full group path** turned off and **Add to userinfo** turned on.
+
+2. **Configure Antimony:**
+
+    ```yaml title="config.yml"
+    auth:
+      enableOpenId: true
+      openIdIssuer: https://sso.example.com/realms/antimony
+      openIdClientId: antimony
+      openIdRedirectHost: https://antimony.example.com/api
+      openIdAdminGroups: ["antimony-admin"]
+    ```
+
+    ```bash title=".env"
+    SB_OIDC_SECRET=<client secret>
+    ```
+
+    `openIdRedirectHost` is the public address of the API, including the `/api` prefix of the reverse proxy. Antimony appends `/users/login/success` to it.
+
+3. **Restart the server** and sign in with **Continue with OpenID Connect**.
+
+</Steps>
+
+On the first login, Antimony creates a user from the `sub` claim and uses the e-mail address as the display name.
+
+## Permissions
+
+Antimony's permissions are built on **collections**: folders of topologies, usually one per course, class or team. Every topology belongs to exactly one collection, and every lab is deployed from a topology.
+
+### Administrators
+
+Administrators can do everything: create and manage collections, and edit, deploy and delete any topology and lab. A user is an administrator if:
+
+- they signed in with the native account, or
+- one of their OpenID groups is listed in `auth.openIdAdminGroups`.
+
+### Collection access comes from group names
+
+A user has access to a collection when **one of their OpenID groups has exactly the same name as the collection**. There's no separate membership list in Antimony.
+
+For example, a student in the groups `hs25-cn1` and `students` sees the collection `hs25-cn1`, but not `hs25-cn2`.
+
+To give a class its own space:
+
+1. Create a group in your identity provider, for example `hs25-cn1`, and add the students.
+2. As an administrator, create a collection with the same name in the [topology editor](/antimony/docs/manual/topology-editor/#collections).
+3. Add the topologies the students should work with.
+
+Native login has only the administrator account, so per-collection access needs OpenID Connect.
+
+### What members can do
+
+Members of a collection can always see its topologies and labs. Two switches on each collection grant more:
+
+| Collection setting | Members can |
+| --- | --- |
+| **Anyone can deploy** | Create labs from the collection's topologies. |
+| **Anyone can edit** | Add new topologies to the collection, and change it. |
+
+Independent of these settings, a user can always manage what they created themselves:
+
+| Action | Who |
+| --- | --- |
+| Create, rename or delete a collection | Administrators. The creator of a collection can also edit or delete it. |
+| Edit or delete a topology, manage its bind files | The topology's creator, or an administrator |
+| Edit, reschedule or delete a lab | The lab's creator, or an administrator |
+| Deploy, destroy or redeploy a lab; start, stop or restart its nodes | The lab's creator, or an administrator |
+| Open a terminal on a node | Anyone with access to the lab's collection |
+| Close a terminal | The user who opened it, or an administrator |
+
+<Aside type="caution">
+	These permissions apply to the web interface and API. The [SSH server](/antimony/docs/manual/ssh-server/) doesn't check them.
+</Aside>
+
+## Sessions
+
+After signing in, the browser holds two tokens:
+
+- a **refresh token** (`authToken` cookie, valid for 30 days), which only the server can read
+- an **access token** (`accessToken` cookie, valid for 30 minutes), which the interface renews automatically
+
+Tokens are signed with `SB_JWT_SECRET`. If that variable isn't set, the server picks a random secret at every start, and everyone has to sign in again after a restart.
+
+See [Authentication flow](/antimony/docs/architecture/auth-flow/) for the details.

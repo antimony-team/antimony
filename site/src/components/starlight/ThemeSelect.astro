@@ -1,0 +1,49 @@
+---
+// Starlight's ThemeSelect, defaulting to dark. See ThemeProvider.astro.
+import Select from '@astrojs/starlight/components/Select.astro';
+---
+
+<starlight-theme-select>
+	<Select
+		icon="moon"
+		label={Astro.locals.t('themeSelect.accessibleLabel')}
+		options={[
+			{ label: Astro.locals.t('themeSelect.dark'), selected: true, value: 'dark' },
+			{ label: Astro.locals.t('themeSelect.light'), selected: false, value: 'light' },
+			{ label: Astro.locals.t('themeSelect.auto'), selected: false, value: 'auto' },
+		]}
+		width="6.25em"
+	/>
+</starlight-theme-select>
+
+<script is:inline>
+	StarlightThemeProvider.updatePickers();
+</script>
+
+<script>
+	type Theme = 'auto' | 'dark' | 'light';
+	const storageKey = 'antimony-theme';
+	const parseTheme = (theme: unknown): Theme => (theme === 'auto' || theme === 'light' ? theme : 'dark');
+
+	function onThemeChange(theme: Theme): void {
+		StarlightThemeProvider.updatePickers(theme);
+		document.documentElement.dataset.theme = StarlightThemeProvider.resolve(theme);
+		try {
+			localStorage.setItem(storageKey, theme);
+		} catch {}
+	}
+
+	matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+		if (parseTheme(localStorage.getItem(storageKey)) === 'auto') onThemeChange('auto');
+	});
+
+	class AntimonyThemeSelect extends HTMLElement {
+		constructor() {
+			super();
+			this.querySelector('select')?.addEventListener('change', (e) => {
+				if (e.currentTarget instanceof HTMLSelectElement) onThemeChange(parseTheme(e.currentTarget.value));
+			});
+		}
+	}
+	customElements.define('starlight-theme-select', AntimonyThemeSelect);
+</script>

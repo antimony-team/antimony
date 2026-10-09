@@ -1,53 +1,41 @@
 name: antimony
 
+# Settings come from .env (see .env.example). Every value has a default,
+# so `docker compose up` also works without a .env file for local testing.
+
 services:
   traefik:
     image: traefik:v3.7.4
     restart: unless-stopped
-    container_name: traefik
     network_mode: host
     command:
       - --log.level=INFO
-      - --api.insecure=true
       - --providers.docker=true
       - --providers.docker.exposedByDefault=false
-
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-
-      # HTTP -> HTTPS redirect
+      # Redirect HTTP to HTTPS
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
       - --entrypoints.web.http.redirections.entryPoint.scheme=https
-
-      # ACME / Let's Encrypt config
+      # Let's Encrypt. Without a public domain, Traefik serves a self-signed certificate.
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.email=antimony@ost.ch
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-
-      # Self-signed certificate fallback
-      - --entrypoints.websecure.forwardedHeaders.insecure=true
-      - --serversTransport.insecureSkipVerify=true
-
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
 
-    depends_on:
-     - server
-     - interface
-
   database:
-    container_name: database
-    image: postgres
-    restart: always
+    image: postgres:18
+    restart: unless-stopped
     shm_size: 128mb
     network_mode: host
     environment:
-      - POSTGRES_PASSWORD=postgres
-      - SB_DATABASE_PASSWORD=antimony
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - SB_DATABASE_PASSWORD=${SB_DATABASE_PASSWORD:-antimony}
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
       timeout: 3s
       retries: 10
@@ -56,158 +44,71 @@ services:
       - ./postgres:/docker-entrypoint-initdb.d/
 
   interface:
-    container_name: interface
-    image: antimony-interface:latest
-    # image: ghcr.io/antimony-team/antimony-interface:latest
+    # Until release images are published, the images are built from source.
+    # Once they are, replace `build:` with:
+    #   image: ghcr.io/antimony-team/antimony-interface:<version>
+    build:
+      context: https://github.com/antimony-team/antimony-interface.git#${ANTIMONY_BRANCH:-development}
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    network_mode: host
     depends_on:
       - server
-    network_mode: host
     labels:
       - traefik.enable=true
-      - traefik.http.routers.interface.rule=PathPrefix(`/`)
+      - traefik.http.routers.interface.rule=Host(`${ANTIMONY_HOST:-localhost}`)
       - traefik.http.routers.interface.entrypoints=websecure
       - traefik.http.routers.interface.tls.certresolver=letsencrypt
-      - traefik.http.routers.interface.service=interface
-      # - traefik.http.routers.interface.tls.domains[0].main=example.com
       - traefik.http.services.interface.loadbalancer.server.port=8100
-      - traefik.http.services.interface.loadbalancer.server.scheme=http
 
   server:
-    container_name: server
-    image: ghcr.io/antimony-team/antimony-backend:latest
-    environment:
-      - SB_NATIVE_USERNAME=admin
-      - SB_NATIVE_PASSWORD=admin
-      - SB_DATABASE_PASSWORD=antimony
-    pid: host
-    privileged: true
-    network_mode: host
+    # Once release images are published, replace `build:` with:
+    #   image: ghcr.io/antimony-team/antimony-backend:<version>
+    build:
+      context: https://github.com/antimony-team/antimony-backend.git#${ANTIMONY_BRANCH:-development}
+    restart: unless-stopped
     command: -config=./config.yml
+    network_mode: host
+    privileged: true
+    pid: host
+    cgroup: host
+    user: root
+    environment:
+      - SB_NATIVE_USERNAME=${SB_NATIVE_USERNAME:-admin}
+      - SB_NATIVE_PASSWORD=${SB_NATIVE_PASSWORD:-admin}
+      - SB_JWT_SECRET=${SB_JWT_SECRET:-}
+      - SB_OIDC_SECRET=${SB_OIDC_SECRET:-}
+      - SB_DATABASE_PASSWORD=${SB_DATABASE_PASSWORD:-antimony}
+      - SB_LOG_LEVEL=${SB_LOG_LEVEL:-info}
     volumes:
-      - ./config.yml:/app/config.yml
-      - ./kinds.conf.yml:/app/kinds.conf.yml
-      - ./mnt/db:/app/db
-      - ./mnt/storage:/app/storage/
-      - ./mnt/run:/app/run/
+      - ./config.yml:/app/config.yml:ro
+      - ./kinds.conf.yml:/app/kinds.conf.yml:ro
+      - ./mnt/ssh:/app/ssh
+      # Topologies and labs. These must have the same path on the host and in the
+      # container, because containerlab passes bind file paths to the host's Docker.
+      - /srv/antimony:/srv/antimony
+      # containerlab
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/run/netns:/var/run/netns
       - /var/lib/docker:/var/lib/docker
-      - $HOME/.docker/config.json:/root/.docker/config.json
+      - /etc/hosts:/etc/hosts
+      # clabernetes: uncomment to give the server access to your Kubernetes cluster
+      # - $HOME/.kube/config:/root/.kube/config:ro
     depends_on:
       database:
         condition: service_healthy
     labels:
-      # Server '/socket.io' route
       - traefik.enable=true
-      - traefik.http.routers.server-socket.rule=PathPrefix(`/socket.io`)
-      - traefik.http.routers.server-socket.entrypoints=websecure
-      - traefik.http.routers.server-socket.tls.certresolver=letsencrypt
-      - traefik.http.routers.server-socket.service=server-socket
-      # - traefik.http.routers.server-socket.tls.domains[0].main=example.com
-      - traefik.http.services.server-socket.loadbalancer.server.port=3000
-      - traefik.http.services.server-socket.loadbalancer.server.scheme=http
-
-      # Add web socket headers
-      - traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Connection=Upgrade
-      - traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Upgrade=websocket
-      - traefik.http.routers.server-socket.middlewares=socketio-headers
-
-      # Server '/api' route
-      - traefik.http.routers.server-api.rule=PathPrefix(`/api`)
+      # REST API under /api, with the prefix removed
+      - traefik.http.routers.server-api.rule=Host(`${ANTIMONY_HOST:-localhost}`) && PathPrefix(`/api`)
       - traefik.http.routers.server-api.entrypoints=websecure
       - traefik.http.routers.server-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.server-api.service=server-api
       - traefik.http.routers.server-api.middlewares=api-strip-prefix
-      # - traefik.http.routers.server-api.tls.domains[0].main=example.com
-      - traefik.http.services.server-api.loadbalancer.server.port=3000
-      - traefik.http.services.server-api.loadbalancer.server.scheme=http
-
+      - traefik.http.routers.server-api.service=server
       - traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api
-
-  gostwire:
-    image: ghcr.io/siemens/ghostwire
-    restart: "unless-stopped"
-    read_only: true
-    entrypoint:
-      - "/gostwire"
-      - "--http=[::]:5000"
-      - "--brand=Edgeshark"
-      - "--brandicon=PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCA2LjM1IDYuMzUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTUuNzMgNC41M2EuNC40IDAgMDEtLjA2LS4xMmwtLjAyLS4wNC0uMDMuMDNjLS4wNi4xMS0uMDcuMTItLjEuMS0uMDEtLjAyIDAtLjAzLjAzLS4xbC4wNi0uMS4wNC0uMDVjLjAzIDAgLjA0LjAxLjA2LjA5bC4wNC4xMmMuMDMuMDUuMDMuMDcgMCAuMDhoLS4wMnptLS43NS0uMDZjLS4wMi0uMDEtLjAxLS4wMy4wMS0uMDUuMDMtLjAyLjA1LS4wNi4wOC0uMTQuMDMtLjA4LjA1LS4xLjA4LS4wN2wuMDIuMDdjLjAyLjEuMDMuMTIuMDUuMTMuMDUuMDIuMDQuMDctLjAxLjA3LS4wNCAwLS4wNi0uMDMtLjA5LS4xMiAwLS4wMi0uMDEgMC0uMDQuMDRhLjM2LjM2IDAgMDEtLjA0LjA3Yy0uMDIuMDItLjA1LjAyLS4wNiAwem0tLjQ4LS4wM2MtLjAxLS4wMSAwLS4wMy4wMS0uMDZsLjA3LS4xM2MuMDYtLjEuMDctLjEzLjEtLjEyLjAyLjAyLjAzLjA0LjA0LjEuMDEuMDguMDIuMTEuMDQuMTR2LjA0Yy0uMDEuMDItLjA0LjAyLS4wNiAwbC0uMDMtLjEtLjAxLS4wNS0uMDYuMDlhLjQ2LjQ2IDAgMDEtLjA1LjA4Yy0uMDIuMDItLjA0LjAyLS4wNSAwem0uMDgtLjc1YS4wNS4wNSAwIDAxLS4wMS0uMDRMNC41IDMuNWwtLjAyLS4wNGguMDNjLjAzLS4wMi4wMy0uMDEuMDguMDdsLjAzLjA1LjA3LS4xM2MwLS4wMyAwLS4wMy4wMi0uMDQuMDMgMCAuMDQgMCAuMDQuMDJhLjYuNiAwIDAxLS4xMi4yNmMtLjAzLjAyLS4wMy4wMi0uMDUgMHptLjU0LS4xYy0uMDEtLjAyLS4wMi0uMDMtLjAyLS4wOGEuNDQuNDQgMCAwMC0uMDMtLjA4Yy0uMDItLjA1LS4wMi0uMDggMC0uMDguMDUtLjAxLjA2IDAgLjA2LjA0bC4wMy4wOGMuMDIgMCAuMDYtLjA4LjA3LS4xMmwuMDEtLjAyLjA2LS4wMS0uMTIuMjZoLS4wNnptLjQ3LS4wOGwtLjAyLS4wOWEuNTUuNTUgMCAwMC0uMDItLjEyYzAtLjAyIDAtLjAyLjAyLS4wMmguMDNsLjAyLjExdi4wM2MuMDEgMCAuMDQtLjAzLjA2LS4wN2wuMDUtLjA5Yy4wMi0uMDIuMDYtLjAyLjA2IDBsLS4xNC4yNWMtLjAxLjAxLS4wNS4wMi0uMDYgMHptLS43Ni0uNDFjLS4wNi0uMDMtLjA4LS4xNC0uMDUtLjJsLjA0LS4wM2MuMDMtLjAyLjAzLS4wMi4wNy0uMDIuMDYgMCAuMDkuMDEuMTIuMDUuMDMuMDUuMDIuMTItLjAzLjE2LS4wNS4wNS0uMS4wNi0uMTUuMDR6bS4zNS0uMDVBLjEzLjEzIDAgMDE1LjE0IDNsLS4wMS0uMDVjMC0uMDQgMC0uMDUuMDYtLjFsLjA2LS4wMmMuMDcgMCAuMTEuMDUuMS4xMmwtLjAxLjA2Yy0uMDQuMDQtLjEyLjA1LS4xNi4wM3oiLz48cGF0aCBkPSJNMy44NCA1LjQ4Yy0uMTctLjIxLS4wNC0uNS0uMDYtLjc0LjA1LS44My4xLTEuNjYuMDctMi41LjE3LS4xNC40NC4wOC41OS0uMDItLjIyLS4xMy0uNTQtLjEzLS44LS4xNC0uMTQuMDktLjUuMDItLjUuMTcuMi4wOC41My0uMTUuNjQuMDItLjAxLjgxLS4wMyAxLjYyLS4xIDIuNDItLjA1LjIzLjA3LjU2LS4xNC43MmE5LjUxIDkuNTEgMCAwMS0uNjYtLjUzYy4xMy0uMDQuMzItLjQuMS0uMi0uMjEuMjItLjUxLjI3LS43OS4zNS0uMTIuMDgtLjU0LjEyLS4zMi0uMTEuMi0uMjIuNDUtLjQyLjUtLjcyLS4xMy0uMTItLjEuMy0uMjUuMDgtLjIzLS4xNi0uNDMtLjM1LS42Ny0uNS0uMjEuMTItLjQ1LjIzLS43LjI5LS4xNy4xLS42MS4xNC0uMzItLjE0LjItLjIuNDMtLjQyLjQtLjcyLjAzLS4zMS0uMDgtLjYxLS4yLS44OWEyLjA3IDIuMDcgMCAwMC0uNDMtLjY0Yy0uMTgtLjE2LS4wMi0uMy4xNi0uMTkuMzcuMTcuNy40Ljk4LjcuMDkuMTcuMTMuNC4zNi4yNS40NC0uMDguOS0uMSAxLjM0LS4yMS4xMy0uMy4wNC0uNjQtLjEyLS45MSAwLS4xNy0uNDItLjM4LS4yMi0uNDYuMzguMS43Ny4yMyAxLjA4LjQ4LjMyLjE5LjY0LjQ1LjY5Ljg0LjEuMTguNS4xMi43MS4xOS4zMy4wNC42Ni4wOSAxIC4wOS4xNS4xMi0uMDguNDcgMCAuNjgtLjA4LjE1LS40LjA3LS41OS4xNC0uMTIuMTMtLjE0LjQzLS4xNS42NC0uMDUuMTUuMTguNDguMDYuNWExLjQgMS40IDAgMDEwLTEuMWMtLjItLjA2LS4zMy4wNi0uNTMuMDQtLjIzLjA0LS40NS4xLS42OC4xMi0uMTMuMi0uMjMuNTQtLjA2Ljc1LjEzLjE5LjMuMi40OC4yLjE4LjAzLjM2LjA1LjU1LjA0LjE4LS4wMS4zNi4wNy41Mi4wNS4yLjAxLjEuNC4wNy41Mi0uMzguMDctLjc2LjE2LTEuMTQuMjUtLjMuMDQtLjU4LjE0LS44Ny4xOXptLjQyLS4zOGMuMDgtLjEuMDItLjU0LS4wNC0uMjQgMCAuMDYtLjEuMy4wNC4yNHptLjU4LS4xYy4wOS0uMTItLjA0LS40Mi0uMDctLjE0LS4wMi4wNi0uMDIuMi4wNy4xNHptLjU2LS4wNmMuMTItLjE0LS4wOC0uMzQtLjA4LS4wOC0uMDEuMDQuMDIuMTMuMDguMDh6bS0yLjE3LS42Yy4wMy0uMjUuMDItLjUyLjA2LS43OS4wMi0uMjUuMDUtLjUgMC0uNzUtLjA5LjItLjAzLjQ4LS4wOS43LS4wMi4yOC0uMDguNTctLjA0Ljg1LjAyLjAyLjA1LjAyLjA3IDB6bS0uNjctLjI3Yy4wOS0uMy4wNy0uNjMuMDgtLjk0LS4wMS0uMTIuMDEtLjQ3LS4xLS40LjAzLjQzLjAzLjg4LS4wNiAxLjMyIDAgLjAzLjA1LjA1LjA4LjAyem0tLjYtLjVjLjEtLjI0LjE0LS41My4xLS43OS0uMTQgMC0uMDMuMzYtLjEuNS4wMS4wNi0uMTMuMzIgMCAuM3ptLS40My0uMmMuMDQtLjE2LjE1LS41IDAtLjU3LjA1LjE4LS4xMi40NS0uMDMuNThsLjAzLS4wMXptMy40My0uMjJjLjIyLS4xMyAwLS42Ni0uMjItLjM1LS4xLjE1IDAgLjQyLjIyLjM1em0uMzQtLjA2Yy4yOCAwIC4xOC0uNTMtLjA5LS4zNC0uMTIuMDctLjEyLjQyLjA5LjM0em0uNDQtLjAxYy0uMDEtLjEuMTItLjM4LS4wMS0uNC0uMDIuMS0uMTcuNDEgMCAuNHptLTEuMjYtLjAyYzAtLjEzLjAyLS41NS0uMTQtLjUuMDguMTItLjAyLjUxLjE0LjV6Ii8+PHBhdGggZD0iTTUuNTMgMy4yN2wtLjI1LjAzYS41Ny41NyAwIDAxLS4xMy4yNGwtLjA2LS4yLS4zNy4wNGMwIC4xLS4wMy4xOS0uMS4yOGwtLjEzLS4yNC0uMjIuMDNzLS4xNS4yOC0uMTUuNDYuMDcuNDYuMzcuNTNoLjAzbC4xNS0uMjUuMDguMjguMjUuMDIuMTItLjJjLjA1LjEuMS4yLjEyLjJsLjMuMDJ2LS4wOHMtLjEyLS4yNS0uMTItLjM5Yy0uMDItLjI3LjExLS43Ny4xMS0uNzd6IiBmaWxsLW9wYWNpdHk9Ii41Ii8+PC9zdmc+"
-    user: "65534"
-    # In order to set only exactly a specific set of capabilities without
-    # any additional Docker container default capabilities, we need to drop
-    # "all" capabilities. Regardless of the order (there ain't one) of YAML
-    # dictionary keys, Docker carries out dropping all capabilities first,
-    # and only then adds capabilities. See also:
-    # https://stackoverflow.com/a/63219871.
-    cap_drop:
-      - ALL
-    cap_add:
-      - CAP_SYS_ADMIN # change namespaces
-      - CAP_SYS_CHROOT # change mount namespaces
-      - CAP_SYS_PTRACE # access nsfs namespace information
-      - CAP_DAC_READ_SEARCH # access/scan /proc/[$PID]/fd itself
-      - CAP_DAC_OVERRIDE # access container engine unix domain sockets without being rude, erm, root.
-      - CAP_NET_RAW # pingin' 'round
-      - CAP_NET_ADMIN # 'nuff tables
-    security_opt:
-      # The default Docker container AppArmor profile blocks namespace
-      # discovery, due to reading from /proc/$PID/ns/* is considered to be
-      # ptrace read/ready operations.
-      - apparmor:unconfined
-    # Essential since we need full PID view.
-    pid: "host"
-    cgroup: host
-    networks:
-      99-ghost-in-da-edge:
-        priority: 100
-
-  edgeshark:
-    image: ghcr.io/siemens/packetflix
-    read_only: true
-    restart: "unless-stopped"
-    entrypoint:
-      - "/packetflix"
-      - "--port=5001"
-      - "--discovery-service=gostwire.ghost-in-da-edge"
-      - "--gw-port=5000"
-      - "--proxy-discovery"
-      - "--debug"
-
-    ports:
-      - "127.0.0.1:5001:5001"
-
-    # Run as non-root user (baked into the meta data of the image anyway).
-    user: "65534"
-
-    # In order to set only exactly a specific set of capabilities without
-    # any additional Docker container default capabilities, we need to drop
-    # "all" capabilities. Regardless of the order (there ain't one) of YAML
-    # dictionary keys, Docker carries out dropping all capabilities first,
-    # and only then adds capabilities. See also:
-    # https://stackoverflow.com/a/63219871.
-    cap_drop:
-      - ALL
-    cap_add:
-      - CAP_SYS_ADMIN # change namespaces
-      - CAP_SYS_CHROOT # change mount namespaces
-      - CAP_SYS_PTRACE # access nsfs namespace information
-      - CAP_NET_ADMIN # allow dumpcap to control promisc. mode
-      - CAP_NET_RAW # capture raw packets, and not that totally burnt stuff
-    security_opt:
-      # The default Docker container AppArmor profile blocks namespace
-      # discovery, due to reading from /proc/$PID/ns/* is considered to be
-      # ptrace read/ready operations.
-      - apparmor:unconfined
-
-    # Essential since we need full PID view.
-    pid: "host"
-
-    networks:
-      99-ghost-in-da-edge:
-        priority: 100
-
-networks:
-  99-ghost-in-da-edge:
-    name: ghost-in-da-edge
-    internal: false
+      # Socket.IO
+      - traefik.http.routers.server-socket.rule=Host(`${ANTIMONY_HOST:-localhost}`) && PathPrefix(`/socket.io`)
+      - traefik.http.routers.server-socket.entrypoints=websecure
+      - traefik.http.routers.server-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.server-socket.service=server
+      - traefik.http.services.server.loadbalancer.server.port=3000

@@ -1,0 +1,176 @@
+---
+title: Topology editor
+description: Organise topologies in collections and design them on a canvas or in YAML.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import editor from '../../../../assets/screenshots/antimony-editor.png';
+
+The topology editor is where you create and change [containerlab topologies](https://containerlab.dev/manual/topo-def-file/). It shows the same topology two ways at once: as YAML and as a graph. A change in one is reflected in the other.
+
+<figure class="shot">
+	<Image src={editor} alt="The topology editor: the topology explorer on the left, the YAML editor in the middle and the graph on the right" />
+	<figcaption>The editor in split view: explorer, YAML and graph.</figcaption>
+</figure>
+
+## Collections
+
+Topologies are organised in **collections**. A collection usually belongs to a class, a course or a team, and it decides who can see and use its topologies (see [permissions](/antimony/docs/deployment/authentication/#permissions)).
+
+Administrators manage collections:
+
+- **New collection**: right-click an empty area of the explorer.
+- **Edit** / **Delete**: open the collection's **…** menu or right-click it.
+
+Each collection has two switches:
+
+- **Anyone can deploy**: everyone with access can start labs from this collection's topologies.
+- **Anyone can edit**: everyone with access can add, change and delete topologies here.
+
+<Aside type="caution">
+	Deleting a collection asks for confirmation and lists the topologies it contains.
+</Aside>
+
+When you open the editor for the first time and no collection exists, it guides you through creating a collection and a first topology.
+
+## The explorer
+
+The left panel shows collections, their topologies and each topology's bind files as a tree. Type in **Search Topologies** to filter it.
+
+| Item | Buttons and menu |
+| --- | --- |
+| Collection | **+** adds a topology. The menu has **New topology**, and for administrators **Edit** and **Delete**. |
+| Topology | **▶** opens the deploy dialog for it. The menu has **Deploy**, and for its creator and administrators **New file**, **Upload files**, **Edit** and **Delete**. |
+| File or directory | The menu has **Edit** and **Delete**. |
+
+Right-clicking an item opens the same menu.
+
+**Drag and drop** a topology onto another collection to move it. Drag a bind file onto a topology or a directory to move it there.
+
+### Creating a topology
+
+Choose **New topology** on a collection. Give it a **Name** and optionally a **Sync URL** (see [Git sync](#sync-from-a-url)). The new topology starts empty:
+
+```yaml
+name: my-topology
+topology:
+  nodes: {}
+```
+
+## The editor
+
+The toolbar shows the topology's collection and name. An asterisk marks unsaved changes.
+
+| Control | What it does |
+| --- | --- |
+| **Undo** / **Redo** | Step through your changes. Also <kbd>Ctrl</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+<kbd>Y</kbd>. |
+| **Code** / **Split** / **Graph** | Show the YAML, both, or only the graph. Your choice is remembered. |
+| **Sync Options** | Set the URL to sync the topology from. |
+| **Save** | Save the topology. Also <kbd>Ctrl</kbd>+<kbd>S</kbd>. Disabled while the topology is invalid. A red dot means there are unsaved changes. |
+| **Download** | Download the YAML as `<collection>_<topology>.yaml`. |
+| **Deploy** | Open the [deploy dialog](/antimony/docs/manual/deploying-labs/) for this topology. |
+
+If you try to leave with unsaved changes, Antimony asks whether to **Discard changes** or **Keep editing**.
+
+### YAML
+
+The YAML editor validates the topology against the containerlab JSON schema while you type, with completion and hover help for every field. The status bar at the bottom shows **Valid**, **Pending** or **Error**; hover over it to see the problem. It also shows the cursor position and the number of nodes and links.
+
+Paths under `binds:` are links. Click one to open that bind file, or to create it if it doesn't exist yet.
+
+### Graph
+
+The graph shows nodes with their icons and the links between them, labelled with interface names. Drag nodes to arrange them; their positions are saved in the topology.
+
+The toolbar on the left of the graph:
+
+| Button | What it does |
+| --- | --- |
+| **Add node** | Opens the node dialog to add a node. |
+| **Create group** | Draw a rectangle around nodes to put them in a named group, shown as a box. |
+| **Fit graph** | Zooms to show the whole topology. |
+| **Clear graph** | Removes all nodes. Can be undone. |
+| **Graph Stabilization** | Opens the [stabilization panel](#graph-stabilization). |
+
+Click a node for a quick menu with **Edit** and **Delete**, or double-click it to edit it. Right-click nodes, links, groups and the background for more options. Double-click a group to rename it.
+
+<Aside type="note">
+	For now, add links between nodes in the YAML under `topology.links`. Connecting nodes by dragging in the graph doesn't work reliably yet.
+</Aside>
+
+### The node dialog
+
+The node dialog edits everything about a node:
+
+- the **icon** (click it to choose one), **Name** and **Kind**
+- **Node Properties**: every containerlab node property, with search and validation from the schema
+- **Connections**: the node's links and the interfaces they use
+- environment variables, certificates, health checks, DNS settings, labels and more
+
+### Graph stabilization
+
+The stabilization panel arranges the graph automatically with a force-directed layout. Adjust **Edge elasticity**, **Edge length** and **Node repulsion**, then click **Stabilize**. The new positions are saved in the topology. **Reset** restores the default settings.
+
+## How the graph is stored
+
+Antimony stores everything about the graph in containerlab `labels` on each node, so the topology stays a valid containerlab file that works without Antimony too.
+
+| Label | Meaning |
+| --- | --- |
+| `graph-posX`, `graph-posY` | Position of the node in the graph. Written when you move a node or stabilize the graph. |
+| `graph-icon` | Icon of the node, see below. |
+| `graph-group` | Name of the group the node belongs to. |
+| `graph-level` | Optional. Nodes in groups with the same name but different levels are drawn in separate boxes. |
+| `graph-geoCoordinateLat`, `graph-geoCoordinateLng` | Geographic position, used when `graph-posX` and `graph-posY` are missing. |
+
+```yaml
+topology:
+  nodes:
+    leaf1:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux
+      labels:
+        graph-posX: "320.5"
+        graph-posY: "180"
+        graph-icon: switch
+        graph-group: fabric
+```
+
+Available icons: `router`, `switch`, `spine`, `dcgw`, `server`, `client`, `controller`, `pon` and `rgw`. `pe` is an alias for `router` and `leaf` for `switch`. Nodes without an icon, or with an unknown one, are shown as `client`.
+
+Nodes without a position are all placed at the same spot. Use **Graph Stabilization** to lay them out.
+
+## Bind files
+
+Bind files are files that containerlab mounts into nodes, such as startup configurations. They belong to a topology and appear under it in the explorer.
+
+- **New file**: create a file by its path, for example `configs/r1.conf`. Directories are created as needed.
+- **Upload files**: upload an archive (`.zip`, `.tar`, `.tar.gz`, `.tgz`, `.7z`, `.rar`, `.bz2`). Antimony unpacks it in your browser and lets you pick which files to add. Existing files with the same path are marked and overwritten. A top-level folder named like the topology is removed.
+- Click a file to edit it in the code editor, and use **Download** in the toolbar to download it.
+- **Edit** renames or moves a file or directory. Deleting a file asks you to type its path to confirm.
+
+Reference bind files in the topology with paths relative to the topology:
+
+```yaml
+topology:
+  nodes:
+    r1:
+      kind: linux
+      binds:
+        - configs/r1.conf:/etc/frr/frr.conf
+```
+
+Bind file paths must stay inside the topology. Absolute paths and `..` are rejected.
+
+## Sync from a URL
+
+A topology can be kept in sync with a file on the web, for example a raw file in a Git repository.
+
+1. Open **Sync Options** in the toolbar, enter the **Sync URL** and click **Save**.
+2. Click **Fetch** to load the file into the editor.
+3. Review the changes and **Save** the topology.
+
+<Aside type="note">
+	Your browser downloads the file, not the server. The URL must be reachable from your browser, allow cross-origin requests (CORS) and return a text content type. Raw file URLs from GitHub (`raw.githubusercontent.com`) work.
+</Aside>

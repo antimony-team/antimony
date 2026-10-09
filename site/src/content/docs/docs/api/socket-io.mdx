@@ -1,0 +1,209 @@
+---
+title: Socket.IO API
+description: Live updates, logs, statistics, terminals and lab commands over Socket.IO.
+sidebar:
+  label: Socket.IO API
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Everything live in Antimony runs over [Socket.IO](https://socket.io/) (protocol v4): lab state changes, logs, statistics, terminals and commands such as deploying a lab. The server listens at `/socket.io` on the same host as the interface.
+
+## Connecting
+
+Every namespace requires the access token from the `accessToken` cookie (see [authentication flow](/antimony/docs/architecture/auth-flow/)) in the handshake:
+
+```ts
+import { io } from 'socket.io-client';
+
+const updates = io('https://antimony.example.com/lab-updates', {
+	transports: ['websocket'],
+	auth: { token: accessToken },
+});
+```
+
+If the handshake fails, the connection error's message is one of:
+
+| Message | Reason |
+| --- | --- |
+| `Unauthorized` | No token in `auth.token`. |
+| `Invalid Token` | The token is invalid or expired. Refresh it and reconnect. |
+| `No Access` | The namespace is restricted to other users, for example someone else's terminal. |
+
+## Events
+
+Namespaces use three events:
+
+| Event | Direction | Content |
+| --- | --- | --- |
+| `data` | server → client | A message. |
+| `backlog` | server → client | Sent once, right after connecting, on namespaces that keep a backlog: an array of the most recent messages, in the same format as `data`. |
+| `data` | client → server | A request, on namespaces that accept input. Send it **as a string**: JSON for `/cmd`, raw text for terminals. Pass an acknowledgement callback to get the response. |
+
+Messages come in two formats:
+
+- **Wrapped**: `{ "payload": <message> }`
+- **Raw**: the message itself. Raw namespaces may also batch several messages into one array.
+
+Responses to requests are either `{ "payload": <result> }` or an error `{ "code": <number>, "message": <text> }`.
+
+## Namespaces
+
+### `/lab-updates`
+
+Notifies clients that a lab changed, so they can reload it with `GET /labs/<labId>`.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Format | Wrapped: `{ "payload": { "labId": "<lab UUID>" } }` |
+| Sent | Whenever a lab is created, changed or deleted, or its instance or one of its nodes changes state |
+| Recipients | All connected users |
+
+### `/status-messages`
+
+Notifications shown in the interface's Messages panel, such as finished or failed deployments.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Format | Wrapped. The payload is a status message, see below. |
+| Recipients | All connected users |
+
+```json
+{
+	"payload": {
+		"id": "1f0e…",
+		"source": "Runtime",
+		"content": "Successfully deployed lab 'OSPF Lab 1'",
+		"logContent": "17:35:37 SUCCESS … Deployment of lab was successful …",
+		"timestamp": "2026-10-07T17:35:37Z",
+		"severity": 0
+	}
+}
+```
+
+`severity` is `0` success, `1` info, `2` warning, `3` error or `4` fatal. `logContent` is the same message formatted as a log line, which also appears in the lab's log.
+
+### `/logs/<labId>`
+
+The deployment log of a lab: the output of containerlab or clabernetes, plus Antimony's own messages. Created when the lab is deployed.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Format | Raw: log lines as strings, or arrays of lines |
+| Backlog | The last `streaming.clabLogBacklog` lines (default 1000) |
+| Recipients | All connected users who subscribed |
+
+### `/logs/<labId>/<node>`
+
+The container log of one node. Created when the lab is running.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Format | Raw: log lines as strings, or arrays of lines |
+| Backlog | The last `streaming.containerLogBacklog` lines (default 1000) |
+| Recipients | All connected users who subscribed |
+
+### `/stats/<containerId>`
+
+Resource usage of one node, once per second while the node is ready. `containerId` is the node's container ID (the pod UID with clabernetes).
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Format | Raw: a stats object, see below |
+| Backlog | The last 20 samples |
+| Recipients | All connected users who subscribed |
+
+```json
+{
+	"timestamp": "2026-10-07T17:40:01Z",
+	"cpuPercent": 1.8,
+	"memoryUsage": 937984,
+	"memoryLimit": 16642998272,
+	"interfaces": {
+		"eth1": { "rxBps": 1100, "txBps": 0 }
+	}
+}
+```
+
+Memory is in bytes, interface throughput (`rxBps`, `txBps`) in bytes per second.
+
+### `/cmd`
+
+Lab and node commands. Send `data` as a JSON string with an acknowledgement callback:
+
+```ts
+const cmd = io('https://antimony.example.com/cmd', { transports: ['websocket'], auth: { token } });
+
+cmd.emit('data', JSON.stringify({ labId, command: 4, node: 'leaf1' }), (response) => {
+	if ('code' in response) console.error(response.code, response.message);
+});
+```
+
+| Command | Value | Fields | Response payload | Allowed for |
+| --- | --- | --- | --- | --- |
+| Deploy lab | `0` | `labId` | `null` | Lab creator, administrators |
+| Destroy lab | `1` | `labId` | `null` | Lab creator, administrators |
+| Start node | `2` | `labId`, `node` | `null` | Lab creator, administrators |
+| Stop node | `3` | `labId`, `node` | `null` | Lab creator, administrators |
+| Restart node | `4` | `labId`, `node` | `null` | Lab creator, administrators |
+| List my terminals | `5` | `labId` | `[{ "id", "node" }]` | Users with access to the lab |
+| Open terminal | `6` | `labId`, `node` | the new `shellId` | Users with access to the lab |
+| Close terminal | `7` | `labId`, `shellId` | `null` | The terminal's owner, administrators |
+
+Deploying and destroying can take a while. Follow the progress on `/lab-updates` and `/logs/<labId>`.
+
+Node commands only work on nodes of kinds with `canRestart: true` in [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml).
+
+### `/shell/<shellId>`
+
+The input and output of one terminal. Open the terminal with command `6` on `/cmd` first.
+
+| | |
+| --- | --- |
+| Direction | Both |
+| Input | Send keystrokes as a string in `data`. |
+| Output | Raw terminal output as bytes |
+| Backlog | The last `streaming.clabLogBacklog` bytes of output (default 1000) |
+| Access | Only the user who opened the terminal can connect |
+
+Terminals close after `shell.timeout` seconds without input (default 1800). A user can have at most `shell.userLimit` terminals open (default 20).
+
+### `/shell-control`
+
+Notifies clients about terminals that failed or were closed.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Format | Wrapped. The payload is `{ "labId", "node", "shellId", "command", "message" }`. |
+| Recipients | All connected users |
+
+`command` is `0` when the terminal failed (with the reason in `message`) and `1` when it was closed, for example because it timed out or the lab stopped.
+
+## Error codes
+
+| Code | Meaning |
+| --- | --- |
+| `5000` | Unexpected server error |
+| `5400` | Unknown command |
+| `5404` | The lab, topology or another object doesn't exist |
+| `5422` | Invalid request, for example missing fields or invalid JSON |
+| `5500` | The deployment provider failed |
+| `5011` | Lab not found |
+| `5012` | The lab isn't running |
+| `5013` | Another operation is already running on this lab |
+| `5021` | Node not found |
+| `5022` | The node isn't running |
+| `5023` | The node doesn't support this operation |
+| `5031` | Terminal not found |
+| `5032` | Terminal limit reached |
+| `5403` | Not allowed |
+
+<Aside type="note">
+	The Socket.IO API is used by the interface and isn't versioned yet. It may change between releases.
+</Aside>

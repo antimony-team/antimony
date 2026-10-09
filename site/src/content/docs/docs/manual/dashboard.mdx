@@ -1,0 +1,65 @@
+---
+title: Dashboard
+description: Find, filter and open your labs.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import dashboard from '../../../../assets/screenshots/antimony-dashboard.png';
+
+The dashboard is the first page you see after signing in. It lists every lab you have access to, grouped by state, with a live preview of each lab's topology.
+
+<figure class="shot">
+	<Image src={dashboard} alt="The Antimony dashboard: collections on the left, lab cards grouped into Active, Scheduled and Inactive on the right" />
+	<figcaption>The dashboard with the collection list on the left and the lab grid on the right.</figcaption>
+</figure>
+
+## The top bar
+
+The top bar is the same on every page.
+
+| Element | What it does |
+| --- | --- |
+| **Dashboard** / **Topology Editor** | Switch between the two main pages. They're shown to administrators and to users with access to at least one collection. |
+| **Messages** (bell) | Opens the messages panel with server messages such as finished or failed deployments. A dot shows unread messages. |
+| **Lab Schedule** (calendar) | Opens the [lab calendar](/antimony/docs/manual/deploying-labs/#the-lab-schedule). |
+| **Credits** (info) | Shows the version, the authors and which deployment provider the server uses. |
+| **Log Out** | Signs you out. Hidden when the server doesn't require a login. |
+
+### Messages
+
+The messages panel lists messages from the server, newest first. Filter them by severity with the **Error**, **Warning**, **Success** and **Info** chips. Hovering over a message marks it as read; **Mark all as read** marks all of them.
+
+Confirmations of your own actions, such as "Lab has been created successfully.", appear as short pop-ups in the bottom-right corner instead.
+
+## Collections
+
+The left panel lists **All labs** and every collection you can access, with the number of labs in each. Coloured dots show which states the labs in a collection are in. Click a collection to show only its labs.
+
+## The lab grid
+
+Labs are grouped into three sections, which you can collapse:
+
+- **Active**: labs that are deploying, running, stopping or failed.
+- **Scheduled**: labs whose start time is still ahead.
+- **Inactive**: labs that have ended. Collapsed by default.
+
+Use the state chips above the grid (**Deploying**, **Running**, **Stopping**, **Failed**, **Inactive**, **Scheduled**) to hide or show labs in a state.
+
+Each card shows:
+
+- the state, with how long the lab has been up, how many nodes are ready ("3 of 5 ready"), when it starts or when it failed
+- a small preview of the topology, using the node positions from the editor
+- the lab name, the number of nodes, the collection and topology, and who created the lab
+
+Click a card to open the [lab view](/antimony/docs/manual/lab-view/).
+
+**New lab** opens the [deploy dialog](/antimony/docs/manual/deploying-labs/).
+
+<Aside type="tip">
+	Collapsed sections and hidden states are remembered in your browser.
+</Aside>
+
+## Connection problems
+
+If the interface loses its connection to the server, a banner reads "Antimony is experiencing network issues" and shows whether the **Antimony API** and the **Antimony Socket** are reachable. The interface keeps trying to reconnect. If the server can't be reached at all when you open Antimony, you see "Unable to connect to the Antimony server." instead.

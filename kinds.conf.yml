@@ -1,18 +1,12 @@
-# Node kind configuration.
-# Each key corresponds to a ContainerLab node kind (e.g., nokia_srlinux, cisco_csr1000v).
+# Settings per containerlab node kind.
 #
-# Available fields per kind:
-#   sshUsername - The username used to authenticate the SSH connection.
-#                 Default: "admin"
-#   sshPassword - The password used to authenticate the SSH connection.
-#                 If not specified, SSH key authentication will be used instead.
-#   canRestart - Whether the node can be manually stopped and started.
-#                Default: false
-#
-# Example:
-#   nokia_srlinux:
-#     sshUsername: admin
-#     sshPassword: NokiaSrl1!
+#   sshUsername  Username for terminals. Default: admin
+#   sshPassword  Password for terminals. Without one, the server's SSH keys are used.
+#   canRestart   Allow stopping, starting and restarting nodes of this kind. Default: false
+
+nokia_srlinux:
+  sshUsername: admin
+  sshPassword: NokiaSrl1!
 
 cisco_csr1000v:
   sshUsername: admin

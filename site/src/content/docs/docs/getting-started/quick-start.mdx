@@ -1,0 +1,62 @@
+---
+title: Quick start
+description: Try Antimony on your own Linux machine in a few minutes.
+sidebar:
+  order: 1
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+You need a Linux machine with Docker Engine and the Compose plugin. Labs run on the same machine.
+
+<Steps>
+
+1. **Clone and start Antimony.** The first start builds the images and takes a few minutes.
+
+    ```bash
+    git clone https://github.com/antimony-team/antimony
+    cd antimony
+    docker compose up -d --build
+    ```
+
+2. **Open [https://localhost](https://localhost)**, accept the certificate warning and sign in as `admin` / `admin`.
+
+</Steps>
+
+<Aside type="caution">
+	These defaults are for trying Antimony on your own machine. To run it for others, follow [Deploy with Docker](/antimony/docs/deployment/docker/).
+</Aside>
+
+## Your first lab
+
+<Steps>
+
+1. Open the **Topology Editor**, create a collection called `playground` and a topology called `hello`.
+
+2. Paste this topology and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>:
+
+    ```yaml
+    name: hello
+    topology:
+      nodes:
+        alpine1:
+          kind: linux
+          image: alpine:latest
+        alpine2:
+          kind: linux
+          image: alpine:latest
+      links:
+        - endpoints: ["alpine1:eth1", "alpine2:eth1"]
+    ```
+
+3. Click **Deploy** in the toolbar, then **Deploy** in the dialog.
+
+4. On the **Dashboard**, open the lab, click `alpine1` and choose **Open Terminal**.
+
+</Steps>
+
+## Next steps
+
+- [Concepts](/antimony/docs/getting-started/concepts/): collections, topologies and labs
+- [Topology editor](/antimony/docs/manual/topology-editor/) and [lab view](/antimony/docs/manual/lab-view/)
+- [Capture traffic in Wireshark](/antimony/docs/manual/ssh-server/)

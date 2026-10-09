@@ -1,0 +1,83 @@
+---
+// The Docker Compose deployment: Traefik in front, interface and server behind, labs as sibling containers.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 880 420" role="img" aria-labelledby="dd-title dd-desc">
+		<title id="dd-title">Docker deployment</title>
+		<desc id="dd-desc">
+			Browsers connect to Traefik on port 443. Traefik routes the root path to the interface on port 8100, and /api and
+			/socket.io to the Antimony server on port 3000. The server stores data in PostgreSQL and starts lab containers
+			through the Docker socket with containerlab. SSH clients connect to the server's SSH port directly.
+		</desc>
+		<defs>
+			<marker id="dd-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+			<marker id="dd-aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+			<marker id="dd-aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-warm" />
+			</marker>
+		</defs>
+
+		<!-- Users -->
+		<rect x="20" y="70" width="150" height="64" rx="10" class="box" />
+		<text x="36" y="96" class="t">Browser</text>
+		<text x="36" y="116" class="t-mono">https://host</text>
+		<rect x="20" y="300" width="150" height="64" rx="10" class="box" />
+		<text x="36" y="326" class="t">SSH / Wireshark</text>
+		<text x="36" y="346" class="t-mono">ssh -p 6969</text>
+
+		<!-- Host -->
+		<rect x="210" y="20" width="650" height="380" rx="14" class="zone" />
+		<text x="226" y="44" class="t-zone">Docker host · network_mode: host</text>
+
+		<rect x="240" y="66" width="150" height="74" rx="10" class="box" />
+		<text x="256" y="92" class="t">Traefik</text>
+		<text x="256" y="112" class="t-mono">:80 → :443</text>
+		<text x="256" y="128" class="t-sub">Let's Encrypt</text>
+		<path d="M170 102 H236" class="edge" marker-end="url(#dd-a)" />
+
+		<rect x="460" y="56" width="170" height="56" rx="10" class="box" />
+		<text x="476" y="80" class="t">Interface</text>
+		<text x="476" y="98" class="t-mono">:8100 · static files</text>
+
+		<rect x="460" y="150" width="170" height="150" rx="10" class="box-accent" />
+		<text x="476" y="176" class="t">Antimony server</text>
+		<text x="476" y="196" class="t-mono">:3000 REST + Socket.IO</text>
+		<text x="476" y="214" class="t-mono">:6969 SSH</text>
+		<text x="476" y="240" class="t-sub">privileged · pid: host</text>
+		<text x="476" y="256" class="t-sub">containerlab inside</text>
+		<text x="476" y="282" class="t-mono">config.yml</text>
+
+		<path d="M390 90 H456" class="edge" marker-end="url(#dd-a)" />
+		<text x="396" y="82" class="t-mono">/</text>
+		<path d="M390 118 C 425 118, 420 186, 456 186" class="edge" marker-end="url(#dd-a)" />
+		<text x="350" y="160" class="t-mono">/api</text>
+		<text x="350" y="178" class="t-mono">/socket.io</text>
+
+		<path d="M170 332 C 320 332, 330 214, 456 214" class="edge-warm" marker-end="url(#dd-aw)" />
+
+		<rect x="700" y="66" width="140" height="64" rx="10" class="box" />
+		<text x="716" y="92" class="t">PostgreSQL</text>
+		<text x="716" y="112" class="t-mono">:5432</text>
+		<path d="M630 175 C 670 175, 670 100, 696 100" class="edge" marker-end="url(#dd-a)" />
+
+		<rect x="680" y="196" width="160" height="110" rx="10" class="box" />
+		<text x="696" y="220" class="t">Docker daemon</text>
+		<text x="696" y="240" class="t-mono">/var/run/docker.sock</text>
+		<path d="M630 240 H676" class="edge-accent" marker-end="url(#dd-aa)" />
+
+		<rect x="460" y="326" width="380" height="56" rx="10" class="box" />
+		<text x="476" y="350" class="t">Lab containers</text>
+		<text x="476" y="368" class="t-mono">clab-&lt;instance&gt;-&lt;node&gt;</text>
+		<path d="M760 306 V322" class="edge" marker-end="url(#dd-a)" />
+		<path d="M545 300 V322" class="edge-warm edge-dashed" marker-end="url(#dd-aw)" />
+		<text x="553" y="316" class="t-sub">shells, capture</text>
+	</svg>
+	<figcaption>
+		The default Docker Compose setup. Traefik terminates TLS and routes requests by path. The server starts lab containers next to itself through the host's Docker daemon.
+	</figcaption>
+</figure>

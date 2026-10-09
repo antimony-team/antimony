@@ -1,0 +1,25 @@
+---
+title: Concepts
+description: Collections, topologies, labs, instances and nodes, and how they relate.
+sidebar:
+  order: 2
+---
+
+import ConceptExplorer from '../../../../components/ConceptExplorer.astro';
+import DomainModel from '../../../../components/diagrams/DomainModel.astro';
+
+Antimony is built around a short chain: a **collection** holds **topologies**, a topology is deployed as **labs**, and a running lab has an **instance** with **nodes**. Pick a concept to learn more.
+
+<ConceptExplorer />
+
+## At a glance
+
+| Concept | Is a… | Created by | Lives |
+| --- | --- | --- | --- |
+| Collection | Folder of topologies with permissions | Administrators | Until deleted |
+| Topology | containerlab topology file with bind files | Collection members with edit rights | Until deleted |
+| Lab | Deployment of a topology with a start and end time | Users with deploy rights | Until deleted; inactive after its end time |
+| Instance | Live state of a deployed lab | Antimony, when the lab deploys | While the lab is deployed |
+| Node | Container or pod running one device | The provider | While the lab is deployed |
+
+<DomainModel />
