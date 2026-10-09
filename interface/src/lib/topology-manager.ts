@@ -2,17 +2,19 @@ import {cloneDeep, isEqual} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {isMap, YAMLMap, YAMLSeq} from 'yaml';
 
+import {
+  buildTopologyMetadata,
+  parseInterface,
+} from '@sb/lib/graph/topology-graph';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {Binding} from '@sb/lib/utils/binding';
-import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {
   BindFile,
   NodeConnection,
   Topology,
   TopologyDefinition,
-  TopologyMeta,
 } from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 import {Position, YAMLDocument} from '@sb/types/types';
@@ -212,7 +214,7 @@ export class TopologyManager {
   }
 
   public updateNodeLabels(
-    labelMap: Map<string, Record<string, string | number>>,
+    labelMap: Map<string, Record<string, string | number | null>>,
   ) {
     if (!this.editingTopology) return;
 
@@ -321,7 +323,9 @@ export class TopologyManager {
   ) {
     if (!this.editingTopology) return;
 
-    const topologyMeta = this.buildTopologyMetadata(updatedTopology);
+    const topologyMeta = buildTopologyMetadata(updatedTopology, kind =>
+      this.deviceStore.getInterfaceConfig(kind),
+    );
 
     runInAction(() => {
       this.editingTopology!.definition = updatedTopology;
@@ -488,136 +492,6 @@ export class TopologyManager {
     }
   }
 
-  public getNodeTooltip(nodeName: string) {
-    if (!this.editingTopology) return;
-
-    // const node = (
-    //   this.editingTopology.definition.getIn([
-    //     'topology',
-    //     'nodes',
-    //     nodeName,
-    //   ]) as YAMLMap
-    // ).toJS(this.editingTopology.definition);
-    return nodeName;
-  }
-
-  public getEdgeTooltip(connection: NodeConnection) {
-    return `${connection.hostNode}:${connection.hostInterface} <···> ${connection.targetNode}:${connection.targetInterface}`;
-  }
-
-  public buildTopologyMetadata(
-    topology: YAMLDocument<TopologyDefinition>,
-  ): TopologyMeta {
-    if (!topology.hasIn(['topology', 'links'])) {
-      return {
-        nodeCount: 0,
-        connections: [],
-        connectionMap: new Map<string, NodeConnection[]>(),
-      };
-    }
-
-    const links = (topology.getIn(['topology', 'links']) as YAMLSeq).toJS(
-      topology,
-    );
-
-    const nodeCount = Object.keys(
-      (topology.getIn(['topology', 'nodes']) as YAMLMap).toJS(topology),
-    ).length;
-
-    let index = 0;
-    const connections: NodeConnection[] = [];
-    const connectionMap = new Map<string, NodeConnection[]>();
-
-    for (const link of links) {
-      const [hostNode, hostInterface] = link.endpoints[0].split(':');
-      const [targetNode, targetInterface] = link.endpoints[1].split(':');
-
-      // Ignore the link if one of the nodes does not exist
-      if (
-        !topology.getIn(['topology', 'nodes', hostNode]) ||
-        !topology.getIn(['topology', 'nodes', targetNode])
-      ) {
-        continue;
-      }
-
-      const hostNodeKind = topology.getIn([
-        'topology',
-        'nodes',
-        hostNode,
-        'kind',
-      ]) as string;
-
-      const targetNodeKind = topology.getIn([
-        'topology',
-        'nodes',
-        targetNode,
-        'kind',
-      ]) as string;
-
-      const hostInterfaceConfig =
-        this.deviceStore.getInterfaceConfig(hostNodeKind);
-      const targetInterfaceConfig =
-        this.deviceStore.getInterfaceConfig(targetNodeKind);
-
-      const hostInterfaceIndex = this.parseInterface(
-        hostInterface,
-        hostInterfaceConfig.interfacePattern,
-      );
-      const targetInterfaceIndex = this.parseInterface(
-        targetInterface,
-        targetInterfaceConfig.interfacePattern,
-      );
-
-      connections.push({
-        index,
-        hostNode,
-        hostInterface,
-        hostInterfaceIndex,
-        hostInterfaceConfig,
-        targetNode,
-        targetInterface,
-        targetInterfaceIndex,
-        targetInterfaceConfig,
-      });
-
-      pushOrCreateList(connectionMap, hostNode, {
-        index: index,
-        hostNode: hostNode,
-        hostInterface: hostInterface,
-        hostInterfaceIndex: hostInterfaceIndex,
-        hostInterfaceConfig: hostInterfaceConfig,
-        targetNode: targetNode,
-        targetInterface: targetInterface,
-        targetInterfaceIndex: targetInterfaceIndex,
-        targetInterfaceConfig: targetInterfaceConfig,
-      });
-
-      pushOrCreateList(connectionMap, targetNode, {
-        index: index,
-        hostNode: targetNode,
-        hostInterface: targetInterface,
-        hostInterfaceIndex: targetInterfaceIndex,
-        hostInterfaceConfig: targetInterfaceConfig,
-        targetNode: hostNode,
-        targetInterface: hostInterface,
-        targetInterfaceIndex: hostInterfaceIndex,
-        targetInterfaceConfig: hostInterfaceConfig,
-      });
-
-      index++;
-    }
-
-    return {nodeCount, connections, connectionMap};
-  }
-
-  public parseInterface(value: string, interfacePattern: string): number {
-    const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
-    const match = value.match(pattern);
-
-    if (!match || match.length < 2) return 99;
-    return Number(match[1]);
-  }
-
   private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
     if (!this.editingTopology) return null;
 
@@ -729,7 +603,7 @@ export class TopologyManager {
   ): number[] {
     return (connectionMap.get(nodeName) ?? [])
       .map(connection =>
-        this.parseInterface(connection.hostInterface, interfacePattern),
+        parseInterface(connection.hostInterface, interfacePattern),
       )
       .filter(index => index >= 0);
   }

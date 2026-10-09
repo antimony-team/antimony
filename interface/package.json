@@ -52,6 +52,7 @@
     "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts",
     "e2e:ui": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts --ui",
     "e2e:report": "playwright show-report e2e/.tmp/report",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf ./dist/ ./dist-electron/ ./release/",
     "compile": "tsc",
@@ -102,6 +103,7 @@
     "typescript": "^5.8.3",
     "vite": "^8.0.5",
     "vite-plugin-electron": "^0.29.1",
-    "vite-plugin-electron-renderer": "^0.14.7"
+    "vite-plugin-electron-renderer": "^0.14.7",
+    "vitest": "^5"
   }
 }

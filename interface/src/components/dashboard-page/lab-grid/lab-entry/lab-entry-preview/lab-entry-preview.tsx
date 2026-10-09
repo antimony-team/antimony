@@ -3,6 +3,7 @@ import React, {useMemo} from 'react';
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 
+import {readGraphNodes} from '@sb/lib/graph/topology-graph';
 import {NodeConnection, RunTopology} from '@sb/types/domain/topology';
 
 import './lab-entry-preview.sass';
@@ -81,17 +82,13 @@ const LabEntryPreview = observer((props: LabPreviewProps) => {
 });
 
 function readPositions(topology: RunTopology): Map<string, Point> | null {
-  const nodes = topology.definition.toJS()?.topology?.nodes ?? {};
   const positions = new Map<string, Point>();
 
-  for (const [name, node] of Object.entries(nodes)) {
-    const x = parseFloat(node?.labels?.['graph-posX'] ?? '0');
-    const y = parseFloat(node?.labels?.['graph-posY'] ?? '0');
-
+  for (const node of readGraphNodes(topology.definition)) {
     // A partial layout would look broken, so fall back to the placeholder
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (!node.position) return null;
 
-    positions.set(name, {x, y});
+    positions.set(node.name, node.position);
   }
 
   return positions.size > 0 ? positions : null;

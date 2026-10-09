@@ -9,6 +9,7 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {readNodeIcon} from '@sb/lib/graph/topology-graph';
 import {NodeEditor} from '@sb/lib/node-editor';
 import {
   useDeviceStore,
@@ -94,7 +95,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     nodeEditor.onEdit.register(onTopologyUpdate);
     onTopologyUpdate();
 
-    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNode()));
+    setNodeIcon(deviceStore.getNodeIcon(readNodeIcon(nodeEditor.getNode())));
 
     return () => nodeEditor.onEdit.unregister(onTopologyUpdate);
   }, [nodeEditor, onTopologyUpdate]);
@@ -151,7 +152,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     if (!nodeEditor) return;
 
     nodeEditor.onUpdateIcon(icon);
-    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNode()));
+    setNodeIcon(deviceStore.getNodeIcon(readNodeIcon(nodeEditor.getNode())));
     iconSelectorOverlay.current?.hide();
   }
 

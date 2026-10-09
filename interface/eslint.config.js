@@ -25,6 +25,7 @@ export default [
     ignores: [
       '**/build/',
       'vite.config.ts',
+      'vitest.config.ts',
       'eslint.config.js',
       '.prettierrc.cjs',
       'start.js',

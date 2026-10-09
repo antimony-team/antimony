@@ -5,8 +5,6 @@ import cytoscape, {NodeSingular} from 'cytoscape';
 // @ts-expect-error This library does not have a type declaration
 import coseBilkent from 'cytoscape-cose-bilkent';
 import {observer} from 'mobx-react-lite';
-import CytoscapeComponent from 'react-cytoscapejs';
-import {isMap} from 'yaml';
 
 import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
@@ -14,16 +12,14 @@ import {SpeedDial} from 'primereact/speeddial';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {topologyStyle} from '@sb/lib/cytoscape-styles';
+import TopologyGraph, {
+  TopologyGraphRef,
+} from '@sb/components/common/topology-graph/topology-graph';
+import {generateGraph} from '@sb/lib/graph/cytoscape-utils';
+import {nodeLayoutLabels} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {
-  convertXYToLatLng,
-  drawGraphGrid,
-  generateGraph,
-  getDistance,
-  getFitPadding,
-} from '@sb/lib/utils/utils';
+import {getDistance} from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
@@ -55,8 +51,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const [contextMenuModel, setContextMenuModel] = useState<MenuItem[] | null>(
     null,
   );
-  // Only a dependency for effects that have to run again for a new instance. Read the instance through cyRef.
-  const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
 
   const groupNameDialogState = useDialogState<GroupEditDialogState>();
 
@@ -64,10 +58,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const topologyStore = useTopologyStore();
   const simulationConfig = useSimulationConfig();
 
+  const graphRef = useRef<TopologyGraphRef>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const radialMenuTarget = useRef<string | null>(null);
   const nodeConnectionSource = useRef<string | null>(null);
-  const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<ContextMenu | null>(null);
   const radialMenuRef = useRef<SpeedDial>(null);
@@ -76,42 +70,16 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const drawStartPos = useRef<Position | null>(null);
   const drawEndPos = useRef<Position | null>(null);
   const isDrawModeOn = useRef<boolean>(false);
-  const isFitPending = useRef<boolean>(false);
-
-  /**
-   * We have update graph elements manually instead of using the reactive
-   * elements prop provided by the React Cytoscape library because the library
-   * dynamically adds and removes elements when the element prop is updated.
-   *
-   * This makes it so, if a parent is deleted in the graph, its children
-   * are also deleted. This is unwanted behavior.
-   */
-  useEffect(() => {
-    if (props.openTopology === null || !cyInstance) return;
-    closeRadialMenu();
-
-    const elements = generateGraph(
-      props.openTopology,
-      deviceStore,
-      topologyStore.manager,
-    );
-
-    cyInstance.batch(() => {
-      cyInstance.elements().remove();
-      cyInstance.add(elements);
-    });
-
-    if (lastOpenedTopology.current !== props.openTopology.id) {
-      lastOpenedTopology.current = props.openTopology.id;
-      fitWhenVisible(cyInstance);
-    }
-  }, [cyInstance, deviceStore, props.openTopology?.definition]);
 
   const elements = useMemo(() => {
     if (props.openTopology === null) return [];
 
-    return;
-  }, []);
+    return generateGraph(props.openTopology, deviceStore);
+  }, [deviceStore, props.openTopology?.definition]);
+
+  useEffect(() => {
+    closeRadialMenu();
+  }, [elements]);
 
   useEffect(() => {
     window.addEventListener('keydown', onKeyDown);
@@ -120,26 +88,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [onKeyDown]);
-
-  useEffect(() => {
-    if (!cyRef.current) return;
-
-    const cy = cyRef.current;
-
-    const zoomBefore = cy.zoom();
-    const panBefore = cy.pan();
-
-    closeRadialMenu();
-
-    cy.zoom(zoomBefore);
-    cy.pan(panBefore);
-  }, [elements]);
-
-  function onCyRender(event: cytoscape.EventObject) {
-    if (!gridCanvasRef.current || !containerRef.current || !event.cy) return;
-
-    drawGraphGrid(containerRef.current, gridCanvasRef.current, event.cy);
-  }
 
   function onStabilizeGraph() {
     const cy = cyRef.current;
@@ -439,51 +387,17 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     exitDrawMode();
   }
 
-  function onDragStart(event: cytoscape.EventObject) {
-    const node = event.target;
-    if (!node || !node.isNode()) return;
-  }
-
   function onDragEnd(event: cytoscape.EventObject) {
     const node = event.target;
     if (node?.isNode()) onSaveGraph();
   }
 
-  const lastOpenedTopology = useRef<string | null>(null);
-
   function onFitGraph() {
-    if (!cyRef.current) return;
-
-    cyRef.current.animate(
-      {
-        fit: {
-          eles: cyRef.current.elements(),
-          padding: getFitPadding(cyRef.current),
-        },
-      },
-      {
-        duration: 200,
-        easing: 'ease-in-out',
-      },
-    );
+    graphRef.current?.fit(true);
   }
 
   function onClearGraph() {
     topologyStore.manager.clear();
-  }
-
-  function fitWhenVisible(cy: cytoscape.Core) {
-    console.log('fitWhenVisible', cy.width(), cy.height());
-    cy.resize();
-
-    // If the graph is not visible, we instead queue the fit operation
-    if (cy.width() === 0 || cy.height() === 0) {
-      isFitPending.current = true;
-      return;
-    }
-
-    isFitPending.current = false;
-    cy.fit(cy.elements(), getFitPadding(cy));
   }
 
   function onSaveGraph() {
@@ -492,42 +406,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if (!cy || !topology?.definition) return;
 
-    const updatedLabelMap = new Map<string, Record<string, string | number>>();
+    const nodes = topology.definition.toJS().topology.nodes;
+    const updatedLabelMap = new Map<string, Record<string, string | null>>();
 
     for (const node of cy.nodes('.topology-node')) {
-      const id = node.id();
-      const pos = node.position();
-      const position = {
-        x: Number(pos.x.toFixed(2)),
-        y: Number(pos.y.toFixed(2)),
-      };
-      const geo = convertXYToLatLng(position.x, position.y);
-
-      const existingLabels = topology.definition.getIn([
-        'topology',
-        'nodes',
-        id,
-        'labels',
-      ]);
-
-      const useGeoCoords =
-        isMap(existingLabels) &&
-        (existingLabels.get('graph-geoCoordinateLat') ||
-          existingLabels.get('graph-geoCoordinateLng'));
-
-      const updatedLabels: Record<string, string | number> = {};
-
-      updatedLabels['graph-group'] = node.parent().data('label') ?? null;
-
-      if (useGeoCoords) {
-        updatedLabels['graph-geoCoordinateLat'] = geo.lat.toString();
-        updatedLabels['graph-geoCoordinateLng'] = geo.lng.toString();
-      } else {
-        updatedLabels['graph-posX'] = position.x.toString();
-        updatedLabels['graph-posY'] = position.y.toString();
-      }
-
-      updatedLabelMap.set(id, updatedLabels);
+      updatedLabelMap.set(
+        node.id(),
+        nodeLayoutLabels(
+          nodes[node.id()]?.labels,
+          node.position(),
+          node.parent().data('label') ?? null,
+        ),
+      );
     }
 
     topologyStore.manager.updateNodeLabels(updatedLabelMap);
@@ -557,35 +447,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (isDrawModeOn.current) {
       onDrawEnd();
     }
-  }
-
-  function onCyResize(e: EventObject) {
-    if (isFitPending.current) {
-      fitWhenVisible(e.cy);
-    }
-  }
-
-  function initCytoscape(cy: cytoscape.Core) {
-    cy.on('click', onGraphClick);
-    cy.on('click', 'node', onNodeClick);
-    cy.on('dbltap', 'node', onDoubleClick);
-    cy.on('cxttap', onGraphContext);
-    cy.on('cxttap', 'node', onNodeContext);
-    cy.on('cxttap', 'edge', onEdgeContext);
-    cy.on('grab', 'node', onDragStart);
-    cy.on('free', 'node', onDragEnd);
-    cy.on('drag', 'node', onDrag);
-    cy.on('click', 'edge', onEdgeClick);
-    cy.on('render', onCyRender);
-    cy.on('mousedown', onCyMouseDown);
-    cy.on('mousemove', onCyMouseMove);
-    cy.on('mouseup', onMouseUp);
-    cy.on('resize', onCyResize);
-
-    cy.animate({
-      fit: {padding: getFitPadding(cy), eles: cy.elements()},
-      duration: 50,
-    });
   }
 
   function onGroupNameSubmit(
@@ -726,10 +587,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     isDrawModeOn.current = true;
     cyRef.current.userPanningEnabled(false);
-
-    (
-      document.querySelector('.cytoscape-container') as HTMLElement
-    ).style.cursor = 'crosshair';
+    cyRef.current.container()!.style.cursor = 'crosshair';
   }
 
   function exitDrawMode() {
@@ -737,10 +595,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     isDrawModeOn.current = false;
     cyRef.current.userPanningEnabled(true);
-
-    (
-      document.querySelector('.cytoscape-container') as HTMLElement
-    ).style.cursor = '';
+    cyRef.current.container()!.style.cursor = '';
   }
 
   function onDrawStart() {
@@ -850,24 +705,28 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       ref={containerRef}
       onMouseMove={onMouseMove}
     >
-      <div className="graph-container">
-        <canvas ref={gridCanvasRef} className="grid-canvas" />
-        <CytoscapeComponent
-          className="cytoscape-container"
-          stylesheet={topologyStyle}
-          elements={[]}
-          minZoom={0.3}
-          maxZoom={10}
-          layout={{name: 'preset'}}
-          cy={(cy: cytoscape.Core) => {
-            if (cyRef.current === cy) return;
-
-            cyRef.current = cy;
-            initCytoscape(cyRef.current);
-            setCyInstance(cy);
-          }}
-        />
-      </div>
+      <TopologyGraph
+        ref={graphRef}
+        elements={elements}
+        fitKey={props.openTopology?.id ?? null}
+        events={{
+          click: onGraphClick,
+          'click node': onNodeClick,
+          'click edge': onEdgeClick,
+          'dbltap node': onDoubleClick,
+          cxttap: onGraphContext,
+          'cxttap node': onNodeContext,
+          'cxttap edge': onEdgeContext,
+          'free node': onDragEnd,
+          'drag node': onDrag,
+          mousedown: onCyMouseDown,
+          mousemove: onCyMouseMove,
+          mouseup: onMouseUp,
+        }}
+        onInstance={cy => {
+          cyRef.current = cy;
+        }}
+      />
       <NodeToolbar
         onAddNode={props.onAddNode}
         onFitGraph={onFitGraph}

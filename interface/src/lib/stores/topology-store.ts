@@ -3,6 +3,7 @@ import {action, observable, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 
 import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
+import {buildTopologyMetadata} from '@sb/lib/graph/topology-graph';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {DeviceStore} from '@sb/lib/stores/device-store';
@@ -31,6 +32,7 @@ export class TopologyStore extends DataStore<
 
   private dataBinder: DataBinder;
   private schemaStore: SchemaStore;
+  private deviceStore: DeviceStore;
 
   constructor(
     rootStore: RootStore,
@@ -42,6 +44,7 @@ export class TopologyStore extends DataStore<
     super(rootStore, dependencies);
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
+    this.deviceStore = deviceStore;
 
     this.manager = new TopologyManager(this, deviceStore);
   }
@@ -236,7 +239,9 @@ export class TopologyStore extends DataStore<
       const updatedDefinition = this.parseTopologyDefinition(source.definition);
 
       if (updatedDefinition) {
-        const metadata = this.manager.buildTopologyMetadata(updatedDefinition);
+        const metadata = buildTopologyMetadata(updatedDefinition, kind =>
+          this.deviceStore.getInterfaceConfig(kind),
+        );
 
         target.name = updatedDefinition.get('name') as string;
         target.definition = updatedDefinition;
@@ -282,7 +287,9 @@ export class TopologyStore extends DataStore<
       name: definition.get('name') as string,
       definition: definition,
       definitionString: input.definition,
-      ...this.manager.buildTopologyMetadata(definition),
+      ...buildTopologyMetadata(definition, kind =>
+        this.deviceStore.getInterfaceConfig(kind),
+      ),
     });
   }
 }
