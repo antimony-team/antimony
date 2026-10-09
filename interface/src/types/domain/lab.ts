@@ -147,4 +147,5 @@ export enum RuntimeCommand {
   FetchShells,
   OpenShell,
   CloseShell,
+  ResizeShell,
 }

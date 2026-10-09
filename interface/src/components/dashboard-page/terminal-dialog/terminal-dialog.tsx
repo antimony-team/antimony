@@ -1,30 +1,23 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-
-import './terminal-dialog.sass';
-import {useLabStore, useShellStore} from '@sb/lib/stores/root-store';
-import {DialogState} from '@sb/lib/utils/hooks';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {Lab} from '@sb/types/domain/lab';
-import {uuid4} from '@sb/types/types';
-import {Terminal} from '@xterm/xterm';
-import {FitAddon} from '@xterm/addon-fit';
-
-import '@xterm/xterm/css/xterm.css';
-
-import {observer} from 'mobx-react-lite';
-import {Button} from 'primereact/button';
-import {ListBox} from 'primereact/listbox';
-import {OverlayPanel} from 'primereact/overlaypanel';
-import {SelectItem} from 'primereact/selectitem';
-import {TabPanel, TabView, TabViewTabChangeEvent} from 'primereact/tabview';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
-type OptionGroupOptions = {
-  optionGroup: {
-    label: string;
-    value: string;
-  };
-};
+import {FitAddon} from '@xterm/addon-fit';
+import {Terminal} from '@xterm/xterm';
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+
+import {Button} from 'primereact/button';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import {SelectItem} from 'primereact/selectitem';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import {useLabStore, useShellStore} from '@sb/lib/stores/root-store';
+import {DialogState} from '@sb/lib/utils/hooks';
+import {If} from '@sb/types/control';
+import {Lab} from '@sb/types/domain/lab';
+import {uuid4} from '@sb/types/types';
+
+import './terminal-dialog.sass';
+import '@xterm/xterm/css/xterm.css';
 
 export interface TerminalDialogState {
   lab: Lab;
@@ -55,7 +48,6 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const newTabOverlay = useRef<OverlayPanel>(null);
-  const newTabAnchor = useRef<TabPanel>(null);
   const resetBeforeNextUpdate = useRef(false);
 
   const onData = useCallback((dataRaw: ArrayBuffer) => {
@@ -80,7 +72,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     const nodes = props.dialogState.state.lab.instance.nodes;
 
     return nodes.map(node => ({
-      label: `${node.name} (${node.containerId})`,
+      label: `${node.name} (${node.containerName})`,
       value: node.name,
     }));
   }, [props.dialogState.state, labStore.data]);
@@ -142,8 +134,19 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
       fitRef.current = new FitAddon();
       termRef.current.loadAddon(fitRef.current);
+      termRef.current.onResize(size => {
+        if (!props.dialogState.state || !shellStore.currentShell) return;
+
+        shellStore.terminalSize = size;
+        void shellStore.resizeShell(shellStore.currentShell);
+      });
 
       termRef.current.open(terminalContainerRef.current);
+      fitRef.current.fit();
+      shellStore.terminalSize = {
+        cols: termRef.current.cols,
+        rows: termRef.current.rows,
+      };
 
       termRef.current.onData((data: string) => {
         shellStore.sendData(data);
@@ -216,24 +219,22 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     termRef.current?.focus();
   }
 
-  function onTabSwitch(event: TabViewTabChangeEvent) {
+  function onTabClick(event: React.MouseEvent<HTMLDivElement>, index: number) {
     if (!props.dialogState.state || !termRef.current) return;
 
     const currentShells = shellStore.getShellsForLab(
       props.dialogState.state.lab.id,
     );
-    if (event.index >= currentShells.length) {
-      newTabOverlay.current!.show(
-        event.originalEvent,
-        newTabAnchor.current! as unknown as HTMLElement,
-      );
-    } else {
-      deferTerminalReset();
-      shellStore.switchToShell(currentShells[event.index]);
 
-      // Set focus to the terminal after switching tabs
-      termRef.current.focus();
-    }
+    deferTerminalReset();
+    shellStore.switchToShell(currentShells[index]);
+
+    // Set focus to the terminal after switching tabs
+    termRef.current.focus();
+  }
+
+  function onNewTab(event: React.MouseEvent<HTMLButtonElement>) {
+    newTabOverlay.current!.show(event, event.target);
   }
 
   /**
@@ -259,18 +260,6 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     newTabOverlay.current?.hide();
     void switchToNewTab(nodeName);
   }
-
-  const nodeListTemplate = (option: OptionGroupOptions) => {
-    return (
-      <div
-        className="flex align-items-center gap-3"
-        onClick={() => onSelectNewTab(option.optionGroup.value)}
-      >
-        <span className="material-symbols-outlined">deployed_code</span>
-        <span>{option.optionGroup.label}</span>
-      </div>
-    );
-  };
 
   async function closeTab(shellId: string, closeIndex: number) {
     if (!props.dialogState.state?.lab) return;
@@ -315,12 +304,11 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   }
 
   function onTabClose(
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.MouseEvent<HTMLButtonElement>,
     shellId: string,
     closeIndex: number,
   ) {
     event.stopPropagation();
-
     void closeTab(shellId, closeIndex);
   }
 
@@ -333,12 +321,6 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   }, [isExpired]);
 
   function onResizeEnd() {
-    console.log(
-      'FIT cols:',
-      termRef.current!.cols,
-      'rows:',
-      termRef.current!.rows,
-    );
     fitRef.current!.fit();
   }
 
@@ -363,72 +345,60 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       onResizeEnd={onResizeEnd}
       headerIcon={<span className="material-symbols-outlined">terminal_2</span>}
     >
-      <TabView activeIndex={tabIndex} onTabChange={onTabSwitch} scrollable>
-        {currentTabs.map((tab, index) => {
-          return (
-            <TabPanel
-              key={tab.shellId}
-              header={
-                <div
-                  className="sb-terminal-tab-header"
-                  data-testid="terminal-tab"
-                  data-shell-id={tab.shellId}
-                >
-                  <Choose>
-                    <When condition={tab.expired}>
-                      <span>{tab.label} (Expired)</span>
-                    </When>
-                    <Otherwise>
-                      <span>{tab.label}</span>
-                    </Otherwise>
-                  </Choose>
-                  <div
-                    className="sb-terminal-tab-header-close"
-                    role="button"
-                    aria-label="Close Terminal"
-                    onClick={e => onTabClose(e, tab.shellId, index)}
-                  >
-                    <i className="pi pi-times" />
-                  </div>
-                </div>
-              }
-            />
-          );
-        })}
-        {/* Special tab entry for button to add new tabs */}
-        <TabPanel
-          key="add"
-          ref={newTabAnchor}
-          header={
+      <div className="sb-terminal-tabs">
+        {currentTabs.map((tab, i) => (
+          <div
+            key={i}
+            className={classNames('sb-terminal-tab', {
+              selected: i === tabIndex,
+            })}
+            onClick={e => onTabClick(e, i)}
+          >
             <div
-              className="sb-terminal-tab-header-add"
-              role="button"
-              aria-label="Open New Terminal"
-            >
-              <span onClick={() => {}}>
-                <i className="pi pi-plus" />
-              </span>
-            </div>
-          }
+              className={classNames('sb-terminal-tab-indicator', {
+                expired: tab.expired,
+              })}
+            />
+            <span className="sb-terminal-tab-label">{tab.label}</span>
+            <Button
+              className="sb-terminal-tab-close"
+              icon="pi pi-times"
+              onClick={e => onTabClose(e, tab.shellId, i)}
+            />
+          </div>
+        ))}
+        <Button
+          icon="pi pi-plus"
+          className="sb-terminal-tab-add"
+          aria-label="Open New Terminal"
+          onClick={onNewTab}
         />
-      </TabView>
+      </div>
       <OverlayPanel ref={newTabOverlay} className="sb-terminal-new-tab-overlay">
-        <ListBox
-          options={nodesInLab!}
-          className="w-full md:w-14rem"
-          optionGroupLabel="value"
-          optionGroupTemplate={nodeListTemplate}
-        />
+        {nodesInLab.map(node => (
+          <div
+            className="sb-terminal-new-tab-overlay-entry"
+            onClick={() => onSelectNewTab(node.value)}
+          >
+            <span className="material-symbols-outlined">deployed_code</span>
+            <span>{node.label}</span>
+          </div>
+        ))}
       </OverlayPanel>
 
-      <div className="sb-terminal-container" ref={terminalContainerRef}>
+      <div className="sb-terminal-container">
+        <div className="sb-terminal-host" ref={terminalContainerRef} />
         <If condition={isExpired}>
           <div className="sb-terminal-expired">
             <span className="sb-terminal-expired-title">Terminal Expired</span>
             <span className="sb-terminal-expired-text">
               This terminal session is expired and can no longer be used
             </span>
-            <Button onClick={closeCurrentTab} ref={expiredCloseButtonRef}>
+            <Button
+              outlined
+              onClick={closeCurrentTab}
+              ref={expiredCloseButtonRef}
+            >
               Close
             </Button>
           </div>

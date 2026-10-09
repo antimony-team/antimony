@@ -17,12 +17,20 @@
 
 .sb-terminal-container
   position: relative
+  display: flex
   background-color: rgb(18, 17, 17)
   border-radius: 8px
   margin: 8px
   padding: 8px
   flex-grow: 1
   min-height: 0
+
+  // xterm's FitAddon measures its parent including padding (border-box), so the parent must not have any
+  .sb-terminal-host
+    flex-grow: 1
+    min-width: 0
+    min-height: 0
+    overflow: hidden
 
   .sb-terminal-expired
     backdrop-filter: blur(4px)
@@ -38,51 +46,32 @@
     justify-content: center
 
     .sb-terminal-expired-title
-      font-size: 48px
+      font-size: 40px
       font-weight: 700
       margin-bottom: 10px
-      color: var(--border)
+      color: var(--text)
 
     .sb-terminal-expired-text
-      font-size: 20px
+      font-size: 18px
       margin-bottom: 18px
-      color: rgba(255, 255, 255, 0.6)
+      color: var(--text-muted)
+      font-style: italic
 
 .sb-terminal-new-tab-overlay
-  background-color: var(--surface-overlay)
-  border-color: var(--border)
+  .sb-terminal-new-tab-overlay-entry
+    display: flex
+    align-items: center
+    gap: 4px
+    padding: 12px
+    cursor: pointer
+    user-select: none
+    border-radius: 6px
 
-  .p-listbox
-    width: unset !important
-    max-width: 500px
+    &:hover
+      background-color: var(--hover)
 
-  .p-listbox
-    border: none
-    background-color: transparent
-
-    .p-listbox-item-group
-      background-color: transparent
-      border: 1px solid transparent
-      padding: 0
-      user-select: none
-      font-weight: 400
-      cursor: pointer
-      border-radius: 6px
-
-      &:not(:last-child)
-        margin-bottom: 6px
-
-      div
-        padding: 10px
-
-      &:hover
-        backdrop-filter: brightness(1.5)
-
-      &:active
-        backdrop-filter: brightness(1.6)
-
-    .p-listbox-list
-      padding: 0
+    &:active
+      background-color: var(--active)
 
 .sb-terminal-tab-header
   display: flex
@@ -118,36 +107,77 @@
   i
     font-size: 12px
 
-.p-tabview
-  .p-tabview-panels
-    display: none
+.sb-terminal-tabs
+  display: flex
+  padding: 6px 12px
+  gap: 4px
+  overflow-x: auto
+  scrollbar-width: none
+  border-bottom: 1px solid var(--border)
 
-  .p-tabview-nav
-    border: none
-    background-color: transparent
-    margin: 8px 8px 0 8px
+  .sb-terminal-tab
+    display: flex
+    flex-shrink: 0
+    padding: 0 6px 0 12px
+    align-items: center
+    gap: 6px
+    cursor: pointer
+    border: 1px solid transparent
+    border-radius: 8px
+    min-width: 100px
+    color: var(--text-muted)
 
-    li
-      margin-right: 8px
+    .sb-terminal-tab-indicator
+      width: 7px
+      height: 7px
+      border-radius: 50%
+      background-color: var(--success-color-text)
+      transform: translateY(1px)
 
-      .p-tabview-nav-link
-        border: 1px solid transparent
-        border-radius: 6px
-        margin: 0
-        padding: 6px 16px
-        background: transparent
+      &.expired
+        background-color: var(--danger-color-text)
 
-      &:not(:last-child)
-        &.p-tabview-selected
-          .p-tabview-nav-link
-            color: var(--border)
-            background-color: var(--surface-selected)
+    .p-button
+      padding: 0
+      width: 20px
+      height: 20px
+      transform: translateY(1px)
 
-        &:active
-          .p-tabview-nav-link
-            color: var(--border)
-            background-color: var(--surface-selected)
+      .p-button-icon
+        font-size: 10px
+        color: var(--text-muted)
 
-        &:hover
-          .p-tabview-nav-link
-            border-color: var(--text-muted)
+      &:hover
+        background-color: var(--active)
+
+    &:hover
+      border-color: var(--border-strong)
+
+    &:active
+      background-color: var(--active)
+
+    &.selected
+      background-color: var(--surface-selected)
+      color: var(--text)
+
+      .p-button-icon
+        color: var(--text)
+
+    .sb-terminal-tab-label
+      font-weight: 600
+      flex-grow: 1
+
+  .sb-terminal-tab-add
+    flex-shrink: 0
+    width: 35px
+    margin-right: 2px
+    color: var(--text-muted)
+
+    span
+      font-size: 14px
+
+    &:hover
+      border-color: var(--border-strong)
+
+    &:active
+      background-color: var(--active)

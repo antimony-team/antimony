@@ -1,8 +1,8 @@
 import React from 'react';
 
-import {Image} from 'primereact/image';
-import {Dialog} from 'primereact/dialog';
 import {Button} from 'primereact/button';
+import {Dialog} from 'primereact/dialog';
+import {Image} from 'primereact/image';
 
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 

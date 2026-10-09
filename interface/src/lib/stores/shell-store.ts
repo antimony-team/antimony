@@ -21,14 +21,21 @@ import {uuid4} from '@sb/types/types';
 
 export class ShellStore {
   @observable accessor currentShell: ShellData | null = null;
-  @observable accessor openShells: Map<string, ShellData[]> =
+  @observable accessor openShells: ObservableMap<string, ShellData[]> =
     new ObservableMap();
+  @observable accessor terminalSize: {cols: number; rows: number} = {
+    cols: 80,
+    rows: 24,
+  };
+
   public readonly onData: Binding<ArrayBuffer> = new Binding();
   private readonly commandsSubscription: Subscription;
   private currentDataSubscription: Subscription | null = null;
 
   private dataBinder: DataBinder;
   private statusMessageStore: StatusMessageStore;
+
+  private currentOnConnect: (() => void) | undefined = undefined;
 
   constructor(dataBinder: DataBinder, statusMessageStore: StatusMessageStore) {
     this.dataBinder = dataBinder;
@@ -130,14 +137,19 @@ export class ShellStore {
       this.dataBinder.unsubscribeNamespace(
         `shell/${this.currentShell.id}`,
         this.handleData,
+        this.currentOnConnect,
       );
     }
 
     this.currentShell = {...shell};
+    this.currentOnConnect = () => {
+      void this.resizeShell(shell);
+    };
 
     this.currentDataSubscription = this.dataBinder.subscribeNamespace(
       `shell/${this.currentShell.id}`,
       this.handleData,
+      this.currentOnConnect,
     );
   }
 
@@ -176,6 +188,8 @@ export class ShellStore {
         labId: lab.id,
         node: nodeName,
         command: RuntimeCommand.OpenShell,
+        cols: this.terminalSize.cols,
+        rows: this.terminalSize.rows,
       }),
     )) as DataResponse<uuid4>;
 
@@ -211,17 +225,7 @@ export class ShellStore {
     if (!labShells) return;
 
     const shell = labShells.find(shell => shell.id === shellId);
-
-    if (shell && !shell.expired) {
-      await this.commandsSubscription.socket!.emitWithAck(
-        'data',
-        JSON.stringify({
-          labId: lab.id,
-          shellId: shellId,
-          command: RuntimeCommand.CloseShell,
-        }),
-      );
-    }
+    if (!shell) return;
 
     runInAction(() => {
       this.openShells.set(
@@ -229,6 +233,33 @@ export class ShellStore {
         labShells.filter(shell => shell.id !== shellId),
       );
     });
+
+    // We wait 50 ms before actually closing the shell so that the tab can properly
+    // close before getting flagged as inactive. This is purely a UX thing.
+    setTimeout(() => {
+      void this.commandsSubscription.socket!.emitWithAck(
+        'data',
+        JSON.stringify({
+          labId: lab.id,
+          shellId: shellId,
+          command: RuntimeCommand.CloseShell,
+        }),
+      );
+    }, 20);
+  }
+
+  public async resizeShell(shell: ShellData | null) {
+    if (!shell || shell.expired) return;
+
+    await this.commandsSubscription.socket!.emitWithAck(
+      'data',
+      JSON.stringify({
+        shellId: shell.id,
+        command: RuntimeCommand.ResizeShell,
+        cols: this.terminalSize.cols,
+        rows: this.terminalSize.rows,
+      }),
+    );
   }
 
   private handleData(data: ArrayBuffer) {

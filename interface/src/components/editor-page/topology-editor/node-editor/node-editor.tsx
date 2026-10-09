@@ -848,7 +848,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     <div
       className="sb-node-editor"
       ref={containerRef}
-      onMouseMove={onCyMouseMove}
+      onMouseMove={onMouseMove}
     >
       <div className="graph-container">
         <canvas ref={gridCanvasRef} className="grid-canvas" />
