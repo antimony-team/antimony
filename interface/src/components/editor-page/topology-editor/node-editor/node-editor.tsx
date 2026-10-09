@@ -70,6 +70,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const drawStartPos = useRef<Position | null>(null);
   const drawEndPos = useRef<Position | null>(null);
   const isDrawModeOn = useRef<boolean>(false);
+  const draggedNodeIds = useRef(new Set<string>());
 
   const elements = useMemo(() => {
     if (props.openTopology === null) return [];
@@ -221,12 +222,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       ? (parentCol.first() as NodeSingular).id()
       : null;
 
+    const memberIds = compound.children().map(child => child.id());
+
     compound.children().forEach(child => {
       (child as NodeSingular).move({parent: parentId});
     });
     compound.remove();
 
-    onSaveGraph();
+    onSaveGraph(memberIds);
   }
 
   function onGroupDeleteContext() {
@@ -387,9 +390,25 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     exitDrawMode();
   }
 
+  /**
+   * Nodes that are dragged together are freed one after another, so they are
+   * collected and saved together once all of them are freed.
+   */
   function onDragEnd(event: cytoscape.EventObject) {
-    const node = event.target;
-    if (node?.isNode()) onSaveGraph();
+    const node = event.target as NodeSingular;
+    const movedNodes = node.isParent() ? node.descendants() : node;
+
+    if (draggedNodeIds.current.size === 0) {
+      queueMicrotask(() => {
+        const nodeIds = [...draggedNodeIds.current];
+        draggedNodeIds.current.clear();
+        onSaveGraph(nodeIds);
+      });
+    }
+
+    movedNodes.forEach(movedNode => {
+      draggedNodeIds.current.add(movedNode.id());
+    });
   }
 
   function onFitGraph() {
@@ -400,7 +419,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     topologyStore.manager.clear();
   }
 
-  function onSaveGraph() {
+  /**
+   * Writes the layout of the given nodes into the topology, or the layout of
+   * all nodes if none are given.
+   */
+  function onSaveGraph(nodeIds?: string[]) {
     const cy = cyRef.current;
     const topology = topologyStore.manager.topology;
 
@@ -409,7 +432,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const nodes = topology.definition.toJS().topology.nodes;
     const updatedLabelMap = new Map<string, Record<string, string | null>>();
 
+    const savedNodeIds = nodeIds ? new Set(nodeIds) : null;
+
     for (const node of cy.nodes('.topology-node')) {
+      if (savedNodeIds && !savedNodeIds.has(node.id())) continue;
+
       updatedLabelMap.set(
         node.id(),
         nodeLayoutLabels(
@@ -419,6 +446,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ),
       );
     }
+
+    if (updatedLabelMap.size === 0) return;
 
     topologyStore.manager.updateNodeLabels(updatedLabelMap);
   }
@@ -483,6 +512,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       groupNameDialogState.close();
     } else {
       const oldGroupName = dialogState.groupName;
+      const memberIds: string[] = [];
+
       cy.batch(() => {
         cy.add({
           group: 'nodes',
@@ -496,6 +527,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         cy.nodes().forEach(node => {
           const parents = node.parent();
           if (parents.length > 0 && parents[0].id() === oldGroupName) {
+            memberIds.push(node.id());
             node.move({parent: groupName});
           }
         });
@@ -504,7 +536,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       });
 
       groupNameDialogState.close();
-      onSaveGraph();
+      onSaveGraph(memberIds);
     }
   }
 
@@ -548,7 +580,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     drawStartPos.current = null;
     drawEndPos.current = null;
-    onSaveGraph();
+    onSaveGraph(hitsArray.map(node => node.id()));
   }
 
   function onDrawEnd() {
@@ -717,7 +749,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           cxttap: onGraphContext,
           'cxttap node': onNodeContext,
           'cxttap edge': onEdgeContext,
-          'free node': onDragEnd,
+          'dragfree node': onDragEnd,
           'drag node': onDrag,
           mousedown: onCyMouseDown,
           mousemove: onCyMouseMove,

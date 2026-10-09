@@ -1,16 +1,9 @@
 .sb-topology-graph
   position: absolute
   inset: 0
-
-  .grid-canvas
-    position: absolute
-    width: 100%
-    height: 100%
-    z-index: 0
-    pointer-events: none
+  background-image: radial-gradient(circle, rgba(150, 150, 170, 0.4) var(--grid-dot-radius, 1.2px), transparent calc(var(--grid-dot-radius, 1.2px) + 0.5px))
 
   .cytoscape-container
     position: absolute
     width: 100%
     height: 100%
-    z-index: 1

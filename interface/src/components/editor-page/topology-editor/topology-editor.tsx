@@ -118,6 +118,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const onTopologyOpen = useCallback((topology: Topology) => {
     setOpenTopology(topology);
     setOpenBindFile(null);
+    setPendingEdits(false);
     setValidationEnabled(true);
   }, []);
 
@@ -129,6 +130,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const onBindFileOpen = useCallback((bindFile: BindFile) => {
     setOpenBindFile(bindFile);
     setOpenTopology(null);
+    setPendingEdits(false);
     setValidationEnabled(false);
   }, []);
 
@@ -443,7 +445,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   <span className="material-symbols-outlined">
                     network_node
                   </span>
-                  {`${openTopology?.name}${topologyStore.manager.hasEdits() ? '*' : ''}`}
+                  {`${openTopology?.name}${hasPendingEdits ? '*' : ''}`}
                 </div>
               </When>
               <When condition={openBindFile}>

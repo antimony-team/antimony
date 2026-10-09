@@ -6,7 +6,6 @@ import {RunTopology, Topology} from '@sb/types/domain/topology';
 export const GRID_SPACING = 35;
 
 const DOT_RADIUS = 1.2;
-const DOT_COLOR = 'rgba(150, 150, 170, 0.4)';
 
 export interface GraphIcons {
   getNodeIcon(icon?: string): string;
@@ -90,57 +89,17 @@ export function fitGraph(cy: cytoscape.Core, animated: boolean) {
   }
 }
 
-export function drawGraphGrid(
-  container: HTMLDivElement,
-  canvas: HTMLCanvasElement,
-  cy: cytoscape.Core,
-) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  canvas.width = container.clientWidth;
-  canvas.height = container.clientHeight;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawCytoscapeGrid(cy, ctx);
-}
-
-export function drawCytoscapeGrid(
-  cy: cytoscape.Core,
-  ctx: CanvasRenderingContext2D,
-): void {
-  const pan = cy.pan();
+/**
+ * Positions the grid, a dot pattern in the container's background, so its dots
+ * follow the graph's viewport. The dots are at the multiples of the grid
+ * spacing, in the center of each tile of the pattern.
+ */
+export function updateGrid(container: HTMLElement, cy: cytoscape.Core) {
   const zoom = cy.zoom();
+  const pan = cy.pan();
+  const spacing = GRID_SPACING * zoom;
 
-  const W = ctx.canvas.width;
-  const H = ctx.canvas.height;
-
-  ctx.clearRect(0, 0, W, H);
-
-  const modelLeft = (0 - pan.x) / zoom;
-  const modelTop = (0 - pan.y) / zoom;
-  const modelRight = (W - pan.x) / zoom;
-  const modelBottom = (H - pan.y) / zoom;
-
-  const startX = Math.ceil(modelLeft / GRID_SPACING) * GRID_SPACING;
-  const startY = Math.ceil(modelTop / GRID_SPACING) * GRID_SPACING;
-
-  ctx.fillStyle = DOT_COLOR;
-
-  const r = DOT_RADIUS * zoom;
-
-  ctx.beginPath();
-
-  for (let mx = startX; mx <= modelRight; mx += GRID_SPACING) {
-    const sx = mx * zoom + pan.x;
-
-    for (let my = startY; my <= modelBottom; my += GRID_SPACING) {
-      const sy = my * zoom + pan.y;
-
-      ctx.moveTo(sx + r, sy);
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-    }
-  }
-
-  ctx.fill();
+  container.style.backgroundSize = `${spacing}px ${spacing}px`;
+  container.style.backgroundPosition = `${pan.x - spacing / 2}px ${pan.y - spacing / 2}px`;
+  container.style.setProperty('--grid-dot-radius', `${DOT_RADIUS * zoom}px`);
 }

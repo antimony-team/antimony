@@ -1,4 +1,4 @@
-import {cloneDeep, isEqual} from 'lodash-es';
+import {cloneDeep} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {isMap, YAMLMap, YAMLSeq} from 'yaml';
 
@@ -74,6 +74,11 @@ export class TopologyManager {
   private editingTopology: Topology | null = null;
   // Backup of the topology to restore when discarding edits.
   private originalTopology: Topology | null = null;
+  // The serialized definition of the original topology, which edits are compared against
+  private originalDefinitionCache: {
+    topology: Topology;
+    definition: string;
+  } | null = null;
   private editingBindFile: BindFile | null = null;
   // Backup of the bind file to restore when discarding edits.
   private originalBindFile: BindFile | null = null;
@@ -335,9 +340,7 @@ export class TopologyManager {
 
     this.onTopologyEdit.update({
       updatedTopology: this.editingTopology,
-      isEdited:
-        updatedTopology.toString() !==
-        this.originalTopology?.definition.toString(),
+      isEdited: updatedTopology.toString() !== this.getOriginalDefinition(),
       source,
     });
   }
@@ -481,9 +484,9 @@ export class TopologyManager {
     if (this.openFileType === OpenFileType.Topology) {
       if (!this.editingTopology || !this.originalTopology) return false;
 
-      return !isEqual(
-        this.editingTopology.definition.toString(),
-        this.originalTopology.definition.toString(),
+      return (
+        this.editingTopology.definition.toString() !==
+        this.getOriginalDefinition()
       );
     } else {
       if (!this.editingBindFile || !this.originalBindFile) return false;
@@ -540,6 +543,23 @@ export class TopologyManager {
     }
 
     return result;
+  }
+
+  /**
+   * Returns the serialized definition of the original topology. The original
+   * is replaced whenever it changes, so it is only serialized once per original.
+   */
+  private getOriginalDefinition(): string | null {
+    if (!this.originalTopology) return null;
+
+    if (this.originalDefinitionCache?.topology !== this.originalTopology) {
+      this.originalDefinitionCache = {
+        topology: this.originalTopology,
+        definition: this.originalTopology.definition.toString(),
+      };
+    }
+
+    return this.originalDefinitionCache.definition;
   }
 
   private restoreCurrentFile() {

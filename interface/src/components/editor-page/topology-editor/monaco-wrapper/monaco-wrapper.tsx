@@ -101,6 +101,9 @@ const MonacoWrapper = observer(
     const editorRef = useRef<ICodeEditor | null>(null);
 
     const currentlyOpenFileId = useRef<string | null>(null);
+
+    // Set while content from the topology manager is applied, which doesn't have to be reported back to it
+    const isApplyingManagerContent = useRef(false);
     const editorContainerRef = useRef<HTMLDivElement>(null);
 
     const authUser = useAuthUser();
@@ -191,8 +194,9 @@ const MonacoWrapper = observer(
       const existingContentStripped = existingContent.replaceAll(' ', '');
 
       if (updatedContentStripped !== existingContentStripped) {
-        console.log('Topology content changed');
+        isApplyingManagerContent.current = true;
         setContent(updatedContent);
+        isApplyingManagerContent.current = false;
       }
     }, []);
 
@@ -422,6 +426,8 @@ const MonacoWrapper = observer(
     }, []);
 
     function onContentChange() {
+      if (isApplyingManagerContent.current) return;
+
       if (textModelRef.current) {
         props.setContent(textModelRef.current.getValue());
       }

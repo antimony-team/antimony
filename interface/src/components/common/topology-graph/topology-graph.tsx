@@ -10,7 +10,7 @@ import cytoscape, {ElementDefinition, EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 
 import {topologyStyle} from '@sb/lib/graph/cytoscape-styles';
-import {drawGraphGrid, fitGraph} from '@sb/lib/graph/cytoscape-utils';
+import {fitGraph, updateGrid} from '@sb/lib/graph/cytoscape-utils';
 
 import './topology-graph.sass';
 
@@ -35,6 +35,96 @@ export interface TopologyGraphRef {
 
 const NO_ELEMENTS: ElementDefinition[] = [];
 
+/**
+ * Brings the graph's elements in line with the given ones. Existing elements are updated in place, so an edit doesn't
+ * redraw the whole graph. This is done manually instead of through the elements prop of the React Cytoscape library,
+ * which removes the children of a removed parent. Here, new parents are added and nodes are moved to them before
+ * anything is removed.
+ */
+function updateElements(cy: cytoscape.Core, elements: ElementDefinition[]) {
+  const nextIds = new Set(elements.map(element => element.data.id!));
+  const added: ElementDefinition[] = [];
+  const updated: [cytoscape.SingularElementReturnValue, ElementDefinition][] =
+    [];
+
+  cy.batch(() => {
+    for (const element of elements) {
+      const existing = cy.getElementById(element.data.id!);
+
+      if (existing.empty()) {
+        added.push(element);
+      } else if (
+        existing.isEdge() &&
+        (existing.data('source') !== element.data.source ||
+          existing.data('target') !== element.data.target)
+      ) {
+        // The endpoints of an edge can't be changed in place
+        existing.remove();
+        added.push(element);
+      } else {
+        updated.push([existing, element]);
+      }
+    }
+
+    // Parents have to exist before their children are added, and nodes before their edges
+    cy.add(
+      added.toSorted(
+        (a, b) => elementOrder(a, nextIds) - elementOrder(b, nextIds),
+      ),
+    );
+
+    for (const [existing, element] of updated) {
+      if (existing.isNode()) {
+        updateNode(existing, element);
+      } else {
+        updateData(existing, element);
+      }
+    }
+
+    cy.elements()
+      .filter(element => !nextIds.has(element.id()))
+      .remove();
+  });
+}
+
+function updateNode(node: cytoscape.NodeSingular, element: ElementDefinition) {
+  const parent = element.data.parent ?? null;
+
+  if ((node.parent().first().id() || null) !== parent) {
+    node.move({parent});
+  }
+
+  const position = element.position;
+  if (
+    position &&
+    (Math.abs(node.position('x') - position.x) > 0.01 ||
+      Math.abs(node.position('y') - position.y) > 0.01)
+  ) {
+    node.position(position);
+  }
+
+  updateData(node, element);
+}
+
+function updateData(
+  existing: cytoscape.NodeSingular | cytoscape.EdgeSingular,
+  element: ElementDefinition,
+) {
+  for (const [key, value] of Object.entries(element.data)) {
+    if (['id', 'parent', 'source', 'target'].includes(key)) continue;
+
+    if (existing.data(key) !== value) {
+      existing.data(key, value);
+    }
+  }
+}
+
+function elementOrder(element: ElementDefinition, ids: Set<string>) {
+  if (element.data.source !== undefined) return 2;
+
+  return element.data.parent && ids.has(element.data.parent) ? 1 : 0;
+}
+
 const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
   (props, ref) => {
     const cyRef = useRef<cytoscape.Core | null>(null);
@@ -43,7 +133,6 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
     const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
-    const gridCanvasRef = useRef<HTMLCanvasElement>(null);
 
     const fittedKey = useRef<string | null>(null);
     const isFitPending = useRef(false);
@@ -67,17 +156,10 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       return onInstanceRef.current?.(cyInstance) ?? undefined;
     }, [cyInstance]);
 
-    /*
-     * The elements are replaced manually instead of through the elements prop of the React Cytoscape library, which
-     * only adds and removes the changed elements. When a parent is removed that way, its children are removed too.
-     */
     useEffect(() => {
       if (!cyInstance) return;
 
-      cyInstance.batch(() => {
-        cyInstance.elements().remove();
-        cyInstance.add(props.elements);
-      });
+      updateElements(cyInstance, props.elements);
 
       if (props.fitKey !== null && props.fitKey !== fittedKey.current) {
         fittedKey.current = props.fitKey;
@@ -113,28 +195,34 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
         }
       }
 
-      cy.on('render', onRender);
+      cy.on('viewport', onViewport);
       cy.on('resize', onResize);
+
+      if (containerRef.current) updateGrid(containerRef.current, cy);
     }
 
-    function onRender(event: EventObject) {
-      if (!containerRef.current || !gridCanvasRef.current) return;
-
-      drawGraphGrid(containerRef.current, gridCanvasRef.current, event.cy);
+    function onViewport(event: EventObject) {
+      if (containerRef.current) updateGrid(containerRef.current, event.cy);
     }
 
+    // The graph has just been measured, measuring it again in fitWhenVisible would emit this event again
     function onResize(event: EventObject) {
-      if (isFitPending.current) fitWhenVisible(event.cy);
+      const cy = event.cy;
+      if (!isFitPending.current || cy.width() === 0 || cy.height() === 0) {
+        return;
+      }
+
+      isFitPending.current = false;
+      fitGraph(cy, false);
     }
 
     return (
       <div className="sb-topology-graph" ref={containerRef}>
-        <canvas ref={gridCanvasRef} className="grid-canvas" />
         <CytoscapeComponent
           className="cytoscape-container"
           stylesheet={topologyStyle}
           elements={NO_ELEMENTS}
-          minZoom={0.3}
+          minZoom={0.01}
           maxZoom={10}
           autolock={props.isLocked}
           layout={{name: 'preset'}}
