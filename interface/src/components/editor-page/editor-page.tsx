@@ -155,7 +155,7 @@ const EditorPage = observer(() => {
         <When condition={isSetup}>
           <div className="sb-editor-setup-container sb-island">
             <EditorSetup
-              collectionName="test"
+              collectionName={null}
               onCreateCollection={() =>
                 editCollectionState.openWith({
                   editingCollection: null,
