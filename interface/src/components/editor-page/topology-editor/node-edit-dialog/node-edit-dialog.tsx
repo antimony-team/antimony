@@ -43,6 +43,7 @@ interface NodeEditDialogProps {
 const NodeEditDialog = (props: NodeEditDialogProps) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
   const nameFieldRef = useRef<SBInputRef>(null);
+  const kindDropdownRef = useRef<SBDropdownRef>(null);
   const iconSelectorOverlay = useRef<OverlayPanel>(null);
   const iconSelectorAnchor = useRef<HTMLDivElement>(null);
 
@@ -136,6 +137,13 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
       return;
     }
 
+    // We want every node to require a kind. Even though the topolody schema allows
+    // empty nodes, it doesn't make a lot of sense to have them.
+    if (!nodeEditor!.getNode()?.kind) {
+      kindDropdownRef.current?.setValidationError('The node needs a kind');
+      return;
+    }
+
     if (nodeEditor) {
       topologyStore.manager.editTopology(
         nodeEditor.getTopology(),
@@ -198,6 +206,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
             />
             <SBDropdown
               id="node-editor-kind"
+              ref={kindDropdownRef}
               label="Kind"
               hasFilter={true}
               value={nodeKind}
