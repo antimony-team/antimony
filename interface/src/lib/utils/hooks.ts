@@ -1,5 +1,5 @@
 import {action, observable} from 'mobx';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {useRootStore} from '@sb/lib/stores/root-store';
 
 export enum DialogAction {
@@ -51,6 +51,29 @@ export function useDialogState<T>(
     () => new DialogState<T>(defaultState, onClose, onOpen),
   );
   return dialogState;
+}
+
+/**
+ * Returns functions that call the latest of the given functions. The returned
+ * functions keep their identity across renders, so memoized children that get
+ * them as props don't render again whenever the parent does.
+ */
+export function useStableCallbacks<
+  T extends Record<string, (...args: never[]) => unknown>,
+>(callbacks: T): T {
+  const latest = useRef(callbacks);
+  latest.current = callbacks;
+
+  return useMemo(
+    () =>
+      Object.fromEntries(
+        Object.keys(callbacks).map(key => [
+          key,
+          (...args: never[]) => latest.current[key](...args),
+        ]),
+      ) as T,
+    [],
+  );
 }
 
 export function usePromiseWithResolvers() {

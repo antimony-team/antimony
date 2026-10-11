@@ -49,7 +49,7 @@ function statusImage(ele: cytoscape.NodeSingular): string {
 export const topologyStyle = [
   // shared label style
   {
-    selector: '.topology-node, .drawn-shape',
+    selector: '.topology-node',
     style: {
       'font-family': 'Figtree',
       color: '#e0e0e1',
@@ -98,37 +98,16 @@ export const topologyStyle = [
       color: '#9e9ea0',
     },
   },
-
-  // groups
+  // A halo behind the icon, round or square depending on the icon
   {
-    selector: '.drawn-shape',
+    selector: '.topology-node:selected',
     style: {
-      shape: 'round-rectangle',
-      'background-color': '#3fcfad',
-      'background-opacity': 0.045,
-      'border-color': '#3fcfad',
-      'border-opacity': 0.28,
-      'border-width': 1,
-      padding: 24,
       color: '#3fcfad',
-      'font-weight': 'normal',
-      'font-size': 12,
-      'text-margin-y': 8,
-    },
-  },
-  {
-    selector: '.drawn-shape[label]',
-    style: {
-      label: 'data(label)',
-      'z-index': 9999,
-    },
-  },
-  {
-    selector: '.drawn-shape:selected',
-    style: {
-      'border-color': '#3fcfad',
-      'border-opacity': 1,
-      'background-opacity': 0.08,
+      'underlay-color': '#3fcfad',
+      'underlay-opacity': 0.22,
+      'underlay-padding': 6,
+      'underlay-shape': (ele: cytoscape.NodeSingular) =>
+        ele.data('shape') === 'ellipse' ? 'ellipse' : 'round-rectangle',
     },
   },
 
@@ -185,6 +164,13 @@ export const topologyStyle = [
     },
   },
   {
+    selector: 'edge:selected',
+    style: {
+      'line-color': '#3fcfad',
+      'line-opacity': 0.9,
+    },
+  },
+  {
     selector: 'edge[state = "down"]',
     style: {
       'line-color': '#ff5c6c',
@@ -199,25 +185,6 @@ export const topologyStyle = [
     selector: 'edge[state = "unknown"]',
     style: {
       'line-opacity': 0.2,
-    },
-  },
-
-  // group close button
-  {
-    selector: 'node.compound-close-btn',
-    style: {
-      shape: 'ellipse',
-      width: 20,
-      height: 20,
-      label: '×',
-      'font-size': 14,
-      'text-valign': 'center',
-      'text-halign': 'center',
-      'background-color': '#ff5c6c',
-      color: '#1a0a0c',
-      'overlay-padding': 0,
-      visibility: 'hidden',
-      'z-index': 9999,
     },
   },
 ];

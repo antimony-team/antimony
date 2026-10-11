@@ -1,0 +1,52 @@
+.sb-selection-bar
+  position: absolute
+  z-index: 10
+  display: flex
+  align-items: center
+  gap: 2px
+  padding: 4px
+  transform: translateX(-50%)
+  background-color: var(--surface-raised)
+  border: 1px solid var(--border)
+  border-radius: 12px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+  white-space: nowrap
+
+  &.hidden, .sb-selection-bar-part.hidden
+    display: none
+
+  .sb-selection-bar-part
+    display: contents
+
+  > .p-button, .sb-selection-bar-part > .p-button
+    height: 34px
+    padding: 0 8px
+    color: var(--text-muted)
+
+    &:not(.p-button-icon-only)
+      padding: 0 12px 0 8px
+
+    &:enabled:hover
+      color: var(--text)
+      background-color: var(--hover)
+
+    &.sb-selection-bar-delete:enabled:hover
+      color: var(--danger-color-text)
+
+  .p-selectbutton.p-button-group
+    padding: 2px
+
+    .p-button
+      height: 28px
+      padding: 0 8px
+
+  .sb-selection-bar-line
+    width: 20px
+    border-top-width: 2px
+    border-top-color: currentColor
+
+  .sb-selection-bar-separator
+    width: 1px
+    height: 20px
+    margin: 0 4px
+    background-color: var(--border)

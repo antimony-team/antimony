@@ -22,6 +22,9 @@ export interface GraphNode {
   // Null if the topology doesn't define a position for the node
   position: Position | null;
   icon?: string;
+  groupId?: string;
+
+  // Legacy group membership by group name
   group?: string;
   level?: string;
 }
@@ -31,7 +34,7 @@ export interface GraphNode {
  */
 export interface NodeLayout {
   position: Position;
-  group: string | null;
+  groupId: string | null;
 }
 
 export type InterfaceConfigLookup = (nodeKind?: string) => InterfaceConfig;
@@ -93,6 +96,7 @@ export function readGraphNodes(
       kind: node?.kind,
       position: readNodePosition(node?.labels, annotation),
       icon: readNodeIcon(node, annotation),
+      groupId: annotation?.groupId,
       group: annotation?.group ?? node?.labels?.['graph-group'],
       level: annotation?.level ?? node?.labels?.['graph-level']?.toString(),
     };
@@ -131,7 +135,9 @@ export function nodeLayoutAnnotation(
   };
 
   const layoutAnnotation: Partial<NodeAnnotation> = {
-    group: layout.group ?? undefined,
+    groupId: layout.groupId ?? undefined,
+    group: undefined,
+    level: undefined,
   };
 
   if (annotation?.geoCoordinates) {

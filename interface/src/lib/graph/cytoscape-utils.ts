@@ -1,8 +1,14 @@
 import cytoscape, {ElementDefinition} from 'cytoscape';
 
+import {
+  Box,
+  GraphGroup,
+  readGraphGroups,
+} from '@sb/lib/graph/annotation-geometry';
 import {GRID_SPACING, placeNodes} from '@sb/lib/graph/placement';
 import {readGraphNodes} from '@sb/lib/graph/topology-graph';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
+import {Position} from '@sb/types/types';
 
 const DOT_RADIUS = 1.2;
 
@@ -16,7 +22,6 @@ export function generateGraph(
   icons: GraphIcons,
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
-  const addedGroups = new Set<string>();
   const placedPositions = placeNodes(
     topology.definition,
     topology.annotations,
@@ -27,31 +32,9 @@ export function generateGraph(
     topology.definition,
     topology.annotations,
   )) {
-    let parentId: string | undefined = undefined;
-
-    if (node.group !== undefined) {
-      const groupId =
-        node.level !== undefined ? `${node.group}:${node.level}` : node.group;
-
-      if (!addedGroups.has(groupId)) {
-        elements.push({
-          group: 'nodes',
-          data: {
-            id: groupId,
-            label: node.group,
-          },
-          classes: 'drawn-shape',
-        });
-        addedGroups.add(groupId);
-      }
-
-      parentId = groupId;
-    }
-
     elements.push({
       data: {
         id: node.name,
-        parent: parentId,
         label: node.name,
         title: node.name,
         kind: node.kind ?? '',
@@ -79,6 +62,29 @@ export function generateGraph(
   }
 
   return elements;
+}
+
+/**
+ * Returns the groups of a topology, placed around the nodes of the generated
+ * graph where they don't store a box of their own.
+ */
+export function generateGroups(
+  topology: Topology | RunTopology,
+  elements: ElementDefinition[],
+): GraphGroup[] {
+  const positions = new Map<string, Position>();
+  for (const element of elements) {
+    if (element.position) positions.set(element.data.id!, element.position);
+  }
+
+  const members = readGraphNodes(topology.definition, topology.annotations)
+    .filter(node => positions.has(node.name))
+    .map(node => ({...node, position: positions.get(node.name)!}));
+
+  return readGraphGroups(
+    topology.annotations.groupStyleAnnotations ?? [],
+    members,
+  );
 }
 
 export function getFitPadding(cy: cytoscape.Core) {
@@ -109,4 +115,47 @@ export function updateGrid(container: HTMLElement, cy: cytoscape.Core) {
   container.style.backgroundSize = `${spacing}px ${spacing}px`;
   container.style.backgroundPosition = `${pan.x - spacing / 2}px ${pan.y - spacing / 2}px`;
   container.style.setProperty('--grid-dot-radius', `${DOT_RADIUS * zoom}px`);
+}
+
+/**
+ * Moves and scales a layer so the content in it is positioned in graph
+ * coordinates.
+ */
+export function updateLayerTransform(layer: HTMLElement, cy: cytoscape.Core) {
+  const pan = cy.pan();
+  layer.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${cy.zoom()})`;
+}
+
+/**
+ * Returns the position in the graph at the given position on screen.
+ */
+export function toGraphPosition(
+  cy: cytoscape.Core,
+  clientX: number,
+  clientY: number,
+): Position {
+  const rect = cy.container()!.getBoundingClientRect();
+  const pan = cy.pan();
+  const zoom = cy.zoom();
+
+  return {
+    x: (clientX - rect.left - pan.x) / zoom,
+    y: (clientY - rect.top - pan.y) / zoom,
+  };
+}
+
+/**
+ * Returns the given box of the graph in coordinates relative to the graph's
+ * container.
+ */
+export function toRenderedBox(cy: cytoscape.Core, box: Box): Box {
+  const pan = cy.pan();
+  const zoom = cy.zoom();
+
+  return {
+    x: box.x * zoom + pan.x,
+    y: box.y * zoom + pan.y,
+    width: box.width * zoom,
+    height: box.height * zoom,
+  };
 }

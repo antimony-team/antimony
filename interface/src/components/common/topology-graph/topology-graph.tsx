@@ -1,5 +1,6 @@
 import React, {
   forwardRef,
+  ReactNode,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -10,7 +11,11 @@ import cytoscape, {ElementDefinition, EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 
 import {topologyStyle} from '@sb/lib/graph/cytoscape-styles';
-import {fitGraph, updateGrid} from '@sb/lib/graph/cytoscape-utils';
+import {
+  fitGraph,
+  updateGrid,
+  updateLayerTransform,
+} from '@sb/lib/graph/cytoscape-utils';
 
 import './topology-graph.sass';
 
@@ -27,6 +32,10 @@ interface TopologyGraphProps {
 
   // Called for every new cytoscape instance, the returned function is called when the instance is replaced
   onInstance?: (cy: cytoscape.Core) => (() => void) | void;
+
+  // Content drawn behind and in front of the graph, positioned in graph coordinates
+  underlay?: ReactNode;
+  overlay?: ReactNode;
 }
 
 export interface TopologyGraphRef {
@@ -175,6 +184,8 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
     const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const underlayRef = useRef<HTMLDivElement>(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
 
     const fittedKey = useRef<string | null>(null);
     const isFitPending = useRef(false);
@@ -242,11 +253,17 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       cy.on('viewport', onViewport);
       cy.on('resize', onResize);
 
-      if (containerRef.current) updateGrid(containerRef.current, cy);
+      updateViewport(cy);
     }
 
     function onViewport(event: EventObject) {
-      if (containerRef.current) updateGrid(containerRef.current, event.cy);
+      updateViewport(event.cy);
+    }
+
+    function updateViewport(cy: cytoscape.Core) {
+      if (containerRef.current) updateGrid(containerRef.current, cy);
+      if (underlayRef.current) updateLayerTransform(underlayRef.current, cy);
+      if (overlayRef.current) updateLayerTransform(overlayRef.current, cy);
     }
 
     // The graph has just been measured, measuring it again in fitWhenVisible would emit this event again
@@ -262,6 +279,9 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
 
     return (
       <div className="sb-topology-graph" ref={containerRef}>
+        <div className="sb-topology-graph-layer" ref={underlayRef}>
+          {props.underlay}
+        </div>
         <CytoscapeComponent
           className="cytoscape-container"
           stylesheet={topologyStyle}
@@ -280,6 +300,12 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
             setCyInstance(cy);
           }}
         />
+        <div
+          className="sb-topology-graph-layer sb-topology-graph-overlay"
+          ref={overlayRef}
+        >
+          {props.overlay}
+        </div>
       </div>
     );
   },

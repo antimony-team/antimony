@@ -35,7 +35,6 @@ import {
 } from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
-import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {BindFile, Topology, TopologyFileType} from '@sb/types/domain/topology';
 import {FetchState, Position, uuid4} from '@sb/types/types';
@@ -47,10 +46,15 @@ import EditorViewSwitch, {
 import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
 import NodeEditDialog from './node-edit-dialog/node-edit-dialog';
 import {
+  GraphSelection,
+  GraphSelectionContext,
+} from './node-editor/state/graph-selection';
+import {
   SimulationConfig,
   SimulationConfigContext,
 } from './node-editor/state/simulation-config';
 import TopologyFileSwitch from './topology-file-switch/topology-file-switch';
+import TopologyFooterStats from './topology-footer-stats/topology-footer-stats';
 
 import './topology-editor.sass';
 
@@ -127,6 +131,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   // const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
   const [history] = useState(() => new TopologyHistory());
+  const [graphSelection] = useState(() => new GraphSelection());
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
 
@@ -654,11 +659,13 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               size={100 - splitterPosition}
             >
               <SimulationConfigContext.Provider value={new SimulationConfig()}>
-                <NodeEditor
-                  onAddNode={onAddNode}
-                  onEditNode={onEditNode}
-                  openTopology={openTopology!}
-                />
+                <GraphSelectionContext.Provider value={graphSelection}>
+                  <NodeEditor
+                    onAddNode={onAddNode}
+                    onEditNode={onEditNode}
+                    openTopology={openTopology!}
+                  />
+                </GraphSelectionContext.Provider>
               </SimulationConfigContext.Provider>
             </SplitterPanel>
           </Splitter>
@@ -700,14 +707,10 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
           <div className="sb-topology-editor-footer-position">
             {`Ln ${currentCursorPosition.x}, Col ${currentCursorPosition.y}`}
           </div>
-          <If condition={openTopology}>
-            <div className="sb-dot-separated">
-              <div>{pluralize(openTopology!.nodeCount, 'node', 'nodes')}</div>
-              <div>
-                {pluralize(openTopology!.connections.length, 'link', 'links')}
-              </div>
-            </div>
-          </If>
+          <TopologyFooterStats
+            topology={openTopology}
+            graphSelection={graphSelection}
+          />
         </div>
       </div>
 
@@ -723,8 +726,13 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       <NodeEditDialog
         key={currentlyEditedNode}
         isOpen={isNodeEditDialogOpen}
-        editingTopology={openTopology?.definition ?? null}
-        editingAnnotations={openTopology?.annotations ?? null}
+        // Only read while the dialog is open, otherwise every edit renders the whole editor again
+        editingTopology={
+          isNodeEditDialogOpen ? (openTopology?.definition ?? null) : null
+        }
+        editingAnnotations={
+          isNodeEditDialogOpen ? (openTopology?.annotations ?? null) : null
+        }
         editingNode={currentlyEditedNode}
         newNodePosition={newNodePosition}
         onClose={() => setNodeEditDialogOpen(false)}

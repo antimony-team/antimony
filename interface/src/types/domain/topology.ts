@@ -70,6 +70,9 @@ export interface TopologyDefinition {
  */
 export interface TopologyAnnotations {
   nodeAnnotations?: NodeAnnotation[];
+  freeTextAnnotations?: FreeTextAnnotation[];
+  freeShapeAnnotations?: FreeShapeAnnotation[];
+  groupStyleAnnotations?: GroupStyleAnnotation[];
 
   [key: string]: unknown;
 }
@@ -80,8 +83,83 @@ export interface NodeAnnotation {
   position?: Position;
   geoCoordinates?: GeoCoordinates;
   icon?: string;
+  groupId?: string;
+
+  // Legacy group membership by group name, replaced by groupId
   group?: string;
   level?: string;
+
+  [key: string]: unknown;
+}
+
+export type BorderStyle = 'solid' | 'dashed' | 'dotted' | 'double';
+
+/**
+ * A group of nodes, shown as a box behind its members. The position is the
+ * top left corner of the box.
+ */
+export interface GroupStyleAnnotation {
+  id: string;
+  name: string;
+  level: string;
+  position: Position;
+  width: number;
+  height: number;
+  parentId?: string;
+  groupId?: string;
+  zIndex?: number;
+  backgroundColor?: string;
+
+  // Opacity of the background color from 0 to 100
+  backgroundOpacity?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: BorderStyle;
+  borderRadius?: number;
+  labelColor?: string;
+  labelPosition?: string;
+
+  [key: string]: unknown;
+}
+
+/**
+ * A rectangle, circle or line. Rectangles and circles are positioned by their
+ * top left corner, lines go from the position to the end position.
+ */
+export interface FreeShapeAnnotation {
+  id: string;
+  shapeType: 'rectangle' | 'circle' | 'line';
+  position: Position;
+  width?: number;
+  height?: number;
+  endPosition?: Position;
+  groupId?: string;
+  zIndex?: number;
+  fillColor?: string;
+  fillOpacity?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: Exclude<BorderStyle, 'double'>;
+  cornerRadius?: number;
+  lineStartArrow?: boolean;
+  lineEndArrow?: boolean;
+  lineArrowSize?: number;
+
+  [key: string]: unknown;
+}
+
+export interface FreeTextAnnotation {
+  id: string;
+  text: string;
+  position: Position;
+  width?: number;
+  height?: number;
+  groupId?: string;
+  zIndex?: number;
+  fontSize?: number;
+  fontColor?: string;
+  backgroundColor?: string;
+  textAlign?: 'left' | 'center' | 'right';
 
   [key: string]: unknown;
 }

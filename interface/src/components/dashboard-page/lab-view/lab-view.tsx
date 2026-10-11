@@ -8,6 +8,7 @@ import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
+import GroupLayer from '@sb/components/common/topology-graph/group-layer/group-layer';
 import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
@@ -21,7 +22,7 @@ import LogDialog, {
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
-import {generateGraph} from '@sb/lib/graph/cytoscape-utils';
+import {generateGraph, generateGroups} from '@sb/lib/graph/cytoscape-utils';
 import {
   useCollectionStore,
   useDeviceStore,
@@ -102,6 +103,12 @@ const LabView = observer((props: LabDialogProps) => {
     return generateGraph(props.lab.topologyDefinition, deviceStore);
   }, [props.lab?.id]);
 
+  const groups = useMemo(() => {
+    if (!props.lab) return [];
+
+    return generateGroups(props.lab.topologyDefinition, elements);
+  }, [elements]);
+
   const labCollection = useMemo(() => {
     if (!props.lab) return null;
 
@@ -121,13 +128,8 @@ const LabView = observer((props: LabDialogProps) => {
       return;
     }
 
-    // Ignore node and group context event if lab is not currently started
+    // Ignore node context events if lab is not currently started
     if (!props.lab?.instance) return;
-
-    // Ignore context events on group nodes
-    if (event.target.hasClass('drawn-shape')) {
-      return;
-    }
 
     if (event.target.hasClass('topology-node')) {
       const nodeId = event.target.id();
@@ -266,13 +268,6 @@ const LabView = observer((props: LabDialogProps) => {
 
     if (!cyRef.current || !props.lab || !instance) {
       return undefined;
-    }
-
-    // Return an empty context menu if selected node is a group node
-    if (
-      cyRef.current.getElementById(contextTargetNode).hasClass('drawn-shape')
-    ) {
-      return;
     }
 
     const node = instance.nodeMap.get(contextTargetNode);
@@ -542,6 +537,7 @@ const LabView = observer((props: LabDialogProps) => {
                 cyRef.current = cy;
                 return startStatePing(cy);
               }}
+              underlay={<GroupLayer groups={groups} />}
             />
           </div>
         </div>

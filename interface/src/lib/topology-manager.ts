@@ -4,9 +4,15 @@ import {YAMLSeq} from 'yaml';
 
 import {placeNodes} from '@sb/lib/graph/placement';
 import {
+  addAnnotationItem,
   convertGraphLabels,
+  convertLegacyGroups,
+  nextAnnotationId,
+  removeGroupAnnotations,
   removeNodeAnnotations,
   removeOrphanedNodeAnnotations,
+  reorderAnnotationItems,
+  updateAnnotationItems,
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
 import {
@@ -23,6 +29,7 @@ import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {
   BindFile,
+  GroupStyleAnnotation,
   NodeAnnotation,
   NodeConnection,
   Topology,
@@ -44,6 +51,9 @@ export type TopologyEditReport = {
    * themselves or some other source and update accordingly.
    */
   source: TopologyEditSource;
+
+  // Consecutive edits with the same key are undone in one step, e.g. nudging
+  mergeKey?: string;
 };
 
 export type BindFileEditReport = {
@@ -68,6 +78,17 @@ export enum TopologyEditSource {
 export enum BindFileEditSource {
   TextEditor,
   System,
+}
+
+/**
+ * A change of the layout of the graph, applied as one edit.
+ */
+export interface GraphLayoutUpdate {
+  // The layout of the changed nodes by node name
+  nodes?: Map<string, NodeLayout>;
+
+  // The changed fields of groups by group ID
+  groups?: Map<string, Partial<GroupStyleAnnotation>>;
 }
 
 export enum OpenFileType {
@@ -257,44 +278,169 @@ export class TopologyManager {
   }
 
   /**
-   * Writes the layout of the given nodes to the annotations.
+   * Writes the layout of the given nodes and groups to the annotations.
    *
-   * @param layoutMap The layout of the nodes by node name.
+   * @param update The changed layout.
+   * @param mergeKey Merges the edit with the edit right before in the history.
    */
-  public updateNodeLayouts(layoutMap: Map<string, NodeLayout>) {
+  public updateLayout(update: GraphLayoutUpdate, mergeKey?: string) {
+    this.editGraphAnnotations(annotations => {
+      let updatedAnnotations = annotations;
+
+      if (update.nodes) {
+        const nodeAnnotations = nodeAnnotationMap(annotations);
+        const annotationUpdates = new Map<string, Partial<NodeAnnotation>>();
+
+        for (const [nodeName, layout] of update.nodes) {
+          annotationUpdates.set(
+            nodeName,
+            nodeLayoutAnnotation(nodeAnnotations.get(nodeName), layout),
+          );
+        }
+
+        updatedAnnotations = updateNodeAnnotations(
+          updatedAnnotations,
+          annotationUpdates,
+        );
+      }
+
+      if (update.groups) {
+        updatedAnnotations = updateAnnotationItems(
+          updatedAnnotations,
+          'groupStyleAnnotations',
+          update.groups,
+        );
+      }
+
+      return updatedAnnotations;
+    }, mergeKey);
+  }
+
+  /**
+   * Adds a group with the given nodes as members. Members of other groups move to
+   * the new group. Returns the ID of the group.
+   */
+  public addGroup(
+    group: Pick<GroupStyleAnnotation, 'name' | 'position' | 'width' | 'height'>,
+    memberLayouts: Map<string, NodeLayout>,
+  ): string | null {
+    let groupId: string | null = null;
+
+    this.editGraphAnnotations(annotations => {
+      groupId = nextAnnotationId(annotations, 'groupStyleAnnotations', 'group');
+
+      const nodeAnnotations = nodeAnnotationMap(annotations);
+      const memberUpdates = new Map<string, Partial<NodeAnnotation>>();
+
+      for (const [nodeName, layout] of memberLayouts) {
+        memberUpdates.set(
+          nodeName,
+          nodeLayoutAnnotation(nodeAnnotations.get(nodeName), {
+            ...layout,
+            groupId,
+          }),
+        );
+      }
+
+      return updateNodeAnnotations(
+        addAnnotationItem(annotations, 'groupStyleAnnotations', {
+          ...group,
+          id: groupId,
+          level: '1',
+        }),
+        memberUpdates,
+      );
+    });
+
+    return groupId;
+  }
+
+  /**
+   * Removes the given groups, their members are kept.
+   */
+  public removeGroups(groupIds: string[]) {
+    if (groupIds.length === 0) return;
+
+    this.editGraphAnnotations(annotations =>
+      removeGroupAnnotations(annotations, groupIds),
+    );
+  }
+
+  /**
+   * Draws the given groups in front of or behind all other groups.
+   */
+  public reorderGroups(groupIds: string[], toFront: boolean) {
+    if (groupIds.length === 0) return;
+
+    this.editGraphAnnotations(annotations =>
+      reorderAnnotationItems(
+        annotations,
+        'groupStyleAnnotations',
+        groupIds,
+        toFront,
+      ),
+    );
+  }
+
+  /**
+   * Deletes the given nodes, links and groups in one edit. The members of a
+   * deleted group are only deleted if they are given as well.
+   *
+   * @param nodeNames The names of the nodes to delete.
+   * @param links The links to delete by the names of their two nodes.
+   * @param groupIds The IDs of the groups to delete.
+   */
+  public deleteElements(
+    nodeNames: string[],
+    links: [string, string][],
+    groupIds: string[],
+  ) {
     if (!this.editingTopology) return;
 
-    // Converted first, so the new layout isn't overwritten by the labels
-    const converted = convertGraphLabels(
-      this.editingTopology.definition,
-      this.editingTopology.annotations,
-    );
-    const annotations =
-      converted?.annotations ?? this.editingTopology.annotations;
-    const nodeAnnotations = nodeAnnotationMap(annotations);
+    const updatedTopology = this.editingTopology.definition.clone();
+    const deletedNodes = new Set(nodeNames);
 
-    const annotationUpdates = new Map<string, Partial<NodeAnnotation>>();
-    for (const [nodeName, layout] of layoutMap.entries()) {
-      annotationUpdates.set(
-        nodeName,
-        nodeLayoutAnnotation(nodeAnnotations.get(nodeName), layout),
-      );
+    for (const nodeName of nodeNames) {
+      updatedTopology.deleteIn(['topology', 'nodes', nodeName]);
     }
 
-    const updatedAnnotations = updateNodeAnnotations(
+    const linkSeq = updatedTopology.getIn(['topology', 'links']);
+    if (linkSeq instanceof YAMLSeq) {
+      const remainingLinks = [...links];
+
+      for (let index = linkSeq.items.length - 1; index >= 0; index--) {
+        const endpoints = (
+          updatedTopology.getIn(['topology', 'links', index, 'endpoints']) as
+            | YAMLSeq
+            | undefined
+        )?.toJS(updatedTopology) as string[] | undefined;
+        if (!endpoints || endpoints.length < 2) continue;
+
+        const node1 = endpoints[0].split(':')[0];
+        const node2 = endpoints[1].split(':')[0];
+        const linkIndex = remainingLinks.findIndex(
+          ([a, b]) => a === node1 && b === node2,
+        );
+
+        if (linkIndex !== -1) {
+          remainingLinks.splice(linkIndex, 1);
+          linkSeq.delete(index);
+        } else if (deletedNodes.has(node1) || deletedNodes.has(node2)) {
+          linkSeq.delete(index);
+        }
+      }
+    }
+
+    const annotations = removeNodeAnnotations(
+      removeGroupAnnotations(this.editingTopology.annotations, groupIds),
+      nodeNames,
+    );
+
+    this.editTopology(
+      updatedTopology,
+      TopologyEditSource.NodeEditor,
       annotations,
-      annotationUpdates,
     );
-
-    if (converted) {
-      this.editTopology(
-        converted.definition,
-        TopologyEditSource.NodeEditor,
-        updatedAnnotations,
-      );
-    } else {
-      this.editAnnotations(updatedAnnotations, TopologyEditSource.NodeEditor);
-    }
   }
 
   /**
@@ -383,6 +529,7 @@ export class TopologyManager {
     updatedTopology: YAMLDocument<TopologyDefinition>,
     source: TopologyEditSource,
     updatedAnnotations?: TopologyAnnotations,
+    mergeKey?: string,
   ) {
     if (!this.editingTopology) return;
 
@@ -404,11 +551,13 @@ export class TopologyManager {
     );
 
     if (source === TopologyEditSource.NodeEditor) {
-      updatedAnnotations = this.placeNodeAnnotations(
+      const placedAnnotations = this.placeNodeAnnotations(
         updatedTopology,
         updatedAnnotations ?? this.editingTopology.annotations,
         topologyMeta.connections,
       );
+      updatedAnnotations =
+        convertLegacyGroups(placedAnnotations) ?? placedAnnotations;
     }
 
     runInAction(() => {
@@ -425,12 +574,14 @@ export class TopologyManager {
       updatedTopology: this.editingTopology,
       isEdited: this.isTopologyEdited(),
       source,
+      mergeKey,
     });
   }
 
   public editAnnotations(
     updatedAnnotations: TopologyAnnotations,
     source: TopologyEditSource,
+    mergeKey?: string,
   ) {
     if (!this.editingTopology) return;
 
@@ -441,15 +592,22 @@ export class TopologyManager {
       );
 
       if (converted) {
-        this.editTopology(converted.definition, source, converted.annotations);
+        this.editTopology(
+          converted.definition,
+          source,
+          converted.annotations,
+          mergeKey,
+        );
         return;
       }
 
-      updatedAnnotations = this.placeNodeAnnotations(
+      const placedAnnotations = this.placeNodeAnnotations(
         this.editingTopology.definition,
         updatedAnnotations,
         this.editingTopology.connections,
       );
+      updatedAnnotations =
+        convertLegacyGroups(placedAnnotations) ?? placedAnnotations;
     }
 
     runInAction(() => {
@@ -460,6 +618,7 @@ export class TopologyManager {
       updatedTopology: this.editingTopology,
       isEdited: this.isTopologyEdited(),
       source,
+      mergeKey,
     });
   }
 
@@ -506,29 +665,6 @@ export class TopologyManager {
   }
 
   /**
-   * Deletes a node from the topology.
-   *
-   * @param nodeName The name of the node to delete.
-   */
-  public deleteNode(nodeName: string) {
-    if (!this.editingTopology) return;
-
-    const updatedTopology = this.editingTopology.definition.clone();
-    const wasDeleted = updatedTopology.deleteIn([
-      'topology',
-      'nodes',
-      nodeName,
-    ]);
-    if (!wasDeleted) return;
-
-    this.editTopology(
-      updatedTopology,
-      TopologyEditSource.NodeEditor,
-      removeNodeAnnotations(this.editingTopology.annotations, [nodeName]),
-    );
-  }
-
-  /**
    * Connects two nodes in the topology.
    *
    * @param nodeName1 The name of the first node to connect.
@@ -572,35 +708,6 @@ export class TopologyManager {
     this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
-  public disconnectNodes(nodeName1: string, nodeName2: string) {
-    if (!this.editingTopology || !this.deviceStore.data) return;
-
-    const updatedTopology = this.editingTopology.definition.clone();
-
-    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
-
-    for (const linksKey in links.items) {
-      const endpoints = (
-        updatedTopology.getIn([
-          'topology',
-          'links',
-          linksKey,
-          'endpoints',
-        ]) as YAMLSeq
-      ).toJS(updatedTopology);
-
-      const node1 = endpoints[0].split(':')[0];
-      const node2 = endpoints[1].split(':')[0];
-
-      if (node1 === nodeName1 && node2 === nodeName2) {
-        updatedTopology.deleteIn(['topology', 'links', linksKey]);
-        break;
-      }
-    }
-
-    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
-  }
-
   /**
    * Returns whether the currently open topology has been edited.
    *
@@ -624,6 +731,7 @@ export class TopologyManager {
    *
    * - The graph-* labels are converted to annotations.
    * - Nodes without a position are saved where the graph shows them.
+   * - Groups referenced by name get a group annotation.
    * - Annotations of nodes that were removed in the text editor are removed.
    *
    * These changes are applied as a regular edit before the topology is sent, so
@@ -637,13 +745,14 @@ export class TopologyManager {
       this.editingTopology.annotations,
     );
     const definition = converted?.definition ?? this.editingTopology.definition;
+    const placedAnnotations = this.placeNodeAnnotations(
+      definition,
+      converted?.annotations ?? this.editingTopology.annotations,
+      this.editingTopology.connections,
+    );
     const completedAnnotations = removeOrphanedNodeAnnotations(
       definition,
-      this.placeNodeAnnotations(
-        definition,
-        converted?.annotations ?? this.editingTopology.annotations,
-        this.editingTopology.connections,
-      ),
+      convertLegacyGroups(placedAnnotations) ?? placedAnnotations,
     );
 
     if (definition !== this.editingTopology.definition) {
@@ -718,6 +827,47 @@ export class TopologyManager {
     }
 
     return result;
+  }
+
+  /**
+   * Applies a change of the annotations as an edit from the graph. The change
+   * gets the annotations with the legacy layout already converted, so it can
+   * refer to legacy groups by their ID and its result isn't overwritten by them.
+   */
+  private editGraphAnnotations(
+    change: (annotations: TopologyAnnotations) => TopologyAnnotations,
+    mergeKey?: string,
+  ) {
+    if (!this.editingTopology) return;
+
+    const converted = convertGraphLabels(
+      this.editingTopology.definition,
+      this.editingTopology.annotations,
+    );
+    const definition = converted?.definition ?? this.editingTopology.definition;
+    const placedAnnotations = this.placeNodeAnnotations(
+      definition,
+      converted?.annotations ?? this.editingTopology.annotations,
+      this.editingTopology.connections,
+    );
+    const updatedAnnotations = change(
+      convertLegacyGroups(placedAnnotations) ?? placedAnnotations,
+    );
+
+    if (converted) {
+      this.editTopology(
+        definition,
+        TopologyEditSource.NodeEditor,
+        updatedAnnotations,
+        mergeKey,
+      );
+    } else {
+      this.editAnnotations(
+        updatedAnnotations,
+        TopologyEditSource.NodeEditor,
+        mergeKey,
+      );
+    }
   }
 
   /**

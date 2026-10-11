@@ -1,0 +1,25 @@
+.sb-graph-group
+  position: absolute
+  box-sizing: border-box
+
+  &.selected
+    outline: 1.5px solid var(--accent)
+    outline-offset: 3px
+
+  &.drop-target
+    border-color: var(--accent) !important
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 15%, transparent)
+
+  .sb-graph-group-label
+    position: absolute
+    left: 12px
+    top: 6px
+    max-width: calc(100% - 24px)
+    overflow: hidden
+    font-size: 12px
+    white-space: nowrap
+    text-overflow: ellipsis
+    user-select: none
+
+    &.hidden
+      visibility: hidden

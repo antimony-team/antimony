@@ -316,7 +316,7 @@ const MonacoWrapper = observer(
       if (hasChanged) {
         history.current.record(
           historyEntry(openTopologyFileRef.current),
-          false,
+          editReport.mergeKey ?? null,
         );
       }
     }, []);
@@ -719,7 +719,10 @@ const MonacoWrapper = observer(
         !isApplyingHistory.current &&
         topologyStore.manager.currentFileType === OpenFileType.Topology
       ) {
-        history.current.record(historyEntry(file), !isReplacingContent.current);
+        history.current.record(
+          historyEntry(file),
+          isReplacingContent.current ? null : `typing-${file}`,
+        );
       }
 
       setContentRef.current(model.getValue(), file);
