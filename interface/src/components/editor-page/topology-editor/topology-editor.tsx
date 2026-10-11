@@ -24,6 +24,7 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
+import {TopologyHistory} from '@sb/lib/topology-history';
 import {
   BindFileEditReport,
   BindFileEditSource,
@@ -52,6 +53,13 @@ import {
 import TopologyFileSwitch from './topology-file-switch/topology-file-switch';
 
 import './topology-editor.sass';
+
+// Delay after the last change before a file is validated
+const VALIDATION_DELAY = 100;
+
+// Validating large files takes a while, so they are only validated once the user stops typing
+const LARGE_FILE_LENGTH = 100_000;
+const LARGE_FILE_VALIDATION_DELAY = 500;
 
 export enum ValidationState {
   Working,
@@ -118,6 +126,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   // const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
   const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
+  const [history] = useState(() => new TopologyHistory());
 
   const syncOverlayRef = useRef<OverlayPanel>(null);
 
@@ -276,7 +285,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
         // We don't explicitly set the validation state to error here,
         // but let the monaco-yaml validator find the error and handle it.
-      }, 100);
+      }, getValidationDelay(content));
     } catch {
       setValidationState(ValidationState.Working);
     }
@@ -307,7 +316,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       }
 
       // The error state is set by the monaco JSON validator
-    }, 100);
+    }, getValidationDelay(content));
   }
 
   function onSetValidationError(error: string | null) {
@@ -543,12 +552,14 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               text
               icon={<span className="material-symbols-outlined">undo</span>}
               onClick={() => monacoWrapperRef.current?.undo()}
+              disabled={!!openTopology && !history.canUndo}
               aria-label="Undo"
             />
             <Button
               text
               icon={<span className="material-symbols-outlined">redo</span>}
               onClick={() => monacoWrapperRef.current?.redo()}
+              disabled={!!openTopology && !history.canRedo}
               aria-label="Redo"
             />
             <span className="sb-editor-toolbar-separator" />
@@ -628,6 +639,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   openTopologyFile={openTopologyFile}
                   openBindFile={openBindFile}
                   onOpenTopologyFile={setOpenTopologyFile}
+                  history={history}
                   setValidationError={onSetValidationError}
                   onBindFileLinkClick={onBindFileLinkClick}
                   onLanguageChange={setCurrentLanguage}
@@ -722,3 +734,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 });
 
 export default TopologyEditor;
+
+function getValidationDelay(content: string) {
+  return content.length > LARGE_FILE_LENGTH
+    ? LARGE_FILE_VALIDATION_DELAY
+    : VALIDATION_DELAY;
+}

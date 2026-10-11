@@ -96,6 +96,9 @@ interface MonacoWrapperProps {
   // Called when undo or redo restores a change in a file that isn't shown
   onOpenTopologyFile: (file: TopologyFileType) => void;
 
+  // Undo history of the open topology, bind files use the history of monaco instead
+  history: TopologyHistory;
+
   onLanguageChange: (language: string) => void;
   onCursorChange: (line: number, column: number) => void;
 }
@@ -132,8 +135,8 @@ const MonacoWrapper = observer(
       useRef<YAMLDocument<TopologyDefinition> | null>(null);
     const currentAnnotationsRef = useRef<TopologyAnnotations | null>(null);
 
-    // Undo history of the open topology, bind files use the history of monaco instead
-    const history = useRef(new TopologyHistory());
+    // The history doesn't change, it's a ref so the callbacks that are only registered once can use it
+    const history = useRef(props.history);
 
     // Set while an entry of the history is applied, which doesn't have to be recorded again
     const isApplyingHistory = useRef(false);
