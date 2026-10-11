@@ -33,9 +33,9 @@ export const tours: Record<TourId, TourStep[]> = {
       align: 'start',
     },
     {
-      element: '.sb-topology-editor-toolbar-left',
+      element: '.sb-topology-editor-toolbar-crumbs',
       title: 'Open file',
-      text: 'Where the open topology lives. Switch between the topology definition and its annotations here, and undo or redo changes.',
+      text: 'Where the open topology lives. Switch between the topology definition and its annotations here.',
       side: 'bottom',
       align: 'start',
     },

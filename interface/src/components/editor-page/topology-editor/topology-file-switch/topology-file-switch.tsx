@@ -59,10 +59,9 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
       </button>
       <OverlayPanel ref={overlayRef} className="sb-topology-file-switch-panel">
         <div role="listbox" aria-label="Topology files">
-          {files.map(file => (
+          {files.map((file, i) => (
             <button
-              key={file.value}
-              role="option"
+              key={i}
               aria-selected={file.value === props.value}
               className="sb-topology-file-switch-option"
               onClick={() => onSelect(file.value)}
@@ -71,7 +70,9 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
                 {file.icon}
               </span>
               <div className="sb-topology-file-switch-option-text">
-                <span>{file.label}</span>
+                <span className="sb-topology-file-switch-option-label">
+                  {file.label}
+                </span>
                 <span className="sb-topology-file-switch-option-file">
                   {file.fileName}
                 </span>

@@ -71,7 +71,9 @@ const EditorViewSwitch = (props: EditorViewSwitchProps) => {
           onClick={() => props.onChange(view.value)}
         >
           <span className="material-symbols-outlined">{view.icon}</span>
-          {view.label}
+          <span className="sb-editor-view-switch-option-text">
+            {view.label}
+          </span>
         </button>
       ))}
     </div>

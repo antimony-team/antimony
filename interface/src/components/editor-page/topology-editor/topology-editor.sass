@@ -19,8 +19,10 @@
   transition: opacity 0.08s ease-in
 
 .sb-topology-editor-toolbar
+  // Lets the view switch hide its labels when the toolbar gets narrow
+  container-type: inline-size
   display: grid
-  grid-template-columns: minmax(max-content, 1fr) auto minmax(0, 1fr)
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr)
   flex-direction: row
   align-items: center
   padding: 0 8px
@@ -28,9 +30,28 @@
   height: 60px
   border-bottom: 1px solid var(--border)
 
-  .sb-topology-editor-toolbar-left
+  overflow-x: auto
+  scrollbar-width: none
+
+  &::-webkit-scrollbar
+    display: none
+
+  .sb-topology-editor-toolbar-crumbs
     display: flex
     align-items: center
+    list-style: none
+    margin: 0
+    padding: 0
+    gap: 4px
+
+    li
+      display: flex
+      align-items: center
+
+    li + li::before
+      content: "/"
+      color: var(--text-muted)
+      margin-right: 4px
 
     &:first-child
       margin-left: 4px
@@ -83,6 +104,18 @@
 
   // This makes it so the node editor menu can hide between the topbar
   z-index: 2
+
+  // Only the icon is left when the toolbar gets narrow
+  @container (max-width: 850px)
+    .sb-topology-editor-deploy-button
+      width: 40px
+      padding: 0
+
+      .p-button-label
+        display: none
+
+      .p-button-icon
+        margin: 0
 
 .sb-topology-editor-content
   flex-grow: 1
