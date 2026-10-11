@@ -3,6 +3,7 @@ import React, {useMemo} from 'react';
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 
+import {placeNodes} from '@sb/lib/graph/placement';
 import {readGraphNodes} from '@sb/lib/graph/topology-graph';
 import {NodeConnection, RunTopology} from '@sb/types/domain/topology';
 
@@ -73,7 +74,7 @@ const LabEntryPreview = observer((props: LabPreviewProps) => {
         <Otherwise>
           <span className="sb-lab-preview-empty">
             <i className="pi pi-sitemap" />
-            No layout saved yet
+            No nodes yet
           </span>
         </Otherwise>
       </Choose>
@@ -83,15 +84,17 @@ const LabEntryPreview = observer((props: LabPreviewProps) => {
 
 function readPositions(topology: RunTopology): Map<string, Point> | null {
   const positions = new Map<string, Point>();
+  const placedPositions = placeNodes(
+    topology.definition,
+    topology.annotations,
+    topology.connections,
+  );
 
   for (const node of readGraphNodes(
     topology.definition,
     topology.annotations,
   )) {
-    // A partial layout would look broken, so fall back to the placeholder
-    if (!node.position) return null;
-
-    positions.set(node.name, node.position);
+    positions.set(node.name, node.position ?? placedPositions.get(node.name)!);
   }
 
   return positions.size > 0 ? positions : null;

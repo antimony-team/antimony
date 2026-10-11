@@ -2,9 +2,11 @@ import {cloneDeep} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {YAMLSeq} from 'yaml';
 
+import {placeNodes} from '@sb/lib/graph/placement';
 import {
   convertGraphLabels,
   removeNodeAnnotations,
+  removeOrphanedNodeAnnotations,
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
 import {
@@ -13,6 +15,7 @@ import {
   nodeAnnotationMap,
   nodeLayoutAnnotation,
   parseInterface,
+  readGraphNodes,
 } from '@sb/lib/graph/topology-graph';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
@@ -400,6 +403,14 @@ export class TopologyManager {
       this.deviceStore.getInterfaceConfig(kind),
     );
 
+    if (source === TopologyEditSource.NodeEditor) {
+      updatedAnnotations = this.placeNodeAnnotations(
+        updatedTopology,
+        updatedAnnotations ?? this.editingTopology.annotations,
+        topologyMeta.connections,
+      );
+    }
+
     runInAction(() => {
       this.editingTopology!.definition = updatedTopology;
       this.editingTopology!.connections = topologyMeta.connections;
@@ -433,6 +444,12 @@ export class TopologyManager {
         this.editTopology(converted.definition, source, converted.annotations);
         return;
       }
+
+      updatedAnnotations = this.placeNodeAnnotations(
+        this.editingTopology.definition,
+        updatedAnnotations,
+        this.editingTopology.connections,
+      );
     }
 
     runInAction(() => {
@@ -603,6 +620,16 @@ export class TopologyManager {
   private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
     if (!this.editingTopology) return null;
 
+    // Nodes removed in the text editor keep their annotation until the topology is saved
+    const cleanedAnnotations = removeOrphanedNodeAnnotations(
+      this.editingTopology.definition,
+      this.editingTopology.annotations,
+    );
+
+    if (cleanedAnnotations !== this.editingTopology.annotations) {
+      this.editAnnotations(cleanedAnnotations, TopologyEditSource.System);
+    }
+
     const body: Partial<TopologyIn> = {
       definition: TopologyManager.serializeTopology(
         this.editingTopology.definition,
@@ -665,6 +692,52 @@ export class TopologyManager {
     }
 
     return result;
+  }
+
+  /**
+   * Writes positions to the annotations for the nodes of the updated topology that
+   * don't have one. Nodes keep the position they are currently shown at in the
+   * graph, all others are placed in the updated topology.
+   */
+  private placeNodeAnnotations(
+    updatedTopology: YAMLDocument<TopologyDefinition>,
+    updatedAnnotations: TopologyAnnotations,
+    connections: NodeConnection[],
+  ): TopologyAnnotations {
+    const unplacedNodes = readGraphNodes(updatedTopology, updatedAnnotations)
+      .filter(node => !node.position)
+      .map(node => node.name);
+    if (unplacedNodes.length === 0) return updatedAnnotations;
+
+    const shownPositions = placeNodes(
+      this.editingTopology!.definition,
+      this.editingTopology!.annotations,
+      this.editingTopology!.connections,
+    );
+
+    const shownUpdates = new Map<string, Partial<NodeAnnotation>>();
+    for (const nodeName of unplacedNodes) {
+      const position = shownPositions.get(nodeName);
+      if (position) shownUpdates.set(nodeName, {position});
+    }
+
+    let annotations =
+      shownUpdates.size > 0
+        ? updateNodeAnnotations(updatedAnnotations, shownUpdates)
+        : updatedAnnotations;
+    if (shownUpdates.size === unplacedNodes.length) return annotations;
+
+    const placedUpdates = new Map<string, Partial<NodeAnnotation>>();
+    for (const [nodeName, position] of placeNodes(
+      updatedTopology,
+      annotations,
+      connections,
+    )) {
+      placedUpdates.set(nodeName, {position});
+    }
+
+    annotations = updateNodeAnnotations(annotations, placedUpdates);
+    return annotations;
   }
 
   private isTopologyEdited() {

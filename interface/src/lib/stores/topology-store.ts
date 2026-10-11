@@ -189,9 +189,7 @@ export class TopologyStore extends DataStore<
   public parseTopologyDefinition(
     definitionString: string,
   ): YAMLDocument<TopologyDefinition> | null {
-    const definition = parseDocument(definitionString, {
-      keepSourceTokens: true,
-    });
+    const definition = parseDocument(definitionString);
     if (
       definition.errors.length > 0 ||
       validate(definition.toJS(), this.schemaStore.clabSchema).errors.length > 0

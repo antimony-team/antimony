@@ -37,7 +37,7 @@ import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {BindFile, Topology, TopologyFileType} from '@sb/types/domain/topology';
-import {FetchState, uuid4} from '@sb/types/types';
+import {FetchState, Position, uuid4} from '@sb/types/types';
 
 import EditorViewSwitch, {
   EditorView,
@@ -97,6 +97,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   const [currentlyEditedNode, setCurrentlyEditedNode] = useState<string | null>(
     null,
   );
+  const [newNodePosition, setNewNodePosition] = useState<Position | null>(null);
 
   const collectionStore = useCollectionStore();
   const schemaStore = useSchemaStore();
@@ -324,8 +325,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     setNodeEditDialogOpen(true);
   }
 
-  function onAddNode() {
+  function onAddNode(position: Position) {
     setCurrentlyEditedNode(null);
+    setNewNodePosition(position);
     setNodeEditDialogOpen(true);
   }
 
@@ -712,6 +714,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         editingTopology={openTopology?.definition ?? null}
         editingAnnotations={openTopology?.annotations ?? null}
         editingNode={currentlyEditedNode}
+        newNodePosition={newNodePosition}
         onClose={() => setNodeEditDialogOpen(false)}
       />
     </>

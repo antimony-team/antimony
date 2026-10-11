@@ -87,6 +87,32 @@ export function removeNodeAnnotations(
 }
 
 /**
+ * Removes the annotations of nodes that don't exist in the definition anymore.
+ * Returns the given annotations if there are none.
+ */
+export function removeOrphanedNodeAnnotations(
+  definition: YAMLDocument<TopologyDefinition>,
+  annotations: TopologyAnnotations,
+): TopologyAnnotations {
+  const nodeMap = definition.getIn(['topology', 'nodes']);
+  const nodeNames = new Set(
+    isMap(nodeMap)
+      ? nodeMap.items.map(item =>
+          String(isScalar(item.key) ? item.key.value : item.key),
+        )
+      : [],
+  );
+
+  const orphanedNodes = (annotations.nodeAnnotations ?? [])
+    .map(annotation => annotation.id)
+    .filter(nodeName => !nodeNames.has(nodeName));
+
+  if (orphanedNodes.length === 0) return annotations;
+
+  return removeNodeAnnotations(annotations, orphanedNodes);
+}
+
+/**
  * Moves the layout stored in the graph-* labels of all nodes to the annotations.
  * Fields that are already set in an annotation are kept. Returns null if no node
  * has graph-* labels, otherwise the updated definition and annotations.

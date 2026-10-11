@@ -16,6 +16,7 @@ import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
 import {generateGraph} from '@sb/lib/graph/cytoscape-utils';
+import {OccupiedPositions} from '@sb/lib/graph/placement';
 import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
@@ -35,7 +36,9 @@ interface NodeEditorProps {
   openTopology: Topology | null;
 
   onEditNode: (nodeName: string) => void;
-  onAddNode: () => void;
+
+  // Called with the position in the graph where the new node is placed
+  onAddNode: (position: Position) => void;
 }
 
 const GHOST_EDGE_ID = 'ghost-edge';
@@ -66,6 +69,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const contextMenuRef = useRef<ContextMenu | null>(null);
   const radialMenuRef = useRef<SpeedDial>(null);
   const menuTargetRef = useRef<string | null>(null);
+  // Position in the graph where the context menu of the graph was opened
+  const contextMenuPosition = useRef<Position>({x: 0, y: 0});
   const groupRenameInput = useRef<SBInputRef>(null);
   const drawStartPos = useRef<Position | null>(null);
   const drawEndPos = useRef<Position | null>(null);
@@ -365,6 +370,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     mouseEvent.preventDefault();
     mouseEvent.stopPropagation();
 
+    contextMenuPosition.current = event.position;
+
     setContextMenuModel(graphContextMenuModel);
     contextMenuRef.current.show(mouseEvent);
   }
@@ -417,6 +424,25 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function onFitGraph() {
     graphRef.current?.fit(true);
+  }
+
+  // New nodes from the toolbar are placed in the middle of the visible graph
+  function onAddNode() {
+    const extent = cyRef.current?.extent();
+    if (!extent) return;
+
+    addNodeAt({x: (extent.x1 + extent.x2) / 2, y: (extent.y1 + extent.y2) / 2});
+  }
+
+  function addNodeAt(position: Position) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const occupied = new OccupiedPositions(
+      cy.nodes('.topology-node').map(node => node.position()),
+    );
+
+    props.onAddNode(occupied.findFreePosition(position));
   }
 
   function onClearGraph() {
@@ -686,7 +712,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     {
       label: 'Add node',
       icon: 'pi pi-plus',
-      command: props.onAddNode,
+      command: () => addNodeAt(contextMenuPosition.current),
     },
     {
       label: 'Create group',
@@ -756,7 +782,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         }}
       />
       <NodeToolbar
-        onAddNode={props.onAddNode}
+        onAddNode={onAddNode}
         onFitGraph={onFitGraph}
         onDrawGroup={onDrawStart}
         onToggleStabilization={simulationConfig.togglePanel}

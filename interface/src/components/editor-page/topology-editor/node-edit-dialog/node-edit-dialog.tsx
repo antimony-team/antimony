@@ -7,8 +7,11 @@ import {Image} from 'primereact/image';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
+import SBDropdown, {
+  SBDropdownRef,
+} from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {updateNodeAnnotations} from '@sb/lib/graph/topology-annotations';
 import {NodeEditor} from '@sb/lib/node-editor';
 import {
   useDeviceStore,
@@ -22,7 +25,7 @@ import {
   TopologyAnnotations,
   TopologyDefinition,
 } from '@sb/types/domain/topology';
-import {YAMLDocument} from '@sb/types/types';
+import {Position, YAMLDocument} from '@sb/types/types';
 
 import NodeConnectionTable from './node-connection-table/node-connection-table';
 import NodePropertyTable from './node-property-table/node-property-table';
@@ -35,6 +38,9 @@ interface NodeEditDialogProps {
 
   // Set to null if the dialog is creating a new node
   editingNode: string | null;
+
+  // Position in the graph where a new node is placed
+  newNodePosition: Position | null;
   isOpen: boolean;
 
   onClose: () => void;
@@ -145,10 +151,23 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     }
 
     if (nodeEditor) {
+      let annotations = nodeEditor.getAnnotations();
+
+      // If the dialog is adding a new node and a position has been supplied,
+      // set that position in the annotations.
+      if (!props.editingNode && props.newNodePosition) {
+        annotations = updateNodeAnnotations(
+          annotations,
+          new Map([
+            [nodeEditor.getNodeName(), {position: props.newNodePosition}],
+          ]),
+        );
+      }
+
       topologyStore.manager.editTopology(
         nodeEditor.getTopology(),
         TopologyEditSource.NodeEditor,
-        nodeEditor.getAnnotations(),
+        annotations,
       );
     }
 

@@ -1,9 +1,8 @@
 import cytoscape, {ElementDefinition} from 'cytoscape';
 
+import {GRID_SPACING, placeNodes} from '@sb/lib/graph/placement';
 import {readGraphNodes} from '@sb/lib/graph/topology-graph';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
-
-export const GRID_SPACING = 35;
 
 const DOT_RADIUS = 1.2;
 
@@ -18,6 +17,11 @@ export function generateGraph(
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
   const addedGroups = new Set<string>();
+  const placedPositions = placeNodes(
+    topology.definition,
+    topology.annotations,
+    topology.connections,
+  );
 
   for (const node of readGraphNodes(
     topology.definition,
@@ -55,7 +59,7 @@ export function generateGraph(
         shape: icons.getNodeShape(node.icon),
       },
       selectable: true,
-      position: node.position ?? {x: 0, y: 0},
+      position: node.position ?? placedPositions.get(node.name),
       classes: 'topology-node',
     });
   }

@@ -37,8 +37,10 @@ export interface NodeLayout {
 export type InterfaceConfigLookup = (nodeKind?: string) => InterfaceConfig;
 
 /**
- * Labels that store the layout of a node in topologies without annotations.
- * They are only read, the layout is always written to the annotations.
+ * Legacy labels that store the layout of a node in topologies without annotations.
+ * They are deprecated by all clab tools and are therefore only read and never
+ * written back to the topology. As soon as the layout of a topology changes, all
+ * labels are removed and replaced with annotations.
  */
 export const GRAPH_LABELS = [
   'graph-icon',
