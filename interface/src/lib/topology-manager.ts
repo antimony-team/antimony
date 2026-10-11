@@ -617,17 +617,43 @@ export class TopologyManager {
     }
   }
 
+  /**
+   * Saves the open topology. Before it is saved, its layout is completed, so a
+   * saved topology always stores the positions of all of its nodes in the
+   * annotations, also if it was never changed in the graph:
+   *
+   * - The graph-* labels are converted to annotations.
+   * - Nodes without a position are saved where the graph shows them.
+   * - Annotations of nodes that were removed in the text editor are removed.
+   *
+   * These changes are applied as a regular edit before the topology is sent, so
+   * the text editor shows them and they can be undone.
+   */
   private async saveTopology(): Promise<Result<DataResponse<void>> | null> {
     if (!this.editingTopology) return null;
 
-    // Nodes removed in the text editor keep their annotation until the topology is saved
-    const cleanedAnnotations = removeOrphanedNodeAnnotations(
+    const converted = convertGraphLabels(
       this.editingTopology.definition,
       this.editingTopology.annotations,
     );
+    const definition = converted?.definition ?? this.editingTopology.definition;
+    const completedAnnotations = removeOrphanedNodeAnnotations(
+      definition,
+      this.placeNodeAnnotations(
+        definition,
+        converted?.annotations ?? this.editingTopology.annotations,
+        this.editingTopology.connections,
+      ),
+    );
 
-    if (cleanedAnnotations !== this.editingTopology.annotations) {
-      this.editAnnotations(cleanedAnnotations, TopologyEditSource.System);
+    if (definition !== this.editingTopology.definition) {
+      this.editTopology(
+        definition,
+        TopologyEditSource.System,
+        completedAnnotations,
+      );
+    } else if (completedAnnotations !== this.editingTopology.annotations) {
+      this.editAnnotations(completedAnnotations, TopologyEditSource.System);
     }
 
     const body: Partial<TopologyIn> = {
