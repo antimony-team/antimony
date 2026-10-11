@@ -125,6 +125,48 @@ function elementOrder(element: ElementDefinition, ids: Set<string>) {
   return element.data.parent && ids.has(element.data.parent) ? 1 : 0;
 }
 
+const LABEL_GAP = 8;
+
+function labelAngle(edge: cytoscape.EdgeSingular): number {
+  const s = edge.source().position();
+  const t = edge.target().position();
+  const dx = t.x - s.x;
+  const dy = t.y - s.y;
+  if (dx === 0 && dy === 0) return 0;
+
+  const angle = Math.atan(dy / dx);
+  return dx === 0 && angle < 0 ? -angle : angle;
+}
+
+function syncLabelMargins(edge: cytoscape.EdgeSingular) {
+  const angle = labelAngle(edge);
+  edge.data({
+    labelMarginX: Math.sin(angle) * LABEL_GAP,
+    labelMarginY: -Math.cos(angle) * LABEL_GAP,
+  });
+}
+
+export function bindEdgeLabelUpdates(cy: cytoscape.Core) {
+  let pending = cy.collection();
+  let frame = 0;
+
+  const queue = (edges: cytoscape.EdgeCollection) => {
+    pending = pending.union(edges);
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      cy.batch(() =>
+        pending.filter(edge => edge.inside()).forEach(syncLabelMargins),
+      );
+      pending = cy.collection();
+      frame = 0;
+    });
+  };
+
+  cy.on('position add', 'node', event => queue(event.target.connectedEdges()));
+  cy.on('add', 'edge', event => queue(event.target));
+  queue(cy.edges());
+}
+
 const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
   (props, ref) => {
     const cyRef = useRef<cytoscape.Core | null>(null);
@@ -194,6 +236,8 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
           cy.on(event, handler);
         }
       }
+
+      bindEdgeLabelUpdates(cy);
 
       cy.on('viewport', onViewport);
       cy.on('resize', onResize);
