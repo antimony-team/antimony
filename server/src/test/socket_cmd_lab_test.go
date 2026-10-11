@@ -28,7 +28,7 @@ func TestDeployCommand_OwnerCanDeploy(t *testing.T) {
 	call := h.Provider.LastCall("Deploy")
 	require.NotNil(t, call)
 	assert.Equal(t, InstanceAdminLab, call.Args["instanceName"])
-	assert.Equal(t, h.Storage.GetRunTopologyFile(LabAdminID), call.Args["topologyFile"],
+	assert.Equal(t, h.Storage.GetRunTopologyDefinitionFile(LabAdminID), call.Args["topologyFile"],
 		"the provider must be handed the lab's run environment, not the topology source")
 }
 

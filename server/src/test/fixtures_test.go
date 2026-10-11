@@ -107,6 +107,18 @@ topology:
       image: alpine:latest
 `
 
+	// AdminTopologyAnnotations is the layout of the admin topology. It must validate against
+	// data/clab.annotations.schema.json.
+	AdminTopologyAnnotations = `{
+  "nodeAnnotations": [
+    {"id": "srl1", "position": {"x": -100, "y": 0}, "icon": "router"},
+    {"id": "host1", "position": {"x": 100, "y": 0}, "icon": "client"}
+  ]
+}`
+
+	// EmptyTopologyAnnotations is what a topology without any layout stores.
+	EmptyTopologyAnnotations = "{}"
+
 	// BindFileContent is the content of the seeded bind file.
 	BindFileContent = "hostname leaf01\n"
 	// BindFilePath is the path of the seeded bind file, relative to the topology directory.
@@ -202,16 +214,16 @@ func (h *Harness) seedFixtures() *Seed {
 	seed.Hidden = h.createCollection(CollectionHidden, seed.Admin, true, true)
 
 	seed.AdminTopology = h.createTopology(
-		TopologyAdminID, AdminTopologyDefinition, seed.PublicBoth, seed.Admin,
+		TopologyAdminID, AdminTopologyDefinition, AdminTopologyAnnotations, seed.PublicBoth, seed.Admin,
 	)
 	seed.MemberTopology = h.createTopology(
-		TopologyMemberID, MemberTopologyDefinition, seed.PublicBoth, seed.Member,
+		TopologyMemberID, MemberTopologyDefinition, EmptyTopologyAnnotations, seed.PublicBoth, seed.Member,
 	)
 	seed.PrivateTopology = h.createTopology(
-		TopologyPrivateID, PrivateTopologyDefinition, seed.Private, seed.Admin,
+		TopologyPrivateID, PrivateTopologyDefinition, EmptyTopologyAnnotations, seed.Private, seed.Admin,
 	)
 	seed.HiddenTopology = h.createTopology(
-		TopologyHiddenID, HiddenTopologyDefinition, seed.Hidden, seed.Admin,
+		TopologyHiddenID, HiddenTopologyDefinition, EmptyTopologyAnnotations, seed.Hidden, seed.Admin,
 	)
 
 	seed.BindFile = h.createBindFile(BindFileID, BindFilePath, BindFileContent, seed.AdminTopology)
@@ -226,6 +238,7 @@ func (h *Harness) seedFixtures() *Seed {
 		endTime:      ptr(now.Add(1 * time.Hour)),
 		topology:     seed.AdminTopology,
 		definition:   AdminTopologyDefinition,
+		annotations:  AdminTopologyAnnotations,
 		creator:      seed.Admin,
 	})
 
@@ -237,6 +250,7 @@ func (h *Harness) seedFixtures() *Seed {
 		endTime:      ptr(now.Add(2 * time.Hour)),
 		topology:     seed.MemberTopology,
 		definition:   MemberTopologyDefinition,
+		annotations:  EmptyTopologyAnnotations,
 		creator:      seed.Member,
 	})
 
@@ -248,6 +262,7 @@ func (h *Harness) seedFixtures() *Seed {
 		endTime:      ptr(now.Add(3 * time.Hour)),
 		topology:     seed.HiddenTopology,
 		definition:   HiddenTopologyDefinition,
+		annotations:  EmptyTopologyAnnotations,
 		creator:      seed.Admin,
 	})
 
@@ -259,6 +274,7 @@ func (h *Harness) seedFixtures() *Seed {
 		endTime:      ptr(now.Add(-2 * time.Hour)),
 		topology:     seed.AdminTopology,
 		definition:   AdminTopologyDefinition,
+		annotations:  AdminTopologyAnnotations,
 		creator:      seed.Admin,
 	})
 
@@ -270,6 +286,7 @@ func (h *Harness) seedFixtures() *Seed {
 		endTime:      ptr(now.Add(6 * time.Hour)),
 		topology:     seed.AdminTopology,
 		definition:   AdminTopologyDefinition,
+		annotations:  AdminTopologyAnnotations,
 		creator:      seed.Admin,
 	})
 
@@ -321,12 +338,13 @@ func (h *Harness) createCollection(
 func (h *Harness) createTopology(
 	uuid string,
 	definition string,
+	annotations string,
 	topologyCollection collection.Collection,
 	creator SeedUser,
 ) topology.Topology {
 	h.T.Helper()
 
-	require.NoError(h.T, h.Storage.WriteTopology(uuid, definition))
+	require.NoError(h.T, h.Storage.WriteTopology(uuid, &definition, &annotations))
 
 	row := topology.Topology{
 		UUID:             uuid,
@@ -376,6 +394,7 @@ type labFixture struct {
 	endTime      *time.Time
 	topology     topology.Topology
 	definition   string
+	annotations  string
 	creator      SeedUser
 }
 
@@ -395,17 +414,19 @@ func (h *Harness) createLab(fixture labFixture) lab.Lab {
 	))
 
 	definition := fixture.definition
+	annotations := fixture.annotations
 
 	row := lab.Lab{
-		UUID:               fixture.uuid,
-		Name:               fixture.name,
-		StartTime:          fixture.startTime,
-		EndTime:            fixture.endTime,
-		TopologyID:         fixture.topology.ID,
-		CollectionID:       fixture.topology.CollectionID,
-		CreatorID:          fixture.creator.User.ID,
-		InstanceName:       fixture.instanceName,
-		TopologyDefinition: &definition,
+		UUID:                fixture.uuid,
+		Name:                fixture.name,
+		StartTime:           fixture.startTime,
+		EndTime:             fixture.endTime,
+		TopologyID:          fixture.topology.ID,
+		CollectionID:        fixture.topology.CollectionID,
+		CreatorID:           fixture.creator.User.ID,
+		InstanceName:        fixture.instanceName,
+		TopologyDefinition:  &definition,
+		TopologyAnnotations: &annotations,
 	}
 
 	require.NoError(h.T, h.DB.Omit(clause.Associations).Create(&row).Error)

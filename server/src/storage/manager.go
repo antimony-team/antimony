@@ -239,10 +239,6 @@ func getRunDefinitionFilePath(labId string) string {
 	return filepath.Join(labId, "topology.clab.yaml")
 }
 
-func getRunAnnotationFilePath(labId string) string {
-	return filepath.Join(labId, "topology.clab.yaml.annotations.json")
-}
-
 func bindFilePath(topologyId string, filePath string) (string, error) {
 	cleaned, err := NormaliseBindFilePath(filePath)
 	if err != nil {

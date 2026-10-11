@@ -135,6 +135,39 @@ func TestGetClabSchema_IgnoresAnAccessToken(t *testing.T) {
 }
 
 /*
+ * GET /clab-schema/annotations
+ */
+
+func TestGetAnnotationsSchema_IsPublic(t *testing.T) {
+	h := NewHarness(t)
+
+	// Like the containerlab schema, the editor needs it before the user has logged in.
+	h.GET("/clab-schema/annotations", "").RequireStatus(http.StatusOK)
+	h.GET("/clab-schema/annotations", "garbage").RequireStatus(http.StatusOK)
+}
+
+func TestGetAnnotationsSchema_ReturnsTheAnnotationsSchema(t *testing.T) {
+	h := NewHarness(t)
+
+	var schema map[string]any
+	h.GET("/clab-schema/annotations", "").RequireOk(&schema)
+
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok, "the payload must be a JSON schema")
+	assert.Contains(t, properties, "nodeAnnotations")
+}
+
+func TestGetAnnotationsSchema_MatchesTheSchemaUsedForValidation(t *testing.T) {
+	h := NewHarness(t)
+
+	var overHttp map[string]any
+	h.GET("/clab-schema/annotations", "").RequireOk(&overHttp)
+
+	// Otherwise the editor would accept annotations the API then rejects.
+	assert.JSONEq(t, h.SchemaService.GetAnnotations(), toJSON(t, overHttp))
+}
+
+/*
  * GET /server-config
  */
 

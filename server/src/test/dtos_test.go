@@ -23,15 +23,16 @@ import (
 
 // labDTO mirrors transport.LabOut.
 type labDTO struct {
-	ID                 string       `json:"id"`
-	Name               string       `json:"name"`
-	StartTime          time.Time    `json:"startTime"`
-	EndTime            *time.Time   `json:"endTime"`
-	TopologyId         string       `json:"topologyId"`
-	CollectionId       string       `json:"collectionId"`
-	Creator            userDTO      `json:"creator"`
-	TopologyDefinition string       `json:"topologyDefinition"`
-	Instance           *instanceDTO `json:"instance"`
+	ID                  string       `json:"id"`
+	Name                string       `json:"name"`
+	StartTime           time.Time    `json:"startTime"`
+	EndTime             *time.Time   `json:"endTime"`
+	TopologyId          string       `json:"topologyId"`
+	CollectionId        string       `json:"collectionId"`
+	Creator             userDTO      `json:"creator"`
+	TopologyDefinition  string       `json:"topologyDefinition"`
+	TopologyAnnotations string       `json:"topologyAnnotations"`
+	Instance            *instanceDTO `json:"instance"`
 }
 
 // userDTO mirrors transport.UserOut.

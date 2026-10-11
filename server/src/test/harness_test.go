@@ -301,10 +301,12 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		},
 		Containerlab: config.ClabConfig{
 			// Empty so the schema service skips the network fetch and uses the local fallback.
-			SchemaUrl:      "",
-			SchemaFallback: repoFile(t, "data/clab.schema.json"),
-			DeviceConfig:   repoFile(t, "data/device-config.json"),
-			KindsConfig:    kindsConfigPath,
+			SchemaUrl:                 "",
+			SchemaFallback:            repoFile(t, "data/clab.schema.json"),
+			AnnotationsSchemaUrl:      "",
+			AnnotationsSchemaFallback: repoFile(t, "data/clab.annotations.schema.json"),
+			DeviceConfig:              repoFile(t, "data/device-config.json"),
+			KindsConfig:               kindsConfigPath,
 		},
 	}
 

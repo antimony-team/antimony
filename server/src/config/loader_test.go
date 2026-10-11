@@ -71,6 +71,8 @@ func TestLoad_KeepsDefaultsForAbsentKeys(t *testing.T) {
 	assert.Equal(t, "127.0.0.1", loaded.Server.Host, "an unset sibling key keeps its default")
 	assert.Equal(t, "./kinds.conf.yml", loaded.Containerlab.KindsConfig)
 	assert.Equal(t, "./data/clab.schema.json", loaded.Containerlab.SchemaFallback)
+	assert.Empty(t, loaded.Containerlab.AnnotationsSchemaUrl)
+	assert.Equal(t, "./data/clab.annotations.schema.json", loaded.Containerlab.AnnotationsSchemaFallback)
 	assert.Equal(t, 1000, loaded.Streaming.ClabLogBacklog)
 	assert.Equal(t, 20, loaded.Shell.UserLimit)
 	assert.Equal(t, "./storage/", loaded.FileSystem.Storage)

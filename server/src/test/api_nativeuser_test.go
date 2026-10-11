@@ -151,6 +151,7 @@ func TestCreateNativeUser_PermissionsFollowTheCollectionFlags(t *testing.T) {
 	t.Run("can write to a publicWrite collection it is a member of", func(t *testing.T) {
 		h.POST("/topologies", topology.TopologyIn{
 			Definition:   ptr(freshTopologyDefinition),
+			Annotations:  ptr(EmptyTopologyAnnotations),
 			SyncUrl:      ptr(""),
 			CollectionId: ptr(h.Seed.PublicRW.UUID),
 		}, token).RequireStatus(http.StatusOK)
@@ -159,6 +160,7 @@ func TestCreateNativeUser_PermissionsFollowTheCollectionFlags(t *testing.T) {
 	t.Run("cannot write to a collection without publicWrite", func(t *testing.T) {
 		h.POST("/topologies", topology.TopologyIn{
 			Definition:   ptr(freshTopologyDefinition),
+			Annotations:  ptr(EmptyTopologyAnnotations),
 			SyncUrl:      ptr(""),
 			CollectionId: ptr(h.Seed.Private.UUID),
 		}, token).RequireError(http.StatusForbidden, 403)

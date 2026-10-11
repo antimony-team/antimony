@@ -500,7 +500,9 @@ func TestDeleteCollection_LabNamesCanBeReusedAfterwards(t *testing.T) {
 
 	recreated, err := h.CollectionRepo.GetByUuid(t.Context(), recreatedId)
 	require.NoError(t, err)
-	recreatedTopology := h.createTopology("topo-recreated", HiddenTopologyDefinition, *recreated, h.Seed.Admin)
+	recreatedTopology := h.createTopology(
+		"topo-recreated", HiddenTopologyDefinition, EmptyTopologyAnnotations, *recreated, h.Seed.Admin,
+	)
 
 	start := time.Now().Add(time.Hour)
 	h.POST("/labs", lab.LabIn{

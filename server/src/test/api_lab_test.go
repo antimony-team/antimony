@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -127,6 +128,7 @@ func TestGetLabs_CarriesTheFullLabShape(t *testing.T) {
 	assert.Equal(t, h.Seed.PublicBoth.UUID, found.CollectionId)
 	assert.Equal(t, h.Seed.Admin.ID(), found.Creator.ID)
 	assert.Equal(t, AdminTopologyDefinition, found.TopologyDefinition)
+	assert.JSONEq(t, AdminTopologyAnnotations, found.TopologyAnnotations)
 	assert.NotNil(t, found.EndTime)
 	assert.Nil(t, found.Instance, "a lab that is not running must report a null instance")
 }
@@ -247,6 +249,9 @@ func TestCreateLab_OwnerCanCreateOnADeployableCollection(t *testing.T) {
 	require.NotNil(t, stored.TopologyDefinition)
 	assert.Equal(t, AdminTopologyDefinition, *stored.TopologyDefinition,
 		"the definition must be snapshotted at creation time")
+	require.NotNil(t, stored.TopologyAnnotations)
+	assert.JSONEq(t, AdminTopologyAnnotations, *stored.TopologyAnnotations,
+		"the annotations must be snapshotted at creation time")
 
 	// The run environment must exist on disk so the lab can actually be deployed later.
 	var runDefinition string
@@ -255,6 +260,26 @@ func TestCreateLab_OwnerCanCreateOnADeployableCollection(t *testing.T) {
 		"the run definition is renamed to the instance name")
 
 	assert.Equal(t, []string{createdID}, events.LabIdsFor("lab.created"))
+}
+
+// TestCreateLab_RunEnvironmentContainsTheAnnotations checks that the annotations end up next to the
+// run definition, where containerlab and its tools look for them.
+func TestCreateLab_RunEnvironmentContainsTheAnnotations(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+
+	var createdID string
+	h.POST("/labs", lab.LabIn{
+		Name:       ptr("Fresh Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(TopologyAdminID),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	runDefinitionFile := h.Storage.GetRunTopologyDefinitionFile(createdID)
+	runAnnotations, err := os.ReadFile(runDefinitionFile + ".annotations.json")
+	require.NoError(t, err)
+	assert.JSONEq(t, AdminTopologyAnnotations, string(runAnnotations))
 }
 
 func TestCreateLab_BelongsToTheCollectionOfItsTopology(t *testing.T) {
@@ -856,6 +881,20 @@ func moveAdminTopology(t *testing.T, h *Harness, collectionId string) {
 	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
 		CollectionId: ptr(collectionId),
 	}, h.Seed.Admin.Token).RequireOk(nil)
+}
+
+func TestLab_KeepsItsAnnotationsWhenItsTopologyChanges(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Annotations: ptr(EmptyTopologyAnnotations),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	var found labDTO
+	h.GET("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireOk(&found)
+
+	assert.JSONEq(t, AdminTopologyAnnotations, found.TopologyAnnotations,
+		"a lab keeps the annotations its topology had when the lab was created")
 }
 
 func TestLab_StaysInItsCollectionWhenItsTopologyMoves(t *testing.T) {
