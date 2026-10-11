@@ -73,6 +73,17 @@ export enum OpenFileType {
 }
 
 export class TopologyManager {
+  // Serialized definitions and annotations by object. Edits always replace these
+  // objects instead of changing them, so a serialized value stays valid.
+  private static readonly serializedDefinitions = new WeakMap<
+    YAMLDocument<TopologyDefinition>,
+    string
+  >();
+  private static readonly serializedAnnotations = new WeakMap<
+    TopologyAnnotations,
+    string
+  >();
+
   public readonly onTopologyOpen: Binding<Topology> = new Binding();
   public readonly onTopologyEdit: Binding<TopologyEditReport> = new Binding();
   public readonly onBindFileOpen: Binding<BindFile> = new Binding();
@@ -85,16 +96,6 @@ export class TopologyManager {
   private editingTopology: Topology | null = null;
   // Backup of the topology to restore when discarding edits.
   private originalTopology: Topology | null = null;
-  // The serialized definition of the original topology, which edits are compared against
-  private originalDefinitionCache: {
-    topology: Topology;
-    definition: string;
-  } | null = null;
-  // The serialized annotations of the original topology, which edits are compared against
-  private originalAnnotationsCache: {
-    topology: Topology;
-    annotations: string;
-  } | null = null;
   private editingBindFile: BindFile | null = null;
   // Backup of the bind file to restore when discarding edits.
   private originalBindFile: BindFile | null = null;
@@ -135,13 +136,25 @@ export class TopologyManager {
   public static serializeTopology(
     definition: YAMLDocument<TopologyDefinition>,
   ) {
-    return definition.toString({
-      collectionStyle: 'block',
-    });
+    let serialized = TopologyManager.serializedDefinitions.get(definition);
+
+    if (serialized === undefined) {
+      serialized = definition.toString({collectionStyle: 'block'});
+      TopologyManager.serializedDefinitions.set(definition, serialized);
+    }
+
+    return serialized;
   }
 
   public static serializeAnnotations(annotations: TopologyAnnotations) {
-    return JSON.stringify(annotations, null, 2);
+    let serialized = TopologyManager.serializedAnnotations.get(annotations);
+
+    if (serialized === undefined) {
+      serialized = JSON.stringify(annotations, null, 2);
+      TopologyManager.serializedAnnotations.set(annotations, serialized);
+    }
+
+    return serialized;
   }
 
   /**
@@ -600,7 +613,11 @@ export class TopologyManager {
       this.editingTopology.annotations,
     );
 
-    if (annotations !== this.getOriginalAnnotations()) {
+    if (
+      !this.originalTopology ||
+      annotations !==
+        TopologyManager.serializeAnnotations(this.originalTopology.annotations)
+    ) {
       body.annotations = annotations;
     }
 
@@ -654,47 +671,11 @@ export class TopologyManager {
     if (!this.editingTopology || !this.originalTopology) return false;
 
     return (
-      this.editingTopology.definition.toString() !==
-        this.getOriginalDefinition() ||
+      TopologyManager.serializeTopology(this.editingTopology.definition) !==
+        TopologyManager.serializeTopology(this.originalTopology.definition) ||
       TopologyManager.serializeAnnotations(this.editingTopology.annotations) !==
-        this.getOriginalAnnotations()
+        TopologyManager.serializeAnnotations(this.originalTopology.annotations)
     );
-  }
-
-  /**
-   * Returns the serialized definition of the original topology. The original
-   * is replaced whenever it changes, so it is only serialized once per original.
-   */
-  private getOriginalDefinition(): string | null {
-    if (!this.originalTopology) return null;
-
-    if (this.originalDefinitionCache?.topology !== this.originalTopology) {
-      this.originalDefinitionCache = {
-        topology: this.originalTopology,
-        definition: this.originalTopology.definition.toString(),
-      };
-    }
-
-    return this.originalDefinitionCache.definition;
-  }
-
-  /**
-   * Returns the serialized annotations of the original topology. The original
-   * is replaced whenever it changes, so it is only serialized once per original.
-   */
-  private getOriginalAnnotations(): string | null {
-    if (!this.originalTopology) return null;
-
-    if (this.originalAnnotationsCache?.topology !== this.originalTopology) {
-      this.originalAnnotationsCache = {
-        topology: this.originalTopology,
-        annotations: TopologyManager.serializeAnnotations(
-          this.originalTopology.annotations,
-        ),
-      };
-    }
-
-    return this.originalAnnotationsCache.annotations;
   }
 
   private restoreCurrentFile() {

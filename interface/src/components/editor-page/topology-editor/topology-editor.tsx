@@ -219,7 +219,11 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     return collectionStore.lookup.get(openTopology.collectionId)!;
   }, [collectionStore.data, openTopology]);
 
+  // Each file is validated separately, so an undo that changes both files applies both
   const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const validateAnnotationsTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   function onContentChange(content: string, file: TopologyFileType) {
     if (topologyStore.manager.currentFileType === OpenFileType.Topology) {
@@ -286,11 +290,11 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
     setValidationState(ValidationState.Working);
 
-    if (validateTimeoutRef.current) {
-      clearTimeout(validateTimeoutRef.current);
+    if (validateAnnotationsTimeoutRef.current) {
+      clearTimeout(validateAnnotationsTimeoutRef.current);
     }
 
-    validateTimeoutRef.current = setTimeout(() => {
+    validateAnnotationsTimeoutRef.current = setTimeout(() => {
       const annotations = topologyStore.parseTopologyAnnotations(content);
 
       if (annotations !== null) {
@@ -363,9 +367,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         `${topologyCollection!.name}_${openTopology.definition.get('name')}.annotations.json`,
       );
     } else if (openTopology) {
-      const blob = new Blob([openTopology.definition.toString()], {
-        type: 'text/yaml;charset=utf-8',
-      });
+      const blob = new Blob(
+        [TopologyManager.serializeTopology(openTopology.definition)],
+        {
+          type: 'text/yaml;charset=utf-8',
+        },
+      );
       FileSaver.saveAs(
         blob,
         `${topologyCollection!.name}_${openTopology.definition.get('name')}.yaml`,
@@ -618,6 +625,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   openTopology={openTopology}
                   openTopologyFile={openTopologyFile}
                   openBindFile={openBindFile}
+                  onOpenTopologyFile={setOpenTopologyFile}
                   setValidationError={onSetValidationError}
                   onBindFileLinkClick={onBindFileLinkClick}
                   onLanguageChange={setCurrentLanguage}

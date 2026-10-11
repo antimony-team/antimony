@@ -484,7 +484,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
     void topologyStore
       .add<string>({
-        definition: definitionClone.toString(),
+        definition: TopologyManager.serializeTopology(definitionClone),
         annotations: TopologyManager.serializeAnnotations(topology.annotations),
         collectionId: topology.collectionId,
         syncUrl: topology.syncUrl,

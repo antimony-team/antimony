@@ -56,6 +56,8 @@ export class NodeEditor {
     new Binding();
   private readonly originalTopology: YAMLDocument<TopologyDefinition>;
   private readonly statusMessageStore: StatusMessageStore;
+  // Name of the current node in the original topology, which isn't changed by renaming
+  private readonly originalNode: string;
   private editingNode: string;
   private editingTopology: YAMLDocument<TopologyDefinition>;
   private originalAnnotations: TopologyAnnotations;
@@ -71,6 +73,7 @@ export class NodeEditor {
     statusMessageStore: StatusMessageStore,
   ) {
     this.clabSchema = clabSchema;
+    this.originalNode = editingNode;
     this.editingNode = editingNode;
     this.statusMessageStore = statusMessageStore;
     this.originalTopology = originalTopology;
@@ -102,14 +105,7 @@ export class NodeEditor {
       ['topology', 'nodes', value],
       this.editingTopology.getIn(['topology', 'nodes', this.editingNode]),
     );
-
-    this.originalTopology.setIn(
-      ['topology', 'nodes', value],
-      this.originalTopology.getIn(['topology', 'nodes', this.editingNode]),
-    );
-
     this.editingTopology.deleteIn(['topology', 'nodes', this.editingNode]);
-    this.originalTopology.deleteIn(['topology', 'nodes', this.editingNode]);
 
     this.editingAnnotations = renameNodeAnnotation(
       this.editingAnnotations,
@@ -489,7 +485,7 @@ export class NodeEditor {
   ): boolean {
     return (
       this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
+        this.originalPropertyPath(objectRootPath, propertyKey),
       ) === undefined
     );
   }
@@ -512,7 +508,7 @@ export class NodeEditor {
 
     const originalValue =
       this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
+        this.originalPropertyPath(objectRootPath, propertyKey),
       ) ?? this.getPropertyDefault(propertyKey, objectRootPath, schemaRootPath);
 
     return !_.isEqual(currentValue, originalValue);
@@ -538,7 +534,7 @@ export class NodeEditor {
   ) {
     if (searchOriginal) {
       const originalValue = this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
+        this.originalPropertyPath(objectRootPath, propertyKey),
       );
 
       if (originalValue) return originalValue;
@@ -746,7 +742,19 @@ export class NodeEditor {
    * @param key The path to the property.
    */
   private propertyPath(root?: string, ...key: string[]): string[] {
-    const prefix = 'topology.nodes.' + this.editingNode + '.';
+    return this.nodePropertyPath(this.editingNode, root, ...key);
+  }
+
+  private originalPropertyPath(root?: string, ...key: string[]): string[] {
+    return this.nodePropertyPath(this.originalNode, root, ...key);
+  }
+
+  private nodePropertyPath(
+    nodeName: string,
+    root?: string,
+    ...key: string[]
+  ): string[] {
+    const prefix = 'topology.nodes.' + nodeName + '.';
     if (!root) return (prefix + key.join('.')).split('.');
 
     return (prefix + root + '.' + key.join('.')).split('.');
