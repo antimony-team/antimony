@@ -30,6 +30,7 @@ import {
   OpenFileType,
   TopologyEditReport,
   TopologyEditSource,
+  TopologyManager,
 } from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
@@ -290,10 +291,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
 
     validateTimeoutRef.current = setTimeout(() => {
-      if (topologyStore.parseAnnotations(content) !== null) {
+      const annotations = topologyStore.parseTopologyAnnotations(content);
+
+      if (annotations !== null) {
         setValidationState(ValidationState.Done);
         topologyStore.manager.editAnnotations(
-          content,
+          annotations,
           TopologyEditSource.TextEditor,
         );
       }
@@ -349,9 +352,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   function onDownload() {
     if (openTopology && openTopologyFile === TopologyFileType.Annotations) {
-      const blob = new Blob([openTopology.annotations], {
-        type: 'application/json;charset=utf-8',
-      });
+      const blob = new Blob(
+        [TopologyManager.serializeAnnotations(openTopology.annotations)],
+        {
+          type: 'application/json;charset=utf-8',
+        },
+      );
       FileSaver.saveAs(
         blob,
         `${topologyCollection!.name}_${openTopology.definition.get('name')}.annotations.json`,
@@ -696,6 +702,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         key={currentlyEditedNode}
         isOpen={isNodeEditDialogOpen}
         editingTopology={openTopology?.definition ?? null}
+        editingAnnotations={openTopology?.annotations ?? null}
         editingNode={currentlyEditedNode}
         onClose={() => setNodeEditDialogOpen(false)}
       />

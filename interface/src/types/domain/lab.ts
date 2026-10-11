@@ -15,6 +15,7 @@ export type LabOut = LabIn & {
   collectionId: uuid4;
 
   topologyDefinition: string;
+  topologyAnnotations: string;
 
   instance: InstanceOut | null;
 };

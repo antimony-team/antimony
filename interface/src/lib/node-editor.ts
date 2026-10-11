@@ -3,6 +3,12 @@ import _, {isEqual} from 'lodash';
 import objectPath from 'object-path';
 import {YAMLMap, YAMLSeq} from 'yaml';
 
+import {
+  findNodeAnnotation,
+  renameNodeAnnotation,
+  updateNodeAnnotations,
+} from '@sb/lib/graph/topology-annotations';
+import {readNodeIcon} from '@sb/lib/graph/topology-graph';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
@@ -14,6 +20,7 @@ import {
 } from '@sb/types/domain/schema';
 import {
   NodeConnection,
+  TopologyAnnotations,
   TopologyDefinition,
   TopologyNode,
 } from '@sb/types/domain/topology';
@@ -51,6 +58,8 @@ export class NodeEditor {
   private readonly statusMessageStore: StatusMessageStore;
   private editingNode: string;
   private editingTopology: YAMLDocument<TopologyDefinition>;
+  private originalAnnotations: TopologyAnnotations;
+  private editingAnnotations: TopologyAnnotations;
 
   private hasChangedName: boolean = false;
 
@@ -58,6 +67,7 @@ export class NodeEditor {
     clabSchema: ClabSchema,
     editingNode: string,
     originalTopology: YAMLDocument<TopologyDefinition>,
+    originalAnnotations: TopologyAnnotations,
     statusMessageStore: StatusMessageStore,
   ) {
     this.clabSchema = clabSchema;
@@ -65,6 +75,8 @@ export class NodeEditor {
     this.statusMessageStore = statusMessageStore;
     this.originalTopology = originalTopology;
     this.editingTopology = originalTopology.clone();
+    this.originalAnnotations = originalAnnotations;
+    this.editingAnnotations = originalAnnotations;
 
     this.onUpdateName = this.onUpdateName.bind(this);
     this.getObjectProperties = this.getObjectProperties.bind(this);
@@ -98,6 +110,17 @@ export class NodeEditor {
 
     this.editingTopology.deleteIn(['topology', 'nodes', this.editingNode]);
     this.originalTopology.deleteIn(['topology', 'nodes', this.editingNode]);
+
+    this.editingAnnotations = renameNodeAnnotation(
+      this.editingAnnotations,
+      oldName,
+      value,
+    );
+    this.originalAnnotations = renameNodeAnnotation(
+      this.originalAnnotations,
+      oldName,
+      value,
+    );
 
     this.editingNode = value;
     this.hasChangedName = true;
@@ -253,6 +276,13 @@ export class NodeEditor {
   }
 
   /**
+   * Returns the current annotations.
+   */
+  public getAnnotations(): TopologyAnnotations {
+    return this.editingAnnotations;
+  }
+
+  /**
    * Returns the current node.
    */
   public getNode(): TopologyNode | undefined {
@@ -293,12 +323,21 @@ export class NodeEditor {
     );
   }
 
-  public onUpdateIcon(icon: string): string | null {
-    const updatedTopology = this.editingTopology.clone();
+  /**
+   * Returns the icon of a node, the current node by default.
+   */
+  public getNodeIcon(nodeName: string = this.editingNode): string | undefined {
+    return readNodeIcon(
+      this.editingTopology.toJS().topology.nodes[nodeName],
+      findNodeAnnotation(this.editingAnnotations, nodeName),
+    );
+  }
 
-    updatedTopology.setIn(this.propertyPath('labels', 'graph-icon'), icon);
-
-    return this.validateAndSetTopology(updatedTopology, "Invalid icon'");
+  public onUpdateIcon(icon: string) {
+    this.editingAnnotations = updateNodeAnnotations(
+      this.editingAnnotations,
+      new Map([[this.editingNode, {icon}]]),
+    );
   }
 
   /**
@@ -307,6 +346,7 @@ export class NodeEditor {
   public hasEdits(): boolean {
     return (
       !isEqual(this.originalTopology.toJS(), this.editingTopology.toJS()) ||
+      !isEqual(this.originalAnnotations, this.editingAnnotations) ||
       this.hasChangedName
     );
   }

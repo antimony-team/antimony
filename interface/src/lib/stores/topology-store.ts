@@ -14,6 +14,7 @@ import {
   BindFile,
   BindFileIn,
   Topology,
+  TopologyAnnotations,
   TopologyDefinition,
   TopologyIn,
   TopologyOut,
@@ -201,8 +202,10 @@ export class TopologyStore extends DataStore<
     return definition;
   }
 
-  public parseAnnotations(annotationsString: string): object | null {
-    let annotations: object;
+  public parseTopologyAnnotations(
+    annotationsString: string,
+  ): TopologyAnnotations | null {
+    let annotations: TopologyAnnotations;
 
     try {
       annotations = JSON.parse(annotationsString);
@@ -273,8 +276,17 @@ export class TopologyStore extends DataStore<
       }
     }
 
-    if (source.annotations !== undefined) {
-      target.annotations = source.annotations;
+    if (source.annotations) {
+      const updatedAnnotations = this.parseTopologyAnnotations(
+        source.annotations,
+      );
+
+      if (updatedAnnotations) {
+        target.annotations = updatedAnnotations;
+        target.annotationsString = source.annotations;
+      } else {
+        console.error('[NET] Failed to parse incoming annotations: ', source);
+      }
     }
 
     if (source.syncUrl !== undefined) {
@@ -306,14 +318,27 @@ export class TopologyStore extends DataStore<
       return null;
     }
 
-    return observable({
-      ...input,
-      name: definition.get('name') as string,
-      definition: definition,
-      definitionString: input.definition,
-      ...buildTopologyMetadata(definition, kind =>
-        this.deviceStore.getInterfaceConfig(kind),
-      ),
-    });
+    // Broken annotations only lose the layout, the topology itself is still usable
+    const annotations = this.parseTopologyAnnotations(input.annotations);
+
+    if (!annotations) {
+      console.error('[NET] Failed to parse incoming annotations: ', input);
+    }
+
+    return observable(
+      {
+        ...input,
+        name: definition.get('name') as string,
+        definition: definition,
+        definitionString: input.definition,
+        annotations: annotations ?? {},
+        annotationsString: input.annotations,
+        ...buildTopologyMetadata(definition, kind =>
+          this.deviceStore.getInterfaceConfig(kind),
+        ),
+      },
+      // The annotations are replaced as a whole on every edit
+      {annotations: observable.ref},
+    );
   }
 }

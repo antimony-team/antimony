@@ -19,7 +19,10 @@ export function generateGraph(
   const elements: ElementDefinition[] = [];
   const addedGroups = new Set<string>();
 
-  for (const node of readGraphNodes(topology.definition)) {
+  for (const node of readGraphNodes(
+    topology.definition,
+    topology.annotations,
+  )) {
     let parentId: string | undefined = undefined;
 
     if (node.group !== undefined) {

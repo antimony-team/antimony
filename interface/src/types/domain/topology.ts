@@ -1,5 +1,5 @@
 import {User} from '@sb/types/domain/user';
-import {uuid4, YAMLDocument} from '@sb/types/types';
+import {Position, uuid4, YAMLDocument} from '@sb/types/types';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 
 export type EditingFile = BindFile | Topology;
@@ -39,7 +39,8 @@ export type Topology = TopologyMeta & {
   name: string;
   definition: YAMLDocument<TopologyDefinition>;
   definitionString: string;
-  annotations: string;
+  annotations: TopologyAnnotations;
+  annotationsString: string;
   collectionId: uuid4;
   creator: User;
   syncUrl: string;
@@ -49,6 +50,7 @@ export type Topology = TopologyMeta & {
 
 export type RunTopology = TopologyMeta & {
   definition: YAMLDocument<TopologyDefinition>;
+  annotations: TopologyAnnotations;
 };
 
 export interface TopologyDefinition {
@@ -59,6 +61,34 @@ export interface TopologyDefinition {
       endpoints: string;
     };
   };
+}
+
+/**
+ * The annotations of a topology, which hold the layout of its graph.
+ *
+ * Only the fields used by Antimony are typed, all others are kept as they are.
+ */
+export interface TopologyAnnotations {
+  nodeAnnotations?: NodeAnnotation[];
+
+  [key: string]: unknown;
+}
+
+export interface NodeAnnotation {
+  // Name of the node in the topology definition
+  id: string;
+  position?: Position;
+  geoCoordinates?: GeoCoordinates;
+  icon?: string;
+  group?: string;
+  level?: string;
+
+  [key: string]: unknown;
+}
+
+export interface GeoCoordinates {
+  lat: number;
+  lng: number;
 }
 
 /**

@@ -1,8 +1,11 @@
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {
+  GeoCoordinates,
+  NodeAnnotation,
   NodeConnection,
   NodeLabels,
+  TopologyAnnotations,
   TopologyDefinition,
   TopologyMeta,
   TopologyNode,
@@ -20,10 +23,32 @@ export interface GraphNode {
   position: Position | null;
   icon?: string;
   group?: string;
-  level?: number;
+  level?: string;
+}
+
+/**
+ * The layout of a node as it is set in the graph.
+ */
+export interface NodeLayout {
+  position: Position;
+  group: string | null;
 }
 
 export type InterfaceConfigLookup = (nodeKind?: string) => InterfaceConfig;
+
+/**
+ * Labels that store the layout of a node in topologies without annotations.
+ * They are only read, the layout is always written to the annotations.
+ */
+export const GRAPH_LABELS = [
+  'graph-icon',
+  'graph-group',
+  'graph-level',
+  'graph-posX',
+  'graph-posY',
+  'graph-geoCoordinateLat',
+  'graph-geoCoordinateLng',
+];
 
 const CANVAS_WIDTH = 5000;
 const CANVAS_HEIGHT = 3000;
@@ -32,10 +57,7 @@ const LONGITUDE_RANGE = 1.0;
 const DEFAULT_AVERAGE_LAT = 48.6848;
 const DEFAULT_AVERAGE_LNG = 9.0078;
 
-export function convertXYToLatLng(
-  x: number,
-  y: number,
-): {lat: number; lng: number} {
+export function convertXYToLatLng(x: number, y: number): GeoCoordinates {
   const lat = DEFAULT_AVERAGE_LAT - (y / CANVAS_HEIGHT) * LATITUDE_RANGE;
   const lng = DEFAULT_AVERAGE_LNG + (x / CANVAS_WIDTH) * LONGITUDE_RANGE;
   return {lat: Number(lat.toFixed(15)), lng: Number(lng.toFixed(15))};
@@ -50,54 +72,102 @@ export function convertLatLngToXY(
   return {x: Number(x.toFixed(2)), y: Number(y.toFixed(2))};
 }
 
+/**
+ * Returns the nodes of a topology with their layout. The layout is read from the
+ * annotations, and from the graph-* labels for nodes that don't have one there.
+ */
 export function readGraphNodes(
   definition: YAMLDocument<TopologyDefinition>,
+  annotations: TopologyAnnotations,
 ): GraphNode[] {
   const nodes = definition.toJS()?.topology?.nodes ?? {};
+  const nodeAnnotations = nodeAnnotationMap(annotations);
 
-  return Object.entries(nodes).map(([name, node]) => ({
-    name,
-    kind: node?.kind,
-    position: readNodePosition(node?.labels),
-    icon: readNodeIcon(node),
-    group: node?.labels?.['graph-group'],
-    level: node?.labels?.['graph-level'],
-  }));
+  return Object.entries(nodes).map(([name, node]) => {
+    const annotation = nodeAnnotations.get(name);
+
+    return {
+      name,
+      kind: node?.kind,
+      position: readNodePosition(node?.labels, annotation),
+      icon: readNodeIcon(node, annotation),
+      group: annotation?.group ?? node?.labels?.['graph-group'],
+      level: annotation?.level ?? node?.labels?.['graph-level']?.toString(),
+    };
+  });
 }
 
-export function readNodeIcon(node?: TopologyNode | null): string | undefined {
-  return node?.labels?.['graph-icon'];
+export function readNodeIcon(
+  node: TopologyNode | null | undefined,
+  annotation: NodeAnnotation | undefined,
+): string | undefined {
+  return annotation?.icon ?? node?.labels?.['graph-icon'];
+}
+
+export function nodeAnnotationMap(
+  annotations: TopologyAnnotations,
+): Map<string, NodeAnnotation> {
+  return new Map(
+    (annotations.nodeAnnotations ?? []).map(annotation => [
+      annotation.id,
+      annotation,
+    ]),
+  );
 }
 
 /**
- * Returns the graph-* labels that store a node's layout. Nodes that are placed
- * by geo coordinates keep them, all others store their position.
+ * Returns the annotation fields that store the given layout of a node. Nodes that
+ * are placed by geo coordinates keep them, all others store their position.
  */
-export function nodeLayoutLabels(
-  labels: NodeLabels | undefined,
-  position: Position,
-  group: string | null,
-): Record<string, string | null> {
+export function nodeLayoutAnnotation(
+  annotation: NodeAnnotation | undefined,
+  layout: NodeLayout,
+): Partial<NodeAnnotation> {
   const roundedPosition = {
-    x: Number(position.x.toFixed(2)),
-    y: Number(position.y.toFixed(2)),
+    x: Number(layout.position.x.toFixed(2)),
+    y: Number(layout.position.y.toFixed(2)),
   };
 
-  const layoutLabels: Record<string, string | null> = {'graph-group': group};
+  const layoutAnnotation: Partial<NodeAnnotation> = {
+    group: layout.group ?? undefined,
+  };
 
-  if (
-    labels?.['graph-geoCoordinateLat'] ||
-    labels?.['graph-geoCoordinateLng']
-  ) {
-    const geo = convertXYToLatLng(roundedPosition.x, roundedPosition.y);
-    layoutLabels['graph-geoCoordinateLat'] = geo.lat.toString();
-    layoutLabels['graph-geoCoordinateLng'] = geo.lng.toString();
+  if (annotation?.geoCoordinates) {
+    layoutAnnotation.geoCoordinates = convertXYToLatLng(
+      roundedPosition.x,
+      roundedPosition.y,
+    );
+    layoutAnnotation.position = undefined;
   } else {
-    layoutLabels['graph-posX'] = roundedPosition.x.toString();
-    layoutLabels['graph-posY'] = roundedPosition.y.toString();
+    layoutAnnotation.position = roundedPosition;
+    layoutAnnotation.geoCoordinates = undefined;
   }
 
-  return layoutLabels;
+  return layoutAnnotation;
+}
+
+/**
+ * Returns the annotation fields that hold the layout stored in the graph-* labels
+ * of a node.
+ */
+export function labelsToAnnotation(
+  labels: NodeLabels,
+): Partial<NodeAnnotation> {
+  const annotation: Partial<NodeAnnotation> = {
+    icon: labels['graph-icon'],
+    group: labels['graph-group'],
+    level: labels['graph-level']?.toString(),
+  };
+
+  const x = parseFloat(labels['graph-posX'] ?? '');
+  const y = parseFloat(labels['graph-posY'] ?? '');
+  if (!isNaN(x) && !isNaN(y)) annotation.position = {x, y};
+
+  const lat = parseFloat(labels['graph-geoCoordinateLat'] ?? '');
+  const lng = parseFloat(labels['graph-geoCoordinateLng'] ?? '');
+  if (!isNaN(lat) && !isNaN(lng)) annotation.geoCoordinates = {lat, lng};
+
+  return annotation;
 }
 
 export function buildTopologyMetadata(
@@ -189,7 +259,19 @@ export function parseInterface(
   return Number(match[1]);
 }
 
-function readNodePosition(labels?: NodeLabels): Position | null {
+function readNodePosition(
+  labels: NodeLabels | undefined,
+  annotation: NodeAnnotation | undefined,
+): Position | null {
+  if (annotation?.position) return annotation.position;
+
+  if (annotation?.geoCoordinates) {
+    return convertLatLngToXY(
+      annotation.geoCoordinates.lat,
+      annotation.geoCoordinates.lng,
+    );
+  }
+
   const x = parseFloat(labels?.['graph-posX'] ?? '');
   const y = parseFloat(labels?.['graph-posY'] ?? '');
 

@@ -7,7 +7,6 @@ import {NodeEditor} from '@sb/lib/node-editor';
 import {NodeConnection} from '@sb/types/domain/topology';
 import {Choose, Otherwise, When} from '@sb/types/control';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
-import {readNodeIcon} from '@sb/lib/graph/topology-graph';
 
 import './node-connection-table.sass';
 
@@ -55,9 +54,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
             <div className="node-connection-table-entry" key={connection.index}>
               <div className="node-connection-table-entry-group">
                 <Image
-                  src={deviceStore.getNodeIcon(
-                    readNodeIcon(props.nodeEditor.getNode()),
-                  )}
+                  src={deviceStore.getNodeIcon(props.nodeEditor.getNodeIcon())}
                   width="45px"
                 />
                 <span className="node-connection-table-entry-text">
@@ -74,11 +71,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
               <div className="node-connection-table-entry-group">
                 <Image
                   src={deviceStore.getNodeIcon(
-                    readNodeIcon(
-                      props.nodeEditor.getTopology().toJS().topology.nodes[
-                        connection.targetNode
-                      ],
-                    ),
+                    props.nodeEditor.getNodeIcon(connection.targetNode),
                   )}
                   width="45px"
                 />

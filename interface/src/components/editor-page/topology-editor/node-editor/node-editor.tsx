@@ -16,7 +16,7 @@ import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
 import {generateGraph} from '@sb/lib/graph/cytoscape-utils';
-import {nodeLayoutLabels} from '@sb/lib/graph/topology-graph';
+import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {getDistance} from '@sb/lib/utils/utils';
@@ -76,7 +76,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (props.openTopology === null) return [];
 
     return generateGraph(props.openTopology, deviceStore);
-  }, [deviceStore, props.openTopology?.definition]);
+  }, [
+    deviceStore,
+    props.openTopology?.definition,
+    props.openTopology?.annotations,
+  ]);
 
   useEffect(() => {
     closeRadialMenu();
@@ -425,31 +429,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
    */
   function onSaveGraph(nodeIds?: string[]) {
     const cy = cyRef.current;
-    const topology = topologyStore.manager.topology;
+    if (!cy || !topologyStore.manager.topology) return;
 
-    if (!cy || !topology?.definition) return;
-
-    const nodes = topology.definition.toJS().topology.nodes;
-    const updatedLabelMap = new Map<string, Record<string, string | null>>();
-
+    const layoutMap = new Map<string, NodeLayout>();
     const savedNodeIds = nodeIds ? new Set(nodeIds) : null;
 
     for (const node of cy.nodes('.topology-node')) {
       if (savedNodeIds && !savedNodeIds.has(node.id())) continue;
 
-      updatedLabelMap.set(
-        node.id(),
-        nodeLayoutLabels(
-          nodes[node.id()]?.labels,
-          node.position(),
-          node.parent().data('label') ?? null,
-        ),
-      );
+      layoutMap.set(node.id(), {
+        position: node.position(),
+        group: node.parent().data('label') ?? null,
+      });
     }
 
-    if (updatedLabelMap.size === 0) return;
+    if (layoutMap.size === 0) return;
 
-    topologyStore.manager.updateNodeLabels(updatedLabelMap);
+    topologyStore.manager.updateNodeLayouts(layoutMap);
   }
 
   function exitConnectionMode() {

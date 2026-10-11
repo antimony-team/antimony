@@ -186,7 +186,9 @@ const MonacoWrapper = observer(
       if (textModelRef.current && annotationsModelRef.current) {
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
         textModelRef.current.setValue(props.openTopology.definition.toString());
-        annotationsModelRef.current.setValue(props.openTopology.annotations);
+        annotationsModelRef.current.setValue(
+          TopologyManager.serializeAnnotations(props.openTopology.annotations),
+        );
         viewStates.current.clear();
         currentlyOpenFileId.current = props.openTopology.id;
       }
@@ -243,10 +245,18 @@ const MonacoWrapper = observer(
       }
 
       if (annotationsModelRef.current) {
-        setContent(
+        const updatedAnnotations = TopologyManager.serializeAnnotations(
           editReport.updatedTopology.annotations,
-          annotationsModelRef.current,
         );
+        const existingAnnotations = annotationsModelRef.current.getValue();
+
+        // Whitespace doesn't matter in JSON, so a formatting of the user is kept
+        if (
+          updatedAnnotations.replaceAll(/\s/g, '') !==
+          existingAnnotations.replaceAll(/\s/g, '')
+        ) {
+          setContent(updatedAnnotations, annotationsModelRef.current);
+        }
       }
       isApplyingManagerContent.current = false;
     }, []);

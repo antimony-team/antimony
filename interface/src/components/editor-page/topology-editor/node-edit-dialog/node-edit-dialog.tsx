@@ -9,7 +9,6 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {readNodeIcon} from '@sb/lib/graph/topology-graph';
 import {NodeEditor} from '@sb/lib/node-editor';
 import {
   useDeviceStore,
@@ -19,7 +18,10 @@ import {
 } from '@sb/lib/stores/root-store';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
 import {If} from '@sb/types/control';
-import {TopologyDefinition} from '@sb/types/domain/topology';
+import {
+  TopologyAnnotations,
+  TopologyDefinition,
+} from '@sb/types/domain/topology';
 import {YAMLDocument} from '@sb/types/types';
 
 import NodeConnectionTable from './node-connection-table/node-connection-table';
@@ -29,6 +31,7 @@ import './node-edit-dialog.sass';
 
 interface NodeEditDialogProps {
   editingTopology: YAMLDocument<TopologyDefinition> | null;
+  editingAnnotations: TopologyAnnotations | null;
 
   // Set to null if the dialog is creating a new node
   editingNode: string | null;
@@ -65,7 +68,11 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
   }, [schemaStore.clabSchema]);
 
   const nodeEditor = useMemo(() => {
-    if (!props.editingTopology || !schemaStore.clabSchema) {
+    if (
+      !props.editingTopology ||
+      !props.editingAnnotations ||
+      !schemaStore.clabSchema
+    ) {
       return null;
     }
 
@@ -73,12 +80,14 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
       schemaStore.clabSchema,
       props.editingNode ?? '',
       props.editingTopology,
+      props.editingAnnotations,
       notificationStore,
     );
   }, [
     schemaStore.clabSchema,
     props.editingNode,
     props.editingTopology,
+    props.editingAnnotations,
     notificationStore,
     props.isOpen,
   ]);
@@ -95,7 +104,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     nodeEditor.onEdit.register(onTopologyUpdate);
     onTopologyUpdate();
 
-    setNodeIcon(deviceStore.getNodeIcon(readNodeIcon(nodeEditor.getNode())));
+    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNodeIcon()));
 
     return () => nodeEditor.onEdit.unregister(onTopologyUpdate);
   }, [nodeEditor, onTopologyUpdate]);
@@ -131,6 +140,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
       topologyStore.manager.editTopology(
         nodeEditor.getTopology(),
         TopologyEditSource.NodeEditor,
+        nodeEditor.getAnnotations(),
       );
     }
 
@@ -152,7 +162,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     if (!nodeEditor) return;
 
     nodeEditor.onUpdateIcon(icon);
-    setNodeIcon(deviceStore.getNodeIcon(readNodeIcon(nodeEditor.getNode())));
+    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNodeIcon()));
     iconSelectorOverlay.current?.hide();
   }
 

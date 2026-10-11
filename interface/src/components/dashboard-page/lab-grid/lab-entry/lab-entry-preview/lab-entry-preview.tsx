@@ -84,7 +84,10 @@ const LabEntryPreview = observer((props: LabPreviewProps) => {
 function readPositions(topology: RunTopology): Map<string, Point> | null {
   const positions = new Map<string, Point>();
 
-  for (const node of readGraphNodes(topology.definition)) {
+  for (const node of readGraphNodes(
+    topology.definition,
+    topology.annotations,
+  )) {
     // A partial layout would look broken, so fall back to the placeholder
     if (!node.position) return null;
 

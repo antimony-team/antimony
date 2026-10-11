@@ -1,9 +1,17 @@
 import {cloneDeep} from 'lodash-es';
 import {runInAction} from 'mobx';
-import {isMap, YAMLMap, YAMLSeq} from 'yaml';
+import {YAMLSeq} from 'yaml';
 
 import {
+  convertGraphLabels,
+  removeNodeAnnotations,
+  updateNodeAnnotations,
+} from '@sb/lib/graph/topology-annotations';
+import {
   buildTopologyMetadata,
+  NodeLayout,
+  nodeAnnotationMap,
+  nodeLayoutAnnotation,
   parseInterface,
 } from '@sb/lib/graph/topology-graph';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
@@ -12,8 +20,10 @@ import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {
   BindFile,
+  NodeAnnotation,
   NodeConnection,
   Topology,
+  TopologyAnnotations,
   TopologyDefinition,
   TopologyIn,
 } from '@sb/types/domain/topology';
@@ -80,6 +90,11 @@ export class TopologyManager {
     topology: Topology;
     definition: string;
   } | null = null;
+  // The serialized annotations of the original topology, which edits are compared against
+  private originalAnnotationsCache: {
+    topology: Topology;
+    annotations: string;
+  } | null = null;
   private editingBindFile: BindFile | null = null;
   // Backup of the bind file to restore when discarding edits.
   private originalBindFile: BindFile | null = null;
@@ -123,6 +138,10 @@ export class TopologyManager {
     return definition.toString({
       collectionStyle: 'block',
     });
+  }
+
+  public static serializeAnnotations(annotations: TopologyAnnotations) {
+    return JSON.stringify(annotations, null, 2);
   }
 
   /**
@@ -180,7 +199,8 @@ export class TopologyManager {
       connectionMap: cloneDeep(topology.connectionMap),
       definition: topology.definition.clone(),
       definitionString: topology.definitionString,
-      annotations: topology.annotations,
+      annotations: cloneDeep(topology.annotations),
+      annotationsString: topology.annotationsString,
       syncUrl: topology.syncUrl,
       bindFiles: cloneDeep(topology.bindFiles),
       lastDeployFailed: topology.lastDeployFailed,
@@ -220,30 +240,45 @@ export class TopologyManager {
     }
   }
 
-  public updateNodeLabels(
-    labelMap: Map<string, Record<string, string | number | null>>,
-  ) {
+  /**
+   * Writes the layout of the given nodes to the annotations.
+   *
+   * @param layoutMap The layout of the nodes by node name.
+   */
+  public updateNodeLayouts(layoutMap: Map<string, NodeLayout>) {
     if (!this.editingTopology) return;
 
-    const updatedTopology = this.editingTopology.definition.clone();
-    const nodeMap = updatedTopology.getIn(['topology', 'nodes']) as YAMLMap;
+    // Converted first, so the new layout isn't overwritten by the labels
+    const converted = convertGraphLabels(
+      this.editingTopology.definition,
+      this.editingTopology.annotations,
+    );
+    const annotations =
+      converted?.annotations ?? this.editingTopology.annotations;
+    const nodeAnnotations = nodeAnnotationMap(annotations);
 
-    for (const [nodeId, nodeLabels] of labelMap.entries()) {
-      const yamlNode = nodeMap.get(nodeId);
-      if (!isMap(yamlNode)) continue;
-
-      for (const [labelKey, labelValue] of Object.entries(nodeLabels)) {
-        if (labelValue === null) {
-          if (!yamlNode.get('labels')) continue;
-
-          yamlNode.deleteIn(['labels', labelKey]);
-        } else {
-          yamlNode.setIn(['labels', labelKey], labelValue);
-        }
-      }
+    const annotationUpdates = new Map<string, Partial<NodeAnnotation>>();
+    for (const [nodeName, layout] of layoutMap.entries()) {
+      annotationUpdates.set(
+        nodeName,
+        nodeLayoutAnnotation(nodeAnnotations.get(nodeName), layout),
+      );
     }
 
-    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
+    const updatedAnnotations = updateNodeAnnotations(
+      annotations,
+      annotationUpdates,
+    );
+
+    if (converted) {
+      this.editTopology(
+        converted.definition,
+        TopologyEditSource.NodeEditor,
+        updatedAnnotations,
+      );
+    } else {
+      this.editAnnotations(updatedAnnotations, TopologyEditSource.NodeEditor);
+    }
   }
 
   /**
@@ -324,11 +359,29 @@ export class TopologyManager {
     });
   }
 
+  /**
+   * Replaces the definition of the topology, and optionally its annotations in
+   * the same edit if the change affects both.
+   */
   public editTopology(
     updatedTopology: YAMLDocument<TopologyDefinition>,
     source: TopologyEditSource,
+    updatedAnnotations?: TopologyAnnotations,
   ) {
     if (!this.editingTopology) return;
+
+    // The graph-* labels are converted to annotations on the first edit in the graph
+    if (source === TopologyEditSource.NodeEditor) {
+      const converted = convertGraphLabels(
+        updatedTopology,
+        updatedAnnotations ?? this.editingTopology.annotations,
+      );
+
+      if (converted) {
+        updatedTopology = converted.definition;
+        updatedAnnotations = converted.annotations;
+      }
+    }
 
     const topologyMeta = buildTopologyMetadata(updatedTopology, kind =>
       this.deviceStore.getInterfaceConfig(kind),
@@ -338,6 +391,10 @@ export class TopologyManager {
       this.editingTopology!.definition = updatedTopology;
       this.editingTopology!.connections = topologyMeta.connections;
       this.editingTopology!.connectionMap = topologyMeta.connectionMap;
+
+      if (updatedAnnotations) {
+        this.editingTopology!.annotations = updatedAnnotations;
+      }
     });
 
     this.onTopologyEdit.update({
@@ -348,10 +405,22 @@ export class TopologyManager {
   }
 
   public editAnnotations(
-    updatedAnnotations: string,
+    updatedAnnotations: TopologyAnnotations,
     source: TopologyEditSource,
   ) {
     if (!this.editingTopology) return;
+
+    if (source === TopologyEditSource.NodeEditor) {
+      const converted = convertGraphLabels(
+        this.editingTopology.definition,
+        updatedAnnotations,
+      );
+
+      if (converted) {
+        this.editTopology(converted.definition, source, converted.annotations);
+        return;
+      }
+    }
 
     runInAction(() => {
       this.editingTopology!.annotations = updatedAnnotations;
@@ -390,9 +459,14 @@ export class TopologyManager {
         },
       };
 
+      const nodeNames = Object.keys(
+        this.editingTopology.definition.toJS().topology?.nodes ?? {},
+      );
+
       this.editTopology(
         new YAMLDocument(updatedTopology),
         TopologyEditSource.System,
+        removeNodeAnnotations(this.editingTopology.annotations, nodeNames),
       );
     } else if (this.openFileType === OpenFileType.BindFile) {
       if (!this.editingBindFile) return;
@@ -417,7 +491,11 @@ export class TopologyManager {
     ]);
     if (!wasDeleted) return;
 
-    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
+    this.editTopology(
+      updatedTopology,
+      TopologyEditSource.NodeEditor,
+      removeNodeAnnotations(this.editingTopology.annotations, [nodeName]),
+    );
   }
 
   /**
@@ -518,10 +596,12 @@ export class TopologyManager {
       ),
     };
 
-    if (
-      this.editingTopology.annotations !== this.originalTopology?.annotations
-    ) {
-      body.annotations = this.editingTopology.annotations;
+    const annotations = TopologyManager.serializeAnnotations(
+      this.editingTopology.annotations,
+    );
+
+    if (annotations !== this.getOriginalAnnotations()) {
+      body.annotations = annotations;
     }
 
     const result = await this.topologyStore.update(
@@ -576,7 +656,8 @@ export class TopologyManager {
     return (
       this.editingTopology.definition.toString() !==
         this.getOriginalDefinition() ||
-      this.editingTopology.annotations !== this.originalTopology.annotations
+      TopologyManager.serializeAnnotations(this.editingTopology.annotations) !==
+        this.getOriginalAnnotations()
     );
   }
 
@@ -595,6 +676,25 @@ export class TopologyManager {
     }
 
     return this.originalDefinitionCache.definition;
+  }
+
+  /**
+   * Returns the serialized annotations of the original topology. The original
+   * is replaced whenever it changes, so it is only serialized once per original.
+   */
+  private getOriginalAnnotations(): string | null {
+    if (!this.originalTopology) return null;
+
+    if (this.originalAnnotationsCache?.topology !== this.originalTopology) {
+      this.originalAnnotationsCache = {
+        topology: this.originalTopology,
+        annotations: TopologyManager.serializeAnnotations(
+          this.originalTopology.annotations,
+        ),
+      };
+    }
+
+    return this.originalAnnotationsCache.annotations;
   }
 
   private restoreCurrentFile() {

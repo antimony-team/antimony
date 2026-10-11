@@ -353,6 +353,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       return null;
     }
 
+    const annotations = this.topologyStore.parseTopologyAnnotations(
+      input.topologyAnnotations,
+    );
+
+    if (!annotations) {
+      console.error('[NET] Failed to parse incoming run annotations: ', input);
+    }
+
     return {
       ...input,
       startTime: startTime,
@@ -364,6 +372,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
           this.rootStore._deviceStore.getInterfaceConfig(kind),
         ),
         definition: definition,
+        annotations: annotations ?? {},
       },
     };
   }

@@ -36,7 +36,7 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyEditSource} from '@sb/lib/topology-manager';
+import {TopologyEditSource, TopologyManager} from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {
   isString,
@@ -485,7 +485,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     void topologyStore
       .add<string>({
         definition: definitionClone.toString(),
-        annotations: topology.annotations,
+        annotations: TopologyManager.serializeAnnotations(topology.annotations),
         collectionId: topology.collectionId,
         syncUrl: topology.syncUrl,
       })
