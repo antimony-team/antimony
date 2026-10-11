@@ -9,6 +9,9 @@
   "main": "dist-electron/main.js",
   "dependencies": {
     "@flaticon/flaticon-uicons": "^3.3.1",
+    "@fontsource-variable/figtree": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource/iosevka": "^5.3.0",
     "@react-hook/resize-observer": "^2.0.2",
     "@tsparticles/engine": "^3.8.1",
     "@tsparticles/preset-links": "^3.2.0",

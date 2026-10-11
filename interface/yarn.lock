@@ -1631,6 +1631,21 @@
   resolved "https://registry.yarnpkg.com/@floating-ui/utils/-/utils-0.2.8.tgz#21a907684723bbbaa5f0974cf7730bd797eb8e62"
   integrity sha512-kym7SodPp8/wloecOpcmSnWJsK7M0E5Wg8UcFA+uO4B9s5d0ywXOEro/8HM9x0rW+TljRzul/14UYz3TleT3ig==
 
+"@fontsource-variable/figtree@^5.3.0":
+  version "5.3.0"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/figtree/-/figtree-5.3.0.tgz#df8e3e467d3cceb1eb982ae2ed04a4accb284f65"
+  integrity sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==
+
+"@fontsource-variable/jetbrains-mono@^5.3.0":
+  version "5.3.0"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz#5738dedd3af40606b0d9b7626f4ba7c4586cb39b"
+  integrity sha512-F32xpS2NsGYoQi2ADSkKTgpJj7ozajsGgDJ8woTnqjmIB+dxDIqImjl4pXZVEExu8UFZ2ndhmX18EBS/hdz3Lw==
+
+"@fontsource/iosevka@^5.3.0":
+  version "5.3.0"
+  resolved "https://registry.yarnpkg.com/@fontsource/iosevka/-/iosevka-5.3.0.tgz#ac75fb0c54e0109af970571c618c0814906cdcab"
+  integrity sha512-RcG0v/65e4PTuThR/d7n9jj6PLlex7YUGaLa4ZpL+NnqArWQmD8Z+6gYBTxPMVWxYMRcEw6OF4rdt8XisnC5zA==
+
 "@humanfs/core@^0.19.1":
   version "0.19.1"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.1.tgz#17c55ca7d426733fe3c561906b8173c336b40a77"

@@ -29,6 +29,11 @@ import 'material-symbols/outlined.css';
 import './app.sass';
 import 'primereact/resources/themes/lara-dark-blue/theme.css';
 
+import '@fontsource-variable/figtree/wght-italic';
+import '@fontsource-variable/figtree';
+import '@fontsource-variable/jetbrains-mono';
+import '@fontsource/iosevka';
+
 /**
  * Root layout of the app.
  *
