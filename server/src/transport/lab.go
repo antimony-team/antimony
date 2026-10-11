@@ -39,7 +39,7 @@ func LabToOut(lab *lab.Lab, instance *instance.Instance) *LabOut {
 		CollectionId:        lab.Collection.UUID,
 		Creator:             UserToOut(&lab.Creator),
 		TopologyDefinition:  *lab.TopologyDefinition,
-		TopologyAnnotations: *lab.TopologyDefinition,
+		TopologyAnnotations: *lab.TopologyAnnotations,
 		Instance:            instanceOut,
 	}
 }

@@ -10,25 +10,16 @@ import (
 
 type Instance struct {
 	// Immutable after construction; safe to read without locking.
-	Name            string
-	TopologyFile    string
-	AnnotationsFile string
-	LogNamespace    *socket.OutputNamespace[string]
+
+	Name string
+	// TopologyFile is the absolute path to the topology file required by containerlab commands
+	TopologyFile string
+	LogNamespace *socket.OutputNamespace[string]
 	// Nodes are the nodes of the lab indexed by their name.
-	// While the map is immutable, the nodes themselves are mutable and have to be protected with [DataMutex].
+	// While the map is immutable, the nodes themselves are mutable and have to be protected with DataMutex.
 	Nodes map[string]*InstanceNode
 
-	// DataMutex guards the mutable state below.
-	DataMutex         sync.Mutex
-	Deployed          time.Time
-	LatestStateChange time.Time
-	State             InstanceState
-	// Recovered specifies whether the instance has been recovered after an Antimony restart
-	Recovered bool
-	// IsDestroyed Whether the instance has been destroyed
-	IsDestroyed bool
-
-	// OperationMutex is the mutex that serializes deployment operations (deploy, destroy, node commands)
+	// OperationMutex is the mutex that serializes deployment all operations (deploy, destroy, node commands)
 	OperationMutex sync.Mutex
 
 	// DeploymentCtx holds the context of the current deployment. All runtime instance functions,
@@ -37,6 +28,19 @@ type Instance struct {
 	DeploymentCtx    context.Context
 	DeploymentCancel context.CancelFunc
 	DeploymentMutex  sync.Mutex
+
+	// DataMutex guards all the mutable state of the instance.
+	DataMutex sync.Mutex
+
+	// All the following fields are the mutable state of the instance. These are all guarded by DataMutex.
+
+	Deployed          time.Time
+	LatestStateChange time.Time
+	State             InstanceState
+	// Recovered specifies whether the instance has been recovered after an Antimony restart
+	Recovered bool
+	// IsDestroyed Whether the instance has been destroyed
+	IsDestroyed bool
 }
 
 func (i *Instance) deploymentContext() context.Context {

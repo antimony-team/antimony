@@ -76,11 +76,6 @@ func (m *Manager) GetRunTopologyDefinitionFile(labId string) string {
 	return filepath.Join(m.runPath, runDefinitionPath)
 }
 
-func (m *Manager) GetRunTopologyDefinitionAnnotationsFile(labId string) string {
-	runAnnotationPath := getRunAnnotationFilePath(labId)
-	return filepath.Join(m.runPath, runAnnotationPath)
-}
-
 func (m *Manager) ReadRunTopologyDefinition(labId string, content *string) error {
 	return m.readRun(getRunDefinitionFilePath(labId), content)
 }
