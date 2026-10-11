@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 
 import {observer} from 'mobx-react-lite';
 import {useSearchParams} from 'react-router';
@@ -73,26 +73,6 @@ const EditorPage = observer(() => {
     isString,
   );
 
-  const onTopologyOpen = useCallback(
-    (topology: Topology) => {
-      setOpenFile(topology);
-      setLastOpenFile(topology.id);
-      setSearchParams({f: topology.id});
-    },
-    [setSearchParams],
-  );
-
-  const isSetup = topologyStore.data.length === 0;
-
-  const onBindFileOpen = useCallback(
-    (bindFile: BindFile) => {
-      setOpenFile(bindFile);
-      setLastOpenFile(bindFile.id);
-      setSearchParams({f: bindFile.id});
-    },
-    [setSearchParams],
-  );
-
   useEffect(() => {
     topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
     topologyStore.manager.onBindFileOpen.register(onBindFileOpen);
@@ -116,6 +96,20 @@ const EditorPage = observer(() => {
       );
     }
   }, [searchParams, topologyStore.lookup]);
+
+  function onTopologyOpen(topology: Topology) {
+    setOpenFile(topology);
+    setLastOpenFile(topology.id);
+    setSearchParams({f: topology.id});
+  }
+
+  function onBindFileOpen(bindFile: BindFile) {
+    setOpenFile(bindFile);
+    setLastOpenFile(bindFile.id);
+    setSearchParams({f: bindFile.id});
+  }
+
+  const isSetup = topologyStore.data.length === 0;
 
   function onDeployTopology(topologyId: uuid4) {
     if (!topologyStore.lookup.has(topologyId)) return;
