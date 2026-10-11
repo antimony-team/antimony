@@ -171,9 +171,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       }
     } else if (props.dialogState.state.action === DialogAction.Add) {
       const newTopology: TopologyIn = {
+        ...createTopologyTemplate(editingTopology.name),
         collectionId: editingTopology.collectionId,
-        definition: createTopologyTemplate(editingTopology.name),
-        annotations: '{}',
         syncUrl: '',
       };
       void topologyStore.add<string>(newTopology).then(result => {
