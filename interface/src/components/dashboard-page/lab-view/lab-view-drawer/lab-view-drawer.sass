@@ -119,6 +119,16 @@
     text-overflow: ellipsis
     white-space: nowrap
 
+    .pending
+      font-style: italic
+
+      &::after
+        content: ""
+        animation: ellipsis 1s infinite
+
+        @media (prefers-reduced-motion: reduce)
+          animation: none
+
     .copyable
       user-select: none
 
