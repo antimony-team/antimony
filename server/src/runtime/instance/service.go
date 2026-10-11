@@ -682,6 +682,13 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			return nil
 		}
 
+		// If the deployment failed, set all the node states to stopped as they are not actually starting now
+		instance.DataMutex.Lock()
+		for k := range instance.Nodes {
+			instance.Nodes[k].State = deployment.NodeStates.Stopped
+		}
+		instance.DataMutex.Unlock()
+
 		log.Warn(
 			"[Runtime] Deployment of lab failed",
 			"name", lab.Name,
