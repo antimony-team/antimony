@@ -19,6 +19,7 @@
     "cytoscape": "^3.34.3",
     "cytoscape-cose-bilkent": "^4.1.0",
     "dayjs": "^1.11.13",
+    "driver.js": "1.8.0",
     "file-saver": "^2.0.5",
     "highlight.js": "^11.11.1",
     "iconoir-react": "^7.11.0",

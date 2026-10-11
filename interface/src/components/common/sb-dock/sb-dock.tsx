@@ -12,6 +12,7 @@ import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
 import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
 import StatusMessagePanel from '@sb/components/common/sb-dock/status-message-panel/status-message-panel';
+import SBTour from '@sb/components/common/sb-tour/sb-tour';
 import CreditsDialog from '@sb/components/credits-dialog/credits-dialog';
 import {
   useAuthUser,
@@ -125,6 +126,7 @@ const SBDock = observer(() => {
         </Choose>
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
+        <SBTour />
         <Button
           text
           icon="pi pi-bell"
