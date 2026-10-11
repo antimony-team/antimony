@@ -52,6 +52,20 @@ const placementCache = new WeakMap<
   WeakMap<TopologyAnnotations, Map<string, Position>>
 >();
 
+/*
+ * Placed positions by the structure of the topology. Text edits replace the
+ * definition every time, but most of them don't change anything the placement
+ * depends on.
+ *
+ * This only matters for topologies with nodes that don't have a position yet,
+ * which are topologies that have never been changed in the graph, e.g. pasted,
+ * synced or only edited as text. Labs of these topologies never store positions,
+ * and every update of a lab replaces its definition as well.
+ */
+const structureCache = new Map<string, Map<string, Position>>();
+
+const MAX_STRUCTURE_CACHE_SIZE = 20;
+
 /**
  * Positions of nodes, indexed by grid cell so the nodes around a position can be
  * found without checking all nodes.
@@ -164,10 +178,25 @@ export function placeNodes(
   let positions: Map<string, Position>;
   if (unplacedNodes.length === 0) {
     positions = new Map();
-  } else if (placedNodes.size === 0) {
-    positions = layoutNodes(unplacedNodes, connections);
   } else {
-    positions = placeNearNeighbours(unplacedNodes, placedNodes, connections);
+    // The placement only depends on the nodes, their positions and their links
+    const structure = JSON.stringify([
+      nodes.map(node => [node.name, node.position]),
+      connections.map(c => [c.hostNode, c.targetNode]),
+    ]);
+
+    positions =
+      structureCache.get(structure) ??
+      (placedNodes.size === 0
+        ? layoutNodes(unplacedNodes, connections)
+        : placeNearNeighbours(unplacedNodes, placedNodes, connections));
+
+    // Kept as the most recent entry, the oldest one is removed once the cache is full
+    structureCache.delete(structure);
+    structureCache.set(structure, positions);
+    if (structureCache.size > MAX_STRUCTURE_CACHE_SIZE) {
+      structureCache.delete(structureCache.keys().next().value!);
+    }
   }
 
   if (!cachedPlacements) {
