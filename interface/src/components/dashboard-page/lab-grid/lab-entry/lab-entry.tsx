@@ -80,7 +80,12 @@ const LabEntry = observer((props: LabEntryProps) => {
     const topologyName = props.lab.topologyDefinition.definition.getIn([
       'name',
     ]);
-    const topology = topologyStore.lookup.get(props.lab.topologyId)!;
+
+    // It is possible that the topology has been deleted but the lab still has
+    // the old topology ID.
+    const topology = topologyStore.lookup.get(props.lab.topologyId);
+    if (!topology) return null;
+
     const collectionName = collectionStore.lookup.get(
       topology.collectionId,
     )!.name;
