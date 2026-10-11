@@ -2,7 +2,6 @@ import React, {useMemo, useRef} from 'react';
 
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
-import YAML from 'yaml';
 
 import {SelectItem} from 'primereact/selectitem';
 
@@ -18,6 +17,7 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
+import {createTopologyTemplate} from '@sb/lib/topology-template';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {fetchSyncUrl} from '@sb/lib/utils/utils';
 import {Topology, TopologyIn} from '@sb/types/domain/topology';
@@ -172,10 +172,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
     } else if (props.dialogState.state.action === DialogAction.Add) {
       const newTopology: TopologyIn = {
         collectionId: editingTopology.collectionId,
-        definition: YAML.stringify({
-          name: editingTopology.name,
-          topology: {nodes: {}},
-        }),
+        definition: createTopologyTemplate(editingTopology.name),
         annotations: '{}',
         syncUrl: '',
       };
