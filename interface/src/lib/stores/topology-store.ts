@@ -1,4 +1,3 @@
-import {validate} from 'jsonschema';
 import {action, observable, runInAction} from 'mobx';
 import {parseDocument} from 'yaml';
 
@@ -192,7 +191,7 @@ export class TopologyStore extends DataStore<
     const definition = parseDocument(definitionString);
     if (
       definition.errors.length > 0 ||
-      validate(definition.toJS(), this.schemaStore.clabSchema).errors.length > 0
+      !this.schemaStore.clabValidator?.(definition.toJS())
     ) {
       return null;
     }
@@ -212,9 +211,8 @@ export class TopologyStore extends DataStore<
     }
 
     if (
-      this.schemaStore.annotationsSchema &&
-      validate(annotations, this.schemaStore.annotationsSchema).errors.length >
-        0
+      this.schemaStore.annotationsValidator &&
+      !this.schemaStore.annotationsValidator(annotations)
     ) {
       return null;
     }

@@ -78,13 +78,15 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     if (
       !props.editingTopology ||
       !props.editingAnnotations ||
-      !schemaStore.clabSchema
+      !schemaStore.clabSchema ||
+      !schemaStore.clabValidator
     ) {
       return null;
     }
 
     return new NodeEditor(
       schemaStore.clabSchema,
+      schemaStore.clabValidator,
       props.editingNode ?? '',
       props.editingTopology,
       props.editingAnnotations,

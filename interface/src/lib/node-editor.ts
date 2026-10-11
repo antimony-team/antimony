@@ -1,4 +1,4 @@
-import {validate} from 'jsonschema';
+import {ValidateFunction} from 'ajv';
 import _, {isEqual} from 'lodash';
 import objectPath from 'object-path';
 import {YAMLMap, YAMLSeq} from 'yaml';
@@ -52,6 +52,7 @@ export type PropertyDefinition = {
 
 export class NodeEditor {
   public readonly clabSchema: ClabSchema;
+  private readonly clabValidator: ValidateFunction;
   public readonly onEdit: Binding<YAMLDocument<TopologyDefinition>> =
     new Binding();
   private readonly originalTopology: YAMLDocument<TopologyDefinition>;
@@ -67,12 +68,14 @@ export class NodeEditor {
 
   constructor(
     clabSchema: ClabSchema,
+    clabValidator: ValidateFunction,
     editingNode: string,
     originalTopology: YAMLDocument<TopologyDefinition>,
     originalAnnotations: TopologyAnnotations,
     statusMessageStore: StatusMessageStore,
   ) {
     this.clabSchema = clabSchema;
+    this.clabValidator = clabValidator;
     this.originalNode = editingNode;
     this.editingNode = editingNode;
     this.statusMessageStore = statusMessageStore;
@@ -712,22 +715,30 @@ export class NodeEditor {
     topology: YAMLDocument<TopologyDefinition>,
     customErrorMessage: string | null = null,
   ): string | null {
-    const validation = validate(topology.toJS(), this.clabSchema);
-
-    if (validation.errors.length < 1) {
+    if (this.clabValidator(topology.toJS())) {
       this.editingTopology = topology;
       this.onEdit.update(topology);
       return null;
     } else {
+      // The error deepest in the topology is the most specific one, alternatives of the schema are reported as well
+      const error = this.clabValidator.errors?.reduce((deepest, current) =>
+        current.instancePath.length > deepest.instancePath.length
+          ? current
+          : deepest,
+      );
+      const errorMessage = error
+        ? `${error.instancePath} ${error.message}`.trim()
+        : 'Invalid topology';
+
       console.error(
-        `[YAML] Failed to apply node edit: ${validation}`,
+        `[YAML] Failed to apply node edit: ${errorMessage}`,
         topology,
       );
       this.statusMessageStore.error(
-        customErrorMessage ?? validation.errors[0].message,
+        customErrorMessage ?? errorMessage,
         'YAML Schema Error',
       );
-      return validation.errors[0].message;
+      return errorMessage;
     }
   }
 
