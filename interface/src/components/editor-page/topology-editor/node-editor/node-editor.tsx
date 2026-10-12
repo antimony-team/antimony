@@ -1188,7 +1188,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
       const action = pointerAction.current;
       if (action?.kind === 'move-layers') {
-        transformPreviews(action, moveTransform(action));
+        transformPreviews(action, moveTransform(action), action.pointer);
       }
     });
   }
@@ -1283,8 +1283,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function transformPreviews(
     starts: SelectionStarts,
     transform: SelectionTransform,
+    pointer: Position | null,
   ) {
-    const plan = planSelectionDrop(starts, transform, false);
+    const plan = planSelectionDrop(starts, transform, pointer, false);
 
     graphSelection.setDrag(
       plan.hint,
@@ -1319,6 +1320,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function commitTransform(
     starts: SelectionStarts,
     transform: SelectionTransform,
+    pointer: Position | null,
     mergeKey?: string,
   ) {
     const cy = cyRef.current;
@@ -1326,7 +1328,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     transformNodes(starts, transform);
 
-    const plan = planSelectionDrop(starts, transform, true);
+    const plan = planSelectionDrop(starts, transform, pointer, true);
     isDragCtrl.current = false;
 
     // The group of an element that was dropped, undefined if it moved with its group
@@ -1461,7 +1463,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cancelAnimationFrame(moveFrame.current);
     moveFrame.current = 0;
     action.pointer = toGraphPosition(cy, event.clientX, event.clientY);
-    commitTransform(action, moveTransform(action));
+    commitTransform(action, moveTransform(action), action.pointer);
   }
 
   function commitDraw(
@@ -1890,10 +1892,15 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
   }
 
-  // The elements that move on their own are dropped by their center
+  /**
+   * The elements that move on their own are dropped at the pointer, so they all
+   * end up in the group under it. Without a pointer, e.g. when they are nudged,
+   * each element is dropped by its center.
+   */
   function planSelectionDrop(
     starts: SelectionStarts,
     transform: SelectionTransform,
+    pointer: Position | null,
     isFinal: boolean,
   ): DropPlan {
     const cy = cyRef.current!;
@@ -1929,7 +1936,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
 
     return planDrop(
-      elements,
+      pointer
+        ? elements.map(element => ({...element, center: pointer}))
+        : elements,
       isDragCtrl.current,
       new Set(starts.boxes.keys()),
       isFinal,
@@ -2158,6 +2167,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     commitTransform(
       selectionStarts(cy, null),
       translateTransform(delta),
+      null,
       NUDGE_MERGE_KEY,
     );
   }
@@ -2827,12 +2837,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if (isFinal) {
       selectionResizeStarts.current = null;
-      commitTransform(starts, transform);
+      commitTransform(starts, transform, null);
       return;
     }
 
     transformNodes(starts, transform);
-    transformPreviews(starts, transform);
+    transformPreviews(starts, transform, null);
   }
 
   function onFitGraph() {
