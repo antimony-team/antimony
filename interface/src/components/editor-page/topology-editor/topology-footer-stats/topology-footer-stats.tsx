@@ -1,5 +1,6 @@
 import React from 'react';
 
+import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 
 import {GraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
@@ -22,7 +23,16 @@ const TopologyFooterStats = observer((props: TopologyFooterStatsProps) => {
     <Choose>
       <When condition={props.graphSelection.dragHint}>
         <span className="sb-topology-editor-footer-hint">
-          {props.graphSelection.dragHint}
+          {props.graphSelection.dragHint?.map((part, index) => (
+            <span
+              key={index}
+              className={classNames({
+                'sb-topology-editor-footer-keyword': typeof part !== 'string',
+              })}
+            >
+              {typeof part === 'string' ? part : part.keyword}
+            </span>
+          ))}
         </span>
       </When>
       <When condition={props.topology}>
@@ -30,6 +40,14 @@ const TopologyFooterStats = observer((props: TopologyFooterStatsProps) => {
           <div>{pluralize(props.topology!.nodeCount, 'node', 'nodes')}</div>
           <div>
             {pluralize(props.topology!.connections.length, 'link', 'links')}
+          </div>
+          <div>
+            {pluralize(
+              (props.topology!.annotations.freeShapeAnnotations?.length ?? 0) +
+                (props.topology!.annotations.freeTextAnnotations?.length ?? 0),
+              'annotation',
+              'annotations',
+            )}
           </div>
         </div>
       </When>

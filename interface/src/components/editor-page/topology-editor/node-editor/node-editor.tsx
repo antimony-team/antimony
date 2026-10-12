@@ -45,6 +45,7 @@ import SelectionLayer, {
 import SelectionOverlay from '@sb/components/editor-page/topology-editor/node-editor/selection-overlay/selection-overlay';
 import {
   GraphTool,
+  HintPart,
   LabelEdit,
   LabelKind,
   TOOL_DRAW_KINDS,
@@ -70,6 +71,7 @@ import {
   growGroupBox,
   hitTestLayers,
   LayerHit,
+  moveShapeGeometry,
   placedGeometry,
   readGraphTexts,
   roundCoordinate,
@@ -217,7 +219,10 @@ type MoveLayersAction = Extract<PointerAction, {kind: 'move-layers'}>;
 interface DropPlan {
   groupIds: Map<string, string | null>;
   groupBoxes: Map<string, Box>;
-  hint: string | null;
+
+  // Groups that nodes are added to, they only grow once the nodes are dropped
+  joinedGroupIds: Set<string>;
+  hint: HintPart[] | null;
   dropTargetId: string | null;
 }
 
@@ -1203,7 +1208,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       plan.dropTargetId,
       new Map([
         ...transformedGroupBoxes(starts, transform),
-        ...plan.groupBoxes,
+        ...[...plan.groupBoxes].filter(([id]) => !plan.joinedGroupIds.has(id)),
       ]),
     );
     graphSelection.setShapePreviews(
@@ -1380,7 +1385,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ? drawn
         : placedGeometry(action.drawKind, roundPosition(action.origin));
 
-    if (action.drawKind === 'text') {
+    addAnnotation(action.drawKind, geometry);
+  }
+
+  // Adds a shape of the default size centered on the given position
+  function addAnnotationAt(drawKind: DrawKind, position: Position) {
+    const geometry = placedGeometry(drawKind, position);
+    const box = shapeBox(geometry);
+
+    addAnnotation(
+      drawKind,
+      moveShapeGeometry(geometry, {x: -box.width / 2, y: -box.height / 2}),
+    );
+  }
+
+  // Adds a drawn shape or text and selects it, a text is edited right away
+  function addAnnotation(drawKind: DrawKind, geometry: ShapeGeometry) {
+    if (drawKind === 'text') {
       const textId = topologyStore.manager.addText({text: '', ...geometry});
       if (textId === null) return;
 
@@ -1390,9 +1411,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
 
     const shapeId = topologyStore.manager.addShape({
-      shapeType: action.drawKind,
+      shapeType: drawKind,
       ...geometry,
-      ...newShapeStyle(action.drawKind),
+      ...newShapeStyle(drawKind),
     });
     if (shapeId === null) return;
 
@@ -1650,6 +1671,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         graphMenu({
           canPaste: !!copiedElements.current || !!navigator.clipboard,
           onAddNode: () => addNodeAt(contextMenuPosition.current),
+          onAddAnnotation: kind =>
+            addAnnotationAt(kind, contextMenuPosition.current),
           onPaste: () => void onMenuPaste(contextMenuPosition.current),
           onSelectAll,
           onFit: onFitGraph,
@@ -1769,6 +1792,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
     const currentGroups = currentGroupIds();
     const groupIds = new Map<string, string | null>();
+    const joinedGroupIds = new Set<string>();
     const includedPositions = new Map<string, Position[]>();
 
     for (const nodeId of nodeIds) {
@@ -1784,6 +1808,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       }
 
       groupIds.set(nodeId, groupId);
+      if (groupId !== null && groupId !== currentGroupId) {
+        joinedGroupIds.add(groupId);
+      }
       if (groupId !== null) {
         includedPositions.set(groupId, [
           ...(includedPositions.get(groupId) ?? []),
@@ -1801,25 +1828,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       if (grownBox !== group) groupBoxes.set(groupId, grownBox);
     }
 
-    const label = nodeIds.length > 1 ? `${nodeIds.length} nodes` : targetNodeId;
+    const label = nodeIds.length > 1 ? 'the nodes' : 'the node';
     const currentGroupId = currentGroups.get(targetNodeId) ?? null;
     const nextGroupId = groupIds.get(targetNodeId) ?? null;
-    const groupName = (groupId: string | null) =>
-      groupsRef.current.find(group => group.id === groupId)?.name;
 
-    let hint: string | null = null;
+    let hint: HintPart[] | null = null;
     let dropTargetId: string | null = null;
 
     if (nextGroupId !== null && nextGroupId !== currentGroupId) {
-      hint = `Drop to add ${label} to ${groupName(nextGroupId)}`;
+      hint = [{keyword: 'Drop'}, ` to add ${label} to the group`];
       dropTargetId = nextGroupId;
     } else if (currentGroupId !== null && nextGroupId === null) {
-      hint = `${label} leaves ${groupName(currentGroupId)}`;
+      hint = [{keyword: 'Drop'}, ` to move ${label} out of the group`];
     } else if (currentGroupId !== null) {
-      hint = `Hold Ctrl to move ${label} out of ${groupName(currentGroupId)}`;
+      hint = ['Hold ', {keyword: 'Ctrl'}, ` to move ${label} out of the group`];
     }
 
-    return {groupIds, groupBoxes, hint, dropTargetId};
+    return {groupIds, groupBoxes, joinedGroupIds, hint, dropTargetId};
   }
 
   // Nudged nodes that move on their own grow and join groups like dragged nodes
@@ -2653,15 +2678,19 @@ function boxCenter(bounds: cytoscape.BoundingBox12): Position {
   return {x: (bounds.x1 + bounds.x2) / 2, y: (bounds.y1 + bounds.y2) / 2};
 }
 
-function drawHint(drawKind: DrawKind, geometry: ShapeGeometry) {
+function drawHint(drawKind: DrawKind, geometry: ShapeGeometry): HintPart[] {
   if (drawKind === 'line') {
-    return 'Hold Shift to draw horizontally or vertically';
+    return ['Hold ', {keyword: 'Shift'}, ' to draw horizontally or vertically'];
   }
 
   const box = shapeBox(geometry);
   const size = `${Math.round(box.width)} × ${Math.round(box.height)}`;
 
-  return `${size} · Hold Shift for a ${drawKind === 'circle' ? 'circle' : 'square'}`;
+  return [
+    `${size} · Hold `,
+    {keyword: 'Shift'},
+    ` for a ${drawKind === 'circle' ? 'circle' : 'square'}`,
+  ];
 }
 
 // Selects only the given group, shape or text

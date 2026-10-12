@@ -2,9 +2,10 @@
   position: absolute
   box-sizing: border-box
 
+  // The group that dragged nodes are added to when they are dropped
   &.drop-target
     border-color: var(--accent) !important
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 15%, transparent)
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 30%, transparent), inset 0 0 0 100vmax color-mix(in oklab, var(--accent) 10%, transparent)
 
   .sb-graph-group-label
     position: absolute

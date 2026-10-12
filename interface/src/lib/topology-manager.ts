@@ -754,6 +754,7 @@ export class TopologyManager {
 
     runInAction(() => {
       this.editingTopology!.definition = updatedTopology;
+      this.editingTopology!.nodeCount = topologyMeta.nodeCount;
       this.editingTopology!.connections = topologyMeta.connections;
       this.editingTopology!.connectionMap = topologyMeta.connectionMap;
 

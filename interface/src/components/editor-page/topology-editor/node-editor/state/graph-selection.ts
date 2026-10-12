@@ -35,6 +35,9 @@ export const TOOL_DRAW_KINDS = new Map<GraphTool, DrawKind>([
   [GraphTool.Text, 'text'],
 ]);
 
+// A part of a hint, keywords like the keys to press are highlighted
+export type HintPart = string | {keyword: string};
+
 export enum LabelKind {
   Group,
   Node,
@@ -128,7 +131,7 @@ export class GraphSelection {
   @observable accessor labelEdit: LabelEdit | null = null;
 
   // Shown in the status bar while elements are dragged
-  @observable accessor dragHint: string | null = null;
+  @observable accessor dragHint: HintPart[] | null = null;
 
   // The box that is drawn to select elements, in coordinates of the graph's container
   @observable accessor selectionBox: Box | null = null;
@@ -314,7 +317,7 @@ export class GraphSelection {
 
   @action
   public setDrag(
-    hint: string | null,
+    hint: HintPart[] | null,
     dropTargetId: string | null,
     groupPreviews: Map<string, Box>,
   ) {

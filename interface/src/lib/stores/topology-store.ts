@@ -265,6 +265,7 @@ export class TopologyStore extends DataStore<
         target.name = updatedDefinition.get('name') as string;
         target.definition = updatedDefinition;
         target.definitionString = source.definition;
+        target.nodeCount = metadata.nodeCount;
         target.connections = metadata.connections;
         target.connectionMap = metadata.connectionMap;
       } else {

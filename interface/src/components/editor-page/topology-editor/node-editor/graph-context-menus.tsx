@@ -2,6 +2,7 @@ import React, {cloneElement, ReactElement, ReactNode} from 'react';
 
 import {MenuItem} from 'primereact/menuitem';
 
+import {DrawKind} from '@sb/lib/graph/annotation-geometry';
 import {GraphAction, keybindLabel} from '@sb/lib/graph/graph-keybinds';
 import {FreeShapeAnnotation} from '@sb/types/domain/topology';
 
@@ -324,6 +325,7 @@ interface GraphMenuOptions {
   canPaste: boolean;
 
   onAddNode: () => void;
+  onAddAnnotation: (kind: DrawKind) => void;
   onPaste: () => void;
   onSelectAll: () => void;
   onFit: () => void;
@@ -333,6 +335,28 @@ interface GraphMenuOptions {
 export function graphMenu(options: GraphMenuOptions): MenuItem[] {
   return [
     {label: 'Add node here', icon: 'pi pi-plus', command: options.onAddNode},
+    SEPARATOR,
+    {
+      label: 'Add rectangle',
+      icon: icon('rectangle'),
+      command: () => options.onAddAnnotation('rectangle'),
+    },
+    {
+      label: 'Add ellipse',
+      icon: icon('circle'),
+      command: () => options.onAddAnnotation('circle'),
+    },
+    {
+      label: 'Add line',
+      icon: icon('north_east'),
+      command: () => options.onAddAnnotation('line'),
+    },
+    {
+      label: 'Add text',
+      icon: icon('text_fields'),
+      command: () => options.onAddAnnotation('text'),
+    },
+    SEPARATOR,
     withKeybind(
       {
         label: 'Paste',
