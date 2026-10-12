@@ -17,7 +17,8 @@ import {useGraphSelection} from '@sb/components/editor-page/topology-editor/node
 import {
   AnnotationItem,
   Box,
-  groupBoxAround,
+  GraphGroup,
+  Size,
 } from '@sb/lib/graph/annotation-geometry';
 
 import './moveable-handles.sass';
@@ -36,6 +37,9 @@ interface MoveableHandlesProps {
 
   // The box around a selection of several elements
   getSelectionBox: () => Box | null;
+
+  // The smallest size of a group, or null if it can get as small as it likes
+  getGroupMinSize: (group: GraphGroup) => Size | null;
 
   /*
    * Called while an annotation or the whole selection, without an item, is
@@ -142,15 +146,12 @@ const MoveableHandles = observer(
               : null;
           graphSelection.setInteracting(true);
 
-          // A group with members can't get smaller than a group around one node
-          if (
-            !isSelectionResized &&
-            resized?.kind === 'group' &&
-            resized.group.memberIds.length > 0
-          ) {
-            const nodeGroup = groupBoxAround([{x: 0, y: 0}])!;
-            event.setMin([nodeGroup.width, nodeGroup.height]);
-          }
+          // A group can't get smaller than any of its members
+          const minSize =
+            !isSelectionResized && resized?.kind === 'group'
+              ? props.getGroupMinSize(resized.group)
+              : null;
+          if (minSize) event.setMin([minSize.width, minSize.height]);
         }}
         onBeforeResize={event => {
           // Shift keeps the aspect ratio, ctrl resizes to all sides from the center

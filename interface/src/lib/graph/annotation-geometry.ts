@@ -31,7 +31,15 @@ export interface Box {
 export interface GraphGroup extends Box {
   id: string;
   name: string;
+
+  // The nodes, shapes, texts and groups that are directly inside the group
   memberIds: string[];
+  shapeIds: string[];
+  textIds: string[];
+  groupIds: string[];
+
+  // The group this group is nested in
+  parentId: string | null;
 
   // Null for legacy groups that don't have an annotation yet
   annotation: GroupStyleAnnotation | null;
@@ -154,7 +162,14 @@ export function unionBox(boxes: Box[]): Box | null {
  * Returns the box of a group placed around the nodes at the given positions.
  */
 export function groupBoxAround(positions: Position[]): Box | null {
-  const box = unionBox(positions.map(nodeBox));
+  return groupBoxAroundBoxes(positions.map(nodeBox));
+}
+
+/**
+ * Returns the box of a group placed around the given boxes of its members.
+ */
+export function groupBoxAroundBoxes(boxes: Box[]): Box | null {
+  const box = unionBox(boxes);
   if (!box) return null;
 
   return {
@@ -168,14 +183,49 @@ export function groupBoxAround(positions: Position[]): Box | null {
 }
 
 /**
- * Returns the group box grown so it also contains the nodes at the given
- * positions. Returns the given box if it already contains them.
+ * Returns the group box grown so it also contains the given boxes of members.
+ * Returns the given box if it already contains them.
  */
-export function growGroupBox(box: Box, positions: Position[]): Box {
-  const around = groupBoxAround(positions);
+export function growGroupBox(box: Box, memberBoxes: Box[]): Box {
+  const around = groupBoxAroundBoxes(memberBoxes);
   if (!around || containsBox(box, around)) return box;
 
   return unionBox([box, around])!;
+}
+
+/**
+ * Returns the smallest size of a group that each of the given members still
+ * fits into on its own.
+ */
+export function minGroupSize(memberBoxes: Box[]): Size {
+  const sizes = memberBoxes.map(box => groupBoxAroundBoxes([box])!);
+
+  return {
+    width: Math.max(0, ...sizes.map(size => size.width)),
+    height: Math.max(0, ...sizes.map(size => size.height)),
+  };
+}
+
+/**
+ * Returns the area of a group box that its members are kept in, with the same
+ * space to the edges as a group placed around them.
+ */
+export function groupInnerBox(box: Box): Box {
+  return {
+    x: box.x + GROUP_PADDING,
+    y: box.y + GROUP_PADDING + GROUP_LABEL_HEIGHT / 2,
+    width: box.width - GROUP_PADDING * 2,
+    height: box.height - GROUP_PADDING * 2 - GROUP_LABEL_HEIGHT / 2,
+  };
+}
+
+export function boxCenter(box: Box): Position {
+  return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+}
+
+// Groups are nested by parentId, older files use groupId for it
+export function groupParentId(annotation: GroupStyleAnnotation): string | null {
+  return annotation.parentId ?? annotation.groupId ?? null;
 }
 
 /**
@@ -275,14 +325,18 @@ export function legacyGroupId(group: string, level?: string): string {
 
 /**
  * Returns the groups of a topology as they are shown in the graph, in the order
- * they are drawn.
+ * they are drawn. Nested groups are drawn after the group they are in.
  *
  * @param groupAnnotations The group annotations of the topology.
  * @param nodes The nodes of the graph.
+ * @param shapes The shape annotations of the topology.
+ * @param texts The text annotations of the topology.
  */
 export function readGraphGroups(
   groupAnnotations: GroupStyleAnnotation[],
   nodes: GroupMember[],
+  shapes: FreeShapeAnnotation[] = [],
+  texts: FreeTextAnnotation[] = [],
 ): GraphGroup[] {
   const members = new Map<string, string[]>();
   const legacyGroups = new Map<string, GroupMember>();
@@ -299,18 +353,31 @@ export function readGraphGroups(
     }
   }
 
-  const groups: GraphGroup[] = groupAnnotations
-    .toSorted((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-    .map(annotation => ({
-      id: annotation.id,
-      name: annotation.name,
-      x: annotation.position.x,
-      y: annotation.position.y,
-      width: annotation.width,
-      height: annotation.height,
-      memberIds: members.get(annotation.id) ?? [],
-      annotation,
-    }));
+  const parentIds = groupParentIds(groupAnnotations);
+  const shapeIds = idsByGroup(shapes, parentIds);
+  const textIds = idsByGroup(texts, parentIds);
+  const childIds = new Map<string, string[]>();
+
+  for (const [groupId, parentId] of parentIds) {
+    if (parentId !== null) {
+      childIds.set(parentId, [...(childIds.get(parentId) ?? []), groupId]);
+    }
+  }
+
+  const groups: GraphGroup[] = groupAnnotations.map(annotation => ({
+    id: annotation.id,
+    name: annotation.name,
+    x: annotation.position.x,
+    y: annotation.position.y,
+    width: annotation.width,
+    height: annotation.height,
+    memberIds: members.get(annotation.id) ?? [],
+    shapeIds: shapeIds.get(annotation.id) ?? [],
+    textIds: textIds.get(annotation.id) ?? [],
+    groupIds: childIds.get(annotation.id) ?? [],
+    parentId: parentIds.get(annotation.id) ?? null,
+    annotation,
+  }));
 
   for (const [groupId, member] of legacyGroups) {
     const memberIds = members.get(groupId)!;
@@ -319,16 +386,144 @@ export function readGraphGroups(
     );
     if (!box) continue;
 
-    groups.unshift({
+    groups.push({
       ...box,
       id: groupId,
       name: member.group!,
       memberIds,
+      shapeIds: [],
+      textIds: [],
+      groupIds: [],
+      parentId: null,
       annotation: null,
     });
   }
 
-  return groups;
+  return treeOrder(groups, group => ({
+    id: group.id,
+    parentId: group.parentId,
+    zIndex: layerZIndex({kind: 'group', id: group.id, group}),
+  }));
+}
+
+/**
+ * Returns the parent of each group by its ID. Parents that don't exist or would
+ * nest a group in itself are ignored.
+ */
+function groupParentIds(
+  groupAnnotations: GroupStyleAnnotation[],
+): Map<string, string | null> {
+  const declared = new Map(
+    groupAnnotations.map(annotation => [
+      annotation.id,
+      groupParentId(annotation),
+    ]),
+  );
+
+  const parentIds = new Map<string, string | null>();
+  for (const groupId of declared.keys()) {
+    const parentId = declared.get(groupId) ?? null;
+    let ancestorId = parentId;
+    const visited = new Set([groupId]);
+
+    while (ancestorId !== null && declared.has(ancestorId)) {
+      if (visited.has(ancestorId)) break;
+      visited.add(ancestorId);
+      ancestorId = declared.get(ancestorId) ?? null;
+    }
+
+    const isValid =
+      parentId !== null && declared.has(parentId) && ancestorId === null;
+    parentIds.set(groupId, isValid ? parentId : null);
+  }
+
+  return parentIds;
+}
+
+// The IDs of the shapes or texts in each group, by group ID
+function idsByGroup(
+  items: {id: string; groupId?: string}[],
+  parentIds: Map<string, string | null>,
+): Map<string, string[]> {
+  const ids = new Map<string, string[]>();
+
+  for (const item of items) {
+    if (item.groupId === undefined || !parentIds.has(item.groupId)) continue;
+    ids.set(item.groupId, [...(ids.get(item.groupId) ?? []), item.id]);
+  }
+
+  return ids;
+}
+
+/**
+ * Orders items so each item comes right before its children, siblings are
+ * ordered by their z-index.
+ */
+function treeOrder<T>(
+  items: T[],
+  node: (item: T) => {id: string; parentId: string | null; zIndex: number},
+): T[] {
+  const ids = new Set(items.map(item => node(item).id));
+  const children = new Map<string | null, T[]>();
+
+  for (const item of items) {
+    const parentId = node(item).parentId;
+    const key = parentId !== null && ids.has(parentId) ? parentId : null;
+    children.set(key, [...(children.get(key) ?? []), item]);
+  }
+
+  const ordered: T[] = [];
+  const visit = (parentId: string | null) => {
+    const siblings = (children.get(parentId) ?? []).toSorted(
+      (a, b) => node(a).zIndex - node(b).zIndex,
+    );
+
+    for (const item of siblings) {
+      ordered.push(item);
+      visit(node(item).id);
+    }
+  };
+  visit(null);
+
+  return ordered;
+}
+
+/**
+ * Returns everything inside a group, including the contents of nested groups.
+ */
+export function groupContents(
+  groups: GraphGroup[],
+  groupId: string,
+): {
+  nodeIds: string[];
+  groupIds: string[];
+  shapeIds: string[];
+  textIds: string[];
+} {
+  const contents = {
+    nodeIds: [] as string[],
+    groupIds: [] as string[],
+    shapeIds: [] as string[],
+    textIds: [] as string[],
+  };
+  const groupById = new Map(groups.map(group => [group.id, group]));
+
+  const visit = (id: string) => {
+    const group = groupById.get(id);
+    if (!group) return;
+
+    contents.nodeIds.push(...group.memberIds);
+    contents.shapeIds.push(...group.shapeIds);
+    contents.textIds.push(...group.textIds);
+
+    for (const childId of group.groupIds) {
+      contents.groupIds.push(childId);
+      visit(childId);
+    }
+  };
+  visit(groupId);
+
+  return contents;
 }
 
 /**
@@ -520,10 +715,20 @@ export function readLayerItems(
   groups: GraphGroup[],
   shapes: GraphShape[],
 ): LayerItem[] {
-  return [
+  const items: LayerItem[] = [
     ...groups.map(group => ({kind: 'group' as const, id: group.id, group})),
     ...shapes.map(shape => ({kind: 'shape' as const, id: shape.id, shape})),
-  ].toSorted((a, b) => layerZIndex(a) - layerZIndex(b));
+  ];
+
+  // Shapes in a group are drawn on top of it, like its nested groups
+  return treeOrder(items, item => ({
+    id: item.id,
+    parentId:
+      item.kind === 'group'
+        ? item.group.parentId
+        : (item.shape.annotation.groupId ?? null),
+    zIndex: layerZIndex(item),
+  }));
 }
 
 function layerZIndex(item: LayerItem) {

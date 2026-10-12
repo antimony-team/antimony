@@ -112,7 +112,7 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
       <Button
         icon={<span className="material-symbols-outlined">select</span>}
         text
-        disabled={graphSelection.nodeIds.length === 0}
+        disabled={graphSelection.count === 0}
         onClick={props.onGroupSelection}
         tooltip={`Group selection (${keybindLabel(GraphAction.Group)})`}
         tooltipOptions={{showOnDisabled: true}}

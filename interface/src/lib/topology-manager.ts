@@ -10,6 +10,7 @@ import {
   convertGraphLabels,
   convertLegacyGroups,
   frontZIndex,
+  groupParentUpdate,
   nextAnnotationId,
   removeAnnotationItems,
   removeGroupAnnotations,
@@ -304,87 +305,37 @@ export class TopologyManager {
    * @param mergeKey Merges the edit with the edit right before in the history.
    */
   public updateLayout(update: GraphLayoutUpdate, mergeKey?: string) {
-    this.editGraphAnnotations(annotations => {
-      let updatedAnnotations = annotations;
-
-      if (update.nodes) {
-        const nodeAnnotations = nodeAnnotationMap(annotations);
-        const annotationUpdates = new Map<string, Partial<NodeAnnotation>>();
-
-        for (const [nodeName, layout] of update.nodes) {
-          annotationUpdates.set(
-            nodeName,
-            nodeLayoutAnnotation(nodeAnnotations.get(nodeName), layout),
-          );
-        }
-
-        updatedAnnotations = updateNodeAnnotations(
-          updatedAnnotations,
-          annotationUpdates,
-        );
-      }
-
-      if (update.groups) {
-        updatedAnnotations = updateAnnotationItems(
-          updatedAnnotations,
-          'groupStyleAnnotations',
-          update.groups,
-        );
-      }
-
-      if (update.shapes) {
-        updatedAnnotations = updateAnnotationItems(
-          updatedAnnotations,
-          'freeShapeAnnotations',
-          update.shapes,
-        );
-      }
-
-      if (update.texts) {
-        updatedAnnotations = updateAnnotationItems(
-          updatedAnnotations,
-          'freeTextAnnotations',
-          update.texts,
-        );
-      }
-
-      return updatedAnnotations;
-    }, mergeKey);
+    this.editGraphAnnotations(
+      annotations => applyLayoutUpdate(annotations, update),
+      mergeKey,
+    );
   }
 
   /**
-   * Adds a group with the given nodes as members. Members of other groups move to
-   * the new group. Returns the ID of the group.
+   * Adds a group, nested in the given parent group. Returns the ID of the group.
+   *
+   * @param group The fields of the group.
+   * @param update The layout changed with the group, e.g. its new members, which
+   * is written in the same edit.
    */
   public addGroup(
     group: Pick<GroupStyleAnnotation, 'name' | 'position' | 'width' | 'height'>,
-    memberLayouts: Map<string, NodeLayout>,
+    parentId: string | null,
+    update: (groupId: string) => GraphLayoutUpdate,
   ): string | null {
     let groupId: string | null = null;
 
     this.editGraphAnnotations(annotations => {
       groupId = nextAnnotationId(annotations, 'groupStyleAnnotations', 'group');
 
-      const nodeAnnotations = nodeAnnotationMap(annotations);
-      const memberUpdates = new Map<string, Partial<NodeAnnotation>>();
-
-      for (const [nodeName, layout] of memberLayouts) {
-        memberUpdates.set(
-          nodeName,
-          nodeLayoutAnnotation(nodeAnnotations.get(nodeName), {
-            ...layout,
-            groupId,
-          }),
-        );
-      }
-
-      return updateNodeAnnotations(
+      return applyLayoutUpdate(
         addAnnotationItem(annotations, 'groupStyleAnnotations', {
           ...group,
+          ...groupParentUpdate(parentId),
           id: groupId,
           level: '1',
         }),
-        memberUpdates,
+        update(groupId),
       );
     });
 
@@ -1234,4 +1185,58 @@ export class TopologyManager {
 
 function textMergeKey(textId: string) {
   return `text-${textId}`;
+}
+
+/**
+ * Writes the layout of the given nodes, groups, shapes and texts to the
+ * annotations.
+ */
+function applyLayoutUpdate(
+  annotations: TopologyAnnotations,
+  update: GraphLayoutUpdate,
+): TopologyAnnotations {
+  let updatedAnnotations = annotations;
+
+  if (update.nodes) {
+    const nodeAnnotations = nodeAnnotationMap(annotations);
+    const annotationUpdates = new Map<string, Partial<NodeAnnotation>>();
+
+    for (const [nodeName, layout] of update.nodes) {
+      annotationUpdates.set(
+        nodeName,
+        nodeLayoutAnnotation(nodeAnnotations.get(nodeName), layout),
+      );
+    }
+
+    updatedAnnotations = updateNodeAnnotations(
+      updatedAnnotations,
+      annotationUpdates,
+    );
+  }
+
+  if (update.groups) {
+    updatedAnnotations = updateAnnotationItems(
+      updatedAnnotations,
+      'groupStyleAnnotations',
+      update.groups,
+    );
+  }
+
+  if (update.shapes) {
+    updatedAnnotations = updateAnnotationItems(
+      updatedAnnotations,
+      'freeShapeAnnotations',
+      update.shapes,
+    );
+  }
+
+  if (update.texts) {
+    updatedAnnotations = updateAnnotationItems(
+      updatedAnnotations,
+      'freeTextAnnotations',
+      update.texts,
+    );
+  }
+
+  return updatedAnnotations;
 }

@@ -1,12 +1,17 @@
 import {isMap, isScalar} from 'yaml';
 
-import {groupBoxAround, nodeGroupId} from '@sb/lib/graph/annotation-geometry';
+import {
+  groupBoxAround,
+  groupParentId,
+  nodeGroupId,
+} from '@sb/lib/graph/annotation-geometry';
 import {
   convertLatLngToXY,
   GRAPH_LABELS,
   labelsToAnnotation,
 } from '@sb/lib/graph/topology-graph';
 import {
+  GroupStyleAnnotation,
   NodeAnnotation,
   NodeLabels,
   TopologyAnnotations,
@@ -188,18 +193,37 @@ export function frontZIndex(
 }
 
 /**
- * Removes the given groups and the membership of all nodes and annotations in
- * them. The members themselves are kept.
+ * Removes the given groups. Their nodes, annotations and nested groups are kept
+ * and move to the group the removed group was in.
  */
 export function removeGroupAnnotations(
   annotations: TopologyAnnotations,
   groupIds: string[],
 ): TopologyAnnotations {
   const removedIds = new Set(groupIds);
+  const parentIds = new Map(
+    (annotations.groupStyleAnnotations ?? []).map(group => [
+      group.id,
+      groupParentId(group),
+    ]),
+  );
+
+  // The closest group around a removed group that is kept, or undefined if there is none
+  const keptGroupId = (groupId: string) => {
+    let id: string | null = groupId;
+    const visited = new Set<string>();
+
+    while (id !== null && removedIds.has(id) && !visited.has(id)) {
+      visited.add(id);
+      id = parentIds.get(id) ?? null;
+    }
+
+    return id !== null && !removedIds.has(id) ? id : undefined;
+  };
   const isRemoved = (groupId?: string) =>
     groupId !== undefined && removedIds.has(groupId);
 
-  const updated = removeAnnotationItems(
+  let result = removeAnnotationItems(
     annotations,
     'groupStyleAnnotations',
     groupIds,
@@ -209,33 +233,52 @@ export function removeGroupAnnotations(
   for (const annotation of annotations.nodeAnnotations ?? []) {
     if (isRemoved(annotation.groupId)) {
       memberUpdates.set(annotation.id, {
-        groupId: undefined,
+        groupId: keptGroupId(annotation.groupId!),
         group: undefined,
         level: undefined,
       });
     }
   }
 
-  let result =
-    memberUpdates.size > 0
-      ? updateNodeAnnotations(updated, memberUpdates)
-      : updated;
-
-  for (const key of ['freeTextAnnotations', 'freeShapeAnnotations'] as const) {
-    const ids = (result[key] ?? [])
-      .filter(item => isRemoved(item.groupId))
-      .map(item => item.id);
-
-    if (ids.length > 0) {
-      result = updateAnnotationItems(
-        result,
-        key,
-        new Map(ids.map(id => [id, {groupId: undefined}])),
-      );
-    }
+  if (memberUpdates.size > 0) {
+    result = updateNodeAnnotations(result, memberUpdates);
   }
 
-  return result;
+  for (const key of ['freeTextAnnotations', 'freeShapeAnnotations'] as const) {
+    const updates = new Map(
+      (result[key] ?? [])
+        .filter(item => isRemoved(item.groupId))
+        .map(item => [item.id, {groupId: keptGroupId(item.groupId!)}]),
+    );
+
+    if (updates.size > 0) result = updateAnnotationItems(result, key, updates);
+  }
+
+  const groupUpdates = new Map(
+    (result.groupStyleAnnotations ?? [])
+      .filter(group => {
+        const parentId = groupParentId(group);
+        return parentId !== null && removedIds.has(parentId);
+      })
+      .map(group => [
+        group.id,
+        groupParentUpdate(keptGroupId(groupParentId(group)!) ?? null),
+      ]),
+  );
+
+  return groupUpdates.size > 0
+    ? updateAnnotationItems(result, 'groupStyleAnnotations', groupUpdates)
+    : result;
+}
+
+/**
+ * Returns the fields that nest a group in the given group. Both fields are
+ * written, as older readers use groupId for it.
+ */
+export function groupParentUpdate(
+  parentId: string | null,
+): Pick<GroupStyleAnnotation, 'parentId' | 'groupId'> {
+  return {parentId: parentId ?? undefined, groupId: parentId ?? undefined};
 }
 
 export function renameNodeAnnotation(

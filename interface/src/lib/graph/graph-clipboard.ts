@@ -1,5 +1,6 @@
 import {
   Box,
+  groupParentId,
   moveShapeGeometry,
   nodeBox,
   roundPosition,
@@ -10,6 +11,7 @@ import {
 } from '@sb/lib/graph/annotation-geometry';
 import {
   AnnotationListKey,
+  groupParentUpdate,
   nextAnnotationId,
 } from '@sb/lib/graph/topology-annotations';
 import {
@@ -35,7 +37,7 @@ export interface ClipboardNode {
 
 /**
  * Copied elements of a graph. Links are only copied between copied nodes, and
- * groups only together with their members.
+ * groups together with everything inside them.
  */
 export interface GraphClipboard {
   marker: typeof CLIPBOARD_MARKER;
@@ -150,6 +152,10 @@ export function pasteClipboard(
   const move = (position: Position) =>
     roundPosition({x: position.x + delta.x, y: position.y + delta.y});
 
+  // Elements stay in a group only if it was copied with them
+  const pastedGroupId = (groupId?: string) =>
+    groupId !== undefined ? groupIds.get(groupId) : undefined;
+
   return {
     nodes: clipboard.nodes.map(node => ({
       ...node,
@@ -160,9 +166,7 @@ export function pasteClipboard(
         position: node.annotation.position
           ? move(node.annotation.position)
           : undefined,
-        groupId: node.annotation.groupId
-          ? groupIds.get(node.annotation.groupId)
-          : undefined,
+        groupId: pastedGroupId(node.annotation.groupId),
       },
     })),
     links: clipboard.links.map(link => ({
@@ -174,6 +178,9 @@ export function pasteClipboard(
     })),
     groups: clipboard.groups.map(group => ({
       ...group,
+      ...groupParentUpdate(
+        pastedGroupId(groupParentId(group) ?? undefined) ?? null,
+      ),
       id: groupIds.get(group.id)!,
       position: move(group.position),
     })),
@@ -181,11 +188,13 @@ export function pasteClipboard(
       ...shape,
       ...moveShapeGeometry(shapeGeometry(shape), delta),
       id: shapeIds.get(shape.id)!,
+      groupId: pastedGroupId(shape.groupId),
     })),
     texts: clipboard.texts.map(text => ({
       ...text,
       id: textIds.get(text.id)!,
       position: move(text.position),
+      groupId: pastedGroupId(text.groupId),
     })),
   };
 }

@@ -97,7 +97,7 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
           item={itemAlone?.kind !== 'text' ? itemAlone : null}
           text={itemAlone?.kind === 'text' ? itemAlone.text : null}
           isEditingText={!!graphSelection.editingTextId}
-          canGroup={graphSelection.nodeIds.length > 0}
+          canGroup={graphSelection.count > 0}
           canReorder={selectedItems.length > 0}
           onGroup={props.onGroup}
           onStyle={props.onStyle}

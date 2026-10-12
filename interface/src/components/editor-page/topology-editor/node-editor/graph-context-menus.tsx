@@ -196,7 +196,7 @@ export function groupMenu(options: GroupMenuOptions): MenuItem[] {
       GraphAction.Rename,
     ),
     {
-      label: 'Select members',
+      label: 'Select with contents',
       icon: icon('select_all'),
       command: options.onSelectMembers,
     },

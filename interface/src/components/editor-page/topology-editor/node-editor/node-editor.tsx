@@ -56,6 +56,7 @@ import {
   AnnotationItem,
   Box,
   boxBetween,
+  boxCenter,
   containsBox,
   containsPoint,
   DrawKind,
@@ -63,15 +64,20 @@ import {
   fitIntoGroupBox,
   GraphGroup,
   GraphShape,
-  GraphText,
   groupAt,
   groupBoxAround,
+  groupBoxAroundBoxes,
+  groupContents,
   GroupHitPart,
+  groupInnerBox,
   groupLabelInset,
   growGroupBox,
   hitTestLayers,
   LayerHit,
+  minGroupSize,
+  moveBox,
   moveShapeGeometry,
+  nodeBox,
   placedGeometry,
   readGraphTexts,
   roundCoordinate,
@@ -82,10 +88,13 @@ import {
   ShapeGeometry,
   shapeGeometry,
   shiftIntoBox,
+  Size,
+  storedTextBox,
   textAt,
   textBox,
   transformShapeGeometry,
   translateTransform,
+  unionBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {
   AnnotationStyle,
@@ -116,7 +125,10 @@ import {
   validateNodeName,
 } from '@sb/lib/graph/label-validation';
 import {GRID_SPACING, OccupiedPositions} from '@sb/lib/graph/placement';
-import {findNodeAnnotation} from '@sb/lib/graph/topology-annotations';
+import {
+  findNodeAnnotation,
+  groupParentUpdate,
+} from '@sb/lib/graph/topology-annotations';
 import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
@@ -124,6 +136,7 @@ import {useStableCallbacks} from '@sb/lib/utils/hooks';
 import {
   FreeShapeAnnotation,
   FreeTextAnnotation,
+  GroupStyleAnnotation,
   Topology,
 } from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
@@ -164,9 +177,24 @@ const HIT_TOLERANCE = 6;
 // Shapes that are drawn smaller than this are placed with their default size
 const MIN_SHAPE_SIZE = 4;
 
+type ElementKind = 'node' | 'group' | 'shape' | 'text';
+
+// An element of the graph that can be inside a group
+interface ElementRef {
+  kind: ElementKind;
+  id: string;
+}
+
+const ELEMENT_LABELS: Record<ElementKind, string> = {
+  node: 'node',
+  group: 'group',
+  shape: 'shape',
+  text: 'text',
+};
+
 /**
  * The selected elements as they were when the selection started to move or to
- * be resized.
+ * be resized, including everything inside the selected groups.
  */
 interface SelectionStarts {
   boxes: Map<string, Box>;
@@ -174,8 +202,28 @@ interface SelectionStarts {
   texts: Map<string, Pick<FreeTextAnnotation, 'position' | 'width' | 'height'>>;
   memberPositions: Map<string, Position>;
 
-  // The moved nodes that move on their own, they can join, leave and grow groups
-  nodeIds: string[];
+  // The moved elements that aren't inside a moved group, they can join, leave and grow groups
+  freeElements: ElementRef[];
+}
+
+/**
+ * The contents of a group as they were when it started to be resized. Each
+ * direct member is moved into the group on its own, with everything inside it.
+ */
+interface GroupResizeStarts {
+  // The boxes of the direct members by element key
+  memberBoxes: Map<string, Box>;
+  contents: SelectionStarts;
+
+  // The direct member each element moves with, by element key
+  owners: Map<string, string>;
+}
+
+// An element that is dropped, with its box and center after it moved
+interface DroppedElement {
+  element: ElementRef;
+  box: Box;
+  center: Position;
 }
 
 type PointerAction =
@@ -212,16 +260,14 @@ type PointerAction =
 type MoveLayersAction = Extract<PointerAction, {kind: 'move-layers'}>;
 
 /**
- * Where the dragged nodes end up when they are dropped. A node joins the group
- * it is dropped on, and a member stays in its group, which grows to contain it,
- * unless ctrl is held.
+ * Where the moved elements end up when they are dropped. An element joins the
+ * group its center is dropped on, and a member stays in its group, which grows
+ * to contain it, unless ctrl is held.
  */
 interface DropPlan {
+  // The group of each dropped element by its element key
   groupIds: Map<string, string | null>;
   groupBoxes: Map<string, Box>;
-
-  // Groups that nodes are added to, they only grow once the nodes are dropped
-  joinedGroupIds: Set<string>;
   hint: HintPart[] | null;
   dropTargetId: string | null;
 }
@@ -250,8 +296,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const isDragCtrl = useRef(false);
   const moveFrame = useRef(0);
 
-  // Positions of the members of a resized group from before it was resized
-  const resizeMemberStarts = useRef<Map<string, Position> | null>(null);
+  // The contents of a resized group from before it was resized
+  const groupResizeStarts = useRef<GroupResizeStarts | null>(null);
   const selectionResizeStarts = useRef<SelectionStarts | null>(null);
 
   /*
@@ -929,52 +975,92 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy: cytoscape.Core,
     pressedNodeId: string | null,
   ): SelectionStarts {
-    const movedGroups = groupsRef.current.filter(group =>
-      graphSelection.groupIds.includes(group.id),
+    const starts: SelectionStarts = {
+      boxes: new Map(),
+      shapes: new Map(),
+      texts: new Map(),
+      memberPositions: new Map(),
+      freeElements: [],
+    };
+
+    // Everything inside the selected groups moves with them
+    const inside = new Set(
+      graphSelection.groupIds
+        .flatMap(groupId => contentElements(groupId))
+        .map(elementKey),
     );
-    const memberPositions = new Map<string, Position>();
 
-    for (const group of movedGroups) {
-      for (const memberId of group.memberIds) {
-        memberPositions.set(memberId, {
-          ...cy.getElementById(memberId).position(),
-        });
-      }
-    }
-
-    // Nodes that move with their group stay in it
-    const nodeIds = [
-      ...new Set([
-        ...graphSelection.nodeIds,
-        ...(pressedNodeId ? [pressedNodeId] : []),
-      ]),
-    ].filter(nodeId => !memberPositions.has(nodeId));
-
-    for (const nodeId of nodeIds) {
-      memberPositions.set(nodeId, {...cy.getElementById(nodeId).position()});
-    }
-
-    return {
-      boxes: new Map(movedGroups.map(group => [group.id, boxOf(group)])),
-      shapes: new Map(
-        selectedShapes().map(shape => [
-          shape.id,
-          shapeGeometry(shape.annotation),
+    const selected: ElementRef[] = [
+      ...[
+        ...new Set([
+          ...graphSelection.nodeIds,
+          ...(pressedNodeId ? [pressedNodeId] : []),
         ]),
-      ),
-      texts: new Map(
-        selectedTexts().map(text => [
-          text.id,
-          {
+      ].map(id => ({kind: 'node' as const, id})),
+      ...graphSelection.groupIds.map(id => ({kind: 'group' as const, id})),
+      ...graphSelection.shapeIds.map(id => ({kind: 'shape' as const, id})),
+      ...graphSelection.textIds.map(id => ({kind: 'text' as const, id})),
+    ];
+    starts.freeElements = selected.filter(
+      element => !inside.has(elementKey(element)),
+    );
+
+    for (const key of new Set([...inside, ...selected.map(elementKey)])) {
+      const [kind, id] = splitElementKey(key);
+      addStart(starts, {kind, id}, cy);
+    }
+
+    return starts;
+  }
+
+  // Everything inside a group, including the contents of nested groups
+  function contentElements(groupId: string): ElementRef[] {
+    const contents = groupContents(groupsRef.current, groupId);
+
+    return [
+      ...contents.nodeIds.map(id => ({kind: 'node' as const, id})),
+      ...contents.groupIds.map(id => ({kind: 'group' as const, id})),
+      ...contents.shapeIds.map(id => ({kind: 'shape' as const, id})),
+      ...contents.textIds.map(id => ({kind: 'text' as const, id})),
+    ];
+  }
+
+  // Adds the current geometry of the element to the starts
+  function addStart(
+    starts: SelectionStarts,
+    element: ElementRef,
+    cy: cytoscape.Core,
+  ) {
+    switch (element.kind) {
+      case 'node':
+        starts.memberPositions.set(element.id, {
+          ...cy.getElementById(element.id).position(),
+        });
+        break;
+      case 'group': {
+        const group = groupsRef.current.find(group => group.id === element.id);
+        if (group) starts.boxes.set(element.id, boxOf(group));
+        break;
+      }
+      case 'shape': {
+        const item = findLayerItem(element.id);
+        if (item?.kind === 'shape') {
+          starts.shapes.set(element.id, shapeGeometry(item.shape.annotation));
+        }
+        break;
+      }
+      case 'text': {
+        const text = textsRef.current.find(text => text.id === element.id);
+        if (text) {
+          starts.texts.set(element.id, {
             position: text.annotation.position,
             width: text.annotation.width,
             height: text.annotation.height,
-          },
-        ]),
-      ),
-      memberPositions,
-      nodeIds,
-    };
+          });
+        }
+        break;
+      }
+    }
   }
 
   function onLineEndPointerDown(
@@ -999,12 +1085,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function findLayerItem(id: string) {
     return layerItemsRef.current.find(item => item.id === id) ?? null;
-  }
-
-  function selectedTexts(): GraphText[] {
-    return textsRef.current.filter(text =>
-      graphSelection.textIds.includes(text.id),
-    );
   }
 
   function selectedShapes(): GraphShape[] {
@@ -1204,14 +1284,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     starts: SelectionStarts,
     transform: SelectionTransform,
   ) {
-    const plan = planSelectionDrop(starts);
+    const plan = planSelectionDrop(starts, transform, false);
 
     graphSelection.setDrag(
       plan.hint,
       plan.dropTargetId,
       new Map([
         ...transformedGroupBoxes(starts, transform),
-        ...[...plan.groupBoxes].filter(([id]) => !plan.joinedGroupIds.has(id)),
+        ...plan.groupBoxes,
       ]),
     );
     graphSelection.setShapePreviews(
@@ -1233,8 +1313,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   /**
-   * Saves the moved or resized selection. The members of moved groups stay in
-   * them, the other nodes are dropped like dragged nodes.
+   * Saves the moved or resized selection. Everything inside moved groups stays
+   * in them, the other elements are dropped into the group under them.
    */
   function commitTransform(
     starts: SelectionStarts,
@@ -1246,38 +1326,62 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     transformNodes(starts, transform);
 
-    const plan = planSelectionDrop(starts);
+    const plan = planSelectionDrop(starts, transform, true);
     isDragCtrl.current = false;
+
+    // The group of an element that was dropped, undefined if it moved with its group
+    const droppedGroupId = (kind: ElementKind, id: string) =>
+      plan.groupIds.get(elementKey({kind, id}));
 
     const memberGroupIds = currentGroupIds();
     const nodeLayouts = new Map<string, NodeLayout>();
     for (const nodeId of starts.memberPositions.keys()) {
+      const groupId = droppedGroupId('node', nodeId);
+
       nodeLayouts.set(nodeId, {
         position: cy.getElementById(nodeId).position(),
-        groupId: plan.groupIds.has(nodeId)
-          ? (plan.groupIds.get(nodeId) ?? null)
-          : (memberGroupIds.get(nodeId) ?? null),
+        groupId:
+          groupId !== undefined
+            ? groupId
+            : (memberGroupIds.get(nodeId) ?? null),
       });
     }
+
+    const groupUpdates = new Map<string, Partial<GroupStyleAnnotation>>(
+      boxUpdates(plan.groupBoxes),
+    );
+    for (const [id, box] of transformedGroupBoxes(starts, transform)) {
+      const groupId = droppedGroupId('group', id);
+
+      groupUpdates.set(id, {
+        ...boxFields(box),
+        ...(groupId !== undefined ? groupParentUpdate(groupId) : {}),
+      });
+    }
+
+    const membership = (kind: ElementKind, id: string) => {
+      const groupId = droppedGroupId(kind, id);
+      return groupId !== undefined ? {groupId: groupId ?? undefined} : {};
+    };
 
     graphSelection.clearDrag();
     topologyStore.manager.updateLayout(
       {
         nodes: nodeLayouts,
-        groups: new Map([
-          ...boxUpdates(transformedGroupBoxes(starts, transform)),
-          ...boxUpdates(plan.groupBoxes),
-        ]),
+        groups: groupUpdates,
         shapes: new Map(
           [...starts.shapes].map(([id, geometry]) => [
             id,
-            transformShapeGeometry(geometry, transform),
+            {
+              ...transformShapeGeometry(geometry, transform),
+              ...membership('shape', id),
+            },
           ]),
         ),
         texts: new Map(
           [...starts.texts].map(([id, start]) => [
             id,
-            transformText(start, transform),
+            {...transformText(start, transform), ...membership('text', id)},
           ]),
         ),
       },
@@ -1405,21 +1509,30 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // Adds a drawn shape, text or group and selects it, a text or group is named right away
   function addAnnotation(drawKind: DrawKind, geometry: ShapeGeometry) {
     if (drawKind === 'group') {
-      const box = shapeBox(geometry);
-      const name = `Group ${groupsRef.current.length + 1}`;
-      const groupId = topologyStore.manager.addGroup(
-        {
-          name,
-          position: geometry.position,
-          width: box.width,
-          height: box.height,
-        },
-        new Map(),
-      );
-      if (groupId === null) return;
+      const drawnBox = shapeBox(geometry);
 
-      graphSelection.select({groupIds: [groupId]});
-      startGroupRename({id: groupId, name, annotation: null, ...box});
+      // Elements next to the group whose center it covers move into it
+      const parentId =
+        groupAt(groupsRef.current, boxCenter(drawnBox))?.id ?? null;
+      const parentIds = currentParentIds();
+      const members = allElements().filter(element => {
+        const box = elementBox(element);
+
+        return (
+          box !== null &&
+          (parentIds.get(elementKey(element)) ?? null) === parentId &&
+          containsPoint(drawnBox, elementCenter(element, box))
+        );
+      });
+
+      createGroup(
+        growGroupBox(
+          drawnBox,
+          members.map(elementBox).filter(box => box !== null),
+        ),
+        members,
+        parentId,
+      );
       return;
     }
 
@@ -1747,19 +1860,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     contextMenuRef.current?.show(event);
   }
 
-  function selectedNodes(cy: cytoscape.Core) {
-    const nodeIds = new Set(graphSelection.nodeIds);
-    return cy
-      .nodes('.topology-node')
-      .filter(node => nodeIds.has(node.id()))
-      .nodes();
-  }
-
   function currentSelectionMenu() {
     return selectionMenu({
       ...clipboardActions,
       count: graphSelection.count,
-      canGroup: graphSelection.nodeIds.length > 0,
+      canGroup: graphSelection.count > 0,
       canReorder: graphSelection.layerIds.length > 0,
       onGroup: onGroupSelection,
       onBringToFront: () => onReorder(true),
@@ -1785,69 +1890,101 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
   }
 
-  // The nodes that move on their own are dropped like a single dragged node
-  function planSelectionDrop(starts: SelectionStarts): DropPlan {
+  // The elements that move on their own are dropped by their center
+  function planSelectionDrop(
+    starts: SelectionStarts,
+    transform: SelectionTransform,
+    isFinal: boolean,
+  ): DropPlan {
+    const cy = cyRef.current!;
+    const boxes = transformedGroupBoxes(starts, transform);
+
+    const elements = starts.freeElements.map((element): DroppedElement => {
+      switch (element.kind) {
+        case 'node': {
+          const position = cy.getElementById(element.id).position();
+          return {element, box: nodeBox(position), center: position};
+        }
+        case 'group': {
+          const box = boxes.get(element.id)!;
+          return {element, box, center: boxCenter(box)};
+        }
+        case 'shape': {
+          const box = shapeBox(
+            transformShapeGeometry(starts.shapes.get(element.id)!, transform),
+          );
+          return {element, box, center: boxCenter(box)};
+        }
+        case 'text': {
+          const text = transformText(starts.texts.get(element.id)!, transform);
+          const size = graphSelection.textSizes.get(element.id);
+          const box = {
+            ...text.position!,
+            width: text.width ?? size?.width ?? 0,
+            height: text.height ?? size?.height ?? 0,
+          };
+          return {element, box, center: boxCenter(box)};
+        }
+      }
+    });
+
     return planDrop(
-      starts.nodeIds,
-      starts.nodeIds[0] ?? '',
+      elements,
       isDragCtrl.current,
       new Set(starts.boxes.keys()),
+      isFinal,
     );
   }
 
+  /**
+   * Plans where the given elements end up. A group that elements are added to
+   * only grows once they are dropped, so it doesn't change while they pass it.
+   */
   function planDrop(
-    nodeIds: string[],
-    targetNodeId: string,
+    elements: DroppedElement[],
     isCtrl: boolean,
     movedGroupIds: Set<string>,
+    isFinal: boolean,
   ): DropPlan {
-    const cy = cyRef.current!;
-
     // Groups that move along can't be dropped into
     const targetGroups = groupsRef.current.filter(
       group => !movedGroupIds.has(group.id),
     );
-    const currentGroups = currentGroupIds();
+    const parentIds = currentParentIds();
     const groupIds = new Map<string, string | null>();
-    const joinedGroupIds = new Set<string>();
-    const includedPositions = new Map<string, Position[]>();
-
-    for (const nodeId of nodeIds) {
-      const position = cy.getElementById(nodeId).position();
-      const currentGroupId = currentGroups.get(nodeId) ?? null;
-      const groupUnder = groupAt(targetGroups, position)?.id ?? null;
-
-      let groupId = currentGroupId;
-      if (groupUnder !== null && groupUnder !== currentGroupId) {
-        groupId = groupUnder;
-      } else if (currentGroupId !== null && isCtrl) {
-        groupId = null;
-      }
-
-      groupIds.set(nodeId, groupId);
-      if (groupId !== null && groupId !== currentGroupId) {
-        joinedGroupIds.add(groupId);
-      }
-      if (groupId !== null) {
-        includedPositions.set(groupId, [
-          ...(includedPositions.get(groupId) ?? []),
-          position,
-        ]);
-      }
-    }
-
     const groupBoxes = new Map<string, Box>();
-    for (const [groupId, positions] of includedPositions) {
-      const group = groupsRef.current.find(group => group.id === groupId);
-      if (!group) continue;
 
-      const grownBox = growGroupBox(group, positions);
-      if (grownBox !== group) groupBoxes.set(groupId, grownBox);
+    for (const {element, box, center} of elements) {
+      const key = elementKey(element);
+      const currentGroupId = parentIds.get(key) ?? null;
+
+      // Ctrl leaves the current group for the group around it, if there is one
+      const groupUnder =
+        groupAt(
+          isCtrl
+            ? targetGroups.filter(group => group.id !== currentGroupId)
+            : targetGroups,
+          center,
+        )?.id ?? null;
+      const groupId = isCtrl ? groupUnder : (groupUnder ?? currentGroupId);
+
+      groupIds.set(key, groupId);
+      if (groupId !== null && (isFinal || groupId === currentGroupId)) {
+        growAncestors(groupId, box, groupBoxes);
+      }
     }
 
-    const label = nodeIds.length > 1 ? 'the nodes' : 'the node';
-    const currentGroupId = currentGroups.get(targetNodeId) ?? null;
-    const nextGroupId = groupIds.get(targetNodeId) ?? null;
+    if (elements.length === 0) {
+      return {groupIds, groupBoxes, hint: null, dropTargetId: null};
+    }
+
+    const target = elementKey(elements[0].element);
+    const label =
+      elements.length > 1
+        ? 'the selection'
+        : `the ${ELEMENT_LABELS[elements[0].element.kind]}`;
+    const currentGroupId = parentIds.get(target) ?? null;
+    const nextGroupId = groupIds.get(target) ?? null;
 
     let hint: HintPart[] | null = null;
     let dropTargetId: string | null = null;
@@ -1861,7 +1998,156 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       hint = ['Hold ', {keyword: 'Ctrl'}, ` to move ${label} out of the group`];
     }
 
-    return {groupIds, groupBoxes, joinedGroupIds, hint, dropTargetId};
+    return {groupIds, groupBoxes, hint, dropTargetId};
+  }
+
+  /**
+   * Grows the group and the groups around it so they contain the given box. The
+   * grown boxes are collected in the given map, which they also grow from.
+   */
+  function growAncestors(
+    groupId: string | null,
+    box: Box,
+    boxes: Map<string, Box>,
+  ): Map<string, Box> {
+    let id = groupId;
+    let inner = box;
+
+    while (id !== null) {
+      const group = groupsRef.current.find(group => group.id === id);
+      if (!group) break;
+
+      const current = boxes.get(group.id) ?? group;
+      const grown = growGroupBox(current, [inner]);
+      if (grown === current) break;
+
+      boxes.set(group.id, grown);
+      inner = grown;
+      id = group.parentId;
+    }
+
+    return boxes;
+  }
+
+  // The group each element is directly in, by element key
+  function currentParentIds(): Map<string, string> {
+    const parentIds = new Map<string, string>();
+
+    for (const group of groupsRef.current) {
+      for (const element of directMembers(group)) {
+        parentIds.set(elementKey(element), group.id);
+      }
+    }
+
+    return parentIds;
+  }
+
+  function directMembers(group: GraphGroup): ElementRef[] {
+    return [
+      ...group.memberIds.map(id => ({kind: 'node' as const, id})),
+      ...group.groupIds.map(id => ({kind: 'group' as const, id})),
+      ...group.shapeIds.map(id => ({kind: 'shape' as const, id})),
+      ...group.textIds.map(id => ({kind: 'text' as const, id})),
+    ];
+  }
+
+  // All nodes, groups, shapes and texts of the graph
+  function allElements(): ElementRef[] {
+    return [
+      ...(cyRef.current
+        ?.nodes('.topology-node')
+        .map(node => ({kind: 'node' as const, id: node.id()})) ?? []),
+      ...groupsRef.current.map(group => ({
+        kind: 'group' as const,
+        id: group.id,
+      })),
+      ...layerItemsRef.current
+        .filter(item => item.kind === 'shape')
+        .map(item => ({kind: 'shape' as const, id: item.id})),
+      ...textsRef.current.map(text => ({kind: 'text' as const, id: text.id})),
+    ];
+  }
+
+  // The box an element takes up as it is stored, or null if it doesn't exist
+  function elementBox(element: ElementRef): Box | null {
+    switch (element.kind) {
+      case 'node': {
+        const node = cyRef.current?.getElementById(element.id);
+        return node?.nonempty() ? nodeBox(node.position()) : null;
+      }
+      case 'group':
+        return groupsRef.current.find(group => group.id === element.id) ?? null;
+      case 'shape': {
+        const item = findLayerItem(element.id);
+        return item?.kind === 'shape'
+          ? shapeBox(shapeGeometry(item.shape.annotation))
+          : null;
+      }
+      case 'text': {
+        const text = textsRef.current.find(text => text.id === element.id);
+        if (!text) return null;
+
+        return (
+          textBox(text.annotation, graphSelection.textSizes.get(text.id)) ??
+          storedTextBox(text.annotation)
+        );
+      }
+    }
+  }
+
+  // A node is dropped by its icon, the other elements by the center of their box
+  function elementCenter(element: ElementRef, box: Box): Position {
+    return element.kind === 'node'
+      ? cyRef.current!.getElementById(element.id).position()
+      : boxCenter(box);
+  }
+
+  /**
+   * Adds a group with the given box and members, nested in the given group, and
+   * starts renaming it. The groups around it grow to contain it.
+   */
+  function createGroup(
+    box: Box,
+    members: ElementRef[],
+    parentId: string | null,
+  ) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const name = `Group ${groupsRef.current.length + 1}`;
+    const grownBoxes = growAncestors(parentId, box, new Map());
+    const idsOf = (kind: ElementKind) =>
+      members.filter(member => member.kind === kind).map(member => member.id);
+
+    const groupId = topologyStore.manager.addGroup(
+      {
+        name,
+        position: {x: box.x, y: box.y},
+        width: box.width,
+        height: box.height,
+      },
+      parentId,
+      groupId => ({
+        nodes: new Map(
+          idsOf('node').map(id => [
+            id,
+            {position: cy.getElementById(id).position(), groupId},
+          ]),
+        ),
+        groups: new Map<string, Partial<GroupStyleAnnotation>>([
+          ...boxUpdates(grownBoxes),
+          ...idsOf('group').map(
+            id => [id, groupParentUpdate(groupId)] as const,
+          ),
+        ]),
+        shapes: new Map(idsOf('shape').map(id => [id, {groupId}])),
+        texts: new Map(idsOf('text').map(id => [id, {groupId}])),
+      }),
+    );
+    if (groupId === null) return;
+
+    graphSelection.select({groupIds: [groupId]});
+    startGroupRename({id: groupId, name, annotation: null, ...box});
   }
 
   // Nudged nodes that move on their own grow and join groups like dragged nodes
@@ -1944,13 +2230,21 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const topology = props.openTopology;
     if (!cy || !topology || graphSelection.count === 0) return null;
 
-    const groups = groupsRef.current.filter(group =>
-      graphSelection.groupIds.includes(group.id),
-    );
-    const nodeNames = new Set([
-      ...graphSelection.nodeIds,
-      ...groups.flatMap(group => group.memberIds),
-    ]);
+    // Groups are copied with everything inside them
+    const contents = graphSelection.groupIds.flatMap(contentElements);
+    const copiedIds = (kind: ElementKind, selected: string[]) =>
+      new Set([
+        ...selected,
+        ...contents
+          .filter(element => element.kind === kind)
+          .map(element => element.id),
+      ]);
+
+    const groupIds = copiedIds('group', graphSelection.groupIds);
+    const shapeIds = copiedIds('shape', graphSelection.shapeIds);
+    const textIds = copiedIds('text', graphSelection.textIds);
+    const nodeNames = copiedIds('node', graphSelection.nodeIds);
+    const groups = groupsRef.current.filter(group => groupIds.has(group.id));
 
     // Groups of old topologies don't have an annotation, their members are copied without them
     const copiedGroupIds = new Set(
@@ -1985,8 +2279,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       groups: groups
         .filter(group => group.annotation)
         .map(group => group.annotation!),
-      shapes: selectedShapes().map(shape => shape.annotation),
-      texts: selectedTexts().map(text => text.annotation),
+      shapes: layerItemsRef.current
+        .filter(item => item.kind === 'shape')
+        .filter(item => shapeIds.has(item.id))
+        .map(item => item.shape.annotation),
+      texts: textsRef.current
+        .filter(text => textIds.has(text.id))
+        .map(text => text.annotation),
     });
   }
 
@@ -2062,11 +2361,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
   }
 
+  // Selects the group with everything inside it
   function onSelectMembers() {
     const group = groupsRef.current.find(
       group => group.id === menuTargetRef.current,
     );
-    if (group) graphSelection.select({nodeIds: group.memberIds});
+    if (!group) return;
+
+    const contents = groupContents(groupsRef.current, group.id);
+    graphSelection.select({
+      ...contents,
+      groupIds: [group.id, ...contents.groupIds],
+    });
   }
 
   function onDeleteSelection() {
@@ -2076,18 +2382,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const deletedGroups = groupsRef.current.filter(group =>
       graphSelection.groupIds.includes(group.id),
     );
-    const nodeNames = [
-      ...new Set([
-        ...graphSelection.nodeIds,
-        ...deletedGroups.flatMap(group => group.memberIds),
-      ]),
-    ];
+    const nodeNames = graphSelection.nodeIds;
     const annotationIds = [
       ...graphSelection.shapeIds,
       ...graphSelection.textIds,
     ];
 
-    // The selection is cleared after the change, so the history keeps it for undo
+    // The contents of deleted groups are kept, the selection is cleared after the change for undo
     topologyStore.manager.deleteElements(
       nodeNames,
       [],
@@ -2097,35 +2398,27 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.clear();
   }
 
+  // The group takes the place of its members in the group they all share
   function onGroupSelection() {
     const cy = cyRef.current;
     if (!cy) return;
 
-    const nodes = selectedNodes(cy);
-    const box = groupBoxAround(nodes.map(node => node.position()));
+    const members = selectionStarts(cy, null).freeElements;
+    const box = groupBoxAroundBoxes(
+      members.map(elementBox).filter(box => box !== null),
+    );
     if (!box) return;
 
-    const memberLayouts = new Map<string, NodeLayout>(
-      nodes.map(node => [
-        node.id(),
-        {position: node.position(), groupId: null},
-      ]),
+    const parentIds = currentParentIds();
+    const memberParentIds = new Set(
+      members.map(member => parentIds.get(elementKey(member)) ?? null),
     );
 
-    const name = `Group ${groupsRef.current.length + 1}`;
-    const groupId = topologyStore.manager.addGroup(
-      {
-        name,
-        position: {x: box.x, y: box.y},
-        width: box.width,
-        height: box.height,
-      },
-      memberLayouts,
+    createGroup(
+      box,
+      members,
+      memberParentIds.size === 1 ? [...memberParentIds][0] : null,
     );
-    if (groupId === null) return;
-
-    graphSelection.select({groupIds: [groupId]});
-    startGroupRename({id: groupId, name, annotation: null, ...box});
   }
 
   function onUngroup() {
@@ -2229,7 +2522,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       kind: LabelKind.Node,
       id: nodeId,
       value: nodeId,
-      position: boxCenter(
+      position: boundsCenter(
         node.boundingBox({
           includeNodes: false,
           includeLabels: true,
@@ -2249,7 +2542,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       id: edgeId,
       endpointIndex,
       value: edge.data(endpointIndex === 0 ? 'sourceLabel' : 'targetLabel'),
-      position: boxCenter(
+      position: boundsCenter(
         edge.boundingBox({
           includeEdges: false,
           includeMainLabels: false,
@@ -2263,7 +2556,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   // The field covers the label in the top left corner of the group
-  function startGroupRename(group: Omit<GraphGroup, 'memberIds'>) {
+  function startGroupRename(
+    group: Pick<GraphGroup, 'id' | 'name' | 'annotation'> & Box,
+  ) {
     const inset = groupLabelInset(
       group,
       groupStyle(group.annotation).cornerRadius,
@@ -2364,8 +2659,16 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       case 'shape':
         if (!isFinal) break;
 
+        // The groups around a resized shape or text grow to contain it
         topologyStore.manager.updateLayout({
           shapes: new Map([[item.id, boxFields(box)]]),
+          groups: boxUpdates(
+            growAncestors(
+              item.shape.annotation.groupId ?? null,
+              box,
+              new Map(),
+            ),
+          ),
         });
         break;
       case 'text':
@@ -2373,6 +2676,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
         topologyStore.manager.updateLayout({
           texts: new Map([[item.id, boxFields(box)]]),
+          groups: boxUpdates(
+            growAncestors(item.text.annotation.groupId ?? null, box, new Map()),
+          ),
         });
         break;
     }
@@ -2381,33 +2687,61 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   /**
    * Moves the members of the resized group together, so they stay inside its
    * new box while it is resized. Members that still don't fit are moved to its
-   * edge. The box and the members are saved once it ends.
+   * edge, nested groups move with everything inside them. The box and the
+   * members are saved once it ends, the groups around it grow to contain it.
    */
   function onResizeGroup(group: GraphGroup, box: Box, isFinal: boolean) {
     const cy = cyRef.current;
     if (!cy) return;
 
-    resizeMemberStarts.current ??= new Map(
-      group.memberIds.map(nodeId => [
-        nodeId,
-        {...cy.getElementById(nodeId).position()},
+    const starts = (groupResizeStarts.current ??= readGroupResizeStarts(
+      cy,
+      group,
+    ));
+    const inner = groupInnerBox(box);
+    const content = unionBox([...starts.memberBoxes.values()]);
+    const shift = content ? shiftIntoBox(inner, content) : {x: 0, y: 0};
+
+    const deltas = new Map(
+      [...starts.memberBoxes].map(([key, memberBox]) => {
+        const edge = shiftIntoBox(inner, moveBox(memberBox, shift));
+        return [key, {x: shift.x + edge.x, y: shift.y + edge.y}];
+      }),
+    );
+    const moveOf = (kind: ElementKind, id: string) =>
+      translateTransform(
+        deltas.get(starts.owners.get(elementKey({kind, id}))!) ?? {x: 0, y: 0},
+      );
+
+    const {contents} = starts;
+    const memberGroupIds = currentGroupIds();
+    const nodeLayouts = new Map<string, NodeLayout>(
+      [...contents.memberPositions].map(([id, start]) => [
+        id,
+        {
+          position: roundPosition(moveOf('node', id).position(start)),
+          groupId: memberGroupIds.get(id) ?? null,
+        },
       ]),
     );
-
-    const starts = resizeMemberStarts.current;
-    const content = groupBoxAround([...starts.values()]);
-    const delta = content ? shiftIntoBox(box, content) : {x: 0, y: 0};
-
-    const nodeLayouts = new Map<string, NodeLayout>();
-    for (const [nodeId, start] of starts) {
-      nodeLayouts.set(nodeId, {
-        position: fitIntoGroupBox(box, {
-          x: start.x + delta.x,
-          y: start.y + delta.y,
-        }),
-        groupId: group.id,
-      });
-    }
+    const groupBoxes = new Map(
+      [...contents.boxes].map(([id, start]) => [
+        id,
+        moveOf('group', id).box(start),
+      ]),
+    );
+    const shapes = new Map(
+      [...contents.shapes].map(([id, geometry]) => [
+        id,
+        transformShapeGeometry(geometry, moveOf('shape', id)),
+      ]),
+    );
+    const texts = new Map(
+      [...contents.texts].map(([id, start]) => [
+        id,
+        transformText(start, moveOf('text', id)),
+      ]),
+    );
 
     cy.batch(() => {
       for (const [nodeId, layout] of nodeLayouts) {
@@ -2415,13 +2749,69 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       }
     });
 
-    if (!isFinal) return;
+    if (!isFinal) {
+      graphSelection.setDrag(null, null, groupBoxes);
+      graphSelection.setShapePreviews(shapes);
+      graphSelection.setTextPreviews(texts);
+      return;
+    }
 
-    resizeMemberStarts.current = null;
+    groupResizeStarts.current = null;
+    graphSelection.clearDrag();
     topologyStore.manager.updateLayout({
       nodes: nodeLayouts,
-      groups: boxUpdates(new Map([[group.id, box]])),
+      groups: boxUpdates(
+        new Map([
+          ...groupBoxes,
+          [group.id, box],
+          ...growAncestors(group.parentId, box, new Map()),
+        ]),
+      ),
+      shapes,
+      texts,
     });
+  }
+
+  function readGroupResizeStarts(
+    cy: cytoscape.Core,
+    group: GraphGroup,
+  ): GroupResizeStarts {
+    const starts: GroupResizeStarts = {
+      memberBoxes: new Map(),
+      contents: {
+        boxes: new Map(),
+        shapes: new Map(),
+        texts: new Map(),
+        memberPositions: new Map(),
+        freeElements: [],
+      },
+      owners: new Map(),
+    };
+
+    for (const member of directMembers(group)) {
+      const box = elementBox(member);
+      if (!box) continue;
+
+      const key = elementKey(member);
+      starts.memberBoxes.set(key, box);
+
+      const nested = member.kind === 'group' ? contentElements(member.id) : [];
+      for (const element of [member, ...nested]) {
+        starts.owners.set(elementKey(element), key);
+        addStart(starts.contents, element, cy);
+      }
+    }
+
+    return starts;
+  }
+
+  // A group can't get smaller than any of its members
+  function groupMinSize(group: GraphGroup): Size | null {
+    const boxes = directMembers(group)
+      .map(elementBox)
+      .filter(box => box !== null);
+
+    return boxes.length > 0 ? minGroupSize(boxes) : null;
   }
 
   // The elements of the selection keep their place relative to its box
@@ -2557,6 +2947,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onDeleteSelection,
     onResize,
     getSelectionBox: () => selectionLayerRef.current?.frameBox() ?? null,
+    getGroupMinSize: groupMinSize,
     onLineEndPointerDown,
     onZoomIn: () => zoomTo((cyRef.current?.zoom() ?? 1) * ZOOM_STEP),
     onZoomOut: () => zoomTo((cyRef.current?.zoom() ?? 1) / ZOOM_STEP),
@@ -2642,6 +3033,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         getCy={callbacks.getCy}
         items={annotationItems}
         getSelectionBox={callbacks.getSelectionBox}
+        getGroupMinSize={callbacks.getGroupMinSize}
         onResize={callbacks.onResize}
       />
       <ZoomControl
@@ -2671,7 +3063,7 @@ function isTextInput(target: EventTarget | null) {
   );
 }
 
-function boxCenter(bounds: cytoscape.BoundingBox12): Position {
+function boundsCenter(bounds: cytoscape.BoundingBox12): Position {
   return {x: (bounds.x1 + bounds.x2) / 2, y: (bounds.y1 + bounds.y2) / 2};
 }
 
@@ -2688,6 +3080,15 @@ function drawHint(drawKind: DrawKind, geometry: ShapeGeometry): HintPart[] {
     {keyword: 'Shift'},
     ` for a ${drawKind === 'circle' ? 'circle' : 'square'}`,
   ];
+}
+
+function elementKey(element: ElementRef) {
+  return `${element.kind}:${element.id}`;
+}
+
+function splitElementKey(key: string): [ElementKind, string] {
+  const index = key.indexOf(':');
+  return [key.slice(0, index) as ElementKind, key.slice(index + 1)];
 }
 
 // Selects only the given group, shape or text

@@ -90,6 +90,8 @@ export function generateGroups(
   return readGraphGroups(
     topology.annotations.groupStyleAnnotations ?? [],
     members,
+    topology.annotations.freeShapeAnnotations ?? [],
+    topology.annotations.freeTextAnnotations ?? [],
   );
 }
 
