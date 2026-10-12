@@ -12,6 +12,9 @@ export enum GraphAction {
   NudgeDown,
   SelectTool,
   HandTool,
+  RectangleTool,
+  EllipseTool,
+  LineTool,
 }
 
 interface GraphKeybind {
@@ -38,6 +41,9 @@ const GRAPH_KEYBINDS: GraphKeybind[] = [
   {action: GraphAction.NudgeDown, key: 'ArrowDown'},
   {action: GraphAction.SelectTool, key: 'v', shift: false},
   {action: GraphAction.HandTool, key: 'h', shift: false},
+  {action: GraphAction.RectangleTool, key: 'r', shift: false},
+  {action: GraphAction.EllipseTool, key: 'o', shift: false},
+  {action: GraphAction.LineTool, key: 'l', shift: false},
 ];
 
 /**

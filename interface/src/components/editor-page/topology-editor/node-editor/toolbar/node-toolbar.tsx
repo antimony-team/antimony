@@ -16,6 +16,49 @@ import {useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-toolbar.sass';
 
+interface ToolButton {
+  tool: GraphTool;
+  icon: string;
+  label: string;
+  action: GraphAction;
+}
+
+const POINTER_TOOLS: ToolButton[] = [
+  {
+    tool: GraphTool.Select,
+    icon: 'arrow_selector_tool',
+    label: 'Select',
+    action: GraphAction.SelectTool,
+  },
+  {
+    tool: GraphTool.Hand,
+    icon: 'pan_tool',
+    label: 'Hand',
+    action: GraphAction.HandTool,
+  },
+];
+
+const SHAPE_TOOLS: ToolButton[] = [
+  {
+    tool: GraphTool.Rectangle,
+    icon: 'rectangle',
+    label: 'Rectangle',
+    action: GraphAction.RectangleTool,
+  },
+  {
+    tool: GraphTool.Ellipse,
+    icon: 'circle',
+    label: 'Ellipse',
+    action: GraphAction.EllipseTool,
+  },
+  {
+    tool: GraphTool.Line,
+    icon: 'north_east',
+    label: 'Line',
+    action: GraphAction.LineTool,
+  },
+];
+
 interface NodeToolbarProps {
   onAddNode: () => void;
   onFitGraph: () => void;
@@ -28,30 +71,21 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
   const simulationConfig = useSimulationConfig();
   const graphSelection = useGraphSelection();
 
+  const toolButton = (tool: ToolButton) => (
+    <Button
+      key={tool.tool}
+      icon={<span className="material-symbols-outlined">{tool.icon}</span>}
+      text
+      tooltip={`${tool.label} (${keybindLabel(tool.action)})`}
+      className={classNames({toggled: graphSelection.tool === tool.tool})}
+      onClick={() => graphSelection.setTool(tool.tool)}
+      aria-label={tool.label}
+    />
+  );
+
   return (
     <div className="sb-node-editor-toolbar">
-      <Button
-        icon={
-          <span className="material-symbols-outlined">arrow_selector_tool</span>
-        }
-        text
-        tooltip={`Select (${keybindLabel(GraphAction.SelectTool)})`}
-        className={classNames({
-          toggled: graphSelection.tool === GraphTool.Select,
-        })}
-        onClick={() => graphSelection.setTool(GraphTool.Select)}
-        aria-label="Select"
-      />
-      <Button
-        icon={<span className="material-symbols-outlined">pan_tool</span>}
-        text
-        tooltip={`Hand (${keybindLabel(GraphAction.HandTool)})`}
-        className={classNames({
-          toggled: graphSelection.tool === GraphTool.Hand,
-        })}
-        onClick={() => graphSelection.setTool(GraphTool.Hand)}
-        aria-label="Hand"
-      />
+      {POINTER_TOOLS.map(toolButton)}
       <Divider />
       <Button
         icon="pi pi-plus"
@@ -60,6 +94,9 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         onClick={props.onAddNode}
         aria-label="Add node"
       />
+      <Divider />
+      {SHAPE_TOOLS.map(toolButton)}
+      <Divider />
       <Button
         icon={<span className="material-symbols-outlined">select</span>}
         text

@@ -12,9 +12,6 @@
 
   .sb-graph-group-label
     position: absolute
-    left: 12px
-    top: 6px
-    max-width: calc(100% - 24px)
     overflow: hidden
     font-size: 12px
     white-space: nowrap
@@ -23,3 +20,20 @@
 
     &.hidden
       visibility: hidden
+
+.sb-graph-shape
+  position: absolute
+  box-sizing: border-box
+
+  &.selected
+    outline: 1.5px solid var(--accent)
+    outline-offset: 3px
+
+.sb-graph-line
+  position: absolute
+  overflow: visible
+
+  .sb-graph-line-selection
+    stroke: var(--accent)
+    stroke-opacity: .18
+    stroke-linecap: round

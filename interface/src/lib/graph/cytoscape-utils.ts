@@ -3,7 +3,10 @@ import cytoscape, {ElementDefinition} from 'cytoscape';
 import {
   Box,
   GraphGroup,
+  LayerItem,
   readGraphGroups,
+  readGraphShapes,
+  readLayerItems,
 } from '@sb/lib/graph/annotation-geometry';
 import {GRID_SPACING, placeNodes} from '@sb/lib/graph/placement';
 import {readGraphNodes} from '@sb/lib/graph/topology-graph';
@@ -84,6 +87,16 @@ export function generateGroups(
   return readGraphGroups(
     topology.annotations.groupStyleAnnotations ?? [],
     members,
+  );
+}
+
+export function generateLayerItems(
+  topology: Topology | RunTopology,
+  groups: GraphGroup[],
+): LayerItem[] {
+  return readLayerItems(
+    groups,
+    readGraphShapes(topology.annotations.freeShapeAnnotations ?? []),
   );
 }
 

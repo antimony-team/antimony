@@ -8,7 +8,7 @@ import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
-import GroupLayer from '@sb/components/common/topology-graph/group-layer/group-layer';
+import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
 import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
@@ -22,7 +22,11 @@ import LogDialog, {
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
-import {generateGraph, generateGroups} from '@sb/lib/graph/cytoscape-utils';
+import {
+  generateGraph,
+  generateGroups,
+  generateLayerItems,
+} from '@sb/lib/graph/cytoscape-utils';
 import {
   useCollectionStore,
   useDeviceStore,
@@ -103,10 +107,13 @@ const LabView = observer((props: LabDialogProps) => {
     return generateGraph(props.lab.topologyDefinition, deviceStore);
   }, [props.lab?.id]);
 
-  const groups = useMemo(() => {
+  const layerItems = useMemo(() => {
     if (!props.lab) return [];
 
-    return generateGroups(props.lab.topologyDefinition, elements);
+    return generateLayerItems(
+      props.lab.topologyDefinition,
+      generateGroups(props.lab.topologyDefinition, elements),
+    );
   }, [elements]);
 
   const labCollection = useMemo(() => {
@@ -537,7 +544,7 @@ const LabView = observer((props: LabDialogProps) => {
                 cyRef.current = cy;
                 return startStatePing(cy);
               }}
-              underlay={<GroupLayer groups={groups} />}
+              underlay={<AnnotationLayer items={layerItems} />}
             />
           </div>
         </div>

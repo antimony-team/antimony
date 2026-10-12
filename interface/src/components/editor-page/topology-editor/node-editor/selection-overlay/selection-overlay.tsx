@@ -1,4 +1,10 @@
-import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
+import React, {
+  MouseEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import cytoscape from 'cytoscape';
 import {reaction} from 'mobx';
@@ -9,42 +15,57 @@ import SelectionBar from '@sb/components/editor-page/topology-editor/node-editor
 import {useGraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {
   Box,
-  GraphGroup,
+  GraphShape,
   groupBoxAround,
+  LayerItem,
+  shapeBox,
+  shapeGeometry,
   unionBox,
 } from '@sb/lib/graph/annotation-geometry';
+import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
 import {toRenderedBox} from '@sb/lib/graph/cytoscape-utils';
-import {useStableCallbacks} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
-import {BorderStyle} from '@sb/types/domain/topology';
+import {Position} from '@sb/types/types';
 
 import './selection-overlay.sass';
 
 // Distance between a resized group and its handles, so its border stays visible
 const HANDLES_GAP = 4;
 
+export type LineEnd = 'start' | 'end';
+
 interface SelectionOverlayProps {
   getCy: () => cytoscape.Core | null;
-  groups: GraphGroup[];
+  layerItems: LayerItem[];
 
   onGroup: () => void;
-  onBorderStyle: (groupId: string, borderStyle: BorderStyle) => void;
+  onStyle: (style: Partial<AnnotationStyle>) => void;
+  onStylePreview: (style: Partial<AnnotationStyle> | null) => void;
+  onResetStyle: (fields: (keyof AnnotationStyle)[]) => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
   onUngroup: () => void;
   onDelete: () => void;
-  onResizeGroup: (groupId: string, box: Box) => void;
+  // Called while a group or shape is resized and once more when it ends
+  onResize: (id: string, box: Box, isFinal: boolean) => void;
+  onLineEndPointerDown: (
+    shapeId: string,
+    end: LineEnd,
+    event: MouseEvent,
+  ) => void;
 }
 
 /**
  * The selection box, the bar below the selection and the handles of a selected
- * group. They follow the selection and the viewport, so they are a component of
- * their own that renders without the rest of the editor.
+ * group or shape. They follow the selection and the viewport, so they are a
+ * component of their own that renders without the rest of the editor.
  */
 const SelectionOverlay = observer((props: SelectionOverlayProps) => {
   const graphSelection = useGraphSelection();
 
-  const [groupTarget, setGroupTarget] = useState<HTMLElement | null>(null);
+  const [moveableTarget, setMoveableTarget] = useState<HTMLElement | null>(
+    null,
+  );
   const moveableRef = useRef<Moveable>(null);
   const resizeStartBox = useRef<Box | null>(null);
 
@@ -53,47 +74,64 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
   // Only followed while something is selected, so panning an empty selection renders nothing
   const viewportVersion =
     graphSelection.count > 0 ? graphSelection.viewportVersion : 0;
-  const selectedGroups = props.groups.filter(group =>
-    graphSelection.groupIds.includes(group.id),
+  const selectedItems = props.layerItems.filter(item =>
+    graphSelection.layerIds.includes(item.id),
   );
-  const resizableGroup =
-    props.groups.find(group => group.id === graphSelection.resizableGroupId) ??
-    null;
+  const transformTarget =
+    props.layerItems.find(
+      item => item.id === graphSelection.transformTargetId,
+    ) ?? null;
+  const transformedLine =
+    transformTarget?.kind === 'shape' &&
+    transformTarget.shape.annotation.shapeType === 'line'
+      ? transformTarget.shape
+      : null;
+  const resizedItem = transformedLine ? null : transformTarget;
 
   useLayoutEffect(() => {
-    setGroupTarget(
-      resizableGroup
+    setMoveableTarget(
+      resizedItem
         ? (cy
             ?.container()
             ?.parentElement?.querySelector<HTMLElement>(
-              `[data-group-id="${CSS.escape(resizableGroup.id)}"]`,
+              `[data-layer-id="${CSS.escape(resizedItem.id)}"]`,
             ) ?? null)
         : null,
     );
-  }, [resizableGroup?.id, props.groups]);
+  }, [resizedItem?.id, props.layerItems]);
 
   useEffect(() => {
     moveableRef.current?.updateRect();
-  }, [viewportVersion, props.groups]);
+  }, [viewportVersion, props.layerItems]);
 
-  // The handles follow a selected group while it moves or grows
+  // The handles follow a selected group or shape while it moves or changes
   useEffect(
     () =>
       reaction(
-        () => [...graphSelection.groupPreviews.values()],
+        () => [
+          ...graphSelection.groupPreviews.values(),
+          ...graphSelection.shapePreviews.values(),
+        ],
         () => requestAnimationFrame(() => moveableRef.current?.updateRect()),
       ),
     [],
   );
 
-  function boxOf(group: GraphGroup): Box {
-    return graphSelection.groupPreviews.get(group.id) ?? group;
+  function boxOf(item: LayerItem): Box {
+    if (item.kind === 'group') {
+      return graphSelection.groupPreviews.get(item.id) ?? item.group;
+    }
+
+    return shapeBox(
+      graphSelection.shapePreviews.get(item.id) ??
+        shapeGeometry(item.shape.annotation),
+    );
   }
 
   function barBox(): Box | null {
     if (!cy) return null;
 
-    const boxes = selectedGroups.map(boxOf);
+    const boxes = selectedItems.map(boxOf);
     const selected = cy.$(':selected');
 
     if (selected.nonempty()) {
@@ -110,43 +148,14 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
     return box ? toRenderedBox(cy, box) : null;
   }
 
-  /**
-   * The box around the members of the resized group in coordinates of the
-   * container. The group can't be resized past it.
-   */
-  function innerBounds() {
-    if (!cy || !resizableGroup) return null;
-
-    const box = groupBoxAround(
-      resizableGroup.memberIds.map(nodeId =>
-        cy.getElementById(nodeId).position(),
-      ),
-    );
-    if (!box) return null;
-
-    const rendered = toRenderedBox(cy, box);
-    return {
-      left: rendered.x,
-      top: rendered.y,
-      width: rendered.width,
-      height: rendered.height,
-    };
-  }
-
-  const callbacks = useStableCallbacks({
-    onBorderStyle: (borderStyle: BorderStyle) =>
-      props.onBorderStyle(selectedGroups[0].id, borderStyle),
-  });
-
-  const isGroupAlone =
-    graphSelection.count === 1 && selectedGroups.length === 1;
+  const isItemAlone = graphSelection.count === 1 && selectedItems.length === 1;
   const showBar =
     !graphSelection.isContextMenuOpen &&
     !graphSelection.isPointerDown &&
     !graphSelection.isInteracting &&
     !graphSelection.isHandActive &&
     !graphSelection.renamingGroupId &&
-    (graphSelection.count > 1 || isGroupAlone);
+    (graphSelection.count > 1 || isItemAlone);
   const box = showBar ? barBox() : null;
 
   const selectionBox = graphSelection.selectionBox;
@@ -164,44 +173,73 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
           }}
         />
       </If>
+      <If condition={transformedLine}>
+        <LineHandles
+          line={transformedLine!}
+          onPointerDown={props.onLineEndPointerDown}
+        />
+      </If>
       <SelectionBar
         box={box}
-        group={isGroupAlone ? selectedGroups[0] : null}
+        item={isItemAlone ? selectedItems[0] : null}
         canGroup={graphSelection.nodeIds.length > 0}
-        canReorder={selectedGroups.length > 0}
+        canReorder={selectedItems.length > 0}
         onGroup={props.onGroup}
-        onBorderStyle={callbacks.onBorderStyle}
+        onStyle={props.onStyle}
+        onStylePreview={props.onStylePreview}
+        onResetStyle={props.onResetStyle}
         onBringToFront={props.onBringToFront}
         onSendToBack={props.onSendToBack}
         onUngroup={props.onUngroup}
         onDelete={props.onDelete}
       />
       {/*
-       * Mounted for as long as the editor is, without a target while no group can
+       * Mounted for as long as the editor is, without a target while nothing can
        * be resized. Mounting adds the stylesheet of Moveable to the page and
        * unmounting removes it, which recalculates the styles of the whole page.
        */}
       <Moveable
         ref={moveableRef}
         className="sb-selection-overlay-moveable"
-        target={groupTarget}
+        target={moveableTarget}
         resizable
         snappable
         padding={HANDLES_GAP}
-        innerBounds={innerBounds()}
         keepRatio={false}
         origin={false}
         renderDirections={['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se']}
-        onResizeStart={() => {
-          resizeStartBox.current = resizableGroup
-            ? boxOf(resizableGroup)
-            : null;
+        onResizeStart={event => {
+          resizeStartBox.current = resizedItem ? boxOf(resizedItem) : null;
           graphSelection.setInteracting(true);
+
+          // A group with members can't get smaller than a group around one node
+          if (
+            resizedItem?.kind === 'group' &&
+            resizedItem.group.memberIds.length > 0
+          ) {
+            const nodeGroup = groupBoxAround([{x: 0, y: 0}])!;
+            event.setMin([nodeGroup.width, nodeGroup.height]);
+          }
         }}
         onResize={event => {
           event.target.style.width = `${event.width}px`;
           event.target.style.height = `${event.height}px`;
           event.target.style.transform = event.drag.transform;
+
+          const start = resizeStartBox.current;
+          if (!start || !resizedItem) return;
+
+          const [dx, dy] = event.drag.beforeTranslate;
+          props.onResize(
+            resizedItem.id,
+            {
+              x: start.x + dx,
+              y: start.y + dy,
+              width: event.width,
+              height: event.height,
+            },
+            false,
+          );
         }}
         onResizeEnd={event => {
           graphSelection.setInteracting(false);
@@ -209,17 +247,61 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
 
           const start = resizeStartBox.current;
           const last = event.lastEvent;
-          if (!start || !last || !resizableGroup) return;
+          if (!start || !last || !resizedItem) return;
 
           const [dx, dy] = last.drag.beforeTranslate;
-          props.onResizeGroup(resizableGroup.id, {
-            x: start.x + dx,
-            y: start.y + dy,
-            width: last.width,
-            height: last.height,
-          });
+          props.onResize(
+            resizedItem.id,
+            {
+              x: start.x + dx,
+              y: start.y + dy,
+              width: last.width,
+              height: last.height,
+            },
+            true,
+          );
         }}
       />
+    </>
+  );
+});
+
+interface LineHandlesProps {
+  line: GraphShape;
+  onPointerDown: (shapeId: string, end: LineEnd, event: MouseEvent) => void;
+}
+
+// A handle at each end of the selected line, they follow the line while it changes
+const LineHandles = observer((props: LineHandlesProps) => {
+  const graphSelection = useGraphSelection();
+
+  const geometry =
+    graphSelection.shapePreviews.get(props.line.id) ??
+    shapeGeometry(props.line.annotation);
+
+  const {zoom, pan} = graphSelection;
+
+  const ends: [LineEnd, Position][] = [
+    ['start', geometry.position],
+    ['end', geometry.endPosition ?? geometry.position],
+  ];
+
+  return (
+    <>
+      {ends.map(([end, position]) => (
+        <span
+          key={end}
+          className="sb-selection-overlay-line-handle"
+          style={{
+            left: position.x * zoom + pan.x,
+            top: position.y * zoom + pan.y,
+          }}
+          onMouseDown={event => {
+            if (event.button !== 0) return;
+            props.onPointerDown(props.line.id, end, event);
+          }}
+        />
+      ))}
     </>
   );
 });

@@ -33,8 +33,43 @@
     &.sb-selection-bar-delete:enabled:hover
       color: var(--danger-color-text)
 
+    &.toggled
+      color: var(--text)
+      background-color: var(--surface-selected)
+
+  .sb-selection-bar-swatch
+    display: inline-flex
+    align-items: center
+    gap: 4px
+    height: 30px
+    padding: 0 6px 0 8px
+    border: 0
+    border-radius: 7px
+    background: transparent
+    color: var(--text-muted)
+    cursor: pointer
+
+    &:hover, &.active
+      background-color: var(--surface-selected)
+
+    .pi
+      font-size: 10px
+
+    .sb-color-swatch
+      width: 14px
+      height: 14px
+      border-radius: 4px
+
+      &.ring
+        background: transparent
+        border-width: 2.5px
+        border-style: solid
+
   .p-selectbutton.p-button-group
     padding: 2px
+
+    &.p-disabled
+      opacity: .4
 
     .p-button
       height: 28px

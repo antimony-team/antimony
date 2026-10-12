@@ -5,9 +5,12 @@ import {YAMLSeq} from 'yaml';
 import {placeNodes} from '@sb/lib/graph/placement';
 import {
   addAnnotationItem,
+  AnnotationListKey,
   convertGraphLabels,
   convertLegacyGroups,
+  frontZIndex,
   nextAnnotationId,
+  removeAnnotationItems,
   removeGroupAnnotations,
   removeNodeAnnotations,
   removeOrphanedNodeAnnotations,
@@ -29,6 +32,7 @@ import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {
   BindFile,
+  FreeShapeAnnotation,
   GroupStyleAnnotation,
   NodeAnnotation,
   NodeConnection,
@@ -89,7 +93,16 @@ export interface GraphLayoutUpdate {
 
   // The changed fields of groups by group ID
   groups?: Map<string, Partial<GroupStyleAnnotation>>;
+
+  // The changed fields of shapes by shape ID
+  shapes?: Map<string, Partial<FreeShapeAnnotation>>;
 }
+
+// The annotation lists that are drawn below the nodes in one order
+const LAYER_ANNOTATION_KEYS: AnnotationListKey[] = [
+  'groupStyleAnnotations',
+  'freeShapeAnnotations',
+];
 
 export enum OpenFileType {
   Topology,
@@ -312,6 +325,14 @@ export class TopologyManager {
         );
       }
 
+      if (update.shapes) {
+        updatedAnnotations = updateAnnotationItems(
+          updatedAnnotations,
+          'freeShapeAnnotations',
+          update.shapes,
+        );
+      }
+
       return updatedAnnotations;
     }, mergeKey);
   }
@@ -367,33 +388,53 @@ export class TopologyManager {
   }
 
   /**
-   * Draws the given groups in front of or behind all other groups.
+   * Adds a shape in front of all groups and shapes. Returns the ID of the shape.
    */
-  public reorderGroups(groupIds: string[], toFront: boolean) {
-    if (groupIds.length === 0) return;
+  public addShape(
+    shape: Pick<FreeShapeAnnotation, 'shapeType' | 'position'> &
+      Partial<FreeShapeAnnotation>,
+  ): string | null {
+    let shapeId: string | null = null;
+
+    this.editGraphAnnotations(annotations => {
+      shapeId = nextAnnotationId(annotations, 'freeShapeAnnotations', 'shape');
+
+      return addAnnotationItem(annotations, 'freeShapeAnnotations', {
+        ...shape,
+        id: shapeId,
+        zIndex: frontZIndex(annotations, LAYER_ANNOTATION_KEYS),
+      });
+    });
+
+    return shapeId;
+  }
+
+  /**
+   * Draws the given groups and shapes in front of or behind all other groups
+   * and shapes.
+   */
+  public reorderLayers(ids: string[], toFront: boolean) {
+    if (ids.length === 0) return;
 
     this.editGraphAnnotations(annotations =>
-      reorderAnnotationItems(
-        annotations,
-        'groupStyleAnnotations',
-        groupIds,
-        toFront,
-      ),
+      reorderAnnotationItems(annotations, LAYER_ANNOTATION_KEYS, ids, toFront),
     );
   }
 
   /**
-   * Deletes the given nodes, links and groups in one edit. The members of a
-   * deleted group are only deleted if they are given as well.
+   * Deletes the given nodes, links, groups and shapes in one edit. The members
+   * of a deleted group are only deleted if they are given as well.
    *
    * @param nodeNames The names of the nodes to delete.
    * @param links The links to delete by the names of their two nodes.
    * @param groupIds The IDs of the groups to delete.
+   * @param shapeIds The IDs of the shapes to delete.
    */
   public deleteElements(
     nodeNames: string[],
     links: [string, string][],
     groupIds: string[],
+    shapeIds: string[],
   ) {
     if (!this.editingTopology) return;
 
@@ -431,9 +472,13 @@ export class TopologyManager {
       }
     }
 
-    const annotations = removeNodeAnnotations(
-      removeGroupAnnotations(this.editingTopology.annotations, groupIds),
-      nodeNames,
+    const annotations = removeAnnotationItems(
+      removeNodeAnnotations(
+        removeGroupAnnotations(this.editingTopology.annotations, groupIds),
+        nodeNames,
+      ),
+      'freeShapeAnnotations',
+      shapeIds,
     );
 
     this.editTopology(

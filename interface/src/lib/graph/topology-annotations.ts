@@ -131,18 +131,26 @@ export function removeAnnotationItems(
   };
 }
 
+type LayeredItem = {id: string; zIndex?: number};
+
 /**
- * Brings the given items of the list in front of all other items of the list,
- * or behind them. The order between the given items is kept.
+ * Brings the given items in front of all other items of the given lists, or
+ * behind them. The lists share one order, the order between the given items is
+ * kept.
+ *
+ * @param annotations The annotations to update.
+ * @param keys The lists that are drawn in one order.
+ * @param ids The IDs of the moved items.
+ * @param toFront Whether the items are brought to the front or sent to the back.
  */
 export function reorderAnnotationItems(
   annotations: TopologyAnnotations,
-  key: AnnotationListKey,
+  keys: AnnotationListKey[],
   ids: string[],
   toFront: boolean,
 ): TopologyAnnotations {
-  const items = annotations[key] ?? [];
   const movedIds = new Set(ids);
+  const items = keys.flatMap<LayeredItem>(key => annotations[key] ?? []);
   const moved = items.filter(item => movedIds.has(item.id));
   const others = items.filter(item => !movedIds.has(item.id));
   if (moved.length === 0) return annotations;
@@ -159,7 +167,24 @@ export function reorderAnnotationItems(
     sortedMoved.map((item, index) => [item.id, {zIndex: start + index}]),
   );
 
-  return updateAnnotationItems(annotations, key, updates);
+  return keys.reduce(
+    (updated, key) => updateAnnotationItems(updated, key, updates),
+    annotations,
+  );
+}
+
+/**
+ * Returns a z-index that is in front of all items of the given lists.
+ */
+export function frontZIndex(
+  annotations: TopologyAnnotations,
+  keys: AnnotationListKey[],
+): number {
+  const zIndices = keys.flatMap(key =>
+    (annotations[key] ?? []).map((item: LayeredItem) => item.zIndex ?? 0),
+  );
+
+  return Math.max(0, ...zIndices) + 1;
 }
 
 /**

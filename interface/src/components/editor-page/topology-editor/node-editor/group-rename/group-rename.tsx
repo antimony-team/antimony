@@ -4,7 +4,8 @@ import {observer} from 'mobx-react-lite';
 
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useGraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
-import {GraphGroup} from '@sb/lib/graph/annotation-geometry';
+import {GraphGroup, groupLabelInset} from '@sb/lib/graph/annotation-geometry';
+import {groupStyle} from '@sb/lib/graph/annotation-style';
 import {If} from '@sb/types/control';
 
 import './group-rename.sass';
@@ -27,6 +28,9 @@ const GroupRename = observer((props: GroupRenameProps) => {
   const group =
     props.groups.find(group => group.id === graphSelection.renamingGroupId) ??
     null;
+  const labelInset = group
+    ? groupLabelInset(group, groupStyle(group.annotation).cornerRadius)
+    : 0;
 
   useEffect(() => {
     if (!group) return;
@@ -39,7 +43,10 @@ const GroupRename = observer((props: GroupRenameProps) => {
     <If condition={group}>
       <div
         className="sb-group-rename"
-        style={{left: group!.x + 4, top: group!.y + 2}}
+        style={{
+          left: group!.x + 4 + labelInset,
+          top: group!.y + 2 + labelInset,
+        }}
         onKeyDown={event => {
           if (event.key === 'Escape') graphSelection.setRenamingGroup(null);
         }}

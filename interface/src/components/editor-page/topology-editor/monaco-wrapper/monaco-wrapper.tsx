@@ -486,9 +486,12 @@ const MonacoWrapper = observer(
           return;
         }
 
+        // Browsers have their own shortcuts on these keys, e.g. reopening a closed tab
         if (event.key === 'z') {
+          event.preventDefault();
           onTriggerUndo();
         } else if (event.key === 'y' || event.key === 'Z') {
+          event.preventDefault();
           onTriggerRedo();
         }
       },

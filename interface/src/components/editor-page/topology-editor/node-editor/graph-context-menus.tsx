@@ -3,6 +3,7 @@ import React, {cloneElement, ReactElement, ReactNode} from 'react';
 import {MenuItem} from 'primereact/menuitem';
 
 import {GraphAction, keybindLabel} from '@sb/lib/graph/graph-keybinds';
+import {FreeShapeAnnotation} from '@sb/types/domain/topology';
 
 const SEPARATOR: MenuItem = {separator: true};
 
@@ -186,6 +187,56 @@ export function groupMenu(options: GroupMenuOptions): MenuItem[] {
       className: 'sb-menuitem-danger',
       command: options.onDelete,
     },
+  ];
+}
+
+interface ShapeMenuOptions {
+  shapeType: FreeShapeAnnotation['shapeType'];
+
+  // Changes a rectangle to an ellipse and back, or reverses a line
+  onChangeShape: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
+  onDelete: () => void;
+}
+
+export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
+  const changeItem: MenuItem =
+    options.shapeType === 'line'
+      ? {label: 'Reverse direction', icon: icon('swap_horiz')}
+      : options.shapeType === 'rectangle'
+        ? {label: 'Change to ellipse', icon: icon('circle')}
+        : {label: 'Change to rectangle', icon: icon('rectangle')};
+
+  return [
+    {...changeItem, command: options.onChangeShape},
+    SEPARATOR,
+    withKeybind(
+      {
+        label: 'Bring to front',
+        icon: icon('flip_to_front'),
+        command: options.onBringToFront,
+      },
+      GraphAction.BringToFront,
+    ),
+    withKeybind(
+      {
+        label: 'Send to back',
+        icon: icon('flip_to_back'),
+        command: options.onSendToBack,
+      },
+      GraphAction.SendToBack,
+    ),
+    SEPARATOR,
+    withKeybind(
+      {
+        label: 'Delete',
+        icon: 'pi pi-trash',
+        className: 'sb-menuitem-danger',
+        command: options.onDelete,
+      },
+      GraphAction.Delete,
+    ),
   ];
 }
 
