@@ -20,6 +20,9 @@ import {BorderStyle} from '@sb/types/domain/topology';
 
 import './selection-overlay.sass';
 
+// Distance between a resized group and its handles, so its border stays visible
+const HANDLES_GAP = 4;
+
 interface SelectionOverlayProps {
   getCy: () => cytoscape.Core | null;
   groups: GraphGroup[];
@@ -184,6 +187,7 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
         target={groupTarget}
         resizable
         snappable
+        padding={HANDLES_GAP}
         innerBounds={innerBounds()}
         keepRatio={false}
         origin={false}
