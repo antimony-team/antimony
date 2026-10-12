@@ -63,12 +63,9 @@ function clipboardItems(options: ClipboardOptions): MenuItem[] {
 }
 
 interface NodeMenuOptions extends ClipboardOptions {
-  groups: {id: string; name: string}[];
-
   onRename: () => void;
   onEdit: () => void;
   onConnect: () => void;
-  onAddToGroup: (groupId: string) => void;
   onDelete: () => void;
 }
 
@@ -85,16 +82,6 @@ export function nodeMenu(options: NodeMenuOptions): MenuItem[] {
       command: options.onConnect,
     },
     ...clipboardItems(options),
-    SEPARATOR,
-    {
-      label: 'Add to group',
-      icon: icon('select'),
-      disabled: options.groups.length === 0,
-      items: options.groups.map(group => ({
-        label: group.name,
-        command: () => options.onAddToGroup(group.id),
-      })),
-    },
     SEPARATOR,
     withKeybind(
       {
@@ -355,6 +342,11 @@ export function graphMenu(options: GraphMenuOptions): MenuItem[] {
       label: 'Add text',
       icon: icon('text_fields'),
       command: () => options.onAddAnnotation('text'),
+    },
+    {
+      label: 'Add group',
+      icon: icon('select'),
+      command: () => options.onAddAnnotation('group'),
     },
     SEPARATOR,
     withKeybind(

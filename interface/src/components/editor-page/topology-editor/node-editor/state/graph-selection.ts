@@ -25,6 +25,7 @@ export enum GraphTool {
   Ellipse,
   Line,
   Text,
+  Group,
 }
 
 // What each drawing tool draws
@@ -33,6 +34,7 @@ export const TOOL_DRAW_KINDS = new Map<GraphTool, DrawKind>([
   [GraphTool.Ellipse, 'circle'],
   [GraphTool.Line, 'line'],
   [GraphTool.Text, 'text'],
+  [GraphTool.Group, 'group'],
 ]);
 
 // A part of a hint, keywords like the keys to press are highlighted

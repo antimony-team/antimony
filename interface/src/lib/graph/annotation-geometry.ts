@@ -65,7 +65,7 @@ export interface Size {
 }
 
 // What a drawing tool draws
-export type DrawKind = FreeShapeAnnotation['shapeType'] | 'text';
+export type DrawKind = FreeShapeAnnotation['shapeType'] | 'text' | 'group';
 
 // A shape or text while it is drawn with a drawing tool
 export interface DrawnShape {
@@ -95,6 +95,9 @@ const GROUP_PADDING = 24;
 const DEFAULT_SHAPE_WIDTH = 160;
 const DEFAULT_SHAPE_HEIGHT = 100;
 const DEFAULT_LINE_LENGTH = 160;
+
+const DEFAULT_GROUP_WIDTH = 240;
+const DEFAULT_GROUP_HEIGHT = 160;
 
 const DEFAULT_TEXT_WIDTH = 240;
 const DEFAULT_TEXT_HEIGHT = 60;
@@ -563,6 +566,10 @@ export function placedGeometry(
 ): ShapeGeometry {
   if (kind === 'text') {
     return {position, width: DEFAULT_TEXT_WIDTH, height: DEFAULT_TEXT_HEIGHT};
+  }
+
+  if (kind === 'group') {
+    return {position, width: DEFAULT_GROUP_WIDTH, height: DEFAULT_GROUP_HEIGHT};
   }
 
   return shapeGeometry({id: '', shapeType: kind, position});

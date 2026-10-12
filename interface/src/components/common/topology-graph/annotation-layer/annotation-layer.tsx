@@ -266,6 +266,15 @@ const DrawPreview = observer(({state}: {state: AnnotationLayerState}) => {
     );
   }
 
+  if (preview.kind === 'group') {
+    return (
+      <div
+        className="sb-graph-group"
+        style={boxStyle(shapeBox(preview.geometry), defaultStyle())}
+      />
+    );
+  }
+
   const style = defaultStyle(preview.kind);
 
   if (preview.kind === 'line') {

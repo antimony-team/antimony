@@ -63,6 +63,12 @@ const SHAPE_TOOLS: ToolButton[] = [
     label: 'Text',
     action: GraphAction.TextTool,
   },
+  {
+    tool: GraphTool.Group,
+    icon: 'select',
+    label: 'Group',
+    action: GraphAction.GroupTool,
+  },
 ];
 
 interface NodeToolbarProps {

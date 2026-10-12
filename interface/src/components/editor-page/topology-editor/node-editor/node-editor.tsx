@@ -661,6 +661,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       case GraphAction.TextTool:
         graphSelection.setTool(GraphTool.Text);
         break;
+      case GraphAction.GroupTool:
+        graphSelection.setTool(GraphTool.Group);
+        break;
       case GraphAction.Duplicate:
         onDuplicate();
         break;
@@ -1399,8 +1402,27 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
   }
 
-  // Adds a drawn shape or text and selects it, a text is edited right away
+  // Adds a drawn shape, text or group and selects it, a text or group is named right away
   function addAnnotation(drawKind: DrawKind, geometry: ShapeGeometry) {
+    if (drawKind === 'group') {
+      const box = shapeBox(geometry);
+      const name = `Group ${groupsRef.current.length + 1}`;
+      const groupId = topologyStore.manager.addGroup(
+        {
+          name,
+          position: geometry.position,
+          width: box.width,
+          height: box.height,
+        },
+        new Map(),
+      );
+      if (groupId === null) return;
+
+      graphSelection.select({groupIds: [groupId]});
+      startGroupRename({id: groupId, name, annotation: null, ...box});
+      return;
+    }
+
     if (drawKind === 'text') {
       const textId = topologyStore.manager.addText({text: '', ...geometry});
       if (textId === null) return;
@@ -1704,13 +1726,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         : nodeMenu({
             ...clipboardActions,
             onRename: () => startNodeRename(event.target.id()),
-            groups: groupsRef.current.map(group => ({
-              id: group.id,
-              name: group.name,
-            })),
             onEdit: onNodeEdit,
             onConnect: onNodeConnectStart,
-            onAddToGroup: onAddToGroup,
             onDelete: onDeleteSelection,
           }),
     );
@@ -2116,26 +2133,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     topologyStore.manager.removeGroups(graphSelection.groupIds);
     graphSelection.setGroups([]);
-  }
-
-  function onAddToGroup(groupId: string) {
-    const cy = cyRef.current;
-    const group = groupsRef.current.find(group => group.id === groupId);
-    if (!cy || !group) return;
-
-    const nodes = selectedNodes(cy);
-    const nodeLayouts = new Map<string, NodeLayout>(
-      nodes.map(node => [node.id(), {position: node.position(), groupId}]),
-    );
-    const grownBox = growGroupBox(
-      group,
-      nodes.map(node => node.position()),
-    );
-
-    topologyStore.manager.updateLayout({
-      nodes: nodeLayouts,
-      groups: boxUpdates(new Map([[groupId, grownBox]])),
-    });
   }
 
   function onStyle(style: Partial<AnnotationStyle>) {
