@@ -18,6 +18,7 @@ import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import {configureMonacoYaml} from 'monaco-yaml';
 import YamlWorker from 'monaco-yaml/yaml.worker?worker';
 
+import {GraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
 import {
   useAuthUser,
@@ -98,6 +99,9 @@ interface MonacoWrapperProps {
 
   // Undo history of the open topology, bind files use the history of monaco instead
   history: TopologyHistory;
+
+  // Kept with changes of the graph, so undo and redo restore it
+  graphSelection: GraphSelection;
 
   onLanguageChange: (language: string) => void;
   onCursorChange: (line: number, column: number) => void;
@@ -315,7 +319,10 @@ const MonacoWrapper = observer(
       // One entry for both files, so a change of the graph is undone in one step
       if (hasChanged) {
         history.current.record(
-          historyEntry(openTopologyFileRef.current),
+          {
+            ...historyEntry(openTopologyFileRef.current),
+            graphSelectionBefore: props.graphSelection.snapshot,
+          },
           editReport.mergeKey ?? null,
         );
       }
@@ -514,8 +521,11 @@ const MonacoWrapper = observer(
 
       if (isEditorReadOnly()) return;
 
-      const undone = history.current.undo();
-      if (undone) applyHistoryEntry(undone.entry, undone.file);
+      const undone = history.current.undo(props.graphSelection.snapshot);
+      if (!undone) return;
+
+      props.graphSelection.setPendingSelection(undone.graphSelection ?? null);
+      applyHistoryEntry(undone.entry, undone.file);
     }
 
     function onTriggerRedo() {
@@ -527,7 +537,10 @@ const MonacoWrapper = observer(
       if (isEditorReadOnly()) return;
 
       const redone = history.current.redo();
-      if (redone) applyHistoryEntry(redone.entry, redone.file);
+      if (!redone) return;
+
+      props.graphSelection.setPendingSelection(redone.graphSelection ?? null);
+      applyHistoryEntry(redone.entry, redone.file);
     }
 
     function initializeEditor() {

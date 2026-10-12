@@ -598,6 +598,63 @@ export function moveShapeGeometry(
 }
 
 /**
+ * Maps positions and boxes of elements that are moved or resized together.
+ */
+export interface SelectionTransform {
+  position: (position: Position) => Position;
+  box: (box: Box) => Box;
+}
+
+export function translateTransform(delta: Position): SelectionTransform {
+  return {
+    position: position => ({x: position.x + delta.x, y: position.y + delta.y}),
+    box: box => moveBox(box, delta),
+  };
+}
+
+/**
+ * Returns the transform that resizes the given box to the other box, the
+ * elements inside it keep their place relative to the box.
+ */
+export function scaleTransform(from: Box, to: Box): SelectionTransform {
+  const scaleX = from.width > 0 ? to.width / from.width : 1;
+  const scaleY = from.height > 0 ? to.height / from.height : 1;
+
+  const position = (position: Position) => ({
+    x: to.x + (position.x - from.x) * scaleX,
+    y: to.y + (position.y - from.y) * scaleY,
+  });
+
+  return {
+    position,
+    box: box => ({
+      ...position(box),
+      width: box.width * scaleX,
+      height: box.height * scaleY,
+    }),
+  };
+}
+
+export function transformShapeGeometry(
+  geometry: ShapeGeometry,
+  transform: SelectionTransform,
+): ShapeGeometry {
+  if (geometry.endPosition) {
+    return {
+      position: roundPosition(transform.position(geometry.position)),
+      endPosition: roundPosition(transform.position(geometry.endPosition)),
+    };
+  }
+
+  const box = transform.box(shapeBox(geometry));
+  return {
+    position: roundPosition(box),
+    width: roundCoordinate(box.width),
+    height: roundCoordinate(box.height),
+  };
+}
+
+/**
  * Returns the geometry of a shape or text drawn from one corner to another.
  * Shift makes boxes square and lines horizontal or vertical.
  */

@@ -645,6 +645,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                   openBindFile={openBindFile}
                   onOpenTopologyFile={setOpenTopologyFile}
                   history={history}
+                  graphSelection={graphSelection}
                   setValidationError={onSetValidationError}
                   onBindFileLinkClick={onBindFileLinkClick}
                   onLanguageChange={setCurrentLanguage}

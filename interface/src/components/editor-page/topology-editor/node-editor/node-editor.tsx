@@ -70,18 +70,20 @@ import {
   growGroupBox,
   hitTestLayers,
   LayerHit,
-  moveBox,
-  moveShapeGeometry,
   placedGeometry,
   readGraphTexts,
   roundCoordinate,
   roundPosition,
+  scaleTransform,
+  SelectionTransform,
   shapeBox,
   ShapeGeometry,
   shapeGeometry,
   shiftIntoBox,
   textAt,
   textBox,
+  transformShapeGeometry,
+  translateTransform,
 } from '@sb/lib/graph/annotation-geometry';
 import {
   AnnotationStyle,
@@ -105,7 +107,6 @@ import {
   GraphClipboard,
   parseClipboard,
   pasteClipboard,
-  PastedElements,
 } from '@sb/lib/graph/graph-clipboard';
 import {GraphAction, matchGraphKeybind} from '@sb/lib/graph/graph-keybinds';
 import {
@@ -116,11 +117,11 @@ import {GRID_SPACING, OccupiedPositions} from '@sb/lib/graph/placement';
 import {findNodeAnnotation} from '@sb/lib/graph/topology-annotations';
 import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
+import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
 import {useStableCallbacks} from '@sb/lib/utils/hooks';
 import {
   FreeShapeAnnotation,
   FreeTextAnnotation,
-  GroupStyleAnnotation,
   Topology,
 } from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
@@ -161,6 +162,20 @@ const HIT_TOLERANCE = 6;
 // Shapes that are drawn smaller than this are placed with their default size
 const MIN_SHAPE_SIZE = 4;
 
+/**
+ * The selected elements as they were when the selection started to move or to
+ * be resized.
+ */
+interface SelectionStarts {
+  boxes: Map<string, Box>;
+  shapes: Map<string, ShapeGeometry>;
+  texts: Map<string, Pick<FreeTextAnnotation, 'position' | 'width' | 'height'>>;
+  memberPositions: Map<string, Position>;
+
+  // The moved nodes that move on their own, they can join, leave and grow groups
+  nodeIds: string[];
+}
+
 type PointerAction =
   | {
       kind: 'select-box';
@@ -169,17 +184,13 @@ type PointerAction =
       isAdditive: boolean;
       hasMoved: boolean;
     }
-  | {
+  | ({
       kind: 'move-layers';
       origin: Position;
       originClient: Position;
       pointer: Position;
-      boxes: Map<string, Box>;
-      shapes: Map<string, ShapeGeometry>;
-      texts: Map<string, Position>;
-      memberPositions: Map<string, Position>;
       hasMoved: boolean;
-    }
+    } & SelectionStarts)
   | {
       kind: 'draw';
       drawKind: DrawKind;
@@ -230,14 +241,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const menuTargetRef = useRef<string | null>(null);
   // Position in the graph where the context menu of the graph was opened
   const contextMenuPosition = useRef<Position>({x: 0, y: 0});
-  const draggedNodeIds = useRef(new Set<string>());
   const pointerAction = useRef<PointerAction | null>(null);
   const isDragCtrl = useRef(false);
-  const dragFrame = useRef(0);
   const moveFrame = useRef(0);
 
   // Positions of the members of a resized group from before it was resized
   const resizeMemberStarts = useRef<Map<string, Position> | null>(null);
+  const selectionResizeStarts = useRef<SelectionStarts | null>(null);
 
   /*
    * The targets of the last two taps. Cytoscape emits a double tap for any two
@@ -254,7 +264,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const copiedElements = useRef<GraphClipboard | null>(null);
 
   // Pasted elements are selected once the graph shows them
-  const pastedElements = useRef<PastedElements | null>(null);
 
   // Where the pointer was last, elements pasted with the keyboard are placed there
   const lastPointer = useRef<Position | null>(null);
@@ -372,8 +381,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   useEffect(
     () =>
       autorun(() => {
-        applyTool(graphSelection.isHandActive);
-
         // Set on the element directly, so switching tools doesn't render the editor again
         containerRef.current?.classList.toggle(
           'sb-node-editor-hand',
@@ -388,23 +395,31 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   );
 
   useEffect(() => {
-    graphSelection.setAnnotations([], [], []);
+    graphSelection.clear();
     graphSelection.setLabelEdit(null);
+    graphSelection.setPendingSelection(null);
   }, [props.openTopology?.id]);
 
   useEffect(() => {
-    const pasted = pastedElements.current;
+    const pending = graphSelection.pendingSelection;
     const cy = cyRef.current;
-    if (!pasted || !cy) return;
+    if (!pending || !cy) return;
 
-    pastedElements.current = null;
-    cy.elements().unselect();
-    pasted.nodes.forEach(node => cy.getElementById(node.name).select());
-    graphSelection.setAnnotations(
-      pasted.groups.map(group => group.id),
-      pasted.shapes.map(shape => shape.id),
-      pasted.texts.map(text => text.id),
-    );
+    // The definition and the annotations can arrive one after the other
+    const annotationIds = new Set([
+      ...groups.map(group => group.id),
+      ...layerItems.map(item => item.id),
+      ...texts.map(text => text.id),
+    ]);
+    const isShown =
+      pending.nodeIds.every(nodeId => cy.getElementById(nodeId).nonempty()) &&
+      [...pending.groupIds, ...pending.shapeIds, ...pending.textIds].every(id =>
+        annotationIds.has(id),
+      );
+    if (!isShown) return;
+
+    graphSelection.setPendingSelection(null);
+    graphSelection.select(pending);
   }, [elements]);
 
   // The label that is edited is hidden in the graph, the field takes its place
@@ -429,53 +444,29 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     [],
   );
 
-  // Annotations that were removed, e.g. by undo, are removed from the selection
+  // Elements that were removed, e.g. by undo, are removed from the selection
   useEffect(() => {
-    const ids = new Set([
-      ...layerItems.map(item => item.id),
-      ...texts.map(text => text.id),
-    ]);
-
-    if (graphSelection.annotationIds.some(id => !ids.has(id))) {
-      graphSelection.setAnnotations(
-        graphSelection.groupIds.filter(id => ids.has(id)),
-        graphSelection.shapeIds.filter(id => ids.has(id)),
-        graphSelection.textIds.filter(id => ids.has(id)),
-      );
-    }
+    graphSelection.retain(
+      new Set([
+        ...(cyRef.current?.nodes('.topology-node').map(node => node.id()) ??
+          []),
+        ...layerItems.map(item => item.id),
+        ...texts.map(text => text.id),
+      ]),
+    );
   }, [layerItems, texts]);
-
-  /**
-   * Panning stays enabled with all tools, as cytoscape only zooms with the
-   * mouse wheel while it is. It is paused while a box is drawn or annotations
-   * are moved.
-   */
-  function applyTool(isHandActive: boolean) {
-    const cy = cyRef.current;
-    if (!cy) return;
-
-    cy.autoungrabify(isHandActive);
-    cy.autounselectify(isHandActive);
-  }
 
   function onInstance(cy: cytoscape.Core) {
     cyRef.current = cy;
 
+    /*
+     * Nodes are selected and moved by the editor, together with the rest of the
+     * selection. Panning stays enabled, as cytoscape only zooms with the mouse
+     * wheel while it is, it is paused while elements are moved.
+     */
     cy.boxSelectionEnabled(false);
-    applyTool(graphSelection.isHandActive);
-
-    let isSyncPending = false;
-    const syncSelection = () => {
-      if (isSyncPending) return;
-      isSyncPending = true;
-
-      queueMicrotask(() => {
-        isSyncPending = false;
-        graphSelection.setNodes(
-          cy.nodes('.topology-node:selected').map(node => node.id()),
-        );
-      });
-    };
+    cy.autounselectify(true);
+    cy.autoungrabify(true);
 
     let frame = 0;
     let zoom = cy.zoom();
@@ -508,13 +499,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       });
     };
 
-    // Removed nodes are removed from the selection without being unselected
-    cy.on('select unselect remove', syncSelection);
     cy.on('viewport', onViewport);
     cy.on('position', 'node', onPosition);
 
     return () => {
-      cy.off('select unselect remove', syncSelection);
       cy.off('viewport', onViewport);
       cy.off('position', 'node', onPosition);
     };
@@ -807,13 +795,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     event.preventDefault();
 
     if (!graphSelection.textIds.includes(textId)) {
-      cyRef.current?.elements().unselect();
-      graphSelection.setAnnotations([], [], [textId]);
+      graphSelection.select({textIds: [textId]});
     }
 
     menuTargetRef.current = textId;
     setContextMenuModel(
-      selectionCount() > 1
+      graphSelection.count > 1
         ? currentSelectionMenu()
         : textMenu({
             ...clipboardActions,
@@ -862,7 +849,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy.userPanningEnabled(false);
 
     if (!hit) {
-      if (!mouseEvent.shiftKey) graphSelection.setAnnotations([], [], []);
+      if (!mouseEvent.shiftKey) graphSelection.clear();
 
       pointerAction.current = {
         kind: 'select-box',
@@ -902,14 +889,38 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       if (item.kind === 'shape') graphSelection.toggleShape(item.id);
       if (item.kind === 'text') graphSelection.toggleText(item.id);
     } else if (!graphSelection.annotationIds.includes(item.id)) {
-      cy.elements().unselect();
-      graphSelection.setAnnotations(
-        item.kind === 'group' ? [item.id] : [],
-        item.kind === 'shape' ? [item.id] : [],
-        item.kind === 'text' ? [item.id] : [],
-      );
+      graphSelection.select(itemSelection(item.kind, item.id));
     }
 
+    startMove(position, originClient, null);
+  }
+
+  /**
+   * Starts moving the selection. The pressed node moves with it, even if it
+   * isn't selected yet.
+   */
+  function startMove(
+    position: Position,
+    originClient: Position,
+    pressedNodeId: string | null,
+  ) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    pointerAction.current = {
+      kind: 'move-layers',
+      origin: position,
+      originClient,
+      pointer: position,
+      hasMoved: false,
+      ...selectionStarts(cy, pressedNodeId),
+    };
+  }
+
+  function selectionStarts(
+    cy: cytoscape.Core,
+    pressedNodeId: string | null,
+  ): SelectionStarts {
     const movedGroups = groupsRef.current.filter(group =>
       graphSelection.groupIds.includes(group.id),
     );
@@ -923,27 +934,38 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       }
     }
 
-    const shapes = new Map(
-      selectedShapes().map(shape => [
-        shape.id,
-        shapeGeometry(shape.annotation),
+    // Nodes that move with their group stay in it
+    const nodeIds = [
+      ...new Set([
+        ...graphSelection.nodeIds,
+        ...(pressedNodeId ? [pressedNodeId] : []),
       ]),
-    );
+    ].filter(nodeId => !memberPositions.has(nodeId));
 
-    const texts = new Map(
-      selectedTexts().map(text => [text.id, text.annotation.position]),
-    );
+    for (const nodeId of nodeIds) {
+      memberPositions.set(nodeId, {...cy.getElementById(nodeId).position()});
+    }
 
-    pointerAction.current = {
-      kind: 'move-layers',
-      origin: position,
-      originClient,
-      pointer: position,
+    return {
       boxes: new Map(movedGroups.map(group => [group.id, boxOf(group)])),
-      shapes,
-      texts,
+      shapes: new Map(
+        selectedShapes().map(shape => [
+          shape.id,
+          shapeGeometry(shape.annotation),
+        ]),
+      ),
+      texts: new Map(
+        selectedTexts().map(text => [
+          text.id,
+          {
+            position: text.annotation.position,
+            width: text.annotation.width,
+            height: text.annotation.height,
+          },
+        ]),
+      ),
       memberPositions,
-      hasMoved: false,
+      nodeIds,
     };
   }
 
@@ -1057,8 +1079,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if (!isBeyondThreshold && !action.hasMoved) return;
 
+    if (!action.hasMoved) exitConnectionMode();
+
     action.hasMoved = true;
     action.pointer = position;
+    isDragCtrl.current = event.ctrlKey || event.metaKey;
     graphSelection.setInteracting(true);
     graphSelection.setMoving(true);
 
@@ -1067,63 +1092,188 @@ const NodeEditor = observer((props: NodeEditorProps) => {
      * frame, which runs before the one requested here. The boxes are rendered
      * by React, so they only change once per frame.
      */
-    moveMembers(action);
+    transformNodes(action, moveTransform(action));
 
     if (moveFrame.current) return;
     moveFrame.current = requestAnimationFrame(() => {
       moveFrame.current = 0;
-      if (pointerAction.current?.kind === 'move-layers') {
-        moveLayerPreviews(pointerAction.current);
+
+      const action = pointerAction.current;
+      if (action?.kind === 'move-layers') {
+        transformPreviews(action, moveTransform(action));
       }
     });
   }
 
-  function moveDelta(action: MoveLayersAction) {
-    return {
+  function moveTransform(action: MoveLayersAction) {
+    return translateTransform({
       x: action.pointer.x - action.origin.x,
       y: action.pointer.y - action.origin.y,
-    };
+    });
   }
 
-  function moveMembers(action: MoveLayersAction) {
+  /**
+   * Moves the nodes of the selection right away. The members of resized groups
+   * are kept inside them, like when a single group is resized.
+   */
+  function transformNodes(
+    starts: SelectionStarts,
+    transform: SelectionTransform,
+  ) {
     const cy = cyRef.current;
     if (!cy) return;
 
-    const delta = moveDelta(action);
+    const boxes = transformedGroupBoxes(starts, transform);
+    const groupIds = currentGroupIds();
 
     cy.batch(() => {
-      for (const [memberId, start] of action.memberPositions) {
-        cy.getElementById(memberId).position({
-          x: start.x + delta.x,
-          y: start.y + delta.y,
-        });
+      for (const [nodeId, start] of starts.memberPositions) {
+        const groupId = groupIds.get(nodeId) ?? '';
+        const box = boxes.get(groupId);
+        const startBox = starts.boxes.get(groupId);
+        const position = transform.position(start);
+
+        cy.getElementById(nodeId).position(
+          box &&
+            startBox &&
+            (box.width !== startBox.width || box.height !== startBox.height)
+            ? fitIntoGroupBox(box, position)
+            : position,
+        );
       }
     });
   }
 
-  function moveLayerPreviews(action: MoveLayersAction) {
-    const delta = moveDelta(action);
+  // Groups with members don't get smaller than a group around a single node
+  function transformedGroupBoxes(
+    starts: SelectionStarts,
+    transform: SelectionTransform,
+  ): Map<string, Box> {
+    const minBox = groupBoxAround([{x: 0, y: 0}])!;
+    const hasMembers = new Set(
+      groupsRef.current
+        .filter(group => group.memberIds.length > 0)
+        .map(group => group.id),
+    );
+
+    return new Map(
+      [...starts.boxes].map(([id, start]) => {
+        const box = transform.box(start);
+        if (!hasMembers.has(id)) return [id, box];
+
+        return [
+          id,
+          {
+            ...box,
+            width: Math.max(box.width, minBox.width),
+            height: Math.max(box.height, minBox.height),
+          },
+        ];
+      }),
+    );
+  }
+
+  function transformText(
+    start: Pick<FreeTextAnnotation, 'position' | 'width' | 'height'>,
+    transform: SelectionTransform,
+  ): Partial<FreeTextAnnotation> {
+    const box = transform.box({
+      ...start.position,
+      width: start.width ?? 0,
+      height: start.height ?? 0,
+    });
+
+    return {
+      position: roundPosition(box),
+      ...(start.width !== undefined ? {width: roundCoordinate(box.width)} : {}),
+      ...(start.height !== undefined
+        ? {height: roundCoordinate(box.height)}
+        : {}),
+    };
+  }
+
+  function transformPreviews(
+    starts: SelectionStarts,
+    transform: SelectionTransform,
+  ) {
+    const plan = planSelectionDrop(starts);
 
     graphSelection.setDrag(
-      null,
-      null,
-      new Map([...action.boxes].map(([id, box]) => [id, moveBox(box, delta)])),
+      plan.hint,
+      plan.dropTargetId,
+      new Map([
+        ...transformedGroupBoxes(starts, transform),
+        ...plan.groupBoxes,
+      ]),
     );
     graphSelection.setShapePreviews(
       new Map(
-        [...action.shapes].map(([id, geometry]) => [
+        [...starts.shapes].map(([id, geometry]) => [
           id,
-          moveShapeGeometry(geometry, delta),
+          transformShapeGeometry(geometry, transform),
         ]),
       ),
     );
     graphSelection.setTextPreviews(
       new Map(
-        [...action.texts].map(([id, position]) => [
+        [...starts.texts].map(([id, start]) => [
           id,
-          {position: movePosition(position, delta)},
+          transformText(start, transform),
         ]),
       ),
+    );
+  }
+
+  /**
+   * Saves the moved or resized selection. The members of moved groups stay in
+   * them, the other nodes are dropped like dragged nodes.
+   */
+  function commitTransform(
+    starts: SelectionStarts,
+    transform: SelectionTransform,
+    mergeKey?: string,
+  ) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    transformNodes(starts, transform);
+
+    const plan = planSelectionDrop(starts);
+    isDragCtrl.current = false;
+
+    const memberGroupIds = currentGroupIds();
+    const nodeLayouts = new Map<string, NodeLayout>();
+    for (const nodeId of starts.memberPositions.keys()) {
+      nodeLayouts.set(nodeId, {
+        position: cy.getElementById(nodeId).position(),
+        groupId: plan.groupIds.has(nodeId)
+          ? (plan.groupIds.get(nodeId) ?? null)
+          : (memberGroupIds.get(nodeId) ?? null),
+      });
+    }
+
+    graphSelection.clearDrag();
+    topologyStore.manager.updateLayout(
+      {
+        nodes: nodeLayouts,
+        groups: new Map([
+          ...boxUpdates(transformedGroupBoxes(starts, transform)),
+          ...boxUpdates(plan.groupBoxes),
+        ]),
+        shapes: new Map(
+          [...starts.shapes].map(([id, geometry]) => [
+            id,
+            transformShapeGeometry(geometry, transform),
+          ]),
+        ),
+        texts: new Map(
+          [...starts.texts].map(([id, start]) => [
+            id,
+            transformText(start, transform),
+          ]),
+        ),
+      },
+      mergeKey,
     );
   }
 
@@ -1199,33 +1349,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cancelAnimationFrame(moveFrame.current);
     moveFrame.current = 0;
     action.pointer = toGraphPosition(cy, event.clientX, event.clientY);
-    moveMembers(action);
-    moveLayerPreviews(action);
-
-    const groupUpdates = new Map<string, Partial<GroupStyleAnnotation>>();
-    for (const [id, box] of graphSelection.groupPreviews) {
-      groupUpdates.set(id, {position: roundPosition(box)});
-    }
-
-    const shapeUpdates = new Map(graphSelection.shapePreviews);
-    const textUpdates = new Map(graphSelection.textPreviews);
-
-    const memberGroupIds = currentGroupIds();
-    const nodeLayouts = new Map<string, NodeLayout>();
-    for (const memberId of action.memberPositions.keys()) {
-      nodeLayouts.set(memberId, {
-        position: cy.getElementById(memberId).position(),
-        groupId: memberGroupIds.get(memberId) ?? null,
-      });
-    }
-
-    graphSelection.clearDrag();
-    topologyStore.manager.updateLayout({
-      nodes: nodeLayouts,
-      groups: groupUpdates,
-      shapes: shapeUpdates,
-      texts: textUpdates,
-    });
+    commitTransform(action, moveTransform(action));
   }
 
   function commitDraw(
@@ -1256,13 +1380,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ? drawn
         : placedGeometry(action.drawKind, roundPosition(action.origin));
 
-    cy.elements().unselect();
-
     if (action.drawKind === 'text') {
       const textId = topologyStore.manager.addText({text: '', ...geometry});
       if (textId === null) return;
 
-      graphSelection.setAnnotations([], [], [textId]);
+      graphSelection.select({textIds: [textId]});
       graphSelection.setEditingText(textId);
       return;
     }
@@ -1274,18 +1396,17 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
     if (shapeId === null) return;
 
-    graphSelection.setAnnotations([], [shapeId], []);
+    graphSelection.select({shapeIds: [shapeId]});
   }
 
   function selectInBox(box: Box, isAdditive: boolean) {
     const cy = cyRef.current;
     if (!cy) return;
 
-    if (!isAdditive) cy.elements().unselect();
-
-    cy.nodes('.topology-node')
+    const nodeIds = cy
+      .nodes('.topology-node')
       .filter(node => containsPoint(box, node.position()))
-      .select();
+      .map(node => node.id());
 
     const groupIds = groupsRef.current
       .filter(group => containsBox(box, boxOf(group)))
@@ -1307,33 +1428,28 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       })
       .map(text => text.id);
 
-    const added = (selected: string[], ids: string[]) =>
-      isAdditive ? [...new Set([...selected, ...ids])] : ids;
-
-    graphSelection.setAnnotations(
-      added(graphSelection.groupIds, groupIds),
-      added(graphSelection.shapeIds, shapeIds),
-      added(graphSelection.textIds, textIds),
-    );
+    const selection = {nodeIds, groupIds, shapeIds, textIds};
+    if (isAdditive) {
+      graphSelection.add(selection);
+    } else {
+      graphSelection.select(selection);
+    }
   }
 
   function onEdgeClick(event: cytoscape.EventObject) {
     if (!event.target.hasClass(GHOST_EDGE_ID)) return;
 
     exitConnectionMode();
-    cyRef.current?.elements().unselect();
+    graphSelection.clear();
   }
 
   function onNodeClick(event: cytoscape.EventObject) {
-    if (!cyRef.current) return;
-
-    const cy = cyRef.current;
     const node = event.target;
     const nodeId = node.id();
 
     if (node.hasClass(GHOST_NODE_ID)) {
       exitConnectionMode();
-      cy.elements().unselect();
+      graphSelection.clear();
       return;
     }
 
@@ -1343,8 +1459,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       return;
     }
 
-    if (!(event.originalEvent as unknown as globalThis.MouseEvent)?.shiftKey) {
-      graphSelection.setAnnotations([], [], []);
+    if (graphSelection.isHandActive || !node.hasClass('topology-node')) return;
+
+    // Shift adds or removes the node, a click without it selects only the node
+    if ((event.originalEvent as unknown as globalThis.MouseEvent)?.shiftKey) {
+      graphSelection.toggleNode(nodeId);
+    } else {
+      graphSelection.select({nodeIds: [nodeId]});
     }
   }
 
@@ -1384,17 +1505,16 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
 
     graphSelection.setPointerDown(true);
-    if (mouseEvent.shiftKey || node.selected()) return;
-
-    cy.elements().unselect();
-    graphSelection.setAnnotations([], [], []);
-    node.select();
-  }
-
-  function onGraphClick(event: EventObject) {
-    if (event.target === cyRef.current) {
-      cyRef.current?.elements().unselect();
+    if (!mouseEvent.shiftKey && !graphSelection.nodeIds.includes(node.id())) {
+      graphSelection.select({nodeIds: [node.id()]});
     }
+
+    cy.userPanningEnabled(false);
+    startMove(
+      event.position,
+      {x: mouseEvent.clientX, y: mouseEvent.clientY},
+      node.id(),
+    );
   }
 
   // A double-click on the icon opens the dialog, on the label it renames the node
@@ -1505,17 +1625,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       const hitId = hit.kind === 'group' ? hit.group.id : hit.shape.id;
 
       if (!graphSelection.layerIds.includes(hitId)) {
-        cy.elements().unselect();
-        graphSelection.setAnnotations(
-          hit.kind === 'group' ? [hitId] : [],
-          hit.kind === 'shape' ? [hitId] : [],
-          [],
-        );
+        graphSelection.select(itemSelection(hit.kind, hitId));
       }
 
       menuTargetRef.current = hitId;
       setContextMenuModel(
-        selectionCount() > 1
+        graphSelection.count > 1
           ? currentSelectionMenu()
           : hit.kind === 'group'
             ? currentGroupMenu()
@@ -1555,11 +1670,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if (!contextMenuRef.current || graphSelection.isHandActive) return;
 
-    selectForContextMenu(event.target);
+    if (!graphSelection.nodeIds.includes(event.target.id())) {
+      graphSelection.select({nodeIds: [event.target.id()]});
+    }
     menuTargetRef.current = event.target.id();
 
     setContextMenuModel(
-      selectionCount() > 1
+      graphSelection.count > 1
         ? currentSelectionMenu()
         : nodeMenu({
             ...clipboardActions,
@@ -1590,33 +1707,19 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     contextMenuRef.current?.show(event);
   }
 
-  /**
-   * A right-click on an element that isn't selected selects only this element,
-   * a right-click on a selected element keeps the selection.
-   */
-  function selectForContextMenu(element: cytoscape.SingularElementReturnValue) {
-    if (element.selected()) return;
-
-    cyRef.current?.elements().unselect();
-    graphSelection.setAnnotations([], [], []);
-    element.select();
-  }
-
-  function selectionCount() {
-    const cy = cyRef.current;
-    if (!cy) return 0;
-
-    return (
-      cy.nodes('.topology-node:selected').length +
-      graphSelection.annotationIds.length
-    );
+  function selectedNodes(cy: cytoscape.Core) {
+    const nodeIds = new Set(graphSelection.nodeIds);
+    return cy
+      .nodes('.topology-node')
+      .filter(node => nodeIds.has(node.id()))
+      .nodes();
   }
 
   function currentSelectionMenu() {
     return selectionMenu({
       ...clipboardActions,
-      count: selectionCount(),
-      canGroup: !!cyRef.current?.nodes('.topology-node:selected').nonempty(),
+      count: graphSelection.count,
+      canGroup: graphSelection.nodeIds.length > 0,
       canReorder: graphSelection.layerIds.length > 0,
       onGroup: onGroupSelection,
       onBringToFront: () => onReorder(true),
@@ -1642,87 +1745,28 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
   }
 
-  // Dragging moves all grabbed nodes, so the drop is only planned once per frame
-  function onNodeDrag(event: cytoscape.EventObject) {
-    const cy = cyRef.current;
-    if (!cy) return;
-
-    exitConnectionMode();
-
-    const mouseEvent = event.originalEvent as unknown as
-      | globalThis.MouseEvent
-      | undefined;
-    if (mouseEvent) {
-      isDragCtrl.current = mouseEvent.ctrlKey || mouseEvent.metaKey;
-    }
-
-    const targetNodeId = event.target.id();
-    if (dragFrame.current) return;
-
-    dragFrame.current = requestAnimationFrame(() => {
-      dragFrame.current = 0;
-      if (draggedNodeIds.current.size > 0) return;
-
-      const plan = planDrop(
-        cy.nodes('.topology-node:grabbed').map(node => node.id()),
-        targetNodeId,
-        isDragCtrl.current,
-      );
-
-      graphSelection.setInteracting(true);
-      graphSelection.setDrag(plan.hint, plan.dropTargetId, plan.groupBoxes);
-    });
-  }
-
-  /**
-   * Nodes that are dragged together are freed one after another, so they are
-   * collected and saved together once all of them are freed.
-   */
-  function onDragEnd(event: cytoscape.EventObject) {
-    const node = event.target as NodeSingular;
-
-    if (draggedNodeIds.current.size === 0) {
-      queueMicrotask(() => {
-        const nodeIds = [...draggedNodeIds.current];
-        draggedNodeIds.current.clear();
-        commitDrop(nodeIds);
-      });
-    }
-
-    draggedNodeIds.current.add(node.id());
-  }
-
-  function commitDrop(nodeIds: string[]) {
-    const cy = cyRef.current;
-    cancelAnimationFrame(dragFrame.current);
-    dragFrame.current = 0;
-    graphSelection.setInteracting(false);
-    graphSelection.clearDrag();
-    if (!cy || nodeIds.length === 0) return;
-
-    const plan = planDrop(nodeIds, nodeIds[0], isDragCtrl.current);
-    isDragCtrl.current = false;
-
-    const nodeLayouts = new Map<string, NodeLayout>();
-    for (const nodeId of nodeIds) {
-      nodeLayouts.set(nodeId, {
-        position: cy.getElementById(nodeId).position(),
-        groupId: plan.groupIds.get(nodeId) ?? null,
-      });
-    }
-
-    topologyStore.manager.updateLayout({
-      nodes: nodeLayouts,
-      groups: boxUpdates(plan.groupBoxes),
-    });
+  // The nodes that move on their own are dropped like a single dragged node
+  function planSelectionDrop(starts: SelectionStarts): DropPlan {
+    return planDrop(
+      starts.nodeIds,
+      starts.nodeIds[0] ?? '',
+      isDragCtrl.current,
+      new Set(starts.boxes.keys()),
+    );
   }
 
   function planDrop(
     nodeIds: string[],
     targetNodeId: string,
     isCtrl: boolean,
+    movedGroupIds: Set<string>,
   ): DropPlan {
     const cy = cyRef.current!;
+
+    // Groups that move along can't be dropped into
+    const targetGroups = groupsRef.current.filter(
+      group => !movedGroupIds.has(group.id),
+    );
     const currentGroups = currentGroupIds();
     const groupIds = new Map<string, string | null>();
     const includedPositions = new Map<string, Position[]>();
@@ -1730,7 +1774,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     for (const nodeId of nodeIds) {
       const position = cy.getElementById(nodeId).position();
       const currentGroupId = currentGroups.get(nodeId) ?? null;
-      const groupUnder = groupAt(groupsRef.current, position)?.id ?? null;
+      const groupUnder = groupAt(targetGroups, position)?.id ?? null;
 
       let groupId = currentGroupId;
       if (groupUnder !== null && groupUnder !== currentGroupId) {
@@ -1778,66 +1822,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     return {groupIds, groupBoxes, hint, dropTargetId};
   }
 
+  // Nudged nodes that move on their own grow and join groups like dragged nodes
   function onNudge(delta: Position) {
     const cy = cyRef.current;
     if (!cy || graphSelection.count === 0) return;
 
-    const currentGroups = currentGroupIds();
-    const movedGroups = groupsRef.current.filter(group =>
-      graphSelection.groupIds.includes(group.id),
-    );
-    const movedNodeIds = new Set([
-      ...graphSelection.nodeIds,
-      ...movedGroups.flatMap(group => group.memberIds),
-    ]);
-
-    const nodeLayouts = new Map<string, NodeLayout>();
-    for (const nodeId of movedNodeIds) {
-      const position = cy.getElementById(nodeId).position();
-
-      nodeLayouts.set(nodeId, {
-        position: {x: position.x + delta.x, y: position.y + delta.y},
-        groupId: currentGroups.get(nodeId) ?? null,
-      });
-    }
-
-    const groupBoxes = new Map<string, Box>(
-      movedGroups.map(group => [group.id, moveBox(group, delta)]),
-    );
-
-    // Groups of nudged members that don't move themselves grow to contain them
-    for (const group of groupsRef.current) {
-      if (groupBoxes.has(group.id)) continue;
-
-      const positions = group.memberIds
-        .filter(nodeId => nodeLayouts.has(nodeId))
-        .map(nodeId => nodeLayouts.get(nodeId)!.position);
-      const grownBox = growGroupBox(group, positions);
-
-      if (grownBox !== group) groupBoxes.set(group.id, grownBox);
-    }
-
-    const shapeUpdates = new Map(
-      selectedShapes().map(shape => [
-        shape.id,
-        moveShapeGeometry(shapeGeometry(shape.annotation), delta),
-      ]),
-    );
-
-    const textUpdates = new Map(
-      selectedTexts().map(text => [
-        text.id,
-        {position: movePosition(text.annotation.position, delta)},
-      ]),
-    );
-
-    topologyStore.manager.updateLayout(
-      {
-        nodes: nodeLayouts,
-        groups: boxUpdates(groupBoxes),
-        shapes: shapeUpdates,
-        texts: textUpdates,
-      },
+    commitTransform(
+      selectionStarts(cy, null),
+      translateTransform(delta),
       NUDGE_MERGE_KEY,
     );
   }
@@ -1914,7 +1906,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       graphSelection.groupIds.includes(group.id),
     );
     const nodeNames = new Set([
-      ...cy.nodes('.topology-node:selected').map(node => node.id()),
+      ...graphSelection.nodeIds,
       ...groups.flatMap(group => group.memberIds),
     ]);
 
@@ -1980,7 +1972,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       roundPosition(delta),
     );
 
-    pastedElements.current = pasted;
+    graphSelection.setPendingSelection({
+      nodeIds: pasted.nodes.map(node => node.name),
+      groupIds: pasted.groups.map(group => group.id),
+      shapeIds: pasted.shapes.map(shape => shape.id),
+      textIds: pasted.texts.map(text => text.id),
+    });
     topologyStore.manager.pasteElements(pasted);
   }
 
@@ -2001,19 +1998,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onSelectAll() {
-    cyRef.current?.nodes('.topology-node').select();
-    graphSelection.setAnnotations(
-      groupsRef.current.map(group => group.id),
-      layerItemsRef.current
+    graphSelection.select({
+      nodeIds: cyRef.current?.nodes('.topology-node').map(node => node.id()),
+      groupIds: groupsRef.current.map(group => group.id),
+      shapeIds: layerItemsRef.current
         .filter(item => item.kind === 'shape')
         .map(item => item.id),
-      textsRef.current.map(text => text.id),
-    );
+      textIds: textsRef.current.map(text => text.id),
+    });
   }
 
   function deselectAll() {
-    cyRef.current?.elements().unselect();
-    graphSelection.setAnnotations([], [], []);
+    graphSelection.clear();
     graphSelection.setLabelEdit(null);
   }
 
@@ -2025,15 +2021,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onSelectMembers() {
-    const cy = cyRef.current;
     const group = groupsRef.current.find(
       group => group.id === menuTargetRef.current,
     );
-    if (!cy || !group) return;
-
-    cy.elements().unselect();
-    graphSelection.setAnnotations([], [], []);
-    group.memberIds.forEach(nodeId => cy.getElementById(nodeId).select());
+    if (group) graphSelection.select({nodeIds: group.memberIds});
   }
 
   function onDeleteSelection() {
@@ -2045,7 +2036,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
     const nodeNames = [
       ...new Set([
-        ...cy.nodes('.topology-node:selected').map(node => node.id()),
+        ...graphSelection.nodeIds,
         ...deletedGroups.flatMap(group => group.memberIds),
       ]),
     ];
@@ -2054,20 +2045,21 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       ...graphSelection.textIds,
     ];
 
-    graphSelection.setAnnotations([], [], []);
+    // The selection is cleared after the change, so the history keeps it for undo
     topologyStore.manager.deleteElements(
       nodeNames,
       [],
       deletedGroups.map(group => group.id),
       annotationIds,
     );
+    graphSelection.clear();
   }
 
   function onGroupSelection() {
     const cy = cyRef.current;
     if (!cy) return;
 
-    const nodes = cy.nodes('.topology-node:selected');
+    const nodes = selectedNodes(cy);
     const box = groupBoxAround(nodes.map(node => node.position()));
     if (!box) return;
 
@@ -2090,8 +2082,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
     if (groupId === null) return;
 
-    cy.elements().unselect();
-    graphSelection.setAnnotations([groupId], [], []);
+    graphSelection.select({groupIds: [groupId]});
     startGroupRename({id: groupId, name, annotation: null, ...box});
   }
 
@@ -2107,7 +2098,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const group = groupsRef.current.find(group => group.id === groupId);
     if (!cy || !group) return;
 
-    const nodes = cy.nodes('.topology-node:selected');
+    const nodes = selectedNodes(cy);
     const nodeLayouts = new Map<string, NodeLayout>(
       nodes.map(node => [node.id(), {position: node.position(), groupId}]),
     );
@@ -2331,8 +2322,19 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   /**
    * Saves the box of a resized annotation once it is resized. Moveable shows the
    * box while it is resized, only the members of a group are moved meanwhile.
+   * Without an annotation, the whole selection is resized.
    */
-  function onResize(item: AnnotationItem, box: Box, isFinal: boolean) {
+  function onResize(
+    item: AnnotationItem | null,
+    startBox: Box,
+    box: Box,
+    isFinal: boolean,
+  ) {
+    if (!item) {
+      onResizeSelection(startBox, box, isFinal);
+      return;
+    }
+
     switch (item.kind) {
       case 'group':
         onResizeGroup(item.group, box, isFinal);
@@ -2400,6 +2402,27 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
   }
 
+  // The elements of the selection keep their place relative to its box
+  function onResizeSelection(startBox: Box, box: Box, isFinal: boolean) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const starts = (selectionResizeStarts.current ??= selectionStarts(
+      cy,
+      null,
+    ));
+    const transform = scaleTransform(startBox, box);
+
+    if (isFinal) {
+      selectionResizeStarts.current = null;
+      commitTransform(starts, transform);
+      return;
+    }
+
+    transformNodes(starts, transform);
+    transformPreviews(starts, transform);
+  }
+
   function onFitGraph() {
     graphRef.current?.fit(true);
   }
@@ -2435,8 +2458,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onClearGraph() {
-    graphSelection.setAnnotations([], [], []);
     topologyStore.manager.clear();
+    graphSelection.clear();
   }
 
   /**
@@ -2511,6 +2534,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onUngroup,
     onDeleteSelection,
     onResize,
+    getSelectionBox: () => selectionLayerRef.current?.frameBox() ?? null,
     onLineEndPointerDown,
     onZoomIn: () => zoomTo((cyRef.current?.zoom() ?? 1) * ZOOM_STEP),
     onZoomOut: () => zoomTo((cyRef.current?.zoom() ?? 1) / ZOOM_STEP),
@@ -2537,7 +2561,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         elements={elements}
         fitKey={props.openTopology?.id ?? null}
         events={{
-          click: onGraphClick,
           'click node': onNodeClick,
           'click edge': onEdgeClick,
           tap: onTap,
@@ -2549,8 +2572,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           cxttap: onGraphContext,
           'cxttap node': onNodeContext,
           'cxttap edge': onEdgeContext,
-          'dragfree node': onDragEnd,
-          'drag node': onNodeDrag,
         }}
         onInstance={onInstance}
         getLayerBoxes={callbacks.getLayerBoxes}
@@ -2598,6 +2619,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ref={moveableHandlesRef}
         getCy={callbacks.getCy}
         items={annotationItems}
+        getSelectionBox={callbacks.getSelectionBox}
         onResize={callbacks.onResize}
       />
       <ZoomControl
@@ -2631,10 +2653,6 @@ function boxCenter(bounds: cytoscape.BoundingBox12): Position {
   return {x: (bounds.x1 + bounds.x2) / 2, y: (bounds.y1 + bounds.y2) / 2};
 }
 
-function movePosition(position: Position, delta: Position): Position {
-  return roundPosition({x: position.x + delta.x, y: position.y + delta.y});
-}
-
 function drawHint(drawKind: DrawKind, geometry: ShapeGeometry) {
   if (drawKind === 'line') {
     return 'Hold Shift to draw horizontally or vertically';
@@ -2644,6 +2662,18 @@ function drawHint(drawKind: DrawKind, geometry: ShapeGeometry) {
   const size = `${Math.round(box.width)} × ${Math.round(box.height)}`;
 
   return `${size} · Hold Shift for a ${drawKind === 'circle' ? 'circle' : 'square'}`;
+}
+
+// Selects only the given group, shape or text
+function itemSelection(
+  kind: AnnotationItem['kind'],
+  id: string,
+): Partial<GraphSelectionSnapshot> {
+  return {
+    groupIds: kind === 'group' ? [id] : [],
+    shapeIds: kind === 'shape' ? [id] : [],
+    textIds: kind === 'text' ? [id] : [],
+  };
 }
 
 function boxUpdates(

@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 
+import classNames from 'classnames';
 import cytoscape from 'cytoscape';
 import {reaction} from 'mobx';
 import {observer} from 'mobx-react-lite';
@@ -33,12 +34,24 @@ interface MoveableHandlesProps {
   getCy: () => cytoscape.Core | null;
   items: AnnotationItem[];
 
-  // Called while an annotation is resized and once more when it ends
-  onResize: (item: AnnotationItem, box: Box, isFinal: boolean) => void;
+  // The box around a selection of several elements
+  getSelectionBox: () => Box | null;
+
+  /*
+   * Called while an annotation or the whole selection, without an item, is
+   * resized from the start box and once more when it ends.
+   */
+  onResize: (
+    item: AnnotationItem | null,
+    startBox: Box,
+    box: Box,
+    isFinal: boolean,
+  ) => void;
 }
 
 /**
- * The handles to resize the group, shape or text that is selected alone.
+ * The handles to resize the group, shape or text that is selected alone, or the
+ * whole selection if several elements are selected.
  *
  * Moveable is mounted for as long as the editor is, without a target while
  * nothing can be resized. Mounting adds its stylesheet to the page and
@@ -49,6 +62,7 @@ const MoveableHandles = observer(
     const graphSelection = useGraphSelection();
 
     const [target, setTarget] = useState<HTMLElement | null>(null);
+    const [keepRatio, setKeepRatio] = useState(false);
     const moveableRef = useRef<Moveable>(null);
     const resizeStartBox = useRef<Box | null>(null);
 
@@ -62,17 +76,27 @@ const MoveableHandles = observer(
         ? null
         : item;
 
+    const isSelectionResized = graphSelection.isSelectionTransformTarget;
+
     useLayoutEffect(() => {
+      const container = cy?.container()?.parentElement;
+
+      if (isSelectionResized) {
+        setTarget(
+          container?.querySelector<HTMLElement>('.sb-selection-layer-frame') ??
+            null,
+        );
+        return;
+      }
+
       setTarget(
         resized
-          ? (cy
-              ?.container()
-              ?.parentElement?.querySelector<HTMLElement>(
-                `[data-layer-id="${CSS.escape(resized.id)}"]`,
-              ) ?? null)
+          ? (container?.querySelector<HTMLElement>(
+              `[data-layer-id="${CSS.escape(resized.id)}"]`,
+            ) ?? null)
           : null,
       );
-    }, [resized?.id, props.items]);
+    }, [resized?.id, isSelectionResized, props.items]);
 
     useEffect(() => {
       moveableRef.current?.updateRect();
@@ -100,24 +124,43 @@ const MoveableHandles = observer(
     return (
       <Moveable
         ref={moveableRef}
-        className="sb-moveable-handles"
+        className={classNames('sb-moveable-handles', {
+          selection: isSelectionResized,
+        })}
         target={target}
         resizable
+        useMutationObserver
         padding={HANDLES_GAP}
-        keepRatio={false}
+        keepRatio={keepRatio}
         origin={false}
         renderDirections={['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se']}
         onResizeStart={event => {
-          resizeStartBox.current = resized
-            ? graphSelection.annotationBox(resized)
-            : null;
+          resizeStartBox.current = isSelectionResized
+            ? props.getSelectionBox()
+            : resized
+              ? graphSelection.annotationBox(resized)
+              : null;
           graphSelection.setInteracting(true);
 
           // A group with members can't get smaller than a group around one node
-          if (resized?.kind === 'group' && resized.group.memberIds.length > 0) {
+          if (
+            !isSelectionResized &&
+            resized?.kind === 'group' &&
+            resized.group.memberIds.length > 0
+          ) {
             const nodeGroup = groupBoxAround([{x: 0, y: 0}])!;
             event.setMin([nodeGroup.width, nodeGroup.height]);
           }
+        }}
+        onBeforeResize={event => {
+          // Shift keeps the aspect ratio, ctrl resizes to all sides from the center
+          const inputEvent = event.inputEvent as MouseEvent | null;
+          setKeepRatio(!!inputEvent?.shiftKey);
+          event.setFixedDirection(
+            inputEvent?.ctrlKey || inputEvent?.metaKey
+              ? [0, 0]
+              : event.startFixedDirection,
+          );
         }}
         onResize={event => {
           event.target.style.width = `${event.width}px`;
@@ -125,7 +168,7 @@ const MoveableHandles = observer(
           event.target.style.transform = event.drag.transform;
 
           const start = resizeStartBox.current;
-          if (!start || !resized) return;
+          if (!start) return;
 
           const [dx, dy] = event.drag.beforeTranslate;
           const box = {
@@ -135,22 +178,30 @@ const MoveableHandles = observer(
             height: event.height,
           };
 
+          if (isSelectionResized) {
+            props.onResize(null, start, box, false);
+            return;
+          }
+          if (!resized) return;
+
           // Moveable changes the element directly, the outline of the selection follows this box
           graphSelection.setResizePreview({id: resized.id, box});
-          props.onResize(resized, box, false);
+          props.onResize(resized, start, box, false);
         }}
         onResizeEnd={event => {
+          setKeepRatio(false);
           graphSelection.setInteracting(false);
           graphSelection.setResizePreview(null);
           event.target.style.transform = '';
 
           const start = resizeStartBox.current;
           const last = event.lastEvent;
-          if (!start || !last || !resized) return;
+          if (!start || !last || (!resized && !isSelectionResized)) return;
 
           const [dx, dy] = last.drag.beforeTranslate;
           props.onResize(
-            resized,
+            isSelectionResized ? null : resized,
+            start,
             {
               x: start.x + dx,
               y: start.y + dy,

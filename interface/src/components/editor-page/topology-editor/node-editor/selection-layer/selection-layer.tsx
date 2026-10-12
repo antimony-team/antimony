@@ -14,6 +14,7 @@ import {
   Box,
   growBox,
   nodeIconBox,
+  unionBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {If} from '@sb/types/control';
 
@@ -26,6 +27,9 @@ const LINE_WIDTH = 1.5;
 export interface SelectionLayerRef {
   // Draws the outlines again, e.g. after the zoom or a selected node changed
   draw: () => void;
+
+  // The box around the whole selection that its handles resize
+  frameBox: () => Box | null;
 }
 
 interface SelectionLayerProps {
@@ -46,6 +50,9 @@ interface Outline {
  * The gap to the elements keeps its size on screen, so the geometry depends on
  * the zoom. It is set by one function, after a render and whenever the zoom or
  * a selected node changes, so the outlines never lag behind the graph.
+ *
+ * The frame around a selection of several elements is placed the same way, it
+ * is the target of the handles that resize the whole selection.
  */
 const SelectionLayer = observer(
   forwardRef<SelectionLayerRef, SelectionLayerProps>((props, ref) => {
@@ -54,6 +61,8 @@ const SelectionLayer = observer(
     const nodePathRef = useRef<SVGPathElement>(null);
     const selectionBoxRef = useRef<SVGRectElement>(null);
     const outlineRefs = useRef(new Map<string, SVGRectElement>());
+    const frameRef = useRef<HTMLDivElement>(null);
+    const frameBox = useRef<Box | null>(null);
 
     const outlines: Outline[] = props.items
       .filter(
@@ -77,6 +86,15 @@ const SelectionLayer = observer(
       outlines,
       nodeIds: graphSelection.nodeIds,
       selectionBox: graphSelection.selectionBox,
+      isFrameShown: graphSelection.isSelectionTransformTarget,
+      annotationsBox: graphSelection.isSelectionTransformTarget
+        ? unionBox(
+            props.items
+              .filter(item => graphSelection.annotationIds.includes(item.id))
+              .map(item => graphSelection.annotationBox(item))
+              .filter(box => box !== null),
+          )
+        : null,
     };
     const stateRef = useRef(state);
     stateRef.current = state;
@@ -87,7 +105,11 @@ const SelectionLayer = observer(
 
       const pixel = 1 / cy.zoom();
       const gap = (OUTLINE_GAP + LINE_WIDTH / 2) * pixel;
-      const {outlines, nodeIds, selectionBox} = stateRef.current;
+      const {outlines, nodeIds, selectionBox, isFrameShown, annotationsBox} =
+        stateRef.current;
+      const nodes = nodeIds
+        .map(nodeId => cy.getElementById(nodeId))
+        .filter(node => node.nonempty());
 
       for (const outline of outlines) {
         const rect = outlineRefs.current.get(outline.id);
@@ -96,9 +118,7 @@ const SelectionLayer = observer(
 
       nodePathRef.current?.setAttribute(
         'd',
-        nodeIds
-          .map(nodeId => cy.getElementById(nodeId))
-          .filter(node => node.nonempty())
+        nodes
           .map(node => rectPath(growBox(nodeIconBox(node.position()), gap)))
           .join(''),
       );
@@ -109,32 +129,51 @@ const SelectionLayer = observer(
           growBox(selectionBox, (LINE_WIDTH / 2) * pixel),
         );
       }
+
+      // Moveable changes the frame while the selection is resized
+      if (frameRef.current && isFrameShown && !graphSelection.isInteracting) {
+        frameBox.current = unionBox([
+          ...(annotationsBox ? [annotationsBox] : []),
+          ...nodes.map(node => nodeIconBox(node.position())),
+        ]);
+        if (frameBox.current) setFrame(frameRef.current, frameBox.current);
+      }
     }
 
     useLayoutEffect(draw);
-    useImperativeHandle(ref, () => ({draw}));
+    useImperativeHandle(ref, () => ({
+      draw,
+      frameBox: () => (stateRef.current.isFrameShown ? frameBox.current : null),
+    }));
 
     return (
-      <svg className="sb-selection-layer" aria-hidden="true">
-        <If condition={state.selectionBox}>
-          <rect ref={selectionBoxRef} className="sb-selection-layer-box" />
-        </If>
-        {outlines.map(outline => (
-          <rect
-            key={outline.id}
-            ref={rect => {
-              if (!rect) return;
+      <>
+        <div
+          ref={frameRef}
+          className="sb-selection-layer-frame"
+          hidden={!state.isFrameShown}
+        />
+        <svg className="sb-selection-layer" aria-hidden="true">
+          <If condition={state.selectionBox}>
+            <rect ref={selectionBoxRef} className="sb-selection-layer-box" />
+          </If>
+          {outlines.map(outline => (
+            <rect
+              key={outline.id}
+              ref={rect => {
+                if (!rect) return;
 
-              outlineRefs.current.set(outline.id, rect);
-              return () => {
-                outlineRefs.current.delete(outline.id);
-              };
-            }}
-            className="sb-selection-layer-outline"
-          />
-        ))}
-        <path ref={nodePathRef} className="sb-selection-layer-outline" />
-      </svg>
+                outlineRefs.current.set(outline.id, rect);
+                return () => {
+                  outlineRefs.current.delete(outline.id);
+                };
+              }}
+              className="sb-selection-layer-outline"
+            />
+          ))}
+          <path ref={nodePathRef} className="sb-selection-layer-outline" />
+        </svg>
+      </>
     );
   }),
 );
@@ -148,6 +187,13 @@ function setRect(rect: SVGRectElement, box: Box) {
 
 function rectPath(box: Box): string {
   return `M${box.x} ${box.y}h${box.width}v${box.height}h${-box.width}Z`;
+}
+
+function setFrame(frame: HTMLDivElement, box: Box) {
+  frame.style.left = `${box.x}px`;
+  frame.style.top = `${box.y}px`;
+  frame.style.width = `${box.width}px`;
+  frame.style.height = `${box.height}px`;
 }
 
 export default SelectionLayer;

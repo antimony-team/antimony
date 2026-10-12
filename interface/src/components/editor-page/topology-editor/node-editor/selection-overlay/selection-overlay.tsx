@@ -50,7 +50,10 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
     const boxes = selectedItems
       .map(item => graphSelection.annotationBox(item))
       .filter(box => box !== null);
-    const selected = cy.$(':selected');
+    const nodeIds = new Set(graphSelection.nodeIds);
+    const selected = cy
+      .nodes('.topology-node')
+      .filter(node => nodeIds.has(node.id()));
 
     if (selected.nonempty()) {
       const bounds = selected.boundingBox({});

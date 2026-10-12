@@ -14,6 +14,7 @@ import {
   textBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
+import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
 import {FreeTextAnnotation} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
@@ -59,9 +60,8 @@ export interface LabelEdit {
 }
 
 /**
- * The selection and the interaction state of the graph. Nodes and links are
- * selected in cytoscape, their IDs are mirrored here so the view can react to
- * them.
+ * The selection and the interaction state of the graph. All elements are
+ * selected here, cytoscape doesn't select anything itself.
  */
 export class GraphSelection {
   @observable accessor tool: GraphTool = GraphTool.Select;
@@ -117,6 +117,9 @@ export class GraphSelection {
 
   // The box of the annotation that Moveable resizes, which changes the element directly
   @observable accessor resizePreview: {id: string; box: Box} | null = null;
+
+  // Selected once the graph shows its elements, e.g. after a paste or an undo
+  @observable accessor pendingSelection: GraphSelectionSnapshot | null = null;
 
   // The shape that is currently drawn with a drawing tool
   @observable accessor drawPreview: DrawnShape | null = null;
@@ -187,6 +190,12 @@ export class GraphSelection {
       : null;
   }
 
+  // Whether the handles resize the whole selection, which is the case for more than one element
+  @computed
+  public get isSelectionTransformTarget() {
+    return this.count > 1 && !this.isHandActive && !this.isMoving;
+  }
+
   @action
   public setTool(tool: GraphTool) {
     this.tool = tool;
@@ -197,9 +206,43 @@ export class GraphSelection {
     this.isHandHeld = isHandHeld;
   }
 
+  // Replaces the selection, lists that aren't given are cleared
   @action
-  public setNodes(nodeIds: string[]) {
-    this.nodeIds = nodeIds;
+  public select(selection: Partial<GraphSelectionSnapshot>) {
+    this.nodeIds = selection.nodeIds ?? [];
+    this.groupIds = selection.groupIds ?? [];
+    this.shapeIds = selection.shapeIds ?? [];
+    this.textIds = selection.textIds ?? [];
+  }
+
+  @action
+  public add(selection: Partial<GraphSelectionSnapshot>) {
+    const added = (selected: string[], ids: string[] = []) => [
+      ...new Set([...selected, ...ids]),
+    ];
+
+    this.nodeIds = added(this.nodeIds, selection.nodeIds);
+    this.groupIds = added(this.groupIds, selection.groupIds);
+    this.shapeIds = added(this.shapeIds, selection.shapeIds);
+    this.textIds = added(this.textIds, selection.textIds);
+  }
+
+  @action
+  public clear() {
+    this.select({});
+  }
+
+  // Removes elements that don't exist anymore, e.g. after an undo
+  @action
+  public retain(ids: Set<string>) {
+    if ([...this.nodeIds, ...this.annotationIds].every(id => ids.has(id))) {
+      return;
+    }
+
+    this.nodeIds = this.nodeIds.filter(id => ids.has(id));
+    this.groupIds = this.groupIds.filter(id => ids.has(id));
+    this.shapeIds = this.shapeIds.filter(id => ids.has(id));
+    this.textIds = this.textIds.filter(id => ids.has(id));
   }
 
   @action
@@ -208,19 +251,8 @@ export class GraphSelection {
   }
 
   @action
-  public setShapes(shapeIds: string[]) {
-    this.shapeIds = shapeIds;
-  }
-
-  @action
-  public setAnnotations(
-    groupIds: string[],
-    shapeIds: string[],
-    textIds: string[],
-  ) {
-    this.groupIds = groupIds;
-    this.shapeIds = shapeIds;
-    this.textIds = textIds;
+  public toggleNode(nodeId: string) {
+    this.nodeIds = toggled(this.nodeIds, nodeId);
   }
 
   @action
@@ -268,6 +300,11 @@ export class GraphSelection {
   @action
   public setMoving(isMoving: boolean) {
     this.isMoving = isMoving;
+  }
+
+  @action
+  public setPendingSelection(pendingSelection: GraphSelectionSnapshot | null) {
+    this.pendingSelection = pendingSelection;
   }
 
   @action
@@ -353,6 +390,16 @@ export class GraphSelection {
           this.textSizes.get(item.id),
         );
     }
+  }
+
+  @computed
+  public get snapshot(): GraphSelectionSnapshot {
+    return {
+      nodeIds: this.nodeIds,
+      groupIds: this.groupIds,
+      shapeIds: this.shapeIds,
+      textIds: this.textIds,
+    };
   }
 
   @computed
