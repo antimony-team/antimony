@@ -4,11 +4,13 @@ import {action, computed, observable} from 'mobx';
 
 import {
   Box,
+  DrawKind,
   DrawnShape,
   ShapeGeometry,
+  TextSize,
 } from '@sb/lib/graph/annotation-geometry';
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
-import {FreeShapeAnnotation} from '@sb/types/domain/topology';
+import {FreeTextAnnotation} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
 export enum GraphTool {
@@ -17,16 +19,16 @@ export enum GraphTool {
   Rectangle,
   Ellipse,
   Line,
+  Text,
 }
 
-// The shape each drawing tool draws
-export const TOOL_SHAPES = new Map<GraphTool, FreeShapeAnnotation['shapeType']>(
-  [
-    [GraphTool.Rectangle, 'rectangle'],
-    [GraphTool.Ellipse, 'circle'],
-    [GraphTool.Line, 'line'],
-  ],
-);
+// What each drawing tool draws
+export const TOOL_DRAW_KINDS = new Map<GraphTool, DrawKind>([
+  [GraphTool.Rectangle, 'rectangle'],
+  [GraphTool.Ellipse, 'circle'],
+  [GraphTool.Line, 'line'],
+  [GraphTool.Text, 'text'],
+]);
 
 /**
  * The selection and the interaction state of the graph. Nodes and links are
@@ -43,6 +45,7 @@ export class GraphSelection {
   @observable accessor edgeIds: string[] = [];
   @observable accessor groupIds: string[] = [];
   @observable accessor shapeIds: string[] = [];
+  @observable accessor textIds: string[] = [];
 
   // Whether elements are currently dragged, resized or selected with a box
   @observable accessor isInteracting: boolean = false;
@@ -71,6 +74,17 @@ export class GraphSelection {
     string,
     Partial<AnnotationStyle>
   >();
+
+  // Changes of texts that aren't saved yet, e.g. while they are moved, by text ID
+  public readonly textPreviews = observable.map<
+    string,
+    Partial<FreeTextAnnotation>
+  >();
+
+  // The rendered sizes of the texts by text ID, their height follows the text
+  public readonly textSizes = observable.map<string, TextSize>();
+
+  @observable accessor editingTextId: string | null = null;
 
   // The shape that is currently drawn with a drawing tool
   @observable accessor drawPreview: DrawnShape | null = null;
@@ -101,7 +115,7 @@ export class GraphSelection {
 
   @computed
   public get isDrawToolActive() {
-    return TOOL_SHAPES.has(this.tool) && !this.isHandHeld;
+    return TOOL_DRAW_KINDS.has(this.tool) && !this.isHandHeld;
   }
 
   @computed
@@ -110,7 +124,8 @@ export class GraphSelection {
       this.nodeIds.length +
       this.edgeIds.length +
       this.groupIds.length +
-      this.shapeIds.length
+      this.shapeIds.length +
+      this.textIds.length
     );
   }
 
@@ -120,19 +135,26 @@ export class GraphSelection {
     return [...this.groupIds, ...this.shapeIds];
   }
 
+  // The selected groups, shapes and texts
+  @computed
+  public get annotationIds() {
+    return [...this.layerIds, ...this.textIds];
+  }
+
   /*
-   * The group or shape that shows handles to resize it, which is the case if it
-   * is selected alone. Lines show a handle at each end instead.
+   * The annotation that shows handles to resize it, which is the case if it is
+   * selected alone. Lines show a handle at each end instead.
    */
   @computed
   public get transformTargetId() {
-    return this.layerIds.length === 1 &&
+    return this.annotationIds.length === 1 &&
       this.count === 1 &&
       !this.isHandActive &&
       !this.isPointerDown &&
       !this.renamingGroupId &&
+      !this.editingTextId &&
       !this.isContextMenuOpen
-      ? this.layerIds[0]
+      ? this.annotationIds[0]
       : null;
   }
 
@@ -163,9 +185,14 @@ export class GraphSelection {
   }
 
   @action
-  public setLayers(groupIds: string[], shapeIds: string[]) {
+  public setAnnotations(
+    groupIds: string[],
+    shapeIds: string[],
+    textIds: string[],
+  ) {
     this.groupIds = groupIds;
     this.shapeIds = shapeIds;
+    this.textIds = textIds;
   }
 
   @action
@@ -176,6 +203,28 @@ export class GraphSelection {
   @action
   public toggleShape(shapeId: string) {
     this.shapeIds = toggled(this.shapeIds, shapeId);
+  }
+
+  @action
+  public toggleText(textId: string) {
+    this.textIds = toggled(this.textIds, textId);
+  }
+
+  @action
+  public setEditingText(textId: string | null) {
+    this.editingTextId = textId;
+  }
+
+  @action
+  public setTextSize(textId: string, size: TextSize) {
+    this.textSizes.set(textId, size);
+  }
+
+  @action
+  public setTextPreviews(
+    textPreviews: Map<string, Partial<FreeTextAnnotation>>,
+  ) {
+    this.textPreviews.replace(textPreviews);
   }
 
   @action
@@ -224,6 +273,7 @@ export class GraphSelection {
     this.dropTargetId = null;
     this.groupPreviews.clear();
     this.shapePreviews.clear();
+    this.textPreviews.clear();
   }
 
   @action

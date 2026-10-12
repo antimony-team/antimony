@@ -1,6 +1,7 @@
 import {groupStyle} from '@sb/lib/graph/annotation-style';
 import {
   FreeShapeAnnotation,
+  FreeTextAnnotation,
   GroupStyleAnnotation,
   NodeAnnotation,
 } from '@sb/types/domain/topology';
@@ -50,9 +51,26 @@ export type ShapeGeometry = Pick<
   'position' | 'width' | 'height' | 'endPosition'
 >;
 
-// A shape while it is drawn with a drawing tool
+/**
+ * A markdown text as it is shown in the graph, drawn above the nodes.
+ */
+export interface GraphText {
+  id: string;
+  annotation: FreeTextAnnotation;
+}
+
+// The size of a text as it is rendered, its height follows the text
+export interface TextSize {
+  width: number;
+  height: number;
+}
+
+// What a drawing tool draws
+export type DrawKind = FreeShapeAnnotation['shapeType'] | 'text';
+
+// A shape or text while it is drawn with a drawing tool
 export interface DrawnShape {
-  shapeType: FreeShapeAnnotation['shapeType'];
+  kind: DrawKind;
   geometry: ShapeGeometry;
 }
 
@@ -64,6 +82,11 @@ export type LayerItem =
   | {kind: 'group'; id: string; group: GraphGroup}
   | {kind: 'shape'; id: string; shape: GraphShape};
 
+// Any annotation of the graph, texts are drawn in their own order above the nodes
+export type AnnotationItem =
+  | LayerItem
+  | {kind: 'text'; id: string; text: GraphText};
+
 // Size of a topology node in the graph, see cytoscape-styles.ts
 const NODE_SIZE = 64;
 const NODE_LABEL_HEIGHT = 20;
@@ -73,6 +96,9 @@ const GROUP_PADDING = 24;
 const DEFAULT_SHAPE_WIDTH = 160;
 const DEFAULT_SHAPE_HEIGHT = 100;
 const DEFAULT_LINE_LENGTH = 160;
+
+const DEFAULT_TEXT_WIDTH = 240;
+const DEFAULT_TEXT_HEIGHT = 60;
 
 // The label sits in the top left corner of a group
 const GROUP_LABEL_HEIGHT = 28;
@@ -374,6 +400,57 @@ export function hitTestLayers(
   return null;
 }
 
+/**
+ * Returns the texts in the order they are drawn.
+ */
+export function readGraphTexts(
+  textAnnotations: FreeTextAnnotation[],
+): GraphText[] {
+  return textAnnotations
+    .toSorted((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+    .map(annotation => ({id: annotation.id, annotation}));
+}
+
+/**
+ * Returns the box of a text, or null if it wasn't rendered yet.
+ *
+ * @param annotation The annotation of the text.
+ * @param size The rendered size of the text.
+ */
+export function textBox(
+  annotation: Pick<FreeTextAnnotation, 'position'>,
+  size: TextSize | undefined,
+): Box | null {
+  if (!size) return null;
+
+  return {
+    x: annotation.position.x,
+    y: annotation.position.y,
+    width: size.width,
+    height: size.height,
+  };
+}
+
+/**
+ * Returns the topmost text at the given position.
+ *
+ * @param texts The texts in the order they are drawn.
+ * @param sizes The rendered sizes of the texts by ID.
+ * @param position The position in the graph.
+ */
+export function textAt(
+  texts: GraphText[],
+  sizes: Map<string, TextSize>,
+  position: Position,
+): GraphText | null {
+  return (
+    texts.findLast(text => {
+      const box = textBox(text.annotation, sizes.get(text.id));
+      return box !== null && containsPoint(box, position);
+    }) ?? null
+  );
+}
+
 export function readGraphShapes(
   shapeAnnotations: FreeShapeAnnotation[],
 ): GraphShape[] {
@@ -428,14 +505,18 @@ export function shapeGeometry(annotation: FreeShapeAnnotation): ShapeGeometry {
 }
 
 /**
- * Returns the geometry of a shape that is placed with a click at the given
- * position instead of being drawn.
+ * Returns the geometry of a shape or text that is placed with a click at the
+ * given position instead of being drawn.
  */
-export function defaultShapeGeometry(
-  shapeType: FreeShapeAnnotation['shapeType'],
+export function placedGeometry(
+  kind: DrawKind,
   position: Position,
 ): ShapeGeometry {
-  return shapeGeometry({id: '', shapeType, position});
+  if (kind === 'text') {
+    return {position, width: DEFAULT_TEXT_WIDTH, height: DEFAULT_TEXT_HEIGHT};
+  }
+
+  return shapeGeometry({id: '', shapeType: kind, position});
 }
 
 export function shapeBox(geometry: ShapeGeometry): Box {
@@ -468,11 +549,11 @@ export function moveShapeGeometry(
 }
 
 /**
- * Returns the geometry of a shape drawn from one corner to another. Shift makes
- * rectangles square and ellipses round, and lines horizontal or vertical.
+ * Returns the geometry of a shape or text drawn from one corner to another.
+ * Shift makes boxes square and lines horizontal or vertical.
  */
 export function drawnShapeGeometry(
-  shapeType: FreeShapeAnnotation['shapeType'],
+  kind: DrawKind,
   origin: Position,
   pointer: Position,
   isShift: boolean,
@@ -480,7 +561,7 @@ export function drawnShapeGeometry(
   let dx = pointer.x - origin.x;
   let dy = pointer.y - origin.y;
 
-  if (shapeType === 'line') {
+  if (kind === 'line') {
     if (isShift && Math.abs(dx) > Math.abs(dy)) dy = 0;
     else if (isShift) dx = 0;
 

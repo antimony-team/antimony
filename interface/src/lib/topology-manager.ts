@@ -33,6 +33,7 @@ import {Binding} from '@sb/lib/utils/binding';
 import {
   BindFile,
   FreeShapeAnnotation,
+  FreeTextAnnotation,
   GroupStyleAnnotation,
   NodeAnnotation,
   NodeConnection,
@@ -96,6 +97,9 @@ export interface GraphLayoutUpdate {
 
   // The changed fields of shapes by shape ID
   shapes?: Map<string, Partial<FreeShapeAnnotation>>;
+
+  // The changed fields of texts by text ID
+  texts?: Map<string, Partial<FreeTextAnnotation>>;
 }
 
 // The annotation lists that are drawn below the nodes in one order
@@ -333,6 +337,14 @@ export class TopologyManager {
         );
       }
 
+      if (update.texts) {
+        updatedAnnotations = updateAnnotationItems(
+          updatedAnnotations,
+          'freeTextAnnotations',
+          update.texts,
+        );
+      }
+
       return updatedAnnotations;
     }, mergeKey);
   }
@@ -410,31 +422,91 @@ export class TopologyManager {
   }
 
   /**
-   * Draws the given groups and shapes in front of or behind all other groups
-   * and shapes.
+   * Adds a text in front of all texts. Returns the ID of the text.
+   *
+   * Changes of the text right after merge with this edit, so placing a text
+   * and writing it is one edit in the history.
    */
-  public reorderLayers(ids: string[], toFront: boolean) {
-    if (ids.length === 0) return;
+  public addText(
+    text: Pick<FreeTextAnnotation, 'text' | 'position'> &
+      Partial<FreeTextAnnotation>,
+  ): string | null {
+    if (!this.editingTopology) return null;
 
-    this.editGraphAnnotations(annotations =>
-      reorderAnnotationItems(annotations, LAYER_ANNOTATION_KEYS, ids, toFront),
+    const textId = nextAnnotationId(
+      this.editingTopology.annotations,
+      'freeTextAnnotations',
+      'text',
+    );
+
+    this.editGraphAnnotations(
+      annotations =>
+        addAnnotationItem(annotations, 'freeTextAnnotations', {
+          ...text,
+          id: textId,
+          zIndex: frontZIndex(annotations, ['freeTextAnnotations']),
+        }),
+      textMergeKey(textId),
+    );
+
+    return textId;
+  }
+
+  /**
+   * Changes the markdown of a text, a text without any is removed. Consecutive
+   * changes of the same text are one edit in the history.
+   */
+  public setText(textId: string, text: string) {
+    this.editGraphAnnotations(
+      annotations =>
+        text.trim() === ''
+          ? removeAnnotationItems(annotations, 'freeTextAnnotations', [textId])
+          : updateAnnotationItems(
+              annotations,
+              'freeTextAnnotations',
+              new Map([[textId, {text}]]),
+            ),
+      textMergeKey(textId),
     );
   }
 
   /**
-   * Deletes the given nodes, links, groups and shapes in one edit. The members
-   * of a deleted group are only deleted if they are given as well.
+   * Draws the given annotations in front of or behind all other annotations.
+   * Groups and shapes share one order below the nodes, texts have their own
+   * above the nodes.
+   */
+  public reorderAnnotations(ids: string[], toFront: boolean) {
+    if (ids.length === 0) return;
+
+    this.editGraphAnnotations(annotations =>
+      reorderAnnotationItems(
+        reorderAnnotationItems(
+          annotations,
+          LAYER_ANNOTATION_KEYS,
+          ids,
+          toFront,
+        ),
+        ['freeTextAnnotations'],
+        ids,
+        toFront,
+      ),
+    );
+  }
+
+  /**
+   * Deletes the given nodes, links, groups, shapes and texts in one edit. The
+   * members of a deleted group are only deleted if they are given as well.
    *
    * @param nodeNames The names of the nodes to delete.
    * @param links The links to delete by the names of their two nodes.
    * @param groupIds The IDs of the groups to delete.
-   * @param shapeIds The IDs of the shapes to delete.
+   * @param annotationIds The IDs of the shapes and texts to delete.
    */
   public deleteElements(
     nodeNames: string[],
     links: [string, string][],
     groupIds: string[],
-    shapeIds: string[],
+    annotationIds: string[],
   ) {
     if (!this.editingTopology) return;
 
@@ -472,13 +544,14 @@ export class TopologyManager {
       }
     }
 
-    const annotations = removeAnnotationItems(
+    const annotations = (
+      ['freeShapeAnnotations', 'freeTextAnnotations'] as const
+    ).reduce(
+      (updated, key) => removeAnnotationItems(updated, key, annotationIds),
       removeNodeAnnotations(
         removeGroupAnnotations(this.editingTopology.annotations, groupIds),
         nodeNames,
       ),
-      'freeShapeAnnotations',
-      shapeIds,
     );
 
     this.editTopology(
@@ -1037,4 +1110,8 @@ export class TopologyManager {
       )
       .filter(index => index >= 0);
   }
+}
+
+function textMergeKey(textId: string) {
+  return `text-${textId}`;
 }

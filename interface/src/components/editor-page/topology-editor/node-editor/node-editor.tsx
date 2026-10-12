@@ -11,6 +11,7 @@ import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 
 import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
+import TextLayer from '@sb/components/common/topology-graph/text-layer/text-layer';
 import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
@@ -21,6 +22,7 @@ import {
   nodeMenu,
   selectionMenu,
   shapeMenu,
+  textMenu,
 } from '@sb/components/editor-page/topology-editor/node-editor/graph-context-menus';
 import GroupRename from '@sb/components/editor-page/topology-editor/node-editor/group-rename/group-rename';
 import SelectionOverlay, {
@@ -28,19 +30,21 @@ import SelectionOverlay, {
 } from '@sb/components/editor-page/topology-editor/node-editor/selection-overlay/selection-overlay';
 import {
   GraphTool,
-  TOOL_SHAPES,
+  TOOL_DRAW_KINDS,
   useGraphSelection,
 } from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {
+  AnnotationItem,
   Box,
   boxBetween,
   containsBox,
   containsPoint,
-  defaultShapeGeometry,
+  DrawKind,
   drawnShapeGeometry,
   fitIntoGroupBox,
   GraphGroup,
   GraphShape,
+  GraphText,
   groupAt,
   groupBoxAround,
   GroupHitPart,
@@ -49,12 +53,16 @@ import {
   LayerHit,
   moveBox,
   moveShapeGeometry,
+  placedGeometry,
+  readGraphTexts,
   roundCoordinate,
   roundPosition,
   shapeBox,
   ShapeGeometry,
   shapeGeometry,
   shiftIntoBox,
+  textAt,
+  textBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {
   AnnotationStyle,
@@ -78,6 +86,7 @@ import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {useStableCallbacks} from '@sb/lib/utils/hooks';
 import {
   FreeShapeAnnotation,
+  FreeTextAnnotation,
   GroupStyleAnnotation,
   Topology,
 } from '@sb/types/domain/topology';
@@ -134,12 +143,13 @@ type PointerAction =
       pointer: Position;
       boxes: Map<string, Box>;
       shapes: Map<string, ShapeGeometry>;
+      texts: Map<string, Position>;
       memberPositions: Map<string, Position>;
       hasMoved: boolean;
     }
   | {
       kind: 'draw';
-      shapeType: FreeShapeAnnotation['shapeType'];
+      drawKind: DrawKind;
       origin: Position;
       originClient: Position;
       hasMoved: boolean;
@@ -202,6 +212,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // Whether the graph was the last part of the page that was clicked
   const isGraphActive = useRef(false);
 
+  // The text the last press was on, as the graph didn't get the press
+  const pressedTextId = useRef<string | null>(null);
+
   const elements = useMemo(() => {
     if (props.openTopology === null) return [];
 
@@ -224,12 +237,21 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     return generateLayerItems(props.openTopology, groups);
   }, [groups]);
 
+  const texts = useMemo(
+    () =>
+      readGraphTexts(props.openTopology?.annotations.freeTextAnnotations ?? []),
+    [props.openTopology?.annotations],
+  );
+
   // The handlers below are registered once, they reach the current state through these refs
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
 
   const layerItemsRef = useRef(layerItems);
   layerItemsRef.current = layerItems;
+
+  const textsRef = useRef(texts);
+  textsRef.current = texts;
 
   const handlersRef = useRef({onKeyDown, onKeyUp, onPointerMove, onPointerUp});
   handlersRef.current = {onKeyDown, onKeyUp, onPointerMove, onPointerUp};
@@ -287,23 +309,25 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   );
 
   useEffect(() => {
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     graphSelection.setRenamingGroup(null);
   }, [props.openTopology?.id]);
 
-  // Groups and shapes that were removed, e.g. by undo, are removed from the selection
+  // Annotations that were removed, e.g. by undo, are removed from the selection
   useEffect(() => {
-    const ids = new Set(layerItems.map(item => item.id));
-    const groupIds = graphSelection.groupIds.filter(id => ids.has(id));
-    const shapeIds = graphSelection.shapeIds.filter(id => ids.has(id));
+    const ids = new Set([
+      ...layerItems.map(item => item.id),
+      ...texts.map(text => text.id),
+    ]);
 
-    if (
-      groupIds.length !== graphSelection.groupIds.length ||
-      shapeIds.length !== graphSelection.shapeIds.length
-    ) {
-      graphSelection.setLayers(groupIds, shapeIds);
+    if (graphSelection.annotationIds.some(id => !ids.has(id))) {
+      graphSelection.setAnnotations(
+        graphSelection.groupIds.filter(id => ids.has(id)),
+        graphSelection.shapeIds.filter(id => ids.has(id)),
+        graphSelection.textIds.filter(id => ids.has(id)),
+      );
     }
-  }, [layerItems]);
+  }, [layerItems, texts]);
 
   /**
    * Panning stays enabled with all tools, as cytoscape only zooms with the
@@ -502,6 +526,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       case GraphAction.LineTool:
         graphSelection.setTool(GraphTool.Line);
         break;
+      case GraphAction.TextTool:
+        graphSelection.setTool(GraphTool.Text);
+        break;
+      case GraphAction.EditText:
+        if (graphSelection.count === 1 && graphSelection.textIds.length === 1) {
+          graphSelection.setEditingText(graphSelection.textIds[0]);
+        }
+        break;
     }
   }
 
@@ -526,34 +558,138 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   /**
-   * Shapes are drawn over everything, nodes included. The press doesn't reach
-   * the graph, so it doesn't select or move anything in it.
+   * Shapes and texts are placed over everything, nodes included, and texts are
+   * pressed before the nodes below them. These presses don't reach the graph,
+   * so they don't select or move anything in it.
    */
   function onMouseDownCapture(event: MouseEvent<HTMLDivElement>) {
     const cy = cyRef.current;
-    const shapeType = graphSelection.isDrawToolActive
-      ? TOOL_SHAPES.get(graphSelection.tool)
-      : undefined;
+    pressedTextId.current = null;
+
     if (
       !cy ||
-      !shapeType ||
-      event.button !== 0 ||
+      graphSelection.isHandActive ||
       !cy.container()?.contains(event.target as Node)
     ) {
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
-    graphSelection.setPointerDown(true);
+    const position = toGraphPosition(cy, event.clientX, event.clientY);
+    const drawKind = TOOL_DRAW_KINDS.get(graphSelection.tool);
 
-    pointerAction.current = {
-      kind: 'draw',
-      shapeType,
-      origin: toGraphPosition(cy, event.clientX, event.clientY),
-      originClient: {x: event.clientX, y: event.clientY},
-      hasMoved: false,
-    };
+    if (drawKind && graphSelection.isDrawToolActive) {
+      if (event.button !== 0) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      graphSelection.setPointerDown(true);
+      pointerAction.current = {
+        kind: 'draw',
+        drawKind,
+        origin: position,
+        originClient: {x: event.clientX, y: event.clientY},
+        hasMoved: false,
+      };
+      return;
+    }
+
+    const text = textAt(textsRef.current, graphSelection.textSizes, position);
+    if (!text) return;
+
+    event.stopPropagation();
+    pressedTextId.current = text.id;
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+
+    if ((event.ctrlKey || event.metaKey) && openLinkAt(text.id, event)) return;
+
+    graphSelection.setPointerDown(true);
+    onAnnotationPointerDown(
+      {kind: 'text', id: text.id, text},
+      position,
+      {x: event.clientX, y: event.clientY},
+      event.shiftKey,
+    );
+  }
+
+  // Opens the link of the text at the position of the pointer, if there is one
+  function openLinkAt(textId: string, event: MouseEvent) {
+    const link = [
+      ...(containerRef.current?.querySelectorAll<HTMLAnchorElement>(
+        `[data-layer-id="${CSS.escape(textId)}"] a`,
+      ) ?? []),
+    ].find(link =>
+      [...link.getClientRects()].some(
+        rect =>
+          event.clientX >= rect.left &&
+          event.clientX <= rect.right &&
+          event.clientY >= rect.top &&
+          event.clientY <= rect.bottom,
+      ),
+    );
+    if (!link) return false;
+
+    window.open(link.href, '_blank', 'noopener,noreferrer');
+    return true;
+  }
+
+  function onDoubleClick(event: MouseEvent<HTMLDivElement>) {
+    const cy = cyRef.current;
+    if (
+      !cy ||
+      graphSelection.isHandActive ||
+      !cy.container()?.contains(event.target as Node)
+    ) {
+      return;
+    }
+
+    const text = textAt(
+      textsRef.current,
+      graphSelection.textSizes,
+      toGraphPosition(cy, event.clientX, event.clientY),
+    );
+    if (text) graphSelection.setEditingText(text.id);
+  }
+
+  // The context menu of a text, the press on it didn't reach the graph
+  function onContextMenu(event: MouseEvent<HTMLDivElement>) {
+    const textId = pressedTextId.current;
+    pressedTextId.current = null;
+    if (!textId || !contextMenuRef.current) return;
+
+    event.preventDefault();
+
+    if (!graphSelection.textIds.includes(textId)) {
+      cyRef.current?.elements().unselect();
+      graphSelection.setAnnotations([], [], [textId]);
+    }
+
+    menuTargetRef.current = textId;
+    setContextMenuModel(
+      selectionCount() > 1
+        ? currentSelectionMenu()
+        : textMenu({
+            onEdit: () => graphSelection.setEditingText(textId),
+            onBringToFront: () => onReorder(true),
+            onSendToBack: () => onReorder(false),
+            onDelete: onDeleteSelection,
+          }),
+    );
+    showContextMenu(event);
+  }
+
+  // An unchanged text is left as it is, unless it is empty and is removed
+  function onTextEditEnd(textId: string, value: string) {
+    graphSelection.setEditingText(null);
+
+    const text = textsRef.current.find(text => text.id === textId);
+    if (!text || (text.annotation.text === value && value.trim() !== '')) {
+      return;
+    }
+
+    topologyStore.manager.setText(textId, value);
   }
 
   function onGraphPointerDown(event: EventObject) {
@@ -580,7 +716,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy.userPanningEnabled(false);
 
     if (!hit) {
-      if (!mouseEvent.shiftKey) graphSelection.setLayers([], []);
+      if (!mouseEvent.shiftKey) graphSelection.setAnnotations([], [], []);
 
       pointerAction.current = {
         kind: 'select-box',
@@ -592,16 +728,39 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       return;
     }
 
-    const hitId = hit.kind === 'group' ? hit.group.id : hit.shape.id;
+    onAnnotationPointerDown(
+      hit.kind === 'group'
+        ? {kind: 'group', id: hit.group.id, group: hit.group}
+        : {kind: 'shape', id: hit.shape.id, shape: hit.shape},
+      event.position,
+      originClient,
+      mouseEvent.shiftKey,
+    );
+  }
 
-    if (mouseEvent.shiftKey) {
-      if (hit.kind === 'group') graphSelection.toggleGroup(hitId);
-      else graphSelection.toggleShape(hitId);
-    } else if (!graphSelection.layerIds.includes(hitId)) {
+  /**
+   * Selects the pressed annotation, shift adds or removes it, and starts moving
+   * the selected annotations.
+   */
+  function onAnnotationPointerDown(
+    item: AnnotationItem,
+    position: Position,
+    originClient: Position,
+    isShift: boolean,
+  ) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    if (isShift) {
+      if (item.kind === 'group') graphSelection.toggleGroup(item.id);
+      if (item.kind === 'shape') graphSelection.toggleShape(item.id);
+      if (item.kind === 'text') graphSelection.toggleText(item.id);
+    } else if (!graphSelection.annotationIds.includes(item.id)) {
       cy.elements().unselect();
-      graphSelection.setLayers(
-        hit.kind === 'group' ? [hitId] : [],
-        hit.kind === 'shape' ? [hitId] : [],
+      graphSelection.setAnnotations(
+        item.kind === 'group' ? [item.id] : [],
+        item.kind === 'shape' ? [item.id] : [],
+        item.kind === 'text' ? [item.id] : [],
       );
     }
 
@@ -625,13 +784,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       ]),
     );
 
+    const texts = new Map(
+      selectedTexts().map(text => [text.id, text.annotation.position]),
+    );
+
     pointerAction.current = {
       kind: 'move-layers',
-      origin: event.position,
+      origin: position,
       originClient,
-      pointer: event.position,
+      pointer: position,
       boxes: new Map(movedGroups.map(group => [group.id, boxOf(group)])),
       shapes,
+      texts,
       memberPositions,
       hasMoved: false,
     };
@@ -659,6 +823,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function findLayerItem(id: string) {
     return layerItemsRef.current.find(item => item.id === id) ?? null;
+  }
+
+  function selectedTexts(): GraphText[] {
+    return textsRef.current.filter(text =>
+      graphSelection.textIds.includes(text.id),
+    );
   }
 
   function selectedShapes(): GraphShape[] {
@@ -714,15 +884,15 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
       action.hasMoved = true;
       const geometry = drawnShapeGeometry(
-        action.shapeType,
+        action.drawKind,
         action.origin,
         position,
         event.shiftKey,
       );
 
-      graphSelection.setDrawPreview({shapeType: action.shapeType, geometry});
+      graphSelection.setDrawPreview({kind: action.drawKind, geometry});
       graphSelection.setDrag(
-        drawHint(action.shapeType, geometry),
+        drawHint(action.drawKind, geometry),
         null,
         new Map(),
       );
@@ -798,6 +968,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         [...action.shapes].map(([id, geometry]) => [
           id,
           moveShapeGeometry(geometry, delta),
+        ]),
+      ),
+    );
+    graphSelection.setTextPreviews(
+      new Map(
+        [...action.texts].map(([id, position]) => [
+          id,
+          {position: movePosition(position, delta)},
         ]),
       ),
     );
@@ -883,6 +1061,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
 
     const shapeUpdates = new Map(graphSelection.shapePreviews);
+    const textUpdates = new Map(graphSelection.textPreviews);
 
     const memberGroupIds = currentGroupIds();
     const nodeLayouts = new Map<string, NodeLayout>();
@@ -898,6 +1077,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       nodes: nodeLayouts,
       groups: groupUpdates,
       shapes: shapeUpdates,
+      texts: textUpdates,
     });
   }
 
@@ -913,31 +1093,41 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (!cy) return;
 
     const drawn = drawnShapeGeometry(
-      action.shapeType,
+      action.drawKind,
       action.origin,
       position,
       isShift,
     );
     const box = shapeBox(drawn);
     const isLargeEnough =
-      action.shapeType === 'line'
+      action.drawKind === 'line'
         ? Math.max(box.width, box.height) >= MIN_SHAPE_SIZE
         : Math.min(box.width, box.height) >= MIN_SHAPE_SIZE;
 
     const geometry =
       action.hasMoved && isLargeEnough
         ? drawn
-        : defaultShapeGeometry(action.shapeType, roundPosition(action.origin));
+        : placedGeometry(action.drawKind, roundPosition(action.origin));
+
+    cy.elements().unselect();
+
+    if (action.drawKind === 'text') {
+      const textId = topologyStore.manager.addText({text: '', ...geometry});
+      if (textId === null) return;
+
+      graphSelection.setAnnotations([], [], [textId]);
+      graphSelection.setEditingText(textId);
+      return;
+    }
 
     const shapeId = topologyStore.manager.addShape({
-      shapeType: action.shapeType,
+      shapeType: action.drawKind,
       ...geometry,
-      ...newShapeStyle(action.shapeType),
+      ...newShapeStyle(action.drawKind),
     });
     if (shapeId === null) return;
 
-    cy.elements().unselect();
-    graphSelection.setLayers([], [shapeId]);
+    graphSelection.setAnnotations([], [shapeId], []);
   }
 
   function selectInBox(box: Box, isAdditive: boolean) {
@@ -960,14 +1150,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           containsBox(box, shapeBox(shapeGeometry(item.shape.annotation))),
       )
       .map(item => item.id);
+    const textIds = textsRef.current
+      .filter(text => {
+        const textBounds = textBox(
+          text.annotation,
+          graphSelection.textSizes.get(text.id),
+        );
+        return textBounds !== null && containsBox(box, textBounds);
+      })
+      .map(text => text.id);
 
-    graphSelection.setLayers(
-      isAdditive
-        ? [...new Set([...graphSelection.groupIds, ...groupIds])]
-        : groupIds,
-      isAdditive
-        ? [...new Set([...graphSelection.shapeIds, ...shapeIds])]
-        : shapeIds,
+    const added = (selected: string[], ids: string[]) =>
+      isAdditive ? [...new Set([...selected, ...ids])] : ids;
+
+    graphSelection.setAnnotations(
+      added(graphSelection.groupIds, groupIds),
+      added(graphSelection.shapeIds, shapeIds),
+      added(graphSelection.textIds, textIds),
     );
   }
 
@@ -998,7 +1197,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
 
     if (!(event.originalEvent as unknown as globalThis.MouseEvent)?.shiftKey) {
-      graphSelection.setLayers([], []);
+      graphSelection.setAnnotations([], [], []);
     }
   }
 
@@ -1041,7 +1240,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (mouseEvent.shiftKey || node.selected()) return;
 
     cy.elements().unselect();
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     node.select();
   }
 
@@ -1117,9 +1316,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
       if (!graphSelection.layerIds.includes(hitId)) {
         cy.elements().unselect();
-        graphSelection.setLayers(
+        graphSelection.setAnnotations(
           hit.kind === 'group' ? [hitId] : [],
           hit.kind === 'shape' ? [hitId] : [],
+          [],
         );
       }
 
@@ -1194,7 +1394,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (element.selected()) return;
 
     cyRef.current?.elements().unselect();
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     element.select();
   }
 
@@ -1414,11 +1614,19 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       ]),
     );
 
+    const textUpdates = new Map(
+      selectedTexts().map(text => [
+        text.id,
+        {position: movePosition(text.annotation.position, delta)},
+      ]),
+    );
+
     topologyStore.manager.updateLayout(
       {
         nodes: nodeLayouts,
         groups: boxUpdates(groupBoxes),
         shapes: shapeUpdates,
+        texts: textUpdates,
       },
       NUDGE_MERGE_KEY,
     );
@@ -1426,22 +1634,26 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function onSelectAll() {
     cyRef.current?.nodes('.topology-node').select();
-    graphSelection.setLayers(
+    graphSelection.setAnnotations(
       groupsRef.current.map(group => group.id),
       layerItemsRef.current
         .filter(item => item.kind === 'shape')
         .map(item => item.id),
+      textsRef.current.map(text => text.id),
     );
   }
 
   function deselectAll() {
     cyRef.current?.elements().unselect();
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     graphSelection.setRenamingGroup(null);
   }
 
   function onReorder(toFront: boolean) {
-    topologyStore.manager.reorderLayers(graphSelection.layerIds, toFront);
+    topologyStore.manager.reorderAnnotations(
+      graphSelection.annotationIds,
+      toFront,
+    );
   }
 
   function onSelectMembers() {
@@ -1452,7 +1664,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (!cy || !group) return;
 
     cy.elements().unselect();
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     group.memberIds.forEach(nodeId => cy.getElementById(nodeId).select());
   }
 
@@ -1476,14 +1688,17 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         edge => [edge.data('source'), edge.data('target')] as [string, string],
       );
 
-    const shapeIds = graphSelection.shapeIds;
+    const annotationIds = [
+      ...graphSelection.shapeIds,
+      ...graphSelection.textIds,
+    ];
 
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     topologyStore.manager.deleteElements(
       nodeNames,
       links,
       deletedGroups.map(group => group.id),
-      shapeIds,
+      annotationIds,
     );
   }
 
@@ -1514,7 +1729,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (groupId === null) return;
 
     cy.elements().unselect();
-    graphSelection.setLayers([groupId], []);
+    graphSelection.setAnnotations([groupId], [], []);
     graphSelection.setRenamingGroup(groupId);
   }
 
@@ -1582,6 +1797,19 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     });
   }
 
+  function onTextStyle(update: Partial<FreeTextAnnotation>) {
+    graphSelection.setTextPreviews(new Map());
+    topologyStore.manager.updateLayout({
+      texts: new Map(graphSelection.textIds.map(id => [id, update])),
+    });
+  }
+
+  function onTextStylePreview(update: Partial<FreeTextAnnotation> | null) {
+    graphSelection.setTextPreviews(
+      new Map(update ? graphSelection.textIds.map(id => [id, update]) : []),
+    );
+  }
+
   function onStylePreview(style: Partial<AnnotationStyle> | null) {
     graphSelection.setStylePreview(graphSelection.layerIds, style);
   }
@@ -1625,6 +1853,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onResize(id: string, box: Box, isFinal: boolean) {
+    if (isFinal && textsRef.current.some(text => text.id === id)) {
+      topologyStore.manager.updateLayout({
+        texts: boxUpdates(new Map([[id, box]])),
+      });
+      return;
+    }
+
     const item = findLayerItem(id);
 
     if (item?.kind === 'group') {
@@ -1717,7 +1952,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onClearGraph() {
-    graphSelection.setLayers([], []);
+    graphSelection.setAnnotations([], [], []);
     topologyStore.manager.clear();
   }
 
@@ -1773,6 +2008,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onStyle,
     onStylePreview,
     onResetStyle,
+    onTextStyle,
+    onTextStylePreview,
+    onTextEditEnd,
     onBringToFront: () => onReorder(true),
     onSendToBack: () => onReorder(false),
     onUngroup,
@@ -1796,6 +2034,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       onMouseMove={onMouseMove}
       onMouseDown={onMouseDown}
       onMouseDownCapture={onMouseDownCapture}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
     >
       <TopologyGraph
         ref={graphRef}
@@ -1819,16 +2059,26 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onInstance={onInstance}
         underlay={<AnnotationLayer items={layerItems} state={graphSelection} />}
         overlay={
-          <GroupRename groups={groups} onRename={callbacks.onGroupRename} />
+          <>
+            <TextLayer
+              texts={texts}
+              state={graphSelection}
+              onEditEnd={callbacks.onTextEditEnd}
+            />
+            <GroupRename groups={groups} onRename={callbacks.onGroupRename} />
+          </>
         }
       />
       <SelectionOverlay
         getCy={callbacks.getCy}
         layerItems={layerItems}
+        texts={texts}
         onGroup={callbacks.onGroupSelection}
         onStyle={callbacks.onStyle}
         onStylePreview={callbacks.onStylePreview}
         onResetStyle={callbacks.onResetStyle}
+        onTextStyle={callbacks.onTextStyle}
+        onTextStylePreview={callbacks.onTextStylePreview}
         onBringToFront={callbacks.onBringToFront}
         onSendToBack={callbacks.onSendToBack}
         onUngroup={callbacks.onUngroup}
@@ -1863,18 +2113,19 @@ function isTextInput(target: EventTarget | null) {
   );
 }
 
-function drawHint(
-  shapeType: FreeShapeAnnotation['shapeType'],
-  geometry: ShapeGeometry,
-) {
-  if (shapeType === 'line') {
+function movePosition(position: Position, delta: Position): Position {
+  return roundPosition({x: position.x + delta.x, y: position.y + delta.y});
+}
+
+function drawHint(drawKind: DrawKind, geometry: ShapeGeometry) {
+  if (drawKind === 'line') {
     return 'Hold Shift to draw horizontally or vertically';
   }
 
   const box = shapeBox(geometry);
   const size = `${Math.round(box.width)} × ${Math.round(box.height)}`;
 
-  return `${size} · Hold Shift for a ${shapeType === 'circle' ? 'circle' : 'square'}`;
+  return `${size} · Hold Shift for a ${drawKind === 'circle' ? 'circle' : 'square'}`;
 }
 
 function boxUpdates(

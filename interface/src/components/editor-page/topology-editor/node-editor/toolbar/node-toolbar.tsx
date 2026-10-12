@@ -57,6 +57,12 @@ const SHAPE_TOOLS: ToolButton[] = [
     label: 'Line',
     action: GraphAction.LineTool,
   },
+  {
+    tool: GraphTool.Text,
+    icon: 'text_fields',
+    label: 'Text',
+    action: GraphAction.TextTool,
+  },
 ];
 
 interface NodeToolbarProps {

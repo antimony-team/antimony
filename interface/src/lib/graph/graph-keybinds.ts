@@ -15,6 +15,8 @@ export enum GraphAction {
   RectangleTool,
   EllipseTool,
   LineTool,
+  TextTool,
+  EditText,
 }
 
 interface GraphKeybind {
@@ -44,6 +46,8 @@ const GRAPH_KEYBINDS: GraphKeybind[] = [
   {action: GraphAction.RectangleTool, key: 'r', shift: false},
   {action: GraphAction.EllipseTool, key: 'o', shift: false},
   {action: GraphAction.LineTool, key: 'l', shift: false},
+  {action: GraphAction.TextTool, key: 't', shift: false},
+  {action: GraphAction.EditText, key: 'Enter', shift: false},
 ];
 
 /**

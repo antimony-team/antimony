@@ -258,9 +258,25 @@ const DrawPreview = observer(({state}: {state: AnnotationLayerState}) => {
   const preview = state.drawPreview;
   if (!preview) return null;
 
-  const style = defaultStyle(preview.shapeType);
+  // A text has no outline, so only the box it is drawn in is shown
+  if (preview.kind === 'text') {
+    const box = shapeBox(preview.geometry);
+    return (
+      <div
+        className="sb-graph-draw-preview"
+        style={{
+          left: box.x,
+          top: box.y,
+          width: box.width,
+          height: box.height,
+        }}
+      />
+    );
+  }
 
-  if (preview.shapeType === 'line') {
+  const style = defaultStyle(preview.kind);
+
+  if (preview.kind === 'line') {
     return (
       <LineView
         geometry={preview.geometry}
@@ -275,8 +291,7 @@ const DrawPreview = observer(({state}: {state: AnnotationLayerState}) => {
       className="sb-graph-shape"
       style={{
         ...boxStyle(shapeBox(preview.geometry), style),
-        borderRadius:
-          preview.shapeType === 'circle' ? '50%' : style.cornerRadius,
+        borderRadius: preview.kind === 'circle' ? '50%' : style.cornerRadius,
       }}
     />
   );

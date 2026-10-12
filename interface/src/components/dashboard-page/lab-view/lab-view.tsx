@@ -9,6 +9,7 @@ import {MenuItem} from 'primereact/menuitem';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
 import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
+import TextLayer from '@sb/components/common/topology-graph/text-layer/text-layer';
 import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
@@ -22,6 +23,7 @@ import LogDialog, {
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
+import {readGraphTexts} from '@sb/lib/graph/annotation-geometry';
 import {
   generateGraph,
   generateGroups,
@@ -115,6 +117,14 @@ const LabView = observer((props: LabDialogProps) => {
       generateGroups(props.lab.topologyDefinition, elements),
     );
   }, [elements]);
+
+  const texts = useMemo(
+    () =>
+      readGraphTexts(
+        props.lab?.topologyDefinition.annotations.freeTextAnnotations ?? [],
+      ),
+    [props.lab?.id],
+  );
 
   const labCollection = useMemo(() => {
     if (!props.lab) return null;
@@ -545,6 +555,7 @@ const LabView = observer((props: LabDialogProps) => {
                 return startStatePing(cy);
               }}
               underlay={<AnnotationLayer items={layerItems} />}
+              overlay={<TextLayer texts={texts} />}
             />
           </div>
         </div>

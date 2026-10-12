@@ -190,14 +190,11 @@ export function groupMenu(options: GroupMenuOptions): MenuItem[] {
   ];
 }
 
-interface ShapeMenuOptions {
+interface ShapeMenuOptions extends OrderAndDeleteOptions {
   shapeType: FreeShapeAnnotation['shapeType'];
 
   // Changes a rectangle to an ellipse and back, or reverses a line
   onChangeShape: () => void;
-  onBringToFront: () => void;
-  onSendToBack: () => void;
-  onDelete: () => void;
 }
 
 export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
@@ -210,6 +207,19 @@ export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
 
   return [
     {...changeItem, command: options.onChangeShape},
+    ...orderAndDeleteItems(options),
+  ];
+}
+
+interface OrderAndDeleteOptions {
+  onBringToFront: () => void;
+  onSendToBack: () => void;
+  onDelete: () => void;
+}
+
+// The items at the end of the menus of shapes and texts
+function orderAndDeleteItems(options: OrderAndDeleteOptions): MenuItem[] {
+  return [
     SEPARATOR,
     withKeybind(
       {
@@ -237,6 +247,20 @@ export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
       },
       GraphAction.Delete,
     ),
+  ];
+}
+
+interface TextMenuOptions extends OrderAndDeleteOptions {
+  onEdit: () => void;
+}
+
+export function textMenu(options: TextMenuOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {label: 'Edit text', icon: icon('edit'), command: options.onEdit},
+      GraphAction.EditText,
+    ),
+    ...orderAndDeleteItems(options),
   ];
 }
 

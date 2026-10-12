@@ -7,29 +7,45 @@ import {SelectButton} from 'primereact/selectbutton';
 import {Tooltip} from 'primereact/tooltip';
 
 import SBScrubNumber from '@sb/components/common/sb-scrub-number/sb-scrub-number';
+import {textEditorId} from '@sb/components/common/topology-graph/text-layer/text-layer';
 import ColorPopover from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/color-popover';
+import MarkdownToolbar from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/markdown-toolbar';
 import {SelectionPopoverRef} from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/selection-popover';
 import SliderPopover from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/slider-popover';
 import WidthPopover from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/width-popover';
 import {
   Box,
+  GraphText,
   LayerItem,
   shapeBox,
   shapeGeometry,
 } from '@sb/lib/graph/annotation-geometry';
 import {
   AnnotationStyle,
+  DEFAULT_TEXT_STYLE,
   defaultStyle,
   groupStyle,
   NO_COLOR,
   shapeStyle,
+  textStyle,
 } from '@sb/lib/graph/annotation-style';
 import {GraphAction, keybindLabel} from '@sb/lib/graph/graph-keybinds';
-import {BorderStyle} from '@sb/types/domain/topology';
+import {If} from '@sb/types/control';
+import {BorderStyle, FreeTextAnnotation} from '@sb/types/domain/topology';
 
 import './selection-bar.sass';
 
 const BORDER_STYLES: BorderStyle[] = ['solid', 'dashed', 'dotted'];
+
+const TEXT_ALIGNS: {
+  value: FreeTextAnnotation['textAlign'];
+  label: string;
+  icon: string;
+}[] = [
+  {value: 'left', label: 'Align left', icon: 'format_align_left'},
+  {value: 'center', label: 'Align center', icon: 'format_align_center'},
+  {value: 'right', label: 'Align right', icon: 'format_align_right'},
+];
 
 // Distance between the selection and the bar below it
 const BAR_GAP = 14;
@@ -39,6 +55,8 @@ enum BarPopover {
   Border,
   Width,
   Radius,
+  TextColor,
+  TextBackground,
 }
 
 interface SelectionBarProps {
@@ -48,6 +66,10 @@ interface SelectionBarProps {
   // Set if the selection is exactly one group or shape
   item: LayerItem | null;
 
+  // Set if the selection is exactly one text
+  text: GraphText | null;
+  isEditingText: boolean;
+
   canGroup: boolean;
   canReorder: boolean;
 
@@ -55,6 +77,10 @@ interface SelectionBarProps {
   onStyle: (style: Partial<AnnotationStyle>) => void;
   onStylePreview: (style: Partial<AnnotationStyle> | null) => void;
   onResetStyle: (fields: (keyof AnnotationStyle)[]) => void;
+
+  // Fields that are set to undefined are reset to their default
+  onTextStyle: (update: Partial<FreeTextAnnotation>) => void;
+  onTextStylePreview: (update: Partial<FreeTextAnnotation> | null) => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
   onUngroup: () => void;
@@ -77,6 +103,8 @@ const SelectionBar = memo((props: SelectionBarProps) => {
     [BarPopover.Border]: useRef<SelectionPopoverRef>(null),
     [BarPopover.Width]: useRef<SelectionPopoverRef>(null),
     [BarPopover.Radius]: useRef<SelectionPopoverRef>(null),
+    [BarPopover.TextColor]: useRef<SelectionPopoverRef>(null),
+    [BarPopover.TextBackground]: useRef<SelectionPopoverRef>(null),
   };
 
   const item = props.item;
@@ -114,10 +142,15 @@ const SelectionBar = memo((props: SelectionBarProps) => {
   const isModified = (field: keyof AnnotationStyle) =>
     !!style && !!defaults && style[field] !== defaults[field];
 
+  const text = props.text;
+  const isEditingText = !!text && props.isEditingText;
+  const hasTextStyle = !!text && !isEditingText;
+  const currentTextStyle = text ? textStyle(text.annotation) : null;
+
   // An open popover belongs to the selection it was opened for
   useEffect(() => {
     if (openPopover !== null) popoverRefs[openPopover].current?.hide();
-  }, [item?.id, !!props.box]);
+  }, [item?.id, text?.id, isEditingText, !!props.box]);
 
   function togglePopover(popover: BarPopover, target: HTMLElement) {
     setOpenPopover(popover);
@@ -127,6 +160,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
   function onPopoverHide() {
     setOpenPopover(null);
     props.onStylePreview(null);
+    props.onTextStylePreview(null);
   }
 
   return (
@@ -257,7 +291,84 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           aria-pressed={!!style?.lineEndArrow}
         />
       </span>
-      <span className={classNames('sb-selection-bar-part', {hidden: !item})}>
+      <If condition={isEditingText}>
+        <MarkdownToolbar fieldId={textEditorId(text!.id)} />
+      </If>
+      <span
+        className={classNames('sb-selection-bar-part', {
+          hidden: !hasTextStyle,
+        })}
+      >
+        <button
+          className={classNames('sb-selection-bar-swatch', {
+            active: openPopover === BarPopover.TextColor,
+          })}
+          onClick={event =>
+            togglePopover(BarPopover.TextColor, event.currentTarget)
+          }
+          data-pr-tooltip="Text color"
+          aria-label="Text color"
+        >
+          <span
+            className="sb-color-swatch"
+            style={{backgroundColor: currentTextStyle?.fontColor}}
+          />
+          <i className="pi pi-chevron-down" />
+        </button>
+        <button
+          className={classNames('sb-selection-bar-swatch', {
+            active: openPopover === BarPopover.TextBackground,
+          })}
+          onClick={event =>
+            togglePopover(BarPopover.TextBackground, event.currentTarget)
+          }
+          data-pr-tooltip="Background"
+          aria-label="Background"
+        >
+          <span
+            className={classNames('sb-color-swatch', {
+              none: currentTextStyle?.backgroundColor === NO_COLOR,
+            })}
+            style={{
+              backgroundColor: swatchColor(currentTextStyle?.backgroundColor),
+            }}
+          />
+          <i className="pi pi-chevron-down" />
+        </button>
+        <span className="sb-selection-bar-separator" />
+        <SBScrubNumber
+          value={currentTextStyle?.fontSize ?? DEFAULT_TEXT_STYLE.fontSize}
+          min={8}
+          max={96}
+          icon={<span className="material-symbols-outlined">format_size</span>}
+          ariaLabel="Font size"
+          onChange={fontSize => props.onTextStylePreview({fontSize})}
+          onChangeEnd={fontSize => props.onTextStyle({fontSize})}
+          onReset={() => props.onTextStyle({fontSize: undefined})}
+        />
+        <span className="sb-selection-bar-separator" />
+        {TEXT_ALIGNS.map(align => (
+          <Button
+            key={align.value}
+            text
+            icon={
+              <span className="material-symbols-outlined">{align.icon}</span>
+            }
+            className={classNames({
+              toggled: currentTextStyle?.textAlign === align.value,
+            })}
+            onClick={() => props.onTextStyle({textAlign: align.value})}
+            data-pr-tooltip={align.label}
+            aria-label={align.label}
+            aria-pressed={currentTextStyle?.textAlign === align.value}
+          />
+        ))}
+      </span>
+      <span
+        className={classNames('sb-selection-bar-part', {
+          hidden: !item && !hasTextStyle,
+        })}
+      >
         <span className="sb-selection-bar-separator" />
       </span>
       <span
@@ -276,7 +387,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
       </span>
       <span
         className={classNames('sb-selection-bar-part', {
-          hidden: !props.canReorder,
+          hidden: !props.canReorder || isEditingText,
         })}
       >
         <Button
@@ -306,14 +417,20 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           aria-label="Ungroup"
         />
       </span>
-      <Button
-        text
-        icon="pi pi-trash"
-        className="sb-selection-bar-delete"
-        onClick={props.onDelete}
-        data-pr-tooltip={isGroup ? 'Delete group and nodes' : 'Delete'}
-        aria-label="Delete"
-      />
+      <span
+        className={classNames('sb-selection-bar-part', {
+          hidden: isEditingText,
+        })}
+      >
+        <Button
+          text
+          icon="pi pi-trash"
+          className="sb-selection-bar-delete"
+          onClick={props.onDelete}
+          data-pr-tooltip={isGroup ? 'Delete group and nodes' : 'Delete'}
+          aria-label="Delete"
+        />
+      </span>
       <ColorPopover
         ref={popoverRefs[BarPopover.Fill]}
         header="Fill"
@@ -366,6 +483,30 @@ const SelectionBar = memo((props: SelectionBarProps) => {
         onChange={cornerRadius => props.onStyle({cornerRadius})}
         onPreview={cornerRadius =>
           props.onStylePreview(cornerRadius !== null ? {cornerRadius} : null)
+        }
+        onHide={onPopoverHide}
+      />
+      <ColorPopover
+        ref={popoverRefs[BarPopover.TextColor]}
+        header="Text"
+        color={currentTextStyle?.fontColor ?? DEFAULT_TEXT_STYLE.fontColor}
+        isModified={text?.annotation.fontColor !== undefined}
+        onChange={fontColor => props.onTextStyle({fontColor})}
+        onReset={() => props.onTextStyle({fontColor: undefined})}
+        onPreview={fontColor =>
+          props.onTextStylePreview(fontColor ? {fontColor} : null)
+        }
+        onHide={onPopoverHide}
+      />
+      <ColorPopover
+        ref={popoverRefs[BarPopover.TextBackground]}
+        header="Background"
+        color={currentTextStyle?.backgroundColor ?? NO_COLOR}
+        isModified={text?.annotation.backgroundColor !== undefined}
+        onChange={backgroundColor => props.onTextStyle({backgroundColor})}
+        onReset={() => props.onTextStyle({backgroundColor: undefined})}
+        onPreview={backgroundColor =>
+          props.onTextStylePreview(backgroundColor ? {backgroundColor} : null)
         }
         onHide={onPopoverHide}
       />

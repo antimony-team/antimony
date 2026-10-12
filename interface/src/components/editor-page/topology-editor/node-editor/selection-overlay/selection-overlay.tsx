@@ -2,6 +2,7 @@ import React, {
   MouseEvent,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -14,17 +15,21 @@ import Moveable from 'react-moveable';
 import SelectionBar from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/selection-bar';
 import {useGraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {
+  AnnotationItem,
   Box,
   GraphShape,
+  GraphText,
   groupBoxAround,
   LayerItem,
   shapeBox,
   shapeGeometry,
+  textBox,
   unionBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
 import {toRenderedBox} from '@sb/lib/graph/cytoscape-utils';
 import {If} from '@sb/types/control';
+import {FreeTextAnnotation} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
 import './selection-overlay.sass';
@@ -37,11 +42,14 @@ export type LineEnd = 'start' | 'end';
 interface SelectionOverlayProps {
   getCy: () => cytoscape.Core | null;
   layerItems: LayerItem[];
+  texts: GraphText[];
 
   onGroup: () => void;
   onStyle: (style: Partial<AnnotationStyle>) => void;
   onStylePreview: (style: Partial<AnnotationStyle> | null) => void;
   onResetStyle: (fields: (keyof AnnotationStyle)[]) => void;
+  onTextStyle: (update: Partial<FreeTextAnnotation>) => void;
+  onTextStylePreview: (update: Partial<FreeTextAnnotation> | null) => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
   onUngroup: () => void;
@@ -74,35 +82,39 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
   // Only followed while something is selected, so panning an empty selection renders nothing
   const viewportVersion =
     graphSelection.count > 0 ? graphSelection.viewportVersion : 0;
-  const selectedItems = props.layerItems.filter(item =>
-    graphSelection.layerIds.includes(item.id),
+  const textItems = useMemo<AnnotationItem[]>(
+    () => props.texts.map(text => ({kind: 'text', id: text.id, text})),
+    [props.texts],
+  );
+  const items = [...props.layerItems, ...textItems];
+
+  const selectedItems = items.filter(item =>
+    graphSelection.annotationIds.includes(item.id),
   );
   const transformTarget =
-    props.layerItems.find(
-      item => item.id === graphSelection.transformTargetId,
-    ) ?? null;
+    items.find(item => item.id === graphSelection.transformTargetId) ?? null;
   const transformedLine =
     transformTarget?.kind === 'shape' &&
     transformTarget.shape.annotation.shapeType === 'line'
       ? transformTarget.shape
       : null;
-  const resizedItem = transformedLine ? null : transformTarget;
+  const resized = transformedLine ? null : transformTarget;
 
   useLayoutEffect(() => {
     setMoveableTarget(
-      resizedItem
+      resized
         ? (cy
             ?.container()
             ?.parentElement?.querySelector<HTMLElement>(
-              `[data-layer-id="${CSS.escape(resizedItem.id)}"]`,
+              `[data-layer-id="${CSS.escape(resized.id)}"]`,
             ) ?? null)
         : null,
     );
-  }, [resizedItem?.id, props.layerItems]);
+  }, [resized?.id, props.layerItems, props.texts]);
 
   useEffect(() => {
     moveableRef.current?.updateRect();
-  }, [viewportVersion, props.layerItems]);
+  }, [viewportVersion, props.layerItems, props.texts]);
 
   // The handles follow a selected group or shape while it moves or changes
   useEffect(
@@ -111,13 +123,22 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
         () => [
           ...graphSelection.groupPreviews.values(),
           ...graphSelection.shapePreviews.values(),
+          ...graphSelection.textPreviews.values(),
+          ...graphSelection.textSizes.values(),
         ],
         () => requestAnimationFrame(() => moveableRef.current?.updateRect()),
       ),
     [],
   );
 
-  function boxOf(item: LayerItem): Box {
+  function boxOf(item: AnnotationItem): Box | null {
+    if (item.kind === 'text') {
+      return textBox(
+        {...item.text.annotation, ...graphSelection.textPreviews.get(item.id)},
+        graphSelection.textSizes.get(item.id),
+      );
+    }
+
     if (item.kind === 'group') {
       return graphSelection.groupPreviews.get(item.id) ?? item.group;
     }
@@ -131,7 +152,7 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
   function barBox(): Box | null {
     if (!cy) return null;
 
-    const boxes = selectedItems.map(boxOf);
+    const boxes = selectedItems.map(boxOf).filter(box => box !== null);
     const selected = cy.$(':selected');
 
     if (selected.nonempty()) {
@@ -148,14 +169,17 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
     return box ? toRenderedBox(cy, box) : null;
   }
 
-  const isItemAlone = graphSelection.count === 1 && selectedItems.length === 1;
+  const itemAlone =
+    graphSelection.count === 1 && selectedItems.length === 1
+      ? selectedItems[0]
+      : null;
   const showBar =
     !graphSelection.isContextMenuOpen &&
     !graphSelection.isPointerDown &&
     !graphSelection.isInteracting &&
     !graphSelection.isHandActive &&
     !graphSelection.renamingGroupId &&
-    (graphSelection.count > 1 || isItemAlone);
+    (graphSelection.count > 1 || !!itemAlone);
   const box = showBar ? barBox() : null;
 
   const selectionBox = graphSelection.selectionBox;
@@ -181,13 +205,17 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
       </If>
       <SelectionBar
         box={box}
-        item={isItemAlone ? selectedItems[0] : null}
+        item={itemAlone?.kind !== 'text' ? itemAlone : null}
+        text={itemAlone?.kind === 'text' ? itemAlone.text : null}
+        isEditingText={!!graphSelection.editingTextId}
         canGroup={graphSelection.nodeIds.length > 0}
         canReorder={selectedItems.length > 0}
         onGroup={props.onGroup}
         onStyle={props.onStyle}
         onStylePreview={props.onStylePreview}
         onResetStyle={props.onResetStyle}
+        onTextStyle={props.onTextStyle}
+        onTextStylePreview={props.onTextStylePreview}
         onBringToFront={props.onBringToFront}
         onSendToBack={props.onSendToBack}
         onUngroup={props.onUngroup}
@@ -209,14 +237,11 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
         origin={false}
         renderDirections={['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se']}
         onResizeStart={event => {
-          resizeStartBox.current = resizedItem ? boxOf(resizedItem) : null;
+          resizeStartBox.current = resized ? boxOf(resized) : null;
           graphSelection.setInteracting(true);
 
           // A group with members can't get smaller than a group around one node
-          if (
-            resizedItem?.kind === 'group' &&
-            resizedItem.group.memberIds.length > 0
-          ) {
+          if (resized?.kind === 'group' && resized.group.memberIds.length > 0) {
             const nodeGroup = groupBoxAround([{x: 0, y: 0}])!;
             event.setMin([nodeGroup.width, nodeGroup.height]);
           }
@@ -227,11 +252,11 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
           event.target.style.transform = event.drag.transform;
 
           const start = resizeStartBox.current;
-          if (!start || !resizedItem) return;
+          if (!start || !resized) return;
 
           const [dx, dy] = event.drag.beforeTranslate;
           props.onResize(
-            resizedItem.id,
+            resized.id,
             {
               x: start.x + dx,
               y: start.y + dy,
@@ -247,11 +272,11 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
 
           const start = resizeStartBox.current;
           const last = event.lastEvent;
-          if (!start || !last || !resizedItem) return;
+          if (!start || !last || !resized) return;
 
           const [dx, dy] = last.drag.beforeTranslate;
           props.onResize(
-            resizedItem.id,
+            resized.id,
             {
               x: start.x + dx,
               y: start.y + dy,

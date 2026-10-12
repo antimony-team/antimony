@@ -1,6 +1,7 @@
 import {
   BorderStyle,
   FreeShapeAnnotation,
+  FreeTextAnnotation,
   GroupStyleAnnotation,
 } from '@sb/types/domain/topology';
 
@@ -37,6 +38,13 @@ const DEFAULT_GROUP_STYLE: AnnotationStyle = {
   cornerRadius: 12,
   lineStartArrow: false,
   lineEndArrow: false,
+};
+
+export const DEFAULT_TEXT_STYLE = {
+  fontColor: '#ffffff',
+  backgroundColor: NO_COLOR,
+  fontSize: 14,
+  textAlign: 'left' as const,
 };
 
 const DEFAULT_SHAPE_COLOR = '#5b8def';
@@ -180,6 +188,26 @@ export function shapeStyleUpdate(
  */
 export function fillColor(color: string, opacity: number) {
   return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+
+/**
+ * The style of a text with defaults for the fields it doesn't set.
+ */
+export function textStyle(
+  annotation: FreeTextAnnotation,
+): Required<
+  Pick<
+    FreeTextAnnotation,
+    'fontColor' | 'backgroundColor' | 'fontSize' | 'textAlign'
+  >
+> {
+  return {
+    fontColor: annotation.fontColor ?? DEFAULT_TEXT_STYLE.fontColor,
+    backgroundColor:
+      annotation.backgroundColor ?? DEFAULT_TEXT_STYLE.backgroundColor,
+    fontSize: annotation.fontSize ?? DEFAULT_TEXT_STYLE.fontSize,
+    textAlign: annotation.textAlign ?? DEFAULT_TEXT_STYLE.textAlign,
+  };
 }
 
 // Undefined fields would remove the field from the annotation when merged

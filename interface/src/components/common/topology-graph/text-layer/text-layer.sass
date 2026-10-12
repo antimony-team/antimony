@@ -1,0 +1,95 @@
+.sb-graph-text
+  position: absolute
+  box-sizing: border-box
+  padding: 4px 6px
+  border-radius: 6px
+  line-height: 1.5
+  overflow-wrap: break-word
+  overflow: hidden
+  pointer-events: none
+  user-select: none
+
+  &.selected
+    outline: 1.5px solid var(--accent)
+    outline-offset: 2px
+
+  &.editing
+    outline: 1.5px solid var(--accent)
+    pointer-events: auto
+    user-select: text
+
+  .sb-graph-text-editor
+    display: block
+    width: 100%
+    min-height: 1.5em
+    padding: 0
+    border: 0
+    background: transparent
+    color: inherit
+    font: inherit
+    text-align: inherit
+    line-height: inherit
+    resize: none
+    overflow: hidden
+    outline: none
+
+  // A text with a height keeps it while it is edited, longer texts scroll
+  &.sized .sb-graph-text-editor
+    height: 100%
+    overflow-y: auto
+
+  // Markdown, spaced for short notes in the graph
+  .sb-graph-text-content
+    > :first-child
+      margin-top: 0
+
+    > :last-child
+      margin-bottom: 0
+
+    p, ul, ol, pre, blockquote
+      margin: 0 0 .4em
+
+    h1, h2, h3, h4, h5, h6
+      margin: 0 0 .25em
+      font-weight: 600
+      line-height: 1.3
+
+    h1
+      font-size: 1.5em
+
+    h2
+      font-size: 1.3em
+
+    h3
+      font-size: 1.15em
+
+    h4, h5, h6
+      font-size: 1em
+
+    ul, ol
+      padding-left: 1.3em
+
+    code
+      padding: .05em .35em
+      border-radius: 4px
+      background-color: rgba(255, 255, 255, .08)
+      font-family: 'JetBrains Mono', monospace
+      font-size: .85em
+
+    pre code
+      display: block
+      padding: .4em .6em
+
+    blockquote
+      padding-left: .7em
+      border-left: 2px solid var(--border-strong)
+      color: var(--text-muted)
+
+    a
+      color: var(--accent)
+      text-underline-offset: 2px
+
+    hr
+      margin: .5em 0
+      border: 0
+      border-top: 1px solid var(--border)
