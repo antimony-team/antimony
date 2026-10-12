@@ -26,6 +26,12 @@ const STATUS_PENDING = svgUri(
 
 const labelOffset = (text?: string) => 12 + (text?.length ?? 0) * 3;
 
+// The margins are set from the angle of a link once it is drawn, see bindEdgeLabelUpdates
+const labelMarginX = (ele: cytoscape.EdgeSingular) =>
+  ele.data('labelMarginX') ?? 0;
+const labelMarginY = (ele: cytoscape.EdgeSingular) =>
+  ele.data('labelMarginY') ?? 0;
+
 function nodeImage(ele: cytoscape.NodeSingular): string {
   const image: string | undefined = ele.data('image');
   if (!image) return STATUS_NONE;
@@ -158,10 +164,10 @@ export const topologyStyle = [
         labelOffset(ele.data('targetLabel')),
       'source-text-rotation': 'autorotate',
       'target-text-rotation': 'autorotate',
-      'source-text-margin-x': 'data(labelMarginX)',
-      'source-text-margin-y': 'data(labelMarginY)',
-      'target-text-margin-x': 'data(labelMarginX)',
-      'target-text-margin-y': 'data(labelMarginY)',
+      'source-text-margin-x': labelMarginX,
+      'source-text-margin-y': labelMarginY,
+      'target-text-margin-x': labelMarginX,
+      'target-text-margin-y': labelMarginY,
       'font-family': 'JetBrains Mono, monospace',
       'font-size': 10,
       color: 'rgba(255, 255, 255, 0.6)',
