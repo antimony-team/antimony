@@ -8,7 +8,10 @@ import {
   renameNodeAnnotation,
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
-import {readNodeIcon} from '@sb/lib/graph/topology-graph';
+import {
+  readNodeIcon,
+  renameNodeInDefinition,
+} from '@sb/lib/graph/topology-graph';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
@@ -104,11 +107,7 @@ export class NodeEditor {
       return 'A node with that name already exists';
     }
 
-    this.editingTopology.setIn(
-      ['topology', 'nodes', value],
-      this.editingTopology.getIn(['topology', 'nodes', this.editingNode]),
-    );
-    this.editingTopology.deleteIn(['topology', 'nodes', this.editingNode]);
+    renameNodeInDefinition(this.editingTopology, oldName, value);
 
     this.editingAnnotations = renameNodeAnnotation(
       this.editingAnnotations,
@@ -123,39 +122,6 @@ export class NodeEditor {
 
     this.editingNode = value;
     this.hasChangedName = true;
-
-    // Update links to still connect with the renamed node
-    const linksObj = this.editingTopology.getIn([
-      'topology',
-      'links',
-    ]) as YAMLSeq;
-
-    if (!linksObj) {
-      return null;
-    }
-
-    const links = linksObj.toJS(this.editingTopology) as {
-      endpoints: string[];
-    }[];
-
-    for (const [index, link] of links.entries()) {
-      const endpoint1 = link.endpoints[0].split(':');
-      const endpoint2 = link.endpoints[1].split(':');
-
-      if (endpoint1[0] === oldName) {
-        this.editingTopology.setIn(
-          ['topology', 'links', index, 'endpoints', 0],
-          `${value}:${endpoint1[1]}`,
-        );
-      }
-
-      if (endpoint2[0] === oldName) {
-        this.editingTopology.setIn(
-          ['topology', 'links', index, 'endpoints', 1],
-          `${value}:${endpoint2[1]}`,
-        );
-      }
-    }
 
     return null;
   }

@@ -17,6 +17,7 @@ export enum GraphAction {
   LineTool,
   TextTool,
   EditText,
+  Rename,
 }
 
 interface GraphKeybind {
@@ -48,6 +49,7 @@ const GRAPH_KEYBINDS: GraphKeybind[] = [
   {action: GraphAction.LineTool, key: 'l', shift: false},
   {action: GraphAction.TextTool, key: 't', shift: false},
   {action: GraphAction.EditText, key: 'Enter', shift: false},
+  {action: GraphAction.Rename, key: 'F2'},
 ];
 
 /**

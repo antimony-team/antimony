@@ -1,3 +1,5 @@
+import {isMap, isScalar, isSeq} from 'yaml';
+
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {
@@ -193,9 +195,8 @@ export function buildTopologyMetadata(
     return {nodeCount, connections, connectionMap};
   }
 
-  let index = 0;
-
-  for (const link of links) {
+  // The index is the position of the link in the topology, skipped links included
+  for (const [index, link] of links.entries()) {
     const [hostNode, hostInterface] = link.endpoints[0].split(':');
     const [targetNode, targetInterface] = link.endpoints[1].split(':');
 
@@ -249,8 +250,6 @@ export function buildTopologyMetadata(
       targetInterfaceIndex: hostInterfaceIndex,
       targetInterfaceConfig: hostInterfaceConfig,
     });
-
-    index++;
   }
 
   return {nodeCount, connections, connectionMap};
@@ -291,4 +290,50 @@ function readNodePosition(
   if (!isNaN(lat) && !isNaN(lng)) return convertLatLngToXY(lat, lng);
 
   return null;
+}
+
+/**
+ * Renames a node of the definition and the endpoints of its links. The node
+ * keeps its place and its comments in the definition.
+ *
+ * @param definition The definition to change.
+ * @param nodeName The current name of the node.
+ * @param updatedNodeName The new name of the node.
+ */
+export function renameNodeInDefinition(
+  definition: YAMLDocument<TopologyDefinition>,
+  nodeName: string,
+  updatedNodeName: string,
+) {
+  const nodes = definition.getIn(['topology', 'nodes']);
+  const node = isMap(nodes)
+    ? nodes.items.find(
+        item =>
+          String(isScalar(item.key) ? item.key.value : item.key) === nodeName,
+      )
+    : undefined;
+  if (!node) return;
+
+  if (isScalar(node.key)) {
+    node.key.value = updatedNodeName;
+  } else {
+    node.key = definition.createNode(updatedNodeName);
+  }
+
+  const links = definition.getIn(['topology', 'links']);
+  if (!isSeq(links)) return;
+
+  for (const link of links.items) {
+    const endpoints = isMap(link) ? link.get('endpoints', true) : undefined;
+    if (!isSeq(endpoints)) continue;
+
+    for (const endpoint of endpoints.items) {
+      if (!isScalar(endpoint) || typeof endpoint.value !== 'string') continue;
+
+      const [endpointNode, endpointInterface] = endpoint.value.split(':');
+      if (endpointNode === nodeName) {
+        endpoint.value = `${updatedNodeName}:${endpointInterface}`;
+      }
+    }
+  }
 }

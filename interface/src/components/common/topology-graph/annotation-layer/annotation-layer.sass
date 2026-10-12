@@ -2,10 +2,6 @@
   position: absolute
   box-sizing: border-box
 
-  &.selected
-    outline: 1.5px solid var(--accent)
-    outline-offset: 3px
-
   &.drop-target
     border-color: var(--accent) !important
     box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 15%, transparent)
@@ -25,21 +21,19 @@
   position: absolute
   box-sizing: border-box
 
-  &.selected
-    outline: 1.5px solid var(--accent)
-    outline-offset: 3px
-
 .sb-graph-line
   position: absolute
   overflow: visible
-
-  .sb-graph-line-selection
-    stroke: var(--accent)
-    stroke-opacity: .18
-    stroke-linecap: round
 
 .sb-graph-draw-preview
   position: absolute
   box-sizing: border-box
   border: 1.5px dashed var(--accent)
   border-radius: 6px
+
+// The halo of a selected line or link, drawn behind it
+.sb-graph-line-selection
+  fill: none
+  stroke: var(--accent)
+  stroke-opacity: .18
+  stroke-linecap: round

@@ -1,38 +1,9 @@
-.sb-selection-overlay-box
+// The overlay of the graph is scaled with the zoom, this keeps the bar at its size
+.sb-selection-overlay-bar
   position: absolute
-  z-index: 10
-  border: 1px dashed var(--accent)
-  border-radius: 4px
-  background-color: color-mix(in oklab, var(--accent) 6%, transparent)
-  pointer-events: none
+  transform: scale(calc(1 / var(--sb-graph-zoom, 1)))
+  transform-origin: 0 0
 
-// The handles to resize a group, themed like the selection in the graph
-.sb-selection-overlay-moveable
-  z-index: 10 !important
-
-  .moveable-padding
-    pointer-events: none
-
-  .moveable-line
-    background: var(--accent) !important
-
-  .moveable-control
-    width: 9px !important
-    height: 9px !important
-    margin-top: -4.5px !important
-    margin-left: -4.5px !important
-    border: 1.5px solid var(--accent) !important
-    border-radius: 2px !important
-    background: #ffffff !important
-
-.sb-selection-overlay-line-handle
-  position: absolute
-  z-index: 10
-  width: 12px
-  height: 12px
-  margin: -6px 0 0 -6px
-  box-sizing: border-box
-  border: 2px solid var(--accent)
-  border-radius: 50%
-  background-color: #ffffff
-  cursor: move
+  .sb-selection-bar
+    left: 0
+    pointer-events: auto

@@ -59,8 +59,7 @@ export interface GraphText {
   annotation: FreeTextAnnotation;
 }
 
-// The size of a text as it is rendered, its height follows the text
-export interface TextSize {
+export interface Size {
   width: number;
   height: number;
 }
@@ -89,7 +88,7 @@ export type AnnotationItem =
 
 // Size of a topology node in the graph, see cytoscape-styles.ts
 const NODE_SIZE = 64;
-const NODE_LABEL_HEIGHT = 20;
+const NODE_LABEL_HEIGHT = 25;
 
 const GROUP_PADDING = 24;
 
@@ -107,6 +106,18 @@ const GROUP_LABEL_CHAR_WIDTH = 7.5;
 export enum GroupHitPart {
   Label,
   Body,
+}
+
+/**
+ * Returns the box of the icon of a node in the graph.
+ */
+export function nodeIconBox(position: Position): Box {
+  return {
+    x: position.x - NODE_SIZE / 2,
+    y: position.y - NODE_SIZE / 2,
+    width: NODE_SIZE,
+    height: NODE_SIZE,
+  };
 }
 
 /**
@@ -419,7 +430,7 @@ export function readGraphTexts(
  */
 export function textBox(
   annotation: Pick<FreeTextAnnotation, 'position'>,
-  size: TextSize | undefined,
+  size: Size | undefined,
 ): Box | null {
   if (!size) return null;
 
@@ -440,7 +451,7 @@ export function textBox(
  */
 export function textAt(
   texts: GraphText[],
-  sizes: Map<string, TextSize>,
+  sizes: Map<string, Size>,
   position: Position,
 ): GraphText | null {
   return (
@@ -449,6 +460,34 @@ export function textAt(
       return box !== null && containsPoint(box, position);
     }) ?? null
   );
+}
+
+/**
+ * Returns the boxes of the given groups, shapes and texts.
+ *
+ * @param items The groups and shapes.
+ * @param texts The texts.
+ * @param textSizes The rendered sizes of the texts, which are used when given.
+ */
+export function annotationBoxes(
+  items: LayerItem[],
+  texts: GraphText[],
+  textSizes?: Map<string, Size>,
+): Box[] {
+  return [
+    ...items.map(item =>
+      item.kind === 'group'
+        ? item.group
+        : shapeBox(shapeGeometry(item.shape.annotation)),
+    ),
+    ...texts.map(text => ({
+      ...text.annotation.position,
+      ...(textSizes?.get(text.id) ?? {
+        width: text.annotation.width ?? DEFAULT_TEXT_WIDTH,
+        height: text.annotation.height ?? DEFAULT_TEXT_HEIGHT,
+      }),
+    })),
+  ];
 }
 
 export function readGraphShapes(
@@ -631,7 +670,7 @@ export function isShapeHit(
   return isFilled || !containsPoint(growBox(box, -outline), position);
 }
 
-function growBox(box: Box, distance: number): Box {
+export function growBox(box: Box, distance: number): Box {
   return {
     x: box.x - distance,
     y: box.y - distance,

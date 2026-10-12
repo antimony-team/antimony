@@ -14,17 +14,19 @@ import {
   removeGroupAnnotations,
   removeNodeAnnotations,
   removeOrphanedNodeAnnotations,
+  renameNodeAnnotation,
   reorderAnnotationItems,
   updateAnnotationItems,
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
 import {
   buildTopologyMetadata,
-  NodeLayout,
   nodeAnnotationMap,
+  NodeLayout,
   nodeLayoutAnnotation,
   parseInterface,
   readGraphNodes,
+  renameNodeInDefinition,
 } from '@sb/lib/graph/topology-graph';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
@@ -780,6 +782,51 @@ export class TopologyManager {
 
       this.editBindFile('', BindFileEditSource.System);
     }
+  }
+
+  /**
+   * Renames a node, its links and its annotation follow the new name.
+   */
+  public renameNode(nodeName: string, updatedNodeName: string) {
+    if (!this.editingTopology || nodeName === updatedNodeName) return;
+
+    const updatedTopology = this.editingTopology.definition.clone();
+    renameNodeInDefinition(updatedTopology, nodeName, updatedNodeName);
+
+    this.editTopology(
+      updatedTopology,
+      TopologyEditSource.NodeEditor,
+      renameNodeAnnotation(
+        this.editingTopology.annotations,
+        nodeName,
+        updatedNodeName,
+      ),
+    );
+  }
+
+  /**
+   * Renames the interface at one end of a link.
+   *
+   * @param linkIndex The index of the link in the topology.
+   * @param endpointIndex The end of the link, 0 for the first endpoint.
+   * @param nodeName The node at that end of the link.
+   * @param interfaceName The new name of the interface.
+   */
+  public renameInterface(
+    linkIndex: number,
+    endpointIndex: number,
+    nodeName: string,
+    interfaceName: string,
+  ) {
+    if (!this.editingTopology) return;
+
+    const updatedTopology = this.editingTopology.definition.clone();
+    updatedTopology.setIn(
+      ['topology', 'links', linkIndex, 'endpoints', endpointIndex],
+      `${nodeName}:${interfaceName}`,
+    );
+
+    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   /**

@@ -1,0 +1,17 @@
+// The geometry is in graph coordinates, so the SVG only marks the origin
+.sb-selection-layer
+  position: absolute
+  width: 1px
+  height: 1px
+  overflow: visible
+  pointer-events: none
+
+  // Dashed lines that keep their size on screen, the graph is scaled with the zoom
+  .sb-selection-layer-outline, .sb-selection-layer-box
+    fill: none
+    stroke: var(--accent)
+    stroke-width: calc(1.5px / var(--sb-graph-zoom, 1))
+    stroke-dasharray: calc(4px / var(--sb-graph-zoom, 1)) calc(3px / var(--sb-graph-zoom, 1))
+
+  .sb-selection-layer-box
+    fill: color-mix(in oklab, var(--accent) 6%, transparent)

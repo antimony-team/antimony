@@ -23,7 +23,10 @@ import LogDialog, {
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
-import {readGraphTexts} from '@sb/lib/graph/annotation-geometry';
+import {
+  annotationBoxes,
+  readGraphTexts,
+} from '@sb/lib/graph/annotation-geometry';
 import {
   generateGraph,
   generateGroups,
@@ -556,6 +559,7 @@ const LabView = observer((props: LabDialogProps) => {
               }}
               underlay={<AnnotationLayer items={layerItems} />}
               overlay={<TextLayer texts={texts} />}
+              getLayerBoxes={() => annotationBoxes(layerItems, texts)}
             />
           </div>
         </div>

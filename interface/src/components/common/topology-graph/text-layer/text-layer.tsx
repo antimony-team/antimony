@@ -3,7 +3,7 @@ import React, {KeyboardEvent, useLayoutEffect, useRef} from 'react';
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 
-import {GraphText, TextSize} from '@sb/lib/graph/annotation-geometry';
+import {GraphText, Size} from '@sb/lib/graph/annotation-geometry';
 import {NO_COLOR, textStyle} from '@sb/lib/graph/annotation-style';
 import {renderMarkdown} from '@sb/lib/graph/markdown';
 import {Choose, Otherwise, When} from '@sb/types/control';
@@ -25,15 +25,12 @@ const FORMAT_SHORTCUTS = new Map([
 export interface TextLayerState {
   textIds: string[];
 
-  // This text shows handles instead of the selection outline
-  transformTargetId: string | null;
-
   editingTextId: string | null;
 
   // Changes that replace the stored fields while they are changed
   textPreviews: Map<string, Partial<FreeTextAnnotation>>;
 
-  setTextSize: (textId: string, size: TextSize) => void;
+  setTextSize: (textId: string, size: Size) => void;
 }
 
 interface TextLayerProps {
@@ -127,9 +124,6 @@ const TextView = observer(({text, state, onEditEnd}: TextViewProps) => {
       ref={containerRef}
       data-layer-id={text.id}
       className={classNames('sb-graph-text', {
-        selected:
-          state?.textIds.includes(text.id) &&
-          state.transformTargetId !== text.id,
         editing: isEditing,
         sized: isSized,
       })}

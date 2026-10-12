@@ -42,9 +42,6 @@ export interface AnnotationLayerState {
   groupIds: string[];
   shapeIds: string[];
 
-  // This group or shape shows handles instead of the selection outline
-  transformTargetId: string | null;
-
   dropTargetId: string | null;
 
   // The label of this group is hidden while it is renamed
@@ -106,9 +103,6 @@ const GroupBox = observer(({group, state}: GroupBoxProps) => {
     <div
       data-layer-id={group.id}
       className={classNames('sb-graph-group', {
-        selected:
-          state?.groupIds.includes(group.id) &&
-          state.transformTargetId !== group.id,
         'drop-target': state?.dropTargetId === group.id,
       })}
       style={{
@@ -164,15 +158,13 @@ const ShapeView = observer(({shape, state}: ShapeViewProps) => {
   return (
     <div
       data-layer-id={shape.id}
-      className={classNames('sb-graph-shape', {
-        selected: isSelected && state?.transformTargetId !== shape.id,
-      })}
+      className="sb-graph-shape"
       style={{
         ...boxStyle(shapeBox(geometry), style),
         borderRadius:
           shape.annotation.shapeType === 'circle' ? '50%' : style.cornerRadius,
       }}
-    />
+    ></div>
   );
 });
 
@@ -298,6 +290,8 @@ const DrawPreview = observer(({state}: {state: AnnotationLayerState}) => {
 });
 
 function boxStyle(box: Box, style: AnnotationStyle): CSSProperties {
+  const borderWidth = style.borderColor === NO_COLOR ? 0 : style.borderWidth;
+
   return {
     left: box.x,
     top: box.y,
@@ -308,7 +302,7 @@ function boxStyle(box: Box, style: AnnotationStyle): CSSProperties {
         ? 'transparent'
         : fillColor(style.fillColor, style.fillOpacity),
     borderColor: style.borderColor,
-    borderWidth: style.borderColor === NO_COLOR ? 0 : style.borderWidth,
+    borderWidth,
     borderStyle: style.borderStyle,
     borderRadius: style.cornerRadius,
   };

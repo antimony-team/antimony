@@ -3,11 +3,15 @@ import {createContext, useContext} from 'react';
 import {action, computed, observable} from 'mobx';
 
 import {
+  AnnotationItem,
   Box,
   DrawKind,
   DrawnShape,
+  shapeBox,
   ShapeGeometry,
-  TextSize,
+  shapeGeometry,
+  Size,
+  textBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
 import {FreeTextAnnotation} from '@sb/types/domain/topology';
@@ -30,6 +34,30 @@ export const TOOL_DRAW_KINDS = new Map<GraphTool, DrawKind>([
   [GraphTool.Text, 'text'],
 ]);
 
+export enum LabelKind {
+  Group,
+  Node,
+  Interface,
+}
+
+/**
+ * A label that is edited in place in the graph.
+ */
+export interface LabelEdit {
+  kind: LabelKind;
+
+  // The ID of the group, node or link
+  id: string;
+
+  // The end of the link whose interface is edited, 0 for its first endpoint
+  endpointIndex?: number;
+
+  value: string;
+
+  // Where the field is shown in the graph, the center of the label or the top left of a group label
+  position: Position;
+}
+
 /**
  * The selection and the interaction state of the graph. Nodes and links are
  * selected in cytoscape, their IDs are mirrored here so the view can react to
@@ -42,7 +70,6 @@ export class GraphSelection {
   @observable accessor isHandHeld: boolean = false;
 
   @observable accessor nodeIds: string[] = [];
-  @observable accessor edgeIds: string[] = [];
   @observable accessor groupIds: string[] = [];
   @observable accessor shapeIds: string[] = [];
   @observable accessor textIds: string[] = [];
@@ -51,11 +78,13 @@ export class GraphSelection {
   @observable accessor isInteracting: boolean = false;
 
   /*
-   * Whether the mouse button is held in the graph. The bar and the resize handles
-   * only appear once it is released, so they are never mounted at the start of a
-   * drag.
+   * Whether the mouse button is held in the graph. The bar only appears once it
+   * is released, so it is never mounted at the start of a drag.
    */
   @observable accessor isPointerDown: boolean = false;
+
+  // Whether the selected groups, shapes and texts are dragged, their handles are hidden meanwhile
+  @observable accessor isMoving: boolean = false;
 
   // The group that the dragged nodes are added to when they are dropped
   @observable accessor dropTargetId: string | null = null;
@@ -82,14 +111,18 @@ export class GraphSelection {
   >();
 
   // The rendered sizes of the texts by text ID, their height follows the text
-  public readonly textSizes = observable.map<string, TextSize>();
+  public readonly textSizes = observable.map<string, Size>();
 
   @observable accessor editingTextId: string | null = null;
+
+  // The box of the annotation that Moveable resizes, which changes the element directly
+  @observable accessor resizePreview: {id: string; box: Box} | null = null;
 
   // The shape that is currently drawn with a drawing tool
   @observable accessor drawPreview: DrawnShape | null = null;
 
-  @observable accessor renamingGroupId: string | null = null;
+  // The label that is edited in place, its label in the graph is hidden meanwhile
+  @observable accessor labelEdit: LabelEdit | null = null;
 
   // Shown in the status bar while elements are dragged
   @observable accessor dragHint: string | null = null;
@@ -99,10 +132,10 @@ export class GraphSelection {
 
   @observable accessor isContextMenuOpen: boolean = false;
 
-  // Changes whenever the graph is panned or zoomed
+  // The link whose context menu is open, it is highlighted meanwhile
+  @observable accessor menuEdgeId: string | null = null;
+
   @observable accessor zoom: number = 1;
-  @observable accessor pan: Position = {x: 0, y: 0};
-  @observable accessor viewportVersion: number = 0;
 
   constructor() {
     this.setTool = this.setTool.bind(this);
@@ -122,7 +155,6 @@ export class GraphSelection {
   public get count() {
     return (
       this.nodeIds.length +
-      this.edgeIds.length +
       this.groupIds.length +
       this.shapeIds.length +
       this.textIds.length
@@ -150,10 +182,7 @@ export class GraphSelection {
     return this.annotationIds.length === 1 &&
       this.count === 1 &&
       !this.isHandActive &&
-      !this.isPointerDown &&
-      !this.renamingGroupId &&
-      !this.editingTextId &&
-      !this.isContextMenuOpen
+      !this.isMoving
       ? this.annotationIds[0]
       : null;
   }
@@ -169,9 +198,8 @@ export class GraphSelection {
   }
 
   @action
-  public setElements(nodeIds: string[], edgeIds: string[]) {
+  public setNodes(nodeIds: string[]) {
     this.nodeIds = nodeIds;
-    this.edgeIds = edgeIds;
   }
 
   @action
@@ -216,7 +244,7 @@ export class GraphSelection {
   }
 
   @action
-  public setTextSize(textId: string, size: TextSize) {
+  public setTextSize(textId: string, size: Size) {
     this.textSizes.set(textId, size);
   }
 
@@ -235,6 +263,16 @@ export class GraphSelection {
   @action
   public setPointerDown(isPointerDown: boolean) {
     this.isPointerDown = isPointerDown;
+  }
+
+  @action
+  public setMoving(isMoving: boolean) {
+    this.isMoving = isMoving;
+  }
+
+  @action
+  public setResizePreview(resizePreview: {id: string; box: Box} | null) {
+    this.resizePreview = resizePreview;
   }
 
   @action
@@ -296,9 +334,35 @@ export class GraphSelection {
     for (const id of ids) this.stylePreviews.set(id, style);
   }
 
+  /**
+   * Returns the box of a group, shape or text as it is shown, previews included.
+   * Returns null for texts that weren't rendered yet.
+   */
+  public annotationBox(item: AnnotationItem): Box | null {
+    switch (item.kind) {
+      case 'group':
+        return this.groupPreviews.get(item.id) ?? item.group;
+      case 'shape':
+        return shapeBox(
+          this.shapePreviews.get(item.id) ??
+            shapeGeometry(item.shape.annotation),
+        );
+      case 'text':
+        return textBox(
+          {...item.text.annotation, ...this.textPreviews.get(item.id)},
+          this.textSizes.get(item.id),
+        );
+    }
+  }
+
+  @computed
+  public get renamingGroupId() {
+    return this.labelEdit?.kind === LabelKind.Group ? this.labelEdit.id : null;
+  }
+
   @action
-  public setRenamingGroup(groupId: string | null) {
-    this.renamingGroupId = groupId;
+  public setLabelEdit(labelEdit: LabelEdit | null) {
+    this.labelEdit = labelEdit;
   }
 
   @action
@@ -309,13 +373,17 @@ export class GraphSelection {
   @action
   public setContextMenuOpen(isContextMenuOpen: boolean) {
     this.isContextMenuOpen = isContextMenuOpen;
+    if (!isContextMenuOpen) this.menuEdgeId = null;
   }
 
   @action
-  public setViewport(zoom: number, pan: Position) {
+  public setMenuEdge(edgeId: string | null) {
+    this.menuEdgeId = edgeId;
+  }
+
+  @action
+  public setZoom(zoom: number) {
     this.zoom = zoom;
-    this.pan = pan;
-    this.viewportVersion++;
   }
 }
 

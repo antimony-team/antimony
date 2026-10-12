@@ -14,7 +14,6 @@ import {SelectionPopoverRef} from '@sb/components/editor-page/topology-editor/no
 import SliderPopover from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/slider-popover';
 import WidthPopover from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/width-popover';
 import {
-  Box,
   GraphText,
   LayerItem,
   shapeBox,
@@ -60,8 +59,7 @@ enum BarPopover {
 }
 
 interface SelectionBarProps {
-  // The selection in coordinates of the graph's container, the bar is hidden if null
-  box: Box | null;
+  isVisible: boolean;
 
   // Set if the selection is exactly one group or shape
   item: LayerItem | null;
@@ -88,8 +86,9 @@ interface SelectionBarProps {
 }
 
 /**
- * The bar below the selected elements of the graph. It changes how the selected
- * elements look, the context menu holds the remaining commands.
+ * The bar below the selected elements of the graph, its parent places it at the
+ * bottom center of the selection. It changes how the selected elements look,
+ * the context menu holds the remaining commands.
  *
  * Mounting and rendering the bar takes a while, so it stays mounted, its parts
  * are only hidden, and it only renders again when its props change. The buttons
@@ -150,7 +149,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
   // An open popover belongs to the selection it was opened for
   useEffect(() => {
     if (openPopover !== null) popoverRefs[openPopover].current?.hide();
-  }, [item?.id, text?.id, isEditingText, !!props.box]);
+  }, [item?.id, text?.id, isEditingText, props.isVisible]);
 
   function togglePopover(popover: BarPopover, target: HTMLElement) {
     setOpenPopover(popover);
@@ -165,15 +164,8 @@ const SelectionBar = memo((props: SelectionBarProps) => {
 
   return (
     <div
-      className={classNames('sb-selection-bar', {hidden: !props.box})}
-      style={
-        props.box
-          ? {
-              left: props.box.x + props.box.width / 2,
-              top: props.box.y + props.box.height + BAR_GAP,
-            }
-          : undefined
-      }
+      className={classNames('sb-selection-bar', {hidden: !props.isVisible})}
+      style={{top: BAR_GAP}}
     >
       <Tooltip target=".sb-selection-bar [data-pr-tooltip]" position="bottom" />
       <span className={classNames('sb-selection-bar-part', {hidden: !hasFill})}>

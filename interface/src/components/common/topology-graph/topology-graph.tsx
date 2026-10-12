@@ -10,6 +10,7 @@ import React, {
 import cytoscape, {ElementDefinition, EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 
+import {Box} from '@sb/lib/graph/annotation-geometry';
 import {topologyStyle} from '@sb/lib/graph/cytoscape-styles';
 import {
   fitGraph,
@@ -36,6 +37,9 @@ interface TopologyGraphProps {
   // Content drawn behind and in front of the graph, positioned in graph coordinates
   underlay?: ReactNode;
   overlay?: ReactNode;
+
+  // The boxes of the content of the layers, which the graph is fitted to as well
+  getLayerBoxes?: () => Box[];
 }
 
 export interface TopologyGraphRef {
@@ -197,11 +201,18 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
     const onInstanceRef = useRef(props.onInstance);
     onInstanceRef.current = props.onInstance;
 
+    const getLayerBoxesRef = useRef(props.getLayerBoxes);
+    getLayerBoxesRef.current = props.getLayerBoxes;
+
     useImperativeHandle(ref, () => ({
       fit: (animated: boolean) => {
-        if (cyRef.current) fitGraph(cyRef.current, animated);
+        if (cyRef.current) fit(cyRef.current, animated);
       },
     }));
+
+    function fit(cy: cytoscape.Core, animated: boolean) {
+      fitGraph(cy, animated, getLayerBoxesRef.current?.() ?? []);
+    }
 
     useEffect(() => {
       if (!cyInstance) return;
@@ -233,7 +244,7 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       }
 
       isFitPending.current = false;
-      fitGraph(cy, false);
+      fit(cy, false);
     }
 
     function initCytoscape(cy: cytoscape.Core) {
@@ -274,7 +285,7 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       }
 
       isFitPending.current = false;
-      fitGraph(cy, false);
+      fit(cy, false);
     }
 
     return (

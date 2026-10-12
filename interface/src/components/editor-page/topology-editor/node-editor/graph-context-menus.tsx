@@ -35,6 +35,7 @@ function icon(name: string) {
 interface NodeMenuOptions {
   groups: {id: string; name: string}[];
 
+  onRename: () => void;
   onEdit: () => void;
   onConnect: () => void;
   onAddToGroup: (groupId: string) => void;
@@ -43,6 +44,10 @@ interface NodeMenuOptions {
 
 export function nodeMenu(options: NodeMenuOptions): MenuItem[] {
   return [
+    withKeybind(
+      {label: 'Rename…', icon: icon('edit'), command: options.onRename},
+      GraphAction.Rename,
+    ),
     {label: 'Edit node…', icon: icon('edit_square'), command: options.onEdit},
     {
       label: 'Connect',
@@ -72,14 +77,28 @@ export function nodeMenu(options: NodeMenuOptions): MenuItem[] {
   ];
 }
 
-export function linkMenu(onDelete: () => void): MenuItem[] {
+interface LinkMenuOptions {
+  // The endpoints of the link, e.g. srl1:e1-1
+  endpoints: [string, string];
+
+  onRenameInterface: (endpointIndex: number) => void;
+  onDelete: () => void;
+}
+
+export function linkMenu(options: LinkMenuOptions): MenuItem[] {
   return [
+    ...options.endpoints.map((endpoint, index) => ({
+      label: `Rename ${endpoint}`,
+      icon: icon('edit'),
+      command: () => options.onRenameInterface(index),
+    })),
+    SEPARATOR,
     withKeybind(
       {
         label: 'Delete link',
         icon: 'pi pi-trash',
         className: 'sb-menuitem-danger',
-        command: onDelete,
+        command: options.onDelete,
       },
       GraphAction.Delete,
     ),
@@ -153,7 +172,10 @@ interface GroupMenuOptions {
 
 export function groupMenu(options: GroupMenuOptions): MenuItem[] {
   return [
-    {label: 'Rename…', icon: icon('edit'), command: options.onRename},
+    withKeybind(
+      {label: 'Rename…', icon: icon('edit'), command: options.onRename},
+      GraphAction.Rename,
+    ),
     {
       label: 'Select members',
       icon: icon('select_all'),

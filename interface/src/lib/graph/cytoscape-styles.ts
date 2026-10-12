@@ -85,11 +85,20 @@ export const topologyStyle = [
       'bounds-expansion': 6,
       'background-image-opacity': [1, 1],
       label: 'data(label)',
+      'text-events': 'yes',
       'font-size': 12,
-      'text-margin-y': 4,
+      // Below the outline of the selection
+      'text-margin-y': 9,
       'text-margin-x': 32,
       'z-index': 0,
       'z-index-compare': 'manual',
+    },
+  },
+  // The label is hidden while it is edited in place
+  {
+    selector: '.topology-node.renaming',
+    style: {
+      'text-opacity': 0,
     },
   },
   {
@@ -98,16 +107,12 @@ export const topologyStyle = [
       color: '#9e9ea0',
     },
   },
-  // A halo behind the icon, round or square depending on the icon
+
+  // No shade while an element is pressed, like the annotations
   {
-    selector: '.topology-node:selected',
+    selector: ':active',
     style: {
-      color: '#3fcfad',
-      'underlay-color': '#3fcfad',
-      'underlay-opacity': 0.22,
-      'underlay-padding': 6,
-      'underlay-shape': (ele: cytoscape.NodeSingular) =>
-        ele.data('shape') === 'ellipse' ? 'ellipse' : 'round-rectangle',
+      'overlay-opacity': 0,
     },
   },
 
@@ -146,6 +151,7 @@ export const topologyStyle = [
       width: 2,
       'source-label': 'data(sourceLabel)',
       'target-label': 'data(targetLabel)',
+      'text-events': 'yes',
       'source-text-offset': (ele: cytoscape.EdgeSingular) =>
         labelOffset(ele.data('sourceLabel')),
       'target-text-offset': (ele: cytoscape.EdgeSingular) =>
@@ -164,10 +170,15 @@ export const topologyStyle = [
     },
   },
   {
-    selector: 'edge:selected',
+    selector: 'edge.renaming-source',
     style: {
-      'line-color': '#3fcfad',
-      'line-opacity': 0.9,
+      'source-label': '',
+    },
+  },
+  {
+    selector: 'edge.renaming-target',
+    style: {
+      'target-label': '',
     },
   },
   {

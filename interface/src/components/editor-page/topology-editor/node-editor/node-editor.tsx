@@ -1,7 +1,14 @@
-import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  MouseEvent,
+  SyntheticEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import type {EventObject} from 'cytoscape';
-import cytoscape, {NodeSingular} from 'cytoscape';
+import cytoscape, {EdgeSingular, NodeSingular} from 'cytoscape';
 // @ts-expect-error This library does not have a type declaration
 import coseBilkent from 'cytoscape-cose-bilkent';
 import {autorun} from 'mobx';
@@ -15,6 +22,7 @@ import TextLayer from '@sb/components/common/topology-graph/text-layer/text-laye
 import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
+import EdgeHalo from '@sb/components/editor-page/topology-editor/node-editor/edge-halo/edge-halo';
 import {
   graphMenu,
   groupMenu,
@@ -24,16 +32,26 @@ import {
   shapeMenu,
   textMenu,
 } from '@sb/components/editor-page/topology-editor/node-editor/graph-context-menus';
-import GroupRename from '@sb/components/editor-page/topology-editor/node-editor/group-rename/group-rename';
-import SelectionOverlay, {
+import LabelEditor from '@sb/components/editor-page/topology-editor/node-editor/label-editor/label-editor';
+import LineHandles, {
   LineEnd,
-} from '@sb/components/editor-page/topology-editor/node-editor/selection-overlay/selection-overlay';
+} from '@sb/components/editor-page/topology-editor/node-editor/line-handles/line-handles';
+import MoveableHandles, {
+  MoveableHandlesRef,
+} from '@sb/components/editor-page/topology-editor/node-editor/moveable-handles/moveable-handles';
+import SelectionLayer, {
+  SelectionLayerRef,
+} from '@sb/components/editor-page/topology-editor/node-editor/selection-layer/selection-layer';
+import SelectionOverlay from '@sb/components/editor-page/topology-editor/node-editor/selection-overlay/selection-overlay';
 import {
   GraphTool,
+  LabelEdit,
+  LabelKind,
   TOOL_DRAW_KINDS,
   useGraphSelection,
 } from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {
+  annotationBoxes,
   AnnotationItem,
   Box,
   boxBetween,
@@ -48,6 +66,7 @@ import {
   groupAt,
   groupBoxAround,
   GroupHitPart,
+  groupLabelInset,
   growGroupBox,
   hitTestLayers,
   LayerHit,
@@ -67,19 +86,24 @@ import {
 import {
   AnnotationStyle,
   defaultStyle,
+  groupStyle,
   groupStyleReset,
   groupStyleUpdate,
   newShapeStyle,
   shapeStyleUpdate,
 } from '@sb/lib/graph/annotation-style';
 import {
+  boundsToBox,
   generateGraph,
   generateGroups,
   generateLayerItems,
   toGraphPosition,
-  toRenderedBox,
 } from '@sb/lib/graph/cytoscape-utils';
 import {GraphAction, matchGraphKeybind} from '@sb/lib/graph/graph-keybinds';
+import {
+  validateInterfaceName,
+  validateNodeName,
+} from '@sb/lib/graph/label-validation';
 import {GRID_SPACING, OccupiedPositions} from '@sb/lib/graph/placement';
 import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
@@ -188,6 +212,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const graphSelection = useGraphSelection();
 
   const graphRef = useRef<TopologyGraphRef>(null);
+  const moveableHandlesRef = useRef<MoveableHandlesRef>(null);
+  const selectionLayerRef = useRef<SelectionLayerRef>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const nodeConnectionSource = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -243,6 +269,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     [props.openTopology?.annotations],
   );
 
+  const annotationItems = useMemo<AnnotationItem[]>(
+    () => [
+      ...layerItems,
+      ...texts.map(text => ({kind: 'text' as const, id: text.id, text})),
+    ],
+    [layerItems, texts],
+  );
+
   // The handlers below are registered once, they reach the current state through these refs
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
@@ -262,6 +296,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       isGraphActive.current =
         !!containerRef.current?.contains(target) ||
         !!target?.closest?.('.p-contextmenu, .sb-selection-popover');
+
+      // The menu only closes on a click on its own, which a press of the middle button isn't
+      if (!target?.closest?.('.p-contextmenu')) hideContextMenu();
     };
     const onKeyDown = (event: KeyboardEvent) =>
       handlersRef.current.onKeyDown(event);
@@ -310,8 +347,30 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   useEffect(() => {
     graphSelection.setAnnotations([], [], []);
-    graphSelection.setRenamingGroup(null);
+    graphSelection.setLabelEdit(null);
   }, [props.openTopology?.id]);
+
+  // The label that is edited is hidden in the graph, the field takes its place
+  useEffect(
+    () =>
+      autorun(() => {
+        const labelEdit = graphSelection.labelEdit;
+        const cy = cyRef.current;
+        if (!cy) return;
+
+        cy.elements().removeClass('renaming renaming-source renaming-target');
+        if (!labelEdit || labelEdit.kind === LabelKind.Group) return;
+
+        cy.getElementById(labelEdit.id).addClass(
+          labelEdit.kind === LabelKind.Node
+            ? 'renaming'
+            : labelEdit.endpointIndex === 0
+              ? 'renaming-source'
+              : 'renaming-target',
+        );
+      }),
+    [],
+  );
 
   // Annotations that were removed, e.g. by undo, are removed from the selection
   useEffect(() => {
@@ -355,29 +414,51 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
       queueMicrotask(() => {
         isSyncPending = false;
-        graphSelection.setElements(
+        graphSelection.setNodes(
           cy.nodes('.topology-node:selected').map(node => node.id()),
-          cy.edges(':selected').map(edge => edge.id()),
         );
       });
     };
 
     let frame = 0;
+    let zoom = cy.zoom();
     const onViewport = () => {
+      // The handles and the outlines follow the graph in the same frame
+      moveableHandlesRef.current?.updateRect();
+      if (cy.zoom() !== zoom) {
+        zoom = cy.zoom();
+        selectionLayerRef.current?.draw();
+      }
+
+      // The menu belongs to the place in the graph it was opened at
+      hideContextMenu();
+
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        graphSelection.setViewport(cy.zoom(), {...cy.pan()});
+        graphSelection.setZoom(cy.zoom());
       });
     };
-    graphSelection.setViewport(cy.zoom(), {...cy.pan()});
+    graphSelection.setZoom(cy.zoom());
+
+    // Moved nodes are drawn by cytoscape in the next frame, their outlines are too
+    let positionFrame = 0;
+    const onPosition = () => {
+      if (positionFrame) return;
+      positionFrame = requestAnimationFrame(() => {
+        positionFrame = 0;
+        selectionLayerRef.current?.draw();
+      });
+    };
 
     cy.on('select unselect', syncSelection);
     cy.on('viewport', onViewport);
+    cy.on('position', 'node', onPosition);
 
     return () => {
       cy.off('select unselect', syncSelection);
       cy.off('viewport', onViewport);
+      cy.off('position', 'node', onPosition);
     };
   }
 
@@ -528,6 +609,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         break;
       case GraphAction.TextTool:
         graphSelection.setTool(GraphTool.Text);
+        break;
+      case GraphAction.Rename:
+        onRenameSelection();
         break;
       case GraphAction.EditText:
         if (graphSelection.count === 1 && graphSelection.textIds.length === 1) {
@@ -904,9 +988,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
       action.hasMoved = true;
       graphSelection.setInteracting(true);
-      graphSelection.setSelectionBox(
-        toRenderedBox(cy, boxBetween(action.origin, position)),
-      );
+      graphSelection.setSelectionBox(boxBetween(action.origin, position));
       return;
     }
 
@@ -915,6 +997,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     action.hasMoved = true;
     action.pointer = position;
     graphSelection.setInteracting(true);
+    graphSelection.setMoving(true);
 
     /*
      * The members move right away, cytoscape draws them in its own animation
@@ -1020,6 +1103,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     cy.userPanningEnabled(true);
     graphSelection.setInteracting(false);
+    graphSelection.setMoving(false);
 
     if (action.kind === 'draw') {
       const position = toGraphPosition(cy, event.clientX, event.clientY);
@@ -1250,13 +1334,44 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
   }
 
+  // A double-click on the icon opens the dialog, on the label it renames the node
   function onNodeDoubleClick(event: cytoscape.EventObject) {
-    const nodeId = event.target.id();
-    if (!nodeId || graphSelection.isHandActive || !isDoubleTapOnSameTarget()) {
+    const node = event.target as NodeSingular;
+    if (graphSelection.isHandActive || !isDoubleTapOnSameTarget()) return;
+
+    const bounds = node.boundingBox({
+      includeLabels: false,
+      includeOverlays: false,
+      includeUnderlays: false,
+    });
+
+    if (containsPoint(boundsToBox(bounds), event.position)) {
+      props.onEditNode(node.id());
+    } else {
+      startNodeRename(node.id());
+    }
+  }
+
+  // A double-click on a link renames the interface at the closer end
+  function onEdgeDoubleClick(event: cytoscape.EventObject) {
+    const edge = event.target as EdgeSingular;
+    if (
+      edge.hasClass(GHOST_EDGE_ID) ||
+      graphSelection.isHandActive ||
+      !isDoubleTapOnSameTarget()
+    ) {
       return;
     }
 
-    props.onEditNode(nodeId);
+    const distanceTo = (position: Position) =>
+      Math.hypot(position.x - event.position.x, position.y - event.position.y);
+
+    startInterfaceRename(
+      edge.id(),
+      distanceTo(edge.sourceEndpoint()) <= distanceTo(edge.targetEndpoint())
+        ? 0
+        : 1,
+    );
   }
 
   function onGraphDoubleClick(event: cytoscape.EventObject) {
@@ -1272,7 +1387,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     const hit = hitTestLayer(event.position);
     if (hit?.kind === 'group' && hit.part === GroupHitPart.Label) {
-      graphSelection.setRenamingGroup(hit.group.id);
+      startGroupRename(hit.group);
     }
   }
 
@@ -1287,13 +1402,25 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if (!contextMenuRef.current || graphSelection.isHandActive) return;
 
-    selectForContextMenu(event.target);
-    menuTargetRef.current = event.target.id();
+    const edge = event.target as EdgeSingular;
+    graphSelection.setMenuEdge(edge.id());
 
     setContextMenuModel(
-      selectionCount() > 1
-        ? currentSelectionMenu()
-        : linkMenu(onDeleteSelection),
+      linkMenu({
+        endpoints: [0, 1].map(
+          index =>
+            `${edge.data(index === 0 ? 'source' : 'target')}:${edge.data(index === 0 ? 'sourceLabel' : 'targetLabel')}`,
+        ) as [string, string],
+        onRenameInterface: endpointIndex =>
+          startInterfaceRename(edge.id(), endpointIndex),
+        onDelete: () =>
+          topologyStore.manager.deleteElements(
+            [],
+            [[edge.data('source'), edge.data('target')]],
+            [],
+            [],
+          ),
+      }),
     );
     showContextMenu(mouseEvent);
   }
@@ -1338,6 +1465,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
               }),
       );
     } else {
+      // The menu of the graph isn't about the selection, so it is cleared
+      deselectAll();
       setContextMenuModel(
         graphMenu({
           onAddNode: () => addNodeAt(contextMenuPosition.current),
@@ -1367,6 +1496,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       selectionCount() > 1
         ? currentSelectionMenu()
         : nodeMenu({
+            onRename: () => startNodeRename(event.target.id()),
             groups: groupsRef.current.map(group => ({
               id: group.id,
               name: group.name,
@@ -1380,7 +1510,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     showContextMenu(mouseEvent);
   }
 
-  // The bar and the resize handles are hidden while the menu is open
+  function hideContextMenu() {
+    if (!graphSelection.isContextMenuOpen) return;
+
+    // The event is only passed on to onHide, which doesn't use it
+    contextMenuRef.current?.hide(null as unknown as SyntheticEvent);
+  }
+
+  // The bar is hidden while the menu is open
   function showContextMenu(event: MouseEvent) {
     graphSelection.setContextMenuOpen(true);
     contextMenuRef.current?.show(event);
@@ -1404,8 +1541,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     return (
       cy.nodes('.topology-node:selected').length +
-      cy.edges(':selected').length +
-      graphSelection.layerIds.length
+      graphSelection.annotationIds.length
     );
   }
 
@@ -1423,7 +1559,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function currentGroupMenu() {
     return groupMenu({
-      onRename: () => graphSelection.setRenamingGroup(menuTargetRef.current),
+      onRename: () => {
+        const group = groupsRef.current.find(
+          group => group.id === menuTargetRef.current,
+        );
+        if (group) startGroupRename(group);
+      },
       onSelectMembers: onSelectMembers,
       onBringToFront: () => onReorder(true),
       onSendToBack: () => onReorder(false),
@@ -1646,7 +1787,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function deselectAll() {
     cyRef.current?.elements().unselect();
     graphSelection.setAnnotations([], [], []);
-    graphSelection.setRenamingGroup(null);
+    graphSelection.setLabelEdit(null);
   }
 
   function onReorder(toFront: boolean) {
@@ -1681,13 +1822,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ...deletedGroups.flatMap(group => group.memberIds),
       ]),
     ];
-    const links = cy
-      .edges(':selected')
-      .filter(edge => !edge.hasClass(GHOST_EDGE_ID))
-      .map(
-        edge => [edge.data('source'), edge.data('target')] as [string, string],
-      );
-
     const annotationIds = [
       ...graphSelection.shapeIds,
       ...graphSelection.textIds,
@@ -1696,7 +1830,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.setAnnotations([], [], []);
     topologyStore.manager.deleteElements(
       nodeNames,
-      links,
+      [],
       deletedGroups.map(group => group.id),
       annotationIds,
     );
@@ -1717,9 +1851,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       ]),
     );
 
+    const name = `Group ${groupsRef.current.length + 1}`;
     const groupId = topologyStore.manager.addGroup(
       {
-        name: `Group ${groupsRef.current.length + 1}`,
+        name,
         position: {x: box.x, y: box.y},
         width: box.width,
         height: box.height,
@@ -1730,7 +1865,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     cy.elements().unselect();
     graphSelection.setAnnotations([groupId], [], []);
-    graphSelection.setRenamingGroup(groupId);
+    startGroupRename({id: groupId, name, annotation: null, ...box});
   }
 
   function onUngroup() {
@@ -1832,42 +1967,163 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     topologyStore.manager.updateLayout({shapes: new Map([[shapeId, update]])});
   }
 
-  function onGroupRename(name: string, isImplicit: boolean) {
-    const groupId = graphSelection.renamingGroupId;
-    if (!groupId) return null;
+  function onRenameSelection() {
+    if (graphSelection.count !== 1) return;
 
-    if (name.trim() === '') {
-      if (isImplicit) {
-        graphSelection.setRenamingGroup(null);
-        return null;
-      }
-
-      return "Group name can't be empty";
-    }
-
-    graphSelection.setRenamingGroup(null);
-    topologyStore.manager.updateLayout({
-      groups: new Map([[groupId, {name: name.trim()}]]),
-    });
-    return null;
-  }
-
-  function onResize(id: string, box: Box, isFinal: boolean) {
-    if (isFinal && textsRef.current.some(text => text.id === id)) {
-      topologyStore.manager.updateLayout({
-        texts: boxUpdates(new Map([[id, box]])),
-      });
+    if (graphSelection.nodeIds.length === 1) {
+      startNodeRename(graphSelection.nodeIds[0]);
       return;
     }
 
-    const item = findLayerItem(id);
+    const group = groupsRef.current.find(
+      group => group.id === graphSelection.groupIds[0],
+    );
+    if (group) startGroupRename(group);
+  }
 
-    if (item?.kind === 'group') {
-      onResizeGroup(item.group, box, isFinal);
-    } else if (item && isFinal) {
-      topologyStore.manager.updateLayout({
-        shapes: boxUpdates(new Map([[id, box]])),
-      });
+  function startNodeRename(nodeId: string) {
+    const node = cyRef.current?.getElementById(nodeId);
+    if (!node?.nonempty()) return;
+
+    graphSelection.setLabelEdit({
+      kind: LabelKind.Node,
+      id: nodeId,
+      value: nodeId,
+      position: boxCenter(
+        node.boundingBox({
+          includeNodes: false,
+          includeLabels: true,
+          includeOverlays: false,
+          includeUnderlays: false,
+        }),
+      ),
+    });
+  }
+
+  function startInterfaceRename(edgeId: string, endpointIndex: number) {
+    const edge = cyRef.current?.getElementById(edgeId);
+    if (!edge?.nonempty()) return;
+
+    graphSelection.setLabelEdit({
+      kind: LabelKind.Interface,
+      id: edgeId,
+      endpointIndex,
+      value: edge.data(endpointIndex === 0 ? 'sourceLabel' : 'targetLabel'),
+      position: boxCenter(
+        edge.boundingBox({
+          includeEdges: false,
+          includeMainLabels: false,
+          includeSourceLabels: endpointIndex === 0,
+          includeTargetLabels: endpointIndex === 1,
+          includeOverlays: false,
+          includeUnderlays: false,
+        }),
+      ),
+    });
+  }
+
+  // The field covers the label in the top left corner of the group
+  function startGroupRename(group: Omit<GraphGroup, 'memberIds'>) {
+    const inset = groupLabelInset(
+      group,
+      groupStyle(group.annotation).cornerRadius,
+    );
+
+    graphSelection.setLabelEdit({
+      kind: LabelKind.Group,
+      id: group.id,
+      value: group.name,
+      position: {x: group.x + 4 + inset, y: group.y + 2 + inset},
+    });
+  }
+
+  /**
+   * Saves the edited label. An invalid value shows an error while the field is
+   * open, and keeps the label as it was once the field is left.
+   */
+  function onLabelSubmit(value: string, isImplicit: boolean) {
+    const labelEdit = graphSelection.labelEdit;
+    if (!labelEdit) return null;
+
+    const name = value.trim();
+    const error = validateLabel(labelEdit, name);
+    if (error && !isImplicit) return error;
+
+    graphSelection.setLabelEdit(null);
+    if (error || name === labelEdit.value) return null;
+
+    switch (labelEdit.kind) {
+      case LabelKind.Group:
+        topologyStore.manager.updateLayout({
+          groups: new Map([[labelEdit.id, {name}]]),
+        });
+        break;
+      case LabelKind.Node:
+        topologyStore.manager.renameNode(labelEdit.id, name);
+        break;
+      case LabelKind.Interface: {
+        const edge = cyRef.current?.getElementById(labelEdit.id);
+        if (!edge?.nonempty()) break;
+
+        topologyStore.manager.renameInterface(
+          Number(labelEdit.id),
+          labelEdit.endpointIndex!,
+          edge.data(labelEdit.endpointIndex === 0 ? 'source' : 'target'),
+          name,
+        );
+        break;
+      }
+    }
+
+    return null;
+  }
+
+  function validateLabel(labelEdit: LabelEdit, name: string) {
+    switch (labelEdit.kind) {
+      case LabelKind.Group:
+        return name === '' ? "The name can't be empty" : null;
+      case LabelKind.Node:
+        return validateNodeName(
+          name,
+          labelEdit.id,
+          cyRef.current?.nodes('.topology-node').map(node => node.id()) ?? [],
+        );
+      case LabelKind.Interface: {
+        const edge = cyRef.current?.getElementById(labelEdit.id);
+
+        return validateInterfaceName(
+          name,
+          edge?.data(labelEdit.endpointIndex === 0 ? 'source' : 'target'),
+          Number(labelEdit.id),
+          props.openTopology?.connections ?? [],
+        );
+      }
+    }
+  }
+
+  /**
+   * Saves the box of a resized annotation once it is resized. Moveable shows the
+   * box while it is resized, only the members of a group are moved meanwhile.
+   */
+  function onResize(item: AnnotationItem, box: Box, isFinal: boolean) {
+    switch (item.kind) {
+      case 'group':
+        onResizeGroup(item.group, box, isFinal);
+        break;
+      case 'shape':
+        if (!isFinal) break;
+
+        topologyStore.manager.updateLayout({
+          shapes: new Map([[item.id, boxFields(box)]]),
+        });
+        break;
+      case 'text':
+        if (!isFinal) break;
+
+        topologyStore.manager.updateLayout({
+          texts: new Map([[item.id, boxFields(box)]]),
+        });
+        break;
     }
   }
 
@@ -2003,7 +2259,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // The children don't render again with the editor, unless what they show changed
   const callbacks = useStableCallbacks({
     getCy: () => cyRef.current,
-    onGroupRename,
+    onLabelSubmit,
+    getLayerBoxes: () =>
+      annotationBoxes(
+        layerItemsRef.current,
+        textsRef.current,
+        graphSelection.textSizes,
+      ),
     onGroupSelection,
     onStyle,
     onStylePreview,
@@ -2050,6 +2312,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           'tapstart node': onNodePointerDown,
           dbltap: onGraphDoubleClick,
           'dbltap node': onNodeDoubleClick,
+          'dbltap edge': onEdgeDoubleClick,
           cxttap: onGraphContext,
           'cxttap node': onNodeContext,
           'cxttap edge': onEdgeContext,
@@ -2057,7 +2320,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           'drag node': onNodeDrag,
         }}
         onInstance={onInstance}
-        underlay={<AnnotationLayer items={layerItems} state={graphSelection} />}
+        getLayerBoxes={callbacks.getLayerBoxes}
+        underlay={
+          <>
+            <AnnotationLayer items={layerItems} state={graphSelection} />
+            <EdgeHalo getCy={callbacks.getCy} />
+          </>
+        }
         overlay={
           <>
             <TextLayer
@@ -2065,26 +2334,38 @@ const NodeEditor = observer((props: NodeEditorProps) => {
               state={graphSelection}
               onEditEnd={callbacks.onTextEditEnd}
             />
-            <GroupRename groups={groups} onRename={callbacks.onGroupRename} />
+            <SelectionLayer
+              ref={selectionLayerRef}
+              getCy={callbacks.getCy}
+              items={annotationItems}
+            />
+            <LabelEditor onSubmit={callbacks.onLabelSubmit} />
+            <LineHandles
+              layerItems={layerItems}
+              onPointerDown={callbacks.onLineEndPointerDown}
+            />
+            <SelectionOverlay
+              getCy={callbacks.getCy}
+              items={annotationItems}
+              onGroup={callbacks.onGroupSelection}
+              onStyle={callbacks.onStyle}
+              onStylePreview={callbacks.onStylePreview}
+              onResetStyle={callbacks.onResetStyle}
+              onTextStyle={callbacks.onTextStyle}
+              onTextStylePreview={callbacks.onTextStylePreview}
+              onBringToFront={callbacks.onBringToFront}
+              onSendToBack={callbacks.onSendToBack}
+              onUngroup={callbacks.onUngroup}
+              onDelete={callbacks.onDeleteSelection}
+            />
           </>
         }
       />
-      <SelectionOverlay
+      <MoveableHandles
+        ref={moveableHandlesRef}
         getCy={callbacks.getCy}
-        layerItems={layerItems}
-        texts={texts}
-        onGroup={callbacks.onGroupSelection}
-        onStyle={callbacks.onStyle}
-        onStylePreview={callbacks.onStylePreview}
-        onResetStyle={callbacks.onResetStyle}
-        onTextStyle={callbacks.onTextStyle}
-        onTextStylePreview={callbacks.onTextStylePreview}
-        onBringToFront={callbacks.onBringToFront}
-        onSendToBack={callbacks.onSendToBack}
-        onUngroup={callbacks.onUngroup}
-        onDelete={callbacks.onDeleteSelection}
+        items={annotationItems}
         onResize={callbacks.onResize}
-        onLineEndPointerDown={callbacks.onLineEndPointerDown}
       />
       <ZoomControl
         onZoomIn={callbacks.onZoomIn}
@@ -2113,6 +2394,10 @@ function isTextInput(target: EventTarget | null) {
   );
 }
 
+function boxCenter(bounds: cytoscape.BoundingBox12): Position {
+  return {x: (bounds.x1 + bounds.x2) / 2, y: (bounds.y1 + bounds.y2) / 2};
+}
+
 function movePosition(position: Position, delta: Position): Position {
   return roundPosition({x: position.x + delta.x, y: position.y + delta.y});
 }
@@ -2130,17 +2415,17 @@ function drawHint(drawKind: DrawKind, geometry: ShapeGeometry) {
 
 function boxUpdates(
   boxes: Map<string, Box>,
-): Map<string, {position: Position; width: number; height: number}> {
-  return new Map(
-    [...boxes].map(([id, box]) => [
-      id,
-      {
-        position: roundPosition(box),
-        width: roundCoordinate(box.width),
-        height: roundCoordinate(box.height),
-      },
-    ]),
-  );
+): Map<string, ReturnType<typeof boxFields>> {
+  return new Map([...boxes].map(([id, box]) => [id, boxFields(box)]));
+}
+
+// The fields of an annotation that store its box
+function boxFields(box: Box) {
+  return {
+    position: roundPosition(box),
+    width: roundCoordinate(box.width),
+    height: roundCoordinate(box.height),
+  };
 }
 
 export default NodeEditor;
