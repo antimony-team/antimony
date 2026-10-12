@@ -1,6 +1,6 @@
+import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {User} from '@sb/types/domain/user';
 import {Position, uuid4, YAMLDocument} from '@sb/types/types';
-import {InterfaceConfig} from '@sb/types/domain/device-info';
 
 export type EditingFile = BindFile | Topology;
 
@@ -57,10 +57,15 @@ export interface TopologyDefinition {
   name: string;
   topology: {
     nodes: {[nodeName: string]: TopologyNode};
-    links: {
-      endpoints: string;
-    };
+    links?: TopologyLink[];
   };
+}
+
+// A link between two nodes, its endpoints are e.g. ['srl1:e1-1', 'srl2:e1-1']
+export interface TopologyLink {
+  endpoints: string[];
+
+  [key: string]: unknown;
 }
 
 /**

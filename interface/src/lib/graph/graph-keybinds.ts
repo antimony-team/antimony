@@ -18,6 +18,10 @@ export enum GraphAction {
   TextTool,
   EditText,
   Rename,
+  Copy,
+  Cut,
+  Paste,
+  Duplicate,
 }
 
 interface GraphKeybind {
@@ -27,6 +31,12 @@ interface GraphKeybind {
 
   // Matches with and without shift if undefined
   shift?: boolean;
+
+  /*
+   * Handled by the copy, cut and paste events of the browser instead, which can
+   * use the clipboard without a secure context. Only listed for the labels.
+   */
+  isClipboardEvent?: boolean;
 }
 
 const GRAPH_KEYBINDS: GraphKeybind[] = [
@@ -50,6 +60,10 @@ const GRAPH_KEYBINDS: GraphKeybind[] = [
   {action: GraphAction.TextTool, key: 't', shift: false},
   {action: GraphAction.EditText, key: 'Enter', shift: false},
   {action: GraphAction.Rename, key: 'F2'},
+  {action: GraphAction.Copy, key: 'c', ctrl: true, isClipboardEvent: true},
+  {action: GraphAction.Cut, key: 'x', ctrl: true, isClipboardEvent: true},
+  {action: GraphAction.Paste, key: 'v', ctrl: true, isClipboardEvent: true},
+  {action: GraphAction.Duplicate, key: 'd', ctrl: true, shift: false},
 ];
 
 /**
@@ -64,6 +78,7 @@ export function matchGraphKeybind(event: KeyboardEvent): GraphAction | null {
 
   const keybind = GRAPH_KEYBINDS.find(
     keybind =>
+      !keybind.isClipboardEvent &&
       keybind.key === key &&
       !!keybind.ctrl === isCtrl &&
       (keybind.shift === undefined || keybind.shift === event.shiftKey),

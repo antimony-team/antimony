@@ -99,12 +99,21 @@ import {
   generateLayerItems,
   toGraphPosition,
 } from '@sb/lib/graph/cytoscape-utils';
+import {
+  clipboardBox,
+  createClipboard,
+  GraphClipboard,
+  parseClipboard,
+  pasteClipboard,
+  PastedElements,
+} from '@sb/lib/graph/graph-clipboard';
 import {GraphAction, matchGraphKeybind} from '@sb/lib/graph/graph-keybinds';
 import {
   validateInterfaceName,
   validateNodeName,
 } from '@sb/lib/graph/label-validation';
 import {GRID_SPACING, OccupiedPositions} from '@sb/lib/graph/placement';
+import {findNodeAnnotation} from '@sb/lib/graph/topology-annotations';
 import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {useStableCallbacks} from '@sb/lib/utils/hooks';
@@ -238,6 +247,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // Whether the graph was the last part of the page that was clicked
   const isGraphActive = useRef(false);
 
+  /*
+   * The elements copied last. The menus use them instead of the clipboard of
+   * the system, which they can't read or write without a secure context.
+   */
+  const copiedElements = useRef<GraphClipboard | null>(null);
+
+  // Pasted elements are selected once the graph shows them
+  const pastedElements = useRef<PastedElements | null>(null);
+
+  // Where the pointer was last, elements pasted with the keyboard are placed there
+  const lastPointer = useRef<Position | null>(null);
+
   // The text the last press was on, as the graph didn't get the press
   const pressedTextId = useRef<string | null>(null);
 
@@ -287,8 +308,20 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const textsRef = useRef(texts);
   textsRef.current = texts;
 
-  const handlersRef = useRef({onKeyDown, onKeyUp, onPointerMove, onPointerUp});
-  handlersRef.current = {onKeyDown, onKeyUp, onPointerMove, onPointerUp};
+  const handlersRef = useRef({
+    onKeyDown,
+    onKeyUp,
+    onPointerMove,
+    onPointerUp,
+    onClipboard,
+  });
+  handlersRef.current = {
+    onKeyDown,
+    onKeyUp,
+    onPointerMove,
+    onPointerUp,
+    onClipboard,
+  };
 
   useEffect(() => {
     const onMouseDownCapture = (event: globalThis.MouseEvent) => {
@@ -317,6 +350,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('blur', onBlur);
 
+    const onClipboard = (event: ClipboardEvent) =>
+      handlersRef.current.onClipboard(event);
+    document.addEventListener('copy', onClipboard);
+    document.addEventListener('cut', onClipboard);
+    document.addEventListener('paste', onClipboard);
+
     return () => {
       window.removeEventListener('mousedown', onMouseDownCapture, true);
       window.removeEventListener('keydown', onKeyDown);
@@ -324,6 +363,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       window.removeEventListener('blur', onBlur);
+      document.removeEventListener('copy', onClipboard);
+      document.removeEventListener('cut', onClipboard);
+      document.removeEventListener('paste', onClipboard);
     };
   }, []);
 
@@ -349,6 +391,21 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.setAnnotations([], [], []);
     graphSelection.setLabelEdit(null);
   }, [props.openTopology?.id]);
+
+  useEffect(() => {
+    const pasted = pastedElements.current;
+    const cy = cyRef.current;
+    if (!pasted || !cy) return;
+
+    pastedElements.current = null;
+    cy.elements().unselect();
+    pasted.nodes.forEach(node => cy.getElementById(node.name).select());
+    graphSelection.setAnnotations(
+      pasted.groups.map(group => group.id),
+      pasted.shapes.map(shape => shape.id),
+      pasted.texts.map(text => text.id),
+    );
+  }, [elements]);
 
   // The label that is edited is hidden in the graph, the field takes its place
   useEffect(
@@ -451,12 +508,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       });
     };
 
-    cy.on('select unselect', syncSelection);
+    // Removed nodes are removed from the selection without being unselected
+    cy.on('select unselect remove', syncSelection);
     cy.on('viewport', onViewport);
     cy.on('position', 'node', onPosition);
 
     return () => {
-      cy.off('select unselect', syncSelection);
+      cy.off('select unselect remove', syncSelection);
       cy.off('viewport', onViewport);
       cy.off('position', 'node', onPosition);
     };
@@ -610,6 +668,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       case GraphAction.TextTool:
         graphSelection.setTool(GraphTool.Text);
         break;
+      case GraphAction.Duplicate:
+        onDuplicate();
+        break;
       case GraphAction.Rename:
         onRenameSelection();
         break;
@@ -755,6 +816,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       selectionCount() > 1
         ? currentSelectionMenu()
         : textMenu({
+            ...clipboardActions,
             onEdit: () => graphSelection.setEditingText(textId),
             onBringToFront: () => onReorder(true),
             onSendToBack: () => onReorder(false),
@@ -933,6 +995,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function onPointerMove(event: globalThis.MouseEvent) {
     const cy = cyRef.current;
     const action = pointerAction.current;
+    lastPointer.current = {x: event.clientX, y: event.clientY};
     if (!cy || !action) return;
 
     if (action.kind === 'pan') {
@@ -1457,6 +1520,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           : hit.kind === 'group'
             ? currentGroupMenu()
             : shapeMenu({
+                ...clipboardActions,
                 shapeType: hit.shape.annotation.shapeType,
                 onChangeShape: () => onChangeShape(hitId),
                 onBringToFront: () => onReorder(true),
@@ -1469,7 +1533,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       deselectAll();
       setContextMenuModel(
         graphMenu({
+          canPaste: !!copiedElements.current || !!navigator.clipboard,
           onAddNode: () => addNodeAt(contextMenuPosition.current),
+          onPaste: () => void onMenuPaste(contextMenuPosition.current),
           onSelectAll,
           onFit: onFitGraph,
           onClear: onClearGraph,
@@ -1496,6 +1562,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       selectionCount() > 1
         ? currentSelectionMenu()
         : nodeMenu({
+            ...clipboardActions,
             onRename: () => startNodeRename(event.target.id()),
             groups: groupsRef.current.map(group => ({
               id: group.id,
@@ -1547,6 +1614,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function currentSelectionMenu() {
     return selectionMenu({
+      ...clipboardActions,
       count: selectionCount(),
       canGroup: !!cyRef.current?.nodes('.topology-node:selected').nonempty(),
       canReorder: graphSelection.layerIds.length > 0,
@@ -1559,6 +1627,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function currentGroupMenu() {
     return groupMenu({
+      ...clipboardActions,
       onRename: () => {
         const group = groupsRef.current.find(
           group => group.id === menuTargetRef.current,
@@ -1771,6 +1840,164 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       },
       NUDGE_MERGE_KEY,
     );
+  }
+
+  /**
+   * Copies, cuts or pastes the selection with the clipboard of the system while
+   * the graph is active. These events can use the clipboard without a secure
+   * context, unlike the menus.
+   */
+  function onClipboard(event: ClipboardEvent) {
+    if (!isGraphActive.current || isTextInput(event.target)) return;
+
+    if (event.type === 'paste') {
+      const clipboard = parseClipboard(
+        event.clipboardData?.getData('text/plain') ?? '',
+      );
+      if (!clipboard) return;
+
+      event.preventDefault();
+      paste(clipboard, pointerPosition());
+      return;
+    }
+
+    const clipboard = copySelection();
+    if (!clipboard) return;
+
+    event.preventDefault();
+    event.clipboardData?.setData('text/plain', JSON.stringify(clipboard));
+    copiedElements.current = clipboard;
+
+    if (event.type === 'cut') onDeleteSelection();
+  }
+
+  function onMenuCopy() {
+    const clipboard = copySelection();
+    if (!clipboard) return;
+
+    copiedElements.current = clipboard;
+
+    // Only available in a secure context, otherwise the copy stays in the editor
+    void navigator.clipboard
+      ?.writeText(JSON.stringify(clipboard))
+      .catch(() => {});
+  }
+
+  function onMenuCut() {
+    onMenuCopy();
+    onDeleteSelection();
+  }
+
+  async function onMenuPaste(position: Position) {
+    const text = await navigator.clipboard?.readText().catch(() => null);
+    const clipboard =
+      (text ? parseClipboard(text) : null) ?? copiedElements.current;
+
+    if (clipboard) paste(clipboard, position);
+  }
+
+  function onDuplicate() {
+    const clipboard = copySelection();
+    if (clipboard) paste(clipboard, null);
+  }
+
+  /**
+   * Returns the selected elements to be copied. The members of selected groups
+   * are copied with them, links only between copied nodes.
+   */
+  function copySelection(): GraphClipboard | null {
+    const cy = cyRef.current;
+    const topology = props.openTopology;
+    if (!cy || !topology || graphSelection.count === 0) return null;
+
+    const groups = groupsRef.current.filter(group =>
+      graphSelection.groupIds.includes(group.id),
+    );
+    const nodeNames = new Set([
+      ...cy.nodes('.topology-node:selected').map(node => node.id()),
+      ...groups.flatMap(group => group.memberIds),
+    ]);
+
+    // Groups of old topologies don't have an annotation, their members are copied without them
+    const copiedGroupIds = new Set(
+      groups.filter(group => group.annotation).map(group => group.id),
+    );
+    const memberGroupIds = currentGroupIds();
+
+    const definition = topology.definition.toJS();
+    const links = (definition.topology?.links ?? []).filter(link =>
+      link.endpoints.every(endpoint => nodeNames.has(endpoint.split(':')[0])),
+    );
+
+    return createClipboard({
+      nodes: [...nodeNames].map(nodeName => {
+        const groupId = memberGroupIds.get(nodeName);
+
+        return {
+          name: nodeName,
+          definition: definition.topology?.nodes?.[nodeName] ?? null,
+          annotation: {
+            ...findNodeAnnotation(topology.annotations, nodeName),
+            id: nodeName,
+            position: roundPosition(cy.getElementById(nodeName).position()),
+            groupId:
+              groupId && copiedGroupIds.has(groupId) ? groupId : undefined,
+            group: undefined,
+            level: undefined,
+          },
+        };
+      }),
+      links,
+      groups: groups
+        .filter(group => group.annotation)
+        .map(group => group.annotation!),
+      shapes: selectedShapes().map(shape => shape.annotation),
+      texts: selectedTexts().map(text => text.annotation),
+    });
+  }
+
+  /**
+   * Adds copied elements to the graph and selects them. They are centered on
+   * the given position, or placed one grid step next to the copied elements.
+   */
+  function paste(clipboard: GraphClipboard, position: Position | null) {
+    const cy = cyRef.current;
+    const topology = props.openTopology;
+    const box = clipboardBox(clipboard);
+    if (!cy || !topology || !box) return;
+
+    const delta = position
+      ? {
+          x: position.x - (box.x + box.width / 2),
+          y: position.y - (box.y + box.height / 2),
+        }
+      : {x: GRID_SPACING, y: GRID_SPACING};
+
+    const pasted = pasteClipboard(
+      clipboard,
+      cy.nodes('.topology-node').map(node => node.id()),
+      topology.annotations,
+      roundPosition(delta),
+    );
+
+    pastedElements.current = pasted;
+    topologyStore.manager.pasteElements(pasted);
+  }
+
+  // The position of the pointer in the graph, or null if it isn't over the graph
+  function pointerPosition(): Position | null {
+    const cy = cyRef.current;
+    const pointer = lastPointer.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!cy || !pointer || !rect) return null;
+
+    const isOverGraph =
+      pointer.x >= rect.left &&
+      pointer.x <= rect.right &&
+      pointer.y >= rect.top &&
+      pointer.y <= rect.bottom;
+
+    return isOverGraph ? toGraphPosition(cy, pointer.x, pointer.y) : null;
   }
 
   function onSelectAll() {
@@ -2255,6 +2482,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy.remove(`.${GHOST_NODE_ID}`);
     cy.remove(`.${GHOST_EDGE_ID}`);
   }
+
+  const clipboardActions = {
+    onCopy: onMenuCopy,
+    onCut: onMenuCut,
+    onDuplicate,
+  };
 
   // The children don't render again with the editor, unless what they show changed
   const callbacks = useStableCallbacks({

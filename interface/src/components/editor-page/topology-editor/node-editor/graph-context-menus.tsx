@@ -32,7 +32,36 @@ function icon(name: string) {
   return <span className="material-symbols-outlined">{name}</span>;
 }
 
-interface NodeMenuOptions {
+interface ClipboardOptions {
+  onCopy: () => void;
+  onCut: () => void;
+  onDuplicate: () => void;
+}
+
+// Copy, cut and duplicate, after the first items of a menu
+function clipboardItems(options: ClipboardOptions): MenuItem[] {
+  return [
+    SEPARATOR,
+    withKeybind(
+      {label: 'Copy', icon: icon('content_copy'), command: options.onCopy},
+      GraphAction.Copy,
+    ),
+    withKeybind(
+      {label: 'Cut', icon: icon('content_cut'), command: options.onCut},
+      GraphAction.Cut,
+    ),
+    withKeybind(
+      {
+        label: 'Duplicate',
+        icon: icon('library_add'),
+        command: options.onDuplicate,
+      },
+      GraphAction.Duplicate,
+    ),
+  ];
+}
+
+interface NodeMenuOptions extends ClipboardOptions {
   groups: {id: string; name: string}[];
 
   onRename: () => void;
@@ -54,6 +83,7 @@ export function nodeMenu(options: NodeMenuOptions): MenuItem[] {
       icon: 'pi pi-arrow-right-arrow-left',
       command: options.onConnect,
     },
+    ...clipboardItems(options),
     SEPARATOR,
     {
       label: 'Add to group',
@@ -105,7 +135,7 @@ export function linkMenu(options: LinkMenuOptions): MenuItem[] {
   ];
 }
 
-interface SelectionMenuOptions {
+interface SelectionMenuOptions extends ClipboardOptions {
   count: number;
   canGroup: boolean;
   canReorder: boolean;
@@ -127,6 +157,7 @@ export function selectionMenu(options: SelectionMenuOptions): MenuItem[] {
       },
       GraphAction.Group,
     ),
+    ...clipboardItems(options),
     ...(options.canReorder
       ? [
           SEPARATOR,
@@ -161,7 +192,7 @@ export function selectionMenu(options: SelectionMenuOptions): MenuItem[] {
   ];
 }
 
-interface GroupMenuOptions {
+interface GroupMenuOptions extends ClipboardOptions {
   onRename: () => void;
   onSelectMembers: () => void;
   onBringToFront: () => void;
@@ -181,6 +212,7 @@ export function groupMenu(options: GroupMenuOptions): MenuItem[] {
       icon: icon('select_all'),
       command: options.onSelectMembers,
     },
+    ...clipboardItems(options),
     SEPARATOR,
     withKeybind(
       {
@@ -229,11 +261,12 @@ export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
 
   return [
     {...changeItem, command: options.onChangeShape},
+    ...clipboardItems(options),
     ...orderAndDeleteItems(options),
   ];
 }
 
-interface OrderAndDeleteOptions {
+interface OrderAndDeleteOptions extends ClipboardOptions {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onDelete: () => void;
@@ -282,12 +315,16 @@ export function textMenu(options: TextMenuOptions): MenuItem[] {
       {label: 'Edit text', icon: icon('edit'), command: options.onEdit},
       GraphAction.EditText,
     ),
+    ...clipboardItems(options),
     ...orderAndDeleteItems(options),
   ];
 }
 
 interface GraphMenuOptions {
+  canPaste: boolean;
+
   onAddNode: () => void;
+  onPaste: () => void;
   onSelectAll: () => void;
   onFit: () => void;
   onClear: () => void;
@@ -296,6 +333,16 @@ interface GraphMenuOptions {
 export function graphMenu(options: GraphMenuOptions): MenuItem[] {
   return [
     {label: 'Add node here', icon: 'pi pi-plus', command: options.onAddNode},
+    withKeybind(
+      {
+        label: 'Paste',
+        icon: icon('content_paste'),
+        disabled: !options.canPaste,
+        command: options.onPaste,
+      },
+      GraphAction.Paste,
+    ),
+    SEPARATOR,
     withKeybind(
       {
         label: 'Select all',

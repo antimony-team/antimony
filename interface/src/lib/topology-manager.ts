@@ -2,6 +2,7 @@ import {cloneDeep} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {YAMLSeq} from 'yaml';
 
+import {PastedElements} from '@sb/lib/graph/graph-clipboard';
 import {placeNodes} from '@sb/lib/graph/placement';
 import {
   addAnnotationItem,
@@ -492,6 +493,77 @@ export class TopologyManager {
         ids,
         toFront,
       ),
+    );
+  }
+
+  /**
+   * Adds pasted elements in one edit. Groups and shapes are placed in front of
+   * all others and texts in front of all texts, in the order they were in.
+   */
+  public pasteElements(pasted: PastedElements) {
+    if (!this.editingTopology) return;
+
+    const updatedTopology = this.editingTopology.definition.clone();
+
+    for (const node of pasted.nodes) {
+      updatedTopology.setIn(['topology', 'nodes', node.name], node.definition);
+    }
+
+    if (pasted.links.length > 0) {
+      if (!updatedTopology.hasIn(['topology', 'links'])) {
+        updatedTopology.setIn(['topology', 'links'], new YAMLSeq());
+      }
+
+      const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
+      pasted.links.forEach(link => links.add(updatedTopology.createNode(link)));
+    }
+
+    const annotations = this.editingTopology.annotations;
+    const layerZIndex = frontZIndex(annotations, LAYER_ANNOTATION_KEYS);
+    const textZIndex = frontZIndex(annotations, ['freeTextAnnotations']);
+
+    const layered = [...pasted.groups, ...pasted.shapes].toSorted(
+      (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
+    );
+    const zIndices = new Map(
+      layered.map((item, index) => [item, layerZIndex + index]),
+    );
+
+    let updatedAnnotations = updateNodeAnnotations(
+      annotations,
+      new Map(pasted.nodes.map(node => [node.name, node.annotation])),
+    );
+
+    for (const group of pasted.groups) {
+      updatedAnnotations = addAnnotationItem(
+        updatedAnnotations,
+        'groupStyleAnnotations',
+        {...group, zIndex: zIndices.get(group)},
+      );
+    }
+
+    for (const shape of pasted.shapes) {
+      updatedAnnotations = addAnnotationItem(
+        updatedAnnotations,
+        'freeShapeAnnotations',
+        {...shape, zIndex: zIndices.get(shape)},
+      );
+    }
+
+    pasted.texts
+      .toSorted((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+      .forEach((text, index) => {
+        updatedAnnotations = addAnnotationItem(
+          updatedAnnotations,
+          'freeTextAnnotations',
+          {...text, zIndex: textZIndex + index},
+        );
+      });
+
+    this.editTopology(
+      updatedTopology,
+      TopologyEditSource.NodeEditor,
+      updatedAnnotations,
     );
   }
 

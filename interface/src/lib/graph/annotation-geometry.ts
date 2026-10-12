@@ -443,6 +443,18 @@ export function textBox(
 }
 
 /**
+ * Returns the box of a text from its annotation, for texts that weren't
+ * rendered. Texts without a size get the size they are placed with.
+ */
+export function storedTextBox(annotation: FreeTextAnnotation): Box {
+  return {
+    ...annotation.position,
+    width: annotation.width ?? DEFAULT_TEXT_WIDTH,
+    height: annotation.height ?? DEFAULT_TEXT_HEIGHT,
+  };
+}
+
+/**
  * Returns the topmost text at the given position.
  *
  * @param texts The texts in the order they are drawn.
@@ -480,13 +492,11 @@ export function annotationBoxes(
         ? item.group
         : shapeBox(shapeGeometry(item.shape.annotation)),
     ),
-    ...texts.map(text => ({
-      ...text.annotation.position,
-      ...(textSizes?.get(text.id) ?? {
-        width: text.annotation.width ?? DEFAULT_TEXT_WIDTH,
-        height: text.annotation.height ?? DEFAULT_TEXT_HEIGHT,
-      }),
-    })),
+    ...texts.map(
+      text =>
+        textBox(text.annotation, textSizes?.get(text.id)) ??
+        storedTextBox(text.annotation),
+    ),
   ];
 }
 
