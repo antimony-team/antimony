@@ -57,7 +57,7 @@ export const topologyStyle = [
   {
     selector: '.topology-node',
     style: {
-      'font-family': 'Figtree',
+      'font-family': 'Figtree Variable, sans-serif',
       color: '#e0e0e1',
       'text-valign': 'bottom',
       'text-halign': 'center',
@@ -145,7 +145,7 @@ export const topologyStyle = [
       'source-text-margin-y': labelMarginY,
       'target-text-margin-x': labelMarginX,
       'target-text-margin-y': labelMarginY,
-      'font-family': 'JetBrains Mono, monospace',
+      'font-family': 'JetBrains Mono Variable, monospace',
       'font-size': 10,
       color: 'rgba(255, 255, 255, 0.6)',
       'text-background-opacity': 0,

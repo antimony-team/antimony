@@ -659,7 +659,7 @@ const MonacoWrapper = observer(
         model: textModelRef.current,
         language: 'text',
         theme: 'antimonyTheme',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: 'JetBrains Mono Variable, monospace',
       });
       editorRef.current = editor;
 
