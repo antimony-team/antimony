@@ -466,7 +466,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   function onAddTopology() {
     props.editTopologyState.openWith({
-      editingTopology: null,
+      topology: null,
       collectionId: null,
       action: DialogAction.Add,
     });

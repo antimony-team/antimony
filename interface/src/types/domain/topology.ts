@@ -1,6 +1,6 @@
+import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {User} from '@sb/types/domain/user';
 import {Position, uuid4, YAMLDocument} from '@sb/types/types';
-import {InterfaceConfig} from '@sb/types/domain/device-info';
 
 export type EditingFile = BindFile | Topology;
 
@@ -21,10 +21,10 @@ export type BindFile = BindFileIn & {
 };
 
 export type TopologyIn = {
-  collectionId: uuid4;
-  definition: string;
-  annotations: string;
-  syncUrl: string;
+  collectionId?: uuid4;
+  definition?: string;
+  annotations?: string;
+  syncUrl?: string;
 };
 
 export type TopologyOut = TopologyIn & {

@@ -1,8 +1,9 @@
-import {FetchState, Position} from '@sb/types/types';
-import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
-
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
+
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
+
+import {FetchState, Position} from '@sb/types/types';
 dayjs.extend(duration);
 
 export async function fetchResource<T>(
@@ -165,4 +166,24 @@ export async function fetchSyncUrl(
   } else {
     return [null, await response.text()];
   }
+}
+
+/**
+ * Returns a free name for a duplicate of the topology with the given name, e.g.
+ * "topology-1" for "topology". A name that already ends in a number counts on
+ * from it, so a copy of "topology-1" is "topology-2" instead of "topology-1-1".
+ */
+export function createDuplicateName(
+  name: string,
+  takenNames: string[],
+): string {
+  const taken = new Set(takenNames);
+  const match = /^(.*)-(\d+)$/.exec(name);
+
+  const base = match ? match[1] : name;
+  let number = match ? Number(match[2]) + 1 : 1;
+
+  while (taken.has(`${base}-${number}`)) number++;
+
+  return `${base}-${number}`;
 }

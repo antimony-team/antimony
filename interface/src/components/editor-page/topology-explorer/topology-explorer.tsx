@@ -426,7 +426,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
     executeEditDiscardingAction(() => {
       props.editTopologyState.openWith({
-        editingTopology: null,
+        topology: null,
         collectionId: collectionId,
         action: DialogAction.Add,
       });
@@ -439,7 +439,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     executeEditDiscardingAction(() => {
       const topology = topologyStore.lookup.get(topologyId)!;
       props.editTopologyState.openWith({
-        editingTopology: topology,
+        topology: topology,
         collectionId: topology.collectionId,
         action: DialogAction.Edit,
       });
@@ -450,7 +450,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     executeEditDiscardingAction(() => {
       const topology = topologyStore.lookup.get(topologyId)!;
       props.editTopologyState.openWith({
-        editingTopology: topology,
+        topology: topology,
         collectionId: topology.collectionId,
         action: DialogAction.Duplicate,
       });

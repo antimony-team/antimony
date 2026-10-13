@@ -162,7 +162,7 @@ const EditorPage = observer(() => {
               }
               onCreateTopology={() =>
                 editTopologyState.openWith({
-                  editingTopology: null,
+                  topology: null,
                   collectionId: collectionStore.data[0].id,
                   action: DialogAction.Add,
                 })
@@ -205,7 +205,7 @@ const EditorPage = observer(() => {
       </Choose>
       <LabEditDialog dialogState={labEditDialogState} />
       <TopologyEditDialog
-        key={editTopologyState.state?.editingTopology?.id}
+        key={editTopologyState.state?.topology?.id}
         dialogState={editTopologyState}
         onCreated={onOpenFile}
       />

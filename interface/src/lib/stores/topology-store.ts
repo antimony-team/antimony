@@ -9,6 +9,7 @@ import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyManager} from '@sb/lib/topology-manager';
+import {createDuplicateName} from '@sb/lib/utils/utils';
 import {
   BindFile,
   BindFileIn,
@@ -218,6 +219,13 @@ export class TopologyStore extends DataStore<
     }
 
     return annotations;
+  }
+
+  public createDuplicateName(topologyName: string) {
+    return createDuplicateName(
+      topologyName,
+      this.data.map(topology => topology.name),
+    );
   }
 
   @action

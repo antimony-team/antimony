@@ -25,7 +25,7 @@ import {ErrorCodes} from '@sb/types/error-codes';
 
 export interface TopologyEditDialogState {
   // Set to null if the dialog is meant to add a new topology
-  editingTopology: Topology | null;
+  topology: Topology | null;
 
   collectionId: string | null;
   action: DialogAction;
@@ -48,8 +48,8 @@ interface TopologyEdit {
 
 const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const editingTopology = useLocalObservable<TopologyEdit>(() => ({
-    name: props.dialogState.state?.editingTopology?.name ?? '',
-    syncUrl: props.dialogState.state?.editingTopology?.syncUrl ?? '',
+    name: props.dialogState.state?.topology?.name ?? '',
+    syncUrl: props.dialogState.state?.topology?.syncUrl ?? '',
     collectionId: props.dialogState.state?.collectionId ?? '',
   }));
 
@@ -64,14 +64,17 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   function onShow() {
     runInAction(() => {
-      editingTopology.name =
-        props.dialogState.state?.editingTopology?.name ?? '';
+      editingTopology.name = props.dialogState.state?.topology?.name ?? '';
       editingTopology.syncUrl =
-        props.dialogState.state?.editingTopology?.syncUrl ?? '';
+        props.dialogState.state?.topology?.syncUrl ?? '';
       editingTopology.collectionId =
         props.dialogState.state?.collectionId ?? '';
     });
 
+    if (props.dialogState.state?.action === DialogAction.Duplicate) {
+      topologyNameRef.current!.input.current!.value =
+        topologyStore.createDuplicateName(editingTopology.name);
+    }
     topologyNameRef.current?.input.current?.focus();
   }
 
@@ -85,9 +88,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   function hasChanges() {
     return (
-      props.dialogState.state?.editingTopology?.name !== editingTopology.name ||
-      props.dialogState.state?.editingTopology?.syncUrl !==
-        editingTopology.syncUrl ||
+      props.dialogState.state?.topology?.name !== editingTopology.name ||
+      props.dialogState.state?.topology?.syncUrl !== editingTopology.syncUrl ||
       props.dialogState.state?.collectionId !== editingTopology.collectionId
     );
   }
@@ -121,8 +123,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
       if (
         editingTopology.syncUrl &&
-        editingTopology.syncUrl !==
-          props.dialogState.state.editingTopology?.syncUrl
+        editingTopology.syncUrl !== props.dialogState.state.topology!.syncUrl
       ) {
         const [validationError] = await fetchSyncUrl(editingTopology.syncUrl);
         if (validationError !== null) {
@@ -131,78 +132,99 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         }
       }
 
-      const newDefinition =
-        props.dialogState.state.editingTopology!.definition.clone();
-      newDefinition.set('name', editingTopology.name);
+      const newTopologyDefinition =
+        props.dialogState.state.topology!.definition.clone();
+      newTopologyDefinition.set('name', editingTopology.name);
 
-      const result = await topologyStore.update(
-        props.dialogState.state.editingTopology!.id,
-        {
-          definition: TopologyManager.serializeTopology(newDefinition),
-          syncUrl: editingTopology.syncUrl,
-          collectionId: editingTopology.collectionId,
-        },
+      const updatedTopology: TopologyIn = {
+        definition: TopologyManager.serializeTopology(newTopologyDefinition),
+        syncUrl: editingTopology.syncUrl,
+        collectionId: editingTopology.collectionId,
+      };
+      void updateTopology(
+        props.dialogState.state.topology!.id,
+        updatedTopology,
       );
-      if (result.isErr()) {
-        if (result.error.code === ErrorCodes.ErrorTopologyExists) {
-          topologyNameRef.current?.setValidationError(
-            'A topology with that name already exists.',
-          );
-        } else if (result.error.code === ErrorCodes.ErrorInvalidTopologyName) {
-          topologyNameRef.current?.setValidationError(
-            'This name contains illegal characters.',
-          );
-        } else {
-          notificationStore.error(
-            result.error.message,
-            'Failed to edit topology',
-          );
-        }
-      } else {
-        if (
-          topologyStore.manager.topology?.id ===
-          props.dialogState.state.editingTopology!.id
-        ) {
-          topologyStore.manager.replaceTopology(
-            topologyStore.lookup.get(
-              props.dialogState.state.editingTopology!.id,
-            )!,
-          );
-        }
-
-        notificationStore.success('Topology has been updated successfully.');
-        props.dialogState.close();
-      }
     } else if (props.dialogState.state.action === DialogAction.Add) {
       const newTopology: TopologyIn = {
         ...createTopologyTemplate(editingTopology.name),
         collectionId: editingTopology.collectionId,
         syncUrl: '',
       };
-      void topologyStore.add<string>(newTopology).then(result => {
-        if (result.isErr()) {
-          if (result.error.code === ErrorCodes.ErrorTopologyExists) {
-            topologyNameRef.current?.setValidationError(
-              'A topology with that name already exists in this collection.',
-            );
-          } else if (
-            result.error.code === ErrorCodes.ErrorInvalidTopologyName
-          ) {
-            topologyNameRef.current?.setValidationError(
-              'This name contains illegal characters.',
-            );
-          } else {
-            notificationStore.error(
-              result.error.message,
-              'Failed to update topology',
-            );
-          }
-        } else {
-          notificationStore.success('Topology has been created successfully.');
-          props.onCreated(result.data.payload);
-          props.dialogState.close();
-        }
-      });
+      void addNewTopology(newTopology);
+    } else if (props.dialogState.state.action === DialogAction.Duplicate) {
+      const currentTopology = props.dialogState.state.topology!;
+
+      const newTopologyDefinition = currentTopology.definition.clone();
+      newTopologyDefinition.set('name', editingTopology.name);
+
+      const newTopology: TopologyIn = {
+        definition: TopologyManager.serializeTopology(newTopologyDefinition),
+        annotations: currentTopology.annotationsString,
+        syncUrl: editingTopology.syncUrl,
+        collectionId: editingTopology.collectionId,
+      };
+      void addNewTopology(newTopology);
+    }
+  }
+
+  async function updateTopology(
+    topologyId: string,
+    updatedTopology: TopologyIn,
+  ) {
+    const result = await topologyStore.update(topologyId, updatedTopology);
+
+    if (result.isErr()) {
+      if (result.error.code === ErrorCodes.ErrorTopologyExists) {
+        topologyNameRef.current?.setValidationError(
+          'A topology with that name already exists.',
+        );
+      } else if (result.error.code === ErrorCodes.ErrorInvalidTopologyName) {
+        topologyNameRef.current?.setValidationError(
+          'This name contains illegal characters.',
+        );
+      } else {
+        notificationStore.error(
+          result.error.message,
+          'Failed to edit topology',
+        );
+      }
+    } else {
+      // If the topology was currently opened, replace the topology to refresh it
+      if (topologyStore.manager.topology?.id === topologyId) {
+        topologyStore.manager.replaceTopology(
+          topologyStore.lookup.get(topologyId)!,
+        );
+      }
+
+      notificationStore.success('Topology has been updated successfully.');
+      props.dialogState.close();
+    }
+  }
+
+  async function addNewTopology(newTopology: TopologyIn) {
+    const result = await topologyStore.add<string>(newTopology);
+    if (!result.isErr()) {
+      notificationStore.success('Topology has been created successfully.');
+      props.onCreated(result.data.payload);
+      props.dialogState.close();
+
+      return;
+    }
+
+    if (result.error.code === ErrorCodes.ErrorTopologyExists) {
+      topologyNameRef.current?.setValidationError(
+        'A topology with that name already exists in this collection.',
+      );
+    } else if (result.error.code === ErrorCodes.ErrorInvalidTopologyName) {
+      topologyNameRef.current?.setValidationError(
+        'This name contains illegal characters.',
+      );
+    } else {
+      notificationStore.error(
+        result.error.message,
+        'Failed to update topology',
+      );
     }
   }
 
@@ -247,7 +269,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         <SBInput
           ref={topologyNameRef}
           onValueSubmit={onNameChange}
-          defaultValue={props.dialogState.state?.editingTopology?.name ?? ''}
+          defaultValue={props.dialogState.state?.topology?.name ?? ''}
           placeholder="e.g. OSPF Lab"
           id="topology-edit-name"
           label="Name"
@@ -255,7 +277,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         <SBInput
           ref={topologySyncUrlRef}
           onValueSubmit={onSyncUrlChange}
-          defaultValue={props.dialogState.state?.editingTopology?.syncUrl ?? ''}
+          defaultValue={props.dialogState.state?.topology?.syncUrl ?? ''}
           placeholder="e.g. https://example.com/topology.yaml"
           id="topology-edit-syncurl"
           label="Sync URL"
