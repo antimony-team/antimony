@@ -82,12 +82,6 @@ export class GraphSelection {
   // Whether elements are currently dragged, resized or selected with a box
   @observable accessor isInteracting: boolean = false;
 
-  /*
-   * Whether the mouse button is held in the graph. The bar only appears once it
-   * is released, so it is never mounted at the start of a drag.
-   */
-  @observable accessor isPointerDown: boolean = false;
-
   // Whether the selected groups, shapes and texts are dragged, their handles are hidden meanwhile
   @observable accessor isMoving: boolean = false;
 
@@ -295,11 +289,6 @@ export class GraphSelection {
   @action
   public setInteracting(isInteracting: boolean) {
     this.isInteracting = isInteracting;
-  }
-
-  @action
-  public setPointerDown(isPointerDown: boolean) {
-    this.isPointerDown = isPointerDown;
   }
 
   @action

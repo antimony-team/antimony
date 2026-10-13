@@ -1,5 +1,6 @@
 import React from 'react';
 
+import classNames from 'classnames';
 import cytoscape from 'cytoscape';
 import {observer} from 'mobx-react-lite';
 
@@ -24,6 +25,8 @@ interface SelectionOverlayProps {
   onTextStyle: (update: Partial<FreeTextAnnotation>) => void;
   onTextStylePreview: (update: Partial<FreeTextAnnotation> | null) => void;
   onBringToFront: () => void;
+  onBringForward: () => void;
+  onBringBackward: () => void;
   onSendToBack: () => void;
   onUngroup: () => void;
   onDelete: () => void;
@@ -72,20 +75,21 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
     graphSelection.count === 1 && selectedItems.length === 1
       ? selectedItems[0]
       : null;
-  const showBar =
-    !graphSelection.isContextMenuOpen &&
-    !graphSelection.isPointerDown &&
-    !graphSelection.isInteracting &&
-    !graphSelection.isHandActive &&
-    !graphSelection.renamingGroupId &&
-    (graphSelection.count > 1 || !!itemAlone);
-  const box = showBar ? barBox() : null;
+  const hasBar = graphSelection.count > 1 || !!itemAlone;
+
+  // Hidden on the wrapper while the graph is used, so the bar itself doesn't render again
+  const isHidden =
+    graphSelection.isContextMenuOpen ||
+    graphSelection.isInteracting ||
+    graphSelection.isHandActive ||
+    !!graphSelection.renamingGroupId;
+  const box = hasBar && !isHidden ? barBox() : null;
 
   return (
     <>
       {/* Placed at the bottom center of the selection, keeping its size on screen */}
       <div
-        className="sb-selection-overlay-bar"
+        className={classNames('sb-selection-overlay-bar', {hidden: !box})}
         style={
           box
             ? {left: box.x + box.width / 2, top: box.y + box.height}
@@ -93,12 +97,12 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
         }
       >
         <SelectionBar
-          isVisible={!!box}
+          isVisible={hasBar}
           item={itemAlone?.kind !== 'text' ? itemAlone : null}
           text={itemAlone?.kind === 'text' ? itemAlone.text : null}
           isEditingText={!!graphSelection.editingTextId}
           canGroup={graphSelection.count > 0}
-          canReorder={selectedItems.length > 0}
+          canReorder={selectedItems.some(item => item.kind !== 'text')}
           onGroup={props.onGroup}
           onStyle={props.onStyle}
           onStylePreview={props.onStylePreview}
@@ -106,6 +110,8 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
           onTextStyle={props.onTextStyle}
           onTextStylePreview={props.onTextStylePreview}
           onBringToFront={props.onBringToFront}
+          onBringForward={props.onBringForward}
+          onBringBackward={props.onBringBackward}
           onSendToBack={props.onSendToBack}
           onUngroup={props.onUngroup}
           onDelete={props.onDelete}

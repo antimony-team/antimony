@@ -219,6 +219,16 @@ export function groupInnerBox(box: Box): Box {
   };
 }
 
+// Boxes that only touch count as overlapping, so lines along an edge overlap it
+export function boxesOverlap(a: Box, b: Box): boolean {
+  return (
+    a.x <= b.x + b.width &&
+    b.x <= a.x + a.width &&
+    a.y <= b.y + b.height &&
+    b.y <= a.y + a.height
+  );
+}
+
 export function boxCenter(box: Box): Position {
   return {x: box.x + box.width / 2, y: box.y + box.height / 2};
 }
@@ -587,26 +597,40 @@ export function hitTestLayers(
   position: Position,
   tolerance: number,
 ): LayerHit | null {
+  return layerHits(items, position, tolerance).next().value ?? null;
+}
+
+/**
+ * Yields the groups and shapes at the given position from the topmost one down.
+ *
+ * @param items The groups and shapes in the order they are drawn.
+ * @param position The position in the graph.
+ * @param tolerance The distance in the graph at which outlines are still hit.
+ */
+export function* layerHits(
+  items: LayerItem[],
+  position: Position,
+  tolerance: number,
+): Generator<LayerHit> {
   for (const item of items.toReversed()) {
     if (item.kind === 'group') {
       if (!containsPoint(item.group, position)) continue;
 
-      return {
+      yield {
         kind: 'group',
         group: item.group,
         part: containsPoint(groupLabelBox(item.group), position)
           ? GroupHitPart.Label
           : GroupHitPart.Body,
       };
+      continue;
     }
 
     const geometry = shapeGeometry(item.shape.annotation);
     if (isShapeHit(item.shape, geometry, position, tolerance)) {
-      return {kind: 'shape', shape: item.shape};
+      yield {kind: 'shape', shape: item.shape};
     }
   }
-
-  return null;
 }
 
 /**

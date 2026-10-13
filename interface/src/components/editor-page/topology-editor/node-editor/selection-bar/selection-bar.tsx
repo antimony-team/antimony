@@ -3,11 +3,13 @@ import React, {memo, useEffect, useRef, useState} from 'react';
 import classNames from 'classnames';
 
 import {Button} from 'primereact/button';
+import {Menu} from 'primereact/menu';
 import {SelectButton} from 'primereact/selectbutton';
 import {Tooltip} from 'primereact/tooltip';
 
 import SBScrubNumber from '@sb/components/common/sb-scrub-number/sb-scrub-number';
 import {textEditorId} from '@sb/components/common/topology-graph/text-layer/text-layer';
+import {arrangeItems} from '@sb/components/editor-page/topology-editor/node-editor/graph-context-menus';
 import ColorPopover from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/color-popover';
 import MarkdownToolbar from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/markdown-toolbar';
 import {SelectionPopoverRef} from '@sb/components/editor-page/topology-editor/node-editor/selection-bar/selection-popover';
@@ -80,6 +82,8 @@ interface SelectionBarProps {
   onTextStyle: (update: Partial<FreeTextAnnotation>) => void;
   onTextStylePreview: (update: Partial<FreeTextAnnotation> | null) => void;
   onBringToFront: () => void;
+  onBringForward: () => void;
+  onBringBackward: () => void;
   onSendToBack: () => void;
   onUngroup: () => void;
   onDelete: () => void;
@@ -145,6 +149,8 @@ const SelectionBar = memo((props: SelectionBarProps) => {
   const isEditingText = !!text && props.isEditingText;
   const hasTextStyle = !!text && !isEditingText;
   const currentTextStyle = text ? textStyle(text.annotation) : null;
+
+  const arrangeMenuRef = useRef<Menu>(null);
 
   // An open popover belongs to the selection it was opened for
   useEffect(() => {
@@ -384,19 +390,16 @@ const SelectionBar = memo((props: SelectionBarProps) => {
       >
         <Button
           text
-          icon={
-            <span className="material-symbols-outlined">flip_to_front</span>
-          }
-          onClick={props.onBringToFront}
-          data-pr-tooltip={`Bring to front (${keybindLabel(GraphAction.BringToFront)})`}
-          aria-label="Bring to front"
+          icon={<span className="material-symbols-outlined">stacks</span>}
+          label="Arrange"
+          onClick={event => arrangeMenuRef.current?.toggle(event)}
+          aria-haspopup
         />
-        <Button
-          text
-          icon={<span className="material-symbols-outlined">flip_to_back</span>}
-          onClick={props.onSendToBack}
-          data-pr-tooltip={`Send to back (${keybindLabel(GraphAction.SendToBack)})`}
-          aria-label="Send to back"
+        <Menu
+          ref={arrangeMenuRef}
+          model={arrangeItems(props)}
+          popup
+          popupAlignment="left"
         />
         <span className="sb-selection-bar-separator" />
       </span>

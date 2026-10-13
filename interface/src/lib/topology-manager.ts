@@ -18,6 +18,7 @@ import {
   removeOrphanedNodeAnnotations,
   renameNodeAnnotation,
   reorderAnnotationItems,
+  stepLayerItems,
   updateAnnotationItems,
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
@@ -433,17 +434,19 @@ export class TopologyManager {
     if (ids.length === 0) return;
 
     this.editGraphAnnotations(annotations =>
-      reorderAnnotationItems(
-        reorderAnnotationItems(
-          annotations,
-          LAYER_ANNOTATION_KEYS,
-          ids,
-          toFront,
-        ),
-        ['freeTextAnnotations'],
-        ids,
-        toFront,
-      ),
+      reorderAnnotationItems(annotations, LAYER_ANNOTATION_KEYS, ids, toFront),
+    );
+  }
+
+  /**
+   * Moves the given groups and shapes one step forward or backward, past the
+   * next group or shape they overlap.
+   */
+  public stepAnnotations(ids: string[], isForward: boolean) {
+    if (ids.length === 0) return;
+
+    this.editGraphAnnotations(annotations =>
+      stepLayerItems(annotations, ids, isForward),
     );
   }
 

@@ -5,6 +5,8 @@ export enum GraphAction {
   Group,
   Ungroup,
   BringToFront,
+  BringForward,
+  BringBackward,
   SendToBack,
   NudgeLeft,
   NudgeRight,
@@ -40,6 +42,12 @@ interface GraphKeybind {
   isClipboardEvent?: boolean;
 }
 
+// Shift turns the brackets into braces on US layouts
+const SHIFTED_KEYS = new Map([
+  ['{', '['],
+  ['}', ']'],
+]);
+
 const GRAPH_KEYBINDS: GraphKeybind[] = [
   {action: GraphAction.SelectAll, key: 'a', ctrl: true, shift: false},
   {action: GraphAction.Deselect, key: 'Escape'},
@@ -47,8 +55,21 @@ const GRAPH_KEYBINDS: GraphKeybind[] = [
   {action: GraphAction.Delete, key: 'Backspace'},
   {action: GraphAction.Group, key: 'g', ctrl: true, shift: false},
   {action: GraphAction.Ungroup, key: 'g', ctrl: true, shift: true},
-  {action: GraphAction.BringToFront, key: ']', ctrl: true},
-  {action: GraphAction.SendToBack, key: '[', ctrl: true},
+  {action: GraphAction.BringForward, key: ']', ctrl: true, shift: false},
+  {action: GraphAction.BringToFront, key: ']', ctrl: true, shift: true},
+  {action: GraphAction.BringBackward, key: '[', ctrl: true, shift: false},
+  {action: GraphAction.SendToBack, key: '[', ctrl: true, shift: true},
+
+  // The brackets need AltGr on some keyboard layouts, the arrows work on all
+  {action: GraphAction.BringForward, key: 'ArrowUp', ctrl: true, shift: false},
+  {action: GraphAction.BringToFront, key: 'ArrowUp', ctrl: true, shift: true},
+  {
+    action: GraphAction.BringBackward,
+    key: 'ArrowDown',
+    ctrl: true,
+    shift: false,
+  },
+  {action: GraphAction.SendToBack, key: 'ArrowDown', ctrl: true, shift: true},
   {action: GraphAction.NudgeLeft, key: 'ArrowLeft'},
   {action: GraphAction.NudgeRight, key: 'ArrowRight'},
   {action: GraphAction.NudgeUp, key: 'ArrowUp'},
@@ -76,7 +97,9 @@ export function matchGraphKeybind(event: KeyboardEvent): GraphAction | null {
   if (event.altKey) return null;
 
   const isCtrl = event.ctrlKey || event.metaKey;
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const key =
+    SHIFTED_KEYS.get(event.key) ??
+    (event.key.length === 1 ? event.key.toLowerCase() : event.key);
 
   const keybind = GRAPH_KEYBINDS.find(
     keybind =>

@@ -123,14 +123,57 @@ export function linkMenu(options: LinkMenuOptions): MenuItem[] {
   ];
 }
 
-interface SelectionMenuOptions extends ClipboardOptions {
+export interface ArrangeOptions {
+  onBringToFront: () => void;
+  onBringForward: () => void;
+  onBringBackward: () => void;
+  onSendToBack: () => void;
+}
+
+// Changes the order of groups and shapes, texts are always drawn above them
+export function arrangeItems(options: ArrangeOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {
+        label: 'Bring to front',
+        icon: icon('flip_to_front'),
+        command: options.onBringToFront,
+      },
+      GraphAction.BringToFront,
+    ),
+    withKeybind(
+      {
+        label: 'Bring forward',
+        icon: icon('arrow_upward'),
+        command: options.onBringForward,
+      },
+      GraphAction.BringForward,
+    ),
+    withKeybind(
+      {
+        label: 'Bring backward',
+        icon: icon('arrow_downward'),
+        command: options.onBringBackward,
+      },
+      GraphAction.BringBackward,
+    ),
+    withKeybind(
+      {
+        label: 'Send to back',
+        icon: icon('flip_to_back'),
+        command: options.onSendToBack,
+      },
+      GraphAction.SendToBack,
+    ),
+  ];
+}
+
+interface SelectionMenuOptions extends ClipboardOptions, ArrangeOptions {
   count: number;
   canGroup: boolean;
   canReorder: boolean;
 
   onGroup: () => void;
-  onBringToFront: () => void;
-  onSendToBack: () => void;
   onDelete: () => void;
 }
 
@@ -146,27 +189,7 @@ export function selectionMenu(options: SelectionMenuOptions): MenuItem[] {
       GraphAction.Group,
     ),
     ...clipboardItems(options),
-    ...(options.canReorder
-      ? [
-          SEPARATOR,
-          withKeybind(
-            {
-              label: 'Bring to front',
-              icon: icon('flip_to_front'),
-              command: options.onBringToFront,
-            },
-            GraphAction.BringToFront,
-          ),
-          withKeybind(
-            {
-              label: 'Send to back',
-              icon: icon('flip_to_back'),
-              command: options.onSendToBack,
-            },
-            GraphAction.SendToBack,
-          ),
-        ]
-      : []),
+    ...(options.canReorder ? [SEPARATOR, ...arrangeItems(options)] : []),
     SEPARATOR,
     withKeybind(
       {
@@ -180,11 +203,9 @@ export function selectionMenu(options: SelectionMenuOptions): MenuItem[] {
   ];
 }
 
-interface GroupMenuOptions extends ClipboardOptions {
+interface GroupMenuOptions extends ClipboardOptions, ArrangeOptions {
   onRename: () => void;
   onSelectMembers: () => void;
-  onBringToFront: () => void;
-  onSendToBack: () => void;
   onUngroup: () => void;
   onDelete: () => void;
 }
@@ -196,28 +217,13 @@ export function groupMenu(options: GroupMenuOptions): MenuItem[] {
       GraphAction.Rename,
     ),
     {
-      label: 'Select with contents',
+      label: 'Select group',
       icon: icon('select_all'),
       command: options.onSelectMembers,
     },
     ...clipboardItems(options),
     SEPARATOR,
-    withKeybind(
-      {
-        label: 'Bring to front',
-        icon: icon('flip_to_front'),
-        command: options.onBringToFront,
-      },
-      GraphAction.BringToFront,
-    ),
-    withKeybind(
-      {
-        label: 'Send to back',
-        icon: icon('flip_to_back'),
-        command: options.onSendToBack,
-      },
-      GraphAction.SendToBack,
-    ),
+    ...arrangeItems(options),
     SEPARATOR,
     withKeybind(
       {label: 'Ungroup', icon: icon('ungroup'), command: options.onUngroup},
@@ -232,7 +238,7 @@ export function groupMenu(options: GroupMenuOptions): MenuItem[] {
   ];
 }
 
-interface ShapeMenuOptions extends OrderAndDeleteOptions {
+interface ShapeMenuOptions extends DeleteOptions, ArrangeOptions {
   shapeType: FreeShapeAnnotation['shapeType'];
 
   // Changes a rectangle to an ellipse and back, or reverses a line
@@ -250,53 +256,34 @@ export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
   return [
     {...changeItem, command: options.onChangeShape},
     ...clipboardItems(options),
-    ...orderAndDeleteItems(options),
+    SEPARATOR,
+    ...arrangeItems(options),
+    SEPARATOR,
+    deleteItem(options),
   ];
 }
 
-interface OrderAndDeleteOptions extends ClipboardOptions {
-  onBringToFront: () => void;
-  onSendToBack: () => void;
+interface DeleteOptions extends ClipboardOptions {
   onDelete: () => void;
 }
 
-// The items at the end of the menus of shapes and texts
-function orderAndDeleteItems(options: OrderAndDeleteOptions): MenuItem[] {
-  return [
-    SEPARATOR,
-    withKeybind(
-      {
-        label: 'Bring to front',
-        icon: icon('flip_to_front'),
-        command: options.onBringToFront,
-      },
-      GraphAction.BringToFront,
-    ),
-    withKeybind(
-      {
-        label: 'Send to back',
-        icon: icon('flip_to_back'),
-        command: options.onSendToBack,
-      },
-      GraphAction.SendToBack,
-    ),
-    SEPARATOR,
-    withKeybind(
-      {
-        label: 'Delete',
-        icon: 'pi pi-trash',
-        className: 'sb-menuitem-danger',
-        command: options.onDelete,
-      },
-      GraphAction.Delete,
-    ),
-  ];
+function deleteItem(options: DeleteOptions): MenuItem {
+  return withKeybind(
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: options.onDelete,
+    },
+    GraphAction.Delete,
+  );
 }
 
-interface TextMenuOptions extends OrderAndDeleteOptions {
+interface TextMenuOptions extends DeleteOptions {
   onEdit: () => void;
 }
 
+// Texts are drawn above the graph, so they can't be reordered with shapes and groups
 export function textMenu(options: TextMenuOptions): MenuItem[] {
   return [
     withKeybind(
@@ -304,7 +291,8 @@ export function textMenu(options: TextMenuOptions): MenuItem[] {
       GraphAction.EditText,
     ),
     ...clipboardItems(options),
-    ...orderAndDeleteItems(options),
+    SEPARATOR,
+    deleteItem(options),
   ];
 }
 

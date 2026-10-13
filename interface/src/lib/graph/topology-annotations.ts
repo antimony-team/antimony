@@ -1,9 +1,12 @@
 import {isMap, isScalar} from 'yaml';
 
 import {
+  boxesOverlap,
   groupBoxAround,
   groupParentId,
   nodeGroupId,
+  shapeBox,
+  shapeGeometry,
 } from '@sb/lib/graph/annotation-geometry';
 import {
   convertLatLngToXY,
@@ -173,6 +176,86 @@ export function reorderAnnotationItems(
   );
 
   return keys.reduce(
+    (updated, key) => updateAnnotationItems(updated, key, updates),
+    annotations,
+  );
+}
+
+/**
+ * Moves groups and shapes one step forward or backward, past the next group or
+ * shape they overlap in the same group. Only the order of the items in that
+ * group changes, they keep their z-indices in a new order.
+ */
+export function stepLayerItems(
+  annotations: TopologyAnnotations,
+  ids: string[],
+  isForward: boolean,
+): TopologyAnnotations {
+  const movedIds = new Set(ids);
+  const groups = annotations.groupStyleAnnotations ?? [];
+  const groupIds = new Set(groups.map(group => group.id));
+  const parentOf = (parentId: string | null | undefined) =>
+    parentId && groupIds.has(parentId) ? parentId : null;
+
+  const items = [
+    ...groups.map(group => ({
+      id: group.id,
+      parentId: parentOf(groupParentId(group)),
+      zIndex: group.zIndex ?? 0,
+      box: {...group.position, width: group.width, height: group.height},
+    })),
+    ...(annotations.freeShapeAnnotations ?? []).map(shape => ({
+      id: shape.id,
+      parentId: parentOf(shape.groupId),
+      zIndex: shape.zIndex ?? 0,
+      box: shapeBox(shapeGeometry(shape)),
+    })),
+  ];
+
+  const updates = new Map<string, {zIndex: number}>();
+
+  for (const parentId of new Set(items.map(item => item.parentId))) {
+    // The siblings in the order they are drawn
+    const siblings = items
+      .filter(item => item.parentId === parentId)
+      .toSorted((a, b) => a.zIndex - b.zIndex);
+    if (!siblings.some(item => movedIds.has(item.id))) continue;
+
+    const order = [...siblings];
+    const moved = order.filter(item => movedIds.has(item.id));
+
+    // The item closest to where they move goes first, so moved items don't pass each other
+    for (const item of isForward ? moved.toReversed() : moved) {
+      const index = order.indexOf(item);
+      const step = isForward ? 1 : -1;
+
+      let target = index + step;
+      while (
+        target >= 0 &&
+        target < order.length &&
+        (movedIds.has(order[target].id) ||
+          !boxesOverlap(item.box, order[target].box))
+      ) {
+        target += step;
+      }
+      if (target < 0 || target >= order.length) continue;
+
+      order.splice(index, 1);
+      order.splice(target, 0, item);
+    }
+
+    const zIndices = siblings.map(item => item.zIndex);
+    const isDistinct = zIndices.every(
+      (zIndex, index) => index === 0 || zIndex > zIndices[index - 1],
+    );
+
+    order.forEach((item, index) => {
+      const zIndex = isDistinct ? zIndices[index] : zIndices[0] + index;
+      if (zIndex !== item.zIndex) updates.set(item.id, {zIndex});
+    });
+  }
+
+  return (['groupStyleAnnotations', 'freeShapeAnnotations'] as const).reduce(
     (updated, key) => updateAnnotationItems(updated, key, updates),
     annotations,
   );

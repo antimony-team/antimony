@@ -24,6 +24,7 @@ import TopologyGraph, {
 } from '@sb/components/common/topology-graph/topology-graph';
 import EdgeHalo from '@sb/components/editor-page/topology-editor/node-editor/edge-halo/edge-halo';
 import {
+  ArrangeOptions,
   graphMenu,
   groupMenu,
   linkMenu,
@@ -74,6 +75,7 @@ import {
   growGroupBox,
   hitTestLayers,
   LayerHit,
+  layerHits,
   minGroupSize,
   moveBox,
   moveShapeGeometry,
@@ -240,6 +242,11 @@ type PointerAction =
       originClient: Position;
       pointer: Position;
       hasMoved: boolean;
+
+      // The topmost element at the press, and whether the press kept the selection instead of selecting it
+      pressed: ElementRef;
+      keptSelection: boolean;
+      isShift: boolean;
     } & SelectionStarts)
   | {
       kind: 'draw';
@@ -261,8 +268,8 @@ type MoveLayersAction = Extract<PointerAction, {kind: 'move-layers'}>;
 
 /**
  * Where the moved elements end up when they are dropped. An element joins the
- * group its center is dropped on, and a member stays in its group, which grows
- * to contain it, unless ctrl is held.
+ * group it is dropped on, and a member stays in its group, which grows to
+ * contain it. With ctrl, elements end up outside of all groups.
  */
 interface DropPlan {
   // The group of each dropped element by its element key
@@ -289,10 +296,17 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const nodeConnectionSource = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<ContextMenu | null>(null);
+
+  // The event that opens the context menu once it shows its new items
+  const pendingMenuEvent = useRef<MouseEvent | null>(null);
   const menuTargetRef = useRef<string | null>(null);
   // Position in the graph where the context menu of the graph was opened
   const contextMenuPosition = useRef<Position>({x: 0, y: 0});
   const pointerAction = useRef<PointerAction | null>(null);
+
+  // The element last selected by clicking through, the next click on it goes further down
+  const clickedThrough = useRef<string | null>(null);
+
   const isDragCtrl = useRef(false);
   const moveFrame = useRef(0);
 
@@ -444,6 +458,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       }),
     [],
   );
+
+  /*
+   * The menu takes its items over in an effect, so it is shown after they
+   * changed. Otherwise it measures the previous items to keep itself on screen.
+   */
+  useEffect(() => {
+    const event = pendingMenuEvent.current;
+    if (!event) return;
+
+    pendingMenuEvent.current = null;
+    contextMenuRef.current?.show(event);
+  }, [contextMenuModel]);
 
   useEffect(() => {
     graphSelection.clear();
@@ -629,6 +655,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onKeyDown(event: KeyboardEvent) {
+    onDragCtrlChange(event);
     if (!isGraphActive.current || isTextInput(event.target)) return;
 
     if (event.key === ' ') {
@@ -645,7 +672,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onKeyUp(event: KeyboardEvent) {
+    onDragCtrlChange(event);
     if (event.key === ' ') graphSelection.setHandHeld(false);
+  }
+
+  // Ctrl changes where dragged elements are dropped, so it applies without moving the pointer
+  function onDragCtrlChange(event: KeyboardEvent) {
+    const action = pointerAction.current;
+    if (
+      (event.key !== 'Control' && event.key !== 'Meta') ||
+      action?.kind !== 'move-layers' ||
+      !action.hasMoved
+    ) {
+      return;
+    }
+
+    isDragCtrl.current = event.ctrlKey || event.metaKey;
+    transformPreviews(action, moveTransform(action), action.pointer);
   }
 
   function runAction(action: GraphAction, isShift: boolean) {
@@ -676,6 +719,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         break;
       case GraphAction.SendToBack:
         onReorder(false);
+        break;
+      case GraphAction.BringForward:
+        onStep(true);
+        break;
+      case GraphAction.BringBackward:
+        onStep(false);
         break;
       case GraphAction.NudgeLeft:
         onNudge({x: -nudgeDistance, y: 0});
@@ -770,7 +819,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       event.preventDefault();
       event.stopPropagation();
 
-      graphSelection.setPointerDown(true);
       pointerAction.current = {
         kind: 'draw',
         drawKind,
@@ -792,7 +840,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if ((event.ctrlKey || event.metaKey) && openLinkAt(text.id, event)) return;
 
-    graphSelection.setPointerDown(true);
     onAnnotationPointerDown(
       {kind: 'text', id: text.id, text},
       position,
@@ -837,7 +884,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       graphSelection.textSizes,
       toGraphPosition(cy, event.clientX, event.clientY),
     );
-    if (text) graphSelection.setEditingText(text.id);
+    if (!text) return;
+
+    graphSelection.select({textIds: [text.id]});
+    graphSelection.setEditingText(text.id);
   }
 
   // The context menu of a text, the press on it didn't reach the graph
@@ -859,8 +909,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         : textMenu({
             ...clipboardActions,
             onEdit: () => graphSelection.setEditingText(textId),
-            onBringToFront: () => onReorder(true),
-            onSendToBack: () => onReorder(false),
             onDelete: onDeleteSelection,
           }),
     );
@@ -891,8 +939,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     ) {
       return;
     }
-
-    graphSelection.setPointerDown(true);
 
     const originClient = {x: mouseEvent.clientX, y: mouseEvent.clientY};
 
@@ -927,7 +973,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   /**
    * Selects the pressed annotation, shift adds or removes it, and starts moving
-   * the selected annotations.
+   * the selection. A press that keeps the selection moves it instead.
    */
   function onAnnotationPointerDown(
     item: AnnotationItem,
@@ -938,25 +984,52 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const cy = cyRef.current;
     if (!cy) return;
 
+    const keptSelection = keepsSelection(position);
+
     if (isShift) {
       if (item.kind === 'group') graphSelection.toggleGroup(item.id);
       if (item.kind === 'shape') graphSelection.toggleShape(item.id);
       if (item.kind === 'text') graphSelection.toggleText(item.id);
-    } else if (!graphSelection.annotationIds.includes(item.id)) {
+    } else if (!keptSelection) {
+      clickedThrough.current = null;
       graphSelection.select(itemSelection(item.kind, item.id));
     }
 
-    startMove(position, originClient, null);
+    startMove(
+      position,
+      originClient,
+      {kind: item.kind, id: item.id},
+      keptSelection,
+      isShift,
+    );
   }
 
   /**
-   * Starts moving the selection. The pressed node moves with it, even if it
-   * isn't selected yet.
+   * Whether a press keeps the selection, so it is moved when dragged. It does if
+   * the topmost element at the press is selected, or if the selected element
+   * there was reached by clicking through. Otherwise the press selects the
+   * topmost element.
+   */
+  function keepsSelection(position: Position): boolean {
+    const elements = elementsAt(position);
+    const index = elements.findIndex(isSelected);
+
+    return (
+      index === 0 ||
+      (index > 0 && clickedThrough.current === elementKey(elements[index]))
+    );
+  }
+
+  /**
+   * Starts moving the selection. A node pressed with shift moves with it, even
+   * if it isn't selected yet.
    */
   function startMove(
     position: Position,
     originClient: Position,
-    pressedNodeId: string | null,
+    pressed: ElementRef,
+    keptSelection: boolean,
+    isShift: boolean,
   ) {
     const cy = cyRef.current;
     if (!cy) return;
@@ -967,8 +1040,102 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       originClient,
       pointer: position,
       hasMoved: false,
-      ...selectionStarts(cy, pressedNodeId),
+      pressed,
+      keptSelection,
+      isShift,
+      ...selectionStarts(
+        cy,
+        pressed.kind === 'node' && isShift ? pressed.id : null,
+      ),
     };
+  }
+
+  /**
+   * Returns the elements at the given position from the topmost one down: texts
+   * above the graph, then nodes, then groups and shapes below the graph.
+   */
+  function elementsAt(position: Position): ElementRef[] {
+    const cy = cyRef.current;
+    if (!cy) return [];
+
+    const texts = textsRef.current
+      .filter(text => {
+        const box = textBox(
+          text.annotation,
+          graphSelection.textSizes.get(text.id),
+        );
+        return box !== null && containsPoint(box, position);
+      })
+      .map(text => ({kind: 'text' as const, id: text.id}));
+    const nodes = cy
+      .nodes('.topology-node')
+      .filter(node =>
+        containsPoint(
+          boundsToBox(
+            node.boundingBox({includeOverlays: false, includeUnderlays: false}),
+          ),
+          position,
+        ),
+      )
+      .map(node => ({kind: 'node' as const, id: node.id()}));
+    const layers = [
+      ...layerHits(layerItemsRef.current, position, HIT_TOLERANCE / cy.zoom()),
+    ].map(hit => ({
+      kind: hit.kind,
+      id: hit.kind === 'group' ? hit.group.id : hit.shape.id,
+    }));
+
+    return [...texts.toReversed(), ...nodes.toReversed(), ...layers];
+  }
+
+  function isSelected(element: ElementRef): boolean {
+    switch (element.kind) {
+      case 'node':
+        return graphSelection.nodeIds.includes(element.id);
+      case 'group':
+        return graphSelection.groupIds.includes(element.id);
+      case 'shape':
+        return graphSelection.shapeIds.includes(element.id);
+      case 'text':
+        return graphSelection.textIds.includes(element.id);
+    }
+  }
+
+  /**
+   * A click without moving on the selected element selects the element below it
+   * at that spot, after the bottom one it starts at the top again. A click on a
+   * selection of several elements selects only the clicked one, shift adds or
+   * removes a node.
+   */
+  function onSelectionClick(action: MoveLayersAction) {
+    if (action.isShift) {
+      if (action.pressed.kind === 'node') {
+        graphSelection.toggleNode(action.pressed.id);
+      }
+      return;
+    }
+
+    // The press already selected the clicked element
+    if (!action.keptSelection) return;
+
+    const elements = elementsAt(action.origin);
+    const index =
+      graphSelection.count === 1 ? elements.findIndex(isSelected) : -1;
+    const isClickingThrough =
+      index === 0 ||
+      (index > 0 && clickedThrough.current === elementKey(elements[index]));
+
+    if (isClickingThrough) {
+      const below = elements[(index + 1) % elements.length];
+      clickedThrough.current = elementKey(below);
+      graphSelection.select(itemSelection(below.kind, below.id));
+      return;
+    }
+
+    clickedThrough.current = null;
+    graphSelection.select(
+      itemSelection(action.pressed.kind, action.pressed.id),
+    );
   }
 
   function selectionStarts(
@@ -1072,7 +1239,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (item?.kind !== 'shape') return;
 
     event.preventDefault();
-    graphSelection.setPointerDown(true);
 
     pointerAction.current = {
       kind: 'move-line-end',
@@ -1420,7 +1586,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const cy = cyRef.current;
     const action = pointerAction.current;
     pointerAction.current = null;
-    graphSelection.setPointerDown(false);
     if (!cy || !action) return;
 
     if (action.kind === 'pan') {
@@ -1458,7 +1623,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       return;
     }
 
-    if (!action.hasMoved) return;
+    if (!action.hasMoved) {
+      onSelectionClick(action);
+      return;
+    }
 
     cancelAnimationFrame(moveFrame.current);
     moveFrame.current = 0;
@@ -1614,16 +1782,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (nodeConnectionSource.current && nodeConnectionSource !== nodeId) {
       topologyStore.manager.connectNodes(nodeConnectionSource.current, nodeId);
       exitConnectionMode();
-      return;
-    }
-
-    if (graphSelection.isHandActive || !node.hasClass('topology-node')) return;
-
-    // Shift adds or removes the node, a click without it selects only the node
-    if ((event.originalEvent as unknown as globalThis.MouseEvent)?.shiftKey) {
-      graphSelection.toggleNode(nodeId);
-    } else {
-      graphSelection.select({nodeIds: [nodeId]});
     }
   }
 
@@ -1646,8 +1804,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   /**
    * Nodes are selected when they are pressed, so a node that is dragged right
-   * away is selected while it moves. Shift is left to cytoscape, which toggles
-   * the node when it is released.
+   * away is selected while it moves. Shift adds or removes the node once it is
+   * released without moving, like other clicks.
    */
   function onNodePointerDown(event: EventObject) {
     const cy = cyRef.current;
@@ -1657,13 +1815,15 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       !cy ||
       mouseEvent?.button !== 0 ||
       graphSelection.isHandActive ||
-      !node.hasClass('topology-node')
+      !node.hasClass('topology-node') ||
+      nodeConnectionSource.current
     ) {
       return;
     }
 
-    graphSelection.setPointerDown(true);
-    if (!mouseEvent.shiftKey && !graphSelection.nodeIds.includes(node.id())) {
+    const keptSelection = keepsSelection(event.position);
+    if (!mouseEvent.shiftKey && !keptSelection) {
+      clickedThrough.current = null;
       graphSelection.select({nodeIds: [node.id()]});
     }
 
@@ -1671,7 +1831,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     startMove(
       event.position,
       {x: mouseEvent.clientX, y: mouseEvent.clientY},
-      node.id(),
+      {kind: 'node', id: node.id()},
+      keptSelection,
+      mouseEvent.shiftKey,
     );
   }
 
@@ -1685,6 +1847,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       includeOverlays: false,
       includeUnderlays: false,
     });
+
+    graphSelection.select({nodeIds: [node.id()]});
 
     if (containsPoint(boundsToBox(bounds), event.position)) {
       props.onEditNode(node.id());
@@ -1728,6 +1892,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     const hit = hitTestLayer(event.position);
     if (hit?.kind === 'group' && hit.part === GroupHitPart.Label) {
+      graphSelection.select({groupIds: [hit.group.id]});
       startGroupRename(hit.group);
     }
   }
@@ -1796,8 +1961,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
                 ...clipboardActions,
                 shapeType: hit.shape.annotation.shapeType,
                 onChangeShape: () => onChangeShape(hitId),
-                onBringToFront: () => onReorder(true),
-                onSendToBack: () => onReorder(false),
+                ...arrangeActions,
                 onDelete: onDeleteSelection,
               }),
       );
@@ -1859,7 +2023,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // The bar is hidden while the menu is open
   function showContextMenu(event: MouseEvent) {
     graphSelection.setContextMenuOpen(true);
-    contextMenuRef.current?.show(event);
+    pendingMenuEvent.current = event;
   }
 
   function currentSelectionMenu() {
@@ -1869,8 +2033,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       canGroup: graphSelection.count > 0,
       canReorder: graphSelection.layerIds.length > 0,
       onGroup: onGroupSelection,
-      onBringToFront: () => onReorder(true),
-      onSendToBack: () => onReorder(false),
+      ...arrangeActions,
       onDelete: onDeleteSelection,
     });
   }
@@ -1885,8 +2048,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         if (group) startGroupRename(group);
       },
       onSelectMembers: onSelectMembers,
-      onBringToFront: () => onReorder(true),
-      onSendToBack: () => onReorder(false),
+      ...arrangeActions,
       onUngroup: onUngroup,
       onDelete: onDeleteSelection,
     });
@@ -1963,20 +2125,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const groupIds = new Map<string, string | null>();
     const groupBoxes = new Map<string, Box>();
 
+    // The group each element would end up in without ctrl
+    const joinedGroupIds = new Map<string, string | null>();
+
     for (const {element, box, center} of elements) {
       const key = elementKey(element);
       const currentGroupId = parentIds.get(key) ?? null;
+      const joinedGroupId = groupAt(targetGroups, center)?.id ?? currentGroupId;
 
-      // Ctrl leaves the current group for the group around it, if there is one
-      const groupUnder =
-        groupAt(
-          isCtrl
-            ? targetGroups.filter(group => group.id !== currentGroupId)
-            : targetGroups,
-          center,
-        )?.id ?? null;
-      const groupId = isCtrl ? groupUnder : (groupUnder ?? currentGroupId);
+      // Ctrl keeps elements out of all groups, it leaves the current one and joins none
+      const groupId = isCtrl ? null : joinedGroupId;
 
+      joinedGroupIds.set(key, joinedGroupId);
       groupIds.set(key, groupId);
       if (groupId !== null && (isFinal || groupId === currentGroupId)) {
         growAncestors(groupId, box, groupBoxes);
@@ -1993,16 +2153,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ? 'the selection'
         : `the ${ELEMENT_LABELS[elements[0].element.kind]}`;
     const currentGroupId = parentIds.get(target) ?? null;
-    const nextGroupId = groupIds.get(target) ?? null;
+    const joinedGroupId = joinedGroupIds.get(target) ?? null;
 
     let hint: HintPart[] | null = null;
     let dropTargetId: string | null = null;
 
-    if (nextGroupId !== null && nextGroupId !== currentGroupId) {
-      hint = [{keyword: 'Drop'}, ` to add ${label} to the group`];
-      dropTargetId = nextGroupId;
-    } else if (currentGroupId !== null && nextGroupId === null) {
+    if (isCtrl && currentGroupId !== null) {
       hint = [{keyword: 'Drop'}, ` to move ${label} out of the group`];
+    } else if (isCtrl && joinedGroupId !== null) {
+      hint = [{keyword: 'Drop'}, ` to keep ${label} out of groups`];
+    } else if (joinedGroupId !== null && joinedGroupId !== currentGroupId) {
+      hint = [
+        {keyword: 'Drop'},
+        ` to add ${label} to the group · Hold `,
+        {keyword: 'Ctrl'},
+        ' to keep it out',
+      ];
+      dropTargetId = joinedGroupId;
     } else if (currentGroupId !== null) {
       hint = ['Hold ', {keyword: 'Ctrl'}, ` to move ${label} out of the group`];
     }
@@ -2364,11 +2531,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.setLabelEdit(null);
   }
 
+  function onStep(isForward: boolean) {
+    topologyStore.manager.stepAnnotations(graphSelection.layerIds, isForward);
+  }
+
   function onReorder(toFront: boolean) {
-    topologyStore.manager.reorderAnnotations(
-      graphSelection.annotationIds,
-      toFront,
-    );
+    topologyStore.manager.reorderAnnotations(graphSelection.layerIds, toFront);
   }
 
   // Selects the group with everything inside it
@@ -2928,6 +3096,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cy.remove(`.${GHOST_EDGE_ID}`);
   }
 
+  const arrangeActions: ArrangeOptions = {
+    onBringToFront: () => onReorder(true),
+    onBringForward: () => onStep(true),
+    onBringBackward: () => onStep(false),
+    onSendToBack: () => onReorder(false),
+  };
+
   const clipboardActions = {
     onCopy: onMenuCopy,
     onCut: onMenuCut,
@@ -2952,6 +3127,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onTextStylePreview,
     onTextEditEnd,
     onBringToFront: () => onReorder(true),
+    onBringForward: () => onStep(true),
+    onBringBackward: () => onStep(false),
     onSendToBack: () => onReorder(false),
     onUngroup,
     onDeleteSelection,
@@ -3031,6 +3208,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
               onTextStyle={callbacks.onTextStyle}
               onTextStylePreview={callbacks.onTextStylePreview}
               onBringToFront={callbacks.onBringToFront}
+              onBringForward={callbacks.onBringForward}
+              onBringBackward={callbacks.onBringBackward}
               onSendToBack={callbacks.onSendToBack}
               onUngroup={callbacks.onUngroup}
               onDelete={callbacks.onDeleteSelection}
@@ -3101,12 +3280,13 @@ function splitElementKey(key: string): [ElementKind, string] {
   return [key.slice(0, index) as ElementKind, key.slice(index + 1)];
 }
 
-// Selects only the given group, shape or text
+// Selects only the given element
 function itemSelection(
-  kind: AnnotationItem['kind'],
+  kind: ElementKind,
   id: string,
 ): Partial<GraphSelectionSnapshot> {
   return {
+    nodeIds: kind === 'node' ? [id] : [],
     groupIds: kind === 'group' ? [id] : [],
     shapeIds: kind === 'shape' ? [id] : [],
     textIds: kind === 'text' ? [id] : [],
