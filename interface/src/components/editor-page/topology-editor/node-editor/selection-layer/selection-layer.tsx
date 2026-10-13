@@ -60,6 +60,7 @@ const SelectionLayer = observer(
 
     const nodePathRef = useRef<SVGPathElement>(null);
     const selectionBoxRef = useRef<SVGRectElement>(null);
+    const connectionLineRef = useRef<SVGLineElement>(null);
     const outlineRefs = useRef(new Map<string, SVGRectElement>());
     const frameRef = useRef<HTMLDivElement>(null);
     const frameBox = useRef<Box | null>(null);
@@ -86,6 +87,7 @@ const SelectionLayer = observer(
       outlines,
       nodeIds: graphSelection.nodeIds,
       selectionBox: graphSelection.selectionBox,
+      connectionLine: graphSelection.connectionLine,
       isFrameShown: graphSelection.isSelectionTransformTarget,
       annotationsBox: graphSelection.isSelectionTransformTarget
         ? unionBox(
@@ -123,6 +125,19 @@ const SelectionLayer = observer(
           .join(''),
       );
 
+      const connectionLine = stateRef.current.connectionLine;
+      const source = connectionLine
+        ? cy.getElementById(connectionLine.sourceId)
+        : null;
+
+      if (connectionLineRef.current && connectionLine && source?.nonempty()) {
+        const line = connectionLineRef.current;
+        line.setAttribute('x1', String(source.position().x));
+        line.setAttribute('y1', String(source.position().y));
+        line.setAttribute('x2', String(connectionLine.pointer.x));
+        line.setAttribute('y2', String(connectionLine.pointer.y));
+      }
+
       if (selectionBoxRef.current && selectionBox) {
         setRect(
           selectionBoxRef.current,
@@ -154,6 +169,12 @@ const SelectionLayer = observer(
           hidden={!state.isFrameShown}
         />
         <svg className="sb-selection-layer" aria-hidden="true">
+          <If condition={state.connectionLine}>
+            <line
+              ref={connectionLineRef}
+              className="sb-selection-layer-connection"
+            />
+          </If>
           <If condition={state.selectionBox}>
             <rect ref={selectionBoxRef} className="sb-selection-layer-box" />
           </If>

@@ -129,6 +129,12 @@ export class GraphSelection {
   // Shown in the status bar while elements are dragged
   @observable accessor dragHint: HintPart[] | null = null;
 
+  // The line from a node to the pointer while a link is drawn from the node
+  @observable.ref accessor connectionLine: {
+    sourceId: string;
+    pointer: Position;
+  } | null = null;
+
   // The box that is drawn to select elements, in coordinates of the graph's container
   @observable accessor selectionBox: Box | null = null;
 
@@ -404,6 +410,13 @@ export class GraphSelection {
   @action
   public setLabelEdit(labelEdit: LabelEdit | null) {
     this.labelEdit = labelEdit;
+  }
+
+  @action
+  public setConnectionLine(
+    connectionLine: {sourceId: string; pointer: Position} | null,
+  ) {
+    this.connectionLine = connectionLine;
   }
 
   @action

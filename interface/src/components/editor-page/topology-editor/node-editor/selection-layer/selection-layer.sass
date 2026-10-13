@@ -16,6 +16,13 @@
   .sb-selection-layer-box
     fill: color-mix(in oklab, var(--accent) 6%, transparent)
 
+  // The link that is drawn from a node to the pointer
+  .sb-selection-layer-connection
+    stroke: var(--text)
+    stroke-opacity: .3
+    stroke-width: calc(2px / var(--sb-graph-zoom, 1))
+    stroke-dasharray: calc(6px / var(--sb-graph-zoom, 1)) calc(4px / var(--sb-graph-zoom, 1))
+
 // The box around a selection of several elements, only its handles are shown
 .sb-selection-layer-frame
   position: absolute

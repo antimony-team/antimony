@@ -122,29 +122,6 @@ export const topologyStyle = [
     },
   },
 
-  // helpers
-  {
-    selector: '.ghost-node',
-    style: {
-      width: 1,
-      height: 1,
-      'background-opacity': 0,
-      'border-opacity': 0,
-      label: '',
-      opacity: 0,
-      events: 'no',
-    },
-  },
-  {
-    selector: '.ghost-edge',
-    style: {
-      'line-style': 'dashed',
-      'line-color': '#ffffff',
-      'line-opacity': 0.3,
-      width: 2,
-    },
-  },
-
   // edges
   {
     selector: 'edge',

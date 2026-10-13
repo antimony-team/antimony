@@ -163,9 +163,6 @@ interface NodeEditorProps {
   onAddNode: (position: Position) => void;
 }
 
-const GHOST_EDGE_ID = 'ghost-edge';
-const GHOST_NODE_ID = 'ghost-node';
-
 const NUDGE_DISTANCE = 5;
 const NUDGE_MERGE_KEY = 'nudge';
 
@@ -408,6 +405,15 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
       // The menu only closes on a click on its own, which a press of the middle button isn't
       if (!target?.closest?.('.p-contextmenu')) hideContextMenu();
+
+      // Any press but one on a node stops drawing a link, the middle button still pans
+      if (
+        nodeConnectionSource.current &&
+        event.button !== 1 &&
+        !isNodePress(event)
+      ) {
+        exitConnectionMode();
+      }
     };
     const onKeyDown = (event: KeyboardEvent) =>
       handlersRef.current.onKeyDown(event);
@@ -605,49 +611,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onSaveGraph();
   }
 
-  function drawConnectionLine(
-    sourceId: string,
-    mouseX: number,
-    mouseY: number,
-  ) {
-    if (!cyRef.current) return;
-
-    const cy = cyRef.current;
-
-    const ghostNode = cy.getElementById(GHOST_NODE_ID);
-
-    // Add ghost node and edge
-    if (!ghostNode.nonempty()) {
-      cy.add([
-        {
-          group: 'nodes',
-          data: {id: GHOST_NODE_ID},
-          position: {x: mouseX, y: mouseY},
-          selectable: false,
-          grabbable: false,
-          classes: GHOST_NODE_ID,
-        },
-        {
-          group: 'edges',
-          data: {
-            id: GHOST_EDGE_ID,
-            source: sourceId,
-            target: GHOST_NODE_ID,
-            temp: true,
-          },
-          classes: GHOST_EDGE_ID,
-        },
-      ]);
-    } else {
-      ghostNode.position({x: mouseX, y: mouseY});
-    }
-  }
-
   function onNodeConnectStart() {
     const cy = cyRef.current;
     if (!cy || menuTargetRef.current === null) return;
 
     nodeConnectionSource.current = menuTargetRef.current;
+
+    // Nothing is selected while a link is drawn, so it can't be deleted meanwhile
+    graphSelection.clear();
   }
 
   function onNodeEdit() {
@@ -778,9 +749,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function onMouseMove(event: MouseEvent<HTMLDivElement>) {
     if (!cyRef.current || !nodeConnectionSource.current) return;
 
-    const {x, y} = toGraphPosition(cyRef.current, event.clientX, event.clientY);
-
-    drawConnectionLine(nodeConnectionSource.current, x, y);
+    graphSelection.setConnectionLine({
+      sourceId: nodeConnectionSource.current,
+      pointer: toGraphPosition(cyRef.current, event.clientX, event.clientY),
+    });
   }
 
   // The middle mouse button always pans the graph
@@ -936,8 +908,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       !cy ||
       event.target !== cy ||
       mouseEvent?.button !== 0 ||
-      graphSelection.isHandActive ||
-      nodeConnectionSource.current
+      graphSelection.isHandActive
     ) {
       return;
     }
@@ -1764,22 +1735,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
   }
 
-  function onEdgeClick(event: cytoscape.EventObject) {
-    if (!event.target.hasClass(GHOST_EDGE_ID)) return;
-
-    exitConnectionMode();
-    graphSelection.clear();
-  }
-
   function onNodeClick(event: cytoscape.EventObject) {
-    const node = event.target;
-    const nodeId = node.id();
-
-    if (node.hasClass(GHOST_NODE_ID)) {
-      exitConnectionMode();
-      graphSelection.clear();
-      return;
-    }
+    const nodeId = event.target.id();
 
     if (nodeConnectionSource.current && nodeConnectionSource !== nodeId) {
       topologyStore.manager.connectNodes(nodeConnectionSource.current, nodeId);
@@ -1862,13 +1819,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // A double-click on a link renames the interface at the closer end
   function onEdgeDoubleClick(event: cytoscape.EventObject) {
     const edge = event.target as EdgeSingular;
-    if (
-      edge.hasClass(GHOST_EDGE_ID) ||
-      graphSelection.isHandActive ||
-      !isDoubleTapOnSameTarget()
-    ) {
-      return;
-    }
+    if (graphSelection.isHandActive || !isDoubleTapOnSameTarget()) return;
 
     const distanceTo = (position: Position) =>
       Math.hypot(position.x - event.position.x, position.y - event.position.y);
@@ -1900,10 +1851,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onEdgeContext(event: cytoscape.EventObject) {
-    if (event.target.hasClass(GHOST_EDGE_ID)) {
-      exitConnectionMode();
-    }
-
     const mouseEvent = event.originalEvent as unknown as MouseEvent;
     mouseEvent.preventDefault();
     mouseEvent.stopPropagation();
@@ -3088,14 +3035,25 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     return graphSelection.groupPreviews.get(group.id) ?? group;
   }
 
+  // Whether the press is with the left button on a node of the graph
+  function isNodePress(event: globalThis.MouseEvent): boolean {
+    const cy = cyRef.current;
+    if (
+      !cy ||
+      event.button !== 0 ||
+      !cy.container()?.contains(event.target as Node)
+    ) {
+      return false;
+    }
+
+    return elementsAt(toGraphPosition(cy, event.clientX, event.clientY)).some(
+      element => element.kind === 'node',
+    );
+  }
+
   function exitConnectionMode() {
     nodeConnectionSource.current = null;
-
-    const cy = cyRef.current;
-    if (!cy || cy.getElementById(GHOST_NODE_ID).empty()) return;
-
-    cy.remove(`.${GHOST_NODE_ID}`);
-    cy.remove(`.${GHOST_EDGE_ID}`);
+    graphSelection.setConnectionLine(null);
   }
 
   const arrangeActions: ArrangeOptions = {
@@ -3164,7 +3122,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         fitKey={props.openTopology?.id ?? null}
         events={{
           'click node': onNodeClick,
-          'click edge': onEdgeClick,
           tap: onTap,
           tapstart: onGraphPointerDown,
           'tapstart node': onNodePointerDown,
