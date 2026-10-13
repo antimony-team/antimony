@@ -4,6 +4,8 @@ import (
 	"antimonyBackend/config"
 	"antimonyBackend/utils"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -54,30 +56,30 @@ func (u *Service) Parse(data string) (*any, error) {
 	var obj any
 
 	if err := yaml.Unmarshal([]byte(data), &obj); err != nil {
-		return nil, utils.ErrInvalidTopology
+		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
 	if err := u.clabSchema.Validate(obj); err != nil {
-		log.Warn("Topology definition failed schema validation", "err", err.Error())
+		if validationErr, ok := errors.AsType[*jsonschema.ValidationError](err); ok && failsAt(validationErr, "/name") {
+			return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopologyName, err.Error())
+		}
 
-		return nil, utils.ErrInvalidTopology
+		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
 	return &obj, nil
 }
 
-// ParseAnnotations unmarshals a topology annotations file and validates it against the annotations schema.
+// ParseAnnotations unmarshals a topology annotations file and validates it against the annotations' schema.
 func (u *Service) ParseAnnotations(data string) (*any, error) {
 	var obj any
 
 	if err := json.Unmarshal([]byte(data), &obj); err != nil {
-		return nil, utils.ErrInvalidTopology
+		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
 	if err := u.annotationsSchema.Validate(obj); err != nil {
-		log.Warn("Topology annotations failed schema validation", "err", err.Error())
-
-		return nil, utils.ErrInvalidTopology
+		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
 	return &obj, nil
@@ -136,4 +138,19 @@ func readFallbackSchema(fallback string, name string) string {
 	}
 
 	return string(schemaData)
+}
+
+// failsAt returns whether the validation error or one of its causes failed at the given location.
+func failsAt(err *jsonschema.ValidationError, location string) bool {
+	if err.InstanceLocation == location {
+		return true
+	}
+
+	for _, cause := range err.Causes {
+		if failsAt(cause, location) {
+			return true
+		}
+	}
+
+	return false
 }

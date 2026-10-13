@@ -30,6 +30,8 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 3001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidTopology):
 		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}
+	case errors.Is(err, ErrInvalidTopologyName):
+		return http.StatusBadRequest, ErrorResponse{Code: 3004, Message: err.Error()}
 	case errors.Is(err, ErrBindFileExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidBindFilePath):
