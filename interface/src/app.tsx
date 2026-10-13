@@ -9,6 +9,7 @@ import {Toast} from 'primereact/toast';
 import SBConfirm, {
   SBConfirmRef,
 } from '@sb/components/common/sb-confirm/sb-confirm';
+import {SBContextMenuHost} from '@sb/components/common/sb-context-menu/sb-context-menu';
 import SBDock from '@sb/components/common/sb-dock/sb-dock';
 import SBLogin from '@sb/components/common/sb-login/sb-login';
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
@@ -85,6 +86,7 @@ const App = observer(() => {
         <ConnectionErrorBanner visible={dataBinder.connectionWasInterrupted} />
       </RootStoreContext.Provider>
       <SBConfirm ref={confirmationRef} />
+      <SBContextMenuHost />
       <Toast ref={toastRef} position="bottom-right" />
     </PrimeReactProvider>
   );

@@ -14,10 +14,12 @@ import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
 import {ClockStore} from '@sb/lib/stores/clock-store';
+import {ContextMenuStore} from '@sb/lib/stores/context-menu-store';
 
 export class RootStore {
   _dataBinder: DataBinder;
   _clockStore: ClockStore;
+  _contextMenuStore: ContextMenuStore;
   _serverConfigStore: ServerConfigStore;
   _topologyStore: TopologyStore;
   _labStore: LabStore;
@@ -43,6 +45,7 @@ export class RootStore {
     this._dataBinder = new DataBinder();
 
     this._clockStore = new ClockStore();
+    this._contextMenuStore = new ContextMenuStore();
 
     this._statusMessagesStore = new StatusMessageStore(this);
 
@@ -174,4 +177,8 @@ export const useStatusMessages = () => {
 
 export const useShellStore = () => {
   return useContext(RootStoreContext)._shellStore;
+};
+
+export const useContextMenuStore = () => {
+  return useContext(RootStoreContext)._contextMenuStore;
 };

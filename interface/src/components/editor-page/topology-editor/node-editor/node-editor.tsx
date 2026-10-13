@@ -14,9 +14,11 @@ import coseBilkent from 'cytoscape-cose-bilkent';
 import {autorun} from 'mobx';
 import {observer} from 'mobx-react-lite';
 
-import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
 import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
 import TextLayer from '@sb/components/common/topology-graph/text-layer/text-layer';
 import TopologyGraph, {
@@ -295,7 +297,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const cyRef = useRef<cytoscape.Core | null>(null);
   const nodeConnectionSource = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const contextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
 
   // The event that opens the context menu once it shows its new items
   const pendingMenuEvent = useRef<MouseEvent | null>(null);
@@ -3237,7 +3239,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onToggleStabilization={callbacks.onToggleStabilization}
       />
       <SimulationPanel onStabilizeGraph={callbacks.onStabilizeGraph} />
-      <ContextMenu
+      <SBContextMenu
         model={contextMenuModel ?? undefined}
         ref={contextMenuRef}
         onHide={callbacks.onContextMenuHide}

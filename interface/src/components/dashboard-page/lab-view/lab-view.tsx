@@ -4,10 +4,12 @@ import classNames from 'classnames';
 import cytoscape from 'cytoscape';
 import {observer} from 'mobx-react-lite';
 
-import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
 import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
 import TextLayer from '@sb/components/common/topology-graph/text-layer/text-layer';
 import TopologyGraph, {
@@ -72,7 +74,7 @@ const PULSING = ['starting', 'stopping', 'settling'];
 const LabView = observer((props: LabDialogProps) => {
   const graphRef = useRef<TopologyGraphRef>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
-  const contextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
 
   // The node that is currently selected and active in the drawer
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -564,7 +566,7 @@ const LabView = observer((props: LabDialogProps) => {
           </div>
         </div>
       </div>
-      <ContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
+      <SBContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
       <LogDialog dialogState={logDialogState} />
       <TerminalDialog dialogState={terminalDialogState} />
     </>

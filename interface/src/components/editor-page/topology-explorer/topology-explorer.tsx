@@ -9,7 +9,6 @@ import React, {
 
 import {observer} from 'mobx-react-lite';
 
-import {ContextMenu} from 'primereact/contextmenu';
 import {Image} from 'primereact/image';
 import {MenuItem} from 'primereact/menuitem';
 import {Message} from 'primereact/message';
@@ -25,6 +24,9 @@ import {
 import SBConfirm, {
   SBConfirmDeletePreset,
 } from '@sb/components/common/sb-confirm/sb-confirm';
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
 import {ArchiveUploadDialogState} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
 import {BindFileEditDialogState} from '@sb/components/editor-page/bind-file-edit-dialog/bind-file-edit-dialog';
 import {BindFileDirectoryEditDialogState} from '@sb/components/editor-page/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
@@ -78,7 +80,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
-  const contextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
   const contextMenuTarget = useRef<string | null>(null);
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1233,7 +1235,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         }
       />
       <SBConfirm />
-      <ContextMenu model={contextMenuModel} ref={contextMenuRef} />
+      <SBContextMenu model={contextMenuModel} ref={contextMenuRef} />
       <input
         ref={fileUploadInputRef}
         type="file"
