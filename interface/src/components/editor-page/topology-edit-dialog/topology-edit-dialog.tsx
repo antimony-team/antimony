@@ -148,6 +148,10 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           topologyNameRef.current?.setValidationError(
             'A topology with that name already exists.',
           );
+        } else if (result.error.code === ErrorCodes.ErrorInvalidTopologyName) {
+          topologyNameRef.current?.setValidationError(
+            'This name contains illegal characters.',
+          );
         } else {
           notificationStore.error(
             result.error.message,
@@ -180,6 +184,12 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
           if (result.error.code === ErrorCodes.ErrorTopologyExists) {
             topologyNameRef.current?.setValidationError(
               'A topology with that name already exists in this collection.',
+            );
+          } else if (
+            result.error.code === ErrorCodes.ErrorInvalidTopologyName
+          ) {
+            topologyNameRef.current?.setValidationError(
+              'This name contains illegal characters.',
             );
           } else {
             notificationStore.error(
