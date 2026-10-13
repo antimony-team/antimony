@@ -139,6 +139,9 @@ const TextView = observer(({text, state, onEditEnd}: TextViewProps) => {
             ? undefined
             : style.backgroundColor,
         textAlign: style.textAlign,
+
+        // Images align like the text, see text-layer.sass
+        ['--sb-graph-text-align' as string]: style.textAlign,
       }}
     >
       <Choose>

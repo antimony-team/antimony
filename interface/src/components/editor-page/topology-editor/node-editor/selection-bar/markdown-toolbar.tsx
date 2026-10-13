@@ -11,7 +11,8 @@ interface Format {
     | 'md-header'
     | 'md-unordered-list'
     | 'md-ordered-list'
-    | 'md-link';
+    | 'md-link'
+    | 'md-image';
   icon: string;
   label: string;
 }
@@ -33,6 +34,7 @@ const FORMATS: Format[] = [
     label: 'Numbered list',
   },
   {element: 'md-link', icon: 'link', label: 'Link (Ctrl K)'},
+  {element: 'md-image', icon: 'image', label: 'Image'},
 ];
 
 interface MarkdownToolbarProps {

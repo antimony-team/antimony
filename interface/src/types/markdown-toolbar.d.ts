@@ -18,6 +18,7 @@ declare module 'react' {
       'md-unordered-list': MarkdownToolbarProps;
       'md-ordered-list': MarkdownToolbarProps;
       'md-link': MarkdownToolbarProps;
+      'md-image': MarkdownToolbarProps;
     }
   }
 }

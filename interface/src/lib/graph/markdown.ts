@@ -1,7 +1,11 @@
 import MarkdownIt from 'markdown-it';
 
-// Links to other schemes, e.g. javascript: or data:, are shown as plain text
-const ALLOWED_LINK = /^(https?:|mailto:)/i;
+/*
+ * Links and images to other schemes, e.g. javascript:, are shown as plain text.
+ * Images can be embedded as data URLs, an SVG in an image can't run scripts.
+ */
+const ALLOWED_LINK =
+  /^(https?:|mailto:|data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,])/i;
 
 // The number of rendered texts that are kept, the cache is cleared beyond it
 const CACHE_SIZE = 200;
@@ -14,7 +18,7 @@ const markdown = new MarkdownIt({
   html: false,
   linkify: true,
   breaks: true,
-}).disable(['image', 'table']);
+}).disable(['table']);
 
 markdown.validateLink = url => ALLOWED_LINK.test(url.trim());
 
@@ -28,6 +32,16 @@ markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
   tokens[index].attrSet('rel', 'noopener noreferrer');
 
   return defaultLinkOpen(tokens, index, options, env, self);
+};
+
+const defaultImage = markdown.renderer.rules.image!;
+
+// Images don't tell their server where they are shown, and can't be dragged out of the text
+markdown.renderer.rules.image = (tokens, index, options, env, self) => {
+  tokens[index].attrSet('referrerpolicy', 'no-referrer');
+  tokens[index].attrSet('draggable', 'false');
+
+  return defaultImage(tokens, index, options, env, self);
 };
 
 const cache = new Map<string, string>();
