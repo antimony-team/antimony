@@ -28,7 +28,6 @@ type RuleId string
 
 const (
 	ruleNetlab            RuleId = "netlab"
-	ruleInvalidStructure  RuleId = "invalid-structure"
 	ruleUnreviewedField   RuleId = "unreviewed-field"
 	ruleGoTemplate        RuleId = "go-template"
 	ruleEnvExpansion      RuleId = "env-expansion"
@@ -54,11 +53,10 @@ const (
 
 var Rules = struct {
 	// general topology policy errors
-	Netlab           RuleId
-	InvalidStructure RuleId
-	UnreviewedField  RuleId
-	GoTemplate       RuleId
-	EnvExpansion     RuleId
+	Netlab          RuleId
+	UnreviewedField RuleId
+	GoTemplate      RuleId
+	EnvExpansion    RuleId
 
 	// top-level settings Antimony controls
 	Mgmt     RuleId
@@ -85,7 +83,6 @@ var Rules = struct {
 	HostLink RuleId
 }{
 	Netlab:            ruleNetlab,
-	InvalidStructure:  ruleInvalidStructure,
 	UnreviewedField:   ruleUnreviewedField,
 	GoTemplate:        ruleGoTemplate,
 	EnvExpansion:      ruleEnvExpansion,

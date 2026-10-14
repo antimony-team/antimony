@@ -236,8 +236,6 @@ var nodeFields = map[string]nodeField{
 	"aliases":                 allowed,
 	"healthcheck":             allowed,
 	"link-apply-mode":         allowed,
-	"username":                allowed,
-	"password":                allowed,
 	"credentials":             allowed,
 	"certificate":             allowed,
 
@@ -256,7 +254,6 @@ var nodeFields = map[string]nodeField{
 	"binds":          allowed,
 	"startup-config": allowed,
 	"license":        allowed,
-	"identity-file":  allowed,
 
 	// unsafe
 	"env-files": denied(
@@ -293,7 +290,6 @@ var nodeFields = map[string]nodeField{
 		Impacts.Shell,
 		"static management addresses can take another lab's address",
 	),
-	"mgmt-net": denied(Rules.Mgmt, Impacts.Shell, "the management network is set by Antimony"),
 	"extras": denied(
 		Rules.UnreviewedField,
 		Impacts.Unreviewed,
@@ -438,35 +434,21 @@ func (c *checker) isOwnFile(reference string) bool {
 // hostEndpointNodes are endpoint node names containerlab treats as the server or its networks.
 var hostEndpointNodes = []string{"host", "macvlan", "mgmt-net"}
 
-// checkLinks reports links that leave the lab, using containerlab's own link type resolution.
+// checkLinks reports links that leave the lab. containerlab's decoder has already turned brief links
+// into their specific type, e.g. a brief link with an endpoint on host into a host link. Any type that
+// isn't known to stay in the lab is reported.
 func (c *checker) checkLinks(path string, links []*clablinks.LinkDefinition) {
 	for i, link := range links {
-		linkPath := fmt.Sprintf("%s[%d]", path, i)
 		if link == nil || link.Link == nil {
 			continue
 		}
 
-		rawLink := link.Link
+		linkPath := fmt.Sprintf("%s[%d]", path, i)
 
-		// Short-form links become host, macvlan or mgmt-net links if one endpoint names them
-		if brief, isBrief := rawLink.(*clablinks.LinkBriefRaw); isBrief {
-			resolved, err := brief.ToTypeSpecificRawLink()
-			if err != nil {
-				c.add(
-					linkPath,
-					Rules.InvalidStructure,
-					Impacts.Unreviewed,
-					fmt.Sprintf("the link can't be resolved: %s", err),
-				)
-				continue
-			}
-			rawLink = resolved
-		}
-
-		switch linkType := rawLink.GetType(); linkType {
+		switch linkType := link.Link.GetType(); linkType {
 		case clablinks.LinkTypeDummy:
 		case clablinks.LinkTypeVEth:
-			c.checkVethEndpoints(linkPath, rawLink)
+			c.checkVethEndpoints(linkPath, link.Link)
 		default:
 			c.add(linkPath, Rules.HostLink, Impacts.Shell,
 				fmt.Sprintf("link type %q connects the lab to the server or networks outside the lab", linkType))
