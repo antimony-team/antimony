@@ -14,6 +14,7 @@ import {
   textBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
+import {SnapGuide} from '@sb/lib/graph/snapping';
 import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
 import {FreeTextAnnotation} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
@@ -134,6 +135,9 @@ export class GraphSelection {
     sourceId: string;
     pointer: Position;
   } | null = null;
+
+  // The lines that the moved, resized or drawn elements are aligned to
+  @observable.ref accessor snapGuides: SnapGuide[] = [];
 
   // The box that is drawn to select elements, in coordinates of the graph's container
   @observable accessor selectionBox: Box | null = null;
@@ -349,6 +353,7 @@ export class GraphSelection {
     this.groupPreviews.clear();
     this.shapePreviews.clear();
     this.textPreviews.clear();
+    this.snapGuides = [];
   }
 
   @action
@@ -417,6 +422,13 @@ export class GraphSelection {
     connectionLine: {sourceId: string; pointer: Position} | null,
   ) {
     this.connectionLine = connectionLine;
+  }
+
+  @action
+  public setSnapGuides(snapGuides: SnapGuide[]) {
+    if (snapGuides.length > 0 || this.snapGuides.length > 0) {
+      this.snapGuides = snapGuides;
+    }
   }
 
   @action

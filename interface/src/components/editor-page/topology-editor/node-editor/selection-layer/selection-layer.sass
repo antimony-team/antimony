@@ -1,3 +1,6 @@
+$center-guide-color: #e5559a
+$gap-guide-color: #f59a3c
+
 // The geometry is in graph coordinates, so the SVG only marks the origin
 .sb-selection-layer
   position: absolute
@@ -22,6 +25,19 @@
     stroke-opacity: .3
     stroke-width: calc(2px / var(--sb-graph-zoom, 1))
     stroke-dasharray: calc(6px / var(--sb-graph-zoom, 1)) calc(4px / var(--sb-graph-zoom, 1))
+
+  // The lines that moved elements are aligned to, solid for edges, dashed for centers and with ticks for equal gaps
+  .sb-selection-layer-guide
+    fill: none
+    stroke: var(--accent)
+    stroke-width: calc(1px / var(--sb-graph-zoom, 1))
+
+    &.center
+      stroke: $center-guide-color
+      stroke-dasharray: calc(4px / var(--sb-graph-zoom, 1)) calc(3px / var(--sb-graph-zoom, 1))
+
+    &.gap
+      stroke: $gap-guide-color
 
 // The box around a selection of several elements, only its handles are shown
 .sb-selection-layer-frame

@@ -5,6 +5,7 @@ import React, {
   useRef,
 } from 'react';
 
+import classNames from 'classnames';
 import cytoscape from 'cytoscape';
 import {observer} from 'mobx-react-lite';
 
@@ -16,6 +17,7 @@ import {
   nodeIconBox,
   unionBox,
 } from '@sb/lib/graph/annotation-geometry';
+import {SnapGuide} from '@sb/lib/graph/snapping';
 import {If} from '@sb/types/control';
 
 import './selection-layer.sass';
@@ -23,6 +25,10 @@ import './selection-layer.sass';
 // Distance between an element and its outline on screen
 const OUTLINE_GAP = 4;
 const LINE_WIDTH = 1.5;
+
+// Length on screen of the ticks at the ends of a gap guide, and their distance to the elements
+const GAP_TICK = 12;
+const GAP_INSET = 4;
 
 export interface SelectionLayerRef {
   // Draws the outlines again, e.g. after the zoom or a selected node changed
@@ -175,6 +181,13 @@ const SelectionLayer = observer(
               className="sb-selection-layer-connection"
             />
           </If>
+          {graphSelection.snapGuides.map(guide => (
+            <path
+              key={`${guide.axis}:${guide.kind}:${guide.value}:${guide.from}`}
+              className={classNames('sb-selection-layer-guide', guide.kind)}
+              d={guidePath(guide, graphSelection.zoom)}
+            />
+          ))}
           <If condition={state.selectionBox}>
             <rect ref={selectionBoxRef} className="sb-selection-layer-box" />
           </If>
@@ -204,6 +217,33 @@ function setRect(rect: SVGRectElement, box: Box) {
   rect.setAttribute('y', String(box.y));
   rect.setAttribute('width', String(box.width));
   rect.setAttribute('height', String(box.height));
+}
+
+/*
+ * An edge or center guide is a line across its axis, a gap guide a line along
+ * its axis with a tick at each end.
+ */
+function guidePath(guide: SnapGuide, zoom: number) {
+  const point = (along: number, across: number) =>
+    guide.axis === 'x' ? `${along} ${across}` : `${across} ${along}`;
+  const tick = GAP_TICK / 2 / zoom;
+
+  if (guide.kind !== 'gap') {
+    return guide.axis === 'x'
+      ? `M${guide.value} ${guide.from}V${guide.to}`
+      : `M${guide.from} ${guide.value}H${guide.to}`;
+  }
+
+  // In narrow gaps the ticks stay closer to the elements
+  const inset = Math.min(GAP_INSET / zoom, (guide.to - guide.from) / 4);
+  const from = guide.from + inset;
+  const to = guide.to - inset;
+
+  return [
+    `M${point(from, guide.value - tick)}L${point(from, guide.value + tick)}`,
+    `M${point(from, guide.value)}L${point(to, guide.value)}`,
+    `M${point(to, guide.value - tick)}L${point(to, guide.value + tick)}`,
+  ].join('');
 }
 
 function rectPath(box: Box): string {

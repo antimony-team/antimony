@@ -60,6 +60,7 @@ import {
   Box,
   boxBetween,
   boxCenter,
+  boxesOverlap,
   containsBox,
   containsPoint,
   DrawKind,
@@ -82,6 +83,7 @@ import {
   moveBox,
   moveShapeGeometry,
   nodeBox,
+  nodeShapeBox,
   placedGeometry,
   readGraphTexts,
   roundCoordinate,
@@ -129,6 +131,14 @@ import {
   validateNodeName,
 } from '@sb/lib/graph/label-validation';
 import {GRID_SPACING, OccupiedPositions} from '@sb/lib/graph/placement';
+import {
+  SNAP_DISTANCE,
+  SnapGuide,
+  snapMove,
+  snapPoint,
+  SnapTargets,
+  snapTargets,
+} from '@sb/lib/graph/snapping';
 import {
   findNodeAnnotation,
   groupParentUpdate,
@@ -246,6 +256,14 @@ type PointerAction =
       pressed: ElementRef;
       keptSelection: boolean;
       isShift: boolean;
+
+      /*
+       * The box around the moved elements and what it snaps to, collected when
+       * they first move, null if they have no box
+       */
+      snapping?: {box: Box; targets: SnapTargets} | null;
+      snapOffset: Position;
+      snapGuides: SnapGuide[];
     } & SelectionStarts)
   | {
       kind: 'draw';
@@ -253,6 +271,9 @@ type PointerAction =
       origin: Position;
       originClient: Position;
       hasMoved: boolean;
+
+      // What the corners of the drawn shape snap to, lines don't snap
+      snapping: SnapTargets | null;
     }
   | {
       kind: 'move-line-end';
@@ -649,19 +670,28 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (event.key === ' ') graphSelection.setHandHeld(false);
   }
 
-  // Ctrl changes where dragged elements are dropped, so it applies without moving the pointer
+  /*
+   * Ctrl changes where dragged elements are dropped and alt turns snapping off,
+   * so they apply without moving the pointer.
+   */
   function onDragCtrlChange(event: KeyboardEvent) {
     const action = pointerAction.current;
     if (
-      (event.key !== 'Control' && event.key !== 'Meta') ||
+      !['Control', 'Meta', 'Alt'].includes(event.key) ||
       action?.kind !== 'move-layers' ||
       !action.hasMoved
     ) {
       return;
     }
 
+    // Alt would focus the menu bar of the browser
+    if (event.key === 'Alt') event.preventDefault();
+
     isDragCtrl.current = event.ctrlKey || event.metaKey;
+    snapMovedSelection(action, event.altKey);
+    transformNodes(action, moveTransform(action));
     transformPreviews(action, moveTransform(action), action.pointer);
+    graphSelection.setSnapGuides(action.snapGuides);
   }
 
   function runAction(action: GraphAction, isShift: boolean) {
@@ -793,12 +823,15 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       event.preventDefault();
       event.stopPropagation();
 
+      const snapping =
+        drawKind === 'line' ? null : snapTargetsWithout(new Set());
       pointerAction.current = {
         kind: 'draw',
         drawKind,
-        origin: position,
+        origin: snapDrawPoint(snapping, position, event.altKey).position,
         originClient: {x: event.clientX, y: event.clientY},
         hasMoved: false,
+        snapping,
       };
       return;
     }
@@ -1016,6 +1049,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       pressed,
       keptSelection,
       isShift,
+      snapOffset: {x: 0, y: 0},
+      snapGuides: [],
       ...selectionStarts(
         cy,
         pressed.kind === 'node' && isShift ? pressed.id : null,
@@ -1279,12 +1314,14 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       if (!isBeyondThreshold && !action.hasMoved) return;
 
       action.hasMoved = true;
+      const corner = drawCorner(action, position, event);
       const geometry = drawnShapeGeometry(
         action.drawKind,
         action.origin,
-        position,
+        corner.position,
         event.shiftKey,
       );
+      graphSelection.setSnapGuides(corner.guides);
 
       graphSelection.setDrawPreview({kind: action.drawKind, geometry});
       graphSelection.setDrag(
@@ -1311,6 +1348,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     action.hasMoved = true;
     action.pointer = position;
     isDragCtrl.current = event.ctrlKey || event.metaKey;
+    snapMovedSelection(action, event.altKey);
     graphSelection.setInteracting(true);
     graphSelection.setMoving(true);
 
@@ -1328,15 +1366,180 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       const action = pointerAction.current;
       if (action?.kind === 'move-layers') {
         transformPreviews(action, moveTransform(action), action.pointer);
+        graphSelection.setSnapGuides(action.snapGuides);
       }
     });
   }
 
   function moveTransform(action: MoveLayersAction) {
     return translateTransform({
-      x: action.pointer.x - action.origin.x,
-      y: action.pointer.y - action.origin.y,
+      x: action.pointer.x - action.origin.x + action.snapOffset.x,
+      y: action.pointer.y - action.origin.y + action.snapOffset.y,
     });
+  }
+
+  /**
+   * Snaps the moved elements to the edges and centers of the other elements, to
+   * equal gaps between the elements of their group and to the grid, unless alt
+   * is held.
+   */
+  function snapMovedSelection(action: MoveLayersAction, isAlt: boolean) {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    if (action.snapping === undefined) {
+      const boxes = action.freeElements.map(snapBox);
+      const box = unionBox(boxes.filter(box => box !== null));
+
+      // The elements keep equal gaps to the other elements of their group
+      const parentIds = currentParentIds();
+      const groupIds = new Set(
+        action.freeElements.map(
+          element => parentIds.get(elementKey(element)) ?? null,
+        ),
+      );
+
+      action.snapping = box
+        ? {
+            box,
+            targets: snapTargetsWithout(
+              movedElementKeys(action),
+              groupIds.size === 1 ? [...groupIds][0] : undefined,
+            ),
+          }
+        : null;
+    }
+
+    if (!action.snapping || isAlt) {
+      action.snapOffset = {x: 0, y: 0};
+      action.snapGuides = [];
+      return;
+    }
+
+    // Nodes alone are centered on the grid
+    const {offset, guides} = snapMove(
+      moveBox(action.snapping.box, {
+        x: action.pointer.x - action.origin.x,
+        y: action.pointer.y - action.origin.y,
+      }),
+      action.snapping.targets,
+      SNAP_DISTANCE / cy.zoom(),
+      action.freeElements.every(element => element.kind === 'node')
+        ? 'center'
+        : 'start',
+    );
+    action.snapOffset = offset;
+    action.snapGuides = guides;
+  }
+
+  // Snaps a corner of a drawn shape, unless alt is held
+  function snapDrawPoint(
+    targets: SnapTargets | null,
+    position: Position,
+    isAlt: boolean,
+  ): {position: Position; guides: SnapGuide[]} {
+    const cy = cyRef.current;
+    if (!targets || !cy || isAlt) return {position, guides: []};
+
+    return snapPoint(position, targets, SNAP_DISTANCE / cy.zoom());
+  }
+
+  // The corner of the drawn shape at the pointer, it doesn't snap while shift keeps its ratio
+  function drawCorner(
+    action: Extract<PointerAction, {kind: 'draw'}>,
+    position: Position,
+    event: globalThis.MouseEvent,
+  ) {
+    return snapDrawPoint(
+      event.shiftKey ? null : action.snapping,
+      position,
+      event.altKey,
+    );
+  }
+
+  // The keys of all elements that move or are resized with the selection
+  function movedElementKeys(starts: SelectionStarts): Set<string> {
+    return new Set([
+      ...[...starts.memberPositions.keys()].map(id =>
+        elementKey({kind: 'node', id}),
+      ),
+      ...[...starts.boxes.keys()].map(id => elementKey({kind: 'group', id})),
+      ...[...starts.shapes.keys()].map(id => elementKey({kind: 'shape', id})),
+      ...[...starts.texts.keys()].map(id => elementKey({kind: 'text', id})),
+    ]);
+  }
+
+  /*
+   * The edges and centers of the elements in view except the given ones. Lines
+   * don't count, their boxes aren't visible. The elements in the given group
+   * are spaced, undefined if nothing is.
+   */
+  function snapTargetsWithout(
+    excludedKeys: Set<string>,
+    spacedGroupId?: string | null,
+  ): SnapTargets {
+    const view = boundsToBox(cyRef.current!.extent());
+    const parentIds = spacedGroupId !== undefined ? currentParentIds() : null;
+
+    const targets = allElements()
+      .filter(
+        element =>
+          !excludedKeys.has(elementKey(element)) && !isLineElement(element),
+      )
+      .map(element => ({element, box: snapBox(element)}))
+      .filter(
+        (target): target is {element: ElementRef; box: Box} =>
+          target.box !== null && boxesOverlap(target.box, view),
+      );
+
+    return snapTargets(
+      targets.map(target => target.box),
+      parentIds
+        ? targets
+            .filter(
+              target =>
+                (parentIds.get(elementKey(target.element)) ?? null) ===
+                spacedGroupId,
+            )
+            .map(target => target.box)
+        : [],
+    );
+  }
+
+  // The box an element snaps by, nodes snap by the visible shape of their icon
+  function snapBox(element: ElementRef): Box | null {
+    if (element.kind !== 'node') return elementBox(element);
+
+    const node = cyRef.current?.getElementById(element.id);
+    return node?.nonempty()
+      ? nodeShapeBox(node.position(), node.data('shape'))
+      : null;
+  }
+
+  function isLineElement(element: ElementRef): boolean {
+    if (element.kind !== 'shape') return false;
+
+    const item = findLayerItem(element.id);
+    return item?.kind === 'shape' && item.shape.annotation.shapeType === 'line';
+  }
+
+  // What a resized annotation or selection snaps to
+  function resizeSnapTargets(item: AnnotationItem | null): SnapTargets | null {
+    const cy = cyRef.current;
+    if (!cy) return null;
+
+    if (item) {
+      return snapTargetsWithout(
+        new Set(
+          [
+            {kind: item.kind, id: item.id},
+            ...(item.kind === 'group' ? contentElements(item.id) : []),
+          ].map(elementKey),
+        ),
+      );
+    }
+
+    return snapTargetsWithout(movedElementKeys(selectionStarts(cy, null)));
   }
 
   /**
@@ -1572,7 +1775,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     if (action.kind === 'draw') {
       const position = toGraphPosition(cy, event.clientX, event.clientY);
-      commitDraw(action, position, event.shiftKey);
+      commitDraw(
+        action,
+        drawCorner(action, position, event).position,
+        event.shiftKey,
+      );
       return;
     }
 
@@ -1604,6 +1811,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     cancelAnimationFrame(moveFrame.current);
     moveFrame.current = 0;
     action.pointer = toGraphPosition(cy, event.clientX, event.clientY);
+    snapMovedSelection(action, event.altKey);
     commitTransform(action, moveTransform(action), action.pointer);
   }
 
@@ -3095,6 +3303,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onResize,
     getSelectionBox: () => selectionLayerRef.current?.frameBox() ?? null,
     getGroupMinSize: groupMinSize,
+    getSnapTargets: resizeSnapTargets,
     onLineEndPointerDown,
     onZoomIn: () => zoomTo((cyRef.current?.zoom() ?? 1) * ZOOM_STEP),
     onZoomOut: () => zoomTo((cyRef.current?.zoom() ?? 1) / ZOOM_STEP),
@@ -3182,6 +3391,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         items={annotationItems}
         getSelectionBox={callbacks.getSelectionBox}
         getGroupMinSize={callbacks.getGroupMinSize}
+        getSnapTargets={callbacks.getSnapTargets}
         onResize={callbacks.onResize}
       />
       <ZoomControl

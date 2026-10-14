@@ -20,6 +20,7 @@ import {
   GraphGroup,
   Size,
 } from '@sb/lib/graph/annotation-geometry';
+import {SNAP_DISTANCE, snapResize, SnapTargets} from '@sb/lib/graph/snapping';
 
 import './moveable-handles.sass';
 
@@ -40,6 +41,9 @@ interface MoveableHandlesProps {
 
   // The smallest size of a group, or null if it can get as small as it likes
   getGroupMinSize: (group: GraphGroup) => Size | null;
+
+  // What the resized annotation or the whole selection, without an item, snaps to
+  getSnapTargets: (item: AnnotationItem | null) => SnapTargets | null;
 
   /*
    * Called while an annotation or the whole selection, without an item, is
@@ -69,6 +73,9 @@ const MoveableHandles = observer(
     const [keepRatio, setKeepRatio] = useState(false);
     const moveableRef = useRef<Moveable>(null);
     const resizeStartBox = useRef<Box | null>(null);
+    const resizeDirection = useRef<[number, number]>([0, 0]);
+    const resizeMinSize = useRef<Size | null>(null);
+    const snapTargets = useRef<SnapTargets | null>(null);
 
     const cy = props.getCy();
 
@@ -125,6 +132,51 @@ const MoveableHandles = observer(
       [],
     );
 
+    /*
+     * Snaps the moved edges of the resized box to the other elements and the
+     * grid, unless alt is held or the aspect ratio is kept. Only the size is
+     * snapped, Moveable keeps the fixed side in place. A group doesn't snap
+     * smaller than its members.
+     */
+    function snappedResizeSize(
+      size: number[],
+      fixedDirection: number[],
+      inputEvent: MouseEvent | null,
+    ): number[] {
+      const start = resizeStartBox.current;
+      const targets = snapTargets.current;
+      if (!start || !targets || inputEvent?.altKey || inputEvent?.shiftKey) {
+        graphSelection.setSnapGuides([]);
+        return size;
+      }
+
+      const [width, height] = size;
+      const snapped = snapResize(
+        {
+          x: start.x + ((fixedDirection[0] + 1) / 2) * (start.width - width),
+          y: start.y + ((fixedDirection[1] + 1) / 2) * (start.height - height),
+          width,
+          height,
+        },
+        resizeDirection.current,
+        !!(inputEvent?.ctrlKey || inputEvent?.metaKey),
+        targets,
+        SNAP_DISTANCE / (cy?.zoom() ?? 1),
+      );
+      const minSize = resizeMinSize.current;
+      if (
+        minSize &&
+        (snapped.box.width < minSize.width ||
+          snapped.box.height < minSize.height)
+      ) {
+        graphSelection.setSnapGuides([]);
+        return size;
+      }
+
+      graphSelection.setSnapGuides(snapped.guides);
+      return [snapped.box.width, snapped.box.height];
+    }
+
     return (
       <Moveable
         ref={moveableRef}
@@ -133,6 +185,7 @@ const MoveableHandles = observer(
         })}
         target={target}
         resizable
+        throttleResize={0}
         useMutationObserver
         padding={HANDLES_GAP}
         keepRatio={keepRatio}
@@ -144,6 +197,10 @@ const MoveableHandles = observer(
             : resized
               ? graphSelection.annotationBox(resized)
               : null;
+          resizeDirection.current = event.direction as [number, number];
+          snapTargets.current = props.getSnapTargets(
+            isSelectionResized ? null : resized,
+          );
           graphSelection.setInteracting(true);
 
           // A group can't get smaller than any of its members
@@ -151,23 +208,22 @@ const MoveableHandles = observer(
             !isSelectionResized && resized?.kind === 'group'
               ? props.getGroupMinSize(resized.group)
               : null;
+          resizeMinSize.current = minSize;
           if (minSize) event.setMin([minSize.width, minSize.height]);
         }}
         onBeforeResize={event => {
           // Shift keeps the aspect ratio, ctrl resizes to all sides from the center
           const inputEvent = event.inputEvent as MouseEvent | null;
           setKeepRatio(!!inputEvent?.shiftKey);
-          event.setFixedDirection(
+          const fixedDirection =
             inputEvent?.ctrlKey || inputEvent?.metaKey
               ? [0, 0]
-              : event.startFixedDirection,
-          );
+              : event.startFixedDirection;
+          const size = event.setFixedDirection(fixedDirection);
+
+          event.setSize(snappedResizeSize(size, fixedDirection, inputEvent));
         }}
         onResize={event => {
-          event.target.style.width = `${event.width}px`;
-          event.target.style.height = `${event.height}px`;
-          event.target.style.transform = event.drag.transform;
-
           const start = resizeStartBox.current;
           if (!start) return;
 
@@ -178,6 +234,13 @@ const MoveableHandles = observer(
             width: event.width,
             height: event.height,
           };
+
+          /*
+           * The element is moved with left and top instead of a transform, so
+           * the browser rounds both of its edges from where they are and the
+           * edge that doesn't move stays on the same pixel.
+           */
+          setElementBox(event.target as HTMLElement, box);
 
           if (isSelectionResized) {
             props.onResize(null, start, box, false);
@@ -193,11 +256,14 @@ const MoveableHandles = observer(
           setKeepRatio(false);
           graphSelection.setInteracting(false);
           graphSelection.setResizePreview(null);
-          event.target.style.transform = '';
+          graphSelection.setSnapGuides([]);
 
           const start = resizeStartBox.current;
           const last = event.lastEvent;
           if (!start || !last || (!resized && !isSelectionResized)) return;
+
+          // The element gets its box from the saved annotation again
+          setElementBox(event.target as HTMLElement, start);
 
           const [dx, dy] = last.drag.beforeTranslate;
           props.onResize(
@@ -216,5 +282,12 @@ const MoveableHandles = observer(
     );
   }),
 );
+
+function setElementBox(element: HTMLElement, box: Box) {
+  element.style.left = `${box.x}px`;
+  element.style.top = `${box.y}px`;
+  element.style.width = `${box.width}px`;
+  element.style.height = `${box.height}px`;
+}
 
 export default MoveableHandles;

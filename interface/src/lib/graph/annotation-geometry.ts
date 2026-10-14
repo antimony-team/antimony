@@ -98,6 +98,12 @@ export type AnnotationItem =
 const NODE_SIZE = 64;
 const NODE_LABEL_HEIGHT = 25;
 
+// The space between the box of a node and its icon, by the shape of the icon, see public/icons/nodes
+const NODE_SHAPE_INSETS = new Map([
+  ['ellipse', 2],
+  ['octagon', 4.28],
+]);
+
 const GROUP_PADDING = 24;
 
 const DEFAULT_SHAPE_WIDTH = 160;
@@ -129,6 +135,13 @@ export function nodeIconBox(position: Position): Box {
     width: NODE_SIZE,
     height: NODE_SIZE,
   };
+}
+
+/**
+ * Returns the box of the visible shape of a node's icon, inside its icon box.
+ */
+export function nodeShapeBox(position: Position, shape: string): Box {
+  return growBox(nodeIconBox(position), -(NODE_SHAPE_INSETS.get(shape) ?? 0));
 }
 
 /**
