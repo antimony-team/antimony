@@ -1,4 +1,9 @@
-import React, {cloneElement, ReactElement, ReactNode} from 'react';
+import React, {
+  cloneElement,
+  isValidElement,
+  ReactElement,
+  ReactNode,
+} from 'react';
 
 import {MenuItem} from 'primereact/menuitem';
 
@@ -14,19 +19,36 @@ const SEPARATOR: MenuItem = {separator: true};
 function withKeybind(item: MenuItem, action: GraphAction): MenuItem {
   return {
     ...item,
-    template: (_, options) => {
-      const element = options.element as ReactElement<{children?: ReactNode}>;
-
-      return cloneElement(
-        element,
-        undefined,
-        ...React.Children.toArray(element.props.children),
+    template: (_, options) =>
+      withLinkChild(
+        options.element as ReactElement<{children?: ReactNode}>,
         <span key="keybind" className="sb-menuitem-keybind">
           {keybindLabel(action)}
         </span>,
-      );
-    },
+      ),
   };
+}
+
+// The context menu passes the link of the item, the menu the content around the link
+function withLinkChild(
+  element: ReactElement<{children?: ReactNode}>,
+  child: ReactNode,
+): ReactElement {
+  const children = React.Children.toArray(element.props.children);
+
+  if (element.type !== 'a') {
+    return cloneElement(
+      element,
+      undefined,
+      ...children.map(other =>
+        isValidElement<{children?: ReactNode}>(other) && other.type === 'a'
+          ? withLinkChild(other, child)
+          : other,
+      ),
+    );
+  }
+
+  return cloneElement(element, undefined, ...children, child);
 }
 
 function icon(name: string) {
@@ -135,14 +157,6 @@ export function arrangeItems(options: ArrangeOptions): MenuItem[] {
   return [
     withKeybind(
       {
-        label: 'Bring to front',
-        icon: icon('flip_to_front'),
-        command: options.onBringToFront,
-      },
-      GraphAction.BringToFront,
-    ),
-    withKeybind(
-      {
         label: 'Bring forward',
         icon: icon('arrow_upward'),
         command: options.onBringForward,
@@ -156,6 +170,14 @@ export function arrangeItems(options: ArrangeOptions): MenuItem[] {
         command: options.onBringBackward,
       },
       GraphAction.BringBackward,
+    ),
+    withKeybind(
+      {
+        label: 'Bring to front',
+        icon: icon('flip_to_front'),
+        command: options.onBringToFront,
+      },
+      GraphAction.BringToFront,
     ),
     withKeybind(
       {

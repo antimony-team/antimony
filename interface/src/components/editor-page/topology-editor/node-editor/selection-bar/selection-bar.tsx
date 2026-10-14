@@ -391,7 +391,6 @@ const SelectionBar = memo((props: SelectionBarProps) => {
         <Button
           text
           icon={<span className="material-symbols-outlined">stacks</span>}
-          label="Arrange"
           onClick={event => arrangeMenuRef.current?.toggle(event)}
           aria-haspopup
         />
