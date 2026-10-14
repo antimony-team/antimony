@@ -80,7 +80,7 @@ func (h *handler) handleNodeCommand(
 	onError func(errorResponse utils.ErrorResponse),
 	onResponse func(response utils.OkResponse[any]),
 ) {
-	if data.Node == nil {
+	if data.LabId == nil || data.Node == nil {
 		onError(utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest))
 		return
 	}
@@ -118,12 +118,22 @@ func (h *handler) handleShellCommand(
 ) {
 	switch *data.Command {
 	case runtimeCommands.FetchShells:
+		if data.LabId == nil {
+			onError(utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest))
+			return
+		}
+
 		if shells, err := h.shellService.FetchShellsCommand(ctx, *data.LabId, authUser); err != nil {
 			onError(utils.CreateSocketErrorResponse(err))
 		} else {
 			onResponse(utils.CreateSocketOkResponse[any](shells))
 		}
 	case runtimeCommands.OpenShell:
+		if data.LabId == nil {
+			onError(utils.CreateSocketErrorResponse(utils.ErrInvalidSocketRequest))
+			return
+		}
+
 		if shellId, err := h.shellService.OpenShellCommand(
 			ctx,
 			*data.LabId,
