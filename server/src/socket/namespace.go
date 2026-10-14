@@ -16,53 +16,58 @@ import (
 )
 
 // IONamespace is a bidirectional namespace where the server and the client both can send data.
-type IONamespace[I any, O any] = namespace[I, O]
+type (
+	IONamespace[I any, O any] = namespace[I, O]
 
-// InputNamespace is a unidirectional namespace where the client can send data to the server.
-type InputNamespace[I any] = namespace[I, any]
+	// InputNamespace is a unidirectional namespace where the client can send data to the server.
+	InputNamespace[I any] = namespace[I, any]
 
-// OutputNamespace is a unidirectional namespace where the server can send data to the client.
-type OutputNamespace[O any] = namespace[any, O]
+	// OutputNamespace is a unidirectional namespace where the server can send data to the client.
+	OutputNamespace[O any] = namespace[any, O]
 
-// namespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
-//
-// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
-// to provide a valid access token which will be used to authenticate them via auth.Manager.
-type namespace[I any, O any] struct {
-	// A list of all connected clients, authenticated and anonymous clients
-	connectedClients []*ConnectedUser
+	// namespace Manages the dataflow in a socket.io namespace and the clients that are subscribed to it.
+	//
+	// The namespace can either be anonymous or authenticated. If authenticated, subscribing requires the clients
+	// to provide a valid access token which will be used to authenticate them via auth.Manager.
+	namespace[I any, O any] struct {
+		// A list of all connected clients, authenticated and anonymous clients
+		connectedClients []*ConnectedUser
 
-	// A map of all connected authenticated clients indexed by their user ID
-	connectedClientsMap   map[string]*ConnectedUser
-	connectedClientsMutex sync.Mutex
+		// A map of all connected authenticated clients indexed by their user ID
+		connectedClientsMap   map[string]*ConnectedUser
+		connectedClientsMutex sync.Mutex
 
-	useRawInput   bool
-	useRawOutput  bool
-	isAnonymous   bool
-	socketManager *Manager
+		useRawInput   bool
+		useRawOutput  bool
+		isAnonymous   bool
+		socketManager *Manager
 
-	onData dataInputHandler[I]
+		onData dataInputHandler[I]
 
-	// The backlog of previously sent messages
-	backlog      utils.Ring[O]
-	backlogMutex sync.Mutex
+		// The backlog of previously sent messages
+		backlog      utils.Ring[O]
+		backlogMutex sync.Mutex
 
-	sioNamespaceName string
-	sioNamespace     socketio.Namespace
-}
+		sioNamespaceName string
+		sioNamespace     socketio.Namespace
+	}
 
-type dataInputHandler[I any] func(
-	ctx context.Context,
-	data *I,
-	authUser *auth.AuthenticatedUser,
-	onResponse func(response utils.OkResponse[any]),
-	onError func(response utils.ErrorResponse),
+	dataInputHandler[I any] func(
+		ctx context.Context,
+		data *I,
+		authUser *auth.AuthenticatedUser,
+		onResponse func(response utils.OkResponse[any]),
+		onError func(response utils.ErrorResponse),
+	)
+
+	BacklogConfig struct {
+		Capacity int
+		Kind     utils.RingKind
+	}
+
+	// AccessCheck decides whether a signed-in user may connect to a namespace, nil allows everyone
+	AccessCheck func(user *auth.AuthenticatedUser) bool
 )
-
-type BacklogConfig struct {
-	Capacity int
-	Kind     utils.RingKind
-}
 
 // CreateIONamespace Creates a new socket.io namespace for a given socket manager.
 // The namespace can be anonymous, meaning that users don't need to authenticate themselves when connecting.
@@ -82,7 +87,7 @@ func CreateIONamespace[I any, O any](
 	backlogConfig *BacklogConfig,
 	useRawOutput bool,
 	onData dataInputHandler[I],
-	accessGroup *[]*auth.AuthenticatedUser,
+	accessCheck AccessCheck,
 	namespacePath ...string,
 ) *IONamespace[I, O] {
 	var useRawInput bool
@@ -117,7 +122,7 @@ func CreateIONamespace[I any, O any](
 	namespace.sioNamespace = socketManager.Server().Of(namespace.sioNamespaceName, nil)
 
 	if !isAnonymous {
-		namespace.sioNamespace.Use(socketManager.SocketAuthenticatorMiddleware(accessGroup))
+		namespace.sioNamespace.Use(socketManager.SocketAuthenticatorMiddleware(accessCheck))
 	}
 
 	_ = namespace.sioNamespace.On("connection", namespace.handleConnection)
@@ -130,7 +135,7 @@ func CreateInputNamespace[I any](
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
 	onData dataInputHandler[I],
-	accessGroup *[]*auth.AuthenticatedUser,
+	accessCheck AccessCheck,
 	namespacePath ...string,
 ) *InputNamespace[I] {
 	return CreateIONamespace[I, any](
@@ -139,7 +144,7 @@ func CreateInputNamespace[I any](
 		backlogConfig,
 		true,
 		onData,
-		accessGroup,
+		accessCheck,
 		namespacePath...,
 	)
 }
@@ -149,7 +154,7 @@ func CreateOutputNamespace[O any](
 	isAnonymous bool,
 	backlogConfig *BacklogConfig,
 	useRawOutput bool,
-	accessGroup *[]*auth.AuthenticatedUser,
+	accessCheck AccessCheck,
 	namespacePath ...string,
 ) *OutputNamespace[O] {
 	return CreateIONamespace[any, O](
@@ -158,7 +163,7 @@ func CreateOutputNamespace[O any](
 		backlogConfig,
 		useRawOutput,
 		nil,
-		accessGroup,
+		accessCheck,
 		namespacePath...,
 	)
 }

@@ -4,7 +4,6 @@ import (
 	"antimonyBackend/auth"
 	"sync"
 
-	"github.com/samber/lo"
 	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 	siotypes "github.com/zishang520/socket.io/v3/pkg/types"
 )
@@ -60,7 +59,7 @@ func (m *Manager) Server() *socketio.Server {
 // Optionally, a group of users that have access to the namespace can be specified. If the list is nil,
 // all authenticated users will have access to the namespace.
 func (m *Manager) SocketAuthenticatorMiddleware(
-	accessGroup *[]*auth.AuthenticatedUser,
+	accessCheck AccessCheck,
 ) func(s *socketio.Socket, next func(*socketio.ExtendedError)) {
 	return func(s *socketio.Socket, next func(*socketio.ExtendedError)) {
 		accessToken := m.parseHandshake(s.Handshake())
@@ -76,15 +75,9 @@ func (m *Manager) SocketAuthenticatorMiddleware(
 			return
 		}
 
-		if accessGroup != nil {
-			_, hasAccess := lo.Find(*accessGroup, func(accessUser *auth.AuthenticatedUser) bool {
-				return authUser.UserId == accessUser.UserId
-			})
-
-			if !hasAccess {
-				next(socketio.NewExtendedError("No Access", nil))
-				return
-			}
+		if accessCheck != nil && !accessCheck(authUser) {
+			next(socketio.NewExtendedError("No Access", nil))
+			return
 		}
 
 		m.usersMutex.Lock()

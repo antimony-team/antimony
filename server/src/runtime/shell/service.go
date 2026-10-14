@@ -221,7 +221,11 @@ func (s *Service) OpenShellCommand(
 	_ = shellSession.Resize(*cols, *rows)
 
 	shellId := utils.GenerateUuid()
-	accessGroup := []*auth.AuthenticatedUser{authUser}
+
+	// Only the user who opened the shell has access to it
+	accessCheck := func(user *auth.AuthenticatedUser) bool {
+		return user.UserId == authUser.UserId
+	}
 
 	dataNamespace := socket.CreateIONamespace[string, byte](
 		s.socketManager,
@@ -232,7 +236,7 @@ func (s *Service) OpenShellCommand(
 		},
 		true,
 		s.handleUserData(shellId),
-		&accessGroup,
+		accessCheck,
 		"shell", shellId,
 	)
 

@@ -587,7 +587,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 				Kind:     utils.RingKindValue,
 			},
 			true,
-			nil,
+			s.canAccessLab(lab.UUID),
 			"logs",
 			lab.UUID,
 		)
@@ -1087,7 +1087,7 @@ func (s *Service) createNodesFromTopology(
 				Kind:     utils.RingKindValue,
 			},
 			true,
-			nil,
+			s.canAccessLab(labId),
 			"logs",
 			labId,
 			nodeName,
@@ -1320,7 +1320,7 @@ func (s *Service) reviveInstances() {
 				Kind:     utils.RingKindValue,
 			},
 			true,
-			nil,
+			s.canAccessLab(savedLab.UUID),
 			"logs",
 			savedLab.UUID,
 		)
@@ -1403,6 +1403,17 @@ func (s *Service) reviveInstances() {
 	}
 
 	log.Infof("[Runtime] Successfully restored %d labs", restoredLabs)
+}
+
+func (s *Service) canAccessLab(labId string) socket.AccessCheck {
+	return func(user *auth.AuthenticatedUser) bool {
+		if user.IsAdmin {
+			return true
+		}
+
+		targetLab, err := s.labRepo.GetByUuid(context.Background(), labId)
+		return err == nil && slices.Contains(user.Collections, targetLab.Collection.Name)
+	}
 }
 
 func getNodeKindConfigs(path string) map[string]NodeKindConfig {
