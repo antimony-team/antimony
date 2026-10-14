@@ -75,6 +75,7 @@ import {
   GroupHitPart,
   groupInnerBox,
   groupLabelInset,
+  growBox,
   growGroupBox,
   hitTestLayers,
   LayerHit,
@@ -105,12 +106,28 @@ import {
 import {
   AnnotationStyle,
   defaultStyle,
+  fillColor,
   groupStyle,
   groupStyleReset,
   groupStyleUpdate,
   newShapeStyle,
+  NO_COLOR,
+  shapeStyle,
   shapeStyleUpdate,
+  textStyle,
 } from '@sb/lib/graph/annotation-style';
+import {
+  closestConnection,
+  Connectable,
+  CONNECTION_ARROW_OFFSET,
+  CONNECTION_ARROW_RADIUS,
+  CONNECTION_SIDES,
+  connectionArrowAt,
+  connectionPoint,
+  followLines,
+  LineAttachment,
+  lineAttachments,
+} from '@sb/lib/graph/connections';
 import {
   boundsToBox,
   generateGraph,
@@ -176,6 +193,15 @@ interface NodeEditorProps {
 const NUDGE_DISTANCE = 5;
 const NUDGE_MERGE_KEY = 'nudge';
 
+// Distance on screen within which a line end connects to a connection point
+const CONNECT_DISTANCE = 16;
+
+// Distance in the graph within which a snapped line end lies on a connection point
+const ON_POINT_DISTANCE = 0.05;
+
+// Distance on screen around elements within which their connection points are shown
+const CONNECTION_RANGE = 32;
+
 // Factor by which the zoom buttons change the zoom
 const ZOOM_STEP = 1.25;
 
@@ -215,6 +241,9 @@ interface SelectionStarts {
 
   // The moved elements that aren't inside a moved group, they can join, leave and grow groups
   freeElements: ElementRef[];
+
+  // The ends of the other lines that lie on connection points, they follow their elements
+  attachments: LineAttachment[];
 }
 
 /**
@@ -272,8 +301,12 @@ type PointerAction =
       originClient: Position;
       hasMoved: boolean;
 
-      // What the corners of the drawn shape snap to, lines don't snap
-      snapping: SnapTargets | null;
+      // What the corners of the drawn shape snap to, and what the ends of a drawn line connect to
+      snapping: SnapTargets;
+      connectables: Connectable[] | null;
+
+      // The element whose arrow the line is drawn from, a click selects it instead
+      pressed?: ElementRef;
     }
   | {
       kind: 'move-line-end';
@@ -281,6 +314,10 @@ type PointerAction =
       end: LineEnd;
       geometry: ShapeGeometry;
       hasMoved: boolean;
+
+      // What the dragged end snaps and connects to
+      snapping: SnapTargets;
+      connectables: Connectable[];
     }
   | {kind: 'pan'; lastClient: Position};
 
@@ -333,6 +370,12 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   // The contents of a resized group from before it was resized
   const groupResizeStarts = useRef<GroupResizeStarts | null>(null);
   const selectionResizeStarts = useRef<SelectionStarts | null>(null);
+
+  // The element whose connection arrows are shown, they stay while the pointer moves to them
+  const hoveredConnectableKey = useRef<string | null>(null);
+
+  // The lines attached to elements when a shape or text started to be resized
+  const resizeAttachments = useRef<LineAttachment[] | null>(null);
 
   /*
    * The targets of the last two taps. Cytoscape emits a double tap for any two
@@ -823,16 +866,40 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       event.preventDefault();
       event.stopPropagation();
 
-      const snapping =
-        drawKind === 'line' ? null : snapTargetsWithout(new Set());
-      pointerAction.current = {
-        kind: 'draw',
-        drawKind,
-        origin: snapDrawPoint(snapping, position, event.altKey).position,
-        originClient: {x: event.clientX, y: event.clientY},
-        hasMoved: false,
-        snapping,
-      };
+      const action = startDraw(drawKind, position, event);
+      action.origin = drawCorner(action, position, event).position;
+      return;
+    }
+
+    /*
+     * A press on an arrow of the hovered element draws a line from it, a press
+     * on the end of a line connected to it moves that end.
+     */
+    const hovered =
+      event.button === 0 &&
+      !event.altKey &&
+      graphSelection.tool === GraphTool.Select
+        ? hoveredConnectable(position, connectables())
+        : null;
+    const press = hovered && connectionPressAt(hovered, position);
+
+    if (press?.kind === 'move-end') {
+      event.stopPropagation();
+      graphSelection.select(itemSelection('shape', press.attachment.lineId));
+      onLineEndPointerDown(
+        press.attachment.lineId,
+        press.attachment.end,
+        event,
+      );
+      return;
+    }
+
+    if (hovered && press?.kind === 'draw') {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const [kind, id] = splitElementKey(hovered.key);
+      startDraw('line', press.origin, event, {kind, id});
       return;
     }
 
@@ -1156,6 +1223,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       texts: new Map(),
       memberPositions: new Map(),
       freeElements: [],
+      attachments: [],
     };
 
     // Everything inside the selected groups moves with them
@@ -1184,6 +1252,9 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       const [kind, id] = splitElementKey(key);
       addStart(starts, {kind, id}, cy);
     }
+
+    // The moved lines move as a whole
+    starts.attachments = currentAttachments(new Set(starts.shapes.keys()));
 
     return starts;
   }
@@ -1254,6 +1325,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       end,
       geometry: shapeGeometry(item.shape.annotation),
       hasMoved: false,
+      snapping: snapTargetsWithout(new Set()),
+      connectables: connectables(),
     };
   }
 
@@ -1280,6 +1353,16 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const cy = cyRef.current;
     const action = pointerAction.current;
     lastPointer.current = {x: event.clientX, y: event.clientY};
+
+    // While something is dragged, only a drawn line or a dragged line end shows connection points, nothing shows arrows
+    if (cy && !action && !graphSelection.isInteracting) {
+      showHoveredConnections(cy, event);
+    } else {
+      graphSelection.setConnectionArrows(null);
+      if (action?.kind !== 'draw' && action?.kind !== 'move-line-end') {
+        graphSelection.setConnectionPoints(null);
+      }
+    }
     if (!cy || !action) return;
 
     if (action.kind === 'pan') {
@@ -1296,9 +1379,24 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     if (action.kind === 'move-line-end') {
       action.hasMoved = true;
       graphSelection.setInteracting(true);
+
+      const end = lineEndAt(
+        action.connectables,
+        action.snapping,
+        position,
+        event,
+      );
+      graphSelection.setSnapGuides(end.guides);
       graphSelection.setShapePreviews(
         new Map([
-          [action.shapeId, movedLineEnd(action, position, event.shiftKey)],
+          [
+            action.shapeId,
+            movedLineEnd(
+              action,
+              end.position,
+              event.shiftKey && !end.isConnected,
+            ),
+          ],
         ]),
       );
       return;
@@ -1319,7 +1417,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         action.drawKind,
         action.origin,
         corner.position,
-        event.shiftKey,
+        event.shiftKey && !corner.isConnected,
       );
       graphSelection.setSnapGuides(corner.guides);
 
@@ -1432,29 +1530,296 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     action.snapGuides = guides;
   }
 
-  // Snaps a corner of a drawn shape, unless alt is held
-  function snapDrawPoint(
-    targets: SnapTargets | null,
-    position: Position,
-    isAlt: boolean,
-  ): {position: Position; guides: SnapGuide[]} {
-    const cy = cyRef.current;
-    if (!targets || !cy || isAlt) return {position, guides: []};
-
-    return snapPoint(position, targets, SNAP_DISTANCE / cy.zoom());
+  /*
+   * Starts drawing a shape from the given origin. A line drawn from an arrow of
+   * the pressed element selects the element on a click instead.
+   */
+  function startDraw(
+    drawKind: DrawKind,
+    origin: Position,
+    event: MouseEvent,
+    pressed?: ElementRef,
+  ): Extract<PointerAction, {kind: 'draw'}> {
+    const action: Extract<PointerAction, {kind: 'draw'}> = {
+      kind: 'draw',
+      drawKind,
+      origin,
+      originClient: {x: event.clientX, y: event.clientY},
+      hasMoved: false,
+      snapping: snapTargetsWithout(new Set()),
+      connectables: drawKind === 'line' ? connectables() : null,
+      pressed,
+    };
+    pointerAction.current = action;
+    return action;
   }
 
-  // The corner of the drawn shape at the pointer, it doesn't snap while shift keeps its ratio
+  /*
+   * The corner of the drawn shape at the pointer. The ends of a line connect to
+   * connection points, the other corners only snap, unless alt is held. They
+   * don't snap while shift keeps the ratio of the shape or the angle of a line.
+   */
   function drawCorner(
     action: Extract<PointerAction, {kind: 'draw'}>,
     position: Position,
+    event: Pick<MouseEvent, 'altKey' | 'shiftKey'>,
+  ): {position: Position; guides: SnapGuide[]; isConnected: boolean} {
+    const cy = cyRef.current;
+    if (action.connectables) {
+      return lineEndAt(action.connectables, action.snapping, position, event);
+    }
+    if (!cy || event.altKey || event.shiftKey) {
+      return {position, guides: [], isConnected: false};
+    }
+
+    return {
+      ...snapPoint(position, action.snapping, SNAP_DISTANCE / cy.zoom()),
+      isConnected: false,
+    };
+  }
+
+  /*
+   * Where a line end at the pointer goes: onto the closest connection point of
+   * the elements near it, or else it snaps like the corners of other shapes,
+   * unless alt is held. The connection points of those elements are shown.
+   */
+  function lineEndAt(
+    connectables: Connectable[],
+    targets: SnapTargets,
+    position: Position,
+    event: Pick<MouseEvent, 'altKey' | 'shiftKey'>,
+  ): {position: Position; guides: SnapGuide[]; isConnected: boolean} {
+    const cy = cyRef.current;
+    if (!cy || event.altKey) {
+      graphSelection.setConnectionPoints(null);
+      return {position, guides: [], isConnected: false};
+    }
+
+    const near = connectablesNear(connectables, position);
+    const snapped = event.shiftKey
+      ? {position, guides: []}
+      : snapPoint(position, targets, SNAP_DISTANCE / cy.zoom());
+
+    // An end that snaps onto a connection point connects to it as well, without guides
+    const connection =
+      closestConnection(position, near, CONNECT_DISTANCE / cy.zoom()) ??
+      closestConnection(snapped.position, near, ON_POINT_DISTANCE);
+
+    graphSelection.setConnectionPoints(
+      near.length > 0
+        ? {
+            points: near.flatMap(element =>
+              CONNECTION_SIDES.map(side => ({
+                position: connectionPoint(element.box, side),
+                fill: element.fill,
+                stroke: element.stroke,
+              })),
+            ),
+            active: connection?.position ?? null,
+          }
+        : null,
+    );
+
+    return connection
+      ? {position: connection.position, guides: [], isConnected: true}
+      : {...snapped, isConnected: false};
+  }
+
+  /*
+   * The element under the pointer shows its arrows with the select tool, a line
+   * is drawn from the side of an arrow when it's pressed. Connection points are
+   * only shown while a line is drawn or its end is dragged.
+   */
+  function showHoveredConnections(
+    cy: cytoscape.Core,
     event: globalThis.MouseEvent,
   ) {
-    return snapDrawPoint(
-      event.shiftKey ? null : action.snapping,
-      position,
-      event.altKey,
+    const position = toGraphPosition(cy, event.clientX, event.clientY);
+    const hovered =
+      cy.container()?.contains(event.target as Node) &&
+      graphSelection.tool === GraphTool.Select &&
+      !graphSelection.isHandActive
+        ? hoveredConnectable(position, connectables())
+        : null;
+
+    hoveredConnectableKey.current = hovered?.key ?? null;
+    graphSelection.setConnectionPoints(null);
+    graphSelection.setConnectionArrows(
+      hovered
+        ? {
+            box: hovered.box,
+            active: connectionArrowAt(hovered.box, position, cy.zoom()),
+          }
+        : null,
     );
+  }
+
+  /*
+   * The element under the pointer that shows its connection arrows with the
+   * select tool. It stays hovered while the pointer is on its way to its
+   * arrows, and an element with a connection point right next to the pointer
+   * counts as well, as the line ends connected there stick out of it.
+   */
+  function hoveredConnectable(
+    position: Position,
+    elements: Connectable[],
+  ): Connectable | null {
+    const cy = cyRef.current;
+    if (!cy || elements.length === 0) return null;
+
+    const topmost = elementsAt(position)[0];
+    const hovered =
+      topmost && elements.find(element => element.key === elementKey(topmost));
+    if (hovered) return hovered;
+
+    const previous = elements.find(
+      element => element.key === hoveredConnectableKey.current,
+    );
+    const reach =
+      (CONNECTION_ARROW_OFFSET + CONNECTION_ARROW_RADIUS) / cy.zoom();
+    if (previous && containsPoint(growBox(previous.box, reach), position)) {
+      return previous;
+    }
+
+    const closest = closestConnection(
+      position,
+      elements.filter(canGrabLineEnds),
+      CONNECT_DISTANCE / cy.zoom(),
+    );
+    return closest
+      ? (elements.find(element => element.key === closest.key) ?? null)
+      : null;
+  }
+
+  /*
+   * What a press on the hovered element at the position starts: drawing a line
+   * from the side of the arrow there, or moving the end of the topmost line
+   * connected at the connection point there.
+   */
+  function connectionPressAt(
+    element: Connectable,
+    position: Position,
+  ):
+    | {kind: 'draw'; origin: Position}
+    | {kind: 'move-end'; attachment: LineAttachment}
+    | null {
+    const zoom = cyRef.current?.zoom() ?? 1;
+    const side = connectionArrowAt(element.box, position, zoom);
+    if (side) return {kind: 'draw', origin: connectionPoint(element.box, side)};
+
+    const point = canGrabLineEnds(element)
+      ? closestConnection(position, [element], CONNECT_DISTANCE / zoom)
+      : null;
+    const attachment = point
+      ? currentAttachments(new Set())
+          .filter(
+            attachment =>
+              attachment.key === element.key && attachment.side === point.side,
+          )
+          .at(-1)
+      : undefined;
+
+    return attachment ? {kind: 'move-end', attachment} : null;
+  }
+
+  // The line ends on the element resized with handles can't be grabbed, its handles are on them
+  function canGrabLineEnds(element: Connectable): boolean {
+    return splitElementKey(element.key)[1] !== graphSelection.transformTargetId;
+  }
+
+  function connectablesNear(
+    connectables: Connectable[],
+    position: Position,
+  ): Connectable[] {
+    const range = CONNECTION_RANGE / (cyRef.current?.zoom() ?? 1);
+    return connectables.filter(element =>
+      containsPoint(growBox(element.box, range), position),
+    );
+  }
+
+  // The groups, shapes and texts that lines connect to
+  function connectables(): Connectable[] {
+    return allElements()
+      .filter(element => element.kind !== 'node' && !isLineElement(element))
+      .flatMap(element => {
+        const box = elementBox(element);
+        return box
+          ? [{key: elementKey(element), box, ...connectionColors(element)}]
+          : [];
+      });
+  }
+
+  // The fill and border of an element, a text has its background and its font color
+  function connectionColors(element: ElementRef): {
+    fill: string;
+    stroke: string;
+  } {
+    const visible = (color: string, opacity = 100) =>
+      color === NO_COLOR ? 'transparent' : fillColor(color, opacity);
+    const colors = (style: AnnotationStyle) => ({
+      fill: visible(style.fillColor, style.fillOpacity),
+      stroke:
+        style.borderColor === NO_COLOR ? 'var(--accent)' : style.borderColor,
+    });
+
+    switch (element.kind) {
+      case 'group': {
+        const group = groupsRef.current.find(group => group.id === element.id);
+        if (group) return colors(groupStyle(group.annotation));
+        break;
+      }
+      case 'shape': {
+        const item = findLayerItem(element.id);
+        if (item?.kind === 'shape') {
+          return colors(shapeStyle(item.shape.annotation));
+        }
+        break;
+      }
+      case 'text': {
+        const text = textsRef.current.find(text => text.id === element.id);
+        if (!text) break;
+
+        const style = textStyle(text.annotation);
+        return {fill: visible(style.backgroundColor), stroke: style.fontColor};
+      }
+    }
+
+    return {fill: 'transparent', stroke: 'var(--accent)'};
+  }
+
+  // The ends of the lines that lie on connection points, except of the given lines
+  function currentAttachments(excludedLineIds: Set<string>): LineAttachment[] {
+    const lines = layerItemsRef.current.flatMap(item =>
+      item.kind === 'shape' &&
+      item.shape.annotation.shapeType === 'line' &&
+      !excludedLineIds.has(item.id)
+        ? [{id: item.id, geometry: shapeGeometry(item.shape.annotation)}]
+        : [],
+    );
+
+    return lines.length > 0 ? lineAttachments(lines, connectables()) : [];
+  }
+
+  /*
+   * The lines attached to the moved or resized elements, with their ends on the
+   * elements' new boxes. The contents of the starts move with the transform of
+   * each element, the groups get the given boxes, which also contain the groups
+   * that grow around dropped elements.
+   */
+  function followedLines(
+    starts: SelectionStarts,
+    transformOf: (kind: ElementKind, id: string) => SelectionTransform,
+    groupBoxes: Map<string, Box>,
+  ): Map<string, ShapeGeometry> {
+    return followLines(starts.attachments, attachment => {
+      const [kind, id] = splitElementKey(attachment.key);
+      if (kind === 'group') return groupBoxes.get(id);
+
+      const isMoved =
+        (kind === 'shape' && starts.shapes.has(id)) ||
+        (kind === 'text' && starts.texts.has(id));
+      return isMoved ? transformOf(kind, id).box(attachment.box) : undefined;
+    });
   }
 
   // The keys of all elements that move or are resized with the selection
@@ -1628,22 +1993,20 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     pointer: Position | null,
   ) {
     const plan = planSelectionDrop(starts, transform, pointer, false);
+    const groupBoxes = new Map([
+      ...transformedGroupBoxes(starts, transform),
+      ...plan.groupBoxes,
+    ]);
 
-    graphSelection.setDrag(
-      plan.hint,
-      plan.dropTargetId,
-      new Map([
-        ...transformedGroupBoxes(starts, transform),
-        ...plan.groupBoxes,
-      ]),
-    );
+    graphSelection.setDrag(plan.hint, plan.dropTargetId, groupBoxes);
     graphSelection.setShapePreviews(
-      new Map(
-        [...starts.shapes].map(([id, geometry]) => [
-          id,
-          transformShapeGeometry(geometry, transform),
-        ]),
-      ),
+      new Map([
+        ...[...starts.shapes].map(
+          ([id, geometry]) =>
+            [id, transformShapeGeometry(geometry, transform)] as const,
+        ),
+        ...followedLines(starts, () => transform, groupBoxes),
+      ]),
     );
     graphSelection.setTextPreviews(
       new Map(
@@ -1691,10 +2054,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       });
     }
 
+    const transformedBoxes = transformedGroupBoxes(starts, transform);
     const groupUpdates = new Map<string, Partial<GroupStyleAnnotation>>(
       boxUpdates(plan.groupBoxes),
     );
-    for (const [id, box] of transformedGroupBoxes(starts, transform)) {
+    for (const [id, box] of transformedBoxes) {
       const groupId = droppedGroupId('group', id);
 
       groupUpdates.set(id, {
@@ -1713,15 +2077,23 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       {
         nodes: nodeLayouts,
         groups: groupUpdates,
-        shapes: new Map(
-          [...starts.shapes].map(([id, geometry]) => [
-            id,
-            {
-              ...transformShapeGeometry(geometry, transform),
-              ...membership('shape', id),
-            },
-          ]),
-        ),
+        shapes: new Map<string, Partial<FreeShapeAnnotation>>([
+          ...[...starts.shapes].map(
+            ([id, geometry]) =>
+              [
+                id,
+                {
+                  ...transformShapeGeometry(geometry, transform),
+                  ...membership('shape', id),
+                },
+              ] as const,
+          ),
+          ...followedLines(
+            starts,
+            () => transform,
+            new Map([...transformedBoxes, ...plan.groupBoxes]),
+          ),
+        ]),
         texts: new Map(
           [...starts.texts].map(([id, start]) => [
             id,
@@ -1774,11 +2146,20 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.setMoving(false);
 
     if (action.kind === 'draw') {
+      if (action.pressed && !action.hasMoved) {
+        graphSelection.clearDrag();
+        graphSelection.select(
+          itemSelection(action.pressed.kind, action.pressed.id),
+        );
+        return;
+      }
+
       const position = toGraphPosition(cy, event.clientX, event.clientY);
+      const corner = drawCorner(action, position, event);
       commitDraw(
         action,
-        drawCorner(action, position, event).position,
-        event.shiftKey,
+        corner.position,
+        event.shiftKey && !corner.isConnected,
       );
       return;
     }
@@ -2992,31 +3373,55 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onResizeGroup(item.group, box, isFinal);
         break;
       case 'shape':
-        if (!isFinal) break;
-
-        // The groups around a resized shape or text grow to contain it
-        topologyStore.manager.updateLayout({
-          shapes: new Map([[item.id, boxFields(box)]]),
-          groups: boxUpdates(
-            growAncestors(
-              item.shape.annotation.groupId ?? null,
-              box,
-              new Map(),
-            ),
-          ),
-        });
-        break;
       case 'text':
-        if (!isFinal) break;
-
-        topologyStore.manager.updateLayout({
-          texts: new Map([[item.id, boxFields(box)]]),
-          groups: boxUpdates(
-            growAncestors(item.text.annotation.groupId ?? null, box, new Map()),
-          ),
-        });
+        onResizeAnnotation(item, box, isFinal);
         break;
     }
+  }
+
+  /**
+   * Moves the lines attached to a resized shape or text while it is resized,
+   * Moveable resizes the element itself. Once it ends, the box is saved and
+   * the groups around it grow to contain it.
+   */
+  function onResizeAnnotation(
+    item: Extract<AnnotationItem, {kind: 'shape' | 'text'}>,
+    box: Box,
+    isFinal: boolean,
+  ) {
+    const annotation =
+      item.kind === 'shape' ? item.shape.annotation : item.text.annotation;
+    const grown = isFinal
+      ? growAncestors(annotation.groupId ?? null, box, new Map())
+      : new Map<string, Box>();
+
+    const key = elementKey({kind: item.kind, id: item.id});
+    const attachments = (resizeAttachments.current ??= currentAttachments(
+      new Set(),
+    ));
+    const lines = followLines(attachments, attachment => {
+      if (attachment.key === key) return box;
+
+      const [kind, id] = splitElementKey(attachment.key);
+      return kind === 'group' ? grown.get(id) : undefined;
+    });
+
+    if (!isFinal) {
+      graphSelection.setShapePreviews(lines);
+      return;
+    }
+
+    resizeAttachments.current = null;
+    graphSelection.setShapePreviews(new Map());
+    topologyStore.manager.updateLayout({
+      shapes: new Map<string, Partial<FreeShapeAnnotation>>([
+        ...(item.kind === 'shape' ? [[item.id, boxFields(box)] as const] : []),
+        ...lines,
+      ]),
+      texts:
+        item.kind === 'text' ? new Map([[item.id, boxFields(box)]]) : undefined,
+      groups: boxUpdates(grown),
+    });
   }
 
   /**
@@ -3084,9 +3489,17 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       }
     });
 
+    // The groups around the group grow to contain it once it is saved
+    const changedGroups = new Map([
+      ...groupBoxes,
+      [group.id, box],
+      ...(isFinal ? growAncestors(group.parentId, box, new Map()) : []),
+    ]);
+    const lines = followedLines(contents, moveOf, changedGroups);
+
     if (!isFinal) {
       graphSelection.setDrag(null, null, groupBoxes);
-      graphSelection.setShapePreviews(shapes);
+      graphSelection.setShapePreviews(new Map([...shapes, ...lines]));
       graphSelection.setTextPreviews(texts);
       return;
     }
@@ -3095,14 +3508,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.clearDrag();
     topologyStore.manager.updateLayout({
       nodes: nodeLayouts,
-      groups: boxUpdates(
-        new Map([
-          ...groupBoxes,
-          [group.id, box],
-          ...growAncestors(group.parentId, box, new Map()),
-        ]),
-      ),
-      shapes,
+      groups: boxUpdates(changedGroups),
+      shapes: new Map([...shapes, ...lines]),
       texts,
     });
   }
@@ -3119,6 +3526,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         texts: new Map(),
         memberPositions: new Map(),
         freeElements: [],
+        attachments: [],
       },
       owners: new Map(),
     };
@@ -3136,6 +3544,10 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         addStart(starts.contents, element, cy);
       }
     }
+
+    starts.contents.attachments = currentAttachments(
+      new Set(starts.contents.shapes.keys()),
+    );
 
     return starts;
   }

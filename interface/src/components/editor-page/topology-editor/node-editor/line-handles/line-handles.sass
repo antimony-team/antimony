@@ -1,11 +1,14 @@
 .sb-line-handle
   position: absolute
+  left: 0
+  top: 0
   width: 12px
   height: 12px
   box-sizing: border-box
   border: 2px solid var(--accent)
   border-radius: 50%
   background-color: #ffffff
-  transform: translate(-50%, -50%) scale(calc(1 / var(--sb-graph-zoom, 1)))
+  // Moved with a transform, the browser would round left and top to whole pixels of the graph
+  transform: translate(var(--sb-line-handle-x), var(--sb-line-handle-y)) translate(-50%, -50%) scale(calc(1 / var(--sb-graph-zoom, 1)))
   pointer-events: auto
   cursor: move

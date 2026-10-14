@@ -17,6 +17,12 @@ import {
   nodeIconBox,
   unionBox,
 } from '@sb/lib/graph/annotation-geometry';
+import {
+  CONNECTION_SIDES,
+  connectionArrow,
+  ConnectionSide,
+  sideNormal,
+} from '@sb/lib/graph/connections';
 import {SnapGuide} from '@sb/lib/graph/snapping';
 import {If} from '@sb/types/control';
 
@@ -29,6 +35,11 @@ const LINE_WIDTH = 1.5;
 // Length on screen of the ticks at the ends of a gap guide, and their distance to the elements
 const GAP_TICK = 12;
 const GAP_INSET = 4;
+
+// Radius on screen of a connection point, of the one a line end connects to, and of the gap around them
+const POINT_RADIUS = 6;
+const ACTIVE_POINT_RADIUS = 7.5;
+const POINT_GAP = 2;
 
 export interface SelectionLayerRef {
   // Draws the outlines again, e.g. after the zoom or a selected node changed
@@ -105,6 +116,8 @@ const SelectionLayer = observer(
         : null,
     };
     const stateRef = useRef(state);
+    const arrows = graphSelection.connectionArrows;
+    const connectionPoints = graphSelection.connectionPoints;
     stateRef.current = state;
 
     function draw() {
@@ -188,6 +201,46 @@ const SelectionLayer = observer(
               d={guidePath(guide, graphSelection.zoom)}
             />
           ))}
+          {arrows &&
+            CONNECTION_SIDES.map(side => (
+              <path
+                key={side}
+                className={classNames('sb-selection-layer-connection-arrow', {
+                  active: arrows.active === side,
+                })}
+                d={arrowPath(arrows.box, side, graphSelection.zoom)}
+              />
+            ))}
+          {connectionPoints?.points.map(point => {
+            const active = connectionPoints.active;
+            const isActive =
+              active?.x === point.position.x && active.y === point.position.y;
+            const radius =
+              (isActive ? ACTIVE_POINT_RADIUS : POINT_RADIUS) /
+              graphSelection.zoom;
+
+            // A ring in the color of the graph separates the point from the border below it
+            return (
+              <g key={`${point.position.x}:${point.position.y}`}>
+                <circle
+                  className="sb-selection-layer-connection-gap"
+                  cx={point.position.x}
+                  cy={point.position.y}
+                  r={radius + POINT_GAP / graphSelection.zoom}
+                />
+                <circle
+                  className="sb-selection-layer-connection-point"
+                  cx={point.position.x}
+                  cy={point.position.y}
+                  r={radius}
+                  style={{
+                    fill: isActive ? point.stroke : point.fill,
+                    stroke: point.stroke,
+                  }}
+                />
+              </g>
+            );
+          })}
           <If condition={state.selectionBox}>
             <rect ref={selectionBoxRef} className="sb-selection-layer-box" />
           </If>
@@ -244,6 +297,21 @@ function guidePath(guide: SnapGuide, zoom: number) {
     `M${point(from, guide.value)}L${point(to, guide.value)}`,
     `M${point(to, guide.value - tick)}L${point(to, guide.value + tick)}`,
   ].join('');
+}
+
+/*
+ * An arrow pointing away from the given side of a box, at the place where it
+ * is pressed to draw a line from that side. Its size is in pixels on screen.
+ */
+function arrowPath(box: Box, side: ConnectionSide, zoom: number) {
+  const center = connectionArrow(box, side, zoom);
+  const normal = sideNormal(side);
+  const point = (along: number, across: number) =>
+    `${center.x + (normal.x * along - normal.y * across) / zoom} ${
+      center.y + (normal.y * along + normal.x * across) / zoom
+    }`;
+
+  return `M${point(-13, -4.5)}L${point(2, -4.5)}L${point(2, -12)}L${point(14, 0)}L${point(2, 12)}L${point(2, 4.5)}L${point(-13, 4.5)}Z`;
 }
 
 function rectPath(box: Box): string {

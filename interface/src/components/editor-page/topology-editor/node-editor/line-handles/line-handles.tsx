@@ -1,4 +1,4 @@
-import React, {MouseEvent} from 'react';
+import React, {CSSProperties, MouseEvent} from 'react';
 
 import {observer} from 'mobx-react-lite';
 
@@ -44,7 +44,12 @@ const LineHandles = observer((props: LineHandlesProps) => {
         <span
           key={end}
           className="sb-line-handle"
-          style={{left: position.x, top: position.y}}
+          style={
+            {
+              '--sb-line-handle-x': `${position.x}px`,
+              '--sb-line-handle-y': `${position.y}px`,
+            } as CSSProperties
+          }
           onMouseDown={event => {
             if (event.button !== 0) return;
             props.onPointerDown(item.id, end, event);

@@ -74,6 +74,8 @@ const MoveableHandles = observer(
     const moveableRef = useRef<Moveable>(null);
     const resizeStartBox = useRef<Box | null>(null);
     const resizeDirection = useRef<[number, number]>([0, 0]);
+    const resizeFixedDirection = useRef<number[]>([0, 0]);
+    const resizeBox = useRef<Box | null>(null);
     const resizeMinSize = useRef<Size | null>(null);
     const snapTargets = useRef<SnapTargets | null>(null);
 
@@ -150,14 +152,8 @@ const MoveableHandles = observer(
         return size;
       }
 
-      const [width, height] = size;
       const snapped = snapResize(
-        {
-          x: start.x + ((fixedDirection[0] + 1) / 2) * (start.width - width),
-          y: start.y + ((fixedDirection[1] + 1) / 2) * (start.height - height),
-          width,
-          height,
-        },
+        fixedSideBox(start, fixedDirection, size[0], size[1]),
         resizeDirection.current,
         !!(inputEvent?.ctrlKey || inputEvent?.metaKey),
         targets,
@@ -198,6 +194,7 @@ const MoveableHandles = observer(
               ? graphSelection.annotationBox(resized)
               : null;
           resizeDirection.current = event.direction as [number, number];
+          resizeBox.current = null;
           snapTargets.current = props.getSnapTargets(
             isSelectionResized ? null : resized,
           );
@@ -220,6 +217,7 @@ const MoveableHandles = observer(
               ? [0, 0]
               : event.startFixedDirection;
           const size = event.setFixedDirection(fixedDirection);
+          resizeFixedDirection.current = fixedDirection;
 
           event.setSize(snappedResizeSize(size, fixedDirection, inputEvent));
         }}
@@ -227,19 +225,20 @@ const MoveableHandles = observer(
           const start = resizeStartBox.current;
           if (!start) return;
 
-          const [dx, dy] = event.drag.beforeTranslate;
-          const box = {
-            x: start.x + dx,
-            y: start.y + dy,
-            width: event.width,
-            height: event.height,
-          };
-
           /*
-           * The element is moved with left and top instead of a transform, so
-           * the browser rounds both of its edges from where they are and the
-           * edge that doesn't move stays on the same pixel.
+           * The sides that don't move keep their exact position from the start
+           * box, the translation of Moveable is measured from the element and
+           * is a little off, which would make the element wiggle.
            */
+          const box = fixedSideBox(
+            start,
+            resizeFixedDirection.current,
+            event.width,
+            event.height,
+          );
+          resizeBox.current = box;
+
+          // Moved with left and top instead of a transform, so the browser rounds both edges from where they are
           setElementBox(event.target as HTMLElement, box);
 
           if (isSelectionResized) {
@@ -259,29 +258,37 @@ const MoveableHandles = observer(
           graphSelection.setSnapGuides([]);
 
           const start = resizeStartBox.current;
-          const last = event.lastEvent;
-          if (!start || !last || (!resized && !isSelectionResized)) return;
+          const box = resizeBox.current;
+          if (!start || !box || (!resized && !isSelectionResized)) return;
 
           // The element gets its box from the saved annotation again
           setElementBox(event.target as HTMLElement, start);
 
-          const [dx, dy] = last.drag.beforeTranslate;
-          props.onResize(
-            isSelectionResized ? null : resized,
-            start,
-            {
-              x: start.x + dx,
-              y: start.y + dy,
-              width: last.width,
-              height: last.height,
-            },
-            true,
-          );
+          props.onResize(isSelectionResized ? null : resized, start, box, true);
         }}
       />
     );
   }),
 );
+
+/*
+ * The box of the given size that keeps the sides of the start box in the fixed
+ * direction in place, -1 for the left or top side, 1 for the right or bottom
+ * side and 0 for the center.
+ */
+function fixedSideBox(
+  start: Box,
+  fixedDirection: number[],
+  width: number,
+  height: number,
+): Box {
+  return {
+    x: start.x + ((fixedDirection[0] + 1) / 2) * (start.width - width),
+    y: start.y + ((fixedDirection[1] + 1) / 2) * (start.height - height),
+    width,
+    height,
+  };
+}
 
 function setElementBox(element: HTMLElement, box: Box) {
   element.style.left = `${box.x}px`;

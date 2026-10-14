@@ -39,6 +39,21 @@ $gap-guide-color: #f59a3c
     &.gap
       stroke: $gap-guide-color
 
+  // The points that line ends connect to, in the colors of their element
+  .sb-selection-layer-connection-point
+    stroke-width: calc(1.5px / var(--sb-graph-zoom, 1))
+
+  .sb-selection-layer-connection-gap
+    fill: var(--surface-page)
+
+  // The arrows around a hovered element that draw a line from it
+  .sb-selection-layer-connection-arrow
+    fill: var(--accent)
+    fill-opacity: .3
+
+    &.active
+      fill-opacity: .8
+
 // The box around a selection of several elements, only its handles are shown
 .sb-selection-layer-frame
   position: absolute

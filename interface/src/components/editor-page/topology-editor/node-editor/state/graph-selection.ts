@@ -14,6 +14,7 @@ import {
   textBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
+import {ConnectionSide} from '@sb/lib/graph/connections';
 import {SnapGuide} from '@sb/lib/graph/snapping';
 import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
 import {FreeTextAnnotation} from '@sb/types/domain/topology';
@@ -40,6 +41,22 @@ export const TOOL_DRAW_KINDS = new Map<GraphTool, DrawKind>([
 
 // A part of a hint, keywords like the keys to press are highlighted
 export type HintPart = string | {keyword: string};
+
+// The connection points that are shown, in the colors of their elements
+export interface ConnectionPointsView {
+  points: {position: Position; fill: string; stroke: string}[];
+
+  // The point the drawn or dragged line end is on
+  active: Position | null;
+}
+
+// The arrows around the hovered element that draw a line from it
+export interface ConnectionArrowsView {
+  box: Box;
+
+  // The side whose arrow is at the pointer
+  active: ConnectionSide | null;
+}
 
 export enum LabelKind {
   Group,
@@ -139,6 +156,10 @@ export class GraphSelection {
   // The lines that the moved, resized or drawn elements are aligned to
   @observable.ref accessor snapGuides: SnapGuide[] = [];
 
+  // The arrows of the hovered element, and the connection points near a drawn or dragged line end
+  @observable.ref accessor connectionArrows: ConnectionArrowsView | null = null;
+  @observable.ref accessor connectionPoints: ConnectionPointsView | null = null;
+
   // The box that is drawn to select elements, in coordinates of the graph's container
   @observable accessor selectionBox: Box | null = null;
 
@@ -208,6 +229,8 @@ export class GraphSelection {
   @action
   public setTool(tool: GraphTool) {
     this.tool = tool;
+    this.connectionPoints = null;
+    this.connectionArrows = null;
   }
 
   @action
@@ -354,6 +377,8 @@ export class GraphSelection {
     this.shapePreviews.clear();
     this.textPreviews.clear();
     this.snapGuides = [];
+    this.connectionPoints = null;
+    this.connectionArrows = null;
   }
 
   @action
@@ -422,6 +447,20 @@ export class GraphSelection {
     connectionLine: {sourceId: string; pointer: Position} | null,
   ) {
     this.connectionLine = connectionLine;
+  }
+
+  @action
+  public setConnectionPoints(connectionPoints: ConnectionPointsView | null) {
+    if (connectionPoints || this.connectionPoints) {
+      this.connectionPoints = connectionPoints;
+    }
+  }
+
+  @action
+  public setConnectionArrows(connectionArrows: ConnectionArrowsView | null) {
+    if (connectionArrows || this.connectionArrows) {
+      this.connectionArrows = connectionArrows;
+    }
   }
 
   @action

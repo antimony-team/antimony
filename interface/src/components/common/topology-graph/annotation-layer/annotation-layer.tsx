@@ -1,4 +1,4 @@
-import React, {CSSProperties, useId} from 'react';
+import React, {CSSProperties} from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
@@ -25,6 +25,7 @@ import {
 } from '@sb/lib/graph/annotation-style';
 import {If} from '@sb/types/control';
 import {BorderStyle} from '@sb/types/domain/topology';
+import {Position} from '@sb/types/types';
 
 import './annotation-layer.sass';
 
@@ -181,15 +182,39 @@ interface LineViewProps {
  * arrows, so it is drawn in order with the other annotations.
  */
 const LineView = (props: LineViewProps) => {
-  const markerId = useId();
-
   const start = props.geometry.position;
   const end = props.geometry.endPosition ?? start;
   const padding = props.arrowSize + props.style.borderWidth + 8;
   const box = shapeBox(props.geometry);
-  const left = box.x - padding;
-  const top = box.y - padding;
-  const marker = `url(#${CSS.escape(markerId)})`;
+
+  /*
+   * The SVG starts at whole pixels of the graph, the browser would round its
+   * position and move the line by up to half a pixel times the zoom. The line
+   * keeps its exact position inside it.
+   */
+  const left = Math.floor(box.x - padding);
+  const top = Math.floor(box.y - padding);
+  const local = (position: Position) => ({
+    x: position.x - left,
+    y: position.y - top,
+  });
+
+  // The line ends in the middle of its arrows, so its round caps don't stick out of their tips
+  const length = Math.hypot(end.x - start.x, end.y - start.y);
+  const inset = (hasArrow: boolean) =>
+    hasArrow && length > 0
+      ? Math.min(props.arrowSize / 2, length / 2) / length
+      : 0;
+  const startInset = inset(props.style.lineStartArrow);
+  const endInset = inset(props.style.lineEndArrow);
+  const drawnStart = local({
+    x: start.x + (end.x - start.x) * startInset,
+    y: start.y + (end.y - start.y) * startInset,
+  });
+  const drawnEnd = local({
+    x: end.x - (end.x - start.x) * endInset,
+    y: end.y - (end.y - start.y) * endInset,
+  });
 
   return (
     <svg
@@ -198,39 +223,25 @@ const LineView = (props: LineViewProps) => {
       style={{
         left,
         top,
-        width: box.width + padding * 2,
-        height: box.height + padding * 2,
+        width: Math.ceil(box.x + box.width + padding) - left,
+        height: Math.ceil(box.y + box.height + padding) - top,
       }}
     >
-      <defs>
-        <marker
-          id={markerId}
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth={props.arrowSize}
-          markerHeight={props.arrowSize}
-          markerUnits="userSpaceOnUse"
-          orient="auto-start-reverse"
-        >
-          <path d="M0 0L10 5L0 10z" fill={props.style.borderColor} />
-        </marker>
-      </defs>
       <If condition={props.isSelected}>
         <line
           className="sb-graph-line-selection"
-          x1={start.x - left}
-          y1={start.y - top}
-          x2={end.x - left}
-          y2={end.y - top}
+          x1={local(start).x}
+          y1={local(start).y}
+          x2={local(end).x}
+          y2={local(end).y}
           strokeWidth={props.style.borderWidth + 8}
         />
       </If>
       <line
-        x1={start.x - left}
-        y1={start.y - top}
-        x2={end.x - left}
-        y2={end.y - top}
+        x1={drawnStart.x}
+        y1={drawnStart.y}
+        x2={drawnEnd.x}
+        y2={drawnEnd.y}
         stroke={props.style.borderColor}
         strokeWidth={props.style.borderWidth}
         strokeDasharray={dashArray(
@@ -238,12 +249,35 @@ const LineView = (props: LineViewProps) => {
           props.style.borderWidth,
         )}
         strokeLinecap="round"
-        markerStart={props.style.lineStartArrow ? marker : undefined}
-        markerEnd={props.style.lineEndArrow ? marker : undefined}
       />
+      <If condition={props.style.lineStartArrow && length > 0}>
+        <path
+          d={arrowPath(local(start), local(end), props.arrowSize)}
+          fill={props.style.borderColor}
+        />
+      </If>
+      <If condition={props.style.lineEndArrow && length > 0}>
+        <path
+          d={arrowPath(local(end), local(start), props.arrowSize)}
+          fill={props.style.borderColor}
+        />
+      </If>
     </svg>
   );
 };
+
+// An arrowhead with its tip on the given point, pointing away from the other end of the line
+function arrowPath(tip: Position, from: Position, size: number) {
+  const length = Math.hypot(tip.x - from.x, tip.y - from.y);
+  const direction = {
+    x: (tip.x - from.x) / length,
+    y: (tip.y - from.y) / length,
+  };
+  const base = {x: tip.x - direction.x * size, y: tip.y - direction.y * size};
+  const side = {x: (-direction.y * size) / 2, y: (direction.x * size) / 2};
+
+  return `M${tip.x} ${tip.y}L${base.x + side.x} ${base.y + side.y}L${base.x - side.x} ${base.y - side.y}Z`;
+}
 
 // The shape that is drawn with a drawing tool, in the style it gets once it is drawn
 const DrawPreview = observer(({state}: {state: AnnotationLayerState}) => {
