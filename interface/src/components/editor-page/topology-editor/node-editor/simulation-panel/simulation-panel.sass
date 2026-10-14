@@ -64,7 +64,7 @@
   .simulation-panel-value
     min-width: 44px
     text-align: right
-    font-family: 'JetBrains Mono', monospace
+    font-family: 'JetBrains Mono Variable', monospace
     font-size: 14px
     font-variant-numeric: tabular-nums
 
@@ -85,43 +85,9 @@
   .simulation-panel-range
     display: flex
     justify-content: space-between
-    font-family: 'JetBrains Mono', monospace
+    font-family: 'JetBrains Mono Variable', monospace
     font-size: 12px
     color: var(--text-faint)
-
-  .p-slider
-    height: 5px
-    margin: 6px 0
-    border-radius: 2px
-    background: var(--active)
-
-    .p-slider-range
-      border-radius: 2px
-      background: var(--accent)
-
-    .p-slider-handle
-      width: 18px
-      height: 18px
-      margin-top: -9px
-      margin-left: -9px
-      border: 2px solid var(--surface-overlay)
-      background: #e9eaec
-      transition: box-shadow .15s
-
-      &:hover,
-      &:focus-visible
-        background: #e9eaec
-        border-color: var(--surface-overlay)
-        box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent)
-
-    &.p-disabled
-      opacity: 1
-
-      .p-slider-range
-        background: var(--border-strong)
-
-      .p-slider-handle
-        background: var(--text-muted)
 
   .simulation-panel-footer
     padding: 12px 14px 14px

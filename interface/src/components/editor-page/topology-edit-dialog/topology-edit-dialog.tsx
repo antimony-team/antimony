@@ -48,7 +48,7 @@ interface TopologyEdit {
 
 const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const editingTopology = useLocalObservable<TopologyEdit>(() => ({
-    name: props.dialogState.state?.topology?.name ?? '',
+    name: props.dialogState.state?.topology?.definition.name ?? '',
     syncUrl: props.dialogState.state?.topology?.syncUrl ?? '',
     collectionId: props.dialogState.state?.collectionId ?? '',
   }));
@@ -64,7 +64,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   function onShow() {
     runInAction(() => {
-      editingTopology.name = props.dialogState.state?.topology?.name ?? '';
+      editingTopology.name =
+        props.dialogState.state?.topology?.definition.name ?? '';
       editingTopology.syncUrl =
         props.dialogState.state?.topology?.syncUrl ?? '';
       editingTopology.collectionId =
@@ -88,7 +89,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   function hasChanges() {
     return (
-      props.dialogState.state?.topology?.name !== editingTopology.name ||
+      (props.dialogState.state?.topology?.definition.name ?? '') !==
+        editingTopology.name ||
       props.dialogState.state?.topology?.syncUrl !== editingTopology.syncUrl ||
       props.dialogState.state?.collectionId !== editingTopology.collectionId
     );
@@ -133,11 +135,12 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       }
 
       const newTopologyDefinition =
-        props.dialogState.state.topology!.definition.clone();
-      newTopologyDefinition.set('name', editingTopology.name);
+        props.dialogState.state.topology!.definition.setName(
+          editingTopology.name,
+        );
 
       const updatedTopology: TopologyIn = {
-        definition: TopologyManager.serializeTopology(newTopologyDefinition),
+        definition: newTopologyDefinition.toString(),
         syncUrl: editingTopology.syncUrl,
         collectionId: editingTopology.collectionId,
       };
@@ -155,12 +158,15 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
     } else if (props.dialogState.state.action === DialogAction.Duplicate) {
       const currentTopology = props.dialogState.state.topology!;
 
-      const newTopologyDefinition = currentTopology.definition.clone();
-      newTopologyDefinition.set('name', editingTopology.name);
+      const newTopologyDefinition = currentTopology.definition.setName(
+        editingTopology.name,
+      );
 
       const newTopology: TopologyIn = {
-        definition: TopologyManager.serializeTopology(newTopologyDefinition),
-        annotations: currentTopology.annotationsString,
+        definition: newTopologyDefinition.toString(),
+        annotations: TopologyManager.serializeAnnotations(
+          currentTopology.annotations,
+        ),
         syncUrl: editingTopology.syncUrl,
         collectionId: editingTopology.collectionId,
       };
@@ -269,7 +275,9 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         <SBInput
           ref={topologyNameRef}
           onValueSubmit={onNameChange}
-          defaultValue={props.dialogState.state?.topology?.name ?? ''}
+          defaultValue={
+            props.dialogState.state?.topology?.definition.name ?? ''
+          }
           placeholder="e.g. OSPF Lab"
           id="topology-edit-name"
           label="Name"

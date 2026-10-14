@@ -9,7 +9,6 @@ import React, {
 
 import {observer} from 'mobx-react-lite';
 
-import {ContextMenu} from 'primereact/contextmenu';
 import {Image} from 'primereact/image';
 import {MenuItem} from 'primereact/menuitem';
 import {Message} from 'primereact/message';
@@ -25,6 +24,9 @@ import {
 import SBConfirm, {
   SBConfirmDeletePreset,
 } from '@sb/components/common/sb-confirm/sb-confirm';
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
 import {ArchiveUploadDialogState} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
 import {BindFileEditDialogState} from '@sb/components/editor-page/bind-file-edit-dialog/bind-file-edit-dialog';
 import {BindFileDirectoryEditDialogState} from '@sb/components/editor-page/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog';
@@ -78,7 +80,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
-  const contextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
   const contextMenuTarget = useRef<string | null>(null);
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -108,7 +110,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         type: ExplorerTreeNodeType.Collection,
         children: topologiesByCollection.get(collection.id)?.map(topology => ({
           key: topology.id,
-          label: topology.name,
+          label: topology.definition.name,
           className: 'sb-explorer-topology-node',
           icon: <span className="material-symbols-outlined">network_node</span>,
           // Set topology as leaf if it doesn't have any bind files
@@ -385,7 +387,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             <span>The following topologies will be deleted:</span>
             <ul>
               {childTopologies.map(topology => (
-                <li>{topology.definition.get('name') as string}</li>
+                <li>{topology.definition.name}</li>
               ))}
             </ul>
             <Message severity="warn" text="This action cannot be undone!" />
@@ -461,7 +463,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (topologyStore.manager.hasEdits()) {
       notificationStore.confirm({
         header: 'Discard unsaved changes?',
-        message: `Your changes to "${topologyStore.manager.topology?.name}" haven't been saved.`,
+        message: `Your changes to "${topologyStore.manager.topology?.definition.name}" haven't been saved.`,
         severity: 'warning',
         acceptText: 'Discard changes',
         rejectText: 'Keep editing',
@@ -479,12 +481,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (!topologyStore.lookup.has(topologyId)) return;
 
     const topology = topologyStore.lookup.get(topologyId)!;
-    const definitionClone = topology.definition.clone();
-    definitionClone.set('name', `${definitionClone.get('name')} (clone)`);
+    const definitionClone = topology.definition.setName(
+      `${topology.definition.name} (clone)`,
+    );
 
     void topologyStore
       .add<string>({
-        definition: TopologyManager.serializeTopology(definitionClone),
+        definition: definitionClone.toString(),
         annotations: TopologyManager.serializeAnnotations(topology.annotations),
         collectionId: topology.collectionId,
         syncUrl: topology.syncUrl,
@@ -510,7 +513,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   function onDeleteTopology(id: string) {
     const topology = topologyStore.lookup.get(id)!;
-    const topologyName = topology.definition.get('name') as string;
+    const topologyName = topology.definition.name ?? '';
 
     notificationStore.confirm({
       ...SBConfirmDeletePreset('topology'),
@@ -978,7 +981,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
     if (!authUser.isAdmin && targetTopology.creator.id !== authUser.id) {
       notificationStore.error(
-        `You do not have permissions to move a file to '${targetTopology.name}'`,
+        `You do not have permissions to move a file to '${targetTopology.definition.name}'`,
         'Unable to move file',
       );
       return;
@@ -988,7 +991,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     const bindFileName = bindFile.filePath.split('/').pop()!;
     if (targetTopology.bindFiles.find(file => file.filePath === bindFileName)) {
       notificationStore.error(
-        `A file with that name already exists in '${targetTopology.name}'`,
+        `A file with that name already exists in '${targetTopology.definition.name}'`,
         'Unable to move file',
       );
       return;
@@ -1233,7 +1236,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         }
       />
       <SBConfirm />
-      <ContextMenu model={contextMenuModel} ref={contextMenuRef} />
+      <SBContextMenu model={contextMenuModel} ref={contextMenuRef} />
       <input
         ref={fileUploadInputRef}
         type="file"

@@ -2,7 +2,7 @@ import {action, computed, observable} from 'mobx';
 
 import {TopologyFileType} from '@sb/types/domain/topology';
 
-// Consecutive typing in the same file is merged into one entry within this interval
+// Consecutive changes with the same merge key are merged into one entry within this interval
 const MERGE_INTERVAL = 1000;
 
 const MAX_ENTRIES = 100;
@@ -12,6 +12,14 @@ export interface HistorySelection {
   selectionStartColumn: number;
   positionLineNumber: number;
   positionColumn: number;
+}
+
+// The selected elements of the graph by their IDs
+export interface GraphSelectionSnapshot {
+  nodeIds: string[];
+  groupIds: string[];
+  shapeIds: string[];
+  textIds: string[];
 }
 
 /**
@@ -24,6 +32,10 @@ export interface TopologyHistoryEntry {
   // The file that was changed and its selections after the change
   file: TopologyFileType;
   selections: HistorySelection[] | null;
+
+  // The selection of the graph before and after a change of the graph, restored by undo and redo
+  graphSelectionBefore?: GraphSelectionSnapshot;
+  graphSelectionAfter?: GraphSelectionSnapshot;
 }
 
 /**
@@ -37,8 +49,8 @@ export class TopologyHistory {
 
   private entries: TopologyHistoryEntry[] = [];
 
-  // File and time of the last entry that further typing can be merged into
-  private lastTyping: {file: TopologyFileType; time: number} | null = null;
+  // Merge key and time of the last entry that further changes can be merged into
+  private lastMerge: {key: string; time: number} | null = null;
 
   @computed
   public get canUndo() {
@@ -53,7 +65,7 @@ export class TopologyHistory {
   @action
   public reset(entry: TopologyHistoryEntry) {
     this.entries = [entry];
-    this.lastTyping = null;
+    this.lastMerge = null;
     this.update(0);
   }
 
@@ -62,21 +74,24 @@ export class TopologyHistory {
    * redone.
    *
    * @param entry The content of the files after the change.
-   * @param isTyping Whether the change was typed, which merges it with typing
-   * in the same file right before.
+   * @param mergeKey Merges the change with a change with the same key right
+   * before, e.g. typing in the same file. Null if it is never merged.
    */
   @action
-  public record(entry: TopologyHistoryEntry, isTyping: boolean) {
+  public record(entry: TopologyHistoryEntry, mergeKey: string | null) {
     this.entries.splice(this.position + 1);
 
     const now = Date.now();
     const canMerge =
-      isTyping &&
-      this.lastTyping?.file === entry.file &&
-      now - this.lastTyping.time < MERGE_INTERVAL;
+      mergeKey !== null &&
+      this.lastMerge?.key === mergeKey &&
+      now - this.lastMerge.time < MERGE_INTERVAL;
 
     if (canMerge) {
-      this.entries[this.position] = entry;
+      this.entries[this.position] = {
+        ...entry,
+        graphSelectionBefore: this.entries[this.position].graphSelectionBefore,
+      };
     } else {
       this.entries.push(entry);
     }
@@ -85,39 +100,58 @@ export class TopologyHistory {
       this.entries.shift();
     }
 
-    this.lastTyping = isTyping ? {file: entry.file, time: now} : null;
+    this.lastMerge = mergeKey !== null ? {key: mergeKey, time: now} : null;
     this.update(this.entries.length - 1);
   }
 
   /**
-   * Steps back one entry. Returns the entry to restore and the file of the change
-   * that was undone, or null if there is nothing to undo.
+   * Steps back one entry. Returns the entry to restore, the file of the change
+   * that was undone and the selection of the graph before it, or null if there
+   * is nothing to undo.
+   *
+   * @param graphSelection The current selection of the graph, restored by redo.
    */
   @action
-  public undo(): {entry: TopologyHistoryEntry; file: TopologyFileType} | null {
+  public undo(graphSelection?: GraphSelectionSnapshot): {
+    entry: TopologyHistoryEntry;
+    file: TopologyFileType;
+    graphSelection?: GraphSelectionSnapshot;
+  } | null {
     if (!this.canUndo) return null;
 
-    const undoneFile = this.entries[this.position].file;
+    const undone = this.entries[this.position];
+    if (undone.graphSelectionBefore) {
+      undone.graphSelectionAfter = graphSelection;
+    }
 
-    this.lastTyping = null;
+    this.lastMerge = null;
     this.update(this.position - 1);
 
-    return {entry: this.entries[this.position], file: undoneFile};
+    return {
+      entry: this.entries[this.position],
+      file: undone.file,
+      graphSelection: undone.graphSelectionBefore,
+    };
   }
 
   /**
-   * Steps forward one entry. Returns the entry to restore and the file of the
-   * change that was redone, or null if there is nothing to redo.
+   * Steps forward one entry. Returns the entry to restore, the file of the
+   * change that was redone and the selection of the graph after it, or null if
+   * there is nothing to redo.
    */
   @action
-  public redo(): {entry: TopologyHistoryEntry; file: TopologyFileType} | null {
+  public redo(): {
+    entry: TopologyHistoryEntry;
+    file: TopologyFileType;
+    graphSelection?: GraphSelectionSnapshot;
+  } | null {
     if (!this.canRedo) return null;
 
-    this.lastTyping = null;
+    this.lastMerge = null;
     this.update(this.position + 1);
 
     const entry = this.entries[this.position];
-    return {entry, file: entry.file};
+    return {entry, file: entry.file, graphSelection: entry.graphSelectionAfter};
   }
 
   private update(position: number) {

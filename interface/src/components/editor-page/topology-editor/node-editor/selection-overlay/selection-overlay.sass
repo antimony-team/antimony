@@ -1,0 +1,12 @@
+// The overlay of the graph is scaled with the zoom, this keeps the bar at its size
+.sb-selection-overlay-bar
+  position: absolute
+  transform: scale(calc(1 / var(--sb-graph-zoom, 1)))
+  transform-origin: 0 0
+
+  &.hidden
+    visibility: hidden
+
+  .sb-selection-bar
+    left: 0
+    pointer-events: auto

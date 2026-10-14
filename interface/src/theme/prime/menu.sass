@@ -7,7 +7,6 @@
   border: 1px solid var(--border)
   border-radius: 10px
   box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
-  overflow-y: auto
 
   .p-menuitem-content
     background-color: transparent
@@ -55,6 +54,12 @@
     margin-left: auto
     color: var(--text-faint)
 
+  .sb-menuitem-keybind
+    margin-left: auto
+    padding-left: 24px
+    font-size: 13px
+    color: var(--text-faint)
+
   .p-menuitem:not(.p-disabled)
     > .p-menuitem-content:hover,
     > .p-menuitem-content.p-focus
@@ -95,6 +100,10 @@
 
     &:not(.p-disabled) > .p-menuitem-content:hover
       background-color: color-mix(in oklab, var(--success-color-text) 10%, transparent)
+
+// Long menus scroll, context menus don't, as their submenus would be cut off
+.p-menu
+  overflow-y: auto
 
 // Submenus of a tiered/context menu are their own panels
 .p-contextmenu .p-submenu-list, .p-tieredmenu .p-submenu-list

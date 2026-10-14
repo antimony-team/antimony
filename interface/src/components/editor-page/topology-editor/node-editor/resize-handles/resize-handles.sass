@@ -1,0 +1,25 @@
+.sb-resize-handles
+  // Lengths on screen, the layer is scaled by the zoom
+  --sb-resize-handles-unit: calc(1px / var(--sb-graph-zoom, 1))
+  --sb-resize-handles-line: calc(1.5 * var(--sb-resize-handles-unit))
+  --sb-resize-handles-dash: var(--accent) 0 calc(4 * var(--sb-resize-handles-unit)), transparent 0 calc(7 * var(--sb-resize-handles-unit))
+
+  position: absolute
+  pointer-events: none
+
+  // Dashed like the outline of selected elements, 4px outside of the box
+  .sb-resize-handles-frame
+    position: absolute
+    inset: calc(-5.5 * var(--sb-resize-handles-unit))
+    background: repeating-linear-gradient(to right, var(--sb-resize-handles-dash)) top / 100% var(--sb-resize-handles-line) no-repeat, repeating-linear-gradient(to right, var(--sb-resize-handles-dash)) bottom / 100% var(--sb-resize-handles-line) no-repeat, repeating-linear-gradient(to bottom, var(--sb-resize-handles-dash)) left / var(--sb-resize-handles-line) 100% no-repeat, repeating-linear-gradient(to bottom, var(--sb-resize-handles-dash)) right / var(--sb-resize-handles-line) 100% no-repeat
+
+  .sb-resize-handles-handle
+    position: absolute
+    width: 9px
+    height: 9px
+    box-sizing: border-box
+    border: 1.5px solid var(--accent)
+    border-radius: 2px
+    background-color: #ffffff
+    transform: translate(-50%, -50%) scale(calc(1 / var(--sb-graph-zoom, 1)))
+    pointer-events: auto

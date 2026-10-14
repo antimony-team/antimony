@@ -1,13 +1,12 @@
 import {action, observable, runInAction} from 'mobx';
-import {parseDocument} from 'yaml';
 
 import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
-import {buildTopologyMetadata} from '@sb/lib/graph/topology-graph';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
+import {TopologyFormat} from '@sb/lib/topology/topology-format';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {createDuplicateName} from '@sb/lib/utils/utils';
 import {
@@ -15,12 +14,12 @@ import {
   BindFileIn,
   Topology,
   TopologyAnnotations,
-  TopologyDefinition,
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {Result} from '@sb/types/result';
-import {uuid4, YAMLDocument} from '@sb/types/types';
+import {uuid4} from '@sb/types/types';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -31,21 +30,24 @@ export class TopologyStore extends DataStore<
 
   public manager: TopologyManager;
 
+  // The format the topologies are written in
+  public readonly format: TopologyFormat;
+
   private dataBinder: DataBinder;
   private schemaStore: SchemaStore;
-  private deviceStore: DeviceStore;
 
   constructor(
     rootStore: RootStore,
     dataBinder: DataBinder,
     schemaStore: SchemaStore,
     deviceStore: DeviceStore,
+    format: TopologyFormat,
     dependencies: DataStoreDependency[] = [],
   ) {
     super(rootStore, dependencies);
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
-    this.deviceStore = deviceStore;
+    this.format = format;
 
     this.manager = new TopologyManager(this, deviceStore);
   }
@@ -186,16 +188,13 @@ export class TopologyStore extends DataStore<
     return result;
   }
 
-  public parseTopologyDefinition(
-    definitionString: string,
-  ): YAMLDocument<TopologyDefinition> | null {
-    const definition = parseDocument(definitionString);
-    if (
-      definition.errors.length > 0 ||
-      !this.schemaStore.clabValidator?.(definition.toJS())
-    ) {
-      return null;
-    }
+  /**
+   * Reads the text of a topology as its definition, null if it isn't valid.
+   * The definition keeps the text as it's written.
+   */
+  public readTopology(definitionString: string): TopologyDefinition | null {
+    const definition = this.format.read(definitionString);
+    if (!definition || this.format.validate(definition) !== null) return null;
 
     return definition;
   }
@@ -224,7 +223,9 @@ export class TopologyStore extends DataStore<
   public createDuplicateName(topologyName: string) {
     return createDuplicateName(
       topologyName,
-      this.data.map(topology => topology.name),
+      this.data
+        .map(topology => topology.definition.name)
+        .filter(name => name !== undefined),
     );
   }
 
@@ -263,18 +264,10 @@ export class TopologyStore extends DataStore<
     source: TopologyOut | Partial<TopologyIn>,
   ) {
     if (source.definition) {
-      const updatedDefinition = this.parseTopologyDefinition(source.definition);
+      const definition = this.readTopology(source.definition);
 
-      if (updatedDefinition) {
-        const metadata = buildTopologyMetadata(updatedDefinition, kind =>
-          this.deviceStore.getInterfaceConfig(kind),
-        );
-
-        target.name = updatedDefinition.get('name') as string;
-        target.definition = updatedDefinition;
-        target.definitionString = source.definition;
-        target.connections = metadata.connections;
-        target.connectionMap = metadata.connectionMap;
+      if (definition) {
+        target.definition = definition;
       } else {
         console.error('[NET] Failed to parse incoming topology: ', source);
       }
@@ -287,7 +280,6 @@ export class TopologyStore extends DataStore<
 
       if (updatedAnnotations) {
         target.annotations = updatedAnnotations;
-        target.annotationsString = source.annotations;
       } else {
         console.error('[NET] Failed to parse incoming annotations: ', source);
       }
@@ -315,7 +307,7 @@ export class TopologyStore extends DataStore<
   }
 
   private parseTopology(input: TopologyOut): Topology | null {
-    const definition = this.parseTopologyDefinition(input.definition);
+    const definition = this.readTopology(input.definition);
 
     if (!definition) {
       console.error('[NET] Failed to parse incoming topology: ', input);
@@ -331,18 +323,17 @@ export class TopologyStore extends DataStore<
 
     return observable(
       {
-        ...input,
-        name: definition.get('name') as string,
+        id: input.id,
+        collectionId: input.collectionId,
+        creator: input.creator,
+        syncUrl: input.syncUrl,
+        bindFiles: input.bindFiles,
+        lastDeployFailed: input.lastDeployFailed,
         definition: definition,
-        definitionString: input.definition,
         annotations: annotations ?? {},
-        annotationsString: input.annotations,
-        ...buildTopologyMetadata(definition, kind =>
-          this.deviceStore.getInterfaceConfig(kind),
-        ),
       },
-      // The annotations are replaced as a whole on every edit
-      {annotations: observable.ref},
+      // The definition and the annotations are replaced as a whole on every edit
+      {definition: observable.ref, annotations: observable.ref},
     );
   }
 }

@@ -1,5 +1,6 @@
 import React, {
   forwardRef,
+  ReactNode,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -9,8 +10,13 @@ import React, {
 import cytoscape, {ElementDefinition, EventObject} from 'cytoscape';
 import CytoscapeComponent from 'react-cytoscapejs';
 
+import {Box} from '@sb/lib/graph/annotation-geometry';
 import {topologyStyle} from '@sb/lib/graph/cytoscape-styles';
-import {fitGraph, updateGrid} from '@sb/lib/graph/cytoscape-utils';
+import {
+  fitGraph,
+  updateGrid,
+  updateLayerTransform,
+} from '@sb/lib/graph/cytoscape-utils';
 
 import './topology-graph.sass';
 
@@ -27,6 +33,13 @@ interface TopologyGraphProps {
 
   // Called for every new cytoscape instance, the returned function is called when the instance is replaced
   onInstance?: (cy: cytoscape.Core) => (() => void) | void;
+
+  // Content drawn behind and in front of the graph, positioned in graph coordinates
+  underlay?: ReactNode;
+  overlay?: ReactNode;
+
+  // The boxes of the content of the layers, which the graph is fitted to as well
+  getLayerBoxes?: () => Box[];
 }
 
 export interface TopologyGraphRef {
@@ -34,6 +47,9 @@ export interface TopologyGraphRef {
 }
 
 const NO_ELEMENTS: ElementDefinition[] = [];
+
+// A wheel notch zooms by about 10%, cytoscape's default of about 3% is too slow
+const WHEEL_SENSITIVITY = 3.5;
 
 /**
  * Brings the graph's elements in line with the given ones. Existing elements are updated in place, so an edit doesn't
@@ -175,6 +191,8 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
     const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const underlayRef = useRef<HTMLDivElement>(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
 
     const fittedKey = useRef<string | null>(null);
     const isFitPending = useRef(false);
@@ -186,11 +204,18 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
     const onInstanceRef = useRef(props.onInstance);
     onInstanceRef.current = props.onInstance;
 
+    const getLayerBoxesRef = useRef(props.getLayerBoxes);
+    getLayerBoxesRef.current = props.getLayerBoxes;
+
     useImperativeHandle(ref, () => ({
       fit: (animated: boolean) => {
-        if (cyRef.current) fitGraph(cyRef.current, animated);
+        if (cyRef.current) fit(cyRef.current, animated);
       },
     }));
+
+    function fit(cy: cytoscape.Core, animated: boolean) {
+      fitGraph(cy, animated, getLayerBoxesRef.current?.() ?? []);
+    }
 
     useEffect(() => {
       if (!cyInstance) return;
@@ -222,7 +247,7 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       }
 
       isFitPending.current = false;
-      fitGraph(cy, false);
+      fit(cy, false);
     }
 
     function initCytoscape(cy: cytoscape.Core) {
@@ -242,11 +267,17 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       cy.on('viewport', onViewport);
       cy.on('resize', onResize);
 
-      if (containerRef.current) updateGrid(containerRef.current, cy);
+      updateViewport(cy);
     }
 
     function onViewport(event: EventObject) {
-      if (containerRef.current) updateGrid(containerRef.current, event.cy);
+      updateViewport(event.cy);
+    }
+
+    function updateViewport(cy: cytoscape.Core) {
+      if (containerRef.current) updateGrid(containerRef.current, cy);
+      if (underlayRef.current) updateLayerTransform(underlayRef.current, cy);
+      if (overlayRef.current) updateLayerTransform(overlayRef.current, cy);
     }
 
     // The graph has just been measured, measuring it again in fitWhenVisible would emit this event again
@@ -257,17 +288,21 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       }
 
       isFitPending.current = false;
-      fitGraph(cy, false);
+      fit(cy, false);
     }
 
     return (
       <div className="sb-topology-graph" ref={containerRef}>
+        <div className="sb-topology-graph-layer" ref={underlayRef}>
+          {props.underlay}
+        </div>
         <CytoscapeComponent
           className="cytoscape-container"
           stylesheet={topologyStyle}
           elements={NO_ELEMENTS}
           minZoom={0.1}
           maxZoom={10}
+          wheelSensitivity={WHEEL_SENSITIVITY}
           autolock={props.isLocked}
           layout={{name: 'preset'}}
           cy={(cy: cytoscape.Core) => {
@@ -280,6 +315,12 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
             setCyInstance(cy);
           }}
         />
+        <div
+          className="sb-topology-graph-layer sb-topology-graph-overlay"
+          ref={overlayRef}
+        >
+          {props.overlay}
+        </div>
       </div>
     );
   },

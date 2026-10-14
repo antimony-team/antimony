@@ -1,16 +1,14 @@
-import {pushOrCreateList} from '@sb/lib/utils/utils';
-import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {
   GeoCoordinates,
   NodeAnnotation,
-  NodeConnection,
   NodeLabels,
   TopologyAnnotations,
-  TopologyDefinition,
-  TopologyMeta,
-  TopologyNode,
 } from '@sb/types/domain/topology';
-import {Position, YAMLDocument} from '@sb/types/types';
+import {
+  TopologyDefinition,
+  TopologyLink,
+} from '@sb/types/domain/topology-definition';
+import {Position} from '@sb/types/types';
 
 /**
  * A node of a topology together with its layout in the graph.
@@ -22,6 +20,9 @@ export interface GraphNode {
   // Null if the topology doesn't define a position for the node
   position: Position | null;
   icon?: string;
+  groupId?: string;
+
+  // Legacy group membership by group name
   group?: string;
   level?: string;
 }
@@ -31,10 +32,8 @@ export interface GraphNode {
  */
 export interface NodeLayout {
   position: Position;
-  group: string | null;
+  groupId: string | null;
 }
-
-export type InterfaceConfigLookup = (nodeKind?: string) => InterfaceConfig;
 
 /**
  * Legacy labels that store the layout of a node in topologies without annotations.
@@ -79,31 +78,48 @@ export function convertLatLngToXY(
  * annotations, and from the graph-* labels for nodes that don't have one there.
  */
 export function readGraphNodes(
-  definition: YAMLDocument<TopologyDefinition>,
+  definition: TopologyDefinition,
   annotations: TopologyAnnotations,
 ): GraphNode[] {
-  const nodes = definition.toJS()?.topology?.nodes ?? {};
   const nodeAnnotations = nodeAnnotationMap(annotations);
 
-  return Object.entries(nodes).map(([name, node]) => {
-    const annotation = nodeAnnotations.get(name);
+  return [...definition.nodes.values()].map(node => {
+    const annotation = nodeAnnotations.get(node.name);
+    const labels = node.get('labels') as NodeLabels | undefined;
 
     return {
-      name,
-      kind: node?.kind,
-      position: readNodePosition(node?.labels, annotation),
-      icon: readNodeIcon(node, annotation),
-      group: annotation?.group ?? node?.labels?.['graph-group'],
-      level: annotation?.level ?? node?.labels?.['graph-level']?.toString(),
+      name: node.name,
+
+      // The kind can be inherited from a group or the defaults
+      kind: node.device,
+      position: readNodePosition(labels, annotation),
+      icon: readNodeIcon(labels, annotation),
+      groupId: annotation?.groupId,
+      group: annotation?.group ?? labels?.['graph-group'],
+      level: annotation?.level ?? labels?.['graph-level']?.toString(),
     };
   });
 }
 
+/**
+ * Returns the links that the graph shows, the links between two nodes of the
+ * topology. Links to the host or the management network have no second node.
+ */
+export function graphLinks(definition: TopologyDefinition): TopologyLink[] {
+  const nodeNames = new Set(definition.nodeNames);
+
+  return definition.links.filter(
+    link =>
+      link.endpoints.length === 2 &&
+      link.endpoints.every(endpoint => nodeNames.has(endpoint.node)),
+  );
+}
+
 export function readNodeIcon(
-  node: TopologyNode | null | undefined,
+  labels: NodeLabels | undefined,
   annotation: NodeAnnotation | undefined,
 ): string | undefined {
-  return annotation?.icon ?? node?.labels?.['graph-icon'];
+  return annotation?.icon ?? labels?.['graph-icon'];
 }
 
 export function nodeAnnotationMap(
@@ -131,7 +147,9 @@ export function nodeLayoutAnnotation(
   };
 
   const layoutAnnotation: Partial<NodeAnnotation> = {
-    group: layout.group ?? undefined,
+    groupId: layout.groupId ?? undefined,
+    group: undefined,
+    level: undefined,
   };
 
   if (annotation?.geoCoordinates) {
@@ -170,95 +188,6 @@ export function labelsToAnnotation(
   if (!isNaN(lat) && !isNaN(lng)) annotation.geoCoordinates = {lat, lng};
 
   return annotation;
-}
-
-export function buildTopologyMetadata(
-  topology: YAMLDocument<TopologyDefinition>,
-  getInterfaceConfig: InterfaceConfigLookup,
-): TopologyMeta {
-  const nodes = topology.toJS()?.topology?.nodes ?? {};
-  const links = topology.toJS()?.topology?.links;
-  const nodeCount = Object.keys(nodes).length;
-
-  const connections: NodeConnection[] = [];
-  const connectionMap = new Map<string, NodeConnection[]>();
-
-  if (!Array.isArray(links)) {
-    return {nodeCount, connections, connectionMap};
-  }
-
-  let index = 0;
-
-  for (const link of links) {
-    const [hostNode, hostInterface] = link.endpoints[0].split(':');
-    const [targetNode, targetInterface] = link.endpoints[1].split(':');
-
-    // Ignore the link if one of the nodes does not exist
-    if (!nodes[hostNode] || !nodes[targetNode]) continue;
-
-    const hostInterfaceConfig = getInterfaceConfig(nodes[hostNode].kind);
-    const targetInterfaceConfig = getInterfaceConfig(nodes[targetNode].kind);
-
-    const hostInterfaceIndex = parseInterface(
-      hostInterface,
-      hostInterfaceConfig.interfacePattern,
-    );
-    const targetInterfaceIndex = parseInterface(
-      targetInterface,
-      targetInterfaceConfig.interfacePattern,
-    );
-
-    connections.push({
-      index,
-      hostNode,
-      hostInterface,
-      hostInterfaceIndex,
-      hostInterfaceConfig,
-      targetNode,
-      targetInterface,
-      targetInterfaceIndex,
-      targetInterfaceConfig,
-    });
-
-    pushOrCreateList(connectionMap, hostNode, {
-      index,
-      hostNode,
-      hostInterface,
-      hostInterfaceIndex,
-      hostInterfaceConfig,
-      targetNode,
-      targetInterface,
-      targetInterfaceIndex,
-      targetInterfaceConfig,
-    });
-
-    pushOrCreateList(connectionMap, targetNode, {
-      index,
-      hostNode: targetNode,
-      hostInterface: targetInterface,
-      hostInterfaceIndex: targetInterfaceIndex,
-      hostInterfaceConfig: targetInterfaceConfig,
-      targetNode: hostNode,
-      targetInterface: hostInterface,
-      targetInterfaceIndex: hostInterfaceIndex,
-      targetInterfaceConfig: hostInterfaceConfig,
-    });
-
-    index++;
-  }
-
-  return {nodeCount, connections, connectionMap};
-}
-
-export function parseInterface(
-  value: string,
-  interfacePattern: string,
-): number {
-  const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
-  const match = value.match(pattern);
-
-  if (!match || match.length < 2) return 99;
-  return Number(match[1]);
 }
 
 function readNodePosition(

@@ -125,9 +125,10 @@ const EditorPage = observer(() => {
     topology: Topology,
     files: ArchiveUploadFile[],
   ) {
+    const topologyName = topology.definition.name ?? '';
     const bindFiles = files.map(file => {
-      if (file.filePath.startsWith(`${topology.name}/`)) {
-        file.filePath = file.filePath.substring(topology.name.length + 1);
+      if (file.filePath.startsWith(`${topologyName}/`)) {
+        file.filePath = file.filePath.substring(topologyName.length + 1);
       }
       return file;
     });

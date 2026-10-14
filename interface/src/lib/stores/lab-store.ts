@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 import {action, computed, observable, reaction, runInAction} from 'mobx';
 
-import {buildTopologyMetadata} from '@sb/lib/graph/topology-graph';
 import {
   DataBinder,
   DataResponse,
@@ -344,7 +343,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
-    const definition = this.topologyStore.parseTopologyDefinition(
+    const definition = this.topologyStore.readTopology(
       input.topologyDefinition,
     );
 
@@ -368,9 +367,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       state: this.getInstanceState(input.instance, startTime, endTime),
       instance: this.parseInstance(input.instance),
       topologyDefinition: {
-        ...buildTopologyMetadata(definition, kind =>
-          this.rootStore._deviceStore.getInterfaceConfig(kind),
-        ),
         definition: definition,
         annotations: annotations ?? {},
       },

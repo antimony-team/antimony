@@ -1,0 +1,34 @@
+// Slider: thin track, accent range, light handle
+.p-slider.p-slider-horizontal
+  height: 5px
+  margin: 6px 0
+  border-radius: 2px
+  background: var(--active)
+
+  .p-slider-range
+    border-radius: 2px
+    background: var(--accent)
+
+  .p-slider-handle
+    width: 18px
+    height: 18px
+    margin-top: -9px
+    margin-left: -9px
+    border: 2px solid var(--surface-overlay)
+    background: #e9eaec
+    transition: box-shadow .15s
+
+    &:hover,
+    &:focus-visible
+      background: #e9eaec
+      border-color: var(--surface-overlay)
+      box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent)
+
+  &.p-disabled
+    opacity: 1
+
+    .p-slider-range
+      background: var(--border-strong)
+
+    .p-slider-handle
+      background: var(--text-muted)

@@ -26,6 +26,12 @@ const STATUS_PENDING = svgUri(
 
 const labelOffset = (text?: string) => 12 + (text?.length ?? 0) * 3;
 
+// The margins are set from the angle of a link once it is drawn, see bindEdgeLabelUpdates
+const labelMarginX = (ele: cytoscape.EdgeSingular) =>
+  ele.data('labelMarginX') ?? 0;
+const labelMarginY = (ele: cytoscape.EdgeSingular) =>
+  ele.data('labelMarginY') ?? 0;
+
 function nodeImage(ele: cytoscape.NodeSingular): string {
   const image: string | undefined = ele.data('image');
   if (!image) return STATUS_NONE;
@@ -49,9 +55,9 @@ function statusImage(ele: cytoscape.NodeSingular): string {
 export const topologyStyle = [
   // shared label style
   {
-    selector: '.topology-node, .drawn-shape',
+    selector: '.topology-node',
     style: {
-      'font-family': 'Figtree',
+      'font-family': 'Figtree Variable, sans-serif',
       color: '#e0e0e1',
       'text-valign': 'bottom',
       'text-halign': 'center',
@@ -85,11 +91,20 @@ export const topologyStyle = [
       'bounds-expansion': 6,
       'background-image-opacity': [1, 1],
       label: 'data(label)',
+      'text-events': 'yes',
       'font-size': 12,
-      'text-margin-y': 4,
+      // Below the outline of the selection
+      'text-margin-y': 9,
       'text-margin-x': 32,
       'z-index': 0,
       'z-index-compare': 'manual',
+    },
+  },
+  // The label is hidden while it is edited in place
+  {
+    selector: '.topology-node.renaming',
+    style: {
+      'text-opacity': 0,
     },
   },
   {
@@ -99,59 +114,11 @@ export const topologyStyle = [
     },
   },
 
-  // groups
+  // No shade while an element is pressed, like the annotations
   {
-    selector: '.drawn-shape',
+    selector: ':active',
     style: {
-      shape: 'round-rectangle',
-      'background-color': '#3fcfad',
-      'background-opacity': 0.045,
-      'border-color': '#3fcfad',
-      'border-opacity': 0.28,
-      'border-width': 1,
-      padding: 24,
-      color: '#3fcfad',
-      'font-weight': 'normal',
-      'font-size': 12,
-      'text-margin-y': 8,
-    },
-  },
-  {
-    selector: '.drawn-shape[label]',
-    style: {
-      label: 'data(label)',
-      'z-index': 9999,
-    },
-  },
-  {
-    selector: '.drawn-shape:selected',
-    style: {
-      'border-color': '#3fcfad',
-      'border-opacity': 1,
-      'background-opacity': 0.08,
-    },
-  },
-
-  // helpers
-  {
-    selector: '.ghost-node',
-    style: {
-      width: 1,
-      height: 1,
-      'background-opacity': 0,
-      'border-opacity': 0,
-      label: '',
-      opacity: 0,
-      events: 'no',
-    },
-  },
-  {
-    selector: '.ghost-edge',
-    style: {
-      'line-style': 'dashed',
-      'line-color': '#ffffff',
-      'line-opacity': 0.3,
-      width: 2,
+      'overlay-opacity': 0,
     },
   },
 
@@ -167,21 +134,34 @@ export const topologyStyle = [
       width: 2,
       'source-label': 'data(sourceLabel)',
       'target-label': 'data(targetLabel)',
+      'text-events': 'yes',
       'source-text-offset': (ele: cytoscape.EdgeSingular) =>
         labelOffset(ele.data('sourceLabel')),
       'target-text-offset': (ele: cytoscape.EdgeSingular) =>
         labelOffset(ele.data('targetLabel')),
       'source-text-rotation': 'autorotate',
       'target-text-rotation': 'autorotate',
-      'source-text-margin-x': 'data(labelMarginX)',
-      'source-text-margin-y': 'data(labelMarginY)',
-      'target-text-margin-x': 'data(labelMarginX)',
-      'target-text-margin-y': 'data(labelMarginY)',
-      'font-family': 'JetBrains Mono, monospace',
+      'source-text-margin-x': labelMarginX,
+      'source-text-margin-y': labelMarginY,
+      'target-text-margin-x': labelMarginX,
+      'target-text-margin-y': labelMarginY,
+      'font-family': 'JetBrains Mono Variable, monospace',
       'font-size': 10,
       color: 'rgba(255, 255, 255, 0.6)',
       'text-background-opacity': 0,
       'text-border-width': 0,
+    },
+  },
+  {
+    selector: 'edge.renaming-source',
+    style: {
+      'source-label': '',
+    },
+  },
+  {
+    selector: 'edge.renaming-target',
+    style: {
+      'target-label': '',
     },
   },
   {
@@ -199,25 +179,6 @@ export const topologyStyle = [
     selector: 'edge[state = "unknown"]',
     style: {
       'line-opacity': 0.2,
-    },
-  },
-
-  // group close button
-  {
-    selector: 'node.compound-close-btn',
-    style: {
-      shape: 'ellipse',
-      width: 20,
-      height: 20,
-      label: '×',
-      'font-size': 14,
-      'text-valign': 'center',
-      'text-halign': 'center',
-      'background-color': '#ff5c6c',
-      color: '#1a0a0c',
-      'overlay-padding': 0,
-      visibility: 'hidden',
-      'z-index': 9999,
     },
   },
 ];

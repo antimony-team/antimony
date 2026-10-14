@@ -1,6 +1,6 @@
-import {InterfaceConfig} from '@sb/types/domain/device-info';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {User} from '@sb/types/domain/user';
-import {Position, uuid4, YAMLDocument} from '@sb/types/types';
+import {Position, uuid4} from '@sb/types/types';
 
 export type EditingFile = BindFile | Topology;
 
@@ -27,41 +27,33 @@ export type TopologyIn = {
   syncUrl?: string;
 };
 
-export type TopologyOut = TopologyIn & {
+// The server always sends all fields, only the input of an update can leave some out
+export type TopologyOut = Required<TopologyIn> & {
   id: uuid4;
   creator: User;
   bindFiles: BindFile[];
   lastDeployFailed: boolean;
 };
 
-export type Topology = TopologyMeta & {
+// A topology of a collection, as the server stores it
+export type Topology = {
   id: uuid4;
-  name: string;
-  definition: YAMLDocument<TopologyDefinition>;
-  definitionString: string;
-  annotations: TopologyAnnotations;
-  annotationsString: string;
   collectionId: uuid4;
   creator: User;
   syncUrl: string;
   bindFiles: BindFile[];
   lastDeployFailed: boolean;
-};
 
-export type RunTopology = TopologyMeta & {
-  definition: YAMLDocument<TopologyDefinition>;
+  // What the topology means, with its document and its text
+  definition: TopologyDefinition;
   annotations: TopologyAnnotations;
 };
 
-export interface TopologyDefinition {
-  name: string;
-  topology: {
-    nodes: {[nodeName: string]: TopologyNode};
-    links: {
-      endpoints: string;
-    };
-  };
-}
+// The topology a lab was deployed with
+export type RunTopology = {
+  definition: TopologyDefinition;
+  annotations: TopologyAnnotations;
+};
 
 /**
  * The annotations of a topology, which hold the layout of its graph.
@@ -70,6 +62,9 @@ export interface TopologyDefinition {
  */
 export interface TopologyAnnotations {
   nodeAnnotations?: NodeAnnotation[];
+  freeTextAnnotations?: FreeTextAnnotation[];
+  freeShapeAnnotations?: FreeShapeAnnotation[];
+  groupStyleAnnotations?: GroupStyleAnnotation[];
 
   [key: string]: unknown;
 }
@@ -80,8 +75,83 @@ export interface NodeAnnotation {
   position?: Position;
   geoCoordinates?: GeoCoordinates;
   icon?: string;
+  groupId?: string;
+
+  // Legacy group membership by group name, replaced by groupId
   group?: string;
   level?: string;
+
+  [key: string]: unknown;
+}
+
+export type BorderStyle = 'solid' | 'dashed' | 'dotted' | 'double';
+
+/**
+ * A group of nodes, shown as a box behind its members. The position is the
+ * top left corner of the box.
+ */
+export interface GroupStyleAnnotation {
+  id: string;
+  name: string;
+  level: string;
+  position: Position;
+  width: number;
+  height: number;
+  parentId?: string;
+  groupId?: string;
+  zIndex?: number;
+  backgroundColor?: string;
+
+  // Opacity of the background color from 0 to 100
+  backgroundOpacity?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: BorderStyle;
+  borderRadius?: number;
+  labelColor?: string;
+  labelPosition?: string;
+
+  [key: string]: unknown;
+}
+
+/**
+ * A rectangle, circle or line. Rectangles and circles are positioned by their
+ * top left corner, lines go from the position to the end position.
+ */
+export interface FreeShapeAnnotation {
+  id: string;
+  shapeType: 'rectangle' | 'circle' | 'line';
+  position: Position;
+  width?: number;
+  height?: number;
+  endPosition?: Position;
+  groupId?: string;
+  zIndex?: number;
+  fillColor?: string;
+  fillOpacity?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: Exclude<BorderStyle, 'double'>;
+  cornerRadius?: number;
+  lineStartArrow?: boolean;
+  lineEndArrow?: boolean;
+  lineArrowSize?: number;
+
+  [key: string]: unknown;
+}
+
+export interface FreeTextAnnotation {
+  id: string;
+  text: string;
+  position: Position;
+  width?: number;
+  height?: number;
+  groupId?: string;
+  zIndex?: number;
+  fontSize?: number;
+  fontColor?: string;
+  backgroundColor?: string;
+  textAlign?: 'left' | 'center' | 'right';
 
   [key: string]: unknown;
 }
@@ -91,42 +161,7 @@ export interface GeoCoordinates {
   lng: number;
 }
 
-/**
- * Metadata object to hold the connections and positions of nodes in a topology.
- *
- * This object is generated from the definition object and is not persisted.
- */
-export type TopologyMeta = {
-  nodeCount: number;
-  connections: NodeConnection[];
-  connectionMap: Map<string, NodeConnection[]>;
-};
-
-/**
- * Holds information about a link between two nodes.
- *
- * This object is generated from the definition object and is not persisted.
- */
-export interface NodeConnection {
-  index: number;
-
-  hostNode: string;
-  hostInterface: string;
-  hostInterfaceIndex: number;
-  hostInterfaceConfig: InterfaceConfig;
-
-  targetNode: string;
-  targetInterface: string;
-  targetInterfaceIndex: number;
-  targetInterfaceConfig: InterfaceConfig;
-}
-
-export interface TopologyNode {
-  kind?: string;
-  image?: string;
-  labels?: NodeLabels;
-}
-
+// The graph-* labels of a node, which held its layout before there were annotations
 export interface NodeLabels {
   'graph-icon'?: string;
   'graph-group'?: string;

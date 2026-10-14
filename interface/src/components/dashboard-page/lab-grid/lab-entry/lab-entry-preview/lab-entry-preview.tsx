@@ -4,11 +4,12 @@ import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 
 import {placeNodes} from '@sb/lib/graph/placement';
-import {readGraphNodes} from '@sb/lib/graph/topology-graph';
-import {NodeConnection, RunTopology} from '@sb/types/domain/topology';
+import {graphLinks, readGraphNodes} from '@sb/lib/graph/topology-graph';
+import {Choose, Otherwise, When} from '@sb/types/control';
+import {RunTopology} from '@sb/types/domain/topology';
+import {TopologyLink} from '@sb/types/domain/topology-definition';
 
 import './lab-entry-preview.sass';
-import {Choose, Otherwise, When} from '@sb/types/control';
 
 const PREVIEW_WIDTH = 280;
 const PREVIEW_HEIGHT = 96;
@@ -36,7 +37,7 @@ const LabEntryPreview = observer((props: LabPreviewProps) => {
   const layout = useMemo(() => {
     const positions = readPositions(props.topology);
     return positions
-      ? buildLayout(positions, props.topology.connections)
+      ? buildLayout(positions, graphLinks(props.topology.definition))
       : null;
   }, [props.topology]);
 
@@ -84,11 +85,7 @@ const LabEntryPreview = observer((props: LabPreviewProps) => {
 
 function readPositions(topology: RunTopology): Map<string, Point> | null {
   const positions = new Map<string, Point>();
-  const placedPositions = placeNodes(
-    topology.definition,
-    topology.annotations,
-    topology.connections,
-  );
+  const placedPositions = placeNodes(topology.definition, topology.annotations);
 
   for (const node of readGraphNodes(
     topology.definition,
@@ -102,7 +99,7 @@ function readPositions(topology: RunTopology): Map<string, Point> | null {
 
 function buildLayout(
   positions: Map<string, Point>,
-  connections: NodeConnection[],
+  links: readonly TopologyLink[],
 ): PreviewLayout {
   const points = [...positions.values()];
   const xs = points.map(p => p.x);
@@ -127,15 +124,15 @@ function buildLayout(
   );
   const nodes = [...projected.values()];
 
-  const links = connections.flatMap(connection => {
-    const host = projected.get(connection.hostNode);
-    const target = projected.get(connection.targetNode);
+  const lines = links.flatMap(({endpoints}) => {
+    const host = projected.get(endpoints[0].node);
+    const target = projected.get(endpoints[1].node);
     return host && target ? [[host, target] as [Point, Point]] : [];
   });
 
   return {
     nodes,
-    links,
+    links: lines,
     nodeSize: getNodeSize(nodes),
     linkWidth: nodes.length <= 20 ? 1.25 : nodes.length <= 50 ? 0.9 : 0.6,
     linkOpacity: nodes.length <= 20 ? 0.35 : nodes.length <= 50 ? 0.25 : 0.18,

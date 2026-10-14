@@ -5,6 +5,7 @@ WORKDIR ../
 # We copy all of the needed local files into the docker container and run commands to install dependencies and build
 COPY ./.babelrc ./.prettierrc.cjs ./eslint.config.js ./package.json ./tsconfig.json ./yarn.lock ./vite.config.ts ./index.html  ./
 COPY ./docker/.env ./
+COPY ./patches ./patches/
 COPY ./src ./src/
 COPY ./public ./public/
 COPY ./local-data ./local-data/

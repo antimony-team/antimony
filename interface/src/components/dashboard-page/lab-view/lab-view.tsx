@@ -4,10 +4,14 @@ import classNames from 'classnames';
 import cytoscape from 'cytoscape';
 import {observer} from 'mobx-react-lite';
 
-import {ContextMenu} from 'primereact/contextmenu';
 import {MenuItem} from 'primereact/menuitem';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
 
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
+import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
+import TextLayer from '@sb/components/common/topology-graph/text-layer/text-layer';
 import TopologyGraph, {
   TopologyGraphRef,
 } from '@sb/components/common/topology-graph/topology-graph';
@@ -21,7 +25,15 @@ import LogDialog, {
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
-import {generateGraph} from '@sb/lib/graph/cytoscape-utils';
+import {
+  annotationBoxes,
+  readGraphTexts,
+} from '@sb/lib/graph/annotation-geometry';
+import {
+  generateGraph,
+  generateGroups,
+  generateLayerItems,
+} from '@sb/lib/graph/cytoscape-utils';
 import {
   useCollectionStore,
   useDeviceStore,
@@ -62,7 +74,7 @@ const PULSING = ['starting', 'stopping', 'settling'];
 const LabView = observer((props: LabDialogProps) => {
   const graphRef = useRef<TopologyGraphRef>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
-  const contextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
 
   // The node that is currently selected and active in the drawer
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -102,6 +114,23 @@ const LabView = observer((props: LabDialogProps) => {
     return generateGraph(props.lab.topologyDefinition, deviceStore);
   }, [props.lab?.id]);
 
+  const layerItems = useMemo(() => {
+    if (!props.lab) return [];
+
+    return generateLayerItems(
+      props.lab.topologyDefinition,
+      generateGroups(props.lab.topologyDefinition, elements),
+    );
+  }, [elements]);
+
+  const texts = useMemo(
+    () =>
+      readGraphTexts(
+        props.lab?.topologyDefinition.annotations.freeTextAnnotations ?? [],
+      ),
+    [props.lab?.id],
+  );
+
   const labCollection = useMemo(() => {
     if (!props.lab) return null;
 
@@ -121,13 +150,8 @@ const LabView = observer((props: LabDialogProps) => {
       return;
     }
 
-    // Ignore node and group context event if lab is not currently started
+    // Ignore node context events if lab is not currently started
     if (!props.lab?.instance) return;
-
-    // Ignore context events on group nodes
-    if (event.target.hasClass('drawn-shape')) {
-      return;
-    }
 
     if (event.target.hasClass('topology-node')) {
       const nodeId = event.target.id();
@@ -266,13 +290,6 @@ const LabView = observer((props: LabDialogProps) => {
 
     if (!cyRef.current || !props.lab || !instance) {
       return undefined;
-    }
-
-    // Return an empty context menu if selected node is a group node
-    if (
-      cyRef.current.getElementById(contextTargetNode).hasClass('drawn-shape')
-    ) {
-      return;
     }
 
     const node = instance.nodeMap.get(contextTargetNode);
@@ -542,11 +559,14 @@ const LabView = observer((props: LabDialogProps) => {
                 cyRef.current = cy;
                 return startStatePing(cy);
               }}
+              underlay={<AnnotationLayer items={layerItems} />}
+              overlay={<TextLayer texts={texts} />}
+              getLayerBoxes={() => annotationBoxes(layerItems, texts)}
             />
           </div>
         </div>
       </div>
-      <ContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
+      <SBContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
       <LogDialog dialogState={logDialogState} />
       <TerminalDialog dialogState={terminalDialogState} />
     </>
