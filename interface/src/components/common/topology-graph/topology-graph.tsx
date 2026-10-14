@@ -48,6 +48,9 @@ export interface TopologyGraphRef {
 
 const NO_ELEMENTS: ElementDefinition[] = [];
 
+// A wheel notch zooms by about 10%, cytoscape's default of about 3% is too slow
+const WHEEL_SENSITIVITY = 3.5;
+
 /**
  * Brings the graph's elements in line with the given ones. Existing elements are updated in place, so an edit doesn't
  * redraw the whole graph. This is done manually instead of through the elements prop of the React Cytoscape library,
@@ -299,6 +302,7 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
           elements={NO_ELEMENTS}
           minZoom={0.1}
           maxZoom={10}
+          wheelSensitivity={WHEEL_SENSITIVITY}
           autolock={props.isLocked}
           layout={{name: 'preset'}}
           cy={(cy: cytoscape.Core) => {

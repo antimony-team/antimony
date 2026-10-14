@@ -56,6 +56,7 @@
   },
   "scripts": {
     "start": "vite",
+    "postinstall": "patch-package",
     "lint": "gts lint '**/*.{ts,tsx}'",
     "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts",
     "e2e:ui": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts --ui",
@@ -107,6 +108,7 @@
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-unused-imports": "^4.1.4",
     "gts": "^6.0.2",
+    "patch-package": "^8.0.1",
     "prettier": "^3.5.3",
     "sass": "^1.89.2",
     "typescript": "^5.8.3",
