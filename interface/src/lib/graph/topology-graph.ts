@@ -1,5 +1,6 @@
 import {isMap, isScalar, isSeq} from 'yaml';
 
+import {containerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {pushOrCreateList} from '@sb/lib/utils/utils';
 import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {
@@ -88,6 +89,7 @@ export function readGraphNodes(
   annotations: TopologyAnnotations,
 ): GraphNode[] {
   const nodes = definition.toJS()?.topology?.nodes ?? {};
+  const resolvedNodes = containerlabFormat.open(definition).nodes;
   const nodeAnnotations = nodeAnnotationMap(annotations);
 
   return Object.entries(nodes).map(([name, node]) => {
@@ -95,7 +97,9 @@ export function readGraphNodes(
 
     return {
       name,
-      kind: node?.kind,
+
+      // The kind can be inherited from a group or the defaults
+      kind: resolvedNodes.get(name)?.device,
       position: readNodePosition(node?.labels, annotation),
       icon: readNodeIcon(node, annotation),
       groupId: annotation?.groupId,
@@ -184,27 +188,35 @@ export function buildTopologyMetadata(
   topology: YAMLDocument<TopologyDefinition>,
   getInterfaceConfig: InterfaceConfigLookup,
 ): TopologyMeta {
-  const nodes = topology.toJS()?.topology?.nodes ?? {};
-  const links = topology.toJS()?.topology?.links;
-  const nodeCount = Object.keys(nodes).length;
+  const {nodes, links} = containerlabFormat.open(topology);
+  const nodeCount = nodes.size;
 
   const connections: NodeConnection[] = [];
   const connectionMap = new Map<string, NodeConnection[]>();
 
-  if (!Array.isArray(links)) {
-    return {nodeCount, connections, connectionMap};
-  }
+  // A connection is a link between two named interfaces of two nodes, links to the host have a single endpoint
+  for (const {index, endpoints} of links) {
+    if (endpoints.length !== 2) continue;
 
-  // The index is the position of the link in the topology, skipped links included
-  for (const [index, link] of links.entries()) {
-    const [hostNode, hostInterface] = link.endpoints[0].split(':');
-    const [targetNode, targetInterface] = link.endpoints[1].split(':');
+    const [
+      {node: hostNode, interface: hostInterface},
+      {node: targetNode, interface: targetInterface},
+    ] = endpoints;
 
-    // Ignore the link if one of the nodes does not exist
-    if (!nodes[hostNode] || !nodes[targetNode]) continue;
+    // Ignore the link if an interface isn't named or one of the nodes doesn't exist
+    if (
+      !hostInterface ||
+      !targetInterface ||
+      !nodes.has(hostNode) ||
+      !nodes.has(targetNode)
+    ) {
+      continue;
+    }
 
-    const hostInterfaceConfig = getInterfaceConfig(nodes[hostNode].kind);
-    const targetInterfaceConfig = getInterfaceConfig(nodes[targetNode].kind);
+    const hostInterfaceConfig = getInterfaceConfig(nodes.get(hostNode)!.device);
+    const targetInterfaceConfig = getInterfaceConfig(
+      nodes.get(targetNode)!.device,
+    );
 
     const hostInterfaceIndex = parseInterface(
       hostInterface,

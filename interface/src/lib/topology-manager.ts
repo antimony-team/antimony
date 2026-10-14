@@ -245,6 +245,8 @@ export class TopologyManager {
   }
 
   private static cloneTopology(topology: Topology): Topology {
+    const model = topology.model.clone();
+
     return {
       id: topology.id,
       name: topology.name,
@@ -256,7 +258,8 @@ export class TopologyManager {
       nodeCount: topology.nodeCount,
       connections: cloneDeep(topology.connections),
       connectionMap: cloneDeep(topology.connectionMap),
-      definition: topology.definition.clone(),
+      model: model,
+      definition: model.document,
       definitionString: topology.definitionString,
       annotations: cloneDeep(topology.annotations),
       annotationsString: topology.annotationsString,
@@ -707,6 +710,8 @@ export class TopologyManager {
     }
 
     runInAction(() => {
+      this.editingTopology!.model =
+        this.topologyStore.format.open(updatedTopology);
       this.editingTopology!.definition = updatedTopology;
       this.editingTopology!.nodeCount = topologyMeta.nodeCount;
       this.editingTopology!.connections = topologyMeta.connections;

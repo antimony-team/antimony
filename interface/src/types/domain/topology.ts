@@ -1,4 +1,5 @@
 import {InterfaceConfig} from '@sb/types/domain/device-info';
+import {TopologyModel} from '@sb/types/domain/topology-model';
 import {User} from '@sb/types/domain/user';
 import {Position, uuid4, YAMLDocument} from '@sb/types/types';
 
@@ -37,7 +38,14 @@ export type TopologyOut = TopologyIn & {
 export type Topology = TopologyMeta & {
   id: uuid4;
   name: string;
+
+  // What the topology means, with its document and its text
+  model: TopologyModel<TopologyDefinition>;
+
+  /** @deprecated The document of the model, use the model instead. */
   definition: YAMLDocument<TopologyDefinition>;
+
+  /** @deprecated The text of the model, use the model instead. */
   definitionString: string;
   annotations: TopologyAnnotations;
   annotationsString: string;
@@ -49,6 +57,9 @@ export type Topology = TopologyMeta & {
 };
 
 export type RunTopology = TopologyMeta & {
+  model: TopologyModel<TopologyDefinition>;
+
+  /** @deprecated The document of the model, use the model instead. */
   definition: YAMLDocument<TopologyDefinition>;
   annotations: TopologyAnnotations;
 };

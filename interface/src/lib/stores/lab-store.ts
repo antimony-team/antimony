@@ -344,11 +344,10 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
-    const definition = this.topologyStore.parseTopologyDefinition(
-      input.topologyDefinition,
-    );
+    const model = this.topologyStore.readTopology(input.topologyDefinition);
+    const definition = model?.document;
 
-    if (!definition) {
+    if (!model || !definition) {
       console.error('[NET] Failed to parse incoming run topology: ', input);
       return null;
     }
@@ -371,6 +370,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         ...buildTopologyMetadata(definition, kind =>
           this.rootStore._deviceStore.getInterfaceConfig(kind),
         ),
+        model: model,
         definition: definition,
         annotations: annotations ?? {},
       },
