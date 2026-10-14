@@ -2,11 +2,13 @@ package lab
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/clabtypes"
 	"antimonyBackend/config"
 	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
@@ -43,6 +45,8 @@ type (
 
 		labEventBus *utils.EventBus[*Lab]
 
+		topologyPolicyEngine *policy.Engine
+
 		statusMessageNamespace *socket.OutputNamespace[statusmessage.Message]
 	}
 )
@@ -56,6 +60,7 @@ func CreateService(
 	storageManager *storage.Manager,
 	config *config.AntimonyConfig,
 	labEventBus *utils.EventBus[*Lab],
+	topologyPolicyEngine *policy.Engine,
 	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
 ) *Service {
 	labService := &Service{
@@ -68,6 +73,7 @@ func CreateService(
 		storageManager:         storageManager,
 		labEventBus:            labEventBus,
 		runtimeService:         nil,
+		topologyPolicyEngine:   topologyPolicyEngine,
 		statusMessageNamespace: statusMessageNamespace,
 	}
 
@@ -135,13 +141,59 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		return "", err
 	}
 
-	topologyDefinition, topologyAnnotations, _, err := s.topologyService.LoadTopology(
+	topologyDefinitionString, topologyAnnotationsString, _, err := s.topologyService.LoadTopology(
 		labTopology.UUID,
 		[]topology.BindFile{},
 	)
 	if err != nil {
-		log.Error("Failed to read definition of topology", "topology", labTopology.UUID, "error", err.Error())
+		log.Error(
+			"Failed to read definition of topology at lab creation",
+			"topology", labTopology.UUID,
+			"error", err.Error(),
+		)
 		return "", utils.ErrAntimony
+	}
+
+	var topologyDefinitionRaw any
+	var topologyDefinition clabtypes.TopologyDefinition
+
+	if err := s.schemaService.Parse(topologyDefinitionString, &topologyDefinition, &topologyDefinitionRaw); err != nil {
+		log.Error(
+			"Failed to parse topology definition at lab creation",
+			"topology", labTopology.UUID,
+			"error", err.Error(),
+		)
+
+		return "", utils.ErrAntimony
+	}
+
+	bindFiles, err := s.topologyRepo.GetBindFileForTopology(ctx, labTopology.UUID)
+	if err != nil {
+		log.Error(
+			"Failed to get bind files for topology at lab creation",
+			"topology", labTopology.UUID,
+			"error", err.Error(),
+		)
+		return "", utils.ErrAntimony
+	}
+
+	// If the user is not an admin, the topology can't contain any unsafe features
+	if !authUser.IsAdmin {
+		bindFilePaths := lo.Map(bindFiles, func(bindFile topology.BindFile, index int) string {
+			return bindFile.FilePath
+		})
+
+		findings := s.topologyPolicyEngine.Check(
+			labTopology.UUID,
+			topologyDefinitionRaw,
+			topologyDefinition.Topology,
+			topologyDefinitionString,
+			bindFilePaths,
+		)
+
+		if len(findings) > 0 {
+			return "", utils.ErrUnsafeTopology
+		}
 	}
 
 	labUuid := utils.GenerateUuid()
@@ -153,13 +205,17 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		Creator:             *creator,
 		Topology:            *labTopology,
 		Collection:          labTopology.Collection,
-		TopologyDefinition:  &topologyDefinition,
-		TopologyAnnotations: &topologyAnnotations,
+		TopologyDefinition:  &topologyDefinitionString,
+		TopologyAnnotations: &topologyAnnotationsString,
 	}
 
 	var instanceName string
 	if instanceName, err = s.createLabEnvironment(lab); err != nil {
-		log.Error("Failed to create lab environment", "topology", "error", err.Error())
+		log.Error(
+			"Failed to create lab environment",
+			"topology", labTopology.UUID,
+			"error", err.Error(),
+		)
 		return "", utils.ErrAntimony
 	}
 
@@ -327,41 +383,44 @@ func (s *Service) createLabEnvironment(lab *Lab) (string, error) {
 	return runTopologyName, nil
 }
 
-// renameTopology reads a topology and returns its definition with the given name. Only the value of
-// the name changes, everything else is written back as it was, including comments, anchors, the
-// notation of links and the fields Antimony doesn't know.
+// renameTopology reads a topology and returns its definition with the given name.
 func (s *Service) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
-	var (
-		definitionString string
-		document         yaml.Node
-	)
+	var definitionString string
 	if err := s.storageManager.ReadTopology(topologyId, &definitionString, new(string)); err != nil {
 		return err
 	}
 
-	if err := yaml.Unmarshal([]byte(definitionString), &document); err != nil {
+	renamed, err := renameDefinition(definitionString, topologyName)
+	if err != nil {
 		return err
+	}
+
+	*runTopologyDefinition = renamed
+	return nil
+}
+
+// renameDefinition returns a topology definition with the given name. Only the value of the name changes,
+// everything else is written back as it was, including comments, anchors, the notation of links and the
+// fields Antimony doesn't know.
+func renameDefinition(definition string, name string) (string, error) {
+	var document yaml.Node
+	if err := yaml.Unmarshal([]byte(definition), &document); err != nil {
+		return "", err
 	}
 
 	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
-		return utils.ErrInvalidTopology
+		return "", utils.ErrInvalidTopology
 	}
 
-	utils.SetMappingValue(document.Content[0], "name", topologyName)
-
-	var output strings.Builder
-	encoder := yaml.NewEncoder(&output)
-	encoder.SetIndent(2)
-
-	if err := encoder.Encode(&document); err != nil {
-		return err
-	}
-	if err := encoder.Close(); err != nil {
-		return err
+	// Other fields that are aliases of the name keep the old one
+	if nameNode := utils.MappingValue(document.Content[0], "name"); nameNode != nil && nameNode.Anchor != "" {
+		utils.DetachAliases(&document, nameNode)
+		nameNode.Anchor = ""
 	}
 
-	*runTopologyDefinition = output.String()
-	return nil
+	utils.SetMappingValue(document.Content[0], "name", name)
+
+	return utils.EncodeYaml(&document)
 }
 
 // instanceNameSuffix returns a short, unique, containerlab-safe suffix for an instance name.

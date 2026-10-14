@@ -44,7 +44,8 @@ func defaultConfig() *AntimonyConfig {
 			OpenIdAdminGroups:  make([]string, 0),
 		},
 		Security: SecurityConfig{
-			TopologyPolicy: true,
+			TopologyPolicy:       true,
+			AllowedImagePrefixes: make([]string, 0),
 		},
 		Shell: ShellConfig{
 			UserLimit: 20,

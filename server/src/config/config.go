@@ -110,7 +110,8 @@ type AuthConfig struct {
 }
 
 type SecurityConfig struct {
-	TopologyPolicy bool `yaml:"topologyPolicy"`
+	TopologyPolicy       bool     `yaml:"topologyPolicy"`
+	AllowedImagePrefixes []string `yaml:"allowedImagePrefixes"`
 }
 
 type ShellConfig struct {

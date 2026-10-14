@@ -13,6 +13,7 @@ auth:
   openIdAdminGroups: []
 security:
   topologyPolicy: true
+  allowedImagePrefixes: []
 shell:
   userLimit: 20
   timeout: 1800

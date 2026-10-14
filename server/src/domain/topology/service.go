@@ -33,6 +33,7 @@ func CreateService(
 	collectionRepo *collection.Repository,
 	schemaService *schema.Service,
 	storageManager *storage.Manager,
+	policyEngine *policy.Engine,
 ) *Service {
 	return &Service{
 		repo:           repo,
@@ -40,9 +41,7 @@ func CreateService(
 		collectionRepo: collectionRepo,
 		schemaService:  schemaService,
 		storageManager: storageManager,
-		policyEngine: policy.CreateEngine(policy.Options{
-			AllowedImagePrefixes: []string{"*"},
-		}),
+		policyEngine:   policyEngine,
 	}
 }
 
@@ -235,14 +234,29 @@ func (s *Service) Delete(ctx context.Context, topologyId string, authUser auth.A
 		return utils.ErrNoWriteAccessToTopology
 	}
 
-	return s.repo.Delete(ctx, topology)
+	if err := s.repo.Delete(ctx, topology); err != nil {
+		return err
+	}
+
+	s.policyEngine.Forget(topology.UUID)
+	return nil
 }
 
 // DeleteTopologiesOfCollection deletes all topologies of the collection with the given UUID.
 //
 // It doesn't check permissions; the caller has already decided that the collection may be deleted.
 func (s *Service) DeleteTopologiesOfCollection(ctx context.Context, collectionId string) error {
-	return s.repo.DeleteByCollection(ctx, collectionId)
+	topologyIds, err := s.repo.DeleteByCollection(ctx, collectionId)
+	if err != nil {
+		return err
+	}
+
+	// Make sure the topology engine forgets the topologies
+	for i := range topologyIds {
+		s.policyEngine.Forget(topologyIds[i])
+	}
+
+	return nil
 }
 
 func (s *Service) CreateBindFile(
