@@ -2,16 +2,18 @@ package topology
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/clabtypes"
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
 	"antimonyBackend/storage"
 	"antimonyBackend/utils"
 	"context"
 	"slices"
 
 	"github.com/charmbracelet/log"
-	"gopkg.in/yaml.v3"
+	"github.com/samber/lo"
 )
 
 type Service struct {
@@ -21,6 +23,8 @@ type Service struct {
 
 	schemaService  *schema.Service
 	storageManager *storage.Manager
+
+	policyEngine *policy.Engine
 }
 
 func CreateService(
@@ -36,6 +40,9 @@ func CreateService(
 		collectionRepo: collectionRepo,
 		schemaService:  schemaService,
 		storageManager: storageManager,
+		policyEngine: policy.CreateEngine(policy.Options{
+			AllowedImagePrefixes: []string{"*"},
+		}),
 	}
 }
 
@@ -54,38 +61,16 @@ func (s *Service) Get(ctx context.Context, authUser auth.AuthenticatedUser) ([]T
 	if err != nil {
 		return nil, err
 	}
-	result := make([]TopologyFull, 0)
-	for _, topology := range topologies {
-		var (
-			definition    string
-			annotations   string
-			bindFilesFull []BindFileFull
-		)
 
-		bindFiles, err := s.repo.GetBindFileForTopology(ctx, topology.UUID)
-		if err != nil {
-			log.Errorf("Failed to get bind files for topology '%s': %s", topology.UUID, err.Error())
-			continue
+	result := lo.FilterMap(topologies, func(topology Topology, index int) (TopologyFull, bool) {
+		if topologyFull, err := s.createTopologyFull(ctx, &topology); err != nil {
+			return TopologyFull{}, false
+		} else {
+			return *topologyFull, true
 		}
+	})
 
-		if definition, annotations, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
-			log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
-			continue
-		}
-
-		result = append(result, TopologyFull{
-			ID:               topology.UUID,
-			Definition:       definition,
-			Annotations:      annotations,
-			SyncUrl:          topology.SyncUrl,
-			Collection:       topology.Collection,
-			Creator:          topology.Creator,
-			BindFiles:        bindFilesFull,
-			LastDeployFailed: topology.LastDeployFailed,
-		})
-	}
-
-	return result, err
+	return result, nil
 }
 
 func (s *Service) GetByUuid(
@@ -94,11 +79,8 @@ func (s *Service) GetByUuid(
 	authUser auth.AuthenticatedUser,
 ) (*TopologyFull, error) {
 	var (
-		topology      *Topology
-		definition    string
-		annotations   string
-		bindFilesFull []BindFileFull
-		err           error
+		topology *Topology
+		err      error
 	)
 	if topology, err = s.repo.GetByUuid(ctx, labId); err != nil {
 		return nil, err
@@ -109,29 +91,7 @@ func (s *Service) GetByUuid(
 		return nil, utils.ErrNoAccessToTopology
 	}
 
-	bindFiles, err := s.repo.GetBindFileForTopology(ctx, topology.UUID)
-	if err != nil {
-		log.Errorf("Failed to get bind files for topology '%s': %s", topology.UUID, err.Error())
-		return nil, utils.ErrInvalidTopology
-	}
-
-	if definition, annotations, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
-		log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
-		return nil, utils.ErrInvalidTopology
-	}
-
-	result := &TopologyFull{
-		ID:               topology.UUID,
-		Definition:       definition,
-		Annotations:      annotations,
-		SyncUrl:          topology.SyncUrl,
-		Collection:       topology.Collection,
-		Creator:          topology.Creator,
-		BindFiles:        bindFilesFull,
-		LastDeployFailed: topology.LastDeployFailed,
-	}
-
-	return result, err
+	return s.createTopologyFull(ctx, topology)
 }
 
 func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.AuthenticatedUser) (string, error) {
@@ -146,7 +106,8 @@ func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.Auth
 		return "", utils.ErrNoWriteAccessToCollection
 	}
 
-	if _, err := s.schemaService.Parse(*req.Definition); err != nil {
+	var definition clabtypes.TopologyDefinition
+	if err = s.schemaService.Parse(*req.Definition, &definition, new(any)); err != nil {
 		return "", err
 	}
 
@@ -155,8 +116,7 @@ func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.Auth
 	}
 
 	// Don't allow duplicate topology names within the same collection
-	topologyName := s.getNameFromDefinition(*req.Definition)
-	if topologies, err := s.repo.GetByName(ctx, topologyName, *req.CollectionId); err != nil {
+	if topologies, err := s.repo.GetByName(ctx, definition.Name, *req.CollectionId); err != nil {
 		return "", err
 	} else if len(topologies) > 0 {
 		return "", utils.ErrTopologyNameExists
@@ -174,7 +134,7 @@ func (s *Service) Create(ctx context.Context, req TopologyIn, authUser auth.Auth
 
 	err = s.repo.Create(ctx, &Topology{
 		UUID:             newUuid,
-		Name:             topologyName,
+		Name:             definition.Name,
 		SyncUrl:          *req.SyncUrl,
 		Collection:       *topologyCollection,
 		Creator:          *creatorUser,
@@ -225,11 +185,12 @@ func (s *Service) Update(
 	}
 
 	if req.Definition != nil {
-		if _, err := s.schemaService.Parse(*req.Definition); err != nil {
+		var definition clabtypes.TopologyDefinition
+		if err := s.schemaService.Parse(*req.Definition, &definition, new(any)); err != nil {
 			return err
+		} else {
+			topologyName = definition.Name
 		}
-
-		topologyName = s.getNameFromDefinition(*req.Definition)
 	}
 
 	if req.Annotations != nil {
@@ -300,9 +261,8 @@ func (s *Service) CreateBindFile(
 		return "", utils.ErrNoWriteAccessToBindFile
 	}
 
-	// Validate and canonicalize the client-supplied path before anything else, so an invalid path is refused before
-	// it can reach the database or the filesystem.
-	filePath, err := storage.NormaliseBindFilePath(*req.FilePath)
+	// Validate and canonicalize the client-supplied path before anything else
+	filePath, err := storage.ValidateBindFilePath(*req.FilePath)
 	if err != nil {
 		return "", err
 	}
@@ -357,8 +317,8 @@ func (s *Service) UpdateBindFile(
 	bindFilePath := bindFile.FilePath
 
 	if req.FilePath != nil {
-		// Validate and canonicalize before any side effect.
-		newPath, err := storage.NormaliseBindFilePath(*req.FilePath)
+		// Validate and canonicalize the client-supplied path before anything else
+		newPath, err := storage.ValidateBindFilePath(*req.FilePath)
 		if err != nil {
 			return err
 		}
@@ -469,6 +429,49 @@ func (s *Service) SetLastDeployFailed(ctx context.Context, topology *Topology, h
 	}
 }
 
+func (s *Service) createTopologyFull(ctx context.Context, topology *Topology) (*TopologyFull, error) {
+	var (
+		definition       clabtypes.TopologyDefinition
+		definitionRaw    any
+		definitionString string
+		annotations      string
+		bindFilesFull    []BindFileFull
+	)
+
+	bindFiles, err := s.repo.GetBindFileForTopology(ctx, topology.UUID)
+	if err != nil {
+		log.Errorf("Failed to get bind files for topology '%s': %s", topology.UUID, err.Error())
+		return nil, utils.ErrInvalidTopology
+	}
+
+	if definitionString, annotations, bindFilesFull, err = s.LoadTopology(topology.UUID, bindFiles); err != nil {
+		log.Errorf("Failed to read definition of topology '%s': %s", topology.UUID, err.Error())
+		return nil, utils.ErrInvalidTopology
+	}
+
+	bindFilePaths := lo.Map(bindFiles, func(bindFile BindFile, _ int) string {
+		return bindFile.FilePath
+	})
+
+	if err = s.schemaService.Parse(definitionString, &definition, &definitionRaw); err != nil {
+		return nil, err
+	}
+
+	findings := s.policyEngine.Check(topology.UUID, definitionRaw, definition.Topology, definitionString, bindFilePaths)
+
+	return &TopologyFull{
+		ID:               topology.UUID,
+		Definition:       definitionString,
+		Annotations:      annotations,
+		SyncUrl:          topology.SyncUrl,
+		Collection:       topology.Collection,
+		Creator:          topology.Creator,
+		BindFiles:        bindFilesFull,
+		LastDeployFailed: topology.LastDeployFailed,
+		PolicyFindings:   findings,
+	}, nil
+}
+
 func (s *Service) loadBindFile(topologyId string, bindFile BindFile) (*BindFileFull, error) {
 	var fileContent string
 	if err := s.storageManager.ReadBindFile(topologyId, bindFile.FilePath, &fileContent); err != nil {
@@ -502,13 +505,4 @@ func (s *Service) saveBindFile(topologyId string, filePath string, fileContent s
 	}
 
 	return nil
-}
-
-func (s *Service) getNameFromDefinition(definitionString string) string {
-	var topologyDefinition struct {
-		Name string `yaml:"name"`
-	}
-	_ = yaml.Unmarshal([]byte(definitionString), &topologyDefinition)
-
-	return topologyDefinition.Name
 }

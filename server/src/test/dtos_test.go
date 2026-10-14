@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The DTOs below mirror the transport package's output types, with one deliberate difference: node
+// The DTOs below mirror the transport package's output clabtypes, with one deliberate difference: node
 // state is decoded as a plain int.
 //
 // transport.LabOut cannot decode the API's own response. deployment.NodeState implements

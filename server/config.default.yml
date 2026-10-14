@@ -24,6 +24,12 @@ auth:
   # A list of OpenID groups that are considered admin groups.
   # Default: []
   openIdAdminGroups: [ ]
+security:
+  # Whether non-admin users may deploy topologies with unsafe features.
+  # Unsafe features are anything that can affect the server or other labs, e.g., host binds, privileged nodes,
+  # host stage commands or netlab topologies. They are always shown as findings on the topology.
+  # Default: true
+  topologyPolicy: true
 shell:
   # The maximum number of shells a user can have open at the same time.
   # Default: 20

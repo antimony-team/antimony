@@ -77,7 +77,7 @@ type (
 	// one so that Docker's status strings could be decoded straight into InspectContainer — with no
 	// matching marshaller, which made the type asymmetric: encoding/json wrote it as a number and then
 	// refused to read that number back, so a client could not decode this API's own response using the
-	// transport types. Keeping the string handling local to the provider that needs it leaves NodeState
+	// transport clabtypes. Keeping the string handling local to the provider that needs it leaves NodeState
 	// a plain integer in both directions.
 	clabInspectContainer struct {
 		Name          string `json:"name"`

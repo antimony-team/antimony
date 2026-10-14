@@ -39,7 +39,7 @@ import (
  * The clabernetes provider.
  *
  * The pure helpers come first: the translation between Antimony's topologies, c9s's objects and
- * the shared provider types. After them, everything that only reads and writes API objects runs
+ * the shared provider clabtypes. After them, everything that only reads and writes API objects runs
  * against fake Kubernetes and c9s clients. Exec, port forwarding and log streaming need a real
  * API server and are not covered here, except for the capture's pcap stream, which runs on fakes.
  */

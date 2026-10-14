@@ -41,6 +41,7 @@ var ErrLabNameExists = errors.New("a lab with that name already exists in that c
 var ErrInvalidLabName = errors.New("the name of the lab is invalid")
 var ErrTopologyNameExists = errors.New("a topology with that name already exists in that collection")
 var ErrInvalidTopologyName = errors.New("the name for the topology is invalid")
+var ErrUnsafeTopology = errors.New("the topology contains unsafe features that the server rejected")
 var ErrBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrCollectionExists = errors.New("a collection with that name already exists")
 var ErrInvalidTopology = errors.New("the topology provided was invalid")

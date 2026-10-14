@@ -11,6 +11,8 @@ auth:
   openIdClientId: ""
   openIdRedirectHost: ""
   openIdAdminGroups: []
+security:
+  topologyPolicy: true
 shell:
   userLimit: 20
   timeout: 1800

@@ -3,6 +3,7 @@ package topology
 import (
 	"antimonyBackend/domain/collection"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
 
 	"gorm.io/gorm"
 )
@@ -47,6 +48,7 @@ type TopologyFull struct {
 	Creator          user.User
 	BindFiles        []BindFileFull
 	LastDeployFailed bool
+	PolicyFindings   []policy.Finding
 }
 
 type BindFile struct {

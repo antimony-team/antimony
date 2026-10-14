@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"antimonyBackend/clabtypes"
 	"antimonyBackend/config"
 	"antimonyBackend/utils"
 	"encoding/json"
@@ -16,12 +17,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Service struct {
-	schemaString            *string
-	clabSchema              *jsonschema.Schema
-	annotationsSchemaString *string
-	annotationsSchema       *jsonschema.Schema
-}
+type (
+	Service struct {
+		schemaString            *string
+		clabSchema              *jsonschema.Schema
+		annotationsSchemaString *string
+		annotationsSchema       *jsonschema.Schema
+	}
+)
 
 func CreateService(config *config.AntimonyConfig) *Service {
 	schema, schemaString := loadSchema(
@@ -52,22 +55,27 @@ func (u *Service) GetAnnotations() string {
 }
 
 // Parse unmarshals a topology definition and validates it against the containerlab schema.
-func (u *Service) Parse(data string) (*any, error) {
-	var obj any
+func (u *Service) Parse(data string, definition *clabtypes.TopologyDefinition, definitionRaw *any) error {
+	var node yaml.Node
 
-	if err := yaml.Unmarshal([]byte(data), &obj); err != nil {
-		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
+	if err := yaml.Unmarshal([]byte(data), &node); err != nil {
+		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
+	} else if err := node.Decode(definition); err != nil {
+		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
+	} else if err := node.Decode(definitionRaw); err != nil {
+		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
-	if err := u.clabSchema.Validate(obj); err != nil {
+	if err := u.clabSchema.Validate(*definitionRaw); err != nil {
+		log.Error(err, "Topology validation error")
 		if validationErr, ok := errors.AsType[*jsonschema.ValidationError](err); ok && failsAt(validationErr, "/name") {
-			return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopologyName, err.Error())
+			return fmt.Errorf("%w: %s", utils.ErrInvalidTopologyName, err.Error())
 		}
 
-		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
+		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
-	return &obj, nil
+	return nil
 }
 
 // ParseAnnotations unmarshals a topology annotations file and validates it against the annotations' schema.

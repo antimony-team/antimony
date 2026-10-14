@@ -28,7 +28,7 @@ var invalidTopologyAnnotations = map[string]string{
 	"schema violation":  `{"nodeAnnotations": [{"position": {"x": 0, "y": 0}}]}`,
 	"empty string":      "",
 	"not an object":     `["host1"]`,
-	"wrong field types": `{"nodeAnnotations": [{"id": "host1", "position": {"x": "left", "y": 0}}]}`,
+	"wrong field clabtypes": `{"nodeAnnotations": [{"id": "host1", "position": {"x": "left", "y": 0}}]}`,
 }
 
 /*

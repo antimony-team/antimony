@@ -513,7 +513,7 @@ func TestCreateLab_RapidCreationNeverCollides(t *testing.T) {
 // NodeState used to carry an UnmarshalText (so containerlab's inspect output, which reports states
 // as strings like "running", could be decoded) with no matching marshaller. encoding/json therefore
 // wrote it as a number and then refused to read that number back, so a Go client could not decode
-// this API's own response using the transport types. The string parsing belongs to the containerlab
+// this API's own response using the transport clabtypes. The string parsing belongs to the containerlab
 // provider's own DTO, not to the shared type.
 func TestInstanceOut_NodeStateRoundTrips(t *testing.T) {
 	h := NewHarness(t)
@@ -525,7 +525,7 @@ func TestInstanceOut_NodeStateRoundTrips(t *testing.T) {
 	var envelope utils.OkResponse[json.RawMessage]
 	require.NoError(t, json.Unmarshal([]byte(response.Body()), &envelope))
 
-	// The API's own output must decode into the transport types it was produced from.
+	// The API's own output must decode into the transport clabtypes it was produced from.
 	var decoded transport.LabOut
 	require.NoError(t, json.Unmarshal(envelope.Payload, &decoded),
 		"transport.LabOut must be able to decode the response it produced")

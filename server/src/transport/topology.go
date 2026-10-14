@@ -2,19 +2,21 @@ package transport
 
 import (
 	"antimonyBackend/domain/topology"
+	"antimonyBackend/policy"
 
 	"github.com/samber/lo"
 )
 
 type TopologyOut struct {
-	ID               string        `json:"id"`
-	Definition       string        `json:"definition"`
-	Annotations      string        `json:"annotations"`
-	SyncUrl          string        `json:"syncUrl"`
-	CollectionId     string        `json:"collectionId"`
-	Creator          UserOut       `json:"creator"`
-	BindFiles        []BindFileOut `json:"bindFiles"`
-	LastDeployFailed bool          `json:"lastDeployFailed"`
+	ID               string           `json:"id"`
+	Definition       string           `json:"definition"`
+	Annotations      string           `json:"annotations"`
+	SyncUrl          string           `json:"syncUrl"`
+	CollectionId     string           `json:"collectionId"`
+	Creator          UserOut          `json:"creator"`
+	BindFiles        []BindFileOut    `json:"bindFiles"`
+	LastDeployFailed bool             `json:"lastDeployFailed"`
+	PolicyFindings   []policy.Finding `json:"policyFindings"`
 }
 
 type BindFileOut struct {
@@ -38,6 +40,7 @@ func TopologyToOut(topologyFull *topology.TopologyFull) *TopologyOut {
 		Creator:          UserToOut(&topologyFull.Creator),
 		BindFiles:        bindFilesOut,
 		LastDeployFailed: topologyFull.LastDeployFailed,
+		PolicyFindings:   topologyFull.PolicyFindings,
 	}
 }
 

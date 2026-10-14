@@ -43,6 +43,9 @@ func defaultConfig() *AntimonyConfig {
 			OpenIdRedirectHost: "",
 			OpenIdAdminGroups:  make([]string, 0),
 		},
+		Security: SecurityConfig{
+			TopologyPolicy: true,
+		},
 		Shell: ShellConfig{
 			UserLimit: 20,
 			Timeout:   1800,

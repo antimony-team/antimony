@@ -612,7 +612,7 @@ func SocketBytes(t *testing.T, value any) []byte {
 	case []byte:
 		return typed
 	case interface{ Bytes() []byte }:
-		// Binary frames arrive as an engine.io *types.BytesBuffer, which JSON-encodes to "{}".
+		// Binary frames arrive as an engine.io *clabtypes.BytesBuffer, which JSON-encodes to "{}".
 		return typed.Bytes()
 	case string:
 		if decoded, err := base64.StdEncoding.DecodeString(typed); err == nil {

@@ -302,7 +302,7 @@ func TestClabInspectFixture_DecodesAndConverts(t *testing.T) {
 // NodeState used to carry an UnmarshalText (so containerlab's status strings could be decoded
 // straight into InspectContainer) with no matching marshaller. encoding/json therefore wrote the
 // state as a number and then refused to read that number back — "JSON value must be string type" —
-// so a Go client could not decode the API's own response using the transport types, and
+// so a Go client could not decode the API's own response using the transport clabtypes, and
 // transport.LabOut could not decode a payload it had produced itself.
 func TestInspectContainer_RoundTripsThroughJson(t *testing.T) {
 	original := InspectContainer{

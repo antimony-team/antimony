@@ -5,7 +5,9 @@ import (
 	"antimonyBackend/utils"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/charmbracelet/log"
@@ -216,8 +218,54 @@ func (m *Manager) delete(absolutePath string) error {
 	return nil
 }
 
-// NormaliseBindFilePath validates a client-supplied bind file path and returns its canonical form.
-func NormaliseBindFilePath(filePath string) (string, error) {
+// reservedBindFileNames are file and directory names that Antimony, containerlab, or netlab manage within a topology's
+// directory. These names are reserved and bind files can't be named after them.
+var reservedBindFileNames = []string{
+	// Antimony definitions and annotations (topology.clab.yaml is also the file netlab generates)
+	"topology.clab.yaml",
+	"topology.clab.yaml.annotations.json",
+	"topology.yml",
+	"topology.yml.annotations.json",
+
+	// containerlab lab directory (clab-<lab name>/), holding lab state and the lab CA
+	"clab-*",
+
+	// containerlab topology templating
+	"clab_templates",
+	"topology.clab_vars.*",
+
+	// netlab state written by netlab generation
+	"netlab.snapshot.pickle",
+	"netlab.snapshot.yml",
+	"netlab.lock",
+
+	// files and directories netlab create generates
+	"hosts.yml",
+	"ansible.cfg",
+	"group_vars",
+	"host_vars",
+	"node_files",
+	"clab_files",
+
+	// output directory of netlab collect
+	"config",
+}
+
+// ValidateBindFilePath validates a client-supplied bind file path and returns its canonical form.
+func ValidateBindFilePath(filePath string) (string, error) {
+	cleaned, err := normalizeBindFilePath(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	if err := checkReservedBindFilePath(cleaned); err != nil {
+		return "", err
+	}
+
+	return cleaned, nil
+}
+
+func normalizeBindFilePath(filePath string) (string, error) {
 	cleaned := filepath.Clean(filepath.ToSlash(filePath))
 
 	if !filepath.IsLocal(cleaned) || cleaned == "." {
@@ -225,6 +273,20 @@ func NormaliseBindFilePath(filePath string) (string, error) {
 	}
 
 	return cleaned, nil
+}
+
+// checkReservedBindFilePath checks if the given file path conflicts with reserved file or directory names.
+func checkReservedBindFilePath(filePath string) error {
+	firstSegment, _, _ := strings.Cut(filePath, "/")
+	firstSegment = strings.ToLower(firstSegment)
+
+	for _, pattern := range reservedBindFileNames {
+		if matched, _ := path.Match(pattern, firstSegment); matched {
+			return fmt.Errorf("%w: %q is reserved", utils.ErrInvalidBindFilePath, filePath)
+		}
+	}
+
+	return nil
 }
 
 func getDefinitionFilePath(topologyId string) string {
@@ -240,7 +302,7 @@ func getRunDefinitionFilePath(labId string) string {
 }
 
 func bindFilePath(topologyId string, filePath string) (string, error) {
-	cleaned, err := NormaliseBindFilePath(filePath)
+	cleaned, err := normalizeBindFilePath(filePath)
 	if err != nil {
 		return "", err
 	}

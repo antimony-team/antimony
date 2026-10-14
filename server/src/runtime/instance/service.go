@@ -2,6 +2,7 @@ package instance
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/clabtypes"
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/lab"
@@ -551,8 +552,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 	instance, instanceRunning := s.instances[lab.UUID]
 
 	if !instanceRunning {
-		var runTopologyDefinition string
-		topologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &runTopologyDefinition)
+		var topologyDefinitionString string
+		topologyFile, err := s.storageManager.GetRunEnvironment(lab.UUID, &topologyDefinitionString)
 
 		if err != nil {
 			log.Error(
@@ -595,7 +596,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			lab.InstanceName,
 			logNamespace,
 			*topologyFile,
-			runTopologyDefinition,
+			topologyDefinitionString,
 			lab.UUID,
 		)
 
@@ -1020,11 +1021,13 @@ func (s *Service) onNodeStarted(
 func (s *Service) createInstance(
 	name string,
 	logNamespace *socket.OutputNamespace[string],
-	runTopologyFile string,
-	runTopologyDefinition string,
+	topologyFle string,
+	topologyDefinitionString string,
 	labId string,
 ) (*Instance, error) {
-	runTopologyDefintionParsed, err := s.schemaService.Parse(runTopologyDefinition)
+	var topologyDefinition clabtypes.TopologyDefinition
+
+	err := s.schemaService.Parse(topologyDefinitionString, &topologyDefinition, new(any))
 	if err != nil {
 		log.Error(
 			"Failed to parse topology definition for newly created instance",
@@ -1034,7 +1037,7 @@ func (s *Service) createInstance(
 		return nil, utils.ErrAntimony
 	}
 
-	nodes, err := s.createNodesFromTopology(*runTopologyDefintionParsed, labId)
+	nodes, err := s.createNodesFromTopology(topologyDefinition, labId)
 	if err != nil {
 		log.Error(
 			"Failed to get nodes from topology definition for newly created instance",
@@ -1056,41 +1059,25 @@ func (s *Service) createInstance(
 		DeploymentCancel:  nil,
 		DeploymentMutex:   sync.Mutex{},
 		LogNamespace:      logNamespace,
-		TopologyFile:      runTopologyFile,
+		TopologyFile:      topologyFle,
 		Nodes:             nodes,
 		IsDestroyed:       false,
 	}, nil
 }
 
-func (s *Service) createNodesFromTopology(topologyDefinition any, labId string) (map[string]*InstanceNode, error) {
-	topologyMap, ok := topologyDefinition.(map[string]any)
-	if !ok {
-		return nil, errors.New("topology definition is not a map")
-	}
-
-	top, ok := topologyMap["topology"].(map[string]any)
-	if !ok {
-		return nil, errors.New("topology definition has no topology section")
-	}
-
-	nodes, ok := top["nodes"].(map[string]any)
-	if !ok {
+func (s *Service) createNodesFromTopology(
+	topologyDefinition clabtypes.TopologyDefinition,
+	labId string,
+) (map[string]*InstanceNode, error) {
+	topologyContent := topologyDefinition.Topology
+	if topologyContent == nil || len(topologyContent.Nodes) == 0 {
 		return nil, errors.New("topology definition has no nodes")
 	}
 
-	defaultKind := ""
-	if defaults, ok := top["defaults"].(map[string]any); ok {
-		defaultKind, _ = defaults["kind"].(string)
-	}
-
-	result := make(map[string]*InstanceNode)
-	for nodeName, nodeVal := range nodes {
-		kind := defaultKind
-		if node, ok := nodeVal.(map[string]any); ok {
-			if nodeKind, ok := node["kind"].(string); ok {
-				kind = nodeKind
-			}
-		}
+	result := make(map[string]*InstanceNode, len(topologyContent.Nodes))
+	for nodeName := range topologyContent.Nodes {
+		// Resolves the kind like containerlab: node, then its group, then the defaults
+		kind := topologyContent.GetNodeKind(nodeName)
 
 		nodeLogNamespace := socket.CreateOutputNamespace[string](
 			s.socketManager,
@@ -1303,10 +1290,10 @@ func (s *Service) reviveInstances() {
 			continue
 		}
 
-		var topologyDefinition string
-		var topologyDefinitionParsed *any
+		var topologyDefinition clabtypes.TopologyDefinition
+		var topologyDefinitionString string
 
-		if err = s.storageManager.ReadRunTopologyDefinition(savedLab.UUID, &topologyDefinition); err != nil {
+		if err = s.storageManager.ReadRunTopologyDefinition(savedLab.UUID, &topologyDefinitionString); err != nil {
 			log.Error(
 				"[NECRO] Failed to read topology for revived lab. Skipping",
 				"lab", savedLab.UUID,
@@ -1315,7 +1302,7 @@ func (s *Service) reviveInstances() {
 			continue
 		}
 
-		topologyDefinitionParsed, err = s.schemaService.Parse(topologyDefinition)
+		err = s.schemaService.Parse(topologyDefinitionString, &topologyDefinition, new(any))
 		if err != nil {
 			log.Error(
 				"[NECRO] Failed to parse topology definition for revived lab. Skipping",
@@ -1338,7 +1325,7 @@ func (s *Service) reviveInstances() {
 			savedLab.UUID,
 		)
 
-		nodes, err := s.createNodesFromTopology(*topologyDefinitionParsed, savedLab.UUID)
+		nodes, err := s.createNodesFromTopology(topologyDefinition, savedLab.UUID)
 		if err != nil {
 			log.Error(
 				"Failed to get nodes from topology definition for newly created instance",

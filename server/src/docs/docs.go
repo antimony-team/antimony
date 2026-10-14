@@ -1320,6 +1320,89 @@ const docTemplate = `{
                 }
             }
         },
+        "policy.Finding": {
+            "type": "object",
+            "properties": {
+                "impact": {
+                    "$ref": "#/definitions/policy.Impact"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "ruleId": {
+                    "$ref": "#/definitions/policy.RuleId"
+                }
+            }
+        },
+        "policy.Impact": {
+            "type": "string",
+            "enum": [
+                "deploy",
+                "shell",
+                "unreviewed"
+            ],
+            "x-enum-varnames": [
+                "impactDeploy",
+                "impactShell",
+                "impactUnreviewed"
+            ]
+        },
+        "policy.RuleId": {
+            "type": "string",
+            "enum": [
+                "netlab",
+                "invalid-structure",
+                "unreviewed-field",
+                "go-template",
+                "env-expansion",
+                "mgmt",
+                "prefix",
+                "settings",
+                "env-files",
+                "host-kind",
+                "image-not-allowed",
+                "privileged",
+                "privileges",
+                "host-namespace",
+                "kernel-settings",
+                "runtime",
+                "host-ports",
+                "volumes",
+                "static-mgmt-address",
+                "host-exec",
+                "remote-file",
+                "foreign-file",
+                "host-link"
+            ],
+            "x-enum-varnames": [
+                "ruleNetlab",
+                "ruleInvalidStructure",
+                "ruleUnreviewedField",
+                "ruleGoTemplate",
+                "ruleEnvExpansion",
+                "ruleMgmt",
+                "rulePrefix",
+                "ruleSettings",
+                "ruleEnvFiles",
+                "ruleHostKind",
+                "ruleImageNotAllowed",
+                "rulePrivileged",
+                "rulePrivileges",
+                "ruleHostNamespace",
+                "ruleKernelSettings",
+                "ruleRuntime",
+                "ruleHostPorts",
+                "ruleVolumes",
+                "ruleStaticMgmtAddress",
+                "ruleHostExec",
+                "ruleRemoteFile",
+                "ruleForeignFile",
+                "ruleHostLink"
+            ]
+        },
         "serverconfig.CaptureConfig": {
             "type": "object",
             "properties": {
@@ -1534,6 +1617,12 @@ const docTemplate = `{
                 },
                 "lastDeployFailed": {
                     "type": "boolean"
+                },
+                "policyFindings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policy.Finding"
+                    }
                 },
                 "syncUrl": {
                     "type": "string"

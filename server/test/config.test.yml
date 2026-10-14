@@ -12,6 +12,8 @@ auth:
   openIdRedirectHost: "http://localhost:3000"
   openIdAdminGroups:
     - antimony-admin
+security:
+  topologyPolicy: true
 shell:
   userLimit: 20
   timeout: 1800

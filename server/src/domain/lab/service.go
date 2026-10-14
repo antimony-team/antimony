@@ -2,6 +2,7 @@ package lab
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/clabtypes"
 	"antimonyBackend/config"
 	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/statusmessage"
@@ -330,19 +331,19 @@ func (s *Service) createLabEnvironment(lab *Lab) (string, error) {
 // Read a topology, changes its name, and returns the re-marshaled output.
 func (s *Service) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
 	var (
-		topologyRaw        string
-		topologyDefinition = make(map[interface{}]interface{})
+		definitionString string
+		definition       clabtypes.TopologyDefinition
 	)
-	if err := s.storageManager.ReadTopology(topologyId, &topologyRaw, new(string)); err != nil {
+	if err := s.storageManager.ReadTopology(topologyId, &definitionString, new(string)); err != nil {
 		return err
 	}
 
-	if err := yaml.Unmarshal([]byte(topologyRaw), &topologyDefinition); err != nil {
+	if err := yaml.Unmarshal([]byte(definitionString), &definition); err != nil {
 		return err
 	}
 
-	topologyDefinition["name"] = topologyName
-	if runTopologyRaw, err := yaml.Marshal(topologyDefinition); err != nil {
+	definition.Name = topologyName
+	if runTopologyRaw, err := yaml.Marshal(definition); err != nil {
 		return err
 	} else {
 		*runTopologyDefinition = string(runTopologyRaw)

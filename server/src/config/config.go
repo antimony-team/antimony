@@ -9,6 +9,7 @@ type AntimonyConfig struct {
 	Server       ServerConfig     `yaml:"server"`
 	Deployment   DeploymentConfig `yaml:"deployment"`
 	Auth         AuthConfig       `yaml:"auth"`
+	Security     SecurityConfig   `yaml:"security"`
 	Shell        ShellConfig      `yaml:"shell"`
 	Database     DatabaseConfig   `yaml:"database"`
 	SSH          SSHConfig        `yaml:"ssh"`
@@ -106,6 +107,10 @@ type AuthConfig struct {
 	OpenIdClientID     string   `yaml:"openIdClientId"`
 	OpenIdRedirectHost string   `yaml:"openIdRedirectHost"`
 	OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
+}
+
+type SecurityConfig struct {
+	TopologyPolicy bool `yaml:"topologyPolicy"`
 }
 
 type ShellConfig struct {
