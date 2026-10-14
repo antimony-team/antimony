@@ -1,8 +1,8 @@
 import {cloneDeep} from 'lodash-es';
 import {runInAction} from 'mobx';
-import {YAMLSeq} from 'yaml';
 
 import {PastedElements} from '@sb/lib/graph/graph-clipboard';
+import {nextInterface} from '@sb/lib/graph/interfaces';
 import {placeNodes} from '@sb/lib/graph/placement';
 import {
   addAnnotationItem,
@@ -23,13 +23,10 @@ import {
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
 import {
-  buildTopologyMetadata,
   nodeAnnotationMap,
   NodeLayout,
   nodeLayoutAnnotation,
-  parseInterface,
   readGraphNodes,
-  renameNodeInDefinition,
 } from '@sb/lib/graph/topology-graph';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
@@ -41,14 +38,13 @@ import {
   FreeTextAnnotation,
   GroupStyleAnnotation,
   NodeAnnotation,
-  NodeConnection,
   Topology,
   TopologyAnnotations,
-  TopologyDefinition,
   TopologyIn,
 } from '@sb/types/domain/topology';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {Result} from '@sb/types/result';
-import {Position, YAMLDocument} from '@sb/types/types';
+import {Position} from '@sb/types/types';
 
 export type TopologyEditReport = {
   updatedTopology: Topology;
@@ -119,12 +115,8 @@ export enum OpenFileType {
 }
 
 export class TopologyManager {
-  // Serialized definitions and annotations by object. Edits always replace these
-  // objects instead of changing them, so a serialized value stays valid.
-  private static readonly serializedDefinitions = new WeakMap<
-    YAMLDocument<TopologyDefinition>,
-    string
-  >();
+  // Serialized annotations by object. Edits always replace the annotations
+  // instead of changing them, so a serialized value stays valid.
   private static readonly serializedAnnotations = new WeakMap<
     TopologyAnnotations,
     string
@@ -179,19 +171,6 @@ export class TopologyManager {
     return this.editingBindFile;
   }
 
-  public static serializeTopology(
-    definition: YAMLDocument<TopologyDefinition>,
-  ) {
-    let serialized = TopologyManager.serializedDefinitions.get(definition);
-
-    if (serialized === undefined) {
-      serialized = definition.toString({collectionStyle: 'block'});
-      TopologyManager.serializedDefinitions.set(definition, serialized);
-    }
-
-    return serialized;
-  }
-
   public static serializeAnnotations(annotations: TopologyAnnotations) {
     let serialized = TopologyManager.serializedAnnotations.get(annotations);
 
@@ -244,25 +223,17 @@ export class TopologyManager {
     };
   }
 
+  // Edits replace the definition instead of changing it, so the copy shares it
   private static cloneTopology(topology: Topology): Topology {
-    const model = topology.model.clone();
-
     return {
       id: topology.id,
-      name: topology.name,
       collectionId: topology.collectionId,
       creator: {
         id: topology.creator.id,
         name: topology.creator.name,
       },
-      nodeCount: topology.nodeCount,
-      connections: cloneDeep(topology.connections),
-      connectionMap: cloneDeep(topology.connectionMap),
-      model: model,
-      definition: model.document,
-      definitionString: topology.definitionString,
+      definition: topology.definition,
       annotations: cloneDeep(topology.annotations),
-      annotationsString: topology.annotationsString,
       syncUrl: topology.syncUrl,
       bindFiles: cloneDeep(topology.bindFiles),
       lastDeployFailed: topology.lastDeployFailed,
@@ -460,20 +431,11 @@ export class TopologyManager {
   public pasteElements(pasted: PastedElements) {
     if (!this.editingTopology) return;
 
-    const updatedTopology = this.editingTopology.definition.clone();
-
-    for (const node of pasted.nodes) {
-      updatedTopology.setIn(['topology', 'nodes', node.name], node.definition);
-    }
-
-    if (pasted.links.length > 0) {
-      if (!updatedTopology.hasIn(['topology', 'links'])) {
-        updatedTopology.setIn(['topology', 'links'], new YAMLSeq());
-      }
-
-      const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
-      pasted.links.forEach(link => links.add(updatedTopology.createNode(link)));
-    }
+    const updatedTopology = this.editingTopology.definition.addNodes(
+      pasted.nodes,
+      pasted.links,
+      pasted.names,
+    );
 
     const annotations = this.editingTopology.annotations;
     const layerZIndex = frontZIndex(annotations, LAYER_ANNOTATION_KEYS);
@@ -529,51 +491,23 @@ export class TopologyManager {
    * members of a deleted group are only deleted if they are given as well.
    *
    * @param nodeNames The names of the nodes to delete.
-   * @param links The links to delete by the names of their two nodes.
+   * @param linkIndices The links to delete by their position in the topology.
    * @param groupIds The IDs of the groups to delete.
    * @param annotationIds The IDs of the shapes and texts to delete.
    */
   public deleteElements(
     nodeNames: string[],
-    links: [string, string][],
+    linkIndices: number[],
     groupIds: string[],
     annotationIds: string[],
   ) {
     if (!this.editingTopology) return;
 
-    const updatedTopology = this.editingTopology.definition.clone();
-    const deletedNodes = new Set(nodeNames);
-
-    for (const nodeName of nodeNames) {
-      updatedTopology.deleteIn(['topology', 'nodes', nodeName]);
-    }
-
-    const linkSeq = updatedTopology.getIn(['topology', 'links']);
-    if (linkSeq instanceof YAMLSeq) {
-      const remainingLinks = [...links];
-
-      for (let index = linkSeq.items.length - 1; index >= 0; index--) {
-        const endpoints = (
-          updatedTopology.getIn(['topology', 'links', index, 'endpoints']) as
-            | YAMLSeq
-            | undefined
-        )?.toJS(updatedTopology) as string[] | undefined;
-        if (!endpoints || endpoints.length < 2) continue;
-
-        const node1 = endpoints[0].split(':')[0];
-        const node2 = endpoints[1].split(':')[0];
-        const linkIndex = remainingLinks.findIndex(
-          ([a, b]) => a === node1 && b === node2,
-        );
-
-        if (linkIndex !== -1) {
-          remainingLinks.splice(linkIndex, 1);
-          linkSeq.delete(index);
-        } else if (deletedNodes.has(node1) || deletedNodes.has(node2)) {
-          linkSeq.delete(index);
-        }
-      }
-    }
+    // The links of deleted nodes are deleted with them
+    const {definition} = this.editingTopology;
+    const updatedTopology = definition
+      .deleteLinks(linkIndices)
+      .deleteNodes(nodeNames);
 
     const annotations = (
       ['freeShapeAnnotations', 'freeTextAnnotations'] as const
@@ -675,7 +609,7 @@ export class TopologyManager {
    * the same edit if the change affects both.
    */
   public editTopology(
-    updatedTopology: YAMLDocument<TopologyDefinition>,
+    updatedTopology: TopologyDefinition,
     source: TopologyEditSource,
     updatedAnnotations?: TopologyAnnotations,
     mergeKey?: string,
@@ -695,27 +629,17 @@ export class TopologyManager {
       }
     }
 
-    const topologyMeta = buildTopologyMetadata(updatedTopology, kind =>
-      this.deviceStore.getInterfaceConfig(kind),
-    );
-
     if (source === TopologyEditSource.NodeEditor) {
       const placedAnnotations = this.placeNodeAnnotations(
         updatedTopology,
         updatedAnnotations ?? this.editingTopology.annotations,
-        topologyMeta.connections,
       );
       updatedAnnotations =
         convertLegacyGroups(placedAnnotations) ?? placedAnnotations;
     }
 
     runInAction(() => {
-      this.editingTopology!.model =
-        this.topologyStore.format.open(updatedTopology);
       this.editingTopology!.definition = updatedTopology;
-      this.editingTopology!.nodeCount = topologyMeta.nodeCount;
-      this.editingTopology!.connections = topologyMeta.connections;
-      this.editingTopology!.connectionMap = topologyMeta.connectionMap;
 
       if (updatedAnnotations) {
         this.editingTopology!.annotations = updatedAnnotations;
@@ -756,7 +680,6 @@ export class TopologyManager {
       const placedAnnotations = this.placeNodeAnnotations(
         this.editingTopology.definition,
         updatedAnnotations,
-        this.editingTopology.connections,
       );
       updatedAnnotations =
         convertLegacyGroups(placedAnnotations) ?? placedAnnotations;
@@ -793,21 +716,17 @@ export class TopologyManager {
     if (this.openFileType === OpenFileType.Topology) {
       if (!this.editingTopology) return;
 
-      const updatedTopology = {
-        name: this.editingTopology.definition.toJS().name,
-        topology: {
-          nodes: {},
-        },
-      };
-
-      const nodeNames = Object.keys(
-        this.editingTopology.definition.toJS().topology?.nodes ?? {},
-      );
+      const {definition} = this.editingTopology;
 
       this.editTopology(
-        new YAMLDocument(updatedTopology),
+        definition
+          .deleteLinks(definition.links.map(link => link.index))
+          .deleteNodes(definition.nodeNames),
         TopologyEditSource.System,
-        removeNodeAnnotations(this.editingTopology.annotations, nodeNames),
+        removeNodeAnnotations(
+          this.editingTopology.annotations,
+          definition.nodeNames,
+        ),
       );
     } else if (this.openFileType === OpenFileType.BindFile) {
       if (!this.editingBindFile) return;
@@ -822,11 +741,8 @@ export class TopologyManager {
   public renameNode(nodeName: string, updatedNodeName: string) {
     if (!this.editingTopology || nodeName === updatedNodeName) return;
 
-    const updatedTopology = this.editingTopology.definition.clone();
-    renameNodeInDefinition(updatedTopology, nodeName, updatedNodeName);
-
     this.editTopology(
-      updatedTopology,
+      this.editingTopology.definition.renameNode(nodeName, updatedNodeName),
       TopologyEditSource.NodeEditor,
       renameNodeAnnotation(
         this.editingTopology.annotations,
@@ -841,24 +757,23 @@ export class TopologyManager {
    *
    * @param linkIndex The index of the link in the topology.
    * @param endpointIndex The end of the link, 0 for the first endpoint.
-   * @param nodeName The node at that end of the link.
    * @param interfaceName The new name of the interface.
    */
   public renameInterface(
     linkIndex: number,
     endpointIndex: number,
-    nodeName: string,
     interfaceName: string,
   ) {
     if (!this.editingTopology) return;
 
-    const updatedTopology = this.editingTopology.definition.clone();
-    updatedTopology.setIn(
-      ['topology', 'links', linkIndex, 'endpoints', endpointIndex],
-      `${nodeName}:${interfaceName}`,
+    this.editTopology(
+      this.editingTopology.definition.renameInterface(
+        linkIndex,
+        endpointIndex,
+        interfaceName,
+      ),
+      TopologyEditSource.NodeEditor,
     );
-
-    this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
 
   /**
@@ -870,37 +785,20 @@ export class TopologyManager {
   public connectNodes(nodeName1: string, nodeName2: string) {
     if (!this.editingTopology || !this.deviceStore.data) return;
 
-    const updatedTopology = this.editingTopology.definition.clone();
-
-    const nodeKind1 = updatedTopology.getIn([
-      'topology',
-      'nodes',
-      nodeName1,
-      'kind',
-    ]) as string | undefined;
-
-    const nodeKind2 = updatedTopology.getIn([
-      'topology',
-      'nodes',
-      nodeName1,
-      'kind',
-    ]) as string | undefined;
-
-    const hostInterface = this.getNextInterface(nodeName1, nodeKind1);
-    const targetInterface = this.getNextInterface(nodeName2, nodeKind2);
-
-    if (!updatedTopology.hasIn(['topology', 'links'])) {
-      updatedTopology.setIn(['topology', 'links'], new YAMLSeq());
-    }
-
-    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
-
-    links.add({
-      endpoints: [
-        `${nodeName1}:${hostInterface}`,
-        `${nodeName2}:${targetInterface}`,
-      ],
-    });
+    // Each end gets the next free interface in the pattern of the node's device
+    const {definition} = this.editingTopology;
+    const updatedTopology = definition.connect(
+      [nodeName1, nodeName2].map(nodeName => ({
+        node: nodeName,
+        interface: nextInterface(
+          definition,
+          nodeName,
+          this.deviceStore.getInterfaceConfig(
+            definition.nodes.get(nodeName)?.device,
+          ),
+        ),
+      })),
+    );
 
     this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }
@@ -945,7 +843,6 @@ export class TopologyManager {
     const placedAnnotations = this.placeNodeAnnotations(
       definition,
       converted?.annotations ?? this.editingTopology.annotations,
-      this.editingTopology.connections,
     );
     const completedAnnotations = removeOrphanedNodeAnnotations(
       definition,
@@ -962,10 +859,9 @@ export class TopologyManager {
       this.editAnnotations(completedAnnotations, TopologyEditSource.System);
     }
 
+    // The text is sent as it's written, edits in the graph serialize the document
     const body: Partial<TopologyIn> = {
-      definition: TopologyManager.serializeTopology(
-        this.editingTopology.definition,
-      ),
+      definition: this.editingTopology.definition.toString(),
     };
 
     const annotations = TopologyManager.serializeAnnotations(
@@ -1045,7 +941,6 @@ export class TopologyManager {
     const placedAnnotations = this.placeNodeAnnotations(
       definition,
       converted?.annotations ?? this.editingTopology.annotations,
-      this.editingTopology.connections,
     );
     const updatedAnnotations = change(
       convertLegacyGroups(placedAnnotations) ?? placedAnnotations,
@@ -1073,9 +968,8 @@ export class TopologyManager {
    * graph, all others are placed in the updated topology.
    */
   private placeNodeAnnotations(
-    updatedTopology: YAMLDocument<TopologyDefinition>,
+    updatedTopology: TopologyDefinition,
     updatedAnnotations: TopologyAnnotations,
-    connections: NodeConnection[],
   ): TopologyAnnotations {
     const unplacedNodes = readGraphNodes(updatedTopology, updatedAnnotations)
       .filter(node => !node.position)
@@ -1085,7 +979,6 @@ export class TopologyManager {
     const shownPositions = placeNodes(
       this.editingTopology!.definition,
       this.editingTopology!.annotations,
-      this.editingTopology!.connections,
     );
 
     const shownUpdates = new Map<string, Partial<NodeAnnotation>>();
@@ -1104,7 +997,6 @@ export class TopologyManager {
     for (const [nodeName, position] of placeNodes(
       updatedTopology,
       annotations,
-      connections,
     )) {
       placedUpdates.set(nodeName, {position});
     }
@@ -1117,8 +1009,9 @@ export class TopologyManager {
     if (!this.editingTopology || !this.originalTopology) return false;
 
     return (
-      TopologyManager.serializeTopology(this.editingTopology.definition) !==
-        TopologyManager.serializeTopology(this.originalTopology.definition) ||
+      !this.editingTopology.definition.equals(
+        this.originalTopology.definition,
+      ) ||
       TopologyManager.serializeAnnotations(this.editingTopology.annotations) !==
         TopologyManager.serializeAnnotations(this.originalTopology.annotations)
     );
@@ -1134,60 +1027,6 @@ export class TopologyManager {
 
       void this.topologyStore.fetchSingle(this.editingBindFile.topologyId);
     }
-  }
-
-  /**
-   * Returns all connections of a node.
-   */
-  private getNodeConnections(nodeName: string) {
-    if (!this.editingTopology) return [];
-    this.editingTopology?.connections.filter(
-      connection =>
-        connection.hostNode === nodeName || connection.targetNode === nodeName,
-    );
-  }
-
-  /**
-   * Generates a valid interface ID for a given node.
-   */
-  private getNextInterface(nodeName: string, nodeKind?: string): string {
-    if (!this.editingTopology) return '';
-
-    const deviceInfo = this.deviceStore.getInterfaceConfig(nodeKind);
-    const assignedNumbers = new Set(
-      this.getAssignedInterfaces(
-        nodeName,
-        deviceInfo.interfacePattern,
-        this.editingTopology.connectionMap,
-      ),
-    );
-
-    let checkIndex = deviceInfo.interfaceStart;
-    let validIndexFound = false;
-    while (!validIndexFound) {
-      if (!assignedNumbers.has(checkIndex)) {
-        validIndexFound = true;
-        break;
-      }
-      checkIndex++;
-    }
-
-    return `${deviceInfo.interfacePattern.replaceAll('$', String(checkIndex))}`;
-  }
-
-  /**
-   * Returns all assigned interface numbers for a given node.
-   */
-  private getAssignedInterfaces(
-    nodeName: string,
-    interfacePattern: string,
-    connectionMap: Map<string, NodeConnection[]>,
-  ): number[] {
-    return (connectionMap.get(nodeName) ?? [])
-      .map(connection =>
-        parseInterface(connection.hostInterface, interfacePattern),
-      )
-      .filter(index => index >= 0);
   }
 }
 

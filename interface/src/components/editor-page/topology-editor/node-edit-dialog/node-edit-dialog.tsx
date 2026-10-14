@@ -21,11 +21,9 @@ import {
 } from '@sb/lib/stores/root-store';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
 import {If} from '@sb/types/control';
-import {
-  TopologyAnnotations,
-  TopologyDefinition,
-} from '@sb/types/domain/topology';
-import {Position, YAMLDocument} from '@sb/types/types';
+import {TopologyAnnotations} from '@sb/types/domain/topology';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
+import {Position} from '@sb/types/types';
 
 import NodeConnectionTable from './node-connection-table/node-connection-table';
 import NodePropertyTable from './node-property-table/node-property-table';
@@ -33,7 +31,7 @@ import NodePropertyTable from './node-property-table/node-property-table';
 import './node-edit-dialog.sass';
 
 interface NodeEditDialogProps {
-  editingTopology: YAMLDocument<TopologyDefinition> | null;
+  editingTopology: TopologyDefinition | null;
   editingAnnotations: TopologyAnnotations | null;
 
   // Set to null if the dialog is creating a new node
@@ -48,6 +46,7 @@ interface NodeEditDialogProps {
 
 const NodeEditDialog = (props: NodeEditDialogProps) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
+  const [inheritedKind, setInheritedKind] = useState<string | null>(null);
   const nameFieldRef = useRef<SBInputRef>(null);
   const kindDropdownRef = useRef<SBDropdownRef>(null);
   const iconSelectorOverlay = useRef<OverlayPanel>(null);
@@ -86,7 +85,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
 
     return new NodeEditor(
       schemaStore.clabSchema,
-      schemaStore.clabValidator,
+      topologyStore.format,
       props.editingNode ?? '',
       props.editingTopology,
       props.editingAnnotations,
@@ -94,6 +93,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     );
   }, [
     schemaStore.clabSchema,
+    topologyStore.format,
     props.editingNode,
     props.editingTopology,
     props.editingAnnotations,
@@ -104,7 +104,10 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
   const onTopologyUpdate = useCallback(() => {
     if (!nodeEditor || !nodeEditor.getNode()) return;
 
-    setNodeKind(nodeEditor.getNode()?.kind ?? null);
+    // The kind the node sets itself, an inherited kind is shown as the placeholder
+    const node = nodeEditor.getNode();
+    setNodeKind((node?.own(['kind']) as string | undefined) ?? null);
+    setInheritedKind((node?.inherited(['kind']) as string | undefined) ?? null);
   }, [nodeEditor]);
 
   useEffect(() => {
@@ -136,6 +139,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
 
   function onClose() {
     setNodeKind(null);
+    setInheritedKind(null);
     props.onClose();
   }
 
@@ -147,7 +151,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
 
     // We want every node to require a kind. Even though the topolody schema allows
     // empty nodes, it doesn't make a lot of sense to have them.
-    if (!nodeEditor!.getNode()?.kind) {
+    if (!nodeEditor!.getNode()?.device) {
       kindDropdownRef.current?.setValidationError('The node needs a kind');
       return;
     }
@@ -236,7 +240,9 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
               useItemTemplate={true}
               useSelectTemplate={true}
               optionLabel="value"
-              placeholder="Select a Kind"
+              placeholder={
+                inheritedKind ? `${inheritedKind} (inherited)` : 'Select a Kind'
+              }
               onValueSubmit={value =>
                 nodeEditor!.updatePropertyValue('kind', '', value)
               }
@@ -285,14 +291,6 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
               nodeEditor={nodeEditor!}
               objectKey="dns"
               schemaKey="dns-config"
-            />
-          </AccordionTab>
-          <AccordionTab header="Extras">
-            <NodePropertyTable
-              isKeyEditable={true}
-              nodeEditor={nodeEditor!}
-              objectKey="extras"
-              schemaKey="extras-config"
             />
           </AccordionTab>
           <AccordionTab header="Labels">

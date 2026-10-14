@@ -2460,7 +2460,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onDelete: () =>
           topologyStore.manager.deleteElements(
             [],
-            [[edge.data('source'), edge.data('target')]],
+            [Number(edge.id())],
             [],
             [],
           ),
@@ -2967,10 +2967,17 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
     const memberGroupIds = currentGroupIds();
 
-    const definition = topology.definition.toJS();
-    const links = (definition.topology?.links ?? []).filter(link =>
-      link.endpoints.every(endpoint => nodeNames.has(endpoint.split(':')[0])),
-    );
+    // The nodes and links are copied as they are written
+    const definition = topology.definition.document.toJS() as {
+      topology?: {nodes?: Record<string, unknown>; links?: unknown[]};
+    };
+    const links = topology.definition.links
+      .filter(
+        link =>
+          link.isBetweenNodes &&
+          link.endpoints.every(endpoint => nodeNames.has(endpoint.node)),
+      )
+      .map(link => definition.topology?.links?.[link.index]);
 
     return createClipboard({
       nodes: [...nodeNames].map(nodeName => {
@@ -3319,7 +3326,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         topologyStore.manager.renameInterface(
           Number(labelEdit.id),
           labelEdit.endpointIndex!,
-          edge.data(labelEdit.endpointIndex === 0 ? 'source' : 'target'),
           name,
         );
         break;
@@ -3346,7 +3352,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           name,
           edge?.data(labelEdit.endpointIndex === 0 ? 'source' : 'target'),
           Number(labelEdit.id),
-          props.openTopology?.connections ?? [],
+          props.openTopology?.definition.links ?? [],
         );
       }
     }

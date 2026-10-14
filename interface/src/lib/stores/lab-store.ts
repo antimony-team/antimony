@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 import {action, computed, observable, reaction, runInAction} from 'mobx';
 
-import {buildTopologyMetadata} from '@sb/lib/graph/topology-graph';
 import {
   DataBinder,
   DataResponse,
@@ -344,10 +343,11 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
-    const model = this.topologyStore.readTopology(input.topologyDefinition);
-    const definition = model?.document;
+    const definition = this.topologyStore.readTopology(
+      input.topologyDefinition,
+    );
 
-    if (!model || !definition) {
+    if (!definition) {
       console.error('[NET] Failed to parse incoming run topology: ', input);
       return null;
     }
@@ -367,10 +367,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       state: this.getInstanceState(input.instance, startTime, endTime),
       instance: this.parseInstance(input.instance),
       topologyDefinition: {
-        ...buildTopologyMetadata(definition, kind =>
-          this.rootStore._deviceStore.getInterfaceConfig(kind),
-        ),
-        model: model,
         definition: definition,
         annotations: annotations ?? {},
       },

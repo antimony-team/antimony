@@ -77,9 +77,7 @@ const LabEntry = observer((props: LabEntryProps) => {
   const topologyName = useMemo(() => {
     if (!props.lab.topologyId) return null;
 
-    const topologyName = props.lab.topologyDefinition.definition.getIn([
-      'name',
-    ]);
+    const topologyName = props.lab.topologyDefinition.definition.name;
 
     // It is possible that the topology has been deleted but the lab still has
     // the old topology ID.
@@ -160,7 +158,7 @@ const LabEntry = observer((props: LabEntryProps) => {
         <div className="sb-dashboard-lab-card-header">
           <span>{props.lab.name}</span>
           <span className="sb-dashboard-lab-card-header-nodes">
-            {props.lab.topologyDefinition.nodeCount} nodes
+            {props.lab.topologyDefinition.definition.nodeNames.length} nodes
           </span>
         </div>
         <div className="sb-dashboard-lab-card-footer">

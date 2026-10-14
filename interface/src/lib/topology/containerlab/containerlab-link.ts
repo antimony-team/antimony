@@ -1,4 +1,4 @@
-import {ResolvedEndpoint, ResolvedLink} from '@sb/types/domain/topology-model';
+import {LinkEndpoint, TopologyLink} from '@sb/types/domain/topology-definition';
 
 // Node names of the brief form that make a link to the host instead of to a node
 const HOST_NODES = new Set(['host', 'mgmt-net', 'macvlan']);
@@ -9,20 +9,20 @@ const HOST_NODES = new Set(['host', 'mgmt-net', 'macvlan']);
  * network or a macvlan. A link with a type has an object per endpoint, or a
  * single endpoint for all types except veth.
  */
-export class ContainerlabLink implements ResolvedLink {
+export class ContainerlabLink implements TopologyLink {
   public readonly index: number;
   public readonly type: string;
 
   // Whether the link is written in the brief 'node:interface' form or as an object per endpoint
   public readonly notation: 'brief' | 'extended';
-  public readonly endpoints: readonly ResolvedEndpoint[];
+  public readonly endpoints: readonly LinkEndpoint[];
   public readonly hostInterface: string | undefined;
 
   private constructor(
     index: number,
     type: string,
     notation: 'brief' | 'extended',
-    endpoints: ResolvedEndpoint[],
+    endpoints: LinkEndpoint[],
     hostInterface?: string,
   ) {
     this.index = index;
@@ -97,7 +97,7 @@ export class ContainerlabLink implements ResolvedLink {
   }
 
   // A 'node:interface' string is split at its first colon, the interface can contain more
-  private static readEndpoint(endpoint: unknown): ResolvedEndpoint | null {
+  private static readEndpoint(endpoint: unknown): LinkEndpoint | null {
     if (typeof endpoint === 'string') {
       const separator = endpoint.indexOf(':');
       if (separator <= 0 || separator === endpoint.length - 1) return null;

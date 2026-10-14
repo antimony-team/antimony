@@ -1,24 +1,39 @@
 import {
+  ContainerlabDefinitions,
+  ContainerlabNodeDefinition as Definition,
+} from '@sb/lib/topology/containerlab/containerlab-types';
+import {
   asDefinition,
   DEFAULT_RULE,
-  Definition,
   isSet,
   LevelValue,
   PROPERTY_RULES,
 } from '@sb/lib/topology/containerlab/property-rules';
 import {
+  NodeProperty,
   PropertySource,
-  ResolvedNode,
-  ResolvedProperty,
-} from '@sb/types/domain/topology-model';
+  TopologyDefinition,
+  TopologyNode,
+} from '@sb/types/domain/topology-definition';
+
+// Writes the values a node sets itself into the file, which returns the edited definition
+export interface NodeWriter {
+  setNodeValue(
+    nodeName: string,
+    path: readonly string[],
+    value: unknown,
+  ): TopologyDefinition;
+  resetNodeValue(nodeName: string, path: readonly string[]): TopologyDefinition;
+}
 
 /**
- * The definitions of a containerlab topology that the nodes inherit from.
+ * How a node is written: the values it sets itself and the definition it
+ * merges with a merge key, e.g. <<: *anchor. Containerlab reads both as the
+ * node's, merged values are only shown as inherited.
  */
-export interface ContainerlabDefinitions {
-  defaults?: Definition | null;
-  kinds?: Record<string, Definition | null> | null;
-  groups?: Record<string, Definition | null> | null;
+export interface NodeParts {
+  own: Definition | null;
+  base: {name: string; definition: Definition} | null;
 }
 
 // A level a node inherits from, with its definition
@@ -41,21 +56,30 @@ const NODE_PROPERTIES = new Set(['mgmt-ipv4', 'mgmt-ipv6', 'aliases']);
  * its kind and the defaults, in that order of precedence after its own. The
  * kind is the device of the node, a node is in a single group at most.
  */
-export class ContainerlabNode implements ResolvedNode {
+export class ContainerlabNode implements TopologyNode {
   public readonly name: string;
   public readonly device: string | undefined;
   public readonly groups: readonly string[];
-  public readonly properties: ReadonlyMap<string, ResolvedProperty>;
+  public readonly properties: ReadonlyMap<string, NodeProperty>;
+
+  private readonly parts: NodeParts;
+  private readonly definitions: ContainerlabDefinitions;
+  private readonly writer: NodeWriter;
+  private readonly withoutOwn = new Map<string, ContainerlabNode>();
 
   /**
    * @param name The name of the node.
-   * @param definition The definition of the node, null if it's written without one.
+   * @param definition The definition of the node with merged values, null if it's written without one.
+   * @param parts The values the node sets itself and the ones it merges.
    * @param definitions The definitions the node inherits from.
+   * @param writer Writes the values the node sets itself.
    */
   constructor(
     name: string,
     definition: Definition | null,
+    parts: NodeParts,
     definitions: ContainerlabDefinitions,
+    writer: NodeWriter,
   ) {
     const defaults = asDefinition(definitions.defaults) ?? {};
     const kind = ContainerlabNode.resolveKind(
@@ -97,6 +121,9 @@ export class ContainerlabNode implements ResolvedNode {
     ];
 
     this.name = name;
+    this.parts = parts;
+    this.definitions = definitions;
+    this.writer = writer;
     this.device = kind?.value;
     this.groups = group ? [group.value] : [];
     this.properties = ContainerlabNode.resolveProperties(
@@ -104,6 +131,7 @@ export class ContainerlabNode implements ResolvedNode {
       kind,
       group,
       definition,
+      parts,
     );
   }
 
@@ -122,13 +150,62 @@ export class ContainerlabNode implements ResolvedNode {
     );
   }
 
+  public valueAt(path: readonly string[]): unknown {
+    if (path.length === 0) {
+      return Object.fromEntries(
+        [...this.properties].map(([key, property]) => [key, property.value]),
+      );
+    }
+
+    return valueAt(this.get(path[0]), path.slice(1));
+  }
+
+  // The node resolved as if it didn't set the property at the path itself
+  public inherited(path: readonly string[]): unknown {
+    const key = path[0];
+    if (key === undefined || !this.parts.own || !(key in this.parts.own)) {
+      return this.valueAt(path);
+    }
+
+    let node = this.withoutOwn.get(key);
+    if (!node) {
+      const own = Object.fromEntries(
+        Object.entries(this.parts.own).filter(([ownKey]) => ownKey !== key),
+      );
+
+      node = new ContainerlabNode(
+        this.name,
+        {...this.parts.base?.definition, ...own},
+        {own, base: this.parts.base},
+        this.definitions,
+        this.writer,
+      );
+      this.withoutOwn.set(key, node);
+    }
+
+    return node.valueAt(path);
+  }
+
+  public own(path: readonly string[] = []): unknown {
+    return valueAt(this.parts.own, path);
+  }
+
+  public set(path: readonly string[], value: unknown): TopologyDefinition {
+    return this.writer.setNodeValue(this.name, path, value);
+  }
+
+  public reset(path: readonly string[]): TopologyDefinition {
+    return this.writer.resetNodeValue(this.name, path);
+  }
+
   private static resolveProperties(
     levels: Level[],
     kind: Resolved | null,
     group: Resolved | null,
     definition: Definition | null,
-  ): Map<string, ResolvedProperty> {
-    const properties = new Map<string, ResolvedProperty>();
+    parts: NodeParts,
+  ): Map<string, NodeProperty> {
+    const properties = new Map<string, NodeProperty>();
     if (kind) {
       properties.set('kind', {value: kind.value, sources: [kind.source]});
     }
@@ -160,6 +237,19 @@ export class ContainerlabNode implements ResolvedNode {
         definition === null,
       );
       if (property) properties.set(key, property);
+    }
+
+    // Values of the node that it merges come from the definition it merges
+    if (parts.base) {
+      const base: PropertySource = {level: 'base', name: parts.base.name};
+
+      for (const [key, property] of properties) {
+        if (parts.own && key in parts.own) continue;
+
+        property.sources = property.sources.map(source =>
+          source.level === 'node' ? base : source,
+        );
+      }
     }
 
     return properties;
@@ -244,4 +334,11 @@ export class ContainerlabNode implements ResolvedNode {
     const found = candidates.find(([value]) => isSet(value));
     return found ? {value: format(String(found[0])), source: found[1]} : null;
   }
+}
+
+function valueAt(value: unknown, path: readonly string[]): unknown {
+  return path.reduce<unknown>((current, key) => {
+    if (Array.isArray(current)) return current[Number(key)];
+    return asDefinition(current)?.[key];
+  }, value);
 }

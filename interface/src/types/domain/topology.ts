@@ -1,7 +1,6 @@
-import {InterfaceConfig} from '@sb/types/domain/device-info';
-import {TopologyModel} from '@sb/types/domain/topology-model';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {User} from '@sb/types/domain/user';
-import {Position, uuid4, YAMLDocument} from '@sb/types/types';
+import {Position, uuid4} from '@sb/types/types';
 
 export type EditingFile = BindFile | Topology;
 
@@ -35,49 +34,25 @@ export type TopologyOut = TopologyIn & {
   lastDeployFailed: boolean;
 };
 
-export type Topology = TopologyMeta & {
+// A topology of a collection, as the server stores it
+export type Topology = {
   id: uuid4;
-  name: string;
-
-  // What the topology means, with its document and its text
-  model: TopologyModel<TopologyDefinition>;
-
-  /** @deprecated The document of the model, use the model instead. */
-  definition: YAMLDocument<TopologyDefinition>;
-
-  /** @deprecated The text of the model, use the model instead. */
-  definitionString: string;
-  annotations: TopologyAnnotations;
-  annotationsString: string;
   collectionId: uuid4;
   creator: User;
   syncUrl: string;
   bindFiles: BindFile[];
   lastDeployFailed: boolean;
-};
 
-export type RunTopology = TopologyMeta & {
-  model: TopologyModel<TopologyDefinition>;
-
-  /** @deprecated The document of the model, use the model instead. */
-  definition: YAMLDocument<TopologyDefinition>;
+  // What the topology means, with its document and its text
+  definition: TopologyDefinition;
   annotations: TopologyAnnotations;
 };
 
-export interface TopologyDefinition {
-  name: string;
-  topology: {
-    nodes: {[nodeName: string]: TopologyNode};
-    links?: TopologyLink[];
-  };
-}
-
-// A link between two nodes, its endpoints are e.g. ['srl1:e1-1', 'srl2:e1-1']
-export interface TopologyLink {
-  endpoints: string[];
-
-  [key: string]: unknown;
-}
+// The topology a lab was deployed with
+export type RunTopology = {
+  definition: TopologyDefinition;
+  annotations: TopologyAnnotations;
+};
 
 /**
  * The annotations of a topology, which hold the layout of its graph.
@@ -185,42 +160,7 @@ export interface GeoCoordinates {
   lng: number;
 }
 
-/**
- * Metadata object to hold the connections and positions of nodes in a topology.
- *
- * This object is generated from the definition object and is not persisted.
- */
-export type TopologyMeta = {
-  nodeCount: number;
-  connections: NodeConnection[];
-  connectionMap: Map<string, NodeConnection[]>;
-};
-
-/**
- * Holds information about a link between two nodes.
- *
- * This object is generated from the definition object and is not persisted.
- */
-export interface NodeConnection {
-  index: number;
-
-  hostNode: string;
-  hostInterface: string;
-  hostInterfaceIndex: number;
-  hostInterfaceConfig: InterfaceConfig;
-
-  targetNode: string;
-  targetInterface: string;
-  targetInterfaceIndex: number;
-  targetInterfaceConfig: InterfaceConfig;
-}
-
-export interface TopologyNode {
-  kind?: string;
-  image?: string;
-  labels?: NodeLabels;
-}
-
+// The graph-* labels of a node, which held its layout before there were annotations
 export interface NodeLabels {
   'graph-icon'?: string;
   'graph-group'?: string;

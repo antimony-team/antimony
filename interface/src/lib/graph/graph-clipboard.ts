@@ -20,7 +20,6 @@ import {
   GroupStyleAnnotation,
   NodeAnnotation,
   TopologyAnnotations,
-  TopologyLink,
 } from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
@@ -30,19 +29,20 @@ const CLIPBOARD_MARKER = 'antimony/graph-elements';
 export interface ClipboardNode {
   name: string;
 
-  // The definition of the node in the topology
+  // The definition of the node, as the format of the topology writes it
   definition: unknown;
   annotation: NodeAnnotation;
 }
 
 /**
- * Copied elements of a graph. Links are only copied between copied nodes, and
- * groups together with everything inside them.
+ * Copied elements of a graph. Links are only copied between copied nodes, as
+ * the format of the topology writes them, and groups together with everything
+ * inside them.
  */
 export interface GraphClipboard {
   marker: typeof CLIPBOARD_MARKER;
   nodes: ClipboardNode[];
-  links: TopologyLink[];
+  links: unknown[];
   groups: GroupStyleAnnotation[];
   shapes: FreeShapeAnnotation[];
   texts: FreeTextAnnotation[];
@@ -95,11 +95,15 @@ export function clipboardBox(clipboard: GraphClipboard): Box | null {
 }
 
 /**
- * Copied elements that are ready to be added to a topology.
+ * Copied elements that are ready to be added to a topology. The links still
+ * refer to the nodes by their copied names, the definition renames them.
  */
 export interface PastedElements {
   nodes: ClipboardNode[];
-  links: TopologyLink[];
+  links: unknown[];
+
+  // The name of each pasted node by its copied name
+  names: Map<string, string>;
   groups: GroupStyleAnnotation[];
   shapes: FreeShapeAnnotation[];
   texts: FreeTextAnnotation[];
@@ -169,13 +173,8 @@ export function pasteClipboard(
         groupId: pastedGroupId(node.annotation.groupId),
       },
     })),
-    links: clipboard.links.map(link => ({
-      ...link,
-      endpoints: link.endpoints.map(endpoint => {
-        const [nodeName, interfaceName] = endpoint.split(':');
-        return `${names.get(nodeName) ?? nodeName}:${interfaceName}`;
-      }),
-    })),
+    links: clipboard.links,
+    names,
     groups: clipboard.groups.map(group => ({
       ...group,
       ...groupParentUpdate(

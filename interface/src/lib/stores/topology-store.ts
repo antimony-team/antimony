@@ -1,7 +1,6 @@
 import {action, observable, runInAction} from 'mobx';
 
 import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
-import {buildTopologyMetadata} from '@sb/lib/graph/topology-graph';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {DeviceStore} from '@sb/lib/stores/device-store';
@@ -14,13 +13,12 @@ import {
   BindFileIn,
   Topology,
   TopologyAnnotations,
-  TopologyDefinition,
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
-import {TopologyModel} from '@sb/types/domain/topology-model';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {Result} from '@sb/types/result';
-import {uuid4, YAMLDocument} from '@sb/types/types';
+import {uuid4} from '@sb/types/types';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -32,24 +30,22 @@ export class TopologyStore extends DataStore<
   public manager: TopologyManager;
 
   // The format the topologies are written in
-  public readonly format: TopologyFormat<TopologyDefinition>;
+  public readonly format: TopologyFormat;
 
   private dataBinder: DataBinder;
   private schemaStore: SchemaStore;
-  private deviceStore: DeviceStore;
 
   constructor(
     rootStore: RootStore,
     dataBinder: DataBinder,
     schemaStore: SchemaStore,
     deviceStore: DeviceStore,
-    format: TopologyFormat<TopologyDefinition>,
+    format: TopologyFormat,
     dependencies: DataStoreDependency[] = [],
   ) {
     super(rootStore, dependencies);
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
-    this.deviceStore = deviceStore;
     this.format = format;
 
     this.manager = new TopologyManager(this, deviceStore);
@@ -192,25 +188,14 @@ export class TopologyStore extends DataStore<
   }
 
   /**
-   * Reads the text of a topology as a model, null if it isn't valid. The model
-   * keeps the text as it's written.
+   * Reads the text of a topology as its definition, null if it isn't valid.
+   * The definition keeps the text as it's written.
    */
-  public readTopology(
-    definitionString: string,
-  ): TopologyModel<TopologyDefinition> | null {
-    const model = this.format.read(definitionString);
-    if (!model || !this.schemaStore.clabValidator?.(model.document.toJS())) {
-      return null;
-    }
+  public readTopology(definitionString: string): TopologyDefinition | null {
+    const definition = this.format.read(definitionString);
+    if (!definition || this.format.validate(definition) !== null) return null;
 
-    return model;
-  }
-
-  // The document of a topology's text, its model is read along with it
-  public parseTopologyDefinition(
-    definitionString: string,
-  ): YAMLDocument<TopologyDefinition> | null {
-    return this.readTopology(definitionString)?.document ?? null;
+    return definition;
   }
 
   public parseTopologyAnnotations(
@@ -269,21 +254,10 @@ export class TopologyStore extends DataStore<
     source: TopologyOut | Partial<TopologyIn>,
   ) {
     if (source.definition) {
-      const model = this.readTopology(source.definition);
+      const definition = this.readTopology(source.definition);
 
-      if (model) {
-        const updatedDefinition = model.document;
-        const metadata = buildTopologyMetadata(updatedDefinition, kind =>
-          this.deviceStore.getInterfaceConfig(kind),
-        );
-
-        target.name = updatedDefinition.get('name') as string;
-        target.model = model;
-        target.definition = updatedDefinition;
-        target.definitionString = source.definition;
-        target.nodeCount = metadata.nodeCount;
-        target.connections = metadata.connections;
-        target.connectionMap = metadata.connectionMap;
+      if (definition) {
+        target.definition = definition;
       } else {
         console.error('[NET] Failed to parse incoming topology: ', source);
       }
@@ -296,7 +270,6 @@ export class TopologyStore extends DataStore<
 
       if (updatedAnnotations) {
         target.annotations = updatedAnnotations;
-        target.annotationsString = source.annotations;
       } else {
         console.error('[NET] Failed to parse incoming annotations: ', source);
       }
@@ -324,10 +297,9 @@ export class TopologyStore extends DataStore<
   }
 
   private parseTopology(input: TopologyOut): Topology | null {
-    const model = this.readTopology(input.definition);
-    const definition = model?.document;
+    const definition = this.readTopology(input.definition);
 
-    if (!model || !definition) {
+    if (!definition) {
       console.error('[NET] Failed to parse incoming topology: ', input);
       return null;
     }
@@ -341,19 +313,17 @@ export class TopologyStore extends DataStore<
 
     return observable(
       {
-        ...input,
-        name: definition.get('name') as string,
-        model: model,
+        id: input.id,
+        collectionId: input.collectionId,
+        creator: input.creator,
+        syncUrl: input.syncUrl,
+        bindFiles: input.bindFiles,
+        lastDeployFailed: input.lastDeployFailed,
         definition: definition,
-        definitionString: input.definition,
         annotations: annotations ?? {},
-        annotationsString: input.annotations,
-        ...buildTopologyMetadata(definition, kind =>
-          this.deviceStore.getInterfaceConfig(kind),
-        ),
       },
-      // The model and the annotations are replaced as a whole on every edit
-      {model: observable.ref, annotations: observable.ref},
+      // The definition and the annotations are replaced as a whole on every edit
+      {definition: observable.ref, annotations: observable.ref},
     );
   }
 }

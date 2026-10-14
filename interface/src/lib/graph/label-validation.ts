@@ -1,4 +1,4 @@
-import {NodeConnection} from '@sb/types/domain/topology';
+import {TopologyLink} from '@sb/types/domain/topology-definition';
 
 /*
  * Checks for names that are edited in the graph. They return an error that is
@@ -34,33 +34,31 @@ export function validateNodeName(
  *
  * @param name The new name.
  * @param nodeName The node of the interface.
- * @param connectionIndex The index of the link of the interface.
- * @param connections All links of the topology.
+ * @param linkIndex The index of the link of the interface.
+ * @param links All links of the topology.
  */
 export function validateInterfaceName(
   name: string,
   nodeName: string,
-  connectionIndex: number,
-  connections: NodeConnection[],
+  linkIndex: number,
+  links: readonly TopologyLink[],
 ): string | null {
   if (name === '') return "The interface can't be empty";
 
   const error = validateEndpointPart(name);
   if (error) return error;
 
-  for (const connection of connections) {
-    if (connection.index === connectionIndex) continue;
+  for (const link of links) {
+    if (link.index === linkIndex) continue;
 
-    if (connection.hostNode === nodeName && connection.hostInterface === name) {
-      return `${name} is already used by the link to ${connection.targetNode}`;
-    }
+    const isUsed = link.endpoints.some(
+      endpoint => endpoint.node === nodeName && endpoint.interface === name,
+    );
+    if (!isUsed) continue;
 
-    if (
-      connection.targetNode === nodeName &&
-      connection.targetInterface === name
-    ) {
-      return `${name} is already used by the link to ${connection.hostNode}`;
-    }
+    // A link to the host has no other node
+    const other = link.endpoints.find(endpoint => endpoint.node !== nodeName);
+    return `${name} is already used by the link to ${other?.node ?? link.type}`;
   }
 
   return null;

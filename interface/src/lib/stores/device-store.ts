@@ -59,7 +59,13 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
 
   protected handleUpdate(response: DataResponse<DeviceInfo[]>): void {
     this.data = response.payload;
-    this.lookup = new Map(this.data.map(device => [device.kind, device]));
+    this.lookup = new Map(
+      this.data.flatMap(device =>
+        [device.kind, ...(device.kindAliases ?? [])].map(
+          kind => [kind, device] as const,
+        ),
+      ),
+    );
   }
 }
 
@@ -92,6 +98,5 @@ const IconShapeMap = new Map<string, string>([
 ]);
 
 const DefaultDeviceConfig: InterfaceConfig = {
-  interfacePattern: 'eth$',
-  interfaceStart: 1,
+  interfaces: [{pattern: 'eth$', start: 1}],
 };

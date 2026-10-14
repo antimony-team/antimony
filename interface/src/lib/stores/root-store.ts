@@ -15,7 +15,7 @@ import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
 import {ClockStore} from '@sb/lib/stores/clock-store';
 import {ContextMenuStore} from '@sb/lib/stores/context-menu-store';
-import {containerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
+import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 
 export class RootStore {
   _dataBinder: DataBinder;
@@ -60,7 +60,7 @@ export class RootStore {
       this._dataBinder,
       this._schemaStore,
       this._deviceStore,
-      containerlabFormat,
+      new ContainerlabFormat(() => this._schemaStore.clabValidator),
       [this._schemaStore],
     );
 

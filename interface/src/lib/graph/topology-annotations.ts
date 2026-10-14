@@ -1,5 +1,3 @@
-import {isMap, isScalar} from 'yaml';
-
 import {
   boxesOverlap,
   groupBoxAround,
@@ -18,9 +16,9 @@ import {
   NodeAnnotation,
   NodeLabels,
   TopologyAnnotations,
-  TopologyDefinition,
 } from '@sb/types/domain/topology';
-import {Position, YAMLDocument} from '@sb/types/types';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
+import {Position} from '@sb/types/types';
 
 /*
  * These functions return updated copies of the annotations and leave the given
@@ -383,7 +381,7 @@ export function renameNodeAnnotation(
 
 export function removeNodeAnnotations(
   annotations: TopologyAnnotations,
-  nodeNames: string[],
+  nodeNames: readonly string[],
 ): TopologyAnnotations {
   if (!annotations.nodeAnnotations) return annotations;
 
@@ -402,17 +400,10 @@ export function removeNodeAnnotations(
  * Returns the given annotations if there are none.
  */
 export function removeOrphanedNodeAnnotations(
-  definition: YAMLDocument<TopologyDefinition>,
+  definition: TopologyDefinition,
   annotations: TopologyAnnotations,
 ): TopologyAnnotations {
-  const nodeMap = definition.getIn(['topology', 'nodes']);
-  const nodeNames = new Set(
-    isMap(nodeMap)
-      ? nodeMap.items.map(item =>
-          String(isScalar(item.key) ? item.key.value : item.key),
-        )
-      : [],
-  );
+  const nodeNames = new Set(definition.nodeNames);
 
   const orphanedNodes = (annotations.nodeAnnotations ?? [])
     .map(annotation => annotation.id)
@@ -432,54 +423,39 @@ export function removeOrphanedNodeAnnotations(
  * @param annotations The annotations to move the layout to.
  */
 export function convertGraphLabels(
-  definition: YAMLDocument<TopologyDefinition>,
+  definition: TopologyDefinition,
   annotations: TopologyAnnotations,
 ): {
-  definition: YAMLDocument<TopologyDefinition>;
+  definition: TopologyDefinition;
   annotations: TopologyAnnotations;
 } | null {
-  const nodeMap = definition.getIn(['topology', 'nodes']);
-  if (!isMap(nodeMap)) return null;
-
+  let updatedDefinition = definition;
   const annotationUpdates = new Map<string, Partial<NodeAnnotation>>();
 
-  for (const item of nodeMap.items) {
-    const nodeName = String(isScalar(item.key) ? item.key.value : item.key);
-    const labels = isMap(item.value) ? item.value.get('labels') : undefined;
+  for (const node of definition.nodes.values()) {
+    const labels = node.own(['labels']) as NodeLabels | undefined;
+    const graphLabels = GRAPH_LABELS.filter(
+      label => labels?.[label] !== undefined,
+    );
+    if (!labels || graphLabels.length === 0) continue;
 
-    if (!isMap(labels) || !GRAPH_LABELS.some(label => labels.has(label))) {
-      continue;
-    }
-
-    const existing = findNodeAnnotation(annotations, nodeName);
+    const existing = findNodeAnnotation(annotations, node.name);
     const update = Object.fromEntries(
-      Object.entries(labelsToAnnotation(labels.toJSON() as NodeLabels)).filter(
+      Object.entries(labelsToAnnotation(labels)).filter(
         ([key, value]) => value !== undefined && existing?.[key] === undefined,
       ),
     );
+    annotationUpdates.set(node.name, update);
 
-    annotationUpdates.set(nodeName, update);
+    // Labels that are empty without the graph-* labels are removed as well
+    for (const label of graphLabels) {
+      updatedDefinition = updatedDefinition.nodes
+        .get(node.name)!
+        .reset(['labels', label]);
+    }
   }
 
   if (annotationUpdates.size === 0) return null;
-
-  const updatedDefinition = definition.clone();
-
-  for (const nodeName of annotationUpdates.keys()) {
-    const yamlNode = updatedDefinition.getIn(['topology', 'nodes', nodeName]);
-    if (!isMap(yamlNode)) continue;
-
-    const labels = yamlNode.get('labels');
-    if (!isMap(labels)) continue;
-
-    for (const label of GRAPH_LABELS) {
-      labels.delete(label);
-    }
-
-    if (labels.items.length === 0) {
-      yamlNode.delete('labels');
-    }
-  }
 
   return {
     definition: updatedDefinition,

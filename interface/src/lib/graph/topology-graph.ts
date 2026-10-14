@@ -1,19 +1,14 @@
-import {isMap, isScalar, isSeq} from 'yaml';
-
-import {containerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
-import {pushOrCreateList} from '@sb/lib/utils/utils';
-import {InterfaceConfig} from '@sb/types/domain/device-info';
 import {
   GeoCoordinates,
   NodeAnnotation,
-  NodeConnection,
   NodeLabels,
   TopologyAnnotations,
-  TopologyDefinition,
-  TopologyMeta,
-  TopologyNode,
 } from '@sb/types/domain/topology';
-import {Position, YAMLDocument} from '@sb/types/types';
+import {
+  TopologyDefinition,
+  TopologyLink,
+} from '@sb/types/domain/topology-definition';
+import {Position} from '@sb/types/types';
 
 /**
  * A node of a topology together with its layout in the graph.
@@ -39,8 +34,6 @@ export interface NodeLayout {
   position: Position;
   groupId: string | null;
 }
-
-export type InterfaceConfigLookup = (nodeKind?: string) => InterfaceConfig;
 
 /**
  * Legacy labels that store the layout of a node in topologies without annotations.
@@ -85,35 +78,48 @@ export function convertLatLngToXY(
  * annotations, and from the graph-* labels for nodes that don't have one there.
  */
 export function readGraphNodes(
-  definition: YAMLDocument<TopologyDefinition>,
+  definition: TopologyDefinition,
   annotations: TopologyAnnotations,
 ): GraphNode[] {
-  const nodes = definition.toJS()?.topology?.nodes ?? {};
-  const resolvedNodes = containerlabFormat.open(definition).nodes;
   const nodeAnnotations = nodeAnnotationMap(annotations);
 
-  return Object.entries(nodes).map(([name, node]) => {
-    const annotation = nodeAnnotations.get(name);
+  return [...definition.nodes.values()].map(node => {
+    const annotation = nodeAnnotations.get(node.name);
+    const labels = node.get('labels') as NodeLabels | undefined;
 
     return {
-      name,
+      name: node.name,
 
       // The kind can be inherited from a group or the defaults
-      kind: resolvedNodes.get(name)?.device,
-      position: readNodePosition(node?.labels, annotation),
-      icon: readNodeIcon(node, annotation),
+      kind: node.device,
+      position: readNodePosition(labels, annotation),
+      icon: readNodeIcon(labels, annotation),
       groupId: annotation?.groupId,
-      group: annotation?.group ?? node?.labels?.['graph-group'],
-      level: annotation?.level ?? node?.labels?.['graph-level']?.toString(),
+      group: annotation?.group ?? labels?.['graph-group'],
+      level: annotation?.level ?? labels?.['graph-level']?.toString(),
     };
   });
 }
 
+/**
+ * Returns the links that the graph shows, the links between two nodes of the
+ * topology. Links to the host or the management network have no second node.
+ */
+export function graphLinks(definition: TopologyDefinition): TopologyLink[] {
+  const nodeNames = new Set(definition.nodeNames);
+
+  return definition.links.filter(
+    link =>
+      link.endpoints.length === 2 &&
+      link.endpoints.every(endpoint => nodeNames.has(endpoint.node)),
+  );
+}
+
 export function readNodeIcon(
-  node: TopologyNode | null | undefined,
+  labels: NodeLabels | undefined,
   annotation: NodeAnnotation | undefined,
 ): string | undefined {
-  return annotation?.icon ?? node?.labels?.['graph-icon'];
+  return annotation?.icon ?? labels?.['graph-icon'];
 }
 
 export function nodeAnnotationMap(
@@ -184,100 +190,6 @@ export function labelsToAnnotation(
   return annotation;
 }
 
-export function buildTopologyMetadata(
-  topology: YAMLDocument<TopologyDefinition>,
-  getInterfaceConfig: InterfaceConfigLookup,
-): TopologyMeta {
-  const {nodes, links} = containerlabFormat.open(topology);
-  const nodeCount = nodes.size;
-
-  const connections: NodeConnection[] = [];
-  const connectionMap = new Map<string, NodeConnection[]>();
-
-  // A connection is a link between two named interfaces of two nodes, links to the host have a single endpoint
-  for (const {index, endpoints} of links) {
-    if (endpoints.length !== 2) continue;
-
-    const [
-      {node: hostNode, interface: hostInterface},
-      {node: targetNode, interface: targetInterface},
-    ] = endpoints;
-
-    // Ignore the link if an interface isn't named or one of the nodes doesn't exist
-    if (
-      !hostInterface ||
-      !targetInterface ||
-      !nodes.has(hostNode) ||
-      !nodes.has(targetNode)
-    ) {
-      continue;
-    }
-
-    const hostInterfaceConfig = getInterfaceConfig(nodes.get(hostNode)!.device);
-    const targetInterfaceConfig = getInterfaceConfig(
-      nodes.get(targetNode)!.device,
-    );
-
-    const hostInterfaceIndex = parseInterface(
-      hostInterface,
-      hostInterfaceConfig.interfacePattern,
-    );
-    const targetInterfaceIndex = parseInterface(
-      targetInterface,
-      targetInterfaceConfig.interfacePattern,
-    );
-
-    connections.push({
-      index,
-      hostNode,
-      hostInterface,
-      hostInterfaceIndex,
-      hostInterfaceConfig,
-      targetNode,
-      targetInterface,
-      targetInterfaceIndex,
-      targetInterfaceConfig,
-    });
-
-    pushOrCreateList(connectionMap, hostNode, {
-      index,
-      hostNode,
-      hostInterface,
-      hostInterfaceIndex,
-      hostInterfaceConfig,
-      targetNode,
-      targetInterface,
-      targetInterfaceIndex,
-      targetInterfaceConfig,
-    });
-
-    pushOrCreateList(connectionMap, targetNode, {
-      index,
-      hostNode: targetNode,
-      hostInterface: targetInterface,
-      hostInterfaceIndex: targetInterfaceIndex,
-      hostInterfaceConfig: targetInterfaceConfig,
-      targetNode: hostNode,
-      targetInterface: hostInterface,
-      targetInterfaceIndex: hostInterfaceIndex,
-      targetInterfaceConfig: hostInterfaceConfig,
-    });
-  }
-
-  return {nodeCount, connections, connectionMap};
-}
-
-export function parseInterface(
-  value: string,
-  interfacePattern: string,
-): number {
-  const pattern = new RegExp(interfacePattern.replaceAll('$', '(\\d+)'));
-  const match = value.match(pattern);
-
-  if (!match || match.length < 2) return 99;
-  return Number(match[1]);
-}
-
 function readNodePosition(
   labels: NodeLabels | undefined,
   annotation: NodeAnnotation | undefined,
@@ -302,50 +214,4 @@ function readNodePosition(
   if (!isNaN(lat) && !isNaN(lng)) return convertLatLngToXY(lat, lng);
 
   return null;
-}
-
-/**
- * Renames a node of the definition and the endpoints of its links. The node
- * keeps its place and its comments in the definition.
- *
- * @param definition The definition to change.
- * @param nodeName The current name of the node.
- * @param updatedNodeName The new name of the node.
- */
-export function renameNodeInDefinition(
-  definition: YAMLDocument<TopologyDefinition>,
-  nodeName: string,
-  updatedNodeName: string,
-) {
-  const nodes = definition.getIn(['topology', 'nodes']);
-  const node = isMap(nodes)
-    ? nodes.items.find(
-        item =>
-          String(isScalar(item.key) ? item.key.value : item.key) === nodeName,
-      )
-    : undefined;
-  if (!node) return;
-
-  if (isScalar(node.key)) {
-    node.key.value = updatedNodeName;
-  } else {
-    node.key = definition.createNode(updatedNodeName);
-  }
-
-  const links = definition.getIn(['topology', 'links']);
-  if (!isSeq(links)) return;
-
-  for (const link of links.items) {
-    const endpoints = isMap(link) ? link.get('endpoints', true) : undefined;
-    if (!isSeq(endpoints)) continue;
-
-    for (const endpoint of endpoints.items) {
-      if (!isScalar(endpoint) || typeof endpoint.value !== 'string') continue;
-
-      const [endpointNode, endpointInterface] = endpoint.value.split(':');
-      if (endpointNode === nodeName) {
-        endpoint.value = `${updatedNodeName}:${endpointInterface}`;
-      }
-    }
-  }
 }

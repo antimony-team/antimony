@@ -10,7 +10,7 @@ import {
   unionBox,
 } from '@sb/lib/graph/annotation-geometry';
 import {GRID_SPACING, placeNodes} from '@sb/lib/graph/placement';
-import {readGraphNodes} from '@sb/lib/graph/topology-graph';
+import {graphLinks, readGraphNodes} from '@sb/lib/graph/topology-graph';
 import {RunTopology, Topology} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
@@ -26,11 +26,7 @@ export function generateGraph(
   icons: GraphIcons,
 ): ElementDefinition[] {
   const elements: ElementDefinition[] = [];
-  const placedPositions = placeNodes(
-    topology.definition,
-    topology.annotations,
-    topology.connections,
-  );
+  const placedPositions = placeNodes(topology.definition, topology.annotations);
 
   for (const node of readGraphNodes(
     topology.definition,
@@ -51,15 +47,17 @@ export function generateGraph(
     });
   }
 
-  for (const connection of topology.connections) {
+  for (const link of graphLinks(topology.definition)) {
+    const [source, target] = link.endpoints;
+
     elements.push({
       data: {
-        id: connection.index.toString(),
-        source: connection.hostNode,
-        target: connection.targetNode,
-        title: `${connection.hostNode}:${connection.hostInterface} <···> ${connection.targetNode}:${connection.targetInterface}`,
-        sourceLabel: connection.hostInterface,
-        targetLabel: connection.targetInterface,
+        id: link.index.toString(),
+        source: source.node,
+        target: target.node,
+        title: `${source.node}:${source.interface ?? ''} <···> ${target.node}:${target.interface ?? ''}`,
+        sourceLabel: source.interface ?? '',
+        targetLabel: target.interface ?? '',
       },
       // Links are only highlighted while their context menu is open
       selectable: false,

@@ -307,7 +307,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           items: topologyStore.data
             .filter(t => t.collectionId === collection.id)
             .map(topology => ({
-              label: topology.name,
+              label: topology.definition.name ?? '',
               value: topology.id,
               prefix: collection.name,
             })),

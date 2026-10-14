@@ -16,7 +16,6 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyManager} from '@sb/lib/topology-manager';
 import {createTopologyTemplate} from '@sb/lib/topology-template';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {fetchSyncUrl} from '@sb/lib/utils/utils';
@@ -48,7 +47,7 @@ interface TopologyEdit {
 
 const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   const editingTopology = useLocalObservable<TopologyEdit>(() => ({
-    name: props.dialogState.state?.editingTopology?.name ?? '',
+    name: props.dialogState.state?.editingTopology?.definition.name ?? '',
     syncUrl: props.dialogState.state?.editingTopology?.syncUrl ?? '',
     collectionId: props.dialogState.state?.collectionId ?? '',
   }));
@@ -65,7 +64,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   function onShow() {
     runInAction(() => {
       editingTopology.name =
-        props.dialogState.state?.editingTopology?.name ?? '';
+        props.dialogState.state?.editingTopology?.definition.name ?? '';
       editingTopology.syncUrl =
         props.dialogState.state?.editingTopology?.syncUrl ?? '';
       editingTopology.collectionId =
@@ -85,7 +84,8 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
   function hasChanges() {
     return (
-      props.dialogState.state?.editingTopology?.name !== editingTopology.name ||
+      (props.dialogState.state?.editingTopology?.definition.name ?? '') !==
+        editingTopology.name ||
       props.dialogState.state?.editingTopology?.syncUrl !==
         editingTopology.syncUrl ||
       props.dialogState.state?.collectionId !== editingTopology.collectionId
@@ -132,13 +132,14 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
       }
 
       const newDefinition =
-        props.dialogState.state.editingTopology!.definition.clone();
-      newDefinition.set('name', editingTopology.name);
+        props.dialogState.state.editingTopology!.definition.setName(
+          editingTopology.name,
+        );
 
       const result = await topologyStore.update(
         props.dialogState.state.editingTopology!.id,
         {
-          definition: TopologyManager.serializeTopology(newDefinition),
+          definition: newDefinition.toString(),
           syncUrl: editingTopology.syncUrl,
           collectionId: editingTopology.collectionId,
         },
@@ -237,7 +238,9 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         <SBInput
           ref={topologyNameRef}
           onValueSubmit={onNameChange}
-          defaultValue={props.dialogState.state?.editingTopology?.name ?? ''}
+          defaultValue={
+            props.dialogState.state?.editingTopology?.definition.name ?? ''
+          }
           placeholder="e.g. OSPF Lab"
           id="topology-edit-name"
           label="Name"

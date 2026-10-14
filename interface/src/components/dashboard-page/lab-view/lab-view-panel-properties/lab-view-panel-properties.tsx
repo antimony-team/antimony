@@ -2,7 +2,6 @@ import React, {useMemo} from 'react';
 
 import dayjs from 'dayjs';
 import {useNavigate} from 'react-router';
-import {YAMLMap, YAMLSeq} from 'yaml';
 
 import {Button} from 'primereact/button';
 import {Tooltip} from 'primereact/tooltip';
@@ -35,23 +34,12 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   }
 
   const topologyName = useMemo(() => {
-    return props.lab.topologyDefinition.definition.get('name')! as string;
+    return props.lab.topologyDefinition.definition.name ?? '';
   }, [props.lab.topologyDefinition]);
 
   const [nodeCount, linkCount] = useMemo(() => {
-    const nodes = props.lab.topologyDefinition.definition.getIn([
-      'topology',
-      'nodes',
-    ]);
-    const links = props.lab.topologyDefinition.definition.getIn([
-      'topology',
-      'links',
-    ]);
-
-    return [
-      nodes instanceof YAMLMap ? nodes.items.length : 0,
-      links instanceof YAMLSeq ? links.items.length : 0,
-    ];
+    const {definition} = props.lab.topologyDefinition;
+    return [definition.nodeNames.length, definition.links.length];
   }, [props.lab.topologyDefinition]);
 
   return (

@@ -1,10 +1,8 @@
+import {ContainerlabNodeDefinition as Definition} from '@sb/lib/topology/containerlab/containerlab-types';
 import {
+  NodeProperty,
   PropertySource,
-  ResolvedProperty,
-} from '@sb/types/domain/topology-model';
-
-// A node definition of containerlab, which the defaults, the kinds and the groups share
-export type Definition = Record<string, unknown>;
+} from '@sb/types/domain/topology-definition';
 
 // The value of a property on a level the node inherits from
 export interface LevelValue {
@@ -25,7 +23,7 @@ export abstract class PropertyRule {
   public abstract combine(
     values: LevelValue[],
     isNodeEmpty: boolean,
-  ): ResolvedProperty | null;
+  ): NodeProperty | null;
 
   /*
    * Combines the values of all levels that set the property, from the defaults
@@ -34,7 +32,7 @@ export abstract class PropertyRule {
   protected joined(
     values: LevelValue[],
     combineValues: (general: unknown[]) => unknown,
-  ): ResolvedProperty | null {
+  ): NodeProperty | null {
     const setValues = values.filter(({value}) => isSet(value));
     if (setValues.length === 0) return null;
 
@@ -47,7 +45,7 @@ export abstract class PropertyRule {
 
 // The value of the most specific level that sets the property
 class OverrideRule extends PropertyRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     const value = values.find(({value}) => isSet(value));
     return value ? {value: value.value, sources: [value.source]} : null;
   }
@@ -55,7 +53,7 @@ class OverrideRule extends PropertyRule {
 
 // The type of a node, without the whitespace around it
 class TypeRule extends OverrideRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     const property = super.combine(values);
     if (typeof property?.value === 'string')
       property.value = property.value.trim();
@@ -72,7 +70,7 @@ class FlagRule extends PropertyRule {
   public combine(
     values: LevelValue[],
     isNodeEmpty: boolean,
-  ): ResolvedProperty | null {
+  ): NodeProperty | null {
     const value = isNodeEmpty
       ? values.find(({source}) => source.level === 'defaults')
       : values[0];
@@ -83,7 +81,7 @@ class FlagRule extends PropertyRule {
 
 // A list that is joined from the defaults to the node, without duplicates
 class ListRule extends PropertyRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     return this.joined(values, general =>
       this.combineList(unique(general.flatMap(asList))),
     );
@@ -115,7 +113,7 @@ class BindsRule extends ListRule {
 
 // A map whose keys are merged, the more specific level wins
 class MapRule extends PropertyRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     return this.joined(values, general =>
       Object.assign({}, ...general.map(asDefinition)),
     );
@@ -124,7 +122,7 @@ class MapRule extends PropertyRule {
 
 // An object whose fields each come from the most specific level that sets them
 class FieldsRule extends PropertyRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     const fields: Definition = {};
     const sources: PropertySource[] = [];
 
@@ -148,7 +146,7 @@ class FieldsRule extends PropertyRule {
  * wait for of all levels are joined. A stage to wait for is only added once.
  */
 class StagesRule extends PropertyRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     return this.joined(values, general => {
       const stages: Record<
         string,
@@ -180,7 +178,7 @@ class StagesRule extends PropertyRule {
  * that sets either, the identity file is inherited on its own.
  */
 class CredentialsRule extends PropertyRule {
-  public combine(values: LevelValue[]): ResolvedProperty | null {
+  public combine(values: LevelValue[]): NodeProperty | null {
     const levels = values.map(({source, value}) => ({
       source,
       credentials: asDefinition(value) ?? {},
@@ -217,7 +215,7 @@ class ConfigRule extends PropertyRule {
   public combine(
     values: LevelValue[],
     isNodeEmpty: boolean,
-  ): ResolvedProperty | null {
+  ): NodeProperty | null {
     if (isNodeEmpty) return null;
 
     return this.joined(values, general => ({

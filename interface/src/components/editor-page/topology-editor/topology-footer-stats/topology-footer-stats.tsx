@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 
 import {GraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
+import {graphLinks} from '@sb/lib/graph/topology-graph';
 import {pluralize} from '@sb/lib/utils/utils';
 import {Choose, When} from '@sb/types/control';
 import {Topology} from '@sb/types/domain/topology';
@@ -37,9 +38,19 @@ const TopologyFooterStats = observer((props: TopologyFooterStatsProps) => {
       </When>
       <When condition={props.topology}>
         <div className="sb-dot-separated">
-          <div>{pluralize(props.topology!.nodeCount, 'node', 'nodes')}</div>
           <div>
-            {pluralize(props.topology!.connections.length, 'link', 'links')}
+            {pluralize(
+              props.topology!.definition.nodeNames.length,
+              'node',
+              'nodes',
+            )}
+          </div>
+          <div>
+            {pluralize(
+              graphLinks(props.topology!.definition).length,
+              'link',
+              'links',
+            )}
           </div>
           <div>
             {pluralize(

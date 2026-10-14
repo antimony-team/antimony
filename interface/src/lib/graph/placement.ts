@@ -1,13 +1,10 @@
 import cytoscape, {LayoutOptions} from 'cytoscape';
 import fcose, {FcoseLayoutOptions} from 'cytoscape-fcose';
 
-import {readGraphNodes} from '@sb/lib/graph/topology-graph';
-import {
-  NodeConnection,
-  TopologyAnnotations,
-  TopologyDefinition,
-} from '@sb/types/domain/topology';
-import {Position, YAMLDocument} from '@sb/types/types';
+import {graphLinks, readGraphNodes} from '@sb/lib/graph/topology-graph';
+import {TopologyAnnotations} from '@sb/types/domain/topology';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
+import {Position} from '@sb/types/types';
 
 export const GRID_SPACING = 35;
 
@@ -47,8 +44,15 @@ const CIRCLE_LAYOUT: LayoutOptions = {
 cytoscape.use(fcose);
 
 // Placed positions by definition and annotations, the graph is generated again on every edit
+// A link between two nodes of the graph
+interface GraphLink {
+  index: number;
+  source: string;
+  target: string;
+}
+
 const placementCache = new WeakMap<
-  YAMLDocument<TopologyDefinition>,
+  TopologyDefinition,
   WeakMap<TopologyAnnotations, Map<string, Position>>
 >();
 
@@ -155,15 +159,19 @@ export class OccupiedPositions {
  * placed the same way.
  */
 export function placeNodes(
-  definition: YAMLDocument<TopologyDefinition>,
+  definition: TopologyDefinition,
   annotations: TopologyAnnotations,
-  connections: NodeConnection[],
 ): Map<string, Position> {
   let cachedPlacements = placementCache.get(definition);
   const cached = cachedPlacements?.get(annotations);
   if (cached) return cached;
 
   const nodes = readGraphNodes(definition, annotations);
+  const connections: GraphLink[] = graphLinks(definition).map(link => ({
+    index: link.index,
+    source: link.endpoints[0].node,
+    target: link.endpoints[1].node,
+  }));
   const placedNodes = new Map<string, Position>();
   const unplacedNodes: string[] = [];
 
@@ -182,7 +190,7 @@ export function placeNodes(
     // The placement only depends on the nodes, their positions and their links
     const structure = JSON.stringify([
       nodes.map(node => [node.name, node.position]),
-      connections.map(c => [c.hostNode, c.targetNode]),
+      connections.map(c => [c.source, c.target]),
     ]);
 
     positions =
@@ -210,11 +218,11 @@ export function placeNodes(
 
 function layoutNodes(
   nodeNames: string[],
-  connections: NodeConnection[],
+  connections: GraphLink[],
 ): Map<string, Position> {
   const nodeSet = new Set(nodeNames);
   const links = connections.filter(
-    c => nodeSet.has(c.hostNode) && nodeSet.has(c.targetNode),
+    c => nodeSet.has(c.source) && nodeSet.has(c.target),
   );
 
   if (nodeNames.length <= FORCE_LAYOUT_MAX_NODES) {
@@ -222,7 +230,7 @@ function layoutNodes(
   }
 
   // Unlinked nodes would make the outermost circle very large, so they are put in a grid next to the circles
-  const linkedNodes = new Set(links.flatMap(c => [c.hostNode, c.targetNode]));
+  const linkedNodes = new Set(links.flatMap(c => [c.source, c.target]));
   const positions = runLayout(
     nodeNames.filter(name => linkedNodes.has(name)),
     links,
@@ -244,7 +252,7 @@ function layoutNodes(
 
 function runLayout(
   nodeNames: string[],
-  links: NodeConnection[],
+  links: GraphLink[],
   options: LayoutOptions | FcoseLayoutOptions,
 ): Map<string, Position> {
   const cy = cytoscape({
@@ -254,7 +262,7 @@ function runLayout(
     elements: [
       ...nodeNames.map(name => ({data: {id: name}})),
       ...links.map(c => ({
-        data: {id: `${c.index}`, source: c.hostNode, target: c.targetNode},
+        data: {id: `${c.index}`, source: c.source, target: c.target},
       })),
     ],
   });
@@ -332,17 +340,17 @@ function getBounds(positions: Position[]) {
 function placeNearNeighbours(
   unplacedNodes: string[],
   placedNodes: Map<string, Position>,
-  connections: NodeConnection[],
+  connections: GraphLink[],
 ): Map<string, Position> {
   const neighbours = new Map<string, string[]>();
   for (const connection of connections) {
-    neighbours.set(connection.hostNode, [
-      ...(neighbours.get(connection.hostNode) ?? []),
-      connection.targetNode,
+    neighbours.set(connection.source, [
+      ...(neighbours.get(connection.source) ?? []),
+      connection.target,
     ]);
-    neighbours.set(connection.targetNode, [
-      ...(neighbours.get(connection.targetNode) ?? []),
-      connection.hostNode,
+    neighbours.set(connection.target, [
+      ...(neighbours.get(connection.target) ?? []),
+      connection.source,
     ]);
   }
 

@@ -1,21 +1,21 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-
-import {DialogState} from '@sb/lib/utils/hooks';
-
-import {observer} from 'mobx-react-lite';
 import React, {useEffect, useState} from 'react';
-import {Topology} from '@sb/types/domain/topology';
-import {ToggleSet} from '@sb/lib/utils/toggle-set';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-
-import './archive-upload-dialog.sass';
-import {Checkbox} from 'primereact/checkbox';
 
 import {ArchiveReader, libarchiveWasm} from 'libarchive-wasm';
 import wasmUrl from 'libarchive-wasm/dist/libarchive.wasm?url';
-import {ProgressSpinner} from 'primereact/progressspinner';
-import {formatBytes} from '@sb/lib/utils/utils';
+import {observer} from 'mobx-react-lite';
+
+import {Checkbox} from 'primereact/checkbox';
 import {Message} from 'primereact/message';
+import {ProgressSpinner} from 'primereact/progressspinner';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import {DialogState} from '@sb/lib/utils/hooks';
+import {ToggleSet} from '@sb/lib/utils/toggle-set';
+import {formatBytes} from '@sb/lib/utils/utils';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {Topology} from '@sb/types/domain/topology';
+
+import './archive-upload-dialog.sass';
 
 export interface ArchiveUploadDialogState {
   topology: Topology;
@@ -92,10 +92,13 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
         let actualPath = pathname;
         let exists = false;
         if (
-          actualPath.startsWith(`${props.dialogState.state!.topology.name}/`)
+          actualPath.startsWith(
+            `${props.dialogState.state!.topology.definition.name}/`,
+          )
         ) {
           actualPath = actualPath.substring(
-            props.dialogState.state!.topology.name.length + 1,
+            (props.dialogState.state!.topology.definition.name ?? '').length +
+              1,
           );
         }
 
@@ -201,7 +204,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
     if (
       fileNode.children?.length === 1 &&
       fileNode.children[0].fullPath.startsWith(
-        `${props.dialogState.state!.topology.name}/`,
+        `${props.dialogState.state!.topology.definition.name}/`,
       )
     ) {
       return fileNode.children[0].children!;
@@ -236,13 +239,14 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
           <Choose>
             <When
               condition={
-                props.node.fullPath.startsWith(`${props.topology.name}/`) &&
-                props.level === 0
+                props.node.fullPath.startsWith(
+                  `${props.topology.definition.name}/`,
+                ) && props.level === 0
               }
             >
               <div>
                 <span className="sb-archive-upload-dialog-file-label-prefix">
-                  {props.topology.name}/
+                  {props.topology.definition.name}/
                 </span>
                 <span>{props.node.label}</span>
               </div>

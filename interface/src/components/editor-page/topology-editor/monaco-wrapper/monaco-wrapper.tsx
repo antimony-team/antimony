@@ -40,10 +40,9 @@ import {
   BindFile,
   Topology,
   TopologyAnnotations,
-  TopologyDefinition,
   TopologyFileType,
 } from '@sb/types/domain/topology';
-import {YAMLDocument} from '@sb/types/types';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 
 import {AntimonyTheme, MonacoOptions} from './monaco.conf';
 
@@ -135,8 +134,7 @@ const MonacoWrapper = observer(
     // The definition and annotations that are currently shown in the models
     // We store this so we don't always have to serialize and compare the string
     // representations of the definitions and annotations
-    const currentDefinitionRef =
-      useRef<YAMLDocument<TopologyDefinition> | null>(null);
+    const currentDefinitionRef = useRef<TopologyDefinition | null>(null);
     const currentAnnotationsRef = useRef<TopologyAnnotations | null>(null);
 
     // The history doesn't change, it's a ref so the callbacks that are only registered once can use it
@@ -234,9 +232,7 @@ const MonacoWrapper = observer(
 
       if (textModelRef.current && annotationsModelRef.current) {
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
-        textModelRef.current.setValue(
-          TopologyManager.serializeTopology(props.openTopology.definition),
-        );
+        textModelRef.current.setValue(props.openTopology.definition.toString());
         annotationsModelRef.current.setValue(
           TopologyManager.serializeAnnotations(props.openTopology.annotations),
         );
@@ -290,7 +286,7 @@ const MonacoWrapper = observer(
       if (textModelRef.current && definition !== currentDefinitionRef.current) {
         currentDefinitionRef.current = definition;
 
-        const updatedContent = TopologyManager.serializeTopology(definition);
+        const updatedContent = definition.toString();
         const existingContent = textModelRef.current.getValue();
 
         if (updatedContent !== existingContent) {

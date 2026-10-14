@@ -181,8 +181,8 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
     }
 
     let tabTitle = 'Antimony';
-    if (openTopology?.name) {
-      tabTitle += ` | ${openTopology.name}`;
+    if (openTopology?.definition.name) {
+      tabTitle += ` | ${openTopology.definition.name}`;
     } else if (openBindFile?.filePath) {
       tabTitle += ` | ${openBindFile.filePath}`;
     }
@@ -278,7 +278,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       }
 
       validateTimeoutRef.current = setTimeout(() => {
-        const definition = topologyStore.parseTopologyDefinition(content);
+        const definition = topologyStore.readTopology(content);
 
         if (definition !== null) {
           setValidationState(ValidationState.Done);
@@ -380,18 +380,15 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       );
       FileSaver.saveAs(
         blob,
-        `${topologyCollection!.name}_${openTopology.definition.get('name')}.annotations.json`,
+        `${topologyCollection!.name}_${openTopology.definition.name}.annotations.json`,
       );
     } else if (openTopology) {
-      const blob = new Blob(
-        [TopologyManager.serializeTopology(openTopology.definition)],
-        {
-          type: 'text/yaml;charset=utf-8',
-        },
-      );
+      const blob = new Blob([openTopology.definition.toString()], {
+        type: 'text/yaml;charset=utf-8',
+      });
       FileSaver.saveAs(
         blob,
-        `${topologyCollection!.name}_${openTopology.definition.get('name')}.yaml`,
+        `${topologyCollection!.name}_${openTopology.definition.name}.yaml`,
       );
     } else if (openBindFile) {
       const topology = topologyStore.bindFileLookup.get(openBindFile.id);
@@ -523,13 +520,13 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                     <span className="material-symbols-outlined">
                       network_node
                     </span>
-                    {`${openTopology?.name}${hasPendingEdits ? '*' : ''}`}
+                    {`${openTopology?.definition.name}${hasPendingEdits ? '*' : ''}`}
                   </div>
                 </li>
                 <li>
                   <TopologyFileSwitch
                     value={openTopologyFile}
-                    topologyName={openTopology?.name ?? ''}
+                    topologyName={openTopology?.definition.name ?? ''}
                     onChange={setOpenTopologyFile}
                   />
                 </li>
