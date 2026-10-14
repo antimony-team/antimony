@@ -2,7 +2,6 @@ package lab
 
 import (
 	"antimonyBackend/auth"
-	"antimonyBackend/clabtypes"
 	"antimonyBackend/config"
 	"antimonyBackend/domain/schema"
 	"antimonyBackend/domain/statusmessage"
@@ -328,27 +327,41 @@ func (s *Service) createLabEnvironment(lab *Lab) (string, error) {
 	return runTopologyName, nil
 }
 
-// Read a topology, changes its name, and returns the re-marshaled output.
+// renameTopology reads a topology and returns its definition with the given name. Only the value of
+// the name changes, everything else is written back as it was, including comments, anchors, the
+// notation of links and the fields Antimony doesn't know.
 func (s *Service) renameTopology(topologyId string, topologyName string, runTopologyDefinition *string) error {
 	var (
 		definitionString string
-		definition       clabtypes.TopologyDefinition
+		document         yaml.Node
 	)
 	if err := s.storageManager.ReadTopology(topologyId, &definitionString, new(string)); err != nil {
 		return err
 	}
 
-	if err := yaml.Unmarshal([]byte(definitionString), &definition); err != nil {
+	if err := yaml.Unmarshal([]byte(definitionString), &document); err != nil {
 		return err
 	}
 
-	definition.Name = topologyName
-	if runTopologyRaw, err := yaml.Marshal(definition); err != nil {
-		return err
-	} else {
-		*runTopologyDefinition = string(runTopologyRaw)
-		return nil
+	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
+		return utils.ErrInvalidTopology
 	}
+
+	utils.SetMappingValue(document.Content[0], "name", topologyName)
+
+	var output strings.Builder
+	encoder := yaml.NewEncoder(&output)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(&document); err != nil {
+		return err
+	}
+	if err := encoder.Close(); err != nil {
+		return err
+	}
+
+	*runTopologyDefinition = output.String()
+	return nil
 }
 
 // instanceNameSuffix returns a short, unique, containerlab-safe suffix for an instance name.
