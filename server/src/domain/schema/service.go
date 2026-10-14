@@ -67,7 +67,6 @@ func (u *Service) Parse(data string, definition *clabtypes.TopologyDefinition, d
 	}
 
 	if err := u.clabSchema.Validate(*definitionRaw); err != nil {
-		log.Error(err, "Topology validation error")
 		if validationErr, ok := errors.AsType[*jsonschema.ValidationError](err); ok && failsAt(validationErr, "/name") {
 			return fmt.Errorf("%w: %s", utils.ErrInvalidTopologyName, err.Error())
 		}
