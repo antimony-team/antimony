@@ -38,7 +38,7 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyEditSource, TopologyManager} from '@sb/lib/topology-manager';
+import {TopologyEditSource} from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {
   isString,
@@ -477,40 +477,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
   }
 
-  function onDuplicateTopologyConfirm(topologyId: string) {
-    if (!topologyStore.lookup.has(topologyId)) return;
-
-    const topology = topologyStore.lookup.get(topologyId)!;
-    const definitionClone = topology.definition.setName(
-      `${topology.definition.name} (clone)`,
-    );
-
-    void topologyStore
-      .add<string>({
-        definition: definitionClone.toString(),
-        annotations: TopologyManager.serializeAnnotations(topology.annotations),
-        collectionId: topology.collectionId,
-        syncUrl: topology.syncUrl,
-      })
-      .then(result => {
-        if (result.isErr()) {
-          notificationStore.error(
-            result.error.message,
-            'Failed to update topology',
-          );
-        } else {
-          notificationStore.success(
-            'Topology has been duplicated successfully.',
-          );
-
-          if (topologyStore.lookup.has(result.data.payload)) {
-            const topology = topologyStore.lookup.get(result.data.payload)!;
-            topologyStore.manager.openTopology(topology);
-          }
-        }
-      });
-  }
-
   function onDeleteTopology(id: string) {
     const topology = topologyStore.lookup.get(id)!;
     const topologyName = topology.definition.name ?? '';
@@ -557,17 +523,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         topologyStore.manager.close();
       }
     }
-  }
-
-  function onTopologyAdded(topologyId: string) {
-    if (!topologyStore.lookup.has(topologyId)) return;
-
-    executeEditDiscardingAction(() => props.onOpenFile(topologyId));
-
-    // Expand the newly created topology's collection node
-    expandNode(topologyStore.lookup.get(topologyId)!.collectionId);
-    // setNodeExpanded(topologyStore.lookup.get(topologyId)!.collectionId, true);
-    // saveNodeExpandKeys();
   }
 
   function onDeleteBindFile(bindFileId: string) {

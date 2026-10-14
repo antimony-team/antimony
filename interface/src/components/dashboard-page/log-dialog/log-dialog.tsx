@@ -1,19 +1,20 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 
-import './log-dialog.sass';
+import {runInAction} from 'mobx';
+import {observer} from 'mobx-react-lite';
+
+import {Image} from 'primereact/image';
+import {Skeleton} from 'primereact/skeleton';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
 import {useDataBinder} from '@sb/lib/stores/root-store';
+import hljs from '@sb/lib/utils/hljs/highlight';
 import {DialogState} from '@sb/lib/utils/hooks';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
-import {observer} from 'mobx-react-lite';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
-
-import hljs from '@sb/lib/utils/hljs/highlight';
-import {Skeleton} from 'primereact/skeleton';
-import {runInAction} from 'mobx';
-import {Image} from 'primereact/image';
+import './log-dialog.sass';
 
 export const ANTIMONY_LOG = '__antimony__';
 

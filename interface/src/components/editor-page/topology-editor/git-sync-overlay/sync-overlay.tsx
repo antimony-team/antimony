@@ -1,14 +1,16 @@
-import {Topology} from '@sb/types/domain/topology';
 import React, {useRef} from 'react';
 
 import {observer} from 'mobx-react-lite';
+
+import {Button} from 'primereact/button';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
-import './sync-overlay.sass';
-import {Button} from 'primereact/button';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {fetchSyncUrl} from '@sb/lib/utils/utils';
+import {Topology} from '@sb/types/domain/topology';
+
+import './sync-overlay.sass';
 
 interface SyncOverlayProps {
   popOverRef: React.RefObject<OverlayPanel | null>;

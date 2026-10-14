@@ -1,5 +1,7 @@
-import {action, observable} from 'mobx';
 import {useEffect, useMemo, useRef, useState} from 'react';
+
+import {action, observable} from 'mobx';
+
 import {useRootStore} from '@sb/lib/stores/root-store';
 
 export enum DialogAction {

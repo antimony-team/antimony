@@ -1,5 +1,5 @@
-import {randomUUID} from 'node:crypto';
 import {BrowserContext, Page, test as base} from '@playwright/test';
+import {randomUUID} from 'node:crypto';
 
 import {BASE_URL, CONTEXT_OPTIONS} from '../settings';
 import {

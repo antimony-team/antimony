@@ -4,9 +4,9 @@ import {observer} from 'mobx-react-lite';
 import {createHashRouter} from 'react-router';
 
 import App from '@sb/app';
-import ErrorScreen from '@sb/components/error-screen/error-screen';
-import EditorPage from '@sb/components/editor-page/editor-page';
 import DashboardPage from '@sb/components/dashboard-page/dashboard-page';
+import EditorPage from '@sb/components/editor-page/editor-page';
+import ErrorScreen from '@sb/components/error-screen/error-screen';
 import RouteErrorBoundary from '@sb/components/error-screen/route-error-boundary';
 import {useAuthUser, useCollectionStore} from '@sb/lib/stores/root-store';
 

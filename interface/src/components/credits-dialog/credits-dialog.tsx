@@ -3,9 +3,9 @@ import React from 'react';
 import {Image} from 'primereact/image';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import {useServerConfig} from '@sb/lib/stores/root-store';
 
 import './credits-dialog.sass';
-import {useServerConfig} from '@sb/lib/stores/root-store';
 
 interface CreditsDialogProps {
   isOpen: boolean;

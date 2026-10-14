@@ -6,10 +6,11 @@ import React, {
   useState,
 } from 'react';
 
-import './sb-confirm.sass';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import {If} from '@sb/types/control';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {If} from '@sb/types/control';
+
+import './sb-confirm.sass';
 
 export interface SBConfirmOpenProps extends SBConfirmState {
   message?: string;

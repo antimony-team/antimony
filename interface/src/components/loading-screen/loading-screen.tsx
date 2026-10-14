@@ -1,9 +1,10 @@
 import React, {useEffect, useState} from 'react';
 
+import {Image} from 'primereact/image';
+
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
 
 import './loading-screen.sass';
-import {Image} from 'primereact/image';
 
 interface LoadingScreenProps {
   visible: boolean;

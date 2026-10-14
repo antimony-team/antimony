@@ -1,17 +1,17 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-
-import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {useCollectionStore, useStatusMessages} from '@sb/lib/stores/root-store';
-
-import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
-import {Collection, CollectionIn} from '@sb/types/domain/collection';
-import {ErrorCodes} from '@sb/types/error-codes';
+import React, {useEffect, useRef, useState} from 'react';
 
 import {isEqual} from 'lodash';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
+
 import {InputSwitch} from 'primereact/inputswitch';
-import React, {useEffect, useRef, useState} from 'react';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {useCollectionStore, useStatusMessages} from '@sb/lib/stores/root-store';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+import {Collection, CollectionIn} from '@sb/types/domain/collection';
+import {ErrorCodes} from '@sb/types/error-codes';
 
 import './collection-edit-dialog.sass';
 

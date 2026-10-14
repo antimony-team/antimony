@@ -2,11 +2,12 @@ import React from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
+
 import {ProgressSpinner} from 'primereact/progressspinner';
 
-import {ConnectionState} from '@sb/types/types';
 import {useDataBinder} from '@sb/lib/stores/root-store';
 import {Choose, Otherwise, When} from '@sb/types/control';
+import {ConnectionState} from '@sb/types/types';
 
 import './connection-error-status.sass';
 

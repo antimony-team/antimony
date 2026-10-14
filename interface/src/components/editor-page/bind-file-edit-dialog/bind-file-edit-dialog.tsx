@@ -1,15 +1,15 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import React, {useEffect, useRef, useState} from 'react';
 
+import {isEqual} from 'lodash-es';
+import {runInAction} from 'mobx';
+import {observer, useLocalObservable} from 'mobx-react-lite';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {BindFile} from '@sb/types/domain/topology';
 import {ErrorCodes} from '@sb/types/error-codes';
-
-import {isEqual} from 'lodash-es';
-import {runInAction} from 'mobx';
-import {observer, useLocalObservable} from 'mobx-react-lite';
-import React, {useEffect, useRef, useState} from 'react';
 
 import './bind-file-edit-dialog.sass';
 

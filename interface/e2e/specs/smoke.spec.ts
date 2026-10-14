@@ -1,5 +1,5 @@
-import {Dock} from '../pages/dock';
 import {expect, test} from '../fixtures/test';
+import {Dock} from '../pages/dock';
 
 /*
  * Checks that the pipeline works end to end: the interface is served, it talks to the backend over

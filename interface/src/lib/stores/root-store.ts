@@ -1,21 +1,21 @@
-import {ShellStore} from '@sb/lib/stores/shell-store';
 import {createContext, useContext} from 'react';
 
 import {autorun, computed, observable, runInAction} from 'mobx';
 
-import {AppPhase, FetchState} from '@sb/types/types';
-import {LabStore} from '@sb/lib/stores/lab-store';
-import {CollectionStore} from '@sb/lib/stores/collection-store';
-import {combinedFetchState} from '@sb/lib/utils/utils';
-import {DeviceStore} from '@sb/lib/stores/device-store';
-import {SchemaStore} from '@sb/lib/stores/schema-store';
-import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
-import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
-import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
 import {ClockStore} from '@sb/lib/stores/clock-store';
+import {CollectionStore} from '@sb/lib/stores/collection-store';
 import {ContextMenuStore} from '@sb/lib/stores/context-menu-store';
+import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
+import {DeviceStore} from '@sb/lib/stores/device-store';
+import {LabStore} from '@sb/lib/stores/lab-store';
+import {SchemaStore} from '@sb/lib/stores/schema-store';
+import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
+import {ShellStore} from '@sb/lib/stores/shell-store';
+import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
+import {combinedFetchState} from '@sb/lib/utils/utils';
+import {AppPhase, FetchState} from '@sb/types/types';
 
 export class RootStore {
   _dataBinder: DataBinder;

@@ -1,8 +1,8 @@
 import React from 'react';
 
-import ErrorScreen from '@sb/components/error-screen/error-screen';
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
 import ConnectionErrorStatus from '@sb/components/connection-error/connection-error-status';
+import ErrorScreen from '@sb/components/error-screen/error-screen';
 
 /**
  * Blocking screen shown when the server is unreachable before the user has

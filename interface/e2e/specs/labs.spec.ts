@@ -1,7 +1,7 @@
 import {expect, test} from '../fixtures/test';
 import {graphNodes} from '../helpers/cytoscape';
-import {ConfirmDialog, Dialog, toast} from '../pages/dialogs';
 import {DashboardPage} from '../pages/dashboard-page';
+import {ConfirmDialog, Dialog, toast} from '../pages/dialogs';
 import {EditorPage} from '../pages/editor-page';
 import {LabView} from '../pages/lab-view';
 

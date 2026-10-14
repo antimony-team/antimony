@@ -1,11 +1,12 @@
 name: End-to-end tests
 
 on:
-  push:
-    branches: [ development ]
-
-  pull_request:
-    branches: [ development ]
+  # Disabled for now, the tests only run when started by hand or from the backend
+  # push:
+  #   branches: [ development ]
+  #
+  # pull_request:
+  #   branches: [ development ]
 
   workflow_dispatch:
     inputs:

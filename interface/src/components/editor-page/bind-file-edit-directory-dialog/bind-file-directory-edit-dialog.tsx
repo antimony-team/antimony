@@ -1,13 +1,13 @@
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import React, {useEffect, useRef, useState} from 'react';
 
+import {observer} from 'mobx-react-lite';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogState} from '@sb/lib/utils/hooks';
-
-import {observer} from 'mobx-react-lite';
-import React, {useEffect, useRef, useState} from 'react';
-
 import {Topology} from '@sb/types/domain/topology';
+
 import './bind-file-directory-edit-dialog.sass';
 
 export interface BindFileDirectoryEditDialogState {

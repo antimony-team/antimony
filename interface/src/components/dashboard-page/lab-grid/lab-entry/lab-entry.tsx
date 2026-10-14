@@ -8,8 +8,6 @@ import {
   useAuthUser,
   useClock,
   useCollectionStore,
-  useLabStore,
-  useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {formatDuration} from '@sb/lib/utils/utils';
@@ -28,10 +26,8 @@ interface LabEntryProps {
 
 const LabEntry = observer((props: LabEntryProps) => {
   const authUser = useAuthUser();
-  const labStore = useLabStore();
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
-  const notificationStore = useStatusMessages();
 
   const clock = useClock();
 
@@ -93,21 +89,6 @@ const LabEntry = observer((props: LabEntryProps) => {
   const collectionName = useMemo(() => {
     return collectionStore.lookup.get(props.lab.collectionId)!.name;
   }, [props.lab]);
-
-  function onDeleteScheduledLab() {
-    notificationStore.confirm({
-      message: 'This action cannot be undone.',
-      header: `Delete Lab '${props.lab.name}'?`,
-      icon: 'pi pi-trash',
-      severity: 'danger',
-      onAccept: () => labStore.delete(props.lab.id),
-    });
-  }
-
-  function onEditLab(e: React.MouseEvent<HTMLButtonElement>) {
-    e.stopPropagation();
-    props.onRescheduleLab();
-  }
 
   const showButtons =
     props.lab.state !== InstanceState.Stopping && isChangeable;

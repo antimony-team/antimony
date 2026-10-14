@@ -1,9 +1,12 @@
-import {IconField} from 'primereact/iconfield';
 import React, {useEffect, useRef} from 'react';
-import {InputText} from 'primereact/inputtext';
-import {InputIcon} from 'primereact/inputicon';
-import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
+
 import classNames from 'classnames';
+
+import {IconField} from 'primereact/iconfield';
+import {InputIcon} from 'primereact/inputicon';
+import {InputText} from 'primereact/inputtext';
+
+import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
 
 import './lab-explorer.sass';
 

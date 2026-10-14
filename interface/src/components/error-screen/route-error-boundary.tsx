@@ -1,11 +1,12 @@
 import React, {useEffect} from 'react';
 
-import {Button} from 'primereact/button';
 import {useRouteError} from 'react-router';
 
-import {If} from '@sb/types/control';
-import ErrorScreen from '@sb/components/error-screen/error-screen';
+import {Button} from 'primereact/button';
+
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
+import ErrorScreen from '@sb/components/error-screen/error-screen';
+import {If} from '@sb/types/control';
 
 /**
  * Fallback screen for when Antimony experienceds an unexpected error.

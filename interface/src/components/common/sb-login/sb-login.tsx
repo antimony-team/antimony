@@ -1,19 +1,20 @@
 import React, {FormEvent, useEffect, useState} from 'react';
 
-import {observer} from 'mobx-react-lite';
-import {Button} from 'primereact/button';
-import {Message} from 'primereact/message';
 import {loadLinksPreset} from '@tsparticles/preset-links';
 import Particles, {initParticlesEngine} from '@tsparticles/react';
+import {observer} from 'mobx-react-lite';
 
-import {If} from '@sb/types/control';
-import {useDataBinder} from '@sb/lib/stores/root-store';
-import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
+import {Button} from 'primereact/button';
+import {Image} from 'primereact/image';
+import {Message} from 'primereact/message';
+
+import SBInput from '@sb/components/common/sb-input/sb-input';
 import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
+import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
+import {useDataBinder} from '@sb/lib/stores/root-store';
+import {If} from '@sb/types/control';
 
 import './sb-login.sass';
-import SBInput from '@sb/components/common/sb-input/sb-input';
-import {Image} from 'primereact/image';
 
 interface SBLoginProps {
   visible: boolean;
@@ -48,9 +49,6 @@ const LoginForm = observer(() => {
 
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const [usernameValue, setUsernameValue] = useState<string>('');
-  const [passwordValue, setPasswordValue] = useState<string>('');
-
   function onFormSubmit(event: FormEvent) {
     event.preventDefault();
     const target = event.target as typeof event.target & {
@@ -70,14 +68,12 @@ const LoginForm = observer(() => {
       });
   }
 
-  function onUsernameChange(value: string) {
+  function onUsernameChange() {
     setLoginError(null);
-    setUsernameValue(value);
   }
 
-  function onPasswordChange(value: string) {
+  function onPasswordChange() {
     setLoginError(null);
-    setPasswordValue(value);
   }
 
   return (

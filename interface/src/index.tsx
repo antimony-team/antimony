@@ -1,6 +1,6 @@
 import React, {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
 
+import {createRoot} from 'react-dom/client';
 import {RouterProvider} from 'react-router';
 
 import {SBRounter} from '@sb/routes';

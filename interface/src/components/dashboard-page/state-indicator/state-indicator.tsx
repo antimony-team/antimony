@@ -1,10 +1,12 @@
-import {If} from '@sb/types/control';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
-import classNames from 'classnames';
 import React from 'react';
 
-import './state-indicator.sass';
+import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
+
+import {If} from '@sb/types/control';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
+
+import './state-indicator.sass';
 
 export const LabStateStatusIcons: Record<InstanceState, string> = {
   [InstanceState.Deploying]: 'pi pi-sync pi-spin',

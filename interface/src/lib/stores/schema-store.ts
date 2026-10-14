@@ -1,10 +1,10 @@
-import {action, observable, runInAction} from 'mobx';
 import Ajv, {SchemaObject, ValidateFunction} from 'ajv';
+import {action, observable, runInAction} from 'mobx';
 
-import {DataStore} from '@sb/lib/stores/data-store';
-import {DefaultFetchReport, FetchReport} from '@sb/types/types';
-import {ClabSchema} from '@sb/types/domain/schema';
 import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {DataStore} from '@sb/lib/stores/data-store';
+import {ClabSchema} from '@sb/types/domain/schema';
+import {DefaultFetchReport, FetchReport} from '@sb/types/types';
 
 export class SchemaStore extends DataStore<ClabSchema, void, ClabSchema> {
   @observable accessor fetchReport: FetchReport = DefaultFetchReport;

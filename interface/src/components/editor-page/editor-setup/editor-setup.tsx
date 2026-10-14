@@ -1,13 +1,14 @@
 import React from 'react';
 
 import classNames from 'classnames';
+
 import {Button} from 'primereact/button';
 
-import {If} from '@sb/types/control';
-
-import './editor-setup.sass';
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
 import {useAuthUser} from '@sb/lib/stores/root-store';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+
+import './editor-setup.sass';
 
 interface EditorSetupProps {
   // Name of the first collection, null if there is none yet
@@ -30,11 +31,12 @@ interface SetupStepProps {
 const SetupStep = (props: SetupStepProps) => (
   <div className={classNames('sb-editor-setup-step', props.state)}>
     <span className="sb-editor-setup-step-badge">
-      {props.state === 'done' ? (
-        <span className="material-symbols-outlined">check</span>
-      ) : (
-        props.number
-      )}
+      <Choose>
+        <When condition={props.state === 'done'}>
+          <span className="material-symbols-outlined">check</span>
+        </When>
+        <Otherwise>{props.number}</Otherwise>
+      </Choose>
     </span>
     <div className="sb-editor-setup-step-text">
       <span className="sb-editor-setup-step-title">{props.title}</span>

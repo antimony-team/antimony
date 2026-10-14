@@ -1,7 +1,7 @@
 import {expect, test} from '../fixtures/test';
 import {editorText, setEditorText} from '../helpers/monaco';
-import {Dialog, toast} from '../pages/dialogs';
 import {DashboardPage} from '../pages/dashboard-page';
+import {Dialog, toast} from '../pages/dialogs';
 import {EditorPage} from '../pages/editor-page';
 
 /*
