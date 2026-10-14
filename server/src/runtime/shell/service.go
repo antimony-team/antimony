@@ -60,6 +60,10 @@ type sshSession struct {
 	io.Writer
 	session *ssh.Session
 	client  *ssh.Client
+
+	// writeMutex keeps writes and closing the stdin pipe apart, an SSH channel must not be written to while it is
+	// closed
+	writeMutex sync.Mutex
 }
 
 func CreateService(
@@ -520,13 +524,23 @@ func (s *Service) runShell(
 
 // Read and Write must delegate to the embedded reader and writer explicitly. Naming them after the
 // embedded interface methods shadows those methods, so a bare s.Read / s.Write would recurse.
-func (s *sshSession) Read(p []byte) (int, error)  { return s.Reader.Read(p) }
-func (s *sshSession) Write(p []byte) (int, error) { return s.Writer.Write(p) }
+func (s *sshSession) Read(p []byte) (int, error) { return s.Reader.Read(p) }
+
+func (s *sshSession) Write(p []byte) (int, error) {
+	s.writeMutex.Lock()
+	defer s.writeMutex.Unlock()
+
+	return s.Writer.Write(p)
+}
 
 func (s *sshSession) Close() error {
-	// The writer is the session's stdin pipe. Closing it signals EOF to the remote shell.
-	if stdin, ok := s.Writer.(io.Closer); ok {
-		_ = stdin.Close()
+	// The writer is the session's stdin pipe. Closing it signals EOF to the remote shell. A write that waits for
+	// the remote holds the mutex, the EOF is skipped then and closing the client ends the write.
+	if s.writeMutex.TryLock() {
+		if stdin, ok := s.Writer.(io.Closer); ok {
+			_ = stdin.Close()
+		}
+		s.writeMutex.Unlock()
 	}
 
 	_ = s.session.Close()

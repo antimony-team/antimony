@@ -24,6 +24,11 @@ const (
 	keepaliveRequest = "keepalive@openssh.com"
 )
 
+// inputProbeDelays are the delays between the probes that follow the first one when the input ends. A client may
+// close the session right after ending its input, and a probe that reaches it before the close is answered like any
+// other, so a single probe would leave the capture running until the next regular one.
+var inputProbeDelays = []time.Duration{50 * time.Millisecond, 200 * time.Millisecond, time.Second}
+
 type (
 	// CaptureService streams the traffic of node interfaces into SSH sessions as pcap. Every interface is only captured
 	// once, no matter how many sessions are watching it, and the capture is stopped when the last of them leaves.
@@ -301,11 +306,17 @@ func watchSessionClose(ctx context.Context, sess ssh.Session) <-chan struct{} {
 		ticker := time.NewTicker(sessionProbeInterval)
 		defer ticker.Stop()
 
+		// The quick probes after the input ended that are still due, the next one fires on quickProbe
+		var quickProbes []time.Duration
+		var quickProbe <-chan time.Time
+
 		for {
 			select {
 			case <-inputDone:
-				// A nil channel never receives, the input only triggers one probe
+				// A nil channel never receives, the input only triggers the quick probes once
 				inputDone = nil
+				quickProbes = inputProbeDelays
+			case <-quickProbe:
 			case <-ticker.C:
 			case <-ctx.Done():
 				return
@@ -314,6 +325,13 @@ func watchSessionClose(ctx context.Context, sess ssh.Session) <-chan struct{} {
 			if _, err := sess.SendRequest(keepaliveRequest, true, nil); err != nil {
 				close(closed)
 				return
+			}
+
+			if len(quickProbes) > 0 {
+				quickProbe = time.After(quickProbes[0])
+				quickProbes = quickProbes[1:]
+			} else {
+				quickProbe = nil
 			}
 		}
 	}()

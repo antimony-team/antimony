@@ -59,8 +59,8 @@ func (r *StatsReader[K]) compute(nodeId string, s statsSample) *NodeStats {
 	cpuPercent := 0.0
 	elapsed := 0.0
 	if prev != nil {
-		cpuDelta := float64(s.cpuNs - prev.CPUUsage)
-		sysDelta := float64(s.systemNs - prev.SystemUsage)
+		cpuDelta := float64(counterDelta(s.cpuNs, prev.CPUUsage))
+		sysDelta := float64(counterDelta(s.systemNs, prev.SystemUsage))
 		if cpuDelta > 0 && sysDelta > 0 {
 			cpuPercent = (cpuDelta / sysDelta) * float64(s.onlineCPUs) * 100.0
 		}
@@ -73,8 +73,8 @@ func (r *StatsReader[K]) compute(nodeId string, s statsSample) *NodeStats {
 		var rxBps, txBps int
 		if prev != nil && elapsed > 0 {
 			if pi, ok := prev.Interfaces[name]; ok {
-				rxBps = int(float64(rx-pi.RxBytes) / elapsed)
-				txBps = int(float64(tx-pi.TxBytes) / elapsed)
+				rxBps = int(float64(counterDelta(rx, pi.RxBytes)) / elapsed)
+				txBps = int(float64(counterDelta(tx, pi.TxBytes)) / elapsed)
 			}
 		}
 		interfaces[name] = NodeInterfaceStats{RxBytes: rx, TxBytes: tx, RxBps: rxBps, TxBps: txBps}
@@ -95,6 +95,16 @@ func (r *StatsReader[K]) compute(nodeId string, s statsSample) *NodeStats {
 	r.mu.Unlock()
 
 	return stats
+}
+
+// counterDelta returns how much a counter grew since the last sample. Counters start over when a node restarts,
+// a counter that went down was reset and counts as no growth.
+func counterDelta(current uint64, previous uint64) uint64 {
+	if current < previous {
+		return 0
+	}
+
+	return current - previous
 }
 
 func (r *StatsReader[K]) forget(id string) {

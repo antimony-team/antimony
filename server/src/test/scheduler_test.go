@@ -3,6 +3,7 @@ package test
 import (
 	"antimonyBackend/deployment"
 	"antimonyBackend/domain/lab"
+	"antimonyBackend/runtime/instance"
 	"testing"
 	"time"
 
@@ -15,11 +16,18 @@ import (
  *
  * scheduler.CreateScheduler subscribes to the lab event bus and keeps two time-ordered queues: one
  * for deployments (keyed on a lab's start time) and one for destructions (keyed on its end time).
- * Run pops whatever is due every 50ms and drives the instance service.
+ * Run pops whatever is due on every tick and drives the instance service.
+ *
+ * The scheduler runs on the harness's fake clock, so labs become due when a test advances it, and
+ * tests wait for scheduler ticks instead of sleeping.
  *
  * The queues are private, so these tests observe the scheduler through its effects on the dummy
  * provider. Queue mechanics themselves are covered directly in utils/schedule_test.go.
  */
+
+// schedulerTicks is how many ticks a test waits for before it checks that the scheduler left a lab alone. Ticks
+// are counted at the end of each loop, so any number above one includes a full check of both queues.
+const schedulerTicks = 3
 
 // createLabViaApi creates a lab through the HTTP API, which is what publishes lab.created.
 func createLabViaApi(t *testing.T, h *Harness, name string, start time.Time, end *time.Time) string {
@@ -38,15 +46,43 @@ func createLabViaApi(t *testing.T, h *Harness, name string, start time.Time, end
 	return createdID
 }
 
+// requireLabDeployed waits until the lab's deployment finished. IsRunning is already true while the lab deploys,
+// so a test that moves the clock past the end time right away would destroy a lab that isn't up yet.
+func requireLabDeployed(t *testing.T, h *Harness, labId string) {
+	t.Helper()
+
+	requireEventually(t, func() bool {
+		labInstance := h.InstanceService.GetInstance(labId)
+		if labInstance == nil {
+			return false
+		}
+
+		labInstance.DataMutex.Lock()
+		defer labInstance.DataMutex.Unlock()
+
+		return labInstance.State == instance.InstanceStates.Running
+	}, "the scheduler must deploy a lab whose start time has passed")
+}
+
+// wasDestroyed reports whether the provider destroyed the given instance. The harness seeds labs of its own,
+// which the scheduler destroys as well once the clock passes their end time.
+func wasDestroyed(h *Harness, instanceName string) bool {
+	for _, call := range h.Provider.Calls() {
+		if call.Method == "Destroy" && call.Args["instanceName"] == instanceName {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestScheduler_DeploysALabWhoseStartTimeHasPassed(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
 	end := time.Now().Add(time.Hour)
 	labId := createLabViaApi(t, h, "Due Now", time.Now().Add(-time.Minute), &end)
 
-	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(labId)
-	}, "the scheduler must deploy a lab whose start time is already in the past")
+	requireLabDeployed(t, h, labId)
 
 	assert.True(t, h.Provider.WasCalled("Deploy"))
 }
@@ -57,8 +93,8 @@ func TestScheduler_LeavesAFutureLabAlone(t *testing.T) {
 	end := time.Now().Add(2 * time.Hour)
 	labId := createLabViaApi(t, h, "Not Yet", time.Now().Add(time.Hour), &end)
 
-	// Well past several scheduler ticks.
-	time.Sleep(300 * time.Millisecond)
+	h.Clock.Advance(59 * time.Minute)
+	h.WaitForSchedulerTicks(schedulerTicks)
 
 	assert.False(t, h.InstanceService.IsRunning(labId),
 		"a lab whose window has not opened must not be deployed")
@@ -68,19 +104,12 @@ func TestScheduler_LeavesAFutureLabAlone(t *testing.T) {
 func TestScheduler_DestroysALabWhoseEndTimeHasPassed(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	// Starts in the past and ends shortly after, so the scheduler should deploy it and then tear it
-	// down again.
-	//
-	// The window has to be comfortably longer than a deployment takes: both queues are driven off
-	// the creation event, so if destruction became due before the deploy goroutine finished, the
-	// destroy would find nothing running and the lab would then stay up for good. A second and a
-	// half is ample even under the race detector.
-	end := time.Now().Add(1500 * time.Millisecond)
+	end := time.Now().Add(time.Hour)
 	labId := createLabViaApi(t, h, "Short Lived", time.Now().Add(-time.Minute), &end)
 
-	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(labId)
-	}, "the lab must be deployed first")
+	requireLabDeployed(t, h, labId)
+
+	h.Clock.Advance(2 * time.Hour)
 
 	requireEventually(t, func() bool {
 		return !h.InstanceService.IsRunning(labId)
@@ -92,17 +121,24 @@ func TestScheduler_DestroysALabWhoseEndTimeHasPassed(t *testing.T) {
 func TestScheduler_DeletingALabCancelsItsSchedule(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	// Far enough out that the scheduler will not have acted before the delete lands.
 	end := time.Now().Add(2 * time.Hour)
 	labId := createLabViaApi(t, h, "To Be Deleted", time.Now().Add(time.Hour), &end)
 
 	h.DELETE("/labs/"+labId, h.Seed.Admin.Token).RequireOk(nil)
 
-	time.Sleep(300 * time.Millisecond)
+	// Past its start and end time, so the lab would have been deployed if it were still queued.
+	h.Clock.Advance(3 * time.Hour)
+	h.WaitForSchedulerTicks(schedulerTicks)
 
 	assert.False(t, h.InstanceService.IsRunning(labId))
 	assert.False(t, h.Provider.WasCalled("Deploy"),
 		"lab.deleted must remove the lab from the deployment queue")
+
+	// The run environment of a deleted lab is gone, so a deployment the scheduler still started would fail before
+	// it reaches the provider and mark the topology as failed instead.
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
+	require.NoError(t, err)
+	assert.False(t, stored.LastDeployFailed, "the scheduler must not try to deploy a deleted lab")
 }
 
 func TestScheduler_MovingALabForwardMakesItDue(t *testing.T) {
@@ -111,16 +147,14 @@ func TestScheduler_MovingALabForwardMakesItDue(t *testing.T) {
 	end := time.Now().Add(2 * time.Hour)
 	labId := createLabViaApi(t, h, "Moved Forward", time.Now().Add(time.Hour), &end)
 
-	time.Sleep(150 * time.Millisecond)
+	h.WaitForSchedulerTicks(schedulerTicks)
 	require.False(t, h.InstanceService.IsRunning(labId), "it must not be due yet")
 
 	// Pulling the start time into the past republishes lab.moved, which reschedules it.
 	newStart := time.Now().Add(-time.Minute)
 	h.PATCH("/labs/"+labId, lab.LabInPartial{StartTime: &newStart}, h.Seed.Admin.Token).RequireOk(nil)
 
-	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(labId)
-	}, "moving a lab's start time into the past must make the scheduler deploy it")
+	requireLabDeployed(t, h, labId)
 }
 
 func TestScheduler_MovingALabBackPostponesIt(t *testing.T) {
@@ -152,7 +186,8 @@ func TestScheduler_ManualDeploymentTakesTheLabOutOfTheDeploymentQueue(t *testing
 
 	// lab.manually-deployed removes it from the deployment queue, so the scheduler must not deploy
 	// it a second time when its original start time comes around.
-	time.Sleep(300 * time.Millisecond)
+	h.Clock.Advance(90 * time.Minute)
+	h.WaitForSchedulerTicks(schedulerTicks)
 
 	assert.Equal(t, 1, h.Provider.CallCount("Deploy"),
 		"the scheduler must not redeploy a lab that was deployed by hand")
@@ -162,15 +197,15 @@ func TestScheduler_ManualDeploymentTakesTheLabOutOfTheDeploymentQueue(t *testing
 func TestScheduler_ManualDeploymentStillSchedulesDestruction(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	// A short window, so the destruction the manual deploy schedules fires quickly — but long
-	// enough that the deploy reliably completes first.
-	end := time.Now().Add(1500 * time.Millisecond)
-	labId := createLabViaApi(t, h, "Manual With Deadline", time.Now().Add(time.Hour), &end)
+	end := time.Now().Add(time.Hour)
+	labId := createLabViaApi(t, h, "Manual With Deadline", time.Now().Add(30*time.Minute), &end)
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 	client.Emit(deployCommand(labId)).RequireOk(nil)
 
-	require.True(t, h.InstanceService.IsRunning(labId))
+	requireLabDeployed(t, h, labId)
+
+	h.Clock.Advance(2 * time.Hour)
 
 	requireEventually(t, func() bool {
 		return !h.InstanceService.IsRunning(labId)
@@ -206,15 +241,14 @@ func TestScheduler_AnIndefiniteLabIsNeverDestroyed(t *testing.T) {
 	// Created indefinite from the start, with the scheduler running.
 	labId := createLabViaApi(t, h, "Indefinite", time.Now().Add(-time.Minute), nil)
 
-	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(labId)
-	}, "the lab must be deployed once its start time passes")
+	requireLabDeployed(t, h, labId)
 
 	// A nil end time means the destruction queue skips the lab entirely.
-	time.Sleep(400 * time.Millisecond)
+	h.Clock.Advance(365 * 24 * time.Hour)
+	h.WaitForSchedulerTicks(schedulerTicks)
 
 	assert.True(t, h.InstanceService.IsRunning(labId), "a lab with no end time must keep running")
-	assert.False(t, h.Provider.WasCalled("Destroy"))
+	assert.False(t, wasDestroyed(h, h.InstanceService.GetInstance(labId).Name))
 }
 
 // TestCreateLab_AcceptsNoEndTime covers creating an indefinite lab directly.
@@ -291,7 +325,7 @@ func TestScheduler_FutureLabsFromReviveAreDeployedWhenDue(t *testing.T) {
 	// The seeded future lab starts in four hours, so it must be queued but not yet deployed.
 	require.Contains(t, h.StartupEvents.LabIdsFor("lab.created"), LabFutureID)
 
-	time.Sleep(200 * time.Millisecond)
+	h.WaitForSchedulerTicks(schedulerTicks)
 	require.False(t, h.InstanceService.IsRunning(LabFutureID))
 
 	// Pulling its start time into the past must make the queued lab deploy.
@@ -299,9 +333,7 @@ func TestScheduler_FutureLabsFromReviveAreDeployedWhenDue(t *testing.T) {
 	h.PATCH("/labs/"+LabFutureID, lab.LabInPartial{StartTime: &newStart}, h.Seed.Admin.Token).
 		RequireOk(nil)
 
-	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(LabFutureID)
-	}, "a lab queued by the revive pass must deploy once it becomes due")
+	requireLabDeployed(t, h, LabFutureID)
 }
 
 // TestScheduler_WorksForEventsPublishedAfterStartup is the control for the test above: the very same
@@ -309,12 +341,12 @@ func TestScheduler_FutureLabsFromReviveAreDeployedWhenDue(t *testing.T) {
 func TestScheduler_WorksForEventsPublishedAfterStartup(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	end := time.Now().Add(1500 * time.Millisecond)
+	end := time.Now().Add(time.Hour)
 	labId := createLabViaApi(t, h, "Live Event", time.Now().Add(-time.Minute), &end)
 
-	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(labId)
-	}, "a lab created while the scheduler is running must be deployed")
+	requireLabDeployed(t, h, labId)
+
+	h.Clock.Advance(2 * time.Hour)
 
 	requireEventually(t, func() bool {
 		return !h.InstanceService.IsRunning(labId)

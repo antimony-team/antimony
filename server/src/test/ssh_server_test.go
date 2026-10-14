@@ -782,6 +782,28 @@ func TestSSH_ClosingACaptureSessionStopsItOnASharedConnection(t *testing.T) {
 	_ = second.Close()
 }
 
+// The Go client ends the input when the session starts, so the probe that follows the end of the input is
+// answered before the session is closed. The capture must still stop right away, not at the next regular probe
+// seconds later. This used to fail now and then under load, when the test closed the session a little later.
+func TestSSH_ClosingACaptureSessionShortlyAfterItsInputEndedStopsIt(t *testing.T) {
+	h := NewHarness(t)
+	h.DeployLab(LabAdminID)
+	server := startSSHServer(t, h)
+
+	source := newFakeCaptureSource()
+	countingCaptures(h, func(string) *fakeCaptureSource { return source })
+
+	client := server.dial(t, InstanceAdminLab+"/"+NodeHost)
+	capture := startCaptureSession(t, client, "eth1", nil)
+	require.True(t, capture.waitForHeader(t, 5*time.Second))
+
+	time.Sleep(300 * time.Millisecond)
+	_ = capture.session.Close()
+
+	requireEventuallyWithin(t, 2*time.Second, source.IsClosed,
+		"the capture must stop soon after the session is closed")
+}
+
 func TestSSH_ACaptureWithoutInputKeepsRunning(t *testing.T) {
 	h := NewHarness(t)
 	h.DeployLab(LabAdminID)

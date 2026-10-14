@@ -49,8 +49,11 @@ func TestGetDevices_CarriesTheInterfaceNamingRules(t *testing.T) {
 
 	require.NotNil(t, srlinux)
 	assert.Equal(t, "Nokia SR Linux", srlinux.Name)
-	assert.Equal(t, "e1-$", srlinux.InterfacePattern)
-	assert.Equal(t, uint(1), srlinux.InterfaceStart)
+	assert.Equal(t, []device.InterfacePattern{
+		{Pattern: "e1-$", Start: 1},
+		{Pattern: "ethernet-1/$", Start: 1},
+	}, srlinux.Interfaces)
+	assert.Contains(t, srlinux.KindAliases, "srl")
 }
 
 func TestGetDevices_IsTheSameForEveryUser(t *testing.T) {

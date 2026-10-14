@@ -12,6 +12,7 @@ import (
 	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
 	"antimonyBackend/runtime/commands"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/runtime/scheduler"
@@ -31,6 +32,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	charmlog "github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
@@ -93,6 +95,9 @@ type Harness struct {
 	ShellService        *shell.Service
 	Scheduler           *scheduler.Scheduler
 
+	// Clock is the scheduler's clock, tests move it forward instead of waiting for labs to become due
+	Clock *FakeClock
+
 	Engine *gin.Engine
 	Server *httptest.Server
 
@@ -115,11 +120,12 @@ type harnessOptions struct {
 	containerLogBacklog int
 	shellLinesBacklog   int
 
-	excludedInterfaces []string
-	kindsConfig        string
-	deploymentProvider config.DeploymentProvider
-	captureEnabled     bool
-	sshEnabled         bool
+	excludedInterfaces   []string
+	allowedImagePrefixes []string
+	kindsConfig          string
+	deploymentProvider   config.DeploymentProvider
+	captureEnabled       bool
+	sshEnabled           bool
 
 	seed          bool
 	withScheduler bool
@@ -184,6 +190,11 @@ func WithBacklogs(clabLog int, containerLog int, shellLines int) HarnessOption {
 // WithExcludedInterfaces overrides the capture interface exclusion patterns.
 func WithExcludedInterfaces(patterns ...string) HarnessOption {
 	return func(o *harnessOptions) { o.excludedInterfaces = patterns }
+}
+
+// WithAllowedImagePrefixes sets the image allowlist of the topology policy. By default every image is allowed.
+func WithAllowedImagePrefixes(prefixes ...string) HarnessOption {
+	return func(o *harnessOptions) { o.allowedImagePrefixes = prefixes }
 }
 
 // WithKindsConfig replaces the contents of the node kind configuration file.
@@ -276,6 +287,10 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 			OpenIdRedirectHost: "http://127.0.0.1",
 			OpenIdAdminGroups:  opts.adminGroups,
 		},
+		Security: config.SecurityConfig{
+			TopologyPolicy:       true,
+			AllowedImagePrefixes: opts.allowedImagePrefixes,
+		},
 		Shell: config.ShellConfig{
 			UserLimit: opts.shellUserLimit,
 			Timeout:   opts.shellTimeout,
@@ -355,13 +370,17 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		userService         = user.CreateService(userRepo, authManager)
 		collectionService   = collection.CreateService(collectionRepo, userRepo)
 
+		policyEngine = policy.CreateEngine(policy.Options{
+			AllowedImagePrefixes: cfg.Security.AllowedImagePrefixes,
+		})
+
 		topologyService = topology.CreateService(
-			topologyRepo, userRepo, collectionRepo, schemaService, storageManager,
+			topologyRepo, userRepo, collectionRepo, schemaService, storageManager, policyEngine,
 		)
 
 		labService = lab.CreateService(
 			labRepo, userRepo, topologyRepo, schemaService, topologyService,
-			storageManager, cfg, labEventBus, statusMessages,
+			storageManager, cfg, labEventBus, policyEngine, statusMessages,
 		)
 	)
 
@@ -416,7 +435,8 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	commands.CreateHandler(h.ShellService, h.InstanceService, socketManager)
 
 	if opts.withScheduler {
-		h.Scheduler = scheduler.CreateScheduler(cfg, h.InstanceService, labEventBus)
+		h.Clock = &FakeClock{now: time.Now()}
+		h.Scheduler = scheduler.CreateScheduler(cfg, h.InstanceService, labEventBus, scheduler.WithClock(h.Clock.Now))
 		t.Cleanup(h.Scheduler.Close)
 
 		go h.Scheduler.Run()

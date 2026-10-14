@@ -7,11 +7,21 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
+// tickInterval is how often the scheduler checks its queues.
+const tickInterval = 50 * time.Millisecond
+
 type Scheduler struct {
 	config *config.AntimonyConfig
+
+	// now returns the current time, which tells the queues what is due
+	now func() time.Time
+
+	// ticks counts how often the queues were checked
+	ticks atomic.Uint64
 
 	instanceService *instance.Service
 
@@ -24,10 +34,19 @@ type Scheduler struct {
 	closeOnce sync.Once
 }
 
+// Option changes how a scheduler is created.
+type Option func(*Scheduler)
+
+// WithClock makes the scheduler take the current time from the given function instead of the system clock.
+func WithClock(now func() time.Time) Option {
+	return func(s *Scheduler) { s.now = now }
+}
+
 func CreateScheduler(
 	config *config.AntimonyConfig,
 	instanceService *instance.Service,
 	labEventBus *utils.EventBus[*lab.Lab],
+	options ...Option,
 ) *Scheduler {
 	deploymentSchedule := utils.CreateSchedule[lab.Lab](
 		func(lab lab.Lab) string {
@@ -51,6 +70,7 @@ func CreateScheduler(
 
 	scheduler := &Scheduler{
 		config: config,
+		now:    time.Now,
 
 		instanceService: instanceService,
 
@@ -60,6 +80,10 @@ func CreateScheduler(
 		ctx:       ctx,
 		cancel:    cancel,
 		closeOnce: sync.Once{},
+	}
+
+	for _, option := range options {
+		option(scheduler)
 	}
 
 	labEventBus.Subscribe("lab.created", scheduler.onLabCreated)
@@ -74,7 +98,9 @@ func CreateScheduler(
 // Run drives the deployment and destruction queues until the scheduler is closed.
 func (s *Scheduler) Run() {
 	for {
-		if dueLab := s.deploymentSchedule.TryPop(); dueLab != nil {
+		now := s.now()
+
+		if dueLab := s.deploymentSchedule.TryPopAt(now); dueLab != nil {
 			// Each consumer gets its own copy. The queues dereference the whole struct to read its
 			// time (timeGetter(*item)), so handing the same pointer to a goroutine that mutates the
 			// lab — DeployLab writes through to Topology.LastDeployFailed — raced with every later
@@ -89,7 +115,7 @@ func (s *Scheduler) Run() {
 			s.destructionSchedule.Schedule(copyLab(dueLab))
 		}
 
-		if dueLab := s.destructionSchedule.TryPop(); dueLab != nil {
+		if dueLab := s.destructionSchedule.TryPopAt(now); dueLab != nil {
 			toDestroy := copyLab(dueLab)
 
 			go func() {
@@ -97,12 +123,19 @@ func (s *Scheduler) Run() {
 			}()
 		}
 
+		s.ticks.Add(1)
+
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(tickInterval):
 		}
 	}
+}
+
+// Ticks returns how often the scheduler has checked its queues.
+func (s *Scheduler) Ticks() uint64 {
+	return s.ticks.Load()
 }
 
 // Close stops the Run loop. It is safe to call more than once.

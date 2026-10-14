@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // allLabs makes the listing limit explicit. It is no longer required — an unparameterised request
@@ -282,6 +283,76 @@ func TestCreateLab_RunEnvironmentContainsTheAnnotations(t *testing.T) {
 	assert.JSONEq(t, AdminTopologyAnnotations, string(runAnnotations))
 }
 
+// TestCreateLab_RunDefinitionOnlyChangesTheName checks that renaming the run definition to the
+// instance name leaves the rest of the topology as it was written. Decoding it into containerlab's
+// types and encoding it again dropped the fields Antimony doesn't model, like mgmt, and rewrote the
+// endpoints of links as maps, which the schema check before the deployment then rejected.
+func TestCreateLab_RunDefinitionOnlyChangesTheName(t *testing.T) {
+	h := NewHarness(t)
+
+	const definition = `# A comment that must survive the rename
+name: kept-topo
+prefix: ""
+mgmt:
+  network: custom-mgmt
+topology:
+  kinds:
+    linux: &linux
+      image: alpine:3.20
+  nodes:
+    a:
+      <<: *linux
+      kind: linux
+    b:
+      kind: linux
+  links:
+    - endpoints: ["a:eth1", "b:eth1"]
+    - type: dummy
+      endpoint: {node: a, interface: eth2}
+`
+	topologyId := utils.GenerateUuid()
+	h.createTopology(topologyId, definition, EmptyTopologyAnnotations, h.Seed.PublicBoth, h.Seed.Admin)
+
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+
+	var createdID string
+	h.POST("/labs", lab.LabIn{
+		Name:       ptr("Kept Lab"),
+		StartTime:  &start,
+		TopologyId: ptr(topologyId),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	stored, err := h.LabRepo.GetByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+
+	var runDefinition string
+	require.NoError(t, h.Storage.ReadRunTopologyDefinition(createdID, &runDefinition))
+
+	assert.Contains(t, runDefinition, "# A comment that must survive the rename")
+	assert.Contains(t, runDefinition, "&linux", "anchors must be kept")
+	assert.Contains(t, runDefinition, "*linux", "aliases must be kept")
+
+	var parsed struct {
+		Name     string            `yaml:"name"`
+		Prefix   *string           `yaml:"prefix"`
+		Mgmt     map[string]string `yaml:"mgmt"`
+		Topology struct {
+			Links []map[string]any `yaml:"links"`
+		} `yaml:"topology"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(runDefinition), &parsed))
+
+	assert.Equal(t, stored.InstanceName, parsed.Name, "the name is replaced by the instance name")
+	require.NotNil(t, parsed.Prefix, "fields Antimony doesn't model must be kept")
+	assert.Empty(t, *parsed.Prefix)
+	assert.Equal(t, "custom-mgmt", parsed.Mgmt["network"])
+
+	require.Len(t, parsed.Topology.Links, 2)
+	assert.Equal(t, []any{"a:eth1", "b:eth1"}, parsed.Topology.Links[0]["endpoints"],
+		"endpoints written as strings must stay strings")
+	assert.Equal(t, map[string]any{"node": "a", "interface": "eth2"}, parsed.Topology.Links[1]["endpoint"])
+}
+
 func TestCreateLab_BelongsToTheCollectionOfItsTopology(t *testing.T) {
 	h := NewHarness(t)
 
@@ -451,7 +522,7 @@ func TestCreateLab_MalformedJsonIsRejected(t *testing.T) {
 	h.RawBody(http.MethodPost, "/labs", `{"name":`, h.Seed.Admin.Token).RequireValidationError()
 }
 
-func TestCreateLab_InstanceNameIsDerivedFromTheTopologyAndATimestamp(t *testing.T) {
+func TestCreateLab_InstanceNameIsTheTopologyNameWithAUniqueSuffix(t *testing.T) {
 	h := NewHarness(t)
 
 	start := time.Now().Add(time.Hour)

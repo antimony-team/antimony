@@ -41,6 +41,9 @@ jobs:
         working-directory: ./src
         run: task build
 
+      - name: Check the server starts
+        run: test/smoke.sh build
+
       - name: Run Test
         working-directory: ./src
         run: task test-race

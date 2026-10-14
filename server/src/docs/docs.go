@@ -1213,17 +1213,42 @@ const docTemplate = `{
         "device.DeviceConfig": {
             "type": "object",
             "properties": {
-                "interfacePattern": {
-                    "type": "string"
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "interfaceStart": {
-                    "type": "integer"
+                "interfaces": {
+                    "description": "Interfaces name the same interfaces, new interfaces are named after the first one",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/device.InterfacePattern"
+                    }
                 },
                 "kind": {
                     "type": "string"
                 },
+                "kindAliases": {
+                    "description": "KindAliases are the other names containerlab accepts for the kind, e.g. srl",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "device.InterfacePattern": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "integer"
                 }
             }
         },
@@ -1354,7 +1379,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "netlab",
-                "invalid-structure",
                 "unreviewed-field",
                 "go-template",
                 "env-expansion",
@@ -1379,7 +1403,6 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ruleNetlab",
-                "ruleInvalidStructure",
                 "ruleUnreviewedField",
                 "ruleGoTemplate",
                 "ruleEnvExpansion",

@@ -66,14 +66,33 @@ definitions:
     - stopping
   device.DeviceConfig:
     properties:
-      interfacePattern:
-        type: string
-      interfaceStart:
-        type: integer
+      images:
+        items:
+          type: string
+        type: array
+      interfaces:
+        description: Interfaces name the same interfaces, new interfaces are named
+          after the first one
+        items:
+          $ref: '#/definitions/device.InterfacePattern'
+        type: array
       kind:
         type: string
+      kindAliases:
+        description: KindAliases are the other names containerlab accepts for the
+          kind, e.g. srl
+        items:
+          type: string
+        type: array
       name:
         type: string
+    type: object
+  device.InterfacePattern:
+    properties:
+      pattern:
+        type: string
+      start:
+        type: integer
     type: object
   instance.InstanceNode:
     properties:
@@ -187,7 +206,6 @@ definitions:
   policy.RuleId:
     enum:
     - netlab
-    - invalid-structure
     - unreviewed-field
     - go-template
     - env-expansion
@@ -212,7 +230,6 @@ definitions:
     type: string
     x-enum-varnames:
     - ruleNetlab
-    - ruleInvalidStructure
     - ruleUnreviewedField
     - ruleGoTemplate
     - ruleEnvExpansion

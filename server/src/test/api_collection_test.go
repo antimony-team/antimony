@@ -575,3 +575,19 @@ func findCollection(t *testing.T, collections []transport.CollectionOut, name st
 
 	return transport.CollectionOut{}
 }
+
+// The topology service tells the policy engine to forget the topologies it gets back here, so these have to be
+// exactly the deleted ones.
+func TestDeleteCollection_ReturnsTheIdsOfTheDeletedTopologies(t *testing.T) {
+	h := NewHarness(t)
+
+	moveAdminTopology(t, h, h.Seed.Hidden.UUID)
+
+	deletedIds, err := h.TopologyRepo.DeleteByCollection(t.Context(), h.Seed.Hidden.UUID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{TopologyAdminID, TopologyHiddenID}, deletedIds)
+
+	deletedIds, err = h.TopologyRepo.DeleteByCollection(t.Context(), h.Seed.Hidden.UUID)
+	require.NoError(t, err)
+	assert.Empty(t, deletedIds, "a collection without topologies deletes none")
+}

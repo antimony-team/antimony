@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -60,18 +61,28 @@ func (u *Service) Parse(data string, definition *clabtypes.TopologyDefinition, d
 
 	if err := yaml.Unmarshal([]byte(data), &node); err != nil {
 		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
-	} else if err := node.Decode(definition); err != nil {
-		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	} else if err := node.Decode(definitionRaw); err != nil {
 		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
 	}
 
+	// The schema is checked before the definition is decoded into its types, since the decoder's errors name Go
+	// types instead of fields
 	if err := u.clabSchema.Validate(*definitionRaw); err != nil {
-		if validationErr, ok := errors.AsType[*jsonschema.ValidationError](err); ok && failsAt(validationErr, "/name") {
-			return fmt.Errorf("%w: %s", utils.ErrInvalidTopologyName, err.Error())
+		validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+		if !ok {
+			return utils.ErrInvalidTopology
 		}
 
-		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, err.Error())
+		if nameErr := causeAt(validationErr, "/name"); nameErr != nil {
+			return fmt.Errorf("%w: %s", utils.ErrInvalidTopologyName, describeValidationError(nameErr))
+		}
+
+		return fmt.Errorf("%w: %s", utils.ErrInvalidTopology, describeValidationError(validationErr))
+	}
+
+	if err := node.Decode(definition); err != nil {
+		log.Warn("Failed to decode a topology definition that matches the schema", "error", err.Error())
+		return utils.ErrInvalidTopology
 	}
 
 	return nil
@@ -97,7 +108,11 @@ func loadSchema(url string, fallback string, name string) (*jsonschema.Schema, *
 
 	if url == "" {
 		schemaString = readFallbackSchema(fallback, name)
-	} else if resp, err := http.Get(url); err != nil { //nolint:noctx // We don't need to provide context here
+	} else if resp, err := http.Get(url); err != nil || resp.StatusCode != http.StatusOK { //nolint:noctx // We don't need to provide context here
+		if err == nil {
+			// An error page, e.g. a 404 or a rate limit, isn't a schema
+			_ = resp.Body.Close()
+		}
 		log.Warnf("Failed to download %s from remote resource. Falling back to local schema.", name)
 
 		// Try to use local fallback schema instead
@@ -147,17 +162,75 @@ func readFallbackSchema(fallback string, name string) string {
 	return string(schemaData)
 }
 
-// failsAt returns whether the validation error or one of its causes failed at the given location.
-func failsAt(err *jsonschema.ValidationError, location string) bool {
+// causeAt returns the validation error or the first of its causes that failed at the given location, or nil.
+func causeAt(err *jsonschema.ValidationError, location string) *jsonschema.ValidationError {
 	if err.InstanceLocation == location {
-		return true
+		return err
 	}
 
 	for _, cause := range err.Causes {
-		if failsAt(cause, location) {
-			return true
+		if found := causeAt(cause, location); found != nil {
+			return found
 		}
 	}
 
-	return false
+	return nil
+}
+
+// describeValidationError says which field is wrong and why, without the validator's prefix and the schema URL,
+// which the client has no use for. Of all causes, the one of the deepest field is the most specific. The first
+// ones aren't necessarily, e.g. a node is null or a map, so a node with an invalid field fails as "expected null"
+// before it fails at the field.
+func describeValidationError(err *jsonschema.ValidationError) string {
+	cause := deepestCause(err)
+
+	if path := pointerToPath(cause.InstanceLocation); path != "" {
+		return path + ": " + cause.Message
+	}
+	return cause.Message
+}
+
+// deepestCause returns the cause without causes of its own that failed at the deepest location, the first one of
+// those if there are several.
+func deepestCause(err *jsonschema.ValidationError) *jsonschema.ValidationError {
+	if len(err.Causes) == 0 {
+		return err
+	}
+
+	var deepest *jsonschema.ValidationError
+	for _, cause := range err.Causes {
+		leaf := deepestCause(cause)
+		if deepest == nil || strings.Count(leaf.InstanceLocation, "/") > strings.Count(deepest.InstanceLocation, "/") {
+			deepest = leaf
+		}
+	}
+
+	return deepest
+}
+
+// pointerToPath turns a JSON pointer like /topology/links/0/endpoints into a path like topology.links[0].endpoints,
+// the way the policy findings write it. The root becomes an empty path.
+func pointerToPath(pointer string) string {
+	var path strings.Builder
+
+	for token := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
+		if token == "" {
+			continue
+		}
+
+		// The escapes of JSON pointers, see RFC 6901
+		token = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+
+		if _, err := strconv.Atoi(token); err == nil {
+			path.WriteString("[" + token + "]")
+			continue
+		}
+
+		if path.Len() > 0 {
+			path.WriteString(".")
+		}
+		path.WriteString(token)
+	}
+
+	return path.String()
 }

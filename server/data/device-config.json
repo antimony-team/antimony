@@ -1,9 +1,20 @@
 [
   {
     "kind": "nokia_srlinux",
+    "kindAliases": [
+      "srl"
+    ],
     "name": "Nokia SR Linux",
-    "interfacePattern": "e1-$",
-    "interfaceStart": 1,
+    "interfaces": [
+      {
+        "pattern": "e1-$",
+        "start": 1
+      },
+      {
+        "pattern": "ethernet-1/$",
+        "start": 1
+      }
+    ],
     "images": [
       "ghcr.io/nokia/srlinux"
     ],
@@ -11,43 +22,1237 @@
     "password": "NokiaSrl1!"
   },
   {
-    "kind": "ceos",
-    "name": "Arista cEOS",
-    "interfacePattern": "eth$",
-    "interfaceStart": 1,
+    "kind": "nokia_sros",
+    "kindAliases": [
+      "vr-sros",
+      "vr-nokia_sros"
+    ],
+    "name": "Nokia SR OS (VM)",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "1/1/$",
+        "start": 1
+      },
+      {
+        "pattern": "1/1/c$/1",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/nokia_sros:20.10.R1",
+      "nokia_sros:24.10.R1"
+    ],
     "username": "admin",
     "password": "admin"
+  },
+  {
+    "kind": "nokia_srsim",
+    "name": "Nokia SR-SIM",
+    "interfaces": [
+      {
+        "pattern": "1/1/c$/1",
+        "start": 1
+      },
+      {
+        "pattern": "e1-1-c$-1",
+        "start": 1
+      }
+    ],
+    "images": [
+      "nokia_srsim:25.7.R1"
+    ],
+    "username": "admin",
+    "password": "NokiaSros1!"
   },
   {
     "kind": "arista_ceos",
+    "kindAliases": [
+      "ceos"
+    ],
     "name": "Arista cEOS",
-    "interfacePattern": "eth$",
-    "interfaceStart": 1,
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "ceos:4.32.0F"
+    ],
     "username": "admin",
     "password": "admin"
   },
   {
+    "kind": "arista_veos",
+    "kindAliases": [
+      "vr-veos",
+      "vr-arista_veos"
+    ],
+    "name": "Arista vEOS",
+    "interfaces": [
+      {
+        "pattern": "Ethernet1/$",
+        "start": 1
+      },
+      {
+        "pattern": "Et1/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "juniper_crpd",
+    "kindAliases": [
+      "crpd"
+    ],
+    "name": "Juniper cRPD",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "crpd:24.4R1.9"
+    ],
+    "username": "root",
+    "password": "clab123"
+  },
+  {
+    "kind": "juniper_csrx",
+    "name": "Juniper cSRX",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "csrx:24.4R1.9"
+    ],
+    "username": "root",
+    "password": "clab123"
+  },
+  {
+    "kind": "juniper_vmx",
+    "kindAliases": [
+      "vr-vmx",
+      "vr-juniper_vmx"
+    ],
+    "name": "Juniper vMX",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "ge-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "xe-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-vmx:20.4R1.12"
+    ],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "juniper_vqfx",
+    "kindAliases": [
+      "vr-vqfx",
+      "vr-juniper_vqfx"
+    ],
+    "name": "Juniper vQFX",
+    "interfaces": [
+      {
+        "pattern": "ge-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "xe-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "juniper_vsrx",
+    "kindAliases": [
+      "vr-vsrx",
+      "vr-juniper_vsrx"
+    ],
+    "name": "Juniper vSRX",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "ge-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "xe-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-vsrx:23.2R1.13"
+    ],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "juniper_vjunosrouter",
+    "name": "Juniper vJunos-router",
+    "interfaces": [
+      {
+        "pattern": "ge-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "xe-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "juniper_vjunosswitch",
+    "name": "Juniper vJunos-switch",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "ge-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "xe-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-vjunosswitch:23.2R1.14"
+    ],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "juniper_vjunosevolved",
+    "name": "Juniper vJunosEvolved",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "xe-0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "ge-0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-vjunosevolved:23.2R1-S1.8-EVO"
+    ],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "juniper_cjunosevolved",
+    "kindAliases": [
+      "cjunosevolved"
+    ],
+    "name": "Juniper cJunosEvolved",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 4
+      },
+      {
+        "pattern": "et-0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "cjunosevolved:25.2R1.8-EVO"
+    ],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
     "kind": "cisco_xrd",
+    "kindAliases": [
+      "xrd"
+    ],
     "name": "Cisco XRd",
-    "interfacePattern": "Gi0/0/0/$",
-    "interfaceStart": 1
+    "interfaces": [
+      {
+        "pattern": "Gi0-0-0-$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "xrd-control-plane"
+    ],
+    "username": "clab",
+    "password": "clab@123"
+  },
+  {
+    "kind": "cisco_xrd_vrouter",
+    "name": "Cisco XRd vRouter",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "TenGigE0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "Te0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "TenGigabitEthernet0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "GigabitEthernet0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "Gi0/0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/cisco_xrd-vrouter:25.4.2"
+    ],
+    "username": "clab",
+    "password": "clab@123"
+  },
+  {
+    "kind": "cisco_xrv",
+    "kindAliases": [
+      "vr-xrv",
+      "vr-cisco_xrv"
+    ],
+    "name": "Cisco XRv",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "Gi0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "GigabitEthernet0/0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-xrv:6.1.2"
+    ],
+    "username": "clab",
+    "password": "clab@123"
+  },
+  {
+    "kind": "cisco_xrv9k",
+    "kindAliases": [
+      "vr-xrv9k",
+      "vr-cisco_xrv9k"
+    ],
+    "name": "Cisco XRv9k",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "Gi0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "GigabitEthernet0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "Te0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "TenGigE0/0/0/$",
+        "start": 0
+      },
+      {
+        "pattern": "TenGigabitEthernet0/0/0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vr-xrv9k:7.10.1"
+    ],
+    "username": "clab",
+    "password": "clab@123"
+  },
+  {
+    "kind": "cisco_csr1000v",
+    "kindAliases": [
+      "vr-csr",
+      "vr-cisco_csr1000v"
+    ],
+    "name": "Cisco CSR1000v",
+    "interfaces": [
+      {
+        "pattern": "Gi$",
+        "start": 2
+      },
+      {
+        "pattern": "GigabitEthernet$",
+        "start": 2
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "cisco_c8000v",
+    "name": "Cisco Catalyst 8000V",
+    "interfaces": [
+      {
+        "pattern": "Gi$",
+        "start": 2
+      },
+      {
+        "pattern": "GigabitEthernet$",
+        "start": 2
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-c8000v:17.11.01a"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "cisco_c8000",
+    "kindAliases": [
+      "c8000"
+    ],
+    "name": "Cisco 8000",
+    "interfaces": [
+      {
+        "pattern": "FH0_0_0_$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "8201-32fh-clab:7.9.1"
+    ],
+    "username": "cisco",
+    "password": "cisco123"
+  },
+  {
+    "kind": "cisco_cat9kv",
+    "name": "Cisco Catalyst 9000v",
+    "interfaces": [
+      {
+        "pattern": "Gi1/0/$",
+        "start": 1
+      },
+      {
+        "pattern": "GigabitEthernet1/0/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-cat9kv:17.12.01p"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "cisco_n9kv",
+    "kindAliases": [
+      "vr-n9kv",
+      "vr-cisco_n9kv"
+    ],
+    "name": "Cisco Nexus 9000v",
+    "interfaces": [
+      {
+        "pattern": "Ethernet1/$",
+        "start": 1
+      },
+      {
+        "pattern": "Et1/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "cisco_iol",
+    "name": "Cisco IOL",
+    "interfaces": [
+      {
+        "pattern": "Ethernet0/$",
+        "start": 1
+      },
+      {
+        "pattern": "e0/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/cisco_iol:17.12.01",
+      "vrnetlab/cisco_iol:L2-17.12.01"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "cisco_ftdv",
+    "name": "Cisco FTDv",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "GigabitEthernet0/$",
+        "start": 0
+      },
+      {
+        "pattern": "Gi0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-ftdv:7.2.5"
+    ],
+    "username": "admin",
+    "password": "Admin@123"
+  },
+  {
+    "kind": "cisco_asav",
+    "name": "Cisco ASAv",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "GigabitEthernet0/$",
+        "start": 0
+      },
+      {
+        "pattern": "Gi0/$",
+        "start": 0
+      }
+    ],
+    "images": [
+      "vrnetlab/cisco_asav:9-23-1"
+    ],
+    "username": "admin",
+    "password": "CiscoAsa1!"
+  },
+  {
+    "kind": "cisco_vios",
+    "name": "Cisco vIOS",
+    "interfaces": [
+      {
+        "pattern": "Gi$",
+        "start": 0
+      },
+      {
+        "pattern": "GigabitEthernet$",
+        "start": 0
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/cisco_vios:159-3.M10",
+      "vrnetlab/cisco_vios:L2-20200929"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "cisco_sdwan",
+    "name": "Cisco SD-WAN Controllers",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/cisco_sdwan-manager:20.16.1",
+      "vrnetlab/cisco_sdwan-controller:20.16.1",
+      "vrnetlab/cisco_sdwan-validator:20.16.1"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "nvidia_cumulusvx",
+    "name": "NVIDIA Cumulus VX",
+    "interfaces": [
+      {
+        "pattern": "swp$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/nvidia_cumulus-vx:5.16.1"
+    ],
+    "username": "cumulus",
+    "password": "Clab123!"
+  },
+  {
+    "kind": "cumulus_cvx",
+    "kindAliases": [
+      "cvx"
+    ],
+    "name": "Cumulus VX (container)",
+    "interfaces": [
+      {
+        "pattern": "swp$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "networkop/cx:4.3.0"
+    ]
+  },
+  {
+    "kind": "aruba_aoscx",
+    "kindAliases": [
+      "vr-aoscx",
+      "vr-aruba_aoscx"
+    ],
+    "name": "ArubaOS-CX",
+    "interfaces": [
+      {
+        "pattern": "1/1/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "dell_ftosv",
+    "kindAliases": [
+      "vr-ftosv",
+      "vr-dell_ftosv"
+    ],
+    "name": "Dell FTOSv (OS10)",
+    "interfaces": [
+      {
+        "pattern": "ethernet1/1/$",
+        "start": 1
+      },
+      {
+        "pattern": "1/1/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "dell_sonic",
+    "name": "Dell Enterprise SONiC",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "sonic-vs",
+    "name": "SONiC (container)",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "docker-sonic-vs:2020-11-12"
+    ]
+  },
+  {
+    "kind": "sonic-vm",
+    "name": "SONiC (VM)",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "plvision_sonic",
+    "name": "Enterprise SONiC Linux Distribution by PLVision",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/plvision_sonic:lite_1_13_202405"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "mikrotik_ros",
+    "kindAliases": [
+      "vr-ros",
+      "vr-mikrotik_ros"
+    ],
+    "name": "MikroTik RouterOS",
+    "interfaces": [
+      {
+        "pattern": "ether$",
+        "start": 2
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "huawei_vrp",
+    "name": "Huawei VRP",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "ipinfusion_ocnos",
+    "name": "IPInfusion OcNOS",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin@123"
+  },
+  {
+    "kind": "paloalto_panos",
+    "kindAliases": [
+      "vr-pan",
+      "vr-paloalto_panos"
+    ],
+    "name": "Palo Alto PA-VM",
+    "interfaces": [
+      {
+        "pattern": "Ethernet1/$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "Admin@123"
+  },
+  {
+    "kind": "fortinet_fortigate",
+    "name": "Fortinet Fortigate",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "port$",
+        "start": 2
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-fortigate:7.0.14"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "fortinet_fortiproxy",
+    "name": "Fortinet FortiProxy",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "port$",
+        "start": 2
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "checkpoint_cloudguard",
+    "name": "Check Point Cloudguard",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "ciena_saos",
+    "kindAliases": [
+      "vr-ciena_saos"
+    ],
+    "name": "Ciena SAOS 10",
+    "interfaces": [
+      {
+        "pattern": "$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "ciena/saos10:10-12-00-0228",
+      "vrnetlab/ciena_saos:10-12-00-0228"
+    ],
+    "username": "diag",
+    "password": "ciena123"
+  },
+  {
+    "kind": "f5_bigip-ve",
+    "name": "F5 BIG-IP VE",
+    "interfaces": [
+      {
+        "pattern": "1.$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/f5_bigip-ve:17.5.1.3-0.0.19"
+    ],
+    "username": "admin",
+    "password": "Labl@b!234"
+  },
+  {
+    "kind": "generic_vm",
+    "name": "Generic VM",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-ubuntu:jammy"
+    ],
+    "username": "clab",
+    "password": "clab@123"
+  },
+  {
+    "kind": "freebsd",
+    "name": "FreeBSD",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "vtnet$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-freebsd:13.2"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "openbsd",
+    "name": "OpenBSD",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      },
+      {
+        "pattern": "vio$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/vr-openbsd:7.3"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "openwrt",
+    "name": "OpenWRT",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vrnetlab/openwrt_openwrt:24.10.0"
+    ]
+  },
+  {
+    "kind": "vyosnetworks_vyos",
+    "name": "VyOS Networks VyOS",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "vyos:latest"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "6wind_vsr",
+    "name": "6WIND VSR",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "arrcus_arcos",
+    "name": "Arrcus ArcOS",
+    "interfaces": [
+      {
+        "pattern": "swp$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "arcos:4.3.1B"
+    ],
+    "username": "clab",
+    "password": "clab@123"
+  },
+  {
+    "kind": "fdio_vpp",
+    "name": "FD.io VPP",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "git.ipng.ch/ipng/vpp-containerlab"
+    ],
+    "username": "root",
+    "password": "vpp"
+  },
+  {
+    "kind": "keysight_ixia-c-one",
+    "name": "Keysight Ixia-c-one",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "ghcr.io/open-traffic-generator/ixia-c-one:1.55.0-1"
+    ]
+  },
+  {
+    "kind": "spirent_stc",
+    "name": "Spirent TestCenter",
+    "interfaces": [
+      {
+        "pattern": "port$",
+        "start": 1
+      },
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "stc:5.50.2906"
+    ]
+  },
+  {
+    "kind": "rare",
+    "name": "RARE/freeRtr",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "ghcr.io/rare-freertr/freertr-containerlab:latest"
+    ],
+    "username": "rare",
+    "password": "rare"
+  },
+  {
+    "kind": "frr",
+    "kindAliases": [
+      "frrouting"
+    ],
+    "name": "FRRouting",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "quay.io/frrouting/frr:containerlab-10.7.1"
+    ],
+    "username": "admin",
+    "password": "admin"
+  },
+  {
+    "kind": "veesix_osvbng",
+    "name": "veesix osvbng",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "veesixnetworks/osvbng:v0.3.1"
+    ]
   },
   {
     "kind": "linux",
-    "name": "Linux Container",
-    "interfacePattern": "eth$",
-    "interfaceStart": 1
+    "name": "Linux container",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "alpine:latest"
+    ]
   },
   {
-    "kind": "linux",
-    "name": "Linux Container",
-    "interfacePattern": "eth$",
-    "interfaceStart": 1
+    "kind": "bridge",
+    "name": "Linux bridge",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": []
+  },
+  {
+    "kind": "ovs-bridge",
+    "name": "Openvswitch bridge",
+    "interfaces": [
+      {
+        "pattern": "ovsp$",
+        "start": 1
+      }
+    ],
+    "images": []
+  },
+  {
+    "kind": "host",
+    "name": "Host",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": []
   },
   {
     "kind": "ext-container",
     "name": "External Container",
-    "interfacePattern": "enp5s$",
-    "interfaceStart": 1
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": []
+  },
+  {
+    "kind": "k8s-kind",
+    "name": "Kubernetes in docker (kind) cluster",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": []
+  },
+  {
+    "kind": "tailscale",
+    "name": "Tailscale sidecar",
+    "interfaces": [
+      {
+        "pattern": "eth$",
+        "start": 1
+      }
+    ],
+    "images": [
+      "tailscale/tailscale:stable"
+    ]
   }
 ]

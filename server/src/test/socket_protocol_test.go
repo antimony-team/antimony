@@ -188,11 +188,10 @@ func TestSocketProtocol_EmittingWithoutAnAckIsSupported(t *testing.T) {
 	client.EmitWithoutAck(deployCommand(LabAdminID))
 
 	// The command must run to completion, with no panic along the way.
+	// IsRunning is true as soon as the deployment starts, before it reaches the provider
 	requireEventually(t, func() bool {
-		return h.InstanceService.IsRunning(LabAdminID)
+		return h.Provider.WasCalled("Deploy")
 	}, "an ack-less command must still be executed")
-
-	assert.True(t, h.Provider.WasCalled("Deploy"))
 
 	// And the side effects must be observable, which is how a client without an ack learns anything.
 	var update instanceUpdatePayload

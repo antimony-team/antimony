@@ -13,6 +13,7 @@ import (
 	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
 	"antimonyBackend/runtime/commands"
 	"antimonyBackend/runtime/instance"
 	"antimonyBackend/runtime/scheduler"
@@ -129,6 +130,10 @@ func main() {
 		collectionRepository = collection.CreateRepository(db)
 	)
 
+	topologyPolicyEngine := policy.CreateEngine(policy.Options{
+		AllowedImagePrefixes: antimonyConfig.Security.AllowedImagePrefixes,
+	})
+
 	// Domain service layer components
 	var (
 		devicesService      = device.CreateService(antimonyConfig)
@@ -143,6 +148,7 @@ func main() {
 			collectionRepository,
 			schemaService,
 			storageManager,
+			topologyPolicyEngine,
 		)
 
 		labService = lab.CreateService(
@@ -154,6 +160,7 @@ func main() {
 			storageManager,
 			antimonyConfig,
 			labEventBus,
+			topologyPolicyEngine,
 			statusMessageNamespace,
 		)
 	)

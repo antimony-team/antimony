@@ -60,7 +60,7 @@ func NetlabFindings() []Finding {
 // Check returns every unsafe feature of a containerlab topology, reusing the cached result while
 // its content is unchanged.
 //
-// generic must be decoded from definitionString with yaml.v3, topology must be the topology
+// definitionRaw must be decoded from definitionString with yaml.v3, topology must be the topology
 // section decoded from definitionString with containerlab's types.
 func (e *Engine) Check(
 	topologyId string,

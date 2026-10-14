@@ -75,11 +75,17 @@ func (s *Schedule[T]) Remove(key string) {
 	s.remove(key)
 }
 
+// TryPop removes and returns the first item if it is due now, or returns nil.
 func (s *Schedule[T]) TryPop() *T {
+	return s.TryPopAt(time.Now())
+}
+
+// TryPopAt removes and returns the first item if it is due at the given time, or returns nil.
+func (s *Schedule[T]) TryPopAt(now time.Time) *T {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if len(s.schedule) > 0 && s.timeGetter(*s.schedule[0]).Unix() <= time.Now().Unix() {
+	if len(s.schedule) > 0 && s.timeGetter(*s.schedule[0]).Unix() <= now.Unix() {
 		item := s.schedule[0]
 
 		s.schedule = s.schedule[1:]

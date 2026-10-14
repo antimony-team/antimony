@@ -34,6 +34,9 @@ func parseCaptureCommand(args []string) (string, error) {
 		arg := args[i]
 
 		if value, ok := strings.CutPrefix(arg, "--interface="); ok {
+			if value == "" {
+				break
+			}
 			return value, nil
 		}
 		if arg == "--interface" {

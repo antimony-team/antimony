@@ -24,10 +24,10 @@ const freshTopologyAnnotations = `{"nodeAnnotations": [{"id": "host1", "position
 
 // Annotations that are rejected, keyed by why they are invalid.
 var invalidTopologyAnnotations = map[string]string{
-	"not json":          `{"nodeAnnotations": [`,
-	"schema violation":  `{"nodeAnnotations": [{"position": {"x": 0, "y": 0}}]}`,
-	"empty string":      "",
-	"not an object":     `["host1"]`,
+	"not json":              `{"nodeAnnotations": [`,
+	"schema violation":      `{"nodeAnnotations": [{"position": {"x": 0, "y": 0}}]}`,
+	"empty string":          "",
+	"not an object":         `["host1"]`,
 	"wrong field clabtypes": `{"nodeAnnotations": [{"id": "host1", "position": {"x": "left", "y": 0}}]}`,
 }
 
@@ -329,23 +329,37 @@ func TestCreateTopology_InvalidYamlIsRejected(t *testing.T) {
 // TestCreateTopology_SchemaViolationIsRejected covers a definition that parses as YAML but does not
 // satisfy the containerlab schema.
 //
-// schema.Service.Parse used to return the jsonschema validation error unwrapped, so
-// utils.CreateErrorResponse had no case for it and fell through to a 500 — leaking the raw validator
-// message and the upstream schema URL to the client. Wrapping it in utils.ErrInvalidTopology gives
-// the documented 400 / code 3003 and keeps the detail in the server log.
+// The response says which field is wrong and why, but not the validator's own wording around it, as
+// the "jsonschema" prefix and the URL of the schema tell the client nothing.
 func TestCreateTopology_SchemaViolationIsRejected(t *testing.T) {
 	h := NewHarness(t)
 
-	cases := map[string]string{
-		"nodes is a sequence": "name: bad\ntopology:\n  nodes:\n    - not-a-map\n",
-		"no topology section": "name: bad\n",
-		"unknown top level":   "name: bad\ntopology:\n  nodes:\n    a:\n      kind: linux\nbogus: true\n",
+	cases := map[string]struct {
+		definition string
+		detail     string
+	}{
+		"nodes is a sequence": {
+			definition: "name: bad\ntopology:\n  nodes:\n    - not-a-map\n",
+			detail:     "topology.nodes: ",
+		},
+		"no topology section": {
+			definition: "name: bad\n",
+			detail:     "missing properties: 'topology'",
+		},
+		"unknown top level": {
+			definition: "name: bad\ntopology:\n  nodes:\n    a:\n      kind: linux\nbogus: true\n",
+			detail:     "'bogus' not allowed",
+		},
+		"a field of a node": {
+			definition: "name: bad\ntopology:\n  nodes:\n    a:\n      kind: 123\n",
+			detail:     "topology.nodes.a.kind: ",
+		},
 	}
 
-	for name, definition := range cases {
+	for name, testCase := range cases {
 		t.Run(name, func(t *testing.T) {
 			response := h.POST("/topologies", topology.TopologyIn{
-				Definition:   ptr(definition),
+				Definition:   ptr(testCase.definition),
 				Annotations:  ptr(EmptyTopologyAnnotations),
 				SyncUrl:      ptr(""),
 				CollectionId: ptr(h.Seed.PublicBoth.UUID),
@@ -354,12 +368,35 @@ func TestCreateTopology_SchemaViolationIsRejected(t *testing.T) {
 			errorResponse := response.RequireError(http.StatusBadRequest, 3003)
 
 			assert.Contains(t, errorResponse.Message, "topology provided was invalid")
+			assert.Contains(t, errorResponse.Message, testCase.detail, "the response must say what is wrong")
 			assert.NotContains(t, errorResponse.Message, "jsonschema",
 				"the raw validator error must not reach the client")
 			assert.NotContains(t, errorResponse.Message, "containerlab.dev",
 				"the upstream schema URL must not reach the client")
+			assert.NotContains(t, errorResponse.Message, "unmarshal",
+				"the Go types of the definition must not reach the client")
 		})
 	}
+}
+
+// An invalid name gets its own error, so the client can point at the name field, and the message is
+// about the name even if other fields are invalid as well.
+func TestCreateTopology_InvalidNameIsRejectedOnItsOwn(t *testing.T) {
+	h := NewHarness(t)
+
+	response := h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr("name: has spaces\ntopology:\n  nodes:\n    a:\n      kind: linux\nbogus: true\n"),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicBoth.UUID),
+	}, h.Seed.Admin.Token)
+
+	errorResponse := response.RequireError(http.StatusBadRequest, 3004)
+
+	assert.Contains(t, errorResponse.Message, "name for the topology is invalid")
+	assert.Contains(t, errorResponse.Message, "name: ", "the detail must be the one about the name")
+	assert.NotContains(t, errorResponse.Message, "bogus", "other invalid fields must not take its place")
+	assert.NotContains(t, errorResponse.Message, "jsonschema")
 }
 
 func TestCreateTopology_UnknownCollectionIsNotFound(t *testing.T) {
