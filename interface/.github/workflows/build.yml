@@ -20,7 +20,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
+          node-version: 26
           cache: yarn
 
       # Electron and electron-builder download large binaries outside the yarn cache

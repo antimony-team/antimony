@@ -11,7 +11,7 @@ export class LoginPage {
   constructor(private readonly page: Page) {
     this.username = page.getByPlaceholder('Username');
     this.password = page.getByPlaceholder('Password');
-    this.submit = page.getByRole('button', {name: 'LOG IN'});
+    this.submit = page.getByRole('button', {name: 'Sign In'});
     this.error = page.locator('.sb-login-content').getByRole('alert');
   }
 
