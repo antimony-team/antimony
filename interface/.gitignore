@@ -97,6 +97,7 @@ build/
 release/
 dist-electron/
 dist/
+.task/
 
 # End-to-end tests
 e2e/.tmp/

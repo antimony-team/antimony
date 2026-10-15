@@ -17,12 +17,11 @@ RUN yarn install
 
 # We copy all of the needed local files into the docker container and build
 COPY ./.babelrc ./.prettierrc.cjs ./eslint.config.js ./tsconfig.json ./vite.config.ts ./index.html  ./
-COPY ./docker/.env ./
 COPY ./src ./src/
 COPY ./public ./public/
 COPY ./local-data ./local-data/
 
-RUN yarn run build:prod
+RUN yarn build
 
 # Production Stage
 FROM node:26-alpine

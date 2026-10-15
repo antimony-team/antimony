@@ -51,7 +51,7 @@ import ICodeEditor = monaco.editor.ICodeEditor;
 import ITextModel = monaco.editor.ITextModel;
 import ICodeEditorViewState = monaco.editor.ICodeEditorViewState;
 
-const schemaModelUri = 'inmemory://schema.yaml';
+const definitionModelUri = 'inmemory://schema.yaml';
 const annotationsModelUri = 'inmemory://topology.clab.yaml.annotations.json';
 
 window.MonacoEnvironment = {
@@ -545,14 +545,14 @@ const MonacoWrapper = observer(
         return () => {};
       }
 
-      // if (props.language === 'yaml') {
       const yamlPlugin = configureMonacoYaml(monaco, {
         enableSchemaRequest: false,
         schemas: [
           {
             fileMatch: ['**/*.yaml'],
             schema: toJS(schemaStore.clabSchema),
-            uri: import.meta.env.SB_CLAB_SCHEMA_URL!,
+            // The schema comes from the server, Monaco only uses its URI as its name
+            uri: 'https://containerlab.dev/clab.schema.json',
           },
         ],
       });
@@ -635,14 +635,13 @@ const MonacoWrapper = observer(
           props.setValidationError(markers[0].message);
         }
       });
-      // }
 
       monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
 
       textModelRef.current = monaco.editor.createModel(
         '',
         'text',
-        monaco.Uri.parse(schemaModelUri),
+        monaco.Uri.parse(definitionModelUri),
       );
 
       annotationsModelRef.current = monaco.editor.createModel(

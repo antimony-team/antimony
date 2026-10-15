@@ -12,7 +12,7 @@ export const TMP_DIR = path.join(E2E_DIR, '.tmp');
 
 // The backend ports must match e2e/backend/config.yml and the published ports in
 // e2e/scripts/start-backend.sh.
-export const BACKEND_PORT = 3100;
+export const BACKEND_PORT = 3200;
 export const INTERFACE_PORT = 4180;
 
 // 127.0.0.1 rather than localhost, which may resolve to ::1 while the servers listen on IPv4 only

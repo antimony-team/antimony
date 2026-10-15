@@ -55,21 +55,13 @@
     "yaml": "^2.8.3"
   },
   "scripts": {
-    "start": "vite",
     "postinstall": "patch-package",
-    "lint": "gts lint '**/*.{ts,tsx}'",
-    "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts",
-    "e2e:ui": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts --ui",
-    "e2e:report": "playwright show-report e2e/.tmp/report",
+    "start": "vite",
+    "build": "vite build",
     "test": "vitest run",
+    "lint": "gts lint '**/*.{ts,tsx}'",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf ./dist/ ./dist-electron/ ./release/",
-    "compile": "tsc",
-    "build:dev": "vite build --mode development",
-    "build:prod": "vite build",
-    "build:docker": "docker build -t antimony-interface:dev . --file docker/Dockerfile",
-    "build-electron:linux": "vite build --config electron/vite.config.ts && electron-builder --linux --config electron/electron-builder.yml",
-    "build-electron:win": "vite build --config electron/vite.config.ts && electron-builder --win --config electron/electron-builder.yml"
+    "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",

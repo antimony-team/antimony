@@ -45,24 +45,37 @@ const INVALID_NAMESPACE_RETRY_TIMER = 5000;
 export class DataBinder {
   // Set to true when all preloading and auth processes have finished
   @observable accessor isReady = false;
+
   // Set to true if the client is authenticated and has access to the resources
   @observable accessor isLoggedIn = false;
+
   @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
+
   @observable accessor isOpenIdAuthEnabled = false;
   @observable accessor isNativeAuthEnabled = false;
   @observable accessor useNativeAutoLogin = false;
+
+  /*
+   * The desktop app passes the address of the server it started, web builds use
+   * their own origin, which a proxy forwards to the server, unless a build sets its own.
+   */
   private readonly apiUrl =
-    import.meta.env.SB_API_SERVER_URL ?? window.location.host;
+    window.antimonyDesktop?.serverUrl ??
+    import.meta.env.SB_API_SERVER_URL ??
+    '/api';
+
   private readonly socketUrl =
-    import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.host;
+    window.antimonyDesktop?.serverUrl ??
+    import.meta.env.SB_SOCKET_SERVER_URL ??
+    window.location.origin;
+
   private refreshTokenPromise: Promise<Result<null>> | null = null;
   private accessToken: string = '';
 
+  // All currently active socket.io namespace subscriptions
   private subscriptions: Map<string, Subscription> = new Map();
-
-  private runningRequests = new Map<string, number>();
 
   constructor() {
     /*
@@ -269,22 +282,6 @@ export class DataBinder {
     authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<void, T>(path, 'GET', undefined, authenticated);
-  }
-
-  /**
-   * Like get(), but if a newer getLatest() for the same path starts before this
-   * one returns, this one resolves to null and its result must be discarded.
-   */
-  public async getLatest<T>(
-    path: string,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>> | null> {
-    const seq = (this.runningRequests.get(path) ?? 0) + 1;
-    this.runningRequests.set(path, seq);
-
-    const result = await this.get<T>(path, authenticated);
-
-    return this.runningRequests.get(path) === seq ? result : null;
   }
 
   public async delete<T>(

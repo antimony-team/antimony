@@ -16,11 +16,11 @@ Prerequisites:
 
 Commands:
 
-| Command           | What it does                                                   |
-|-------------------|----------------------------------------------------------------|
-| `yarn e2e`        | Runs all tests headless, like CI                               |
-| `yarn e2e:ui`     | Opens Playwright's UI to run single tests and step through them |
-| `yarn e2e:report` | Opens the HTML report of the last run                          |
+| Command           | What it does                                                    |
+|-------------------|-----------------------------------------------------------------|
+| `yarn e2e`        | Runs all tests headless, like CI                                |
+| `task e2e-ui`     | Opens Playwright's UI to run single tests and step through them |
+| `task e2e-report` | Opens the HTML report of the last run                           |
 
 A run starts its own backend (port 3100) and interface build (port 4180), so it doesn't touch the
 development servers on 3000 and 8080. Failing tests leave a screenshot, a video and a trace in the
