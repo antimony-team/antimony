@@ -1,9 +1,12 @@
 {
   "name": "antimony-interface",
   "packageManager": "yarn@1.22.22",
-  "author": "Antimony Dev Team",
+  "author": {
+    "name": "Kian Gribi",
+    "email": "kian.gribi@ost.ch"
+  },
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "0.0.0-dev",
   "type": "module",
   "private": true,
   "main": "dist-electron/main.js",

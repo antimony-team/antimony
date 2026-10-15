@@ -114,14 +114,16 @@ tasks:
       - public/**/*
       - index.html
       - vite.config.ts
+      - tsconfig.json
       - .babelrc
       - package.json
-      - electron/main.ts
-      - electron/vite.config.ts
-      - electron/.env
+      - yarn.lock
+      - patches/**/*
+      - electron/**/*
     generates:
       - dist/.built-electron
       - dist-electron/main.js
+      - dist-electron/preload.cjs
     cmds:
       - yarn build --config electron/vite.config.ts
       - touch dist/.built-electron

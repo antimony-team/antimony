@@ -6,6 +6,7 @@ import {fetchResource} from '@sb/lib/utils/utils';
 import {
   AuthConfig,
   AuthenticatedUser,
+  AuthMethod,
   EMPTY_AUTH_USER,
 } from '@sb/types/domain/user';
 import {Result} from '@sb/types/result';
@@ -53,26 +54,20 @@ export class DataBinder {
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
 
-  @observable accessor isOpenIdAuthEnabled = false;
-  @observable accessor isNativeAuthEnabled = false;
-  @observable accessor useNativeAutoLogin = false;
+  @observable accessor authMethods: AuthMethod[] = [];
 
   /*
    * The desktop app passes the address of the server it started, web builds use
    * their own origin, which a proxy forwards to the server, unless a build sets its own.
    */
-  private readonly apiUrl =
-    window.antimonyDesktop?.serverUrl ??
-    import.meta.env.SB_API_SERVER_URL ??
-    '/api';
-
-  private readonly socketUrl =
-    window.antimonyDesktop?.serverUrl ??
-    import.meta.env.SB_SOCKET_SERVER_URL ??
-    window.location.origin;
+  private apiUrl = import.meta.env.SB_API_SERVER_URL ?? '/api';
+  private socketUrl =
+    import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.origin;
 
   private refreshTokenPromise: Promise<Result<null>> | null = null;
+
   private accessToken: string = '';
+  private desktopToken: string = '';
 
   // All currently active socket.io namespace subscriptions
   private subscriptions: Map<string, Subscription> = new Map();
@@ -100,8 +95,17 @@ export class DataBinder {
   }
 
   @computed
-  public get isAuthDisabled() {
-    return !this.isOpenIdAuthEnabled && !this.isNativeAuthEnabled;
+  public get isOpenIdAuthEnabled() {
+    return this.authMethods.includes('openid');
+  }
+
+  @computed
+  public get isAdminAuthEnabled() {
+    return this.authMethods.includes('admin');
+  }
+
+  public get isDesktop() {
+    return this.desktopToken !== null;
   }
 
   /**
@@ -329,6 +333,9 @@ export class DataBinder {
     const response = await fetchResource(this.apiUrl + path, method, body, {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      // The desktop app's window can't use cookies, so instead it sends the
+      // access token explicitly via header
+      ...(this.isDesktop && {Authorization: `Bearer ${this.accessToken}`}),
     });
 
     if (!response || response.status === 504) {
@@ -344,22 +351,16 @@ export class DataBinder {
     // Acecss token is expired, attempt to refresh before retrying
     if (response.status === 498) {
       const refreshResponse = await this.refreshToken();
-      if (refreshResponse.isErr()) {
-        if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
-          this.loginWithOpenId();
-          return refreshResponse;
-        } else if (this.isNativeAuthEnabled && this.useNativeAutoLogin) {
-          await this.loginNative({
-            username: '',
-            password: '',
-          });
-        } else {
-          this.logout();
-        }
-        return refreshResponse;
-      } else {
+      if (refreshResponse.isOk()) {
         return this.fetch(path, method, body, authenticated);
       }
+
+      if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
+        this.loginWithOpenId();
+      } else {
+        this.logout();
+      }
+      return refreshResponse;
     }
 
     // Auth token is expired or invalid
@@ -389,6 +390,14 @@ export class DataBinder {
   }
 
   private async initAuth() {
+    // The desktop app talks to the server it started and logs in with its token
+    const desktop = await window.antimonyDesktop?.config();
+    if (desktop) {
+      this.apiUrl = desktop.serverUrl;
+      this.socketUrl = desktop.serverUrl;
+      this.desktopToken = desktop.token;
+    }
+
     const authConfigResponse = await this.get<AuthConfig>(
       '/users/login/auth-config',
       false,
@@ -405,22 +414,15 @@ export class DataBinder {
       return;
     }
 
-    const authConfig = authConfigResponse.data.payload;
-    runInAction(() => {
-      this.isOpenIdAuthEnabled = authConfig.openId.enabled;
-      this.isNativeAuthEnabled = authConfig.native.enabled;
-      this.useNativeAutoLogin = authConfig.native.allowEmpty;
-    });
+    runInAction(
+      () => (this.authMethods = authConfigResponse.data.payload.methods),
+    );
 
-    if (this.isAuthDisabled) {
-      runInAction(() => {
-        this.isLoggedIn = true;
-        this.authUser = {
-          id: '',
-          isAdmin: true,
-          name: 'Admin',
-        };
-      });
+    if (this.isDesktop) {
+      // refreshToken() logs in with the desktop token, see below
+      if ((await this.refreshToken()).isOk()) {
+        runInAction(() => (this.isLoggedIn = true));
+      }
     } else if (Cookies.get('accessToken') !== undefined) {
       // If access token has been set previously, attempt to refresh token
       const refreshResult = await this.refreshToken();
@@ -435,15 +437,6 @@ export class DataBinder {
         this.loginWithOpenId();
         return;
       }
-    } else if (
-      this.isNativeAuthEnabled &&
-      authConfig.native.allowEmpty &&
-      !authConfig.openId.enabled
-    ) {
-      await this.loginNative({
-        username: '',
-        password: '',
-      });
     }
 
     runInAction(() => (this.isReady = true));
@@ -596,21 +589,42 @@ export class DataBinder {
   private async refreshToken(): Promise<Result<null>> {
     // Make sure only one promise to refresh the token is running at a time
     if (this.refreshTokenPromise === null) {
-      this.refreshTokenPromise = fetchResource(
-        this.apiUrl + '/users/login/refresh',
-        'GET',
-      )
-        .then(response => {
-          if (!response || response.status !== 200) {
-            return Result.createErr({code: -1, message: 'Unauthorized'});
-          }
-          this.processAccessToken(Cookies.get('accessToken')!);
-
-          return Result.createOk(null);
-        })
-        .finally(() => (this.refreshTokenPromise = null));
+      this.refreshTokenPromise = (
+        this.isDesktop ? this.loginDesktop() : this.refreshFromCookie()
+      ).finally(() => (this.refreshTokenPromise = null));
     }
 
     return this.refreshTokenPromise;
+  }
+
+  // Gets a new access token with the refresh token cookie
+  private async refreshFromCookie(): Promise<Result<null>> {
+    const response = await fetchResource(
+      this.apiUrl + '/users/login/refresh',
+      'GET',
+    );
+    if (!response || response.status !== 200) {
+      return Result.createErr({code: -1, message: 'Unauthorized'});
+    }
+
+    this.processAccessToken(Cookies.get('accessToken')!);
+    return Result.createOk(null);
+  }
+
+  // Logs in with the desktop app's token, the access token comes in the response
+  private async loginDesktop(): Promise<Result<null>> {
+    const response = await fetchResource(
+      this.apiUrl + '/users/login/desktop',
+      'POST',
+      {token: this.desktopToken},
+      {'Content-Type': 'application/json'},
+    );
+    if (!response || response.status !== 200) {
+      return Result.createErr({code: -1, message: 'Unauthorized'});
+    }
+
+    const {payload} = (await response.json()) as {payload: string};
+    this.processAccessToken(payload);
+    return Result.createOk(null);
   }
 }
