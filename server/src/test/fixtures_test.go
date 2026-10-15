@@ -1,16 +1,17 @@
 package test
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/domain/user"
 	"strings"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/clause"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/domain/user"
 )
 
 // Collection names. Access for non-admin users is granted by collection *name*, which is what the

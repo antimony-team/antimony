@@ -1,9 +1,9 @@
 package user
 
 import (
-	"antimonyBackend/config"
-
 	"gorm.io/gorm"
+
+	"github.com/antimony-team/antimony-server/config"
 )
 
 type User struct {

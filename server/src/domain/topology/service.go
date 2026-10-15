@@ -1,19 +1,20 @@
 package topology
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/clabtypes"
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/schema"
-	"antimonyBackend/domain/user"
-	"antimonyBackend/policy"
-	"antimonyBackend/storage"
-	"antimonyBackend/utils"
 	"context"
 	"slices"
 
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/clabtypes"
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/schema"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/policy"
+	"github.com/antimony-team/antimony-server/storage"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Service struct {

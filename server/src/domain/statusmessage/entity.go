@@ -1,9 +1,10 @@
 package statusmessage
 
 import (
-	"antimonyBackend/utils"
-	"antimonyBackend/utils/serverlog"
 	"time"
+
+	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony-server/utils/serverlog"
 )
 
 type Message struct {

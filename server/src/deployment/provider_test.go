@@ -1,11 +1,12 @@
 package deployment
 
 import (
-	"antimonyBackend/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/config"
 )
 
 // Only the dummy branch is exercised here, the other providers need a Docker or Kubernetes

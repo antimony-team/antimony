@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"antimonyBackend/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // dockerRef holds information to identify a nodeName's docker container.

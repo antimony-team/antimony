@@ -1,13 +1,14 @@
 package test
 
 import (
-	"antimonyBackend/deployment"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/deployment"
 )
 
 // shellControlDTO mirrors the unexported shellControlData sent on /shell-control.

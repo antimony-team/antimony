@@ -1,12 +1,13 @@
 package user
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/domain/user"
-	"antimonyBackend/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Handler struct {

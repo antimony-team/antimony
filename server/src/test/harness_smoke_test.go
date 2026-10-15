@@ -1,10 +1,11 @@
 package test
 
 import (
-	"antimonyBackend/clabtypes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/antimony-team/antimony-server/clabtypes"
 )
 
 // TestFixtures_TopologyDefinitionsAreSchemaValid checks the fixture definitions against the clab schema, so a schema

@@ -1,8 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/runtime/instance"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -11,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/runtime/instance"
 )
 
 // listLabs issues a lab query with an explicit limit already applied, since a request without one

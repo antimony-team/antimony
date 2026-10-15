@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"antimonyBackend/config"
-	"antimonyBackend/utils"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -18,6 +16,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
+
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 const NativeUserID = "00000000-0000-0000-0000-00000000000"

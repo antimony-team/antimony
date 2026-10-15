@@ -32,6 +32,7 @@ jobs:
       - name: Run Linters
         uses: golangci/golangci-lint-action@v9
         with:
+          version: v2.15.0
           working-directory: ./src
           args: -c ../.golangci.yml
 
@@ -145,7 +146,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
 
-      # The image is pushed without a tag, the merge job tags it together with the other platform
+      # The image is pushed without a tag, the merge job tags it together with the other platform. It carries
+      # an SBOM and the provenance of its build, which the merge keeps.
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v7
@@ -153,6 +155,8 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
           outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=${{ github.event_name == 'push' }}
           cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
           cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
@@ -180,6 +184,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Signing the provenance of the image with the workflow's identity
+      id-token: write
+      attestations: write
 
     steps:
       - name: Download digests
@@ -218,4 +225,16 @@ jobs:
             $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
 
       - name: Inspect image
-        run: docker buildx imagetools inspect "ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}"
+        id: image
+        run: |
+          image="ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}"
+          docker buildx imagetools inspect "$image"
+          echo "digest=$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+
+      # Proves that the image was built by this workflow, see gh attestation verify
+      - name: Attest the image
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true

@@ -1,9 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/sshserver"
 	"bytes"
 	"context"
 	"errors"
@@ -20,6 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/sshserver"
 )
 
 /*

@@ -50,7 +50,7 @@ tasks:
 
   build-docker:
     cmds:
-      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend:dev .
+      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-server:dev .
 
   run:
     dir: './build'
@@ -109,7 +109,7 @@ tasks:
         --cgroupns host
         --user root
         --pid host
-        antimony-backend:dev -sqlite=true -config=./config.yml
+        antimony-server:dev -sqlite=true -config=./config.yml
 
   setup-kind:
     dir: '.'

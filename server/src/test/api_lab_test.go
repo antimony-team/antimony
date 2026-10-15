@@ -1,12 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/transport"
-	"antimonyBackend/utils"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,6 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // allLabs makes the listing limit explicit. It is no longer required — an unparameterised request

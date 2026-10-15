@@ -1,13 +1,13 @@
 package collection
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/transport"
-	"antimonyBackend/utils"
-
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Handler struct {

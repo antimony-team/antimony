@@ -1,14 +1,15 @@
 package scheduler
 
 import (
-	"antimonyBackend/config"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/utils"
 	"context"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // tickInterval is how often the scheduler checks its queues.

@@ -1,11 +1,12 @@
 package instance
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/socket"
 	"context"
 	"sync"
 	"time"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/socket"
 )
 
 type Instance struct {

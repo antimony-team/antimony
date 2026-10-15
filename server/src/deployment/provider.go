@@ -1,10 +1,11 @@
 package deployment
 
 import (
-	"antimonyBackend/config"
 	"time"
 
 	"github.com/charmbracelet/log"
+
+	"github.com/antimony-team/antimony-server/config"
 )
 
 func CreateProvider(antimonyConfig *config.AntimonyConfig) DeploymentProvider {

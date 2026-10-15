@@ -2,7 +2,7 @@ package deployment
 
 import "sync"
 
-// The dummy provider is exercised by the Go test suite in antimonyBackend/test, this only makes sure it stays a
+// The dummy provider is exercised by the Go test suite in the test package, this only makes sure it stays a
 // complete provider.
 var _ DeploymentProvider = (*DummyProvider)(nil)
 

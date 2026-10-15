@@ -1,12 +1,13 @@
 package topology
 
 import (
-	"antimonyBackend/utils"
 	"context"
 
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Repository struct {

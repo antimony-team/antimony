@@ -1,6 +1,6 @@
 package config
 
-import "antimonyBackend/utils"
+import "github.com/antimony-team/antimony-server/utils"
 
 type AntimonyConfig struct {
 	Server       ServerConfig     `yaml:"server"`

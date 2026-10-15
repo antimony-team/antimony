@@ -1,9 +1,6 @@
 package instance
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/socket"
-	"antimonyBackend/utils"
 	"context"
 	"maps"
 	"sync"
@@ -11,6 +8,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Monitor struct {

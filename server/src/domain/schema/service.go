@@ -1,9 +1,6 @@
 package schema
 
 import (
-	"antimonyBackend/clabtypes"
-	"antimonyBackend/config"
-	"antimonyBackend/utils"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +13,10 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/clabtypes"
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type (

@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"antimonyBackend/clabtypes"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/clabtypes"
 )
 
 // fuzzSeeds are definitions that reach most of the rules, so the fuzzer starts from realistic input.

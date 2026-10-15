@@ -1,16 +1,17 @@
 package test
 
 import (
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/transport"
-	"antimonyBackend/utils"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 /*

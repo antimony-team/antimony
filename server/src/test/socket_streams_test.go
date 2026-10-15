@@ -1,17 +1,18 @@
 package test
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/domain/statusmessage"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/socket"
-	"antimonyBackend/utils"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/domain/statusmessage"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // streamMessage is the payload type for the namespaces these tests create directly.

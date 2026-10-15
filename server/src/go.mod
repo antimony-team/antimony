@@ -1,4 +1,4 @@
-module antimonyBackend
+module github.com/antimony-team/antimony-server
 
 go 1.26.0
 

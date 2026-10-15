@@ -1,12 +1,13 @@
 package lab
 
 import (
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/domain/user"
 	"time"
 
 	"gorm.io/gorm"
+
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/domain/user"
 )
 
 type Lab struct {

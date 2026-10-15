@@ -1,11 +1,12 @@
 package user
 
 import (
-	"antimonyBackend/utils"
 	"context"
 
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Repository struct {

@@ -1,15 +1,16 @@
 package lab
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/transport"
-	"antimonyBackend/utils"
 	"slices"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Handler struct {

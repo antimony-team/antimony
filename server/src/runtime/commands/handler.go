@@ -1,12 +1,13 @@
 package commands
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/runtime/shell"
-	"antimonyBackend/socket"
-	"antimonyBackend/utils"
 	"context"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/runtime/shell"
+	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type handler struct {

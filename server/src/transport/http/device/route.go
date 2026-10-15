@@ -1,9 +1,9 @@
 package device
 
 import (
-	"antimonyBackend/auth"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/antimony-team/antimony-server/auth"
 )
 
 func RegisterRoutes(route *gin.Engine, handler *Handler, authManager *auth.Manager) {

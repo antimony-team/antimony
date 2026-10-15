@@ -1,7 +1,6 @@
 package sshserver
 
 import (
-	"antimonyBackend/deployment"
 	"context"
 	"errors"
 	"io"
@@ -12,6 +11,8 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
+
+	"github.com/antimony-team/antimony-server/deployment"
 )
 
 // errCaptureServiceClosed is returned for captures requested after the service was closed.
