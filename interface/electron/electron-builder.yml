@@ -1,5 +1,8 @@
-appId: ch.antimony-team.antimony
+appId: run.antimony.Desktop
+# The name users see, and the name of the data folder ~/.config/Antimony
 productName: Antimony
+# Packages, files and the command are named antimony-desktop, since antimony is taken by another program
+executableName: antimony-desktop
 copyright: MIT
 
 directories:
@@ -16,5 +19,42 @@ linux:
   target:
     - target: AppImage
       arch: [x64, arm64]
-  category: Utility
-  artifactName: ${productName}-${version}-${arch}.AppImage
+    - target: deb
+      arch: [x64, arm64]
+    - target: rpm
+      arch: [x64, arm64]
+  category: Network
+  synopsis: Design, deploy and operate containerlab network labs
+  description: >-
+    Antimony Desktop runs Antimony on your own machine. It starts the Antimony server in Docker
+    and signs you in, so you can design network labs on a canvas, deploy them with containerlab
+    and open terminals to their nodes.
+  artifactName: antimony-desktop-${version}-${arch}.${ext}
+
+# The packages need Docker Engine for the server and the labs, on top of electron-builder's defaults
+deb:
+  packageName: antimony-desktop
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - docker.io | docker-ce
+
+rpm:
+  packageName: antimony-desktop
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - (libXtst or libXtst6)
+    - xdg-utils
+    - at-spi2-core
+    - (libuuid or libuuid1)
+    - (docker-ce or moby-engine)

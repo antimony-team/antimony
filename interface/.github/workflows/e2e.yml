@@ -13,7 +13,7 @@ on:
       backend-image:
         description: Backend image to test against
         type: string
-        default: ghcr.io/antimony-team/antimony-backend:dev
+        default: ghcr.io/antimony-team/antimony-server:dev
 
   # Lets the backend repository run these tests against its own images
   workflow_call:
@@ -25,11 +25,11 @@ on:
       backend-image:
         description: Backend image to test against
         type: string
-        default: ghcr.io/antimony-team/antimony-backend:dev
+        default: ghcr.io/antimony-team/antimony-server:dev
 
 env:
   # The image e2e/scripts/start-backend.sh runs
-  SB_E2E_BACKEND_IMAGE: ${{ inputs.backend-image || 'ghcr.io/antimony-team/antimony-backend:dev' }}
+  SB_E2E_BACKEND_IMAGE: ${{ inputs.backend-image || 'ghcr.io/antimony-team/antimony-server:dev' }}
 
 jobs:
   e2e:

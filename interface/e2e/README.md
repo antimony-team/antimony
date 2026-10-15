@@ -9,8 +9,8 @@ provider.
 
 Prerequisites:
 
-- Docker, and the backend image the tests run. Locally that's `antimony-backend:dev`, built in the
-  backend repository with `docker build -t antimony-backend:dev .`. Rebuild it after backend
+- Docker, and the backend image the tests run. Locally that's `antimony-server:dev`, built in the
+  backend repository with `docker build -t antimony-server:dev .`. Rebuild it after backend
   changes. Another image can be used with `SB_E2E_BACKEND_IMAGE=<image> yarn e2e`.
 - The Playwright browser, once: `npx playwright install chromium`
 
