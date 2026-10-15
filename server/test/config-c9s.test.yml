@@ -1,48 +1,18 @@
-# This file is used for testing Antimony locally in native mode with clabernetes as provider
+# This file is used for testing Antimony locally in native mode with clabernetes as provider.
+# Only settings that differ from the defaults in ../config.default.yml are listed.
 server:
-  host: 0.0.0.0
-  port: 3000
+  port: 3100
 deployment:
   provider: clabernetes
 auth:
-  enableNative: true
   enableOpenId: true
   openIdIssuer: "http://localhost:4022/realms/antimony"
   openIdClientId: 5c5fefc302e06bc577a0a61922a3eae620445436f6b02628ba5cdccf1f0e78bc
-  openIdRedirectHost: "http://localhost:3000"
+  openIdRedirectHost: "http://localhost:3100"
   openIdAdminGroups:
     - antimony-admin
-security:
-  topologyPolicy: true
-  allowedImagePrefixes: []
-shell:
-  userLimit: 20
-  timeout: 1800
 database:
-  host: 127.0.0.1
-  port: 5432
-  database: antimony
-  user: antimony
   localFile: ./db/antimony.db
 ssh:
-  enabled: yes
-  sshHost: 0.0.0.0
-  sshPort: 6969
-  sshKeyPath: ./key
-capture:
-  enabled: yes
-  excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
-streaming:
-  containerLogBacklog: 1000
-  clabLogBacklog: 1000
-  shellLinesBacklog: 1000
-filesystem:
-  storage: ./storage/
-  run: ./run/
-containerlab:
-  schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
-  schemaFallback: ./data/clab.schema.json
-  annotationsSchemaUrl: ""
-  annotationsSchemaFallback: ./data/clab.annotations.schema.json
-  deviceConfig: ./data/device-config.json
-  kindsConfig: ./kinds.conf.yml
+  sshHost: 127.0.0.1
+  sshPort: 6767

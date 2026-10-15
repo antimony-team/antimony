@@ -49,6 +49,10 @@ tasks:
       - cp ../test/config-c9s.test.yml ../build/config-c9s.yml
       - cp ../test/kinds.conf.yml ../build/kinds.conf.yml
 
+  build-docker:
+    cmds:
+      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend:dev .
+
   run:
     dir: './build'
     cmds:
@@ -75,10 +79,6 @@ tasks:
       SB_NATIVE_PASSWORD: admin
       SB_LOG_LEVEL: debug
 
-  build-docker:
-    cmds:
-      - DOCKER_HOST=unix:///var/run/docker.sock docker build -t antimony-backend:dev .
-
   run-docker:
     dir: './build/docker'
     cmds:
@@ -102,7 +102,6 @@ tasks:
         -v /var/run/docker.sock:/var/run/docker.sock
         -v /var/run/netns:/var/run/netns
         -v /var/lib/docker:/var/lib/docker
-        -p 3000:3000
         --privileged
         --network host
         --cgroupns host

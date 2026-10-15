@@ -1,35 +1,14 @@
-# This file is used by the CI startup smoke test, it needs no containerlab, database server or network access
+# This file is used by the CI startup smoke test; it needs no containerlab, database server or network access.
+# Only settings that differ from the defaults in ../config.default.yml are listed.
 server:
-  host: 127.0.0.1
   port: 3999
 deployment:
   provider: dummy
-auth:
-  enableNative: true
-  enableOpenId: false
-security:
-  topologyPolicy: true
-  allowedImagePrefixes: []
-shell:
-  userLimit: 20
-  timeout: 1800
 database:
   localFile: ./db/antimony.db
 ssh:
   enabled: no
 capture:
   enabled: no
-streaming:
-  containerLogBacklog: 1000
-  clabLogBacklog: 1000
-  shellLinesBacklog: 1000
-filesystem:
-  storage: ./storage/
-  run: ./run/
 containerlab:
   schemaUrl: ""
-  schemaFallback: ./data/clab.schema.json
-  annotationsSchemaUrl: ""
-  annotationsSchemaFallback: ./data/clab.annotations.schema.json
-  deviceConfig: ./data/device-config.json
-  kindsConfig: ./kinds.conf.yml
