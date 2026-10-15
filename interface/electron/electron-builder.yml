@@ -1,5 +1,8 @@
-appId: ch.antimony-team.antimony
+appId: run.antimony.Desktop
+# The name users see, and the name of the data folder ~/.config/Antimony
 productName: Antimony
+# Packages, files and the command are named antimony-desktop, since antimony is taken by another program
+executableName: antimony-desktop
 copyright: MIT
 
 directories:
@@ -17,4 +20,4 @@ linux:
     - target: AppImage
       arch: [x64, arm64]
   category: Utility
-  artifactName: ${productName}-${version}-${arch}.AppImage
+  artifactName: antimony-desktop-${version}-${arch}.${ext}
