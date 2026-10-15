@@ -11,14 +11,14 @@
 
 Design, deploy and operate [containerlab](https://containerlab.dev) networks from your browser.
 
-[![Backend CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-backend/ci.yml?branch=development&label=backend)](https://github.com/antimony-team/antimony-backend/actions/workflows/ci.yml)
+[![Server CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-server/ci.yml?branch=development&label=server)](https://github.com/antimony-team/antimony-server/actions/workflows/ci.yml)
 [![Interface CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-interface/ci.yml?branch=development&label=interface)](https://github.com/antimony-team/antimony-interface/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/antimony-team/antimony?include_prereleases&label=release&color=3fcfad)](https://github.com/antimony-team/antimony/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Powered by containerlab](https://img.shields.io/badge/powered%20by-containerlab-3fcfad)](https://containerlab.dev)
-[![Desktop app](https://img.shields.io/badge/desktop-Linux-f5a524?logo=linux&logoColor=white)](https://antimony.run/docs/deployment/desktop-app/)
+[![Antimony Desktop](https://img.shields.io/badge/Antimony%20Desktop-Linux-f5a524?logo=linux&logoColor=white)](https://antimony.run/docs/deployment/desktop-app/)
 
-**[Website](https://antimony.run)** · **[Documentation](https://antimony.run/docs/)** · **[Quick start](https://antimony.run/docs/getting-started/quick-start/)** · **[Desktop app](https://antimony.run/docs/deployment/desktop-app/)**
+**[Website](https://antimony.run)** · **[Documentation](https://antimony.run/docs/)** · **[Quick start](https://antimony.run/docs/getting-started/quick-start/)** · **[Antimony Desktop](https://antimony.run/docs/deployment/desktop-app/)**
 
 <br>
 
@@ -41,16 +41,16 @@ curl -fsSL https://antimony.run/deploy.sh | bash
 Open [http://localhost:8080](http://localhost:8080) and sign in with the admin password the script prints. Running the command again updates Antimony and keeps your settings.
 The [quick start](https://antimony.run/docs/getting-started/quick-start/) has all options, the [Docker guide](https://antimony.run/docs/deployment/docker/) covers versions, updates and HTTPS, and [authentication](https://antimony.run/docs/deployment/authentication/) explains how to sign in with OpenID.
 
-### On your own machine, as a desktop app
+### On your own machine, with Antimony Desktop
 
-The desktop app is standalone: it starts its own Antimony server in Docker and signs you in, with nothing to set up. Download the AppImage for your machine (`x86_64` or `arm64`) from the [latest release](https://github.com/antimony-team/antimony/releases) and run it:
+Antimony Desktop is standalone: it starts its own Antimony server in Docker and signs you in, with nothing to set up. Download the AppImage for your machine (`x86_64` or `arm64`) from the [latest release](https://github.com/antimony-team/antimony/releases) and run it:
 
 ```bash
-chmod +x Antimony-*.AppImage
-./Antimony-*.AppImage
+chmod +x antimony-desktop-*.AppImage
+./antimony-desktop-*.AppImage
 ```
 
-More in the [desktop app guide](https://antimony.run/docs/deployment/desktop-app/).
+More in the [Antimony Desktop guide](https://antimony.run/docs/deployment/desktop-app/).
 
 ## ✨ Features
 
@@ -70,8 +70,8 @@ Everything else is on [antimony.run](https://antimony.run/docs/): the [concepts]
 | Repository | Contents |
 | --- | --- |
 | [antimony](https://github.com/antimony-team/antimony) | Deployment files, releases and the website with the documentation |
-| [antimony-backend](https://github.com/antimony-team/antimony-backend) | The Antimony server, written in Go |
-| [antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and the desktop app, written in React and Electron |
+| [antimony-server](https://github.com/antimony-team/antimony-server) | The Antimony server, written in Go |
+| [antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and Antimony Desktop, written in React and Electron |
 
 Found a bug or have an idea? Open an issue in the repository it belongs to. To work on Antimony, start with the [development setup](https://antimony.run/docs/development/setup/).
 

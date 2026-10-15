@@ -1,13 +1,13 @@
 ---
-title: Desktop app
-description: Run Antimony on your own Linux machine with the desktop app, without setting up a server.
+title: Antimony Desktop
+description: Run Antimony on your own Linux machine with Antimony Desktop, without setting up a server.
 sidebar:
-  label: Desktop app
+  label: Antimony Desktop
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-The desktop app runs Antimony on your own machine, for one person. It starts the Antimony server itself, in a Docker container next to your labs, and signs you in automatically. There is nothing to configure and no login.
+Antimony Desktop runs Antimony on your own machine, for one person. It starts the Antimony server itself, in a Docker container next to your labs, and signs you in automatically. There is nothing to configure and no login.
 
 To run Antimony for several people, or on a server, use the [Docker deployment](/docs/deployment/docker/) instead.
 
@@ -30,8 +30,8 @@ To run Antimony for several people, or on a server, use the [Docker deployment](
 2. **Make it executable and start it.**
 
     ```bash
-    chmod +x Antimony-*.AppImage
-    ./Antimony-*.AppImage
+    chmod +x antimony-desktop-*.AppImage
+    ./antimony-desktop-*.AppImage
     ```
 
     On the first start, a small window shows the download of the Antimony server. After that, the app opens.
@@ -62,7 +62,7 @@ At every start, the app:
 
 The server runs like the one of the [Docker deployment](/docs/deployment/docker/): privileged, with access to Docker and the host's network, so that it can run containerlab. It only listens on `127.0.0.1` and uses SQLite instead of PostgreSQL. When you quit the app, its container is removed.
 
-The app uses the server of its own version, `ghcr.io/antimony-team/antimony-backend:<version>`. Development builds use `:dev` and check for a newer one at every start.
+The app uses the server of its own version, `ghcr.io/antimony-team/antimony-server:<version>`. Development builds use `:dev` and check for a newer one at every start.
 
 ### Files
 
@@ -83,7 +83,7 @@ The server runs as root in its container, so the files it creates belong to root
 
 | Environment variable | Description |
 | --- | --- |
-| `SB_SERVER_IMAGE` | Server image to start instead of the app's own version, for example `SB_SERVER_IMAGE=ghcr.io/antimony-team/antimony-backend:dev`. |
+| `SB_SERVER_IMAGE` | Server image to start instead of the app's own version, for example `SB_SERVER_IMAGE=ghcr.io/antimony-team/antimony-server:dev`. |
 
 The app always uses Docker Engine at `/var/run/docker.sock`. `DOCKER_HOST` doesn't change it.
 
@@ -98,7 +98,7 @@ The app always uses Docker Engine at `/var/run/docker.sock`. `DOCKER_HOST` doesn
 
 ## Developing the app
 
-The desktop app reuses the web interface. Everything specific to it is in the interface's `electron/` folder:
+Antimony Desktop reuses the web interface. Everything specific to it is in the interface's `electron/` folder:
 
 | File | Purpose |
 | --- | --- |
@@ -110,7 +110,7 @@ The desktop app reuses the web interface. Everything specific to it is in the in
 | `config.yml` | Settings of the server on top of its defaults, such as `auth.methods: [admin, desktop]`. Ports and paths are set by the app. |
 | `vite.config.ts`, `electron-builder.yml` | Build and packaging |
 
-The interface signs in with the [desktop login](/docs/architecture/auth-flow/#desktop-app) and sends the access token in a header, since the window is loaded from a file and can't use cookies.
+The interface signs in with the [desktop login](/docs/architecture/auth-flow/#antimony-desktop) and sends the access token in a header, since the window is loaded from a file and can't use cookies.
 
 ### Building it
 
@@ -126,10 +126,10 @@ cd antimony-interface
 task package-electron-linux
 ```
 
-The AppImages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in the backend and start the app with `SB_SERVER_IMAGE=antimony-backend:dev`.
+The AppImages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in the backend and start the app with `SB_SERVER_IMAGE=antimony-server:dev`.
 
-Without packaging, `task build-electron` followed by `yarn electron .` starts the app from the repository. It then always uses the local image `antimony-backend:dev`, and shows the server's output in your terminal.
+Without packaging, `task build-electron` followed by `yarn electron .` starts the app from the repository. It then always uses the local image `antimony-server:dev`, and shows the server's output in your terminal.
 
 ### Releases
 
-The interface's CI builds the AppImages for `v*` tags and manual runs and keeps them as the workflow artifact `appimage`, to catch build failures early. Released AppImages come from the [Antimony repository](https://github.com/antimony-team/antimony): a `v*` tag there builds the AppImages from the interface at the same tag and attaches them to the release. Tag the backend first, since the release checks that the server image of that version exists.
+The interface's CI builds the AppImages on every push and pull request and keeps them as the workflow artifact `appimage`, to catch build failures early. Released AppImages come from the [Antimony repository](https://github.com/antimony-team/antimony): a `v*` tag there builds the AppImages from the interface at the same tag and attaches them to the release. Tag the backend first, since the release checks that the server image of that version exists.

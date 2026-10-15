@@ -16,8 +16,8 @@ import zoey from '../../../../assets/zoey/plan.png';
 
 Antimony is made of two applications:
 
-- **The interface** ([antimony-interface](https://github.com/antimony-team/antimony-interface)): a React single-page app. It runs in the browser, or packaged as an [Electron desktop app](/docs/deployment/desktop-app/). It has no state of its own; everything comes from the server.
-- **The server** ([antimony-backend](https://github.com/antimony-team/antimony-backend)): a Go application that stores topologies and labs, schedules and deploys labs, streams logs and statistics, and controls who can do what.
+- **The interface** ([antimony-interface](https://github.com/antimony-team/antimony-interface)): a React single-page app. It runs in the browser, or packaged with Electron as [Antimony Desktop](/docs/deployment/desktop-app/). It has no state of its own; everything comes from the server.
+- **The server** ([antimony-server](https://github.com/antimony-team/antimony-server)): a Go application that stores topologies and labs, schedules and deploys labs, streams logs and statistics, and controls who can do what.
 
 The server doesn't run network nodes itself. It hands every deployment to a **deployment provider**: containerlab on the local Docker host, or clabernetes on a Kubernetes cluster.
 
@@ -55,7 +55,7 @@ The server is organised by domain. Each domain object has its own package with a
 | `runtime/commands` | Handles commands from the interface, such as deploy lab or restart node. |
 | `deployment` | The providers: containerlab, clabernetes and dummy. |
 | `storage` | Topology files and bind files on disk, and the run directories of labs. |
-| `auth` | Login tokens, the admin login, OpenID Connect and the desktop app's login. |
+| `auth` | Login tokens, the admin login, OpenID Connect and Antimony Desktop's login. |
 | `config` | Loading the [configuration](/docs/deployment/configuration/). |
 
 Services publish lab events (`lab.created`, `lab.moved`, `lab.deleted`, `lab.manually-deployed`, `lab.restored`) on an internal event bus. The scheduler listens to them to keep its queues up to date.

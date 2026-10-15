@@ -17,7 +17,7 @@ Antimony supports these ways to sign in, listed in `auth.methods` in `config.yml
 | --- | --- |
 | `admin` | A single administrator account whose username and password come from environment variables. Good for local installations and small teams. |
 | `openid` | Users of your organisation's identity provider, such as Keycloak, Microsoft Entra ID or authentik. Their group memberships decide what they can access. This is the way to run Antimony for a class or a team. |
-| `desktop` | The [desktop app](/docs/deployment/desktop-app/), which starts its own server and signs in with a token it generates. You don't set this up yourself. |
+| `desktop` | [Antimony Desktop](/docs/deployment/desktop-app/), which starts its own server and signs in with a token it generates. You don't set this up yourself. |
 
 ```yaml title="config.yml"
 auth:
@@ -85,7 +85,7 @@ Antimony's permissions are built on **collections**: folders of topologies, usua
 
 Administrators can do everything: create and manage collections, and edit, deploy and delete any topology and lab. A user is an administrator if:
 
-- they signed in with the admin account or the desktop app, or
+- they signed in with the admin account or Antimony Desktop, or
 - one of their OpenID groups is listed in `auth.openIdAdminGroups`.
 
 ### Collection access comes from group names

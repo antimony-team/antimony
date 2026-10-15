@@ -57,20 +57,20 @@ The server compares the username and password with `SB_ADMIN_USERNAME` and `SB_A
 
 The `groups` claim decides two things: whether the user is an administrator (`auth.openIdAdminGroups`) and which collections they can access (groups with the same name as a collection). See [permissions](/docs/deployment/authentication/#permissions).
 
-## Desktop app
+## Antimony Desktop
 
 <Sequence
 	title="Desktop login"
-	participants={['Desktop app', 'Antimony server']}
+	participants={['Antimony Desktop', 'Antimony server']}
 	messages={[
 		{ from: 0, to: 1, label: 'POST /users/login/desktop' },
 		{ from: 1, to: 1, label: 'check the desktop token' },
 		{ from: 1, to: 0, label: 'access token in the response', reply: true },
 	]}
-	caption="The desktop app signs in with the token it gave the server it started."
+	caption="Antimony Desktop signs in with the token it gave the server it started."
 />
 
-The [desktop app](/docs/deployment/desktop-app/) starts its own server with a random `SB_DESKTOP_TOKEN` and signs in by sending it as `{ "token": "<desktop token>" }`. It signs in as the admin account. The app's window is loaded from a file, where cookies don't work, so the server returns the access token in the response instead of setting cookies, and the app sends it in an `Authorization: Bearer <access token>` header. There is no refresh token: when the access token expires, the app signs in again with the desktop token.
+[Antimony Desktop](/docs/deployment/desktop-app/) starts its own server with a random `SB_DESKTOP_TOKEN` and signs in by sending it as `{ "token": "<desktop token>" }`. It signs in as the admin account. The app's window is loaded from a file, where cookies don't work, so the server returns the access token in the response instead of setting cookies, and the app sends it in an `Authorization: Bearer <access token>` header. There is no refresh token: when the access token expires, the app signs in again with the desktop token.
 
 ## Using and refreshing the access token
 

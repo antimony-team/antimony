@@ -3,7 +3,7 @@
 import { writeFile, readFile } from 'node:fs/promises';
 
 const DEFAULT_SOURCE =
-	'https://raw.githubusercontent.com/antimony-team/antimony-backend/refs/heads/development/src/docs/swagger.json';
+	'https://raw.githubusercontent.com/antimony-team/antimony-server/refs/heads/development/src/docs/swagger.json';
 const source = process.argv[2] ?? DEFAULT_SOURCE;
 const target = new URL('../openapi/antimony.swagger.json', import.meta.url);
 

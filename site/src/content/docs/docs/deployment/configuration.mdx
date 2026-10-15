@@ -107,7 +107,7 @@ See [Authentication](/docs/deployment/authentication/) for how these fit togethe
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `methods` | `[admin]` | The ways to sign in: `admin` (the admin account from `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`), `openid` (an OpenID Connect provider) and `desktop` (used by the desktop app, with `SB_DESKTOP_TOKEN`). An unknown method stops the server. |
+| `methods` | `[admin]` | The ways to sign in: `admin` (the admin account from `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`), `openid` (an OpenID Connect provider) and `desktop` (used by Antimony Desktop, with `SB_DESKTOP_TOKEN`). An unknown method stops the server. |
 | `openIdIssuer` | `""` | Issuer URL of the OpenID provider, for example `https://sso.example.com/realms/antimony`. |
 | `openIdClientId` | `""` | Client ID registered with the provider. The client secret goes in `SB_OIDC_SECRET`. |
 | `openIdRedirectHost` | `""` | Public base URL the provider redirects back to. Antimony appends `/users/login/success`. Include the `/api` prefix when the server sits behind the reverse proxy, for example `https://antimony.example.com/api`. |
@@ -206,7 +206,7 @@ The server also loads a `.env` file from its working directory, if there is one.
 | `SB_ADMIN_PASSWORD` | Password of the admin account. Required if `auth.methods` contains `admin`. |
 | `SB_JWT_SECRET` | Secret for signing login tokens. **Set this in production.** Without it, a random secret is generated at every start and everyone is logged out when the server restarts. |
 | `SB_OIDC_SECRET` | Client secret for OpenID Connect. Required if `auth.methods` contains `openid`. |
-| `SB_DESKTOP_TOKEN` | Token the desktop app signs in with. Set by the desktop app, required if `auth.methods` contains `desktop`. |
+| `SB_DESKTOP_TOKEN` | Token Antimony Desktop signs in with. Set by Antimony Desktop, required if `auth.methods` contains `desktop`. |
 | `SB_DATABASE_PASSWORD` | PostgreSQL password. |
 | `SB_LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` or `fatal`. |
 | `DOCKER_HOST` and other Docker variables | Used by the containerlab provider to reach Docker. |

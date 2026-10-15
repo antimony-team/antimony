@@ -1,12 +1,12 @@
 ---
-// Overview of Antimony's components, matching the package layout of antimony-backend/src.
+// Overview of Antimony's components, matching the package layout of antimony-server/src.
 ---
 
 <figure class="diagram">
 	<svg viewBox="0 0 900 560" role="img" aria-labelledby="arch-title arch-desc">
 		<title id="arch-title">Antimony architecture</title>
 		<desc id="arch-desc">
-			Clients (web interface, desktop app, SSH clients) connect to the Antimony server through REST, Socket.IO and SSH.
+			Clients (web interface, Antimony Desktop, SSH clients) connect to the Antimony server through REST, Socket.IO and SSH.
 			Inside the server, the transport layer calls domain services and the runtime. The runtime drives a deployment
 			provider: containerlab on Docker, clabernetes on Kubernetes, or a dummy provider. Data is stored in PostgreSQL or
 			SQLite and in the storage and run directories. Users authenticate natively or through an OpenID provider.
@@ -26,7 +26,7 @@
 		<text x="36" y="72" class="t">Web interface</text>
 		<text x="36" y="92" class="t-sub">React · browser</text>
 		<rect x="20" y="122" width="170" height="60" rx="10" class="box" />
-		<text x="36" y="146" class="t">Desktop app</text>
+		<text x="36" y="146" class="t">Antimony Desktop</text>
 		<text x="36" y="166" class="t-sub">Electron · own server</text>
 		<rect x="20" y="196" width="170" height="60" rx="10" class="box" />
 		<text x="36" y="220" class="t">SSH · Wireshark</text>
@@ -35,7 +35,7 @@
 		<!-- Server -->
 		<rect x="230" y="20" width="460" height="520" rx="16" class="box-accent" />
 		<text x="248" y="46" class="t">Antimony server</text>
-		<text x="400" y="46" class="t-sub">Go · antimony-backend</text>
+		<text x="400" y="46" class="t-sub">Go · antimony-server</text>
 
 		<!-- transport -->
 		<text x="248" y="76" class="t-zone">Transport</text>

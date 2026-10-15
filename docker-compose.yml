@@ -54,7 +54,7 @@ services:
       - traefik.http.services.interface.loadbalancer.server.port=8100
 
   server:
-    image: ghcr.io/antimony-team/antimony-backend:${ANTIMONY_VERSION:-latest}
+    image: ghcr.io/antimony-team/antimony-server:${ANTIMONY_VERSION:-latest}
     restart: unless-stopped
     command: -config=./config.yml
     network_mode: host

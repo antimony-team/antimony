@@ -26,7 +26,7 @@ const extras = [
 	{ title: 'Git sync', text: 'Keep a topology in sync with a file in a Git repository.' },
 	{ title: 'Bind files', text: 'Attach configs and startup files to a topology, right in the editor.' },
 	{ title: 'Archive import', text: 'Drop in an existing containerlab project and keep going.' },
-	{ title: 'Desktop app', text: 'Antimony on your own Linux machine, without setting up a server.' },
+	{ title: 'Antimony Desktop', text: 'Antimony on your own Linux machine, without setting up a server.' },
 	{ title: 'Kubernetes', text: 'Deploy through clabernetes when one host is not enough.' },
 	{ title: 'REST + Socket.IO API', text: 'Everything the interface does is available to your scripts.' },
 ];
@@ -104,10 +104,7 @@ const extras = [
 					</ul>
 				</div>
 				<div class="story-visual">
-					<div class="window">
-						<div class="window-bar"><i></i><i></i><i></i><span>Topology Editor</span></div>
-						<Image src={editor} alt="The Antimony topology editor: topologies on the left, YAML in the middle, the network graph on the right" widths={[800, 1400]} sizes="(min-width: 960px) 640px, 100vw" />
-					</div>
+					<Image class="shot" src={editor} alt="The Antimony topology editor: topologies on the left, YAML in the middle, the network graph on the right" widths={[800, 1400]} sizes="(min-width: 960px) 640px, 100vw" />
 					<Image class="zoey zoey-right" src={zoeyBlueprint} alt="" width={220} densities={[1, 2]} />
 				</div>
 			</section>

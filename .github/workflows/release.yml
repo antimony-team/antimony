@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Check that the images of this version exist
         run: |
-          for repository in antimony-backend antimony-interface; do
+          for repository in antimony-server antimony-interface; do
             image="ghcr.io/antimony-team/$repository:${GITHUB_REF_NAME#v}"
             if ! docker buildx imagetools inspect "$image" >/dev/null; then
               echo "::error::$image doesn't exist. Tag $repository with $GITHUB_REF_NAME and wait for its pipeline first."

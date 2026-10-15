@@ -595,6 +595,16 @@ main > section {
 	height: auto;
 }
 
+/* Screenshots that bring their own window frame, the shadow follows its rounded corners */
+.shot {
+	position: relative;
+	z-index: 1;
+	display: block;
+	width: 100%;
+	height: auto;
+	filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.6));
+}
+
 .window-bar {
 	display: flex;
 	align-items: center;
