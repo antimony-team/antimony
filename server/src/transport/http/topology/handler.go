@@ -1,13 +1,13 @@
 package topology
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/transport"
-	"antimonyBackend/utils"
-
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Handler struct {

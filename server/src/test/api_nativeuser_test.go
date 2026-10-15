@@ -1,10 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/domain/user"
-	"antimonyBackend/transport"
 	"fmt"
 	"net/http"
 	"sync"
@@ -13,6 +9,11 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/transport"
 )
 
 /*

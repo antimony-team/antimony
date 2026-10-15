@@ -1,12 +1,13 @@
 package lab
 
 import (
-	"antimonyBackend/utils"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 func TestRenameDefinition_OnlyChangesTheName(t *testing.T) {

@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"antimonyBackend/utils"
 	"context"
 	"errors"
 	"io"
@@ -33,6 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 /*

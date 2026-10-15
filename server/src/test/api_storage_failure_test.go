@@ -1,8 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/transport"
 	"io/fs"
 	"net/http"
 	"os"
@@ -11,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/transport"
 )
 
 // storageErrorCode is the code of utils.ErrFileStorage, which falls through to the code of unknown errors.

@@ -1,11 +1,12 @@
 package schema
 
 import (
-	"antimonyBackend/domain/schema"
-	"antimonyBackend/utils"
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/antimony-team/antimony-server/domain/schema"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Handler struct {

@@ -1,9 +1,9 @@
 package collection
 
 import (
-	"antimonyBackend/domain/user"
-
 	"gorm.io/gorm"
+
+	"github.com/antimony-team/antimony-server/domain/user"
 )
 
 type Collection struct {

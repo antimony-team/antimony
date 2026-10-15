@@ -1,13 +1,6 @@
 package shell
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/config"
-	"antimonyBackend/deployment"
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/socket"
-	"antimonyBackend/utils"
 	"context"
 	"errors"
 	"io"
@@ -21,6 +14,14 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Service struct {

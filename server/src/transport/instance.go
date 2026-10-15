@@ -1,10 +1,11 @@
 package transport
 
 import (
-	"antimonyBackend/runtime/instance"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/antimony-team/antimony-server/runtime/instance"
 )
 
 type InstanceOut struct {

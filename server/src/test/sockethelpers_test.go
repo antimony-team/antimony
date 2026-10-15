@@ -1,7 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/utils"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +16,8 @@ import (
 	clienttransports "github.com/zishang520/socket.io/clients/engine/v3/transports"
 	clientsocket "github.com/zishang520/socket.io/clients/socket/v3"
 	siotypes "github.com/zishang520/socket.io/v3/pkg/types"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 const (

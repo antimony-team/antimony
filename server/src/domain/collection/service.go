@@ -1,10 +1,11 @@
 package collection
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/domain/user"
-	"antimonyBackend/utils"
 	"context"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type (

@@ -1,16 +1,17 @@
 package test
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/deployment"
-	"antimonyBackend/runtime/instance"
-	"antimonyBackend/utils"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // nodeCommands is the set of per-node runtime commands, used for the checks that apply to all three.

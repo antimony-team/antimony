@@ -1,11 +1,12 @@
 package socket
 
 import (
-	"antimonyBackend/auth"
 	"sync"
 
 	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 	siotypes "github.com/zishang520/socket.io/v3/pkg/types"
+
+	"github.com/antimony-team/antimony-server/auth"
 )
 
 // Manager is a wrapper around the socket.io objects and also manages all authenticated users.

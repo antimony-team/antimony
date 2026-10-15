@@ -1,10 +1,10 @@
 package device
 
 import (
-	"antimonyBackend/domain/device"
-	"antimonyBackend/utils"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/antimony-team/antimony-server/domain/device"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Handler struct {

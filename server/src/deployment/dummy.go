@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"antimonyBackend/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // ErrDummyProvider is returned by the parts of the dummy that have no meaningful test double.

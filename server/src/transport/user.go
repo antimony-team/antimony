@@ -1,7 +1,7 @@
 package transport
 
 import (
-	"antimonyBackend/domain/user"
+	"github.com/antimony-team/antimony-server/domain/user"
 )
 
 type UserOut struct {

@@ -1,14 +1,15 @@
 package test
 
 import (
-	"antimonyBackend/config"
-	"antimonyBackend/domain/device"
-	"antimonyBackend/domain/serverconfig"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/domain/device"
+	"github.com/antimony-team/antimony-server/domain/serverconfig"
 )
 
 /*

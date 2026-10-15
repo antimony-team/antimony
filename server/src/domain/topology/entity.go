@@ -1,11 +1,11 @@
 package topology
 
 import (
-	"antimonyBackend/domain/collection"
-	"antimonyBackend/domain/user"
-	"antimonyBackend/policy"
-
 	"gorm.io/gorm"
+
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/policy"
 )
 
 type Topology struct {

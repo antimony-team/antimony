@@ -1,17 +1,6 @@
 package lab
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/clabtypes"
-	"antimonyBackend/config"
-	"antimonyBackend/domain/schema"
-	"antimonyBackend/domain/statusmessage"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/domain/user"
-	"antimonyBackend/policy"
-	"antimonyBackend/socket"
-	"antimonyBackend/storage"
-	"antimonyBackend/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -21,6 +10,18 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/clabtypes"
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/domain/schema"
+	"github.com/antimony-team/antimony-server/domain/statusmessage"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/policy"
+	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony-server/storage"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 const ShellTimeout = 60

@@ -1,13 +1,14 @@
 package test
 
 import (
-	"antimonyBackend/deployment"
-	"antimonyBackend/runtime/instance"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony-server/runtime/instance"
 )
 
 /*

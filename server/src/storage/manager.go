@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"antimonyBackend/config"
-	"antimonyBackend/utils"
 	"fmt"
 	"os"
 	"path"
@@ -12,6 +10,9 @@ import (
 
 	"github.com/charmbracelet/log"
 	cp "github.com/otiai10/copy"
+
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Manager struct {

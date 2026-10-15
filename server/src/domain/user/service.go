@@ -1,13 +1,14 @@
 package user
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/config"
-	"antimonyBackend/utils"
 	"context"
 	"errors"
 
 	"github.com/charmbracelet/log"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type Service struct {

@@ -1,8 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/transport"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +9,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/transport"
 )
 
 // testJWTSecret matches the SB_JWT_SECRET the harness exports.

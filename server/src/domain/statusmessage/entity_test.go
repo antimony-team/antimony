@@ -1,12 +1,13 @@
 package statusmessage
 
 import (
-	"antimonyBackend/utils/serverlog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/utils/serverlog"
 )
 
 func TestConstructors_SetTheMatchingSeverity(t *testing.T) {

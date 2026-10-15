@@ -1,7 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/utils"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // Response wraps a recorded HTTP response with assertion helpers that understand Antimony's

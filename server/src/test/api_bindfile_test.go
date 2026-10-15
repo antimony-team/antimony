@@ -1,8 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/transport"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/transport"
 )
 
 func bindFileURL(topologyId string) string {

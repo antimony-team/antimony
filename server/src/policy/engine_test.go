@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"antimonyBackend/clabtypes"
 	"fmt"
 	"reflect"
 	"strings"
@@ -12,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/antimony-team/antimony-server/clabtypes"
 )
 
 // parseTopology decodes a definition the way schema.Service.Parse does before the engine checks it:

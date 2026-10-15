@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"antimonyBackend/clabtypes"
-	"antimonyBackend/utils"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +10,9 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/clabtypes"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 const (

@@ -1,9 +1,10 @@
 package transport
 
 import (
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/runtime/instance"
 	"time"
+
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/runtime/instance"
 )
 
 type LabOut struct {

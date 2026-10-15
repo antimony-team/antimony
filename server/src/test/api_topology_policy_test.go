@@ -1,10 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/domain/lab"
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/policy"
-	"antimonyBackend/transport"
 	"fmt"
 	"net/http"
 	"testing"
@@ -12,6 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/policy"
+	"github.com/antimony-team/antimony-server/transport"
 )
 
 // The policy engine has its own tests for its rules, these check that the findings reach the client and

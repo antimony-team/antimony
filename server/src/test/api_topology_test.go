@@ -1,13 +1,14 @@
 package test
 
 import (
-	"antimonyBackend/domain/topology"
-	"antimonyBackend/transport"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/transport"
 )
 
 // A definition with a name that does not collide with any seeded topology.

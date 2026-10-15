@@ -1,8 +1,6 @@
 package socket
 
 import (
-	"antimonyBackend/auth"
-	"antimonyBackend/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +11,9 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 	socketio "github.com/zishang520/socket.io/servers/socket/v3"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // IONamespace is a bidirectional namespace where the server and the client both can send data.

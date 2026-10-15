@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"antimonyBackend/utils"
 	"bufio"
 	"context"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 // remoteSampleScript runs inside the node and emits one sample per second.

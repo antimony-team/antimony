@@ -1,8 +1,9 @@
 package events
 
 import (
-	"antimonyBackend/utils/serverlog"
 	"time"
+
+	"github.com/antimony-team/antimony-server/utils/serverlog"
 )
 
 type Notification struct {

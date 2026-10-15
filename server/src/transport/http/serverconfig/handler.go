@@ -1,10 +1,10 @@
 package serverconfig
 
 import (
-	"antimonyBackend/domain/serverconfig"
-	"antimonyBackend/utils"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/antimony-team/antimony-server/domain/serverconfig"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 type (
