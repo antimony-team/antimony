@@ -1,7 +1,7 @@
 server:
   # The host to which the antimony server will be bound.
-  # Default: 0.0.0.0
-  host: 0.0.0.0
+  # Default: 127.0.0.1
+  host: 127.0.0.1
   # The port to which the antimony server will be bound.
   # Default: 3000
   port: 3000
@@ -11,25 +11,35 @@ deployment:
   # Default: containerlab
   provider: containerlab
 auth:
-  # Whether to enable the native admin login. Username and password have to be set via env variables.
-  # Default: true
-  enableNative: true
-  # Whether to enable authentication via OpenID Connect.
-  # Default: false
-  enableOpenId: false
+  # The authentication methods that are enabled. ['admin', 'openid', 'desktop']
+  # Admin: The admin login is enabled. Credentials have to be set via SB_ADMIN_USERNAME and SB_ADMIN_PASSWORD variables.
+  # OpenID: The OpenID Connect login is enabled. OpenId settings have to be set below.
+  # Desktop: Login via desktop token is enabled. Desktop token has to be set via SB_DESKTOP_TOKEN variable.
+  # Default: ['admin']
+  methods: ['admin']
+  # The URL of the OpenID Connect issuer.
   # Default: ""
   openIdIssuer: ""
+  # The OpenID client ID that is used to authenticate at the OpenID issuer.
   # Default: ""
   openIdClientId: ""
-  # A list of OpenID groups that are considered admin groups.
+  # The host the OpenID issuer will redirect to after authentication.
+  # Default: ""
+  openIdRedirectHost: ""
+  # A list of OpenID groups that are considered admin groups. Users in these groups are granted admin privileges.
   # Default: []
   openIdAdminGroups: [ ]
 security:
-  # Whether non-admin users may deploy topologies with unsafe features.
-  # Unsafe features are anything that can affect the server or other labs, e.g., host binds, privileged nodes,
-  # host stage commands or netlab topologies. They are always shown as findings on the topology.
+  # Whether the topology policy engine is enabled.
+  # If the engine is enabled, non-admin users are not able to deploy topologies with unsafe features. Unsafe features
+  # are anything that can access or affect the host or other labs, e.g., host binds, privileged nodes, host stage
+  # commands or netlab topologies.
   # Default: true
   topologyPolicy: true
+  # A list of container image prefixes that are allowed to be deployed as nodes in the topology.
+  # If the list is empty, all images are allowed.
+  # Default: []
+  allowedImagePrefixes: [ ]
 shell:
   # The maximum number of shells a user can have open at the same time.
   # Default: 20
@@ -58,11 +68,11 @@ ssh:
   # Default: yes
   enabled: yes
   # The host to which the SSH server will be bound.
-  # Default: 0.0.0.0
-  sshHost: 0.0.0.0
+  # Default: 127.0.0.1
+  sshHost: 127.0.0.1
   # The port to which the SSH server will be bound.
-  # Default: 22
-  sshPort: 22
+  # Default: 6969
+  sshPort: 6969
   # The path to the host SSH key that is used to authenticate the SSH server.
   # Default: ./key
   sshKeyPath: ./key

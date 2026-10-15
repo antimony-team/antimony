@@ -2,6 +2,7 @@ package test
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/config"
 	"antimonyBackend/domain/user"
 	"net/http"
 	"net/url"
@@ -81,7 +82,11 @@ func TestLoginNative_MissingFieldsAreTreatedAsWrongCredentials(t *testing.T) {
 }
 
 func TestLoginNative_DisabledReturnsUnauthorized(t *testing.T) {
-	h := NewHarness(t, WithAuthMethods(false, true), WithOpenID(NewFakeOIDCProvider(t).Issuer(), "client"))
+	h := NewHarness(
+		t,
+		WithAuthMethods(config.AuthMethods.OpenID),
+		WithOpenID(NewFakeOIDCProvider(t).Issuer(), "client"),
+	)
 
 	h.POST("/users/login/native", user.CredentialsIn{
 		Username: "testuser",
@@ -92,7 +97,7 @@ func TestLoginNative_DisabledReturnsUnauthorized(t *testing.T) {
 func TestLoginNative_UnconfiguredCredentialsAcceptAnEmptyLogin(t *testing.T) {
 	h := NewHarness(t, WithNativeCredentials("", ""))
 
-	// Native auth is enabled but SB_NATIVE_USERNAME/PASSWORD are unset, so empty credentials match
+	// Native auth is enabled but SB_ADMIN_USERNAME/PASSWORD are unset, so empty credentials match
 	// and authenticate as the native admin. The auth config advertises this via allowEmpty.
 	response := h.POST("/users/login/native", user.CredentialsIn{}, "")
 	response.RequireEmptyOk()
@@ -162,7 +167,7 @@ func TestAuthConfig_ReportsBothMethods(t *testing.T) {
 }
 
 func TestAuthConfig_ReportsNeitherWhenAllDisabled(t *testing.T) {
-	h := NewHarness(t, WithAuthMethods(false, false))
+	h := NewHarness(t, WithAuthMethods())
 
 	var authConfig auth.AuthConfig
 	h.GET("/users/login/auth-config", "").RequireOk(&authConfig)

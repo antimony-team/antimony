@@ -25,7 +25,7 @@ func (s *Service) GetServerConfig() ServerConfig {
 			ExcludedInterfaces: s.config.Capture.ExcludedInterfaces,
 		},
 		DeploymentConfig: DeploymentConfig{
-			Provider: s.config.Deployment.Provider.String(),
+			Provider: string(s.config.Deployment.Provider),
 		},
 	}
 }

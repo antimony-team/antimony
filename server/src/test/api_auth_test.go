@@ -139,7 +139,7 @@ func TestAuthMiddleware_ValidTokenIsAccepted(t *testing.T) {
 }
 
 func TestAuthMiddleware_AllAuthDisabledGrantsNativeAdminAccess(t *testing.T) {
-	h := NewHarness(t, WithAuthMethods(false, false))
+	h := NewHarness(t, WithAuthMethods())
 
 	// With no authentication method enabled the middleware injects the native admin, so an
 	// anonymous request is served as an administrator.

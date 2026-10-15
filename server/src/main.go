@@ -22,6 +22,7 @@ import (
 	"antimonyBackend/sshserver"
 	"antimonyBackend/storage"
 	collectiontransport "antimonyBackend/transport/http/collection"
+	"antimonyBackend/transport/http/cors"
 	devicetransport "antimonyBackend/transport/http/device"
 	labtransport "antimonyBackend/transport/http/lab"
 	schematransport "antimonyBackend/transport/http/schema"
@@ -36,6 +37,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -139,7 +141,7 @@ func main() {
 		devicesService      = device.CreateService(antimonyConfig)
 		schemaService       = schema.CreateService(antimonyConfig)
 		serverConfigService = serverconfig.CreateService(antimonyConfig)
-		userService         = user.CreateService(userRepository, authManager)
+		userService         = user.CreateService(userRepository, authManager, antimonyConfig)
 		collectionService   = collection.CreateService(collectionRepository, userRepository)
 
 		topologyService = topology.CreateService(
@@ -204,6 +206,7 @@ func main() {
 		topologyService,
 		collectionService,
 		serverConfigService,
+		slices.Contains(antimonyConfig.Auth.Methods, config.AuthMethods.Desktop),
 		isDevMode,
 	)
 
@@ -291,6 +294,7 @@ func createWebServer(
 	topologyService *topology.Service,
 	collectionService *collection.Service,
 	serverConfigService *serverconfig.Service,
+	isDesktopEnabled bool,
 	isDevMode bool,
 ) *gin.Engine {
 	var (
@@ -305,6 +309,9 @@ func createWebServer(
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
+
+	// Registered before the routes, so it also answers preflight requests, which have no route
+	webServer.Use(cors.Middleware(isDesktopEnabled))
 
 	// Register public HTTP endpoints
 	usertransport.RegisterRoutes(webServer, userHandler)

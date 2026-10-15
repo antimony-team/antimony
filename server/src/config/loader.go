@@ -29,15 +29,14 @@ func Load(fileName string) (*AntimonyConfig, error) {
 func defaultConfig() *AntimonyConfig {
 	return &AntimonyConfig{
 		Deployment: DeploymentConfig{
-			Provider: Containerlab,
+			Provider: DeploymentProviders.Containerlab,
 		},
 		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,
 		},
 		Auth: AuthConfig{
-			EnableNative:       true,
-			EnableOpenID:       false,
+			Methods:            []AuthMethod{AuthMethods.Admin},
 			OpenIdIssuer:       "",
 			OpenIdClientID:     "",
 			OpenIdRedirectHost: "",
@@ -60,7 +59,7 @@ func defaultConfig() *AntimonyConfig {
 		},
 		SSH: SSHConfig{
 			Enabled:    true,
-			SSHHost:    "0.0.0.0",
+			SSHHost:    "127.0.0.1",
 			SSHPort:    6969,
 			SSHKeyPath: "./key",
 		},

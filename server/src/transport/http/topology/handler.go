@@ -32,7 +32,7 @@ func CreateHandler(service *topology.Service) *Handler {
 func (h *Handler) Get(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	topologiesFull, err := h.service.Get(ctx.Request.Context(), authUser)
@@ -61,7 +61,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 func (h *Handler) GetByUuid(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	topologyFull, err := h.service.GetByUuid(ctx.Request.Context(), ctx.Param("topologyId"), authUser)
@@ -87,7 +87,7 @@ func (h *Handler) GetByUuid(ctx *gin.Context) {
 func (h *Handler) Create(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := topology.TopologyIn{}
@@ -121,7 +121,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 func (h *Handler) Update(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := topology.TopologyInPartial{}
@@ -152,7 +152,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 func (h *Handler) Delete(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	if err := h.service.Delete(ctx.Request.Context(), ctx.Param("topologyId"), authUser); err != nil {
@@ -178,7 +178,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 func (h *Handler) CreateBindFile(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := topology.BindFileIn{}
@@ -211,7 +211,7 @@ func (h *Handler) CreateBindFile(ctx *gin.Context) {
 func (h *Handler) UpdateBindFile(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := topology.BindFileInPartial{}
@@ -243,7 +243,7 @@ func (h *Handler) UpdateBindFile(ctx *gin.Context) {
 func (h *Handler) DeleteBindFile(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	if err := h.service.DeleteBindFile(ctx.Request.Context(), ctx.Param("fileId"), authUser); err != nil {

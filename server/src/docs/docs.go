@@ -964,7 +964,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Create a non-admin native user (development mode only)",
+                "summary": "Create a non-admin native user (DEVELOPMENT MODE ONLY)",
                 "parameters": [
                     {
                         "description": "The user",
@@ -1020,8 +1020,44 @@ const docTemplate = `{
                     "200": {
                         "description": "The authentication config of the server",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                            "$ref": "#/definitions/utils.OkResponse-user_AuthConfigOut"
                         }
+                    }
+                }
+            }
+        },
+        "/users/login/desktop": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Authenticate via native login",
+                "parameters": [
+                    {
+                        "description": "The desktop token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.DesktopTokenIn"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The new access token of the user",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "The provided desktop token was invalid"
+                    },
+                    "401": {
+                        "description": "Authentication via desktop token is disabled"
                     }
                 }
             }
@@ -1086,9 +1122,9 @@ const docTemplate = `{
                 "summary": "Refresh the access token",
                 "responses": {
                     "200": {
-                        "description": "The authentication config of the server",
+                        "description": "The new access token of the user",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                            "type": "string"
                         }
                     },
                     "401": {
@@ -1115,36 +1151,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "auth.AuthConfig": {
-            "type": "object",
-            "properties": {
-                "native": {
-                    "$ref": "#/definitions/auth.NativeAuthConfig"
-                },
-                "openId": {
-                    "$ref": "#/definitions/auth.OpenIdAuthConfig"
-                }
-            }
-        },
-        "auth.NativeAuthConfig": {
-            "type": "object",
-            "properties": {
-                "allowEmpty": {
-                    "type": "boolean"
-                },
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "auth.OpenIdAuthConfig": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
         "collection.CollectionIn": {
             "type": "object",
             "required": [
@@ -1177,6 +1183,19 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "config.AuthMethod": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "openid",
+                "desktop"
+            ],
+            "x-enum-varnames": [
+                "authAdmin",
+                "authOpenID",
+                "authDesktop"
+            ]
         },
         "deployment.NodeInterface": {
             "type": "object",
@@ -1663,13 +1682,39 @@ const docTemplate = `{
                 }
             }
         },
+        "user.AuthConfigOut": {
+            "type": "object",
+            "properties": {
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/config.AuthMethod"
+                    }
+                }
+            }
+        },
         "user.CredentialsIn": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "password": {
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.DesktopTokenIn": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
                     "type": "string"
                 }
             }
@@ -1767,14 +1812,6 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-auth_AuthConfig": {
-            "type": "object",
-            "properties": {
-                "payload": {
-                    "$ref": "#/definitions/auth.AuthConfig"
-                }
-            }
-        },
         "utils.OkResponse-string": {
             "type": "object",
             "properties": {
@@ -1796,6 +1833,14 @@ const docTemplate = `{
             "properties": {
                 "payload": {
                     "$ref": "#/definitions/transport.TopologyOut"
+                }
+            }
+        },
+        "utils.OkResponse-user_AuthConfigOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/user.AuthConfigOut"
                 }
             }
         }

@@ -59,6 +59,29 @@ func (h *Handler) LoginOpenId(ctx *gin.Context) {
 	http.Redirect(ctx.Writer, ctx.Request, url, http.StatusFound)
 }
 
+// @Summary	Authenticate via native login
+// @Accept		json
+// @Tags		users
+// @Success	200		{object}	string "The new access token of the user"
+//
+// @Failure	400		{object}	nil				"The provided desktop token was invalid"
+// @Failure	401		{object}	nil				"Authentication via desktop token is disabled"
+// @Param		request	body		DesktopTokenIn	true	"The desktop token"
+// @Router		/users/login/desktop [post]
+func (h *Handler) LoginDesktop(ctx *gin.Context) {
+	payload := user.DesktopTokenIn{}
+	if err := ctx.Bind(&payload); err != nil {
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrInvalidCredentials))
+		return
+	}
+
+	if accessToken, err := h.service.LoginDesktop(payload.Token); err != nil {
+		ctx.JSON(utils.CreateErrorResponse(err))
+	} else {
+		ctx.JSON(utils.CreateOkResponse(accessToken))
+	}
+}
+
 // @Summary	Redirect URL for the OpenID provider.
 func (h *Handler) LoginOpenIdSuccess(ctx *gin.Context) {
 	authToken, accessToken, err := h.service.AuthenticateWithCode(ctx.Request.Context(), ctx.Query("code"))
@@ -84,19 +107,9 @@ func (h *Handler) Logout(ctx *gin.Context) {
 	ctx.SetCookie("accessToken", "", -1, "/", "", false, false)
 }
 
-// @Summary	Get the server's authentication config
-// @Accept		json
-// @Produce	json
-// @Tags		users
-// @Success	200	{object}	utils.OkResponse[auth.AuthConfig]	"The authentication config of the server"
-// @Router		/users/login/config [get]
-func (h *Handler) AuthConfig(ctx *gin.Context) {
-	ctx.JSON(utils.CreateOkResponse(h.service.GetAuthConfig()))
-}
-
 // @Summary	Refresh the access token
 // @Tags		users
-// @Success	200	{object}	utils.OkResponse[auth.AuthConfig]	"The authentication config of the server"
+// @Success	200	{object}	string	"The new access token of the user"
 // @Failure	401	{object}	nil									"The auth token cookie is not set"
 // @Failure	403	{object}	nil									"The provided auth token was invalid"
 // @Router		/users/login/refresh [get]
@@ -121,7 +134,17 @@ func (h *Handler) RefreshToken(ctx *gin.Context) {
 	ctx.JSON(utils.CreateOkResponse(accessToken))
 }
 
-// @Summary	Create a non-admin native user (development mode only)
+// @Summary	Get the server's authentication config
+// @Accept		json
+// @Produce	json
+// @Tags		users
+// @Success	200	{object}	utils.OkResponse[user.AuthConfigOut]	"The authentication config of the server"
+// @Router		/users/login/config [get]
+func (h *Handler) AuthConfig(ctx *gin.Context) {
+	ctx.JSON(utils.CreateOkResponse(h.service.GetAuthMethods()))
+}
+
+// @Summary	Create a non-admin native user (DEVELOPMENT MODE ONLY)
 // @Accept		json
 // @Produce	json
 // @Tags		users
@@ -136,7 +159,7 @@ func (h *Handler) RefreshToken(ctx *gin.Context) {
 func (h *Handler) CreateNativeUser(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 		return
 	}
 

@@ -8,12 +8,12 @@ import (
 )
 
 func CreateProvider(antimonyConfig *config.AntimonyConfig) DeploymentProvider {
-	if antimonyConfig.Deployment.Provider == config.Clabernetes {
+	if antimonyConfig.Deployment.Provider == config.DeploymentProviders.Clabernetes {
 		log.Info("Using the Clabernetes deployment provider.")
 		return CreateClabernetesProvider()
 	}
 
-	if antimonyConfig.Deployment.Provider == config.Dummy {
+	if antimonyConfig.Deployment.Provider == config.DeploymentProviders.Dummy {
 		log.Warn("Using the dummy deployment provider. Labs will not actually be deployed.")
 		provider := CreateDummyProvider()
 

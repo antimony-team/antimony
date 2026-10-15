@@ -189,14 +189,14 @@ func TestGetServerConfig_ReportsCaptureAndDeploymentSettings(t *testing.T) {
 }
 
 func TestGetServerConfig_ReflectsTheConfiguredProvider(t *testing.T) {
-	for _, provider := range []config.DeploymentProvider{config.Clabernetes, config.Dummy} {
-		t.Run(provider.String(), func(t *testing.T) {
+	for _, provider := range []config.DeploymentProvider{config.DeploymentProviders.Clabernetes, config.DeploymentProviders.Dummy} {
+		t.Run(string(provider), func(t *testing.T) {
 			h := NewHarness(t, WithDeploymentProvider(provider))
 
 			var serverConfig serverconfig.ServerConfig
 			h.GET("/server-config", h.Seed.Admin.Token).RequireOk(&serverConfig)
 
-			assert.Equal(t, provider.String(), serverConfig.DeploymentConfig.Provider)
+			assert.Equal(t, string(provider), serverConfig.DeploymentConfig.Provider)
 		})
 	}
 }

@@ -1,24 +1,5 @@
 basePath: /
 definitions:
-  auth.AuthConfig:
-    properties:
-      native:
-        $ref: '#/definitions/auth.NativeAuthConfig'
-      openId:
-        $ref: '#/definitions/auth.OpenIdAuthConfig'
-    type: object
-  auth.NativeAuthConfig:
-    properties:
-      allowEmpty:
-        type: boolean
-      enabled:
-        type: boolean
-    type: object
-  auth.OpenIdAuthConfig:
-    properties:
-      enabled:
-        type: boolean
-    type: object
   collection.CollectionIn:
     properties:
       name:
@@ -41,6 +22,16 @@ definitions:
       publicWrite:
         type: boolean
     type: object
+  config.AuthMethod:
+    enum:
+    - admin
+    - openid
+    - desktop
+    type: string
+    x-enum-varnames:
+    - authAdmin
+    - authOpenID
+    - authDesktop
   deployment.NodeInterface:
     properties:
       address:
@@ -405,12 +396,29 @@ definitions:
       name:
         type: string
     type: object
+  user.AuthConfigOut:
+    properties:
+      methods:
+        items:
+          $ref: '#/definitions/config.AuthMethod'
+        type: array
+    type: object
   user.CredentialsIn:
     properties:
       password:
         type: string
       username:
         type: string
+    required:
+    - password
+    - username
+    type: object
+  user.DesktopTokenIn:
+    properties:
+      token:
+        type: string
+    required:
+    - token
     type: object
   user.NativeUserIn:
     properties:
@@ -472,11 +480,6 @@ definitions:
           $ref: '#/definitions/transport.TopologyOut'
         type: array
     type: object
-  utils.OkResponse-auth_AuthConfig:
-    properties:
-      payload:
-        $ref: '#/definitions/auth.AuthConfig'
-    type: object
   utils.OkResponse-string:
     properties:
       payload:
@@ -491,6 +494,11 @@ definitions:
     properties:
       payload:
         $ref: '#/definitions/transport.TopologyOut'
+    type: object
+  utils.OkResponse-user_AuthConfigOut:
+    properties:
+      payload:
+        $ref: '#/definitions/user.AuthConfigOut'
     type: object
 info:
   contact:
@@ -1114,7 +1122,7 @@ paths:
           description: The provided access token is not valid
       security:
       - BasicAuth: []
-      summary: Create a non-admin native user (development mode only)
+      summary: Create a non-admin native user (DEVELOPMENT MODE ONLY)
       tags:
       - users
   /users/login/config:
@@ -1127,8 +1135,31 @@ paths:
         "200":
           description: The authentication config of the server
           schema:
-            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+            $ref: '#/definitions/utils.OkResponse-user_AuthConfigOut'
       summary: Get the server's authentication config
+      tags:
+      - users
+  /users/login/desktop:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The desktop token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.DesktopTokenIn'
+      responses:
+        "200":
+          description: The new access token of the user
+          schema:
+            type: string
+        "400":
+          description: The provided desktop token was invalid
+        "401":
+          description: Authentication via desktop token is disabled
+      summary: Authenticate via native login
       tags:
       - users
   /users/login/native:
@@ -1169,9 +1200,9 @@ paths:
     get:
       responses:
         "200":
-          description: The authentication config of the server
+          description: The new access token of the user
           schema:
-            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+            type: string
         "401":
           description: The auth token cookie is not set
         "403":

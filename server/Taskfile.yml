@@ -57,26 +57,28 @@ tasks:
     dir: './build'
     cmds:
       - task: build
-      - sudo -E SB_JWT_SECRET=testing ./antimony-server -config=./config.yml -dev
+      - sudo -E ./antimony-server -config=./config.yml -dev
     env:
       # Secret of the test OIDC provider that ships with the repo, not a real credential
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
+      SB_JWT_SECRET: testing-fake-secret
       SB_DATABASE_PASSWORD: password123
-      SB_NATIVE_USERNAME: admin
-      SB_NATIVE_PASSWORD: admin
+      SB_ADMIN_USERNAME: admin
+      SB_ADMIN_PASSWORD: admin
       SB_LOG_LEVEL: debug
 
   run-c9s:
     dir: './build'
     cmds:
       - task: build
-      - SB_JWT_SECRET=testing ./antimony-server -config=./config-c9s.yml
+      - ./antimony-server -config=./config-c9s.yml
     env:
       # Secret of the test OIDC provider that ships with the repo, not a real credential
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
+      SB_JWT_SECRET: testing-fake-secret
       SB_DATABASE_PASSWORD: password123
-      SB_NATIVE_USERNAME: admin
-      SB_NATIVE_PASSWORD: admin
+      SB_ADMIN_USERNAME: admin
+      SB_ADMIN_PASSWORD: admin
       SB_LOG_LEVEL: debug
 
   run-docker:
@@ -90,9 +92,10 @@ tasks:
       - cp ../test/config-docker.test.yml ./config.yml
       - cp ../test/kinds.conf.yml ./
       - DOCKER_HOST=unix:///var/run/docker.sock docker run
+        -e SB_JWT_SECRET=testing-fake-secret
+        -e SB_ADMIN_USERNAME=admin
+        -e SB_ADMIN_PASSWORD=admin
         -e SB_LOG_LEVEL=debug
-        -e SB_NATIVE_USERNAME=admin
-        -e SB_NATIVE_PASSWORD=admin
         -v ./db/:/app/db/
         -v ./storage:/app/storage/
         -v ./run:/app/run/

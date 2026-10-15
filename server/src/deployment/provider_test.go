@@ -12,7 +12,7 @@ import (
 // environment and call log.Fatal when it is missing.
 func TestCreateProvider_SelectsTheDummyProvider(t *testing.T) {
 	provider := CreateProvider(&config.AntimonyConfig{
-		Deployment: config.DeploymentConfig{Provider: config.Dummy},
+		Deployment: config.DeploymentConfig{Provider: config.DeploymentProviders.Dummy},
 	})
 
 	require.IsType(t, &DummyProvider{}, provider)

@@ -36,7 +36,7 @@ func CreateHandler(service *lab.Service, instanceService *instance.Service) *Han
 func (h *Handler) Get(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	var labFilter lab.LabFilter
@@ -90,7 +90,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 func (h *Handler) GetByUuid(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	resultLab, err := h.service.GetByUuid(ctx.Request.Context(), ctx.Param("labId"), authUser)
@@ -119,7 +119,7 @@ func (h *Handler) GetByUuid(ctx *gin.Context) {
 func (h *Handler) Create(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := lab.LabIn{}
@@ -153,7 +153,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 func (h *Handler) Update(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := lab.LabInPartial{}
@@ -184,7 +184,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 func (h *Handler) Delete(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	if err := h.service.Delete(ctx.Request.Context(), ctx.Param("labId"), authUser); err != nil {

@@ -32,7 +32,7 @@ func CreateHandler(service *collection.Service) *Handler {
 func (h *Handler) Get(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	collections, err := h.service.Get(ctx.Request.Context(), authUser)
@@ -62,7 +62,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 func (h *Handler) Create(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := collection.CollectionIn{}
@@ -96,7 +96,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 func (h *Handler) Update(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	payload := collection.CollectionInPartial{}
@@ -127,7 +127,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 func (h *Handler) Delete(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {
-		ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
 	if err := h.service.Delete(ctx.Request.Context(), ctx.Param("collectionId"), authUser); err != nil {

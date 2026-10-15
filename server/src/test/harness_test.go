@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -105,8 +106,7 @@ type Harness struct {
 }
 
 type harnessOptions struct {
-	enableNative   bool
-	enableOpenID   bool
+	authMethods    []config.AuthMethod
 	openIDIssuer   string
 	openIDClientID string
 	adminGroups    []string
@@ -142,16 +142,13 @@ func WithoutSeed() HarnessOption {
 	return func(o *harnessOptions) { o.seed = false }
 }
 
-// WithAuthMethods controls which authentication methods the server enables. Disabling both makes
+// WithAuthMethods controls which authentication methods the server enables. Enabling none makes
 // every request authenticate as the native admin.
-func WithAuthMethods(native bool, openID bool) HarnessOption {
-	return func(o *harnessOptions) {
-		o.enableNative = native
-		o.enableOpenID = openID
-	}
+func WithAuthMethods(methods ...config.AuthMethod) HarnessOption {
+	return func(o *harnessOptions) { o.authMethods = methods }
 }
 
-// WithNativeCredentials sets the SB_NATIVE_* credentials. Passing empty strings exercises the
+// WithNativeCredentials sets the SB_ADMIN_* credentials. Passing empty strings exercises the
 // "native auth enabled but unconfigured" path.
 func WithNativeCredentials(username string, password string) HarnessOption {
 	return func(o *harnessOptions) {
@@ -163,7 +160,9 @@ func WithNativeCredentials(username string, password string) HarnessOption {
 // WithOpenID points the auth manager at an OIDC issuer (see NewFakeOIDCProvider).
 func WithOpenID(issuer string, clientID string, adminGroups ...string) HarnessOption {
 	return func(o *harnessOptions) {
-		o.enableOpenID = true
+		if !slices.Contains(o.authMethods, config.AuthMethods.OpenID) {
+			o.authMethods = append(o.authMethods, config.AuthMethods.OpenID)
+		}
 		o.openIDIssuer = issuer
 		o.openIDClientID = clientID
 		o.adminGroups = adminGroups
@@ -238,8 +237,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	t.Helper()
 
 	opts := &harnessOptions{
-		enableNative:        true,
-		enableOpenID:        false,
+		authMethods:         []config.AuthMethod{config.AuthMethods.Admin},
 		nativeUsername:      "testuser",
 		nativePassword:      "testpass",
 		shellUserLimit:      20,
@@ -249,7 +247,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		shellLinesBacklog:   1000,
 		excludedInterfaces:  []string{"lo", "gway-*", "monit_in", "mgmt0*"},
 		kindsConfig:         defaultKindsConfig,
-		deploymentProvider:  config.Containerlab,
+		deploymentProvider:  config.DeploymentProviders.Containerlab,
 		captureEnabled:      true,
 		sshEnabled:          true,
 		seed:                true,
@@ -264,8 +262,8 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	// Keep the service logs out of the test output unless something actually fails.
 	charmlog.SetLevel(charmlog.FatalLevel)
 
-	t.Setenv("SB_NATIVE_USERNAME", opts.nativeUsername)
-	t.Setenv("SB_NATIVE_PASSWORD", opts.nativePassword)
+	t.Setenv("SB_ADMIN_USERNAME", opts.nativeUsername)
+	t.Setenv("SB_ADMIN_PASSWORD", opts.nativePassword)
 	t.Setenv("SB_JWT_SECRET", "antimony-test-secret")
 	t.Setenv("SB_OIDC_SECRET", "antimony-test-oidc-secret")
 
@@ -280,8 +278,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 			Provider: opts.deploymentProvider,
 		},
 		Auth: config.AuthConfig{
-			EnableNative:       opts.enableNative,
-			EnableOpenID:       opts.enableOpenID,
+			Methods:            opts.authMethods,
 			OpenIdIssuer:       opts.openIDIssuer,
 			OpenIdClientID:     opts.openIDClientID,
 			OpenIdRedirectHost: "http://127.0.0.1",

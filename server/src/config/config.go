@@ -1,9 +1,6 @@
 package config
 
-import (
-	"fmt"
-	"strings"
-)
+import "antimonyBackend/utils"
 
 type AntimonyConfig struct {
 	Server       ServerConfig     `yaml:"server"`
@@ -15,7 +12,7 @@ type AntimonyConfig struct {
 	SSH          SSHConfig        `yaml:"ssh"`
 	Capture      CaptureConfig    `yaml:"capture"`
 	Streaming    StreamingConfig  `yaml:"streaming"`
-	FileSystem   FilesystemConfig `yaml:"fileSystem"`
+	FileSystem   FilesystemConfig `yaml:"filesystem"`
 	Containerlab ClabConfig       `yaml:"containerlab"`
 }
 
@@ -24,58 +21,52 @@ type ServerConfig struct {
 	Port uint   `yaml:"port"`
 }
 
-type DeploymentProvider int
+type DeploymentProvider string
 
 const (
-	Containerlab DeploymentProvider = iota
-	Clabernetes
-	Dummy
+	containerlab DeploymentProvider = "containerlab"
+	clabernetes  DeploymentProvider = "clabernetes"
+	dummy        DeploymentProvider = "dummy"
 )
 
-var deploymentProviderNames = map[string]DeploymentProvider{
-	"containerlab": Containerlab,
-	"clabernetes":  Clabernetes,
-	"dummy":        Dummy,
-}
-
-var deploymentProviderStrings = func() map[DeploymentProvider]string {
-	m := make(map[DeploymentProvider]string, len(deploymentProviderNames))
-	for name, p := range deploymentProviderNames {
-		m[p] = name
-	}
-	return m
-}()
-
-func ParseDeploymentProvider(s string) (DeploymentProvider, error) {
-	p, ok := deploymentProviderNames[strings.ToLower(strings.TrimSpace(s))]
-	if !ok {
-		return 0, fmt.Errorf("unknown deployment provider: %q", s)
-	}
-	return p, nil
-}
-
-func (p DeploymentProvider) String() string {
-	if s, ok := deploymentProviderStrings[p]; ok {
-		return s
-	}
-	return fmt.Sprintf("DeploymentProvider(%d)", int(p))
-}
-
-func (p DeploymentProvider) MarshalText() ([]byte, error) {
-	s, ok := deploymentProviderStrings[p]
-	if !ok {
-		return nil, fmt.Errorf("invalid deployment provider: %d", int(p))
-	}
-	return []byte(s), nil
+var DeploymentProviders = struct {
+	Containerlab DeploymentProvider
+	Clabernetes  DeploymentProvider
+	Dummy        DeploymentProvider
+}{
+	Containerlab: containerlab,
+	Clabernetes:  clabernetes,
+	Dummy:        dummy,
 }
 
 func (p *DeploymentProvider) UnmarshalText(b []byte) error {
-	v, err := ParseDeploymentProvider(string(b))
-	if err != nil {
-		return err
-	}
-	*p = v
-	return nil
+	parsed, err := utils.ParseEnum("deployment provider", string(b), containerlab, clabernetes, dummy)
+	*p = parsed
+	return err
+}
+
+type AuthMethod string
+
+const (
+	authAdmin   AuthMethod = "admin"
+	authOpenID  AuthMethod = "openid"
+	authDesktop AuthMethod = "desktop"
+)
+
+var AuthMethods = struct {
+	Admin   AuthMethod
+	OpenID  AuthMethod
+	Desktop AuthMethod
+}{
+	Admin:   authAdmin,
+	OpenID:  authOpenID,
+	Desktop: authDesktop,
+}
+
+func (m *AuthMethod) UnmarshalText(b []byte) error {
+	parsed, err := utils.ParseEnum("auth method", string(b), authAdmin, authOpenID, authDesktop)
+	*m = parsed
+	return err
 }
 
 type DeploymentConfig struct {
@@ -101,12 +92,11 @@ type StreamingConfig struct {
 }
 
 type AuthConfig struct {
-	EnableNative       bool     `yaml:"enableNative"`
-	EnableOpenID       bool     `yaml:"enableOpenId"`
-	OpenIdIssuer       string   `yaml:"openIdIssuer"`
-	OpenIdClientID     string   `yaml:"openIdClientId"`
-	OpenIdRedirectHost string   `yaml:"openIdRedirectHost"`
-	OpenIdAdminGroups  []string `yaml:"openIdAdminGroups"`
+	Methods            []AuthMethod `yaml:"methods"`
+	OpenIdIssuer       string       `yaml:"openIdIssuer"`
+	OpenIdClientID     string       `yaml:"openIdClientId"`
+	OpenIdRedirectHost string       `yaml:"openIdRedirectHost"`
+	OpenIdAdminGroups  []string     `yaml:"openIdAdminGroups"`
 }
 
 type SecurityConfig struct {

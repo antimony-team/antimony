@@ -2,6 +2,7 @@ package user
 
 import (
 	"antimonyBackend/auth"
+	"antimonyBackend/config"
 	"antimonyBackend/utils"
 	"context"
 	"errors"
@@ -12,12 +13,19 @@ import (
 type Service struct {
 	repo        *Repository
 	authManager *auth.Manager
+
+	config *config.AntimonyConfig
 }
 
-func CreateService(repo *Repository, authManager *auth.Manager) *Service {
+func CreateService(
+	repo *Repository,
+	authManager *auth.Manager,
+	config *config.AntimonyConfig,
+) *Service {
 	userService := &Service{
 		repo:        repo,
 		authManager: authManager,
+		config:      config,
 	}
 
 	if _, err := repo.GetByUuid(context.Background(), auth.NativeUserID); errors.Is(err, utils.ErrUuidNotFound) {
@@ -51,27 +59,8 @@ func (s *Service) LoginNative(req CredentialsIn) (string, string, error) {
 	return s.authManager.LoginNative(req.Username, req.Password)
 }
 
-// CreateNativeUser registers a non-admin native user that has access to the given collections and returns
-// its ID. Only admins may create users.
-func (s *Service) CreateNativeUser(
-	ctx context.Context,
-	req NativeUserIn,
-	authUser auth.AuthenticatedUser,
-) (string, error) {
-	if !authUser.IsAdmin {
-		return "", utils.ErrForbidden
-	}
-
-	userId := utils.GenerateUuid()
-	if err := s.authManager.RegisterNativeUser(userId, req.Username, req.Password, req.Collections); err != nil {
-		return "", err
-	}
-
-	if err := s.repo.Create(ctx, &User{UUID: userId, Sub: req.Username, Name: req.Username}); err != nil {
-		return "", err
-	}
-
-	return userId, nil
+func (s *Service) LoginDesktop(token string) (string, error) {
+	return s.authManager.LoginDesktop(token)
 }
 
 func (s *Service) GetAuthCodeURL(stateToken string) (string, error) {
@@ -122,6 +111,31 @@ func (s *Service) AuthenticateWithCode(ctx context.Context, authCode string) (st
 	}
 }
 
-func (s *Service) GetAuthConfig() auth.AuthConfig {
-	return s.authManager.GetAuthConfig()
+// CreateNativeUser registers a non-admin native user that has access to the given collections and returns
+// its ID. Only admins may create users.
+//
+// Disclaimer: This is only used for testing in development mode.
+func (s *Service) CreateNativeUser(
+	ctx context.Context,
+	req NativeUserIn,
+	authUser auth.AuthenticatedUser,
+) (string, error) {
+	if !authUser.IsAdmin {
+		return "", utils.ErrForbidden
+	}
+
+	userId := utils.GenerateUuid()
+	if err := s.authManager.RegisterNativeUser(userId, req.Username, req.Password, req.Collections); err != nil {
+		return "", err
+	}
+
+	if err := s.repo.Create(ctx, &User{UUID: userId, Sub: req.Username, Name: req.Username}); err != nil {
+		return "", err
+	}
+
+	return userId, nil
+}
+
+func (s *Service) GetAuthMethods() AuthConfigOut {
+	return AuthConfigOut{Methods: s.config.Auth.Methods}
 }

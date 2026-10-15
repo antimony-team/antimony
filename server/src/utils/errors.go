@@ -51,10 +51,12 @@ var ErrInvalidBindFilePath = errors.New("the provided bind file path was invalid
  * Permission / Access errors.
  */
 
+var ErrAdminAuthDisabledError = errors.New("authentication via admin login is disabled")
 var ErrOpenIDAuthDisabledError = errors.New("authentication via openid is disabled")
-var ErrNativeAuthDisabledError = errors.New("native authentication is disabled")
+var ErrDesktopAuthDisabledError = errors.New("authentication via desktop token is disabled")
 var ErrInvalidCredentials = errors.New("the provided native credentials were invalid")
-var ErrTokenInvalid = errors.New("the auth token provided was invalid")
+var ErrDesktopTokenInvalid = errors.New("the provided desktop token was invalid")
+var ErrAccessTokenInvalid = errors.New("the provided access token was invalid")
 var ErrUnauthorized = errors.New("the request was unauthorized")
 var ErrForbidden = errors.New("access to the requested resource is forbidden")
 var ErrNoAccessToLab = errors.New("access to the provided lab is not granted")

@@ -3,7 +3,9 @@
 server:
   port: 3100
 auth:
-  enableOpenId: true
+  methods:
+    - admin
+    - openid
   openIdIssuer: "http://localhost:4022/realms/antimony"
   openIdClientId: 5c5fefc302e06bc577a0a61922a3eae620445436f6b02628ba5cdccf1f0e78bc
   openIdRedirectHost: "http://localhost:3100"

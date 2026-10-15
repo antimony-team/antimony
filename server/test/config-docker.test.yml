@@ -2,6 +2,9 @@
 # Only settings that differ from the defaults in ../config.default.yml are listed.
 server:
   port: 3100
+auth:
+  methods:
+    - admin
 database:
   localFile: ./db/antimony.db
 ssh:

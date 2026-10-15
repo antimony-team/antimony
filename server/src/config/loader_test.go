@@ -30,9 +30,8 @@ func TestLoad_MissingFileFallsBackToDefaults(t *testing.T) {
 
 	assert.Equal(t, "127.0.0.1", loaded.Server.Host)
 	assert.Equal(t, uint(3000), loaded.Server.Port)
-	assert.Equal(t, Containerlab, loaded.Deployment.Provider)
-	assert.True(t, loaded.Auth.EnableNative)
-	assert.False(t, loaded.Auth.EnableOpenID)
+	assert.Equal(t, DeploymentProviders.Containerlab, loaded.Deployment.Provider)
+	assert.Equal(t, []AuthMethod{AuthMethods.Admin}, loaded.Auth.Methods)
 	assert.Equal(t, "./kinds.conf.yml", loaded.Containerlab.KindsConfig)
 }
 
@@ -53,7 +52,7 @@ shell:
 
 	assert.Equal(t, "0.0.0.0", loaded.Server.Host)
 	assert.Equal(t, uint(8080), loaded.Server.Port)
-	assert.Equal(t, Clabernetes, loaded.Deployment.Provider)
+	assert.Equal(t, DeploymentProviders.Clabernetes, loaded.Deployment.Provider)
 	assert.Equal(t, 3, loaded.Shell.UserLimit)
 	assert.Equal(t, int64(60), loaded.Shell.Timeout)
 }
@@ -123,7 +122,7 @@ func TestLoad_EmptyFileYieldsDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1", loaded.Server.Host)
-	assert.Equal(t, Containerlab, loaded.Deployment.Provider)
+	assert.Equal(t, DeploymentProviders.Containerlab, loaded.Deployment.Provider)
 }
 
 func TestLoad_ParsesTheExcludedInterfaceList(t *testing.T) {
@@ -157,35 +156,28 @@ capture:
 }
 
 /*
- * DeploymentProvider
+ * Enums
  */
 
-func TestParseDeploymentProvider_KnownNames(t *testing.T) {
-	cases := map[string]DeploymentProvider{
-		"containerlab":     Containerlab,
-		"clabernetes":      Clabernetes,
-		"dummy":            Dummy,
-		"CONTAINERLAB":     Containerlab,
-		"ClaberNetes":      Clabernetes,
-		"  clabernetes  ":  Clabernetes,
-		"DUMMY":            Dummy,
-		"\tcontainerlab\n": Containerlab,
-	}
+func TestDeploymentProvider_UnmarshalText(t *testing.T) {
+	for _, provider := range []DeploymentProvider{
+		DeploymentProviders.Containerlab,
+		DeploymentProviders.Clabernetes,
+		DeploymentProviders.Dummy,
+	} {
+		var parsed DeploymentProvider
 
-	for input, expected := range cases {
-		t.Run(input, func(t *testing.T) {
-			parsed, err := ParseDeploymentProvider(input)
-
-			require.NoError(t, err)
-			assert.Equal(t, expected, parsed)
-		})
+		require.NoError(t, parsed.UnmarshalText([]byte(provider)))
+		assert.Equal(t, provider, parsed)
 	}
 }
 
-func TestParseDeploymentProvider_UnknownNameIsAnError(t *testing.T) {
-	for _, input := range []string{"", "docker", "kubernetes", "clab"} {
+func TestDeploymentProvider_UnmarshalTextRejectsAnUnknownName(t *testing.T) {
+	for _, input := range []string{"", "docker", "kubernetes", "clab", "Containerlab"} {
 		t.Run(input, func(t *testing.T) {
-			_, err := ParseDeploymentProvider(input)
+			var parsed DeploymentProvider
+
+			err := parsed.UnmarshalText([]byte(input))
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "unknown deployment provider")
@@ -193,63 +185,29 @@ func TestParseDeploymentProvider_UnknownNameIsAnError(t *testing.T) {
 	}
 }
 
-func TestDeploymentProvider_String(t *testing.T) {
-	assert.Equal(t, "containerlab", Containerlab.String())
-	assert.Equal(t, "clabernetes", Clabernetes.String())
-	assert.Equal(t, "dummy", Dummy.String())
-}
+func TestAuthMethod_UnmarshalText(t *testing.T) {
+	for _, method := range []AuthMethod{AuthMethods.Admin, AuthMethods.OpenID, AuthMethods.Desktop} {
+		var parsed AuthMethod
 
-func TestDeploymentProvider_StringDescribesAnUnknownValue(t *testing.T) {
-	assert.Equal(t, "DeploymentProvider(42)", DeploymentProvider(42).String())
-}
-
-func TestDeploymentProvider_MarshalText(t *testing.T) {
-	for provider, expected := range map[DeploymentProvider]string{
-		Containerlab: "containerlab",
-		Clabernetes:  "clabernetes",
-		Dummy:        "dummy",
-	} {
-		encoded, err := provider.MarshalText()
-
-		require.NoError(t, err)
-		assert.Equal(t, expected, string(encoded))
+		require.NoError(t, parsed.UnmarshalText([]byte(method)))
+		assert.Equal(t, method, parsed)
 	}
 }
 
-func TestDeploymentProvider_MarshalTextRejectsAnUnknownValue(t *testing.T) {
-	_, err := DeploymentProvider(42).MarshalText()
+func TestLoad_ParsesTheAuthMethodList(t *testing.T) {
+	path := writeConfig(t, "auth:\n  methods: [admin, openid]\n")
+
+	loaded, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, []AuthMethod{AuthMethods.Admin, AuthMethods.OpenID}, loaded.Auth.Methods)
+}
+
+func TestLoad_UnknownAuthMethodIsAnError(t *testing.T) {
+	path := writeConfig(t, "auth:\n  methods: [admin, native]\n")
+
+	_, err := Load(path)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid deployment provider")
-}
-
-func TestDeploymentProvider_UnmarshalText(t *testing.T) {
-	var provider DeploymentProvider
-
-	require.NoError(t, provider.UnmarshalText([]byte("clabernetes")))
-	assert.Equal(t, Clabernetes, provider)
-
-	require.NoError(t, provider.UnmarshalText([]byte("containerlab")))
-	assert.Equal(t, Containerlab, provider)
-
-	require.NoError(t, provider.UnmarshalText([]byte("dummy")))
-	assert.Equal(t, Dummy, provider)
-}
-
-func TestDeploymentProvider_UnmarshalTextRejectsAnUnknownName(t *testing.T) {
-	var provider DeploymentProvider
-
-	require.Error(t, provider.UnmarshalText([]byte("nope")))
-}
-
-func TestDeploymentProvider_TextRoundTrip(t *testing.T) {
-	for _, original := range []DeploymentProvider{Containerlab, Clabernetes, Dummy} {
-		encoded, err := original.MarshalText()
-		require.NoError(t, err)
-
-		var decoded DeploymentProvider
-		require.NoError(t, decoded.UnmarshalText(encoded))
-
-		assert.Equal(t, original, decoded)
-	}
+	assert.Contains(t, err.Error(), `unknown auth method "native"`)
 }

@@ -7,8 +7,8 @@ cd "$1"
 cp ../test/config-smoke.test.yml ./config-smoke.yml
 
 export SB_JWT_SECRET=smoke
-export SB_NATIVE_USERNAME=admin
-export SB_NATIVE_PASSWORD=admin
+export SB_ADMIN_USERNAME=admin
+export SB_ADMIN_PASSWORD=admin
 
 if curl -s http://127.0.0.1:3999 >/dev/null; then
 	echo "Another server already listens on port 3999"

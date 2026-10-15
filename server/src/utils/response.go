@@ -48,12 +48,14 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
 	case errors.Is(err, ErrUnauthorized),
+		errors.Is(err, ErrAdminAuthDisabledError),
 		errors.Is(err, ErrOpenIDAuthDisabledError),
-		errors.Is(err, ErrNativeAuthDisabledError):
+		errors.Is(err, ErrDesktopAuthDisabledError):
 		return http.StatusUnauthorized, ErrorResponse{Code: 401, Message: err.Error()}
-	case errors.Is(err, ErrTokenInvalid):
+	case errors.Is(err, ErrAccessTokenInvalid):
 		return 498, ErrorResponse{Code: 498, Message: err.Error()}
 	case errors.Is(err, ErrForbidden),
+		errors.Is(err, ErrDesktopTokenInvalid),
 		errors.Is(err, ErrNoAccessToLab),
 		errors.Is(err, ErrNoAccessToTopology),
 		errors.Is(err, ErrNoWriteAccessToLab),

@@ -12,6 +12,7 @@ func RegisterRoutes(route *gin.Engine, handler *Handler) {
 		routes.POST("/logout", handler.Logout)
 		routes.POST("/login/native", handler.LoginNative)
 		routes.GET("/login/openid", handler.LoginOpenId)
+		routes.POST("/login/desktop", handler.LoginDesktop)
 		routes.GET("/login/auth-config", handler.AuthConfig)
 		routes.GET("/login/success", handler.LoginOpenIdSuccess)
 		routes.GET("/login/refresh", handler.RefreshToken)

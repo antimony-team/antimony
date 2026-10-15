@@ -5,9 +5,11 @@ import (
 	"antimonyBackend/utils"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,126 +22,137 @@ import (
 
 const NativeUserID = "00000000-0000-0000-0000-00000000000"
 
-type Manager struct {
-	config         *config.AntimonyConfig
-	oauth2Config   oauth2.Config
-	provider       oidc.Provider
-	oidcSecret     string
-	jwtSecret      []byte
-	adminGroups    []string
-	authConfig     AuthConfig
-	nativeUsername string
-	nativePassword string
+type (
+	Manager struct {
+		jwtSecret []byte
 
-	// Additional native accounts created at runtime via RegisterNativeUser, indexed by username
-	nativeAccounts map[string]nativeAccount
+		config *authConfig
 
-	// Currently authenticated users, indexed by user ID
-	authenticatedUsers map[string]*AuthenticatedUser
+		// Non-admin native accounts created at runtime via RegisterNativeUser, indexed by username
+		// Disclaimer: This is only used for testing in development mode.
+		nativeTestingAccounts map[string]nativeTestingAccount
 
-	// Guards authenticatedUsers and nativeAccounts, which are written while requests read them
-	usersMutex sync.Mutex
-}
+		// authenticatedUsers holds the currently authenticated users, indexed by user ID
+		authenticatedUsers map[string]*AuthenticatedUser
 
-type nativeAccount struct {
-	password string
-	userId   string
-}
+		// Guards nativeTestingAccounts and authenticatedUsers, which are written while requests read them
+		usersMutex sync.Mutex
+	}
 
-type AuthenticatedUser struct {
-	// The UUID of the user
-	UserId string
-	// List of the names of collections that the user has access to
-	Collections []string
-	IsAdmin     bool
-}
+	AuthenticatedUser struct {
+		// The UUID of the user
+		UserId string
+		// List of the names of collections that the user has access to
+		Collections []string
+		IsAdmin     bool
+	}
 
-type AuthConfig struct {
-	OpenId OpenIdAuthConfig `json:"openId"`
-	Native NativeAuthConfig `json:"native"`
-}
+	authConfig struct {
+		admin   adminAuthConfig
+		openId  openIdAuthConfig
+		desktop desktopAuthConfig
+	}
 
-type OpenIdAuthConfig struct {
-	Enabled bool `json:"enabled"`
-}
+	adminAuthConfig struct {
+		enabled  bool
+		username []byte
+		password []byte
+	}
 
-type NativeAuthConfig struct {
-	Enabled    bool `json:"enabled"`
-	AllowEmpty bool `json:"allowEmpty"`
-}
+	openIdAuthConfig struct {
+		enabled     bool
+		adminGroups []string
+		secret      string
 
-func CreateManager(config *config.AntimonyConfig) *Manager {
-	isOpenIdEnabled := config.Auth.EnableOpenID
-	isNativeEnabled := config.Auth.EnableNative
+		oauth2Config oauth2.Config
+		provider     oidc.Provider
+	}
 
-	nativeUsername := os.Getenv("SB_NATIVE_USERNAME")
-	nativePassword := os.Getenv("SB_NATIVE_PASSWORD")
+	desktopAuthConfig struct {
+		enabled bool
+		token   string
+	}
 
-	authConfig := AuthConfig{
-		OpenId: OpenIdAuthConfig{
-			Enabled: isOpenIdEnabled,
+	nativeTestingAccount struct {
+		password string
+		userId   string
+	}
+)
+
+func CreateManager(antimonyConfig *config.AntimonyConfig) *Manager {
+	authConfig := &authConfig{
+		admin: adminAuthConfig{
+			enabled:  slices.Contains(antimonyConfig.Auth.Methods, config.AuthMethods.Admin),
+			username: ([]byte)(os.Getenv("SB_ADMIN_USERNAME")),
+			password: ([]byte)(os.Getenv("SB_ADMIN_PASSWORD")),
 		},
-		Native: NativeAuthConfig{
-			Enabled:    isNativeEnabled,
-			AllowEmpty: isNativeEnabled && (nativeUsername == "" || nativePassword == ""),
+		openId: openIdAuthConfig{
+			enabled:     slices.Contains(antimonyConfig.Auth.Methods, config.AuthMethods.OpenID),
+			adminGroups: antimonyConfig.Auth.OpenIdAdminGroups,
+			secret:      os.Getenv("SB_OIDC_SECRET"),
+		},
+		desktop: desktopAuthConfig{
+			enabled: slices.Contains(antimonyConfig.Auth.Methods, config.AuthMethods.Desktop),
+			token:   os.Getenv("SB_DESKTOP_TOKEN"),
 		},
 	}
 
-	envSecret := os.Getenv("SB_JWT_SECRET")
-	if envSecret == "" {
-		log.Info("[AUTH] JWT secret env variable is not provided. Generating a random secret.")
-		envSecret = rand.Text()
+	jwtSecret := os.Getenv("SB_JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = rand.Text()
+	} else {
+		log.Info("[AUTH] JWT secret was provided via env variable. JWT secret is not random.")
 	}
 
 	authManager := &Manager{
-		config:             config,
-		authenticatedUsers: make(map[string]*AuthenticatedUser),
-		adminGroups:        config.Auth.OpenIdAdminGroups,
-		jwtSecret:          ([]byte)(envSecret),
-		oidcSecret:         os.Getenv("SB_OIDC_SECRET"),
-		authConfig:         authConfig,
-		nativeUsername:     nativeUsername,
-		nativePassword:     nativePassword,
-		nativeAccounts:     make(map[string]nativeAccount),
+		authenticatedUsers:    make(map[string]*AuthenticatedUser),
+		jwtSecret:             ([]byte)(jwtSecret),
+		config:                authConfig,
+		nativeTestingAccounts: make(map[string]nativeTestingAccount),
 	}
 
-	if !isNativeEnabled && !isOpenIdEnabled {
-		log.Warn("[AUTH] No authentication method is enabled. Server will be accessible to anyone.")
-		authManager.CreateNativeUser()
-	}
-
-	if isNativeEnabled {
-		if nativeUsername == "" || nativePassword == "" {
-			log.Warn("[AUTH] Native authentication is enabled but username or password are empty!")
-		} else {
-			log.Info("Native authentication is enabled.", "username", nativeUsername)
+	if authConfig.admin.enabled {
+		if len(authConfig.admin.username) == 0 || len(authConfig.admin.password) == 0 {
+			log.Fatal("[AUTH] Admin authentication is enabled but username or password have not been set!")
+			return nil
 		}
-		authManager.CreateNativeUser()
+
+		authManager.registerNativeUser()
 	}
 
-	if isOpenIdEnabled {
-		provider, err := oidc.NewProvider(context.TODO(), config.Auth.OpenIdIssuer)
-		if err != nil {
-			log.Fatalf("[AUTH] Failed to connect to OpenID provider: %s", err.Error())
-		} else {
-			authManager.provider = *provider
-			authManager.oauth2Config = oauth2.Config{
-				ClientID:     config.Auth.OpenIdClientID,
-				ClientSecret: authManager.oidcSecret,
-				RedirectURL:  fmt.Sprintf("%s/users/login/success", config.Auth.OpenIdRedirectHost),
+	if authConfig.desktop.enabled {
+		if authConfig.desktop.token == "" {
+			log.Fatal("[AUTH] Desktop authentication is enabled but the token has not been set!")
+			return nil
+		}
+
+		authManager.registerNativeUser()
+	}
+
+	if authConfig.openId.enabled {
+		if authConfig.openId.secret == "" {
+			log.Fatal("[AUTH] OpenID connect authentication is enabled but the secret has not been set!")
+			return nil
+		}
+
+		if provider, err := oidc.NewProvider(context.TODO(), antimonyConfig.Auth.OpenIdIssuer); err == nil {
+			authConfig.openId.provider = *provider
+			authConfig.openId.oauth2Config = oauth2.Config{
+				ClientID:     antimonyConfig.Auth.OpenIdClientID,
+				ClientSecret: authConfig.openId.secret,
+				RedirectURL:  fmt.Sprintf("%s/users/login/success", antimonyConfig.Auth.OpenIdRedirectHost),
 				Endpoint:     provider.Endpoint(),
 				Scopes:       []string{oidc.ScopeOpenID},
 			}
+		} else {
+			log.Fatalf("[AUTH] Failed to connect to OpenID provider: %s", err.Error())
 		}
 	}
 
 	return authManager
 }
 
-func (m *Manager) CreateNativeUser() {
-	m.usersMutex.Lock()
-	defer m.usersMutex.Unlock()
-
+func (m *Manager) registerNativeUser() {
 	m.authenticatedUsers[NativeUserID] = &AuthenticatedUser{
 		UserId:      NativeUserID,
 		IsAdmin:     true,
@@ -149,23 +162,26 @@ func (m *Manager) CreateNativeUser() {
 
 // RegisterNativeUser adds a non-admin native account that can log in via the native login. The user has access to the
 // given collections only. This is meant for development and testing setups.
+//
+// Disclaimer: This is only used for testing in development mode.
 func (m *Manager) RegisterNativeUser(userId string, username string, password string, collections []string) error {
-	if !m.authConfig.Native.Enabled {
-		return utils.ErrNativeAuthDisabledError
+	if !m.config.admin.enabled {
+		return utils.ErrAdminAuthDisabledError
 	}
 
-	if username == "" || password == "" || username == m.nativeUsername {
+	// The new user can't have the same username as the admin user
+	if username == "" || password == "" || username == string(m.config.admin.username) {
 		return utils.ErrInvalidCredentials
 	}
 
 	m.usersMutex.Lock()
 	defer m.usersMutex.Unlock()
 
-	if _, exists := m.nativeAccounts[username]; exists {
+	if _, exists := m.nativeTestingAccounts[username]; exists {
 		return utils.ErrInvalidCredentials
 	}
 
-	m.nativeAccounts[username] = nativeAccount{password: password, userId: userId}
+	m.nativeTestingAccounts[username] = nativeTestingAccount{password: password, userId: userId}
 	m.authenticatedUsers[userId] = &AuthenticatedUser{
 		UserId:      userId,
 		IsAdmin:     false,
@@ -199,18 +215,11 @@ func (m *Manager) AuthenticatorMiddleware() gin.HandlerFunc {
 			err         error
 		)
 
-		// Allow everyone if no auth method is enabled
-		if !m.authConfig.Native.Enabled && !m.authConfig.OpenId.Enabled {
-			ctx.Set("authUser", AuthenticatedUser{
-				UserId:      NativeUserID,
-				IsAdmin:     true,
-				Collections: make([]string, 0),
-			})
-			ctx.Next()
-			return
+		accessToken, hasToken := strings.CutPrefix(ctx.GetHeader("Authorization"), "Bearer ")
+		if !hasToken {
+			accessToken, err = ctx.Cookie("accessToken")
 		}
 
-		accessToken, err = ctx.Cookie("accessToken")
 		if err != nil {
 			ctx.JSON(utils.CreateErrorResponse(utils.ErrUnauthorized))
 			ctx.Abort()
@@ -218,7 +227,7 @@ func (m *Manager) AuthenticatorMiddleware() gin.HandlerFunc {
 		}
 
 		if user, err = m.AuthenticateUser(accessToken); err != nil {
-			ctx.JSON(utils.CreateErrorResponse(utils.ErrTokenInvalid))
+			ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 			ctx.Abort()
 		} else {
 			ctx.Set("authUser", *user)
@@ -231,18 +240,18 @@ func (m *Manager) AuthenticateWithCode(
 	authCode string,
 	userSubToIdMapper func(userSub string, userProfile string) (string, error),
 ) (*AuthenticatedUser, error) {
-	if !m.authConfig.OpenId.Enabled {
+	if !m.config.openId.enabled {
 		return nil, utils.ErrOpenIDAuthDisabledError
 	}
 
 	ctx := context.TODO()
-	token, err := m.oauth2Config.Exchange(ctx, authCode)
+	token, err := m.config.openId.oauth2Config.Exchange(ctx, authCode)
 	if err != nil {
 		log.Errorf("[AUTH] OAuth token exchange failed: %s", err.Error())
 		return nil, utils.ErrOpenIDError
 	}
 
-	info, err := m.provider.UserInfo(ctx, m.oauth2Config.TokenSource(ctx, token))
+	info, err := m.config.openId.provider.UserInfo(ctx, m.config.openId.oauth2Config.TokenSource(ctx, token))
 	if err != nil {
 		log.Errorf("[AUTH] Failed to get oauth userinfo: %s", err.Error())
 		return nil, utils.ErrOpenIDError
@@ -265,7 +274,7 @@ func (m *Manager) AuthenticateWithCode(
 	userProfile := claims.Profile
 
 	isAdmin := false
-	for _, group := range m.adminGroups {
+	for _, group := range m.config.openId.adminGroups {
 		if slices.Contains(userGroups, group) {
 			isAdmin = true
 			break
@@ -290,29 +299,31 @@ func (m *Manager) AuthenticateWithCode(
 	return authenticatedUser, nil
 }
 func (m *Manager) GetAuthCodeURL(stateToken string) (string, error) {
-	if !m.authConfig.OpenId.Enabled {
+	if !m.config.openId.enabled {
 		return "", utils.ErrOpenIDAuthDisabledError
 	}
 
-	return m.oauth2Config.AuthCodeURL(stateToken), nil
+	return m.config.openId.oauth2Config.AuthCodeURL(stateToken), nil
 }
 
 func (m *Manager) LoginNative(username string, password string) (string, string, error) {
+	if !m.config.admin.enabled {
+		return "", "", utils.ErrAdminAuthDisabledError
+	}
+
 	var (
 		authToken   string
 		accessToken string
 		err         error
 	)
 
-	if !m.authConfig.Native.Enabled {
-		return "", "", utils.ErrNativeAuthDisabledError
-	}
-
 	userId := ""
 	m.usersMutex.Lock()
-	if username == m.nativeUsername && password == m.nativePassword {
+	if subtle.ConstantTimeCompare([]byte(username), m.config.admin.username) == 1 &&
+		subtle.ConstantTimeCompare([]byte(password), m.config.admin.password) == 1 {
 		userId = NativeUserID
-	} else if account, ok := m.nativeAccounts[username]; ok && password == account.password {
+	} else if account, ok := m.nativeTestingAccounts[username]; ok &&
+		password == account.password {
 		userId = account.userId
 	}
 	authUser := m.authenticatedUsers[userId]
@@ -326,22 +337,42 @@ func (m *Manager) LoginNative(username string, password string) (string, string,
 		return "", "", err
 	} else if accessToken, err = m.CreateAccessToken(*authUser); err != nil {
 		return "", "", err
+	}
+
+	return authToken, accessToken, nil
+}
+
+func (m *Manager) LoginDesktop(token string) (string, error) {
+	if !m.config.desktop.enabled {
+		return "", utils.ErrDesktopAuthDisabledError
+	}
+
+	if subtle.ConstantTimeCompare([]byte(token), []byte(m.config.desktop.token)) != 1 {
+		return "", utils.ErrDesktopTokenInvalid
+	}
+
+	m.usersMutex.Lock()
+	authUser := m.authenticatedUsers[NativeUserID]
+	m.usersMutex.Unlock()
+
+	if accessToken, err := m.CreateAccessToken(*authUser); err != nil {
+		return "", err
 	} else {
-		return authToken, accessToken, nil
+		return accessToken, nil
 	}
 }
 
 func (m *Manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, error) {
 	if token, err := jwt.Parse(tokenString, m.tokenParser); err != nil {
-		return nil, utils.ErrTokenInvalid
+		return nil, utils.ErrAccessTokenInvalid
 	} else if tokenClaims, ok := token.Claims.(jwt.MapClaims); !ok {
-		return nil, utils.ErrTokenInvalid
+		return nil, utils.ErrAccessTokenInvalid
 	} else if userId, ok := tokenClaims["id"]; !ok {
-		return nil, utils.ErrTokenInvalid
+		return nil, utils.ErrAccessTokenInvalid
 	} else {
 		userIdStr, ok := userId.(string)
 		if !ok {
-			return nil, utils.ErrTokenInvalid
+			return nil, utils.ErrAccessTokenInvalid
 		}
 
 		m.usersMutex.Lock()
@@ -349,7 +380,7 @@ func (m *Manager) AuthenticateUser(tokenString string) (*AuthenticatedUser, erro
 		m.usersMutex.Unlock()
 
 		if !ok {
-			return nil, utils.ErrTokenInvalid
+			return nil, utils.ErrAccessTokenInvalid
 		}
 
 		return permissions, nil
@@ -379,7 +410,7 @@ func (m *Manager) CreateAccessToken(authUser AuthenticatedUser) (string, error) 
 
 func (m *Manager) tokenParser(token *jwt.Token) (interface{}, error) {
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, utils.ErrTokenInvalid
+		return nil, utils.ErrAccessTokenInvalid
 	}
 
 	return m.jwtSecret, nil
@@ -391,8 +422,4 @@ func (m *Manager) RegisterTestUser(user AuthenticatedUser) (string, error) {
 
 	m.authenticatedUsers[user.UserId] = &user
 	return user.UserId, nil
-}
-
-func (m *Manager) GetAuthConfig() AuthConfig {
-	return m.authConfig
 }
