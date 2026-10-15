@@ -41,6 +41,7 @@ interface SBInputProps {
 
   doubleClick?: boolean;
   ignoreBlurSubmit?: boolean;
+  type?: React.HTMLInputTypeAttribute;
 
   onValueSubmit?: (
     value: string,
@@ -130,6 +131,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
       <InputText
         ref={inputFieldRef}
         id={props.id}
+        type={props.type}
         data-tooltip-id={inputId}
         onClick={onSingleClick}
         onDoubleClick={onEnterEditing}

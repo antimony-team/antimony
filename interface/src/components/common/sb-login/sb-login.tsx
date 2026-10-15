@@ -99,14 +99,14 @@ const LoginForm = observer(() => {
         <SBInput
           label="Password"
           id="password"
+          type="password"
           autoComplete="password"
           invalid={loginError !== null}
           onValueSubmit={onPasswordChange}
           placeholder="Password"
         />
         <Button
-          outlined
-          className="sb-login-button"
+          className="sb-button-accent sb-login-button"
           label="Sign In"
           type="submit"
         />
