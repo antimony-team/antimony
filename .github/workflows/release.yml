@@ -85,6 +85,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Starting the docs workflow, see below
+      actions: write
       # Signing the provenance of the release files with the workflow's identity
       id-token: write
       attestations: write
@@ -135,5 +137,11 @@ jobs:
             --title "Antimony $GITHUB_REF_NAME" \
             --generate-notes \
             $prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # The docs show the commands for the current release, so they're rebuilt with the new version
+      - name: Update the docs
+        run: gh workflow run docs.yml --ref main --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}

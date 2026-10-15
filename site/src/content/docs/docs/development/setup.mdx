@@ -114,7 +114,7 @@ Everything that takes more than one step is a task in `Taskfile.yml`. Tasks inst
 | `task preview` | Builds and serves the production build. |
 | `task build-docker` | Builds the Docker image `antimony-interface:dev`. |
 | `task build-electron` | Builds [Antimony Desktop](/docs/deployment/desktop-app/) without packaging it. Start it with `yarn electron .`. |
-| `task package-electron-linux` | Builds Antimony Desktop as AppImages for x86_64 and ARM64 into `release/`. |
+| `task package-electron-linux` | Builds Antimony Desktop as AppImage, .deb and .rpm for x86_64 and ARM64 into `release/`. |
 | `task e2e-ui` | Opens the end-to-end tests in Playwright's UI. |
 | `task e2e-report` | Opens the report of the last end-to-end run. |
 | `task clean` | Removes the build output. |
@@ -167,6 +167,9 @@ npm run dev
 | `src/content/docs/docs/` | The documentation pages, in Markdown and MDX |
 | `src/components/diagrams/` | The diagrams, as Astro components with inline SVG |
 | `openapi/antimony.swagger.json` | Copy of the server's Swagger file for the REST API reference |
+| `plugins/release-version.mjs` | Fills in the version of the current release, see below |
+
+Install commands and download links name the files of the current release, so that they can be copied as they are. Write <code>&#37;VERSION&#37;</code> where the version goes, in text, code or links. The build replaces it with the latest stable release from GitHub, or the newest pre-release while there's no stable one, and with `x.y.z` if there's no release or GitHub can't be reached. Set `ANTIMONY_RELEASE=0.2.0` to build with another version. The release workflow rebuilds the website after every release.
 
 Update the REST API reference after the server's API changes:
 
@@ -181,9 +184,9 @@ npm run sync-api -- ../../antimony-server/src/docs/swagger.json   # from a local
 | --- | --- | --- | --- |
 | antimony-server | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | Lint, Swagger check, build with a startup smoke test, tests with the race detector, then the Docker image |
 | antimony-server | `fuzz.yml` | Nightly, manually | Fuzz tests |
-| antimony-interface | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | Lint, type check, unit tests, then the Docker image. The AppImages (x86_64 and ARM64) are built on every run and kept as the artifact `appimage`. |
+| antimony-interface | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | Lint, type check, unit tests, then the Docker image. Antimony Desktop (AppImage, .deb and .rpm for x86_64 and ARM64) is built on every run and kept as the artifact `antimony-desktop`. |
 | antimony-interface | `e2e.yml` | Manually, or called by another workflow | End-to-end tests against `ghcr.io/antimony-team/antimony-server:dev` |
-| antimony | `release.yml` | Tags `v*` | Builds the AppImages from the interface at the same tag, packs the deployment files with that version, writes their checksums to `SHA256SUMS`, attests them, and creates the GitHub release with them |
+| antimony | `release.yml` | Tags `v*` | Builds Antimony Desktop from the interface at the same tag, packs the deployment files with that version, writes their checksums to `SHA256SUMS`, attests them, and creates the GitHub release with them |
 | antimony | `docs.yml` | Pushes to `main`, PRs that change `site/`, manually | Builds this website and publishes it to GitHub Pages from `main` |
 
 Both `ci.yml` workflows build the images for amd64 and arm64. Pull requests only build them. Pushes publish them as `:dev` (from `development`) or `:main` (from `main`), and tags as `:<version>`, `:<major>.<minor>` and `:latest`, under `ghcr.io/antimony-team/antimony-server` and `ghcr.io/antimony-team/antimony-interface`. Every published image contains an SBOM and its build provenance, and gets a [build attestation](/docs/deployment/docker/#verifying-downloads) signed by GitHub.

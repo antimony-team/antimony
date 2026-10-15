@@ -41,8 +41,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The build puts the version of the current release into the install commands
       - name: Build the site
         run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Upload the site
         if: github.event_name != 'pull_request'

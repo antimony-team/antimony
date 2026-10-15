@@ -22,10 +22,10 @@ Every [release of Antimony](https://github.com/antimony-team/antimony/releases) 
 
 <Steps>
 
-1. **Download the deployment** of the latest release.
+1. **Download the deployment** of the current release, Antimony %VERSION%.
 
     ```bash
-    curl -fsSL https://github.com/antimony-team/antimony/releases/latest/download/antimony-deployment.tar.gz | tar -xz
+    curl -fsSL https://github.com/antimony-team/antimony/releases/download/v%VERSION%/antimony-deployment.tar.gz | tar -xz
     cd antimony
     ```
 
@@ -87,7 +87,7 @@ The API on 3000, the interface on 8100 and PostgreSQL on 5432 only listen on `lo
 The deployment of a release starts the images of that release, `ghcr.io/antimony-team/antimony-server:<version>` and `ghcr.io/antimony-team/antimony-interface:<version>`. To run another version, set it in `.env`:
 
 ```bash title=".env"
-ANTIMONY_VERSION=1.4.2   # a release
+ANTIMONY_VERSION=%VERSION%   # a release
 ANTIMONY_VERSION=dev     # the development version, updated with every change
 ```
 
@@ -96,6 +96,7 @@ ANTIMONY_VERSION=dev     # the development version, updated with every change
 Every release lists the SHA-256 checksums of its files in `SHA256SUMS`. The install script checks the deployment archive against it before it unpacks anything. To check a download yourself:
 
 ```bash
+curl -fLO https://github.com/antimony-team/antimony/releases/download/v%VERSION%/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
@@ -103,14 +104,14 @@ The release files and the images also carry signed build provenance: a record, s
 
 ```bash
 gh attestation verify antimony-deployment.tar.gz --repo antimony-team/antimony
-gh attestation verify oci://ghcr.io/antimony-team/antimony-server:<version> --repo antimony-team/antimony-server
-gh attestation verify oci://ghcr.io/antimony-team/antimony-interface:<version> --repo antimony-team/antimony-interface
+gh attestation verify oci://ghcr.io/antimony-team/antimony-server:%VERSION% --repo antimony-team/antimony-server
+gh attestation verify oci://ghcr.io/antimony-team/antimony-interface:%VERSION% --repo antimony-team/antimony-interface
 ```
 
 The images also contain a software bill of materials (SBOM), the list of every package inside them, for your vulnerability scanner:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/antimony-team/antimony-server:<version> --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/antimony-team/antimony-server:%VERSION% --format '{{ json .SBOM }}'
 ```
 
 ## Updating

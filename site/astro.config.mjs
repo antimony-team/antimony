@@ -2,10 +2,16 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
+import { getReleaseVersion, releaseVersion } from './plugins/release-version.mjs';
+
+const version = await getReleaseVersion();
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://antimony.run',
+	vite: {
+		plugins: [releaseVersion(version)],
+	},
 	integrations: [
 		starlight({
 			title: 'Antimony',

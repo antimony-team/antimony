@@ -43,12 +43,14 @@ The [quick start](https://antimony.run/docs/getting-started/quick-start/) has al
 
 ### On your own machine, with Antimony Desktop
 
-Antimony Desktop is standalone: it starts its own Antimony server in Docker and signs you in, with nothing to set up. Download the AppImage for your machine (`x86_64` or `arm64`) from the [latest release](https://github.com/antimony-team/antimony/releases) and run it:
+Antimony Desktop is standalone: it starts its own Antimony server in Docker and signs you in, with nothing to set up. Download the package for your system from the [latest release](https://github.com/antimony-team/antimony/releases) and install it:
 
 ```bash
-chmod +x antimony-desktop-*.AppImage
-./antimony-desktop-*.AppImage
+sudo apt install ./antimony-desktop-*.deb   # Debian, Ubuntu
+sudo dnf install ./antimony-desktop-*.rpm   # Fedora
 ```
+
+Every other distribution can use the AppImage: make it executable with `chmod +x` and start it. All packages come for `x86_64` and `arm64`.
 
 More in the [Antimony Desktop guide](https://antimony.run/docs/deployment/desktop-app/).
 

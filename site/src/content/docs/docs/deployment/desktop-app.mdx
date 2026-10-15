@@ -5,7 +5,7 @@ sidebar:
   label: Antimony Desktop
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Antimony Desktop runs Antimony on your own machine, for one person. It starts the Antimony server itself, in a Docker container next to your labs, and signs you in automatically. There is nothing to configure and no login.
 
@@ -23,22 +23,67 @@ To run Antimony for several people, or on a server, use the [Docker deployment](
 
 ## Install
 
-<Steps>
+The current release is [Antimony %VERSION%](https://github.com/antimony-team/antimony/releases/tag/v%VERSION%). Every [release](https://github.com/antimony-team/antimony/releases) contains Antimony Desktop as a package for Debian and Ubuntu, a package for Fedora, and an AppImage that runs on any distribution. Each comes for Intel and AMD processors and for ARM.
 
-1. **Download the AppImage** for your processor from the latest of the [releases of Antimony](https://github.com/antimony-team/antimony/releases): `x86_64` for Intel and AMD, `arm64` for ARM.
+<Tabs>
+<TabItem label="Debian / Ubuntu">
 
-2. **Make it executable and start it.**
+Download the package and install it:
 
-    ```bash
-    chmod +x antimony-desktop-*.AppImage
-    ./antimony-desktop-*.AppImage
-    ```
+```bash
+curl -fLO https://github.com/antimony-team/antimony/releases/download/v%VERSION%/antimony-desktop-%VERSION%-amd64.deb
+sudo apt install ./antimony-desktop-%VERSION%-amd64.deb
+```
 
-    On the first start, a small window shows the download of the Antimony server. After that, the app opens.
+On ARM, replace `amd64` with `arm64` in both lines.
 
-</Steps>
+The package installs Docker Engine (`docker.io`) if neither it nor Docker's own `docker-ce` is installed yet.
 
-To check the download, compare it with the release's `SHA256SUMS` (`sha256sum -c SHA256SUMS --ignore-missing`), or verify that it was built by the release workflow with `gh attestation verify antimony-desktop-*.AppImage --repo antimony-team/antimony`. See [verifying downloads](/docs/deployment/docker/#verifying-downloads).
+</TabItem>
+<TabItem label="Fedora">
+
+Download the package and install it:
+
+```bash
+curl -fLO https://github.com/antimony-team/antimony/releases/download/v%VERSION%/antimony-desktop-%VERSION%-x86_64.rpm
+sudo dnf install ./antimony-desktop-%VERSION%-x86_64.rpm
+```
+
+On ARM, replace `x86_64` with `aarch64` in both lines.
+
+The package needs Docker Engine, either Docker's own `docker-ce` or Fedora's `moby-engine`, and installs one of them if neither is installed yet.
+
+</TabItem>
+<TabItem label="AppImage">
+
+Download the AppImage, make it executable and start it:
+
+```bash
+curl -fLO https://github.com/antimony-team/antimony/releases/download/v%VERSION%/antimony-desktop-%VERSION%-x86_64.AppImage
+chmod +x antimony-desktop-%VERSION%-x86_64.AppImage
+./antimony-desktop-%VERSION%-x86_64.AppImage
+```
+
+On ARM, replace `x86_64` with `arm64` in all three lines.
+
+The AppImage needs no installation, but you install Docker Engine yourself.
+
+</TabItem>
+</Tabs>
+
+Start the installed package from your applications menu, or with `antimony-desktop` in a terminal. On the first start, a small window shows the download of the Antimony server. After that, the app opens.
+
+The packages don't update themselves yet: to update, install the package of the new release the same way. To remove Antimony Desktop, use `sudo apt remove antimony-desktop` or `sudo dnf remove antimony-desktop`. Your labs and data in `~/.config/Antimony` stay.
+
+To check a download, compare it with the release's checksums, or verify that it was built by the release workflow:
+
+```bash
+curl -fLO https://github.com/antimony-team/antimony/releases/download/v%VERSION%/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify antimony-desktop-%VERSION%-amd64.deb --repo antimony-team/antimony
+```
+
+ See [verifying downloads](/docs/deployment/docker/#verifying-downloads).
 
 ## Using the app
 
@@ -95,7 +140,7 @@ The app always uses Docker Engine at `/var/run/docker.sock`. `DOCKER_HOST` doesn
 | --- | --- |
 | "Antimony needs Docker Engine, but only Docker Desktop was found." | Install Docker Engine. Both can be installed side by side. |
 | "You aren't allowed to use Docker." | Add your user to the `docker` group, then log out and in again. |
-| "The Antimony server … couldn't be downloaded: manifest unknown" | There is no server image for this version. Use a released AppImage, or start the app with `SB_SERVER_IMAGE`. |
+| "The Antimony server … couldn't be downloaded: manifest unknown" | There is no server image for this version. Use a released version of Antimony Desktop, or start the app with `SB_SERVER_IMAGE`. |
 | "The Antimony server stopped unexpectedly." | See `server.log` in `~/.config/Antimony`. |
 
 ## Developing the app
@@ -116,7 +161,7 @@ The interface signs in with the [desktop login](/docs/architecture/auth-flow/#an
 
 ### Building it
 
-You need Node.js 26, Yarn 1 (`corepack enable`), [Task](https://taskfile.dev/installation/), and the tools that render the icons and assemble the AppImage. On Debian or Ubuntu:
+You need Node.js 26, Yarn 1 (`corepack enable`), [Task](https://taskfile.dev/installation/), and the tools that render the icons and assemble the packages. On Debian or Ubuntu:
 
 ```bash
 sudo apt install librsvg2-bin libarchive-tools rpm
@@ -128,10 +173,10 @@ cd antimony-interface
 task package-electron-linux
 ```
 
-The AppImages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in the backend and start the app with `SB_SERVER_IMAGE=antimony-server:dev`.
+The AppImages, .deb and .rpm packages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in the backend and start the app with `SB_SERVER_IMAGE=antimony-server:dev`.
 
 Without packaging, `task build-electron` followed by `yarn electron .` starts the app from the repository. It then always uses the local image `antimony-server:dev`, and shows the server's output in your terminal.
 
 ### Releases
 
-The interface's CI builds the AppImages on every push and pull request and keeps them as the workflow artifact `appimage`, to catch build failures early. Released AppImages come from the [Antimony repository](https://github.com/antimony-team/antimony): a `v*` tag there builds the AppImages from the interface at the same tag and attaches them to the release. Tag the backend first, since the release checks that the server image of that version exists.
+The interface's CI builds all packages on every push and pull request and keeps them as the workflow artifact `antimony-desktop`, to catch build failures early. Released packages come from the [Antimony repository](https://github.com/antimony-team/antimony): a `v*` tag there builds them from the interface at the same tag and attaches them to the release. Tag the server first, since the release checks that the server image of that version exists.
