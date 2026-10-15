@@ -20,6 +20,7 @@ import (
 	"antimonyBackend/socket"
 	"antimonyBackend/storage"
 	collectiontransport "antimonyBackend/transport/http/collection"
+	"antimonyBackend/transport/http/cors"
 	devicetransport "antimonyBackend/transport/http/device"
 	labtransport "antimonyBackend/transport/http/lab"
 	schematransport "antimonyBackend/transport/http/schema"
@@ -45,6 +46,9 @@ import (
 
 	"net/http/httptest"
 )
+
+// testDesktopToken is the SB_DESKTOP_TOKEN the harness exports unless WithDesktopToken overrides it.
+const testDesktopToken = "antimony-test-desktop-token"
 
 // defaultKindsConfig gives the tests one node kind that may be restarted (linux) and one that may
 // not (nokia_srlinux), so both branches of the node-command guard are reachable.
@@ -112,6 +116,7 @@ type harnessOptions struct {
 	adminGroups    []string
 	nativeUsername string
 	nativePassword string
+	desktopToken   string
 
 	shellUserLimit int
 	shellTimeout   int64
@@ -121,6 +126,7 @@ type harnessOptions struct {
 	shellLinesBacklog   int
 
 	excludedInterfaces   []string
+	topologyPolicy       bool
 	allowedImagePrefixes []string
 	kindsConfig          string
 	deploymentProvider   config.DeploymentProvider
@@ -142,19 +148,23 @@ func WithoutSeed() HarnessOption {
 	return func(o *harnessOptions) { o.seed = false }
 }
 
-// WithAuthMethods controls which authentication methods the server enables. Enabling none makes
-// every request authenticate as the native admin.
+// WithAuthMethods controls which authentication methods the server enables. Enabling none leaves
+// only the users registered through Harness.Token able to authenticate.
 func WithAuthMethods(methods ...config.AuthMethod) HarnessOption {
 	return func(o *harnessOptions) { o.authMethods = methods }
 }
 
-// WithNativeCredentials sets the SB_ADMIN_* credentials. Passing empty strings exercises the
-// "native auth enabled but unconfigured" path.
+// WithNativeCredentials sets the SB_ADMIN_* credentials.
 func WithNativeCredentials(username string, password string) HarnessOption {
 	return func(o *harnessOptions) {
 		o.nativeUsername = username
 		o.nativePassword = password
 	}
+}
+
+// WithDesktopToken sets SB_DESKTOP_TOKEN, the token the desktop login accepts.
+func WithDesktopToken(token string) HarnessOption {
+	return func(o *harnessOptions) { o.desktopToken = token }
 }
 
 // WithOpenID points the auth manager at an OIDC issuer (see NewFakeOIDCProvider).
@@ -189,6 +199,11 @@ func WithBacklogs(clabLog int, containerLog int, shellLines int) HarnessOption {
 // WithExcludedInterfaces overrides the capture interface exclusion patterns.
 func WithExcludedInterfaces(patterns ...string) HarnessOption {
 	return func(o *harnessOptions) { o.excludedInterfaces = patterns }
+}
+
+// WithTopologyPolicy enables or disables the topology policy for non-admins. It's enabled by default.
+func WithTopologyPolicy(enabled bool) HarnessOption {
+	return func(o *harnessOptions) { o.topologyPolicy = enabled }
 }
 
 // WithAllowedImagePrefixes sets the image allowlist of the topology policy. By default every image is allowed.
@@ -240,12 +255,14 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		authMethods:         []config.AuthMethod{config.AuthMethods.Admin},
 		nativeUsername:      "testuser",
 		nativePassword:      "testpass",
+		desktopToken:        testDesktopToken,
 		shellUserLimit:      20,
 		shellTimeout:        1800,
 		clabLogBacklog:      1000,
 		containerLogBacklog: 1000,
 		shellLinesBacklog:   1000,
 		excludedInterfaces:  []string{"lo", "gway-*", "monit_in", "mgmt0*"},
+		topologyPolicy:      true,
 		kindsConfig:         defaultKindsConfig,
 		deploymentProvider:  config.DeploymentProviders.Containerlab,
 		captureEnabled:      true,
@@ -264,6 +281,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 
 	t.Setenv("SB_ADMIN_USERNAME", opts.nativeUsername)
 	t.Setenv("SB_ADMIN_PASSWORD", opts.nativePassword)
+	t.Setenv("SB_DESKTOP_TOKEN", opts.desktopToken)
 	t.Setenv("SB_JWT_SECRET", "antimony-test-secret")
 	t.Setenv("SB_OIDC_SECRET", "antimony-test-oidc-secret")
 
@@ -285,7 +303,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 			OpenIdAdminGroups:  opts.adminGroups,
 		},
 		Security: config.SecurityConfig{
-			TopologyPolicy:       true,
+			TopologyPolicy:       opts.topologyPolicy,
 			AllowedImagePrefixes: opts.allowedImagePrefixes,
 		},
 		Shell: config.ShellConfig{
@@ -364,7 +382,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		deviceService       = device.CreateService(cfg)
 		schemaService       = schema.CreateService(cfg)
 		serverConfigService = serverconfig.CreateService(cfg)
-		userService         = user.CreateService(userRepo, authManager)
+		userService         = user.CreateService(userRepo, authManager, cfg)
 		collectionService   = collection.CreateService(collectionRepo, userRepo)
 
 		policyEngine = policy.CreateEngine(policy.Options{
@@ -467,6 +485,9 @@ func (h *Harness) buildEngine(devMode bool) *gin.Engine {
 	// harness has to have it to be representative.
 	engine := gin.New()
 	engine.Use(gin.Recovery())
+
+	// Mirrors main.go: registered before the routes, so it also answers preflight requests
+	engine.Use(cors.Middleware(slices.Contains(h.Config.Auth.Methods, config.AuthMethods.Desktop)))
 
 	usertransport.RegisterRoutes(engine, userHandler)
 	if devMode {

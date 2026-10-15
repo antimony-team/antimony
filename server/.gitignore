@@ -41,3 +41,5 @@ coverage/
 
 # Inputs the Go fuzzer generates, the ones worth keeping are seeds in the fuzz tests
 **/testdata/fuzz/
+
+scripts/__pycache__/

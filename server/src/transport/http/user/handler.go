@@ -59,13 +59,14 @@ func (h *Handler) LoginOpenId(ctx *gin.Context) {
 	http.Redirect(ctx.Writer, ctx.Request, url, http.StatusFound)
 }
 
-// @Summary	Authenticate via native login
+// @Summary	Authenticate the desktop app with its desktop token. Returns the access token instead of setting cookies.
 // @Accept		json
 // @Tags		users
 // @Success	200		{object}	string "The new access token of the user"
 //
-// @Failure	400		{object}	nil				"The provided desktop token was invalid"
+// @Failure	400		{object}	nil				"The request body was invalid"
 // @Failure	401		{object}	nil				"Authentication via desktop token is disabled"
+// @Failure	403		{object}	nil				"The provided desktop token was invalid"
 // @Param		request	body		DesktopTokenIn	true	"The desktop token"
 // @Router		/users/login/desktop [post]
 func (h *Handler) LoginDesktop(ctx *gin.Context) {
@@ -139,7 +140,7 @@ func (h *Handler) RefreshToken(ctx *gin.Context) {
 // @Produce	json
 // @Tags		users
 // @Success	200	{object}	utils.OkResponse[user.AuthConfigOut]	"The authentication config of the server"
-// @Router		/users/login/config [get]
+// @Router		/users/login/auth-config [get]
 func (h *Handler) AuthConfig(ctx *gin.Context) {
 	ctx.JSON(utils.CreateOkResponse(h.service.GetAuthMethods()))
 }

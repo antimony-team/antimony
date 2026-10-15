@@ -65,6 +65,22 @@ func (h *Harness) WithCookies(method string, path string, cookies ...*http.Cooki
 	return &Response{Harness: h, Recorder: recorder, Method: method, Path: path}
 }
 
+// WithHeaders sends a request without cookies that carries the given headers, for the bearer and
+// CORS tests.
+func (h *Harness) WithHeaders(method string, path string, headers map[string]string) *Response {
+	h.T.Helper()
+
+	request := httptest.NewRequest(method, path, nil)
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
+
+	recorder := httptest.NewRecorder()
+	h.Engine.ServeHTTP(recorder, request)
+
+	return &Response{Harness: h, Recorder: recorder, Method: method, Path: path}
+}
+
 func (h *Harness) do(method string, path string, body any, token string) *Response {
 	h.T.Helper()
 

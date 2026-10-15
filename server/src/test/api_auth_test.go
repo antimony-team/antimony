@@ -4,6 +4,7 @@ import (
 	"antimonyBackend/auth"
 	"antimonyBackend/transport"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -138,15 +139,74 @@ func TestAuthMiddleware_ValidTokenIsAccepted(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_AllAuthDisabledGrantsNativeAdminAccess(t *testing.T) {
+func TestAuthMiddleware_AllAuthDisabledStillRequiresAToken(t *testing.T) {
 	h := NewHarness(t, WithAuthMethods())
 
-	// With no authentication method enabled the middleware injects the native admin, so an
-	// anonymous request is served as an administrator.
-	var collections []transport.CollectionOut
-	h.GET("/collections", "").RequireOk(&collections)
+	// Disabling every login method doesn't open the API up, anonymous requests are still refused.
+	h.GET("/collections", "").RequireError(http.StatusUnauthorized, 401)
+}
 
-	assert.Len(t, collections, 5, "the injected native user should be an admin and see everything")
+/*
+ * Authorization: Bearer header
+ */
+
+func bearer(token string) map[string]string {
+	return map[string]string{"Authorization": "Bearer " + token}
+}
+
+func TestAuthMiddleware_BearerTokenIsAcceptedWithoutCookie(t *testing.T) {
+	h := NewHarness(t)
+
+	for _, route := range protectedRoutes {
+		t.Run(route.name, func(t *testing.T) {
+			h.WithHeaders(route.method, route.path, bearer(h.Seed.Admin.Token)).RequireStatus(http.StatusOK)
+		})
+	}
+}
+
+func TestAuthMiddleware_BearerTokenCarriesTheUsersPermissions(t *testing.T) {
+	h := NewHarness(t)
+
+	var collections []transport.CollectionOut
+	h.WithHeaders(http.MethodGet, "/collections", bearer(h.Seed.Member.Token)).RequireOk(&collections)
+
+	assert.Len(t, collections, 4, "the member must not see the hidden collection")
+}
+
+func TestAuthMiddleware_InvalidBearerTokenIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	for name, token := range map[string]string{
+		"malformed":         "this-is-not-a-jwt",
+		"empty":             "",
+		"unregistered user": h.UnregisteredToken("ghost-user"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			h.WithHeaders(http.MethodGet, "/collections", bearer(token)).RequireError(498, 498)
+		})
+	}
+}
+
+func TestAuthMiddleware_BearerHeaderTakesPrecedenceOverCookie(t *testing.T) {
+	h := NewHarness(t)
+
+	request := httptest.NewRequest(http.MethodGet, "/collections", nil)
+	request.Header.Set("Authorization", "Bearer this-is-not-a-jwt")
+	request.AddCookie(&http.Cookie{Name: "accessToken", Value: h.Seed.Admin.Token})
+
+	recorder := httptest.NewRecorder()
+	h.Engine.ServeHTTP(recorder, request)
+
+	assert.Equal(t, 498, recorder.Code)
+}
+
+func TestAuthMiddleware_NonBearerAuthorizationFallsBackToCookie(t *testing.T) {
+	h := NewHarness(t)
+
+	// Any other scheme isn't a bearer token, so the middleware looks for the cookie, which is missing here.
+	h.WithHeaders(http.MethodGet, "/collections", map[string]string{
+		"Authorization": "Basic dGVzdHVzZXI6dGVzdHBhc3M=",
+	}).RequireError(http.StatusUnauthorized, 401)
 }
 
 func TestAuthMiddleware_PublicRoutesNeedNoToken(t *testing.T) {

@@ -7,7 +7,6 @@ tasks:
     dir: '.'
     cmds:
       - sudo rm -rf ./build/
-      - sudo rm -rf ./docker/
 
   lint:
     dir: './src'
@@ -88,9 +87,9 @@ tasks:
       - mkdir -p ./db
       - mkdir -p ./storage
       - mkdir -p ./run
-      - cp -r ../data/ ./
-      - cp ../test/config-docker.test.yml ./config.yml
-      - cp ../test/kinds.conf.yml ./
+      - cp -r ../../data/ ./
+      - cp ../../test/config-docker.test.yml ./config.yml
+      - cp ../../test/kinds.conf.yml ./
       - DOCKER_HOST=unix:///var/run/docker.sock docker run
         -e SB_JWT_SECRET=testing-fake-secret
         -e SB_ADMIN_USERNAME=admin

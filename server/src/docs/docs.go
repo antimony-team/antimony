@@ -1004,7 +1004,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/login/config": {
+        "/users/login/auth-config": {
             "get": {
                 "consumes": [
                     "application/json"
@@ -1034,7 +1034,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Authenticate via native login",
+                "summary": "Authenticate the desktop app with its desktop token. Returns the access token instead of setting cookies.",
                 "parameters": [
                     {
                         "description": "The desktop token",
@@ -1054,10 +1054,13 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "The provided desktop token was invalid"
+                        "description": "The request body was invalid"
                     },
                     "401": {
                         "description": "Authentication via desktop token is disabled"
+                    },
+                    "403": {
+                        "description": "The provided desktop token was invalid"
                     }
                 }
             }

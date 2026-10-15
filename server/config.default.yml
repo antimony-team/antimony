@@ -81,7 +81,7 @@ capture:
   # Default: yes
   enabled: yes
   # Interfaces that are excluded from SSH traffic capture and monitoring.
-  # Default: ["lo", "gway-*", "monit_in", "mgmt0-0"]
+  # Default: ["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]
   excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
 streaming:
   # The maximum number of container log entries that will be kept in memory.
@@ -90,7 +90,7 @@ streaming:
   # The maximum number of containerlab log entries that will be kept in memory.
   # Default: 1000
   clabLogBacklog: 1000
-  # The maximum number of lines that will be kept in memory for an open shell (scrollback buffer).
+  # Unused. Browser terminals keep the last clabLogBacklog bytes of output as their scrollback.
   # Default: 1000
   shellLinesBacklog: 1000
 filesystem:

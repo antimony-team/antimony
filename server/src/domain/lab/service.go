@@ -177,8 +177,8 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		return "", utils.ErrAntimony
 	}
 
-	// If the user is not an admin, the topology can't contain any unsafe features
-	if !authUser.IsAdmin {
+	// If the policy is enabled and the user is not an admin, the topology can't contain any unsafe features
+	if s.config.Security.TopologyPolicy && !authUser.IsAdmin {
 		bindFilePaths := lo.Map(bindFiles, func(bindFile topology.BindFile, index int) string {
 			return bindFile.FilePath
 		})

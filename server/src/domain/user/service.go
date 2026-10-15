@@ -137,5 +137,10 @@ func (s *Service) CreateNativeUser(
 }
 
 func (s *Service) GetAuthMethods() AuthConfigOut {
-	return AuthConfigOut{Methods: s.config.Auth.Methods}
+	methods := s.config.Auth.Methods
+	if methods == nil {
+		methods = make([]config.AuthMethod, 0)
+	}
+
+	return AuthConfigOut{Methods: methods}
 }

@@ -1,7 +1,6 @@
 package test
 
 import (
-	"antimonyBackend/auth"
 	"antimonyBackend/config"
 	"antimonyBackend/domain/user"
 	"net/http"
@@ -74,9 +73,7 @@ func TestLoginNative_EmptyBodyIsRejected(t *testing.T) {
 func TestLoginNative_MissingFieldsAreTreatedAsWrongCredentials(t *testing.T) {
 	h := NewHarness(t)
 
-	// CredentialsIn carries `json:"username" ,binding:"required"` — the stray comma means the key
-	// is ",binding" rather than "binding", so the required validation never runs and an empty body
-	// binds cleanly. It then fails the credential comparison instead.
+	// Both fields are required, so binding an empty object fails and is reported as wrong credentials.
 	h.RawBody(http.MethodPost, "/users/login/native", `{}`, "").
 		RequireError(http.StatusBadRequest, 1001)
 }
@@ -92,18 +89,6 @@ func TestLoginNative_DisabledReturnsUnauthorized(t *testing.T) {
 		Username: "testuser",
 		Password: "testpass",
 	}, "").RequireError(http.StatusUnauthorized, 401)
-}
-
-func TestLoginNative_UnconfiguredCredentialsAcceptAnEmptyLogin(t *testing.T) {
-	h := NewHarness(t, WithNativeCredentials("", ""))
-
-	// Native auth is enabled but SB_ADMIN_USERNAME/PASSWORD are unset, so empty credentials match
-	// and authenticate as the native admin. The auth config advertises this via allowEmpty.
-	response := h.POST("/users/login/native", user.CredentialsIn{}, "")
-	response.RequireEmptyOk()
-
-	accessToken := response.RequireCookie("accessToken")
-	h.GET("/collections", accessToken.Value).RequireStatus(http.StatusOK)
 }
 
 /*
@@ -134,46 +119,51 @@ func TestLogout_WorksWithoutCookies(t *testing.T) {
  * GET /users/login/auth-config
  */
 
-func TestAuthConfig_ReportsNativeOnly(t *testing.T) {
+func TestAuthConfig_ReportsAdminOnlyByDefault(t *testing.T) {
 	h := NewHarness(t)
 
-	var authConfig auth.AuthConfig
+	var authConfig user.AuthConfigOut
 	h.GET("/users/login/auth-config", "").RequireOk(&authConfig)
 
-	assert.True(t, authConfig.Native.Enabled)
-	assert.False(t, authConfig.Native.AllowEmpty)
-	assert.False(t, authConfig.OpenId.Enabled)
+	assert.Equal(t, []config.AuthMethod{config.AuthMethods.Admin}, authConfig.Methods)
 }
 
-func TestAuthConfig_ReportsAllowEmptyWhenUnconfigured(t *testing.T) {
-	h := NewHarness(t, WithNativeCredentials("", ""))
-
-	var authConfig auth.AuthConfig
-	h.GET("/users/login/auth-config", "").RequireOk(&authConfig)
-
-	assert.True(t, authConfig.Native.Enabled)
-	assert.True(t, authConfig.Native.AllowEmpty)
-}
-
-func TestAuthConfig_ReportsBothMethods(t *testing.T) {
+func TestAuthConfig_ReportsEveryEnabledMethod(t *testing.T) {
 	oidc := NewFakeOIDCProvider(t)
-	h := NewHarness(t, WithOpenID(oidc.Issuer(), oidc.ClientID))
+	h := NewHarness(
+		t,
+		WithAuthMethods(config.AuthMethods.Admin, config.AuthMethods.Desktop),
+		WithOpenID(oidc.Issuer(), oidc.ClientID),
+	)
 
-	var authConfig auth.AuthConfig
+	var authConfig user.AuthConfigOut
 	h.GET("/users/login/auth-config", "").RequireOk(&authConfig)
 
-	assert.True(t, authConfig.Native.Enabled)
-	assert.True(t, authConfig.OpenId.Enabled)
+	assert.ElementsMatch(t, []config.AuthMethod{
+		config.AuthMethods.Admin,
+		config.AuthMethods.Desktop,
+		config.AuthMethods.OpenID,
+	}, authConfig.Methods)
 }
 
-func TestAuthConfig_ReportsNeitherWhenAllDisabled(t *testing.T) {
+func TestAuthConfig_ResponseShape(t *testing.T) {
+	h := NewHarness(t, WithAuthMethods(config.AuthMethods.Admin, config.AuthMethods.Desktop))
+
+	// The interface and the desktop app read the methods off this exact shape.
+	assert.JSONEq(
+		t,
+		`{"payload":{"methods":["admin","desktop"]}}`,
+		h.GET("/users/login/auth-config", "").RequireStatus(http.StatusOK).Body(),
+	)
+}
+
+func TestAuthConfig_ReportsAnEmptyListWhenAllDisabled(t *testing.T) {
 	h := NewHarness(t, WithAuthMethods())
 
-	var authConfig auth.AuthConfig
+	var authConfig user.AuthConfigOut
 	h.GET("/users/login/auth-config", "").RequireOk(&authConfig)
 
-	assert.False(t, authConfig.Native.Enabled)
-	assert.False(t, authConfig.OpenId.Enabled)
+	assert.Empty(t, authConfig.Methods)
 }
 
 /*

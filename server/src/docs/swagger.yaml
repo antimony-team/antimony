@@ -1125,7 +1125,7 @@ paths:
       summary: Create a non-admin native user (DEVELOPMENT MODE ONLY)
       tags:
       - users
-  /users/login/config:
+  /users/login/auth-config:
     get:
       consumes:
       - application/json
@@ -1156,10 +1156,13 @@ paths:
           schema:
             type: string
         "400":
-          description: The provided desktop token was invalid
+          description: The request body was invalid
         "401":
           description: Authentication via desktop token is disabled
-      summary: Authenticate via native login
+        "403":
+          description: The provided desktop token was invalid
+      summary: Authenticate the desktop app with its desktop token. Returns the access
+        token instead of setting cookies.
       tags:
       - users
   /users/login/native:

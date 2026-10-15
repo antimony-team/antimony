@@ -330,3 +330,36 @@ func TestSocketConnect_DestroyingALabReleasesItsLogNamespace(t *testing.T) {
 	reconnected := h.Dial("/logs/"+LabAdminID, h.Seed.Admin.Token)
 	reconnected.ExpectNoBacklog()
 }
+
+/*
+ * Lab log namespace access.
+ */
+
+func TestSocketConnect_LabLogsAreLimitedToTheLabsCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+	h.DeployLab(LabHiddenID)
+
+	cases := []struct {
+		name      string
+		namespace string
+		token     string
+		reason    string
+	}{
+		{"an admin", "/logs/" + LabAdminID, h.Seed.Admin.Token, ""},
+		{"an admin without memberships", "/logs/" + LabHiddenID, h.Seed.AdminBare.Token, ""},
+		{"a member of the lab's collection", "/logs/" + LabAdminID, h.Seed.Member.Token, ""},
+		{"a non-member", "/logs/" + LabAdminID, h.Seed.Outsider.Token, "No Access"},
+		{"a member of other collections only", "/logs/" + LabHiddenID, h.Seed.Member.Token, "No Access"},
+		{"an admin on a node", "/logs/" + LabAdminID + "/" + NodeHost, h.Seed.AdminBare.Token, ""},
+		{"a member on a node", "/logs/" + LabAdminID + "/" + NodeHost, h.Seed.Member.Token, ""},
+		{"a non-member on a node", "/logs/" + LabAdminID + "/" + NodeHost, h.Seed.Outsider.Token, "No Access"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.reason, h.RawConnectError(c.namespace, map[string]any{"token": c.token}))
+		})
+	}
+}

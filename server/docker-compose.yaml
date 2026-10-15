@@ -8,7 +8,6 @@ services:
     shm_size: 128mb
     environment:
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_PASSWORD_SB=antimony
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]

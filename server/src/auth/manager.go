@@ -323,7 +323,7 @@ func (m *Manager) LoginNative(username string, password string) (string, string,
 		subtle.ConstantTimeCompare([]byte(password), m.config.admin.password) == 1 {
 		userId = NativeUserID
 	} else if account, ok := m.nativeTestingAccounts[username]; ok &&
-		password == account.password {
+		subtle.ConstantTimeCompare([]byte(password), []byte(account.password)) == 1 {
 		userId = account.userId
 	}
 	authUser := m.authenticatedUsers[userId]

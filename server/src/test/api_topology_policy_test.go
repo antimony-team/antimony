@@ -218,6 +218,15 @@ func TestCreateLab_AdminCanDeployAnUnsafeTopology(t *testing.T) {
 	assert.Equal(t, 1, labsOfTopology(t, h, topologyId))
 }
 
+func TestCreateLab_MemberCanDeployAnUnsafeTopologyWithoutThePolicy(t *testing.T) {
+	h := NewHarness(t, WithTopologyPolicy(false))
+	topologyId := createTopology(t, h, unsafeTopologyDefinition)
+
+	createLabOf(h, topologyId, "Unsafe", h.Seed.Member.Token).RequireOk(nil)
+
+	assert.Equal(t, 1, labsOfTopology(t, h, topologyId))
+}
+
 func TestCreateLab_MemberCannotDeployAnImageOutsideTheAllowlist(t *testing.T) {
 	h := NewHarness(t, WithAllowedImagePrefixes("ghcr.io/nokia/"))
 

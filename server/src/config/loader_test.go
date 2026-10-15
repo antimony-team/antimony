@@ -211,3 +211,57 @@ func TestLoad_UnknownAuthMethodIsAnError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unknown auth method "native"`)
 }
+
+func TestLoad_DefaultsToAdminAuthOnly(t *testing.T) {
+	loaded, err := Load(writeConfig(t, "auth:\n  openIdIssuer: https://issuer.example\n"))
+	require.NoError(t, err)
+
+	assert.Equal(t, []AuthMethod{AuthMethods.Admin}, loaded.Auth.Methods)
+	assert.Equal(t, "https://issuer.example", loaded.Auth.OpenIdIssuer)
+}
+
+func TestLoad_ParsesEveryAuthMethod(t *testing.T) {
+	path := writeConfig(t, "auth:\n  methods:\n    - desktop\n    - openid\n    - admin\n")
+
+	loaded, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, []AuthMethod{AuthMethods.Desktop, AuthMethods.OpenID, AuthMethods.Admin}, loaded.Auth.Methods)
+}
+
+func TestLoad_EmptyAuthMethodListDisablesEveryMethod(t *testing.T) {
+	loaded, err := Load(writeConfig(t, "auth:\n  methods: []\n"))
+	require.NoError(t, err)
+
+	assert.Empty(t, loaded.Auth.Methods)
+}
+
+func TestAuthMethod_UnmarshalTextRejectsAnUnknownName(t *testing.T) {
+	for _, input := range []string{"", "native", "oidc", "Admin", "DESKTOP"} {
+		t.Run(input, func(t *testing.T) {
+			var parsed AuthMethod
+
+			err := parsed.UnmarshalText([]byte(input))
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unknown auth method")
+		})
+	}
+}
+
+func TestLoad_ReadsTheFilesystemPaths(t *testing.T) {
+	path := writeConfig(t, "filesystem:\n  storage: /var/lib/antimony/storage\n  run: /run/antimony\n")
+
+	loaded, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, FilesystemConfig{Storage: "/var/lib/antimony/storage", Run: "/run/antimony"}, loaded.FileSystem)
+}
+
+func TestLoad_IgnoresTheOldFileSystemKey(t *testing.T) {
+	// The key was renamed from fileSystem to filesystem, the old spelling no longer has any effect.
+	loaded, err := Load(writeConfig(t, "fileSystem:\n  storage: /old/storage\n"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "./storage/", loaded.FileSystem.Storage)
+}

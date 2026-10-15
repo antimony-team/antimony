@@ -1,4 +1,4 @@
-![Antimony Logo](https://antimony-team.github.io/antimony/images/logo.svg)
+<img src=".github/assets/logo-full.svg" alt="Antimony" width="550">
 
 # Antimony Backend
 

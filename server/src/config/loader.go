@@ -55,7 +55,7 @@ func defaultConfig() *AntimonyConfig {
 			User:      "antimony",
 			Database:  "antimony",
 			Port:      5432,
-			LocalFile: "./test.db",
+			LocalFile: "./db/antimony.db",
 		},
 		SSH: SSHConfig{
 			Enabled:    true,
