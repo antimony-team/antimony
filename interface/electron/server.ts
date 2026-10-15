@@ -49,9 +49,9 @@ function isDevelopmentVersion() {
  */
 export function serverImage() {
   if (process.env.SB_SERVER_IMAGE) return process.env.SB_SERVER_IMAGE;
-  if (!app.isPackaged) return 'antimony-backend:dev';
+  if (!app.isPackaged) return 'antimony-server:dev';
 
-  return `ghcr.io/antimony-team/antimony-backend:${isDevelopmentVersion() ? 'dev' : app.getVersion()}`;
+  return `ghcr.io/antimony-team/antimony-server:${isDevelopmentVersion() ? 'dev' : app.getVersion()}`;
 }
 
 // A port that is free right now, picked by the operating system
@@ -132,7 +132,7 @@ async function ensureImage(
 
   if (!app.isPackaged && !process.env.SB_SERVER_IMAGE) {
     throw new DockerError(
-      `The image ${image} doesn’t exist. Build it with “task build-docker” in antimony-backend, ` +
+      `The image ${image} doesn’t exist. Build it with “task build-docker” in antimony-server, ` +
         'or set SB_SERVER_IMAGE to another image.',
     );
   }

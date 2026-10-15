@@ -8,13 +8,13 @@
 # test users. The configuration comes from e2e/backend/.
 #
 # Environment:
-#   SB_E2E_BACKEND_IMAGE  Image to run (default: antimony-backend:dev, a locally built image).
-#                         CI uses ghcr.io/antimony-team/antimony-backend:dev.
+#   SB_E2E_BACKEND_IMAGE  Image to run (default: antimony-server:dev, a locally built image).
+#                         CI uses ghcr.io/antimony-team/antimony-server:dev.
 
 set -euo pipefail
 
 e2e_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-image="${SB_E2E_BACKEND_IMAGE:-antimony-backend:dev}"
+image="${SB_E2E_BACKEND_IMAGE:-antimony-server:dev}"
 container="antimony-e2e-backend"
 log_file="$e2e_dir/.tmp/backend/server.log"
 
@@ -27,7 +27,7 @@ pull="always"
 if [[ "$image" != */* ]]; then
   pull="never"
   if ! docker image inspect "$image" >/dev/null 2>&1; then
-    echo "The backend image '$image' does not exist. Build it in the antimony-backend repository:" >&2
+    echo "The backend image '$image' does not exist. Build it in the antimony-server repository:" >&2
     echo "  docker build -t $image ." >&2
     exit 1
   fi
