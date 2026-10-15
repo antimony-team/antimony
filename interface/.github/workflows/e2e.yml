@@ -1,7 +1,7 @@
 name: End-to-end tests
 
 on:
-  # Disabled for now, the tests only run when started by hand or from the backend
+  # Disabled for now, the tests only run when started by hand or called by another workflow
   # push:
   #   branches: [ development ]
   #

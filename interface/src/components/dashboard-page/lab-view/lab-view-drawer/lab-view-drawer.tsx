@@ -11,6 +11,7 @@ import {ProgressBar} from 'primereact/progressbar';
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
 import {
   useCollectionStore,
+  useDataBinder,
   useLabStore,
   useServerConfig,
   useStatusMessages,
@@ -44,6 +45,7 @@ interface LabViewDrawer {
 const LabDialogDrawer = (props: LabViewDrawer) => {
   const labStore = useLabStore();
   const serverConfig = useServerConfig();
+  const dataBinder = useDataBinder();
   const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
@@ -364,7 +366,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       labCollection.name,
       props.lab.name,
       node.name,
-      window.location.hostname,
+      dataBinder.serverHost,
       serverConfig.ssh.port,
       captureInterface,
     );

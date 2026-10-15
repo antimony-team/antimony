@@ -7,7 +7,11 @@ import {Button} from 'primereact/button';
 import {Tooltip} from 'primereact/tooltip';
 
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
-import {useCollectionStore, useServerConfig} from '@sb/lib/stores/root-store';
+import {
+  useCollectionStore,
+  useDataBinder,
+  useServerConfig,
+} from '@sb/lib/stores/root-store';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
@@ -20,6 +24,7 @@ interface LabDialogPanelProps {
 const LabViewPanelProperties = (props: LabDialogPanelProps) => {
   const serverConfig = useServerConfig();
   const collectionStore = useCollectionStore();
+  const dataBinder = useDataBinder();
 
   const collection = collectionStore.lookup.get(props.lab.collectionId)!;
 
@@ -116,14 +121,17 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
           </dd>
         </dl>
         <div className="sb-lab-view-properties-footer">
-          <Button
-            outlined
-            icon="pi pi-copy"
-            label="Copy Link"
-            onClick={copyLabLink}
-            aria-label="Copy Link"
-            disabled={!props.lab.topologyId}
-          />
+          {/* A link to the desktop app's local server can't be shared */}
+          <If condition={!dataBinder.isDesktop}>
+            <Button
+              outlined
+              icon="pi pi-copy"
+              label="Copy Link"
+              onClick={copyLabLink}
+              aria-label="Copy Link"
+              disabled={!props.lab.topologyId}
+            />
+          </If>
           <Button
             outlined
             icon={

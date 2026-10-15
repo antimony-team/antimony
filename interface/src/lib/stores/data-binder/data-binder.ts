@@ -67,7 +67,7 @@ export class DataBinder {
   private refreshTokenPromise: Promise<Result<null>> | null = null;
 
   private accessToken: string = '';
-  private desktopToken: string = '';
+  private desktopToken: string | null = null;
 
   // All currently active socket.io namespace subscriptions
   private subscriptions: Map<string, Subscription> = new Map();
@@ -102,6 +102,14 @@ export class DataBinder {
   @computed
   public get isAdminAuthEnabled() {
     return this.authMethods.includes('admin');
+  }
+
+  /*
+   * The host name of the server, e.g. for SSH commands. Web builds reach the server on the page's
+   * own host, the desktop app on the address of the server it started.
+   */
+  public get serverHost() {
+    return new URL(this.apiUrl, window.location.href).hostname;
   }
 
   public get isDesktop() {

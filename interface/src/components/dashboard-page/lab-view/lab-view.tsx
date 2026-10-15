@@ -36,6 +36,7 @@ import {
 } from '@sb/lib/graph/cytoscape-utils';
 import {
   useCollectionStore,
+  useDataBinder,
   useDeviceStore,
   useLabStore,
   useServerConfig,
@@ -88,6 +89,7 @@ const LabView = observer((props: LabDialogProps) => {
   const terminalDialogState = useDialogState<TerminalDialogState>();
 
   const serverConfig = useServerConfig();
+  const dataBinder = useDataBinder();
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
@@ -366,7 +368,7 @@ const LabView = observer((props: LabDialogProps) => {
       labCollection.name,
       props.lab.name,
       node.name,
-      window.location.hostname,
+      dataBinder.serverHost,
       serverConfig.ssh.port,
       captureInterface,
     );

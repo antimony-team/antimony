@@ -89,7 +89,6 @@ tasks:
       - public/**/*
       - index.html
       - vite.config.ts
-      - .env
       - .babelrc
       - package.json
     generates:
@@ -106,9 +105,12 @@ tasks:
       - docker build -t antimony-interface:dev . --file docker/Dockerfile
 
   build-electron:
-    internal: true
+    desc: Build the desktop app into dist/ and dist-electron/, start it with `yarn electron .`
     deps:
       - install
+    preconditions:
+      - sh: command -v rsvg-convert
+        msg: The app icons are rendered with rsvg-convert. Install librsvg (librsvg2-bin on Debian and Ubuntu).
     sources:
       - src/**/*
       - public/**/*
@@ -124,12 +126,18 @@ tasks:
       - dist/.built-electron
       - dist-electron/main.js
       - dist-electron/preload.cjs
+      - dist-electron/icons/*.png
     cmds:
       - yarn build --config electron/vite.config.ts
+      # Electron can't load SVGs, so the app and tray icons are rendered from the logo
+      - mkdir -p dist-electron/icons
+      - rsvg-convert -w 512 -h 512 public/icons/favicon-dark.svg -o dist-electron/icons/icon.png
+      - rsvg-convert -w 22 -h 22 public/icons/favicon-dark.svg -o dist-electron/icons/tray.png
+      - rsvg-convert -w 44 -h 44 public/icons/favicon-dark.svg -o dist-electron/icons/tray@2x.png
       - touch dist/.built-electron
 
   package-electron-linux:
-    desc: Package the desktop app as an AppImage into release/
+    desc: Package the desktop app as AppImages for x64 and arm64 into release/
     platforms:
       - linux
     deps:
@@ -143,13 +151,6 @@ tasks:
       - release/*.AppImage
     cmds:
       - yarn electron-builder --linux --config electron/electron-builder.yml {{.CLI_ARGS}}
-
-  package-electron-win:
-    desc: Package the desktop app for Windows into release/
-    deps:
-      - build-electron
-    cmds:
-      - yarn electron-builder --win --config electron/electron-builder.yml {{.CLI_ARGS}}
 
   e2e:
     desc: End-to-end tests against a backend container

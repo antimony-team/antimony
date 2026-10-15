@@ -216,7 +216,7 @@ const LogDialog = observer((props: LogDialogProps) => {
             if (option.value === ANTIMONY_LOG) {
               return (
                 <Image
-                  src="/icons/antimony-outline.svg"
+                  src="./icons/antimony-outline.svg"
                   width="13px"
                   style={{
                     paddingLeft: '2.3px',

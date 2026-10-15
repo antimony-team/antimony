@@ -67,6 +67,12 @@ function errorMessage(response: Response) {
  * with what to do otherwise, also if only Docker Desktop is installed.
  */
 export async function checkEngine() {
+  if (process.platform !== 'linux') {
+    throw new DockerError(
+      'The Antimony desktop app runs on Linux only, because labs need Docker Engine on Linux.',
+    );
+  }
+
   const desktopMessage =
     'Antimony needs Docker Engine, but only Docker Desktop was found. Docker Desktop runs ' +
     'containers in a virtual machine, where labs can’t reach the network. Install Docker Engine: ' +

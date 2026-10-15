@@ -2,7 +2,7 @@ name: CI
 
 # Pull requests lint, check and build everything, the image is built but not pushed. Pushes to
 # development and main publish the :dev and :main images, a v* tag publishes the versioned image.
-# The AppImage is only built for v* tags and manual runs.
+# The AppImages (x64 and arm64) are only built for v* tags and manual runs.
 on:
   push:
     branches: [ development, main ]
@@ -60,8 +60,29 @@ jobs:
       - name: Type check
         run: yarn run typecheck
 
+  test:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Run unit tests
+        run: yarn run test
+
   appimage:
-    needs: [ lint, typecheck ]
+    needs: [ lint, typecheck, test ]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
@@ -89,10 +110,10 @@ jobs:
         run: yarn install
 
       - name: Install system dependencies
-        # electron-builder needs these for AppImage assembly
+        # electron-builder needs libarchive-tools and rpm for AppImage assembly, rsvg-convert renders the icons
         run: |
           sudo apt-get update
-          sudo apt-get install -y libarchive-tools rpm
+          sudo apt-get install -y libarchive-tools rpm librsvg2-bin
 
       - name: Set up Task
         uses: go-task/setup-task@v2
@@ -115,7 +136,7 @@ jobs:
           if-no-files-found: error
 
   docker-image:
-    needs: [ lint, typecheck ]
+    needs: [ lint, typecheck, test ]
     runs-on: ubuntu-latest
     permissions:
       contents: read

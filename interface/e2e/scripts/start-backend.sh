@@ -39,12 +39,12 @@ echo "Starting the backend from $image (log: $log_file)"
 # --init forwards SIGTERM to the backend, and --rm removes the container with all its state.
 exec docker run --rm --init --pull "$pull" \
   --name "$container" \
-  --publish 127.0.0.1:3100:3100 \
-  --publish 127.0.0.1:6100:6100 \
+  --publish 127.0.0.1:3200:3200 \
+  --publish 127.0.0.1:6200:6200 \
   --volume "$e2e_dir/backend/config.yml:/app/config.yml:ro" \
   --volume "$e2e_dir/backend/kinds.conf.yml:/app/kinds.conf.yml:ro" \
-  --env SB_NATIVE_USERNAME=admin \
-  --env SB_NATIVE_PASSWORD=admin \
+  --env SB_ADMIN_USERNAME=admin \
+  --env SB_ADMIN_PASSWORD=admin \
   --env SB_JWT_SECRET=antimony-e2e \
   --env SB_LOG_LEVEL=info \
   "$image" -config=./config.yml -sqlite=true -dev >"$log_file" 2>&1

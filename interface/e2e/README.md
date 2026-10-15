@@ -22,8 +22,8 @@ Commands:
 | `task e2e-ui`     | Opens Playwright's UI to run single tests and step through them |
 | `task e2e-report` | Opens the HTML report of the last run                           |
 
-A run starts its own backend (port 3100) and interface build (port 4180), so it doesn't touch the
-development servers on 3000 and 8080. Failing tests leave a screenshot, a video and a trace in the
+A run starts its own backend (port 3200) and interface build (port 4180), so it doesn't touch the
+development servers on 3100 and 5173. Failing tests leave a screenshot, a video and a trace in the
 report (`e2e/.tmp/report`). In CI, the report is uploaded as the `e2e-report` artifact.
 
 ## Layout

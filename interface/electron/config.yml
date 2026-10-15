@@ -1,5 +1,5 @@
 # Settings of the server the desktop app starts, on top of the server's defaults.
-# All settings: https://antimony-team.github.io/antimony/docs/deployment/configuration/
+# All settings: https://antimony.run/docs/deployment/configuration/
 #
 # The app sets the ports, the data folders and the SSH host key itself on every start, so they
 # can't be changed here.

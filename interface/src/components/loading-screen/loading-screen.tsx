@@ -28,7 +28,7 @@ const LoadingScreen = (props: LoadingScreenProps) => {
         <span className="sb-loading-screen-title">Antimony Loading</span>
         <span className="sb-loading-screen-text">{props.message}</span>
         <Image
-          src="/antimony-loader.svg"
+          src="./antimony-loader.svg"
           height="180px"
           alt="Antimony loader"
         />

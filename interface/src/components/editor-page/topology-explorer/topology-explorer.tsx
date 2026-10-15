@@ -9,7 +9,6 @@ import React, {
 
 import {observer} from 'mobx-react-lite';
 
-import {Image} from 'primereact/image';
 import {MenuItem} from 'primereact/menuitem';
 import {Message} from 'primereact/message';
 import {Tooltip} from 'primereact/tooltip';
@@ -1158,7 +1157,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         className="w-full"
         emptyMessage={
           <div className="sb-topology-explorer-empty">
-            <Image src="/icons/no-results.png" width="100px" />
+            <span className="material-symbols-outlined">search_off</span>
             <span>No topologies found :(</span>
           </div>
         }

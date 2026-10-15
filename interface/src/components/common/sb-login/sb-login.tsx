@@ -87,7 +87,7 @@ const LoginForm = observer(() => {
         <Message severity="error" text={loginError} />
       </If>
 
-      <If condition={dataBinder.isNativeAuthEnabled}>
+      <If condition={dataBinder.isAdminAuthEnabled}>
         <SBInput
           label="Username"
           id="username"
@@ -113,7 +113,9 @@ const LoginForm = observer(() => {
       </If>
 
       <If condition={dataBinder.isOpenIdAuthEnabled}>
-        <div className="sb-login-divider">or</div>
+        <If condition={dataBinder.isAdminAuthEnabled}>
+          <div className="sb-login-divider">or</div>
+        </If>
         <Button
           outlined
           label="Continue with OpenID Connect"

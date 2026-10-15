@@ -12,9 +12,9 @@ files:
   - package.json
 
 linux:
-  icon: dist/icons/favicon-dark.png
+  icon: dist-electron/icons/icon.png
   target:
     - target: AppImage
-      arch: [x64]
+      arch: [x64, arm64]
   category: Utility
   artifactName: ${productName}-${version}-${arch}.AppImage

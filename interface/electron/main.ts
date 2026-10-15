@@ -18,6 +18,10 @@ import {Splash} from './splash';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// The app and tray icons, rendered from the logo by the build, see build-electron in Taskfile.yml
+const APP_ICON = path.join(__dirname, 'icons/icon.png');
+const TRAY_ICON = path.join(__dirname, 'icons/tray.png');
+
 let window: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
@@ -42,6 +46,7 @@ function createWindow() {
   window = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: APP_ICON,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -57,6 +62,14 @@ function createWindow() {
     return {action: 'deny'};
   });
 
+  // The window only shows the app, other pages would get the server's token through the preload script
+  window.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('file://')) return;
+
+    event.preventDefault();
+    void shell.openExternal(url);
+  });
+
   // Closing the window keeps Antimony and its labs running in the tray
   window.on('close', event => {
     if (isQuitting) return;
@@ -70,11 +83,8 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage
-    .createFromPath(path.join(__dirname, '../dist/icons/favicon-dark.png'))
-    .resize({width: 22, height: 22});
-
-  tray = new Tray(icon);
+  // Electron picks tray@2x.png next to it on high resolution screens
+  tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
   tray.setToolTip('Antimony');
   tray.setContextMenu(
     Menu.buildFromTemplate([

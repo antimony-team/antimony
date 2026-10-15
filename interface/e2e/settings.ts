@@ -3,7 +3,7 @@ import path from 'node:path';
 /*
  * Settings shared by the Playwright config, the fixtures and the server start scripts.
  *
- * The ports differ from the usual development servers (backend 3000, interface 8080), so a test run
+ * The ports differ from the development servers (backend 3100, interface 5173), so a test run
  * never talks to a backend that deploys real labs.
  */
 
@@ -19,7 +19,7 @@ export const INTERFACE_PORT = 4180;
 export const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 export const BASE_URL = `http://127.0.0.1:${INTERFACE_PORT}`;
 
-// The native admin the backend is started with
+// The admin the backend is started with
 export const ADMIN = {username: 'admin', password: 'admin'};
 
 // Browser state of the logged-in admin, written by auth.setup.ts

@@ -164,13 +164,8 @@ const SBDock = observer(() => {
           onClick={() => setCreditsOpen(true)}
           aria-label="Credits"
         />
-        <If
-          condition={
-            !dataBinder.isAuthDisabled &&
-            (!dataBinder.useNativeAutoLogin ||
-              dataBinder.isAuthenticatedWithOidc)
-          }
-        >
+        {/* The desktop app logs in by itself, logging out would only log in again */}
+        <If condition={!dataBinder.isDesktop}>
           <Button
             text
             size="large"
