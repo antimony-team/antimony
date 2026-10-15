@@ -2,7 +2,7 @@ name: CI
 
 # Pull requests lint, check and build everything, the image is built but not pushed. Pushes to
 # development and main publish the :dev and :main images, a v* tag publishes the versioned image.
-# The AppImages (x64 and arm64) are only built for v* tags and manual runs.
+# The AppImages (x64 and arm64) are built on every run, since nothing else checks the desktop build.
 on:
   push:
     branches: [ development, main ]
@@ -83,7 +83,6 @@ jobs:
 
   appimage:
     needs: [ lint, typecheck, test ]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
