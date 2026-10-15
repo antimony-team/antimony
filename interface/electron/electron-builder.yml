@@ -9,10 +9,13 @@ directories:
   output: release
   buildResources: dist
 
+# Vite bundles the interface and the main process with everything they use, so the dependencies in node_modules
+# aren't needed at runtime. Without this, electron-builder would add all of them, about 350 MB.
 files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
+  - '!node_modules/**/*'
 
 linux:
   icon: dist-electron/icons/icon.png
