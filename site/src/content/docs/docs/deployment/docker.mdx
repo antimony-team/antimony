@@ -91,6 +91,28 @@ ANTIMONY_VERSION=1.4.2   # a release
 ANTIMONY_VERSION=dev     # the development version, updated with every change
 ```
 
+## Verifying downloads
+
+Every release lists the SHA-256 checksums of its files in `SHA256SUMS`. The install script checks the deployment archive against it before it unpacks anything. To check a download yourself:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+The release files and the images also carry signed build provenance: a record, signed by GitHub, that they were built by the workflows of the Antimony repositories from the code of that version. Check it with the [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh attestation verify antimony-deployment.tar.gz --repo antimony-team/antimony
+gh attestation verify oci://ghcr.io/antimony-team/antimony-server:<version> --repo antimony-team/antimony-server
+gh attestation verify oci://ghcr.io/antimony-team/antimony-interface:<version> --repo antimony-team/antimony-interface
+```
+
+The images also contain a software bill of materials (SBOM), the list of every package inside them, for your vulnerability scanner:
+
+```bash
+docker buildx imagetools inspect ghcr.io/antimony-team/antimony-server:<version> --format '{{ json .SBOM }}'
+```
+
 ## Updating
 
 Run the [install script](/docs/getting-started/quick-start/) again in the folder above your installation, or update by hand:

@@ -53,8 +53,8 @@ the script with sudo, putting settings after it:
 
   curl -fsSL https://antimony.run/deploy.sh | sudo SB_PORT=... bash"
 
-	command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 ||
-		fail "curl and tar are needed to download Antimony."
+	command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 && command -v sha256sum >/dev/null 2>&1 ||
+		fail "curl, tar and sha256sum are needed to download Antimony."
 }
 
 # Whether this machine already runs Antimony, which then holds its own ports
@@ -130,6 +130,18 @@ NOTICE
 	esac
 }
 
+# Downloads the deployment archive of a release and its checksums from $1, checks the archive and unpacks it
+# into $tmp
+download_release() {
+	curl -fsSL "$1/antimony-deployment.tar.gz" -o "$tmp/antimony-deployment.tar.gz" &&
+		curl -fsSL "$1/SHA256SUMS" -o "$tmp/SHA256SUMS" || return 1
+
+	(cd "$tmp" && grep ' antimony-deployment.tar.gz$' SHA256SUMS | sha256sum -c --quiet - >/dev/null 2>&1) ||
+		fail "The downloaded deployment files don't match the checksum of the release. Try again, and report it if it keeps happening."
+
+	tar -xzf "$tmp/antimony-deployment.tar.gz" -C "$tmp" --strip-components=1
+}
+
 # Downloads the deployment files of the chosen version into $dir: the archive of a release, whose
 # compose file starts the images of that release, or the files of the development branch
 download() {
@@ -144,12 +156,12 @@ download() {
 		;;
 	latest)
 		info "Downloading the latest release of Antimony"
-		curl -fsSL "$REPO/releases/latest/download/antimony-deployment.tar.gz" | tar -xz -C "$tmp" --strip-components=1 ||
+		download_release "$REPO/releases/latest/download" ||
 			fail "Couldn't download the latest release of Antimony. If there's none yet, use ANTIMONY_VERSION=dev."
 		;;
 	*)
 		info "Downloading Antimony $version"
-		curl -fsSL "$REPO/releases/download/v$version/antimony-deployment.tar.gz" | tar -xz -C "$tmp" --strip-components=1 ||
+		download_release "$REPO/releases/download/v$version" ||
 			fail "Couldn't download Antimony $version. The versions are listed at $REPO/releases."
 		;;
 	esac

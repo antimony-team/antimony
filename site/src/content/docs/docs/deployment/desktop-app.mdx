@@ -38,6 +38,8 @@ To run Antimony for several people, or on a server, use the [Docker deployment](
 
 </Steps>
 
+To check the download, compare it with the release's `SHA256SUMS` (`sha256sum -c SHA256SUMS --ignore-missing`), or verify that it was built by the release workflow with `gh attestation verify antimony-desktop-*.AppImage --repo antimony-team/antimony`. See [verifying downloads](/docs/deployment/docker/#verifying-downloads).
+
 ## Using the app
 
 - **Closing the window** keeps Antimony running in the system tray, together with your labs. Open it again from the tray icon, or by starting the app again.

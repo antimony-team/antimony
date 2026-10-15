@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  appimage:
+  desktop:
     runs-on: ubuntu-latest
 
     steps:
@@ -64,33 +64,39 @@ jobs:
       - name: Set the version from the tag
         run: yarn version --new-version "${GITHUB_REF_NAME#v}" --no-git-tag-version
 
-      - name: Build the AppImages (x64 and arm64)
+      - name: Build the packages (AppImage, .deb and .rpm for x64 and arm64)
         run: task package-electron-linux -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Upload the AppImages
+      - name: Upload the packages
         uses: actions/upload-artifact@v4
         with:
-          name: appimage
-          path: release/*.AppImage
+          name: antimony-desktop
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
           retention-days: 7
           if-no-files-found: error
 
   release:
-    needs: appimage
+    needs: desktop
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Signing the provenance of the release files with the workflow's identity
+      id-token: write
+      attestations: write
 
     steps:
       - name: Check out code
         uses: actions/checkout@v5
 
-      - name: Download the AppImages
+      - name: Download the packages
         uses: actions/download-artifact@v4
         with:
-          name: appimage
+          name: antimony-desktop
           path: release
 
       # The deployment files, with the version of this release as the default image tag
@@ -103,13 +109,29 @@ jobs:
           grep -q ":-$version}" package/antimony/docker-compose.yml
           tar -czf release/antimony-deployment.tar.gz -C package antimony
 
+      # deploy.sh checks the deployment archive against these
+      - name: Create the checksums
+        working-directory: release
+        run: sha256sum ./*.AppImage ./*.deb ./*.rpm antimony-deployment.tar.gz | sed 's| \./| |' > SHA256SUMS
+
+      # Proves that the files were built by this workflow from this tag, see gh attestation verify
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/antimony-deployment.tar.gz
+
       # Pre-release versions such as v1.5.0-rc.1 become pre-releases
       - name: Create the release
         run: |
           prerelease=""
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
 
-          gh release create "$GITHUB_REF_NAME" release/*.AppImage release/antimony-deployment.tar.gz \
+          gh release create "$GITHUB_REF_NAME" release/*.AppImage release/*.deb release/*.rpm \
+            release/antimony-deployment.tar.gz release/SHA256SUMS \
             --title "Antimony $GITHUB_REF_NAME" \
             --generate-notes \
             $prerelease
