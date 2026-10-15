@@ -1,0 +1,78 @@
+---
+// Lab states. Scheduled and Inactive are pseudo-states: the lab has no instance.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 880 320" role="img" aria-labelledby="ls-title ls-desc">
+		<title id="ls-title">Lab states</title>
+		<desc id="ls-desc">
+			A new lab is scheduled. At its start time, or when deployed manually, it becomes deploying. A successful deployment
+			leads to running, a failed one to failed. Destroying a running, deploying or failed lab leads to stopping, and then
+			to inactive. Redeploying a running or failed lab, or deploying an inactive lab, returns it to deploying.
+		</desc>
+		<defs>
+			<marker id="ls-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+			<marker id="ls-aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+		</defs>
+
+		<circle cx="34" cy="130" r="8" class="dot-accent" />
+		<path d="M42 130 H70" class="edge" marker-end="url(#ls-a)" />
+
+		<rect x="74" y="104" width="130" height="52" rx="26" class="box" style="stroke-dasharray: 5 4" />
+		<text x="139" y="128" class="t" text-anchor="middle">Scheduled</text>
+		<text x="139" y="145" class="t-sub" text-anchor="middle">no instance</text>
+
+		<rect x="280" y="104" width="130" height="52" rx="26" class="box-warm" />
+		<text x="345" y="135" class="t" text-anchor="middle">Deploying</text>
+
+		<rect x="500" y="40" width="130" height="52" rx="26" class="box-accent" />
+		<text x="565" y="71" class="t" text-anchor="middle">Running</text>
+
+		<rect x="500" y="170" width="130" height="52" rx="26" class="box" style="stroke: #e5484d" />
+		<text x="565" y="201" class="t" text-anchor="middle">Failed</text>
+
+		<rect x="700" y="104" width="130" height="52" rx="26" class="box" />
+		<text x="765" y="135" class="t" text-anchor="middle">Stopping</text>
+
+		<rect x="700" y="230" width="130" height="52" rx="26" class="box" style="stroke-dasharray: 5 4" />
+		<text x="765" y="254" class="t" text-anchor="middle">Inactive</text>
+		<text x="765" y="271" class="t-sub" text-anchor="middle">no instance</text>
+
+		<!-- scheduled -> deploying -->
+		<path d="M204 130 H276" class="edge-accent" marker-end="url(#ls-aa)" />
+		<text x="240" y="120" class="t-sub" text-anchor="middle">start time</text>
+		<text x="240" y="150" class="t-sub" text-anchor="middle">or Deploy</text>
+
+		<!-- deploying -> running / failed -->
+		<path d="M410 120 C 450 120, 460 66, 496 66" class="edge-accent" marker-end="url(#ls-aa)" />
+		<text x="404" y="98" class="t-sub" text-anchor="end">success</text>
+		<path d="M410 142 C 450 142, 460 196, 496 196" class="edge" marker-end="url(#ls-a)" />
+		<text x="440" y="190" class="t-sub">error</text>
+
+		<!-- redeploy -->
+		<path d="M520 40 C 520 24, 345 24, 345 100" class="edge edge-dashed" marker-end="url(#ls-a)" />
+		<text x="432" y="18" class="t-sub" text-anchor="middle">Redeploy</text>
+		<path d="M520 222 C 520 260, 345 260, 345 160" class="edge edge-dashed" marker-end="url(#ls-a)" />
+		<text x="432" y="268" class="t-sub" text-anchor="middle">Redeploy</text>
+
+		<!-- -> stopping -->
+		<path d="M630 66 C 670 66, 680 118, 696 120" class="edge" marker-end="url(#ls-a)" />
+		<text x="650" y="70" class="t-sub">end time</text>
+		<text x="650" y="56" class="t-sub">Destroy /</text>
+		<path d="M630 196 C 670 196, 680 145, 696 142" class="edge" marker-end="url(#ls-a)" />
+		<text x="644" y="214" class="t-sub">Destroy</text>
+		<path d="M765 156 V226" class="edge" marker-end="url(#ls-a)" />
+		<text x="773" y="196" class="t-sub">done</text>
+
+		<!-- inactive -> deploying -->
+		<path d="M700 262 C 420 312, 300 300, 318 160" class="edge edge-dashed" marker-end="url(#ls-a)" />
+		<text x="470" y="314" class="t-sub" text-anchor="middle">Deploy</text>
+	</svg>
+	<figcaption>
+		Lab states. Dashed states are pseudo-states: the lab exists in the database but has no instance.
+	</figcaption>
+</figure>

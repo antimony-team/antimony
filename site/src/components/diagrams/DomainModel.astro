@@ -1,0 +1,84 @@
+---
+// Antimony's domain objects. Dashed boxes only exist while the server runs.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 880 330" role="img" aria-labelledby="dm-title dm-desc">
+		<title id="dm-title">Domain model</title>
+		<desc id="dm-desc">
+			A collection contains topologies. A topology has bind files and is deployed as labs. A lab has at most one instance
+			while it is deployed, and an instance has nodes. Users create collections, topologies and labs. Instances and nodes
+			are kept in memory only.
+		</desc>
+		<defs>
+			<marker id="dm-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+		</defs>
+
+		<g>
+			<rect x="20" y="40" width="170" height="96" rx="10" class="box" />
+			<text x="36" y="64" class="t">Collection</text>
+			<text x="36" y="86" class="t-mono">name</text>
+			<text x="36" y="104" class="t-mono">publicDeploy</text>
+			<text x="36" y="122" class="t-mono">publicWrite</text>
+		</g>
+		<g>
+			<rect x="250" y="40" width="190" height="96" rx="10" class="box-accent" />
+			<text x="266" y="64" class="t">Topology</text>
+			<text x="266" y="86" class="t-mono">topology.clab.yaml</text>
+			<text x="266" y="104" class="t-mono">syncUrl</text>
+			<text x="266" y="122" class="t-mono">lastDeployFailed</text>
+		</g>
+		<g>
+			<rect x="500" y="40" width="160" height="96" rx="10" class="box" />
+			<text x="516" y="64" class="t">Lab</text>
+			<text x="516" y="86" class="t-mono">name</text>
+			<text x="516" y="104" class="t-mono">startTime, endTime</text>
+			<text x="516" y="122" class="t-mono">instanceName</text>
+		</g>
+		<g>
+			<rect x="250" y="196" width="190" height="70" rx="10" class="box" />
+			<text x="266" y="220" class="t">Bind file</text>
+			<text x="266" y="242" class="t-mono">relative path, content</text>
+		</g>
+		<g>
+			<rect x="500" y="196" width="160" height="96" rx="10" class="box" style="stroke-dasharray: 5 4" />
+			<text x="516" y="220" class="t">Instance</text>
+			<text x="516" y="242" class="t-mono">state</text>
+			<text x="516" y="260" class="t-mono">deployed, recovered</text>
+			<text x="516" y="278" class="t-sub">in memory</text>
+		</g>
+		<g>
+			<rect x="720" y="196" width="140" height="96" rx="10" class="box" style="stroke-dasharray: 5 4" />
+			<text x="736" y="220" class="t">Node</text>
+			<text x="736" y="242" class="t-mono">state, IPs</text>
+			<text x="736" y="260" class="t-mono">containerId</text>
+			<text x="736" y="278" class="t-sub">in memory</text>
+		</g>
+		<g>
+			<rect x="720" y="40" width="140" height="96" rx="10" class="box" />
+			<text x="736" y="64" class="t">User</text>
+			<text x="736" y="86" class="t-mono">sub, name</text>
+			<text x="736" y="104" class="t-mono">groups</text>
+			<text x="736" y="122" class="t-sub">from login</text>
+		</g>
+
+		<path d="M190 88 H246" class="edge" marker-end="url(#dm-a)" />
+		<text x="200" y="80" class="t-sub">contains</text>
+		<path d="M440 88 H496" class="edge" marker-end="url(#dm-a)" />
+		<text x="470" y="80" class="t-sub" text-anchor="middle">deploys</text>
+		<path d="M345 136 V192" class="edge" marker-end="url(#dm-a)" />
+		<text x="352" y="168" class="t-sub">has</text>
+		<path d="M580 136 V192" class="edge" marker-end="url(#dm-a)" />
+		<text x="588" y="160" class="t-sub">0 or 1</text>
+		<text x="588" y="176" class="t-sub">while deployed</text>
+		<path d="M660 244 H716" class="edge" marker-end="url(#dm-a)" />
+		<text x="670" y="236" class="t-sub">1..n</text>
+		<path d="M790 136 V150 H105 V140" class="edge edge-dashed" />
+		<text x="120" y="166" class="t-sub">group names = collection names</text>
+	</svg>
+	<figcaption>
+		Antimony's domain. Collections, topologies, bind files, labs and users are stored; instances and nodes (dashed) only exist while the server runs and are rebuilt when it starts.
+	</figcaption>
+</figure>

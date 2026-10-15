@@ -1,0 +1,246 @@
+---
+title: Configuration
+description: Every setting of the Antimony server, its environment variables and command line flags.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The Antimony server reads its settings from three places:
+
+- a **YAML config file**, passed with `-config`
+- **environment variables** for secrets and credentials
+- **`kinds.conf.yml`** for per-kind node settings
+
+## Config file
+
+Pass the file with `-config=./config.yml`. Without the flag, the server looks for `./config.default.yml`.
+
+Every key is optional. Antimony starts from built-in defaults and overrides whatever your file sets. If the file doesn't exist, the server logs `Configuration file not found, falling back to defaults.` and keeps going. A file that can't be parsed stops the server with `Failed to load configuration file.`
+
+<Aside type="caution" title="Misspelled keys are ignored silently">
+	Keys are case-sensitive, and unknown keys don't cause an error. A typo such as `sshport` instead of `sshPort` simply has no effect. If a setting doesn't seem to apply, check its spelling against this page.
+</Aside>
+
+<Aside type="note" title="The Docker image has no config file">
+	The backend repository's `config.default.yml` lists every setting with its default, but the Docker image doesn't contain a config file. Mount your own, as the [Docker deployment](/docs/deployment/docker/) does.
+</Aside>
+
+A complete example with the defaults:
+
+```yaml title="config.yml"
+server:
+  host: 127.0.0.1
+  port: 3000
+
+deployment:
+  provider: containerlab
+
+auth:
+  methods: [admin]
+  openIdIssuer: ""
+  openIdClientId: ""
+  openIdRedirectHost: ""
+  openIdAdminGroups: []
+
+security:
+  topologyPolicy: true
+  allowedImagePrefixes: []
+
+shell:
+  userLimit: 20
+  timeout: 1800
+
+database:
+  host: 127.0.0.1
+  port: 5432
+  database: antimony
+  user: antimony
+  localFile: ./db/antimony.db
+
+ssh:
+  enabled: true
+  sshHost: 127.0.0.1
+  sshPort: 6969
+  sshKeyPath: ./key
+
+capture:
+  enabled: true
+  excludedInterfaces: ["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]
+
+streaming:
+  containerLogBacklog: 1000
+  clabLogBacklog: 1000
+
+filesystem:
+  storage: ./storage/
+  run: ./run/
+
+containerlab:
+  schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
+  schemaFallback: ./data/clab.schema.json
+  annotationsSchemaUrl: ""
+  annotationsSchemaFallback: ./data/clab.annotations.schema.json
+  deviceConfig: ./data/device-config.json
+  kindsConfig: ./kinds.conf.yml
+```
+
+Relative paths resolve against the server's working directory. In the Docker image, that's `/app`.
+
+### server
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `host` | `127.0.0.1` | Address the HTTP API and Socket.IO server bind to. Keep `127.0.0.1` when a reverse proxy on the same host forwards to it; use `0.0.0.0` to accept connections from other machines. |
+| `port` | `3000` | Port of the HTTP API and Socket.IO server. |
+
+### deployment
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `provider` | `containerlab` | How labs are deployed: `containerlab` (Docker on the same host), `clabernetes` ([Kubernetes](/docs/deployment/clabernetes/)) or `dummy`. The value isn't case-sensitive. An unknown value stops the server. |
+
+The `dummy` provider deploys nothing. It simulates labs with fake nodes, logs and statistics, which is useful for trying out the interface or running the end-to-end tests. Packet capture isn't available with it.
+
+### auth
+
+See [Authentication](/docs/deployment/authentication/) for how these fit together.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `methods` | `[admin]` | The ways to sign in: `admin` (the admin account from `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`), `openid` (an OpenID Connect provider) and `desktop` (used by the desktop app, with `SB_DESKTOP_TOKEN`). An unknown method stops the server. |
+| `openIdIssuer` | `""` | Issuer URL of the OpenID provider, for example `https://sso.example.com/realms/antimony`. |
+| `openIdClientId` | `""` | Client ID registered with the provider. The client secret goes in `SB_OIDC_SECRET`. |
+| `openIdRedirectHost` | `""` | Public base URL the provider redirects back to. Antimony appends `/users/login/success`. Include the `/api` prefix when the server sits behind the reverse proxy, for example `https://antimony.example.com/api`. |
+| `openIdAdminGroups` | `[]` | Users in any of these groups become administrators. |
+
+Each enabled method needs its secrets: the server doesn't start if `admin` is enabled without `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`, `openid` without `SB_OIDC_SECRET`, or `desktop` without `SB_DESKTOP_TOKEN`. With an empty list, nobody can sign in.
+
+### security
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `topologyPolicy` | `true` | Enforce the [topology policy](/docs/deployment/topology-policy/): users who aren't administrators can't deploy topologies with unsafe features, such as host binds, privileged nodes or commands that run on the server. Findings are shown on every topology either way. |
+| `allowedImagePrefixes` | `[]` | Image prefixes nodes may use, for example `["ghcr.io/nokia/", "registry.example.com/"]`. Other images are findings of the topology policy. An empty list allows every image. |
+
+### shell
+
+These limits apply to terminals opened in the browser. They don't apply to shells opened through the [SSH server](/docs/manual/ssh-server/).
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `userLimit` | `20` | Maximum number of terminals one user can have open at the same time. |
+| `timeout` | `1800` | Seconds of inactivity after which a terminal is closed. |
+
+### database
+
+PostgreSQL is used by default. Start the server with `-sqlite` to use a SQLite file instead.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `host` | `127.0.0.1` | PostgreSQL host. |
+| `port` | `5432` | PostgreSQL port. |
+| `database` | `antimony` | Database name. |
+| `user` | `antimony` | Database user. The password comes from `SB_DATABASE_PASSWORD`. |
+| `localFile` | `./db/antimony.db` | SQLite file used with `-sqlite`. Its directory is created if needed. |
+
+### ssh
+
+Settings of the [SSH server](/docs/manual/ssh-server/) for node shells and packet capture.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Whether the SSH server starts. Without it, terminals from your own SSH client and packet capture aren't available. Browser terminals don't need it. |
+| `sshHost` | `127.0.0.1` | Address the SSH server binds to. Use `0.0.0.0` to accept connections from other machines. |
+| `sshPort` | `6969` | Port of the SSH server. Ports below 1024 need root or `CAP_NET_BIND_SERVICE`. |
+| `sshKeyPath` | `./key` | Path of the SSH host key. A new Ed25519 key is generated if the file doesn't exist. |
+
+### capture
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Whether the interface shows capture commands. Capturing over SSH itself is always possible while the SSH server runs. |
+| `excludedInterfaces` | `["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]` | Glob patterns of interfaces hidden from node interface lists and statistics. This doesn't prevent capturing them by name. |
+
+### streaming
+
+Antimony keeps the most recent output of every log stream in memory, so a log window you open later still shows what happened before.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `containerLogBacklog` | `1000` | Lines kept per node log. |
+| `clabLogBacklog` | `1000` | Lines kept per lab deployment log. Also used as the scrollback, in bytes, of browser terminals. |
+
+`shellLinesBacklog` appears in older config files but isn't used.
+
+### filesystem
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `storage` | `./storage/` | Where topologies and their bind files are stored, one directory per topology. |
+| `run` | `./run/` | Where deployed labs live, one directory per lab with a copy of the topology and the files containerlab creates. |
+
+<Aside type="caution" title="Spelled filesystem">
+	The section is called `filesystem`, all lowercase. Older config files use `fileSystem:`, which the server ignores, so it falls back to the default paths.
+</Aside>
+
+Both directories are created at startup. If one can't be created or written to, the server stops.
+
+### containerlab
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `schemaUrl` | containerlab's schema on GitHub | Where the server downloads the containerlab JSON schema from at startup. The editor validates topologies against it. |
+| `schemaFallback` | `./data/clab.schema.json` | Local schema used when the download fails. If both fail, the server stops. The Docker image ships this file. |
+| `annotationsSchemaUrl` | `""` | Where the server downloads the schema of the graph annotations from. Empty uses the fallback. |
+| `annotationsSchemaFallback` | `./data/clab.annotations.schema.json` | Local annotations schema. The Docker image ships this file. |
+| `deviceConfig` | `./data/device-config.json` | Device and kind information shown in the editor. The Docker image ships this file. |
+| `kindsConfig` | `./kinds.conf.yml` | Path to the [node kind settings](#node-kinds-kindsconfyml). If the file is missing, all kinds use the defaults. |
+
+## Environment variables
+
+The server also loads a `.env` file from its working directory, if there is one.
+
+| Variable | Description |
+| --- | --- |
+| `SB_ADMIN_USERNAME` | Username of the admin account. Required if `auth.methods` contains `admin`. |
+| `SB_ADMIN_PASSWORD` | Password of the admin account. Required if `auth.methods` contains `admin`. |
+| `SB_JWT_SECRET` | Secret for signing login tokens. **Set this in production.** Without it, a random secret is generated at every start and everyone is logged out when the server restarts. |
+| `SB_OIDC_SECRET` | Client secret for OpenID Connect. Required if `auth.methods` contains `openid`. |
+| `SB_DESKTOP_TOKEN` | Token the desktop app signs in with. Set by the desktop app, required if `auth.methods` contains `desktop`. |
+| `SB_DATABASE_PASSWORD` | PostgreSQL password. |
+| `SB_LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` or `fatal`. |
+| `DOCKER_HOST` and other Docker variables | Used by the containerlab provider to reach Docker. |
+| `KUBECONFIG` | Used by the clabernetes provider to find the cluster. |
+
+## Command line flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-config <path>` | `./config.default.yml` | Path of the config file. |
+| `-sqlite` | off | Use the SQLite file at `database.localFile` instead of PostgreSQL. |
+| `-dev` | off | Development mode: debug logging (unless `SB_LOG_LEVEL` is set), permissive file permissions, and an extra `POST /users` endpoint for creating test users. Don't use it in production. |
+
+## Node kinds: `kinds.conf.yml`
+
+Settings per containerlab node kind. The keys are kind names, such as `nokia_srlinux` or `linux`.
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `sshUsername` | `admin` | Username Antimony uses to log in to the node when you open a terminal. |
+| `sshPassword` | none | Password for that login. Without one, Antimony tries the SSH keys in the server's `~/.ssh` directory. |
+| `canRestart` | `false` | Whether nodes of this kind can be stopped, started and restarted from the interface. Many network operating systems don't survive a container restart, so this is off by default. |
+
+```yaml title="kinds.conf.yml"
+nokia_srlinux:
+  sshUsername: admin
+  sshPassword: NokiaSrl1!
+
+cisco_csr1000v:
+  sshUsername: admin
+  sshPassword: admin
+
+linux:
+  canRestart: true
+```
+
+If the SSH login fails, for example on a container without an SSH daemon, the terminal falls back to a shell inside the container.

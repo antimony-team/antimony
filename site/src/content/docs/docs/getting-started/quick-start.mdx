@@ -1,0 +1,96 @@
+---
+title: Quick start
+description: Try Antimony on your own Linux machine in a few minutes.
+sidebar:
+  order: 1
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import zoey from '../../../../assets/zoey/zoey.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey cheering with both fists raised" width={150} densities={[1, 2]} />
+
+You need a Linux machine with Docker Engine and the Compose plugin. Labs run on the same machine.
+
+<Steps>
+
+1. **Install and start Antimony.** The script checks for Docker, downloads the latest release of Antimony into `./antimony`, generates passwords and secrets and starts everything. The first start downloads the images.
+
+    ```bash
+    curl -fsSL https://antimony.run/deploy.sh | bash
+    ```
+
+    Before it changes anything, the script checks that the ports it needs are free and shows what it will do. Antimony needs full access to the machine to run labs: its server is a privileged root container with access to Docker, it stores data in `/srv/antimony`, and it listens on ports 8080 (the web interface) and 6969 (SSH for terminals). Ports 3000, 5432 and 8100 must be free as well, but are only used on `localhost`. Confirm with <kbd>y</kbd>, or set `ANTIMONY_YES=1` to skip the question.
+
+    The script doesn't use `sudo` itself, but it needs access to Docker. If `docker ps` only works with `sudo` on your machine, run the script with `sudo` too. The install folder then belongs to root, so use `sudo` for later `docker compose` commands in it as well.
+
+    ```bash
+    curl -fsSL https://antimony.run/deploy.sh | sudo bash
+    ```
+
+    When it's done, it prints the admin password. Run the same command again later to update Antimony; your passwords are kept.
+
+2. **Open [http://localhost:8080](http://localhost:8080)** and sign in as `admin` with the printed password.
+
+</Steps>
+
+<details>
+<summary>Settings and manual install</summary>
+
+The script reads these environment variables, for example `curl -fsSL https://antimony.run/deploy.sh | SB_PORT=9000 bash`. With `sudo`, put them after it: `… | sudo SB_PORT=9000 bash`, because `sudo` drops variables set before it.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ANTIMONY_DIR` | `./antimony` | Where to install. |
+| `SB_PORT` | `8080` | Port of the web interface. |
+| `ANTIMONY_VERSION` | `latest` | The release to install, for example `1.4.2`, or `dev` for the development version. Running the script again with another version switches to it. |
+| `ANTIMONY_YES` | not set | Set to `1` to install without asking. Without a terminal, for example in automation, the script doesn't ask either. |
+
+To do it by hand instead, download the deployment of the latest release and start it. Without a `.env` file, the login is `admin` / `admin`.
+
+```bash
+curl -fsSL https://github.com/antimony-team/antimony/releases/latest/download/antimony-deployment.tar.gz | tar -xz
+cd antimony
+docker compose up -d
+```
+
+</details>
+
+<Aside type="caution">
+	These defaults are for trying Antimony on your own machine. To run it for others, follow [Deploy with Docker](/docs/deployment/docker/).
+</Aside>
+
+## Your first lab
+
+<Steps>
+
+1. Open the **Topology Editor**, create a collection called `playground` and a topology called `hello`.
+
+2. Paste this topology and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>:
+
+    ```yaml
+    name: hello
+    topology:
+      nodes:
+        alpine1:
+          kind: linux
+          image: alpine:latest
+        alpine2:
+          kind: linux
+          image: alpine:latest
+      links:
+        - endpoints: ["alpine1:eth1", "alpine2:eth1"]
+    ```
+
+3. Click **Deploy** in the toolbar, then **Deploy** in the dialog.
+
+4. On the **Dashboard**, open the lab, click `alpine1` and choose **Open Terminal**.
+
+</Steps>
+
+## Next steps
+
+- [Concepts](/docs/getting-started/concepts/): collections, topologies and labs
+- [Topology editor](/docs/manual/topology-editor/) and [lab view](/docs/manual/lab-view/)
+- [Capture traffic in Wireshark](/docs/manual/ssh-server/)

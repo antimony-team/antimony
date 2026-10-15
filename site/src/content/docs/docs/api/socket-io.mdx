@@ -1,0 +1,296 @@
+---
+title: Socket.IO API
+description: Live updates, logs, statistics, terminals and lab commands over Socket.IO.
+sidebar:
+  label: Socket.IO API
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Everything live in Antimony runs over [Socket.IO](https://socket.io/) (protocol v4): lab state changes, logs, statistics, terminals and commands such as deploying a lab. The server listens at `/socket.io` on the same host as the interface.
+
+## Connecting
+
+Every namespace requires the access token from the `accessToken` cookie (see [authentication flow](/docs/architecture/auth-flow/)) in the handshake:
+
+```ts
+import { io } from 'socket.io-client';
+
+const updates = io('http://localhost:8080/lab-updates', {
+	transports: ['websocket'],
+	auth: { token: accessToken },
+});
+```
+
+If the handshake fails, the connection error's message is one of:
+
+| Message | Reason |
+| --- | --- |
+| `Unauthorized` | No token in `auth.token`. |
+| `Invalid Token` | The token is invalid or expired. Refresh it and reconnect. |
+| `No Access` | The namespace is restricted to other users, for example someone else's terminal, or the logs of a lab in a collection you aren't a member of. |
+
+### Access is checked when connecting
+
+The server checks a client's access once, when it connects to a namespace. A client that loses access while it's connected keeps receiving messages until it disconnects, for example when a lab moves to a collection the user isn't a member of. Reconnecting checks access again.
+
+A user's collections are updated when they sign in, so a change of their OpenID groups only applies from their next login.
+
+## Events
+
+Namespaces use three events:
+
+| Event | Direction | Content |
+| --- | --- | --- |
+| `data` | server → client | A message. |
+| `backlog` | server → client | Sent once, right after connecting, on namespaces that keep a backlog: an array of the most recent messages, each in the same format as on `data`. |
+| `data` | client → server | A request, on namespaces that accept input. Send it **as a string**: JSON for `/cmd`, raw text for terminals. Pass an acknowledgement callback to get the response. |
+
+Messages come in two formats:
+
+- **Wrapped**: `{ "payload": <message> }`
+- **Raw**: the message itself, without a wrapper.
+
+Responses to requests are either `{ "payload": <result> }` or an error `{ "code": <number>, "message": <text> }`, see [error codes](#error-codes). A request that isn't a string gets error `5422`. Without an acknowledgement callback, the request is still carried out, but you get no response.
+
+## Namespaces
+
+Each namespace below lists the same properties:
+
+| Property | Meaning |
+| --- | --- |
+| Direction | Who sends on the namespace. |
+| Created | When the namespace exists. Connecting to a namespace that doesn't exist yet fails. |
+| Access | Who can connect, [checked when connecting](#access-is-checked-when-connecting). |
+| Sent | When a message is sent. |
+| Format | Wrapped or raw, see [Events](#events). An example message follows the table. |
+| Backlog | What a client gets on `backlog` when it connects. |
+
+### `/lab-updates`
+
+Notifies clients that a lab's deployment changed, so they can reload the lab with `GET /labs/<labId>`.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Created | When the server starts |
+| Access | All signed-in users |
+| Sent | When a lab is deploying, running, stopping or failed, and when one of its nodes changes state. Once more after the server starts, with `labId` set to `null`. |
+| Format | Wrapped |
+| Backlog | None |
+
+```json
+{ "payload": { "labId": "<lab UUID>" } }
+```
+
+`labId` is `null` after the server restarted: reload all labs. Creating, editing or deleting a lab through the REST API doesn't send a message.
+
+### `/status-messages`
+
+Notifications shown in the interface's Messages panel, such as finished or failed deployments.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Created | When the server starts |
+| Access | All signed-in users |
+| Sent | When a lab starts or finishes deploying or destroying, when that fails, and when the files of a deleted lab can't be removed |
+| Format | Wrapped |
+| Backlog | None |
+
+```json
+{
+	"payload": {
+		"id": "1f0e…",
+		"source": "Runtime",
+		"content": "Successfully deployed lab 'OSPF Lab 1'",
+		"logContent": "17:35:37 SUCCESS … Deployment of lab was successful …",
+		"timestamp": "2026-10-07T17:35:37Z",
+		"severity": 0
+	}
+}
+```
+
+`severity` is `0` success, `1` info, `2` warning, `3` error or `4` fatal. `logContent` is the same message formatted as a log line, which also appears in the lab's log.
+
+### `/logs/<labId>`
+
+The deployment log of a lab: the output of containerlab or clabernetes, plus Antimony's own messages about the lab.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Created | When the lab is deployed, or restored after the server restarted |
+| Access | Administrators and members of the lab's collection |
+| Sent | For every line of output |
+| Format | Raw |
+| Backlog | The last `streaming.clabLogBacklog` lines (default 1000) |
+
+```json
+"17:35:12 INFO Creating lab directory: /srv/antimony/run/…"
+```
+
+Each message is one line as a string.
+
+### `/logs/<labId>/<node>`
+
+The container log of one node: its standard output and standard error.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Created | When the lab is deployed, or restored after the server restarted |
+| Access | Administrators and members of the lab's collection |
+| Sent | For every line the container logs while the node is running |
+| Format | Raw |
+| Backlog | The last `streaming.containerLogBacklog` lines (default 1000) |
+
+```json
+"2026-10-07T17:36:02.481920773Z Starting the routing daemon…"
+```
+
+Each message is one line as a string, starting with Docker's timestamp.
+
+### `/stats/<containerId>`
+
+Resource usage of one node. `containerId` is the node's container ID (the pod UID with clabernetes).
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Created | When the node has started |
+| Access | All signed-in users |
+| Sent | Once per second while the node is running |
+| Format | Raw |
+| Backlog | The last 20 samples |
+
+```json
+{
+	"timestamp": "2026-10-07T17:40:01Z",
+	"cpuPercent": 1.8,
+	"memoryUsage": 937984,
+	"memoryLimit": 16642998272,
+	"interfaces": {
+		"eth1": { "rxBps": 1100, "txBps": 0 }
+	}
+}
+```
+
+Memory is in bytes, interface throughput (`rxBps`, `txBps`) in bytes per second.
+
+### `/cmd`
+
+Lab, node and terminal commands.
+
+| | |
+| --- | --- |
+| Direction | Client → server, with the response as acknowledgement |
+| Created | When the server starts |
+| Access | All signed-in users. Each command checks its own permissions, see below. |
+| Sent | Whenever the client sends a command |
+| Format | Request: a JSON string. Response: wrapped, or an error. |
+| Backlog | None |
+
+```json
+{ "command": 4, "labId": "<lab UUID>", "node": "leaf1" }
+```
+
+`command` selects the command, the other fields depend on it:
+
+| Command | Value | Fields | Response payload | Allowed for |
+| --- | --- | --- | --- | --- |
+| Deploy lab | `0` | `labId` | `null` | Lab creator, administrators |
+| Destroy lab | `1` | `labId` | `null` | Lab creator, administrators |
+| Start node | `2` | `labId`, `node` | `null` | Lab creator, administrators |
+| Stop node | `3` | `labId`, `node` | `null` | Lab creator, administrators |
+| Restart node | `4` | `labId`, `node` | `null` | Lab creator, administrators |
+| List my terminals | `5` | `labId` | `[{ "id", "node" }]` | Users with access to the lab |
+| Open terminal | `6` | `labId`, `node`, `cols`, `rows` | The new terminal's ID as a string | Users with access to the lab |
+| Close terminal | `7` | `shellId` | `null` | The terminal's owner, administrators |
+| Resize terminal | `8` | `shellId`, `cols`, `rows` | `null` | The terminal's owner, administrators |
+
+`cols` and `rows` are the terminal's size in characters. Users have access to a lab if they're a member of its collection.
+
+```ts
+const cmd = io('http://localhost:8080/cmd', { transports: ['websocket'], auth: { token } });
+
+cmd.emit('data', JSON.stringify({ command: 4, labId, node: 'leaf1' }), (response) => {
+	if ('code' in response) console.error(response.code, response.message);
+});
+```
+
+Deploying and destroying can take a while, and the response only comes when they're done. Follow the progress on `/lab-updates` and `/logs/<labId>`.
+
+Node commands only work on running labs, and only on nodes of kinds with `canRestart: true` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml).
+
+### `/shell/<shellId>`
+
+The input and output of one terminal.
+
+| | |
+| --- | --- |
+| Direction | Both |
+| Created | When the terminal is opened with command `6` on `/cmd`, removed when it closes |
+| Access | Only the user who opened the terminal |
+| Sent | Output: whenever the node writes to the terminal. Input: whenever the client sends keystrokes. |
+| Format | Output: raw bytes. Input: a string. |
+| Backlog | The last `streaming.clabLogBacklog` bytes of output (default 1000) |
+
+```ts
+shell.on('data', (bytes: ArrayBuffer) => terminal.write(new Uint8Array(bytes)));
+shell.emit('data', 'show version\r');
+```
+
+Output arrives in chunks of bytes as the node writes them, not as lines. The backlog is one chunk with the most recent output.
+
+Terminals close after `shell.timeout` seconds without input (default 1800). A user can have at most `shell.userLimit` terminals open (default 20).
+
+### `/shell-control`
+
+Notifies clients about terminals that failed or were closed.
+
+| | |
+| --- | --- |
+| Direction | Server → client |
+| Created | When the server starts |
+| Access | All signed-in users |
+| Sent | When a terminal fails or closes |
+| Format | Wrapped |
+| Backlog | None |
+
+```json
+{
+	"payload": {
+		"labId": "<lab UUID>",
+		"node": "leaf1",
+		"shellId": "<terminal ID>",
+		"command": 1,
+		"message": "shell was inactive for too long"
+	}
+}
+```
+
+`command` is `0` when the terminal failed, with the reason in `message`, and `1` when it closed, for example because its owner closed it, it timed out or its connection ended.
+
+## Error codes
+
+| Code | Meaning |
+| --- | --- |
+| `5000` | Unexpected server error |
+| `5011` | Lab not found |
+| `5012` | The lab isn't running |
+| `5013` | Another operation is already running on this lab |
+| `5021` | Node not found |
+| `5022` | The node isn't running |
+| `5023` | The node doesn't support this operation |
+| `5031` | Terminal not found |
+| `5032` | Terminal limit reached |
+| `5400` | Unknown command |
+| `5403` | Not allowed |
+| `5404` | The lab, topology or another object doesn't exist |
+| `5422` | Invalid request, for example missing fields or invalid JSON |
+| `5500` | The deployment provider failed |
+
+<Aside type="note">
+	The Socket.IO API is used by the interface and isn't versioned yet. It may change between releases.
+</Aside>

@@ -1,59 +1,45 @@
-general:
-  # The provider that will be used to deploy nodes [containerlab, clabernetes].
-  # Default: containerlab
-  provider: containerlab
+# Antimony server configuration.
+# All options: https://antimony.run/docs/deployment/configuration/
+
 server:
-  # Default: 127.0.0.1
+  # Only reachable through Traefik on the same host.
   host: 127.0.0.1
-  # Default: 3000
   port: 3000
+
+deployment:
+  # containerlab (Docker on this host), clabernetes (Kubernetes) or dummy.
+  provider: containerlab
+
 auth:
-  # Whether to enable the native admin login. Username and password have to be set via env variables.
-  # Default: true
-  enableNative: true
-  # Whether to enable authentication via OpenID connect.
-  # Default: false
-  enableOpenId: false
-  # Default: ""
+  # The ways to sign in: admin, openid or both.
+  #   admin   Admin login with SB_ADMIN_USERNAME and SB_ADMIN_PASSWORD from .env.
+  #   openid  Login through an OpenID Connect provider. The client secret goes in SB_OIDC_SECRET.
+  methods: [admin]
   openIdIssuer: ""
-  # Default: ""
   openIdClientId: ""
-  # Users in these OpenID groups are granted admin privileges.
-  # Default: []
+  openIdRedirectHost: ""
   openIdAdminGroups: []
+
 shell:
-  # How many shells a user can have open at the same time.
-  # Default: 20
   userLimit: 20
-  # How long the server will wait before closing inactive shells (in seconds).
-  # Default: 1800
   timeout: 1800
+
 database:
-  # Default: 127.0.0.1
   host: 127.0.0.1
-  # Default: 5432
   port: 5432
-  # Default: antimony
   database: antimony
-  # Default: antimony
   user: antimony
-  # The DB file that is used if the local database flag is set.
-  # Default: ./antimony.db
-  localFile: ./db/antimony.db
+
+ssh:
+  # SSH server for node shells and packet capture. It doesn't authenticate
+  # clients, so only expose this port to trusted networks.
+  sshHost: 0.0.0.0
+  sshPort: 6969
+  sshKeyPath: ./ssh/host_key
+
+capture:
+  excludedInterfaces: ["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]
+
 filesystem:
-  # Topology definition and metadata files will be stored in this directory.
-  # Default: ./storage/
-  storage: ./storage/
-  # Runtime lab files will be stored in this directory.
-  # Default: ./run/
-  run: ./run/
-containerlab:
-  # The URL where the server is trying to fetch the containerlab schema from.
-  # Default: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
-  schemaUrl: https://raw.githubusercontent.com/srl-labs/containerlab/refs/heads/main/schemas/clab.schema.json
-  # The path to a local schema that will be used if the remote schema is not available.
-  # Default: ./data/clab.schema.json
-  schemaFallback: ./data/clab.schema.json
-  # The path to the device config file.
-  # Default: ./data/device-config.json
-  deviceConfig: ./data/device-config.json
+  storage: /srv/antimony/storage/
+  run: /srv/antimony/run/

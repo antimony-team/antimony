@@ -1,53 +1,35 @@
 name: antimony
 
+# Settings come from .env (see .env.example). Every value has a default,
+# so `docker compose up` also works without a .env file for local testing.
+
 services:
   traefik:
-    image: traefik:v3.4.1
+    image: traefik:v3.7.4
     restart: unless-stopped
-    container_name: traefik
     network_mode: host
     command:
       - --log.level=INFO
-      - --api.insecure=true
       - --providers.docker=true
       - --providers.docker.exposedByDefault=false
-
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-
-      # HTTP -> HTTPS redirect
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-
-      # ACME / Let's Encrypt config
-      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.email=antimony@ost.ch
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-
-      # Self-signed certificate fallback
-      - --entrypoints.websecure.forwardedHeaders.insecure=true
-      - --serversTransport.insecureSkipVerify=true
-
+      # Antimony is served over plain HTTP, the only port that is open to the network besides SSH
+      - --entrypoints.web.address=:${SB_PORT:-8080}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./letsencrypt:/letsencrypt
-
-    depends_on:
-     - server
-     - interface
 
   database:
-    container_name: database
-    image: postgres
-    restart: always
+    image: postgres:18
+    restart: unless-stopped
     shm_size: 128mb
     network_mode: host
+    # Only the server on this host connects to the database
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
     environment:
-      - POSTGRES_PASSWORD=postgres
-      - SB_DATABASE_PASSWORD=antimony
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - SB_DATABASE_PASSWORD=${SB_DATABASE_PASSWORD:-antimony}
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
       timeout: 3s
       retries: 10
@@ -56,64 +38,64 @@ services:
       - ./postgres:/docker-entrypoint-initdb.d/
 
   interface:
-    container_name: interface
-    image: ghcr.io/antimony-team/antimony-interface:latest
+    # ANTIMONY_VERSION picks the version of Antimony, e.g. 1.4.2, or dev for the development branch.
+    # The deployment archive of a release has its own version as the default.
+    image: ghcr.io/antimony-team/antimony-interface:${ANTIMONY_VERSION:-latest}
+    restart: unless-stopped
+    # Only reachable through Traefik on the same host
+    command: ["serve", "-s", "-l", "tcp://127.0.0.1:8100", "."]
+    network_mode: host
     depends_on:
       - server
-    network_mode: host
     labels:
       - traefik.enable=true
       - traefik.http.routers.interface.rule=PathPrefix(`/`)
-      - traefik.http.routers.interface.entrypoints=websecure
-      - traefik.http.routers.interface.tls.certresolver=letsencrypt
-      - traefik.http.routers.interface.service=interface
-      # - traefik.http.routers.interface.tls.domains[0].main=example.com
+      - traefik.http.routers.interface.entrypoints=web
       - traefik.http.services.interface.loadbalancer.server.port=8100
-      - traefik.http.services.interface.loadbalancer.server.scheme=http
 
   server:
-    container_name: server
-    image: ghcr.io/antimony-team/antimony-backend:latest
-    environment:
-      - SB_NATIVE_USERNAME=admin
-      - SB_NATIVE_PASSWORD=admin
-      - SB_DATABASE_PASSWORD=antimony
-    privileged: true
-    network_mode: host
+    image: ghcr.io/antimony-team/antimony-backend:${ANTIMONY_VERSION:-latest}
+    restart: unless-stopped
     command: -config=./config.yml
+    network_mode: host
+    privileged: true
+    pid: host
+    cgroup: host
+    user: root
+    environment:
+      - SB_ADMIN_USERNAME=${SB_ADMIN_USERNAME:-admin}
+      - SB_ADMIN_PASSWORD=${SB_ADMIN_PASSWORD:-admin}
+      - SB_JWT_SECRET=${SB_JWT_SECRET:-}
+      - SB_OIDC_SECRET=${SB_OIDC_SECRET:-}
+      - SB_DATABASE_PASSWORD=${SB_DATABASE_PASSWORD:-antimony}
+      - SB_LOG_LEVEL=${SB_LOG_LEVEL:-info}
     volumes:
-      - ./config.yml:/app/config.yml
-      - ./mnt/db:/app/db
-      - ./mnt/storage:/app/storage/
-      - ./mnt/run:/app/run/
+      - ./config.yml:/app/config.yml:ro
+      - ./kinds.conf.yml:/app/kinds.conf.yml:ro
+      - ./mnt/ssh:/app/ssh
+      # Topologies and labs. These must have the same path on the host and in the
+      # container, because containerlab passes bind file paths to the host's Docker.
+      - /srv/antimony:/srv/antimony
+      # containerlab
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/netns:/var/run/netns
+      - /var/lib/docker:/var/lib/docker
+      - /etc/hosts:/etc/hosts
+      # clabernetes: uncomment to give the server access to your Kubernetes cluster
+      # - $HOME/.kube/config:/root/.kube/config:ro
     depends_on:
       database:
         condition: service_healthy
     labels:
-      # Server '/socket.io' route
       - traefik.enable=true
-      - traefik.http.routers.server-socket.rule=PathPrefix(`/socket.io`)
-      - traefik.http.routers.server-socket.entrypoints=websecure
-      - traefik.http.routers.server-socket.tls.certresolver=letsencrypt
-      - traefik.http.routers.server-socket.service=server-socket
-      # - traefik.http.routers.server-socket.tls.domains[0].main=example.com
-      - traefik.http.services.server-socket.loadbalancer.server.port=3000
-      - traefik.http.services.server-socket.loadbalancer.server.scheme=http
-
-      # Add web socket headers
-      - traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Connection=Upgrade
-      - traefik.http.middlewares.socketio-headers.headers.customrequestheaders.Upgrade=websocket
-      - traefik.http.routers.server-socket.middlewares=socketio-headers
-
-      # Server '/api' route
+      # REST API under /api, with the prefix removed
       - traefik.http.routers.server-api.rule=PathPrefix(`/api`)
-      - traefik.http.routers.server-api.entrypoints=websecure
-      - traefik.http.routers.server-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.server-api.service=server-api
+      - traefik.http.routers.server-api.entrypoints=web
       - traefik.http.routers.server-api.middlewares=api-strip-prefix
-      # - traefik.http.routers.server-api.tls.domains[0].main=example.com
-      - traefik.http.services.server-api.loadbalancer.server.port=3000
-      - traefik.http.services.server-api.loadbalancer.server.scheme=http
-
+      - traefik.http.routers.server-api.service=server
       - traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api
+      # Socket.IO
+      - traefik.http.routers.server-socket.rule=PathPrefix(`/socket.io`)
+      - traefik.http.routers.server-socket.entrypoints=web
+      - traefik.http.routers.server-socket.service=server
+      - traefik.http.services.server.loadbalancer.server.port=3000

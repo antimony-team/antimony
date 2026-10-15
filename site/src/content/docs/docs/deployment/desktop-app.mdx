@@ -1,0 +1,135 @@
+---
+title: Desktop app
+description: Run Antimony on your own Linux machine with the desktop app, without setting up a server.
+sidebar:
+  label: Desktop app
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+The desktop app runs Antimony on your own machine, for one person. It starts the Antimony server itself, in a Docker container next to your labs, and signs you in automatically. There is nothing to configure and no login.
+
+To run Antimony for several people, or on a server, use the [Docker deployment](/docs/deployment/docker/) instead.
+
+## Requirements
+
+- **Linux** on x86_64 or ARM64.
+- **Docker Engine**, running, and your user allowed to use it, for example as a member of the `docker` group. Labs need it anyway.
+- **An internet connection on the first start**, to download the Antimony server.
+
+<Aside type="caution" title="Docker Desktop doesn't work">
+	Docker Desktop runs containers in a virtual machine, where labs can't reach the host's network. The app checks for Docker Engine at `/var/run/docker.sock` and stops with an error if only Docker Desktop is installed. Install [Docker Engine](https://docs.docker.com/engine/install/) instead.
+</Aside>
+
+## Install
+
+<Steps>
+
+1. **Download the AppImage** for your processor from the latest of the [releases of Antimony](https://github.com/antimony-team/antimony/releases): `x86_64` for Intel and AMD, `arm64` for ARM.
+
+2. **Make it executable and start it.**
+
+    ```bash
+    chmod +x Antimony-*.AppImage
+    ./Antimony-*.AppImage
+    ```
+
+    On the first start, a small window shows the download of the Antimony server. After that, the app opens.
+
+</Steps>
+
+## Using the app
+
+- **Closing the window** keeps Antimony running in the system tray, together with your labs. Open it again from the tray icon, or by starting the app again.
+- **Quit Antimony** in the tray menu stops the server. Running labs keep running, and the server picks them up again at the next start.
+- **Only one instance runs at a time.** Starting the app again opens the existing window.
+
+Terminals, packet capture and everything else work as in the web version. **Copy SSH command** and **Copy capture command** use the server the app started, on `127.0.0.1`.
+
+<Aside type="note" title="Tray icons on GNOME">
+	GNOME only shows tray icons with an extension such as [AppIndicator Support](https://extensions.gnome.org/extension/615/appindicator-support/). Without one, a closed window can only be opened again by starting the app again.
+</Aside>
+
+## How it works
+
+At every start, the app:
+
+1. checks that Docker Engine is reachable, and that it isn't Docker Desktop,
+2. downloads the server image if it isn't there yet,
+3. picks two free ports on `127.0.0.1`, one for the API and one for the [SSH server](/docs/manual/ssh-server/),
+4. writes the server's `config.yml` and starts the server container,
+5. opens the window, which signs in with a token that is new on every start.
+
+The server runs like the one of the [Docker deployment](/docs/deployment/docker/): privileged, with access to Docker and the host's network, so that it can run containerlab. It only listens on `127.0.0.1` and uses SQLite instead of PostgreSQL. When you quit the app, its container is removed.
+
+The app uses the server of its own version, `ghcr.io/antimony-team/antimony-backend:<version>`. Development builds use `:dev` and check for a newer one at every start.
+
+### Files
+
+Everything is kept in the app's data folder, `~/.config/Antimony`:
+
+| File | Contents |
+| --- | --- |
+| `antimony.db` | The database: collections, topologies, labs |
+| `storage/`, `run/` | Topologies with their bind files, and deployed labs |
+| `kinds.conf.yml` | Optional [node kind settings](/docs/deployment/configuration/#node-kinds-kindsconfyml), for example SSH logins for terminals. Create it to use it. |
+| `config.yml` | The server's configuration, written at every start. Changes are overwritten. |
+| `server.log` | The server's output, which also goes to the app's own output |
+| `ssh_host_key` | Host key of the SSH server |
+
+The server runs as root in its container, so the files it creates belong to root. To remove the folder, use `sudo rm -r ~/.config/Antimony`.
+
+### Settings
+
+| Environment variable | Description |
+| --- | --- |
+| `SB_SERVER_IMAGE` | Server image to start instead of the app's own version, for example `SB_SERVER_IMAGE=ghcr.io/antimony-team/antimony-backend:dev`. |
+
+The app always uses Docker Engine at `/var/run/docker.sock`. `DOCKER_HOST` doesn't change it.
+
+## Troubleshooting
+
+| Problem | Solution |
+| --- | --- |
+| "Antimony needs Docker Engine, but only Docker Desktop was found." | Install Docker Engine. Both can be installed side by side. |
+| "You aren't allowed to use Docker." | Add your user to the `docker` group, then log out and in again. |
+| "The Antimony server … couldn't be downloaded: manifest unknown" | There is no server image for this version. Use a released AppImage, or start the app with `SB_SERVER_IMAGE`. |
+| "The Antimony server stopped unexpectedly." | See `server.log` in `~/.config/Antimony`. |
+
+## Developing the app
+
+The desktop app reuses the web interface. Everything specific to it is in the interface's `electron/` folder:
+
+| File | Purpose |
+| --- | --- |
+| `main.ts` | The app: startup, window, tray, single instance, stopping the server when the app quits |
+| `server.ts` | Picks the image and the ports, writes the server's config and starts the server container |
+| `docker.ts` | A small client for the Docker Engine API: the Docker Desktop check, image downloads with progress, containers and their output |
+| `splash.ts` | The window that shows what the app is doing while it starts |
+| `preload.ts` | Passes the server's address and the login token to the interface |
+| `config.yml` | Settings of the server on top of its defaults, such as `auth.methods: [admin, desktop]`. Ports and paths are set by the app. |
+| `vite.config.ts`, `electron-builder.yml` | Build and packaging |
+
+The interface signs in with the [desktop login](/docs/architecture/auth-flow/#desktop-app) and sends the access token in a header, since the window is loaded from a file and can't use cookies.
+
+### Building it
+
+You need Node.js 26, Yarn 1 (`corepack enable`), [Task](https://taskfile.dev/installation/), and the tools that render the icons and assemble the AppImage. On Debian or Ubuntu:
+
+```bash
+sudo apt install librsvg2-bin libarchive-tools rpm
+```
+
+```bash
+git clone https://github.com/antimony-team/antimony-interface
+cd antimony-interface
+task package-electron-linux
+```
+
+The AppImages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in the backend and start the app with `SB_SERVER_IMAGE=antimony-backend:dev`.
+
+Without packaging, `task build-electron` followed by `yarn electron .` starts the app from the repository. It then always uses the local image `antimony-backend:dev`, and shows the server's output in your terminal.
+
+### Releases
+
+The interface's CI builds the AppImages for `v*` tags and manual runs and keeps them as the workflow artifact `appimage`, to catch build failures early. Released AppImages come from the [Antimony repository](https://github.com/antimony-team/antimony): a `v*` tag there builds the AppImages from the interface at the same tag and attaches them to the release. Tag the backend first, since the release checks that the server image of that version exists.

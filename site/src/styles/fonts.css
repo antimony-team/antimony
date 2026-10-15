@@ -1,0 +1,4 @@
+/* Self-hosted fonts, so pages never wait for a third-party font server. */
+@import '@fontsource-variable/figtree';
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/jetbrains-mono';

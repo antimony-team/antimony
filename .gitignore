@@ -3,4 +3,6 @@
 mnt/
 db/
 
-letsencrypt/
+
+.env
+.db/

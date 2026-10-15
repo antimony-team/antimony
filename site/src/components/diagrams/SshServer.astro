@@ -1,0 +1,76 @@
+---
+// How a connection to Antimony's SSH server becomes a shell or a packet capture.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 880 330" role="img" aria-labelledby="ssh-title ssh-desc">
+		<title id="ssh-title">Antimony SSH server</title>
+		<desc id="ssh-desc">
+			A client connects to the SSH server with the node identifier as username. Without a command, Antimony opens a
+			shell on the node. With a command, it reads the interface name and streams a pcap capture of that interface back
+			to the client, for example into Wireshark.
+		</desc>
+		<defs>
+			<marker id="ssh-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+			<marker id="ssh-aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+			<marker id="ssh-aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-warm" />
+			</marker>
+		</defs>
+
+		<!-- Client -->
+		<rect x="20" y="30" width="200" height="270" rx="14" class="zone" />
+		<text x="36" y="54" class="t-zone">Your machine</text>
+		<rect x="36" y="76" width="168" height="74" rx="10" class="box" />
+		<text x="52" y="102" class="t">Terminal</text>
+		<text x="52" y="122" class="t-mono">ssh -t leaf1@host</text>
+		<text x="52" y="138" class="t-sub">no command</text>
+		<rect x="36" y="196" width="168" height="84" rx="10" class="box" />
+		<text x="52" y="222" class="t">Wireshark</text>
+		<text x="52" y="242" class="t-mono">ssh … eth1 |</text>
+		<text x="52" y="258" class="t-mono">wireshark -k -i -</text>
+
+		<!-- SSH server -->
+		<rect x="300" y="60" width="230" height="220" rx="14" class="box-accent" />
+		<text x="318" y="88" class="t">Antimony SSH server</text>
+		<text x="318" y="106" class="t-mono">ssh.sshPort (6969)</text>
+		<rect x="318" y="122" width="194" height="40" rx="8" class="box" />
+		<text x="330" y="140" class="t-sub">1. Find the node from</text>
+		<text x="330" y="155" class="t-sub">the username</text>
+		<rect x="318" y="172" width="194" height="40" rx="8" class="box" />
+		<text x="330" y="190" class="t-sub">2. Command sent?</text>
+		<text x="330" y="205" class="t-sub">no → shell · yes → capture</text>
+		<rect x="318" y="222" width="194" height="40" rx="8" class="box" />
+		<text x="330" y="240" class="t-sub">3. Share one capture</text>
+		<text x="330" y="255" class="t-sub">between all viewers</text>
+
+		<path d="M204 113 H296" class="edge" marker-end="url(#ssh-a)" />
+		<path d="M296 238 H204" class="edge-warm" marker-end="url(#ssh-aw)" />
+		<text x="228" y="230" class="t-mono">pcap</text>
+		<path d="M204 222 C 250 222, 250 150, 296 150" class="edge edge-dashed" marker-end="url(#ssh-a)" />
+
+		<!-- Lab node -->
+		<rect x="610" y="30" width="250" height="270" rx="14" class="zone" />
+		<text x="626" y="54" class="t-zone">Lab node</text>
+		<rect x="626" y="76" width="218" height="86" rx="10" class="box" />
+		<text x="642" y="100" class="t">Shell</text>
+		<text x="642" y="120" class="t-sub">SSH to the node on port 22,</text>
+		<text x="642" y="136" class="t-sub">or a shell in the container</text>
+		<text x="642" y="152" class="t-mono">kinds.conf.yml credentials</text>
+		<rect x="626" y="184" width="218" height="96" rx="10" class="box-warm" />
+		<text x="642" y="208" class="t">Capture</text>
+		<text x="642" y="228" class="t-sub">containerlab: raw socket in</text>
+		<text x="642" y="244" class="t-sub">the container's network namespace</text>
+		<text x="642" y="264" class="t-sub">clabernetes: clabwire sidecar</text>
+
+		<path d="M530 120 H622" class="edge-accent" marker-end="url(#ssh-aa)" />
+		<path d="M622 232 H534" class="edge-warm" marker-end="url(#ssh-aw)" />
+	</svg>
+	<figcaption>
+		The SSH username selects the node. Leaving out the command opens a shell; sending one starts a capture of the named interface.
+	</figcaption>
+</figure>

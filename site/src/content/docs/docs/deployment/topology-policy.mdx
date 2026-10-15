@@ -1,0 +1,145 @@
+---
+title: Topology policy
+description: Which topology features Antimony blocks on a shared server, why, and how to turn the policy on or off.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A containerlab topology can do much more than connect routers. It can run commands on the server, mount the server's files or plug a lab into the server's network. On your own laptop that's fine. On a shared Antimony server, the same features let one user reach the server, Antimony's secrets or someone else's lab.
+
+The **topology policy** looks for these features in every topology. Each one it finds is listed as a **finding** on the topology. A topology without findings can only affect its own lab.
+
+## What happens to an unsafe topology
+
+- **Everyone sees the findings.** Every topology carries its list of findings, so you know what it does before you deploy it.
+- **Only administrators can deploy it.** Other users get the error *the topology contains unsafe features that the server rejected* (code `3005`).
+- **Nothing is executed to find out.** The policy only reads the topology file, so checking an untrusted topology is safe.
+- **Unknown means unsafe.** A field the policy doesn't know, for example one added in a newer containerlab version, is reported too, rather than slipping through.
+
+## Turning it on or off
+
+The policy is on by default. Set `security.topologyPolicy` in the [config file](/docs/deployment/configuration/#security):
+
+```yaml title="config.yml"
+security:
+  topologyPolicy: false
+```
+
+| Value | Who can deploy unsafe topologies |
+| --- | --- |
+| `true` (default) | Administrators only. |
+| `false` | Everyone. Findings are still shown. |
+
+Only turn it off if everyone who can deploy labs is someone you would give root access to the server. Many of the features below amount to exactly that.
+
+## What the policy blocks
+
+The policy checks every node, as well as `defaults`, `kinds` and `groups`, since nodes inherit their settings.
+
+### Running commands on the server
+
+Anything here runs code with the permissions of the Antimony server, just by deploying the lab.
+
+| In the topology | Why it's blocked |
+| --- | --- |
+| A stage command with `target: host` | [Stage commands](https://containerlab.dev/manual/nodes/#stages) normally run inside the node. With a host target they run on the server. Plain `exec` commands are fine; they always run inside the node. |
+| A netlab topology | netlab builds the lab by running Python, plugins and Ansible on the server. |
+| `{{ … }}` anywhere in the file | containerlab renders the topology as a Go template on the server first. What comes out can't be checked in advance. |
+| `$NAME` or `${NAME}` anywhere in the file | containerlab fills in the server's environment variables. That includes Antimony's secrets: with `SB_JWT_SECRET`, anyone can sign themselves an administrator login. |
+
+The last two are plain text searches, so they also match in comments, inline configurations and `exec` commands such as `echo $HOME`.
+
+### Reading files from the server
+
+A lab may only use its own [bind files](/docs/manual/topology-editor/#bind-files). Anything else could hand a node `/etc/shadow`, Antimony's config, other topologies' files or the Docker socket, and access to the Docker socket alone is enough to take over the server.
+
+| In the topology | Why it's blocked |
+| --- | --- |
+| `binds`, `startup-config`, `license` or `credentials.identity-file` pointing at anything other than the topology's bind files | Absolute paths, `~` and `..` always fall into this. Multi-line inline startup configurations aren't file references and are fine. |
+| Any of these as a URL (`https://…`) | The server downloads the file, so a URL can reach internal services that only the server can see, such as a cloud metadata endpoint. |
+| `env-files` | Read from the server's disk. |
+| The top-level `settings` section | Points the lab's certificate authority at a certificate and key on the server. |
+| `extras` | Kind-specific settings, several of which reference files on the server. |
+
+### Breaking out of the container
+
+These loosen the container that isolates a node from the server. Anyone with a terminal on the node can use them.
+
+| In the topology | Why it's blocked |
+| --- | --- |
+| `privileged: true` | All capabilities and all devices of the server. Equivalent to root on the server. |
+| `cap-add` | Capabilities such as `SYS_ADMIN` or `SYS_MODULE` are enough to escape. |
+| `devices` | Passes the server's disks or other devices into the node. |
+| `security-opts` | Weakens or disables AppArmor, SELinux and seccomp. |
+| `pid-mode` | Shares the server's processes. Their environment contains Antimony's secrets. |
+| `cgroupns-mode`, `cgroup-parent` | Exposes the server's cgroups, or moves the node out of the limits meant for labs. |
+| `sysctls` | Changes kernel settings that the server and every lab share. |
+| `runtime` | Runs the node in a different container runtime, outside what Antimony controls. |
+
+### Connecting to networks outside the lab
+
+A lab should only be wired to itself. These features put a node's interfaces on the server's networks, where anyone with a terminal can sniff traffic, spoof other machines or reach hosts that were never meant to be reachable from a lab.
+
+| In the topology | Why it's blocked |
+| --- | --- |
+| `kind: host`, `bridge`, `ovs-bridge`, `ext-container`, `k8s-kind` or `tailscale` | These aren't lab nodes but the server itself, its bridges, containers outside the lab, a Kubernetes cluster on the server or a VPN tunnel. |
+| Links other than `veth` and `dummy`, such as `host`, `macvlan`, `mgmt-net` or `vxlan`, and endpoints on `host`, `macvlan` or `mgmt-net` | They attach interfaces to the server, its physical network, the management network or a remote machine. Short-form links count too: `["r1:eth1", "host:veth-r1"]`. |
+| `network-mode` | Puts the node in the network of the server or another container. It can then reach services the server only listens to on `127.0.0.1`, such as the database. |
+| `ports` | Opens ports on the server, reachable from outside and possibly taking a port Antimony or another lab needs. |
+
+### Interfering with other labs
+
+Antimony keeps labs apart by choosing names and addresses itself. These features override that choice.
+
+| In the topology | Why it's blocked |
+| --- | --- |
+| `mgmt` (top-level) or `mgmt-net` | Chooses the management network, which can be another lab's or one of the server's Docker networks. |
+| `mgmt-ipv4`, `mgmt-ipv6` | A fixed address can be another lab's node. Terminals Antimony opens to that node, credentials included, can then land on the wrong one. |
+| `prefix` | Container names can collide with other labs, and Antimony may act on the wrong containers. |
+| `volumes` | Volumes with the same name are shared, so labs can read each other's data. |
+
+### Images not on the allowlist
+
+If the server has an image allowlist, every `image` must start with one of its prefixes, for example your own registry. This keeps labs to images the operators trust.
+
+### Fields the policy doesn't know
+
+Any field the policy hasn't reviewed is reported, so new containerlab features are blocked until someone checks what they do. This covers unknown keys anywhere in the file, the node field `components`, and links that containerlab itself can't make sense of.
+
+## Getting a blocked topology to deploy
+
+- **Files:** upload them as bind files and refer to them by their path in the topology, such as `configs/r1.cfg`.
+- **Connections to the outside:** connect the nodes to each other instead, and use a `linux` node as the client or server you needed.
+- **Environment variables:** write the value into the topology.
+- **Everything else:** ask an administrator to check the topology and deploy the lab for you.
+
+## Findings in the API
+
+Each topology returned by the REST API has its findings in `policyFindings`:
+
+```json
+{
+  "ruleId": "host-exec",
+  "impact": "deploy",
+  "path": "topology.nodes.r1.stages.create.exec[0].target",
+  "message": "stage commands with this target run on the server"
+}
+```
+
+`path` points at the offending part of the topology and is empty for findings about the whole file. `impact` says who can abuse the feature: `deploy` acts as soon as the lab is deployed, `shell` needs someone with a terminal on a node, and `unreviewed` marks a field the policy doesn't know.
+
+`ruleId` never changes once released, so it's safe to match on:
+
+| Section | Rule IDs |
+| --- | --- |
+| [Running commands on the server](#running-commands-on-the-server) | `host-exec`, `netlab`, `go-template`, `env-expansion` |
+| [Reading files from the server](#reading-files-from-the-server) | `foreign-file`, `remote-file`, `env-files`, `settings` |
+| [Breaking out of the container](#breaking-out-of-the-container) | `privileged`, `privileges`, `host-namespace`, `kernel-settings`, `runtime` |
+| [Connecting to networks outside the lab](#connecting-to-networks-outside-the-lab) | `host-kind`, `host-link`, `host-namespace`, `host-ports` |
+| [Interfering with other labs](#interfering-with-other-labs) | `mgmt`, `static-mgmt-address`, `prefix`, `volumes` |
+| [Images not on the allowlist](#images-not-on-the-allowlist) | `image-not-allowed` |
+| [Fields the policy doesn't know](#fields-the-policy-doesnt-know) | `unreviewed-field`, `invalid-structure` |
+
+<Aside type="note">
+	`extras` and `components` are reported as `unreviewed-field`. `network-mode` and `pid-mode` both use `host-namespace`.
+</Aside>

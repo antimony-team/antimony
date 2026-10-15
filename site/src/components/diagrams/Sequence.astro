@@ -1,0 +1,85 @@
+---
+// A small sequence diagram: participants across the top, messages as arrows going down.
+interface Message {
+	from: number;
+	to: number;
+	label: string;
+	reply?: boolean;
+}
+interface Props {
+	title: string;
+	caption?: string;
+	participants: string[];
+	messages: Message[];
+}
+
+const { title, caption, participants, messages } = Astro.props;
+const id = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+// Size columns from the longest label so text stays within its arrow.
+const charW = 6.4;
+const label = (m: Message, i: number) => `${i + 1}. ${m.label}`;
+const colW = Math.max(
+	190,
+	...messages.map((m, i) => (m.from === m.to ? 0 : (label(m, i).length * charW + 30) / Math.abs(m.to - m.from))),
+);
+const left = 20;
+const boxW = 150;
+const selfPad = Math.max(0, ...messages.map((m, i) => (m.from === m.to ? label(m, i).length * charW + 50 - boxW / 2 : 0)));
+const width = left * 2 + colW * (participants.length - 1) + boxW + selfPad;
+const top = 20;
+const rowH = 44;
+const height = top + 50 + messages.length * rowH + 30;
+const cx = (i: number) => left + boxW / 2 + i * colW;
+---
+
+<figure class="diagram">
+	<svg
+		viewBox={`0 0 ${width} ${height}`}
+		style={`max-width: ${width}px; min-width: ${Math.min(560, width)}px`}
+		role="img"
+		aria-labelledby={`${id}-title ${id}-desc`}
+	>
+		<title id={`${id}-title`}>{title}</title>
+		<desc id={`${id}-desc`}>
+			{messages.map((m, i) => `${i + 1}. ${participants[m.from]} to ${participants[m.to]}: ${m.label}.`).join(' ')}
+		</desc>
+		<defs>
+			<marker id={`${id}-a`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow" />
+			</marker>
+			<marker id={`${id}-aa`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+		</defs>
+
+		{participants.map((p, i) => (
+			<g>
+				<line x1={cx(i)} y1={top + 40} x2={cx(i)} y2={height - 10} class="edge edge-dashed" style="stroke-width: 1" />
+				<rect x={cx(i) - boxW / 2} y={top} width={boxW} height={40} rx={10} class={i === 0 ? 'box' : 'box'} />
+				<text x={cx(i)} y={top + 25} class="t" text-anchor="middle">{p}</text>
+			</g>
+		))}
+
+		{messages.map((m, i) => {
+			const y = top + 74 + i * rowH;
+			const x1 = cx(m.from);
+			const x2 = cx(m.to);
+			const dir = x2 > x1 ? 1 : -1;
+			if (m.from === m.to) {
+				return (
+					<g>
+						<path d={`M${x1} ${y - 8} h 30 v 16 h -26`} class="edge" marker-end={`url(#${id}-a)`} />
+						<text x={x1 + 38} y={y + 4} class="t-sub">{`${i + 1}. ${m.label}`}</text>
+					</g>
+				);
+			}
+			return (
+				<g>
+					<line x1={x1} y1={y} x2={x2 - dir * 4} y2={y} class={m.reply ? 'edge edge-dashed' : 'edge-accent'} marker-end={`url(#${id}-${m.reply ? 'a' : 'aa'})`} />
+					<text x={(x1 + x2) / 2} y={y - 8} class="t-sub" text-anchor="middle">{`${i + 1}. ${m.label}`}</text>
+				</g>
+			);
+		})}
+	</svg>
+	{caption && <figcaption>{caption}</figcaption>}
+</figure>

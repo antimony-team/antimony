@@ -1,64 +1,80 @@
-![Antimony Logo](https://antimony-team.github.io/antimony/images/logo.svg)
+<div align="center">
 
+<br>
 
-# Antimony
-Antimony is a platform and graphical interface to design and manage <a href="https://containerlab.dev">containerlab</a> networks.
+<img src="site/src/assets/logo-full.svg" alt="Antimony" width="550">
 
-![Antimony](https://antimony-team.github.io/antimony/images/antimony-title.png)
+<br>
+<br>
+
+**Draw the network. Antimony runs it.**
+
+Design, deploy and operate [containerlab](https://containerlab.dev) networks from your browser.
+
+[![Backend CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-backend/ci.yml?branch=development&label=backend)](https://github.com/antimony-team/antimony-backend/actions/workflows/ci.yml)
+[![Interface CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-interface/ci.yml?branch=development&label=interface)](https://github.com/antimony-team/antimony-interface/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/antimony-team/antimony?include_prereleases&label=release&color=3fcfad)](https://github.com/antimony-team/antimony/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Powered by containerlab](https://img.shields.io/badge/powered%20by-containerlab-3fcfad)](https://containerlab.dev)
+[![Desktop app](https://img.shields.io/badge/desktop-Linux-f5a524?logo=linux&logoColor=white)](https://antimony.run/docs/deployment/desktop-app/)
+
+**[Website](https://antimony.run)** · **[Documentation](https://antimony.run/docs/)** · **[Quick start](https://antimony.run/docs/getting-started/quick-start/)** · **[Desktop app](https://antimony.run/docs/deployment/desktop-app/)**
+
+<br>
+
+<img src="site/src/assets/readme-title.png" alt="The Antimony topology editor with Zoey">
+
+</div>
+
+## 🚀 Getting started
+
+Antimony comes in two flavours. Both need a Linux machine with [Docker Engine](https://docs.docker.com/engine/install/), which runs the labs.
+
+### On a server, for a team or a class
+
+One command installs the latest release with Docker Compose and starts it:
+
+```bash
+curl -fsSL https://antimony.run/deploy.sh | bash
+```
+
+Open [http://localhost:8080](http://localhost:8080) and sign in with the admin password the script prints. Running the command again updates Antimony and keeps your settings.
+The [quick start](https://antimony.run/docs/getting-started/quick-start/) has all options, the [Docker guide](https://antimony.run/docs/deployment/docker/) covers versions, updates and HTTPS, and [authentication](https://antimony.run/docs/deployment/authentication/) explains how to sign in with OpenID.
+
+### On your own machine, as a desktop app
+
+The desktop app is standalone: it starts its own Antimony server in Docker and signs you in, with nothing to set up. Download the AppImage for your machine (`x86_64` or `arm64`) from the [latest release](https://github.com/antimony-team/antimony/releases) and run it:
+
+```bash
+chmod +x Antimony-*.AppImage
+./Antimony-*.AppImage
+```
+
+More in the [desktop app guide](https://antimony.run/docs/deployment/desktop-app/).
 
 ## ✨ Features
 
-* **Designing Networks Easily**  
-    Antimony offers a user friendly drag-and-drop interface to quickly and efficiently design containerlab networks. 
-* **Side-By-Side Editor**  
-    The side-by-side code editor makes direct adjustments to the topology's definition more straightforward.
-* **Deployment and Management of Instances**  
-    Antimony's management interfaces grants full control over all scheduled, running and inactive containerlab instances.
-* **Clabernetes Support**  
-    Experimental support for the [clabernetes](https://containerlab.dev/manual/clabernetes/) backend that allows deployment on [Kubernetes](https://kubernetes.io/) instances.
-* **User Access Management via OpenID**  
-    Antimony supports multi-user application through the OpenID provider of your choice.
-* **Real-time Updates**  
-    Antimony talks to containerlab and [Docker](https://www.docker.com/) and provides real-time information on containers such as deployment status, Docker stats and more!
-* **Log Streaming**  
-    The interface allows you to view containerlab and Docker logs in real-time. 
+* **Visual editor**: drag and drop nodes and links, draw shapes, lines and write text, with the containerlab YAML right next to the graph and kept in sync both ways.
+* **One-click labs**: deploy a topology as one or many labs, schedule them, and follow every node's state, CPU, memory and traffic live.
+* **Terminals and SSH**: open terminals to any node in the browser, or connect from your own terminal through Antimony's SSH server.
+* **Logs**: stream the containerlab and container logs of a lab as they happen.
+* **Made for classrooms**: collections with per-group access, sign-in through your OpenID provider, and a topology policy that keeps users' labs from reaching the server.
+* **Scales out**: run labs on one Docker host, or on Kubernetes with [clabernetes](https://containerlab.dev/manual/clabernetes/).
 
-## 🚀 How to Run
-To run Antimony locally, simply clone this repository and deploy the docker containers with docker compose.
-```bash
-git clone https://github.com/antimony-team/antimony
-cd antimony
-docker compose up
-```
+## 📚 Documentation
 
-By default, the server is hosted on `localhost:80` and `localhost:443` and the interface can be accessed with the `admin:admin`.
+Everything else is on [antimony.run](https://antimony.run/docs/): the [concepts](https://antimony.run/docs/getting-started/concepts/), the [user manual](https://antimony.run/docs/manual/dashboard/), the [configuration](https://antimony.run/docs/deployment/configuration/) and the [REST and Socket.IO APIs](https://antimony.run/docs/api/rest/).
 
-For more information about the deployment please refer to Antimony's [documentation](https://antimony-team.github.io/antimony/quick-start.html).
+## 🧩 Repositories
 
-## ⚙️ Configuration
-The config file `config.yml` is mounted into the docker container and can be used to configure the Antimony server.
+| Repository | Contents |
+| --- | --- |
+| [antimony](https://github.com/antimony-team/antimony) | Deployment files, releases and the website with the documentation |
+| [antimony-backend](https://github.com/antimony-team/antimony-backend) | The Antimony server, written in Go |
+| [antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and the desktop app, written in React and Electron |
 
-For more information about the contiguration please refer to Antimony's [documentation](https://antimony-team.github.io/antimony/manual/configuration.html).
+Found a bug or have an idea? Open an issue in the repository it belongs to. To work on Antimony, start with the [development setup](https://antimony.run/docs/development/setup/).
 
-## 💼 Use cases
+## 📄 License
 
-* **Educational Environment**  
-    Antimony was developed with the main goal of being a platform for teachers to teach students about networking technology. The scalable architecture and external authentication make it easy to deploy Antimony in an educational environment.
-* **Personal Use and Local Deployment**  
-    The interface of Antimony aims to make designing and deploying containerlab networks easy and accesible for everyone. Deploying and using Antimony locally requires little to no experience with networks or the containerlab framework.
-
-## 🖥️ Repository Setup
-Antimony is separated into three main repositories.
-
-* **[antimony-team/antimony](https://github.com/antimony-team/antimony)**  
-    Contains the documentation as well as all the deployment files.
-* **[antimony-team/antimony-backend](https://github.com/antimony-team/antimony-backend)**  
-    Contains the code base for the Antimony server.
-* **[antimony-team/antimony-interface](https://github.com/antimony-team/antimony-interface)**  
-    Contains the code base for Antimony's frontend interface.
-
-If you encounter any issues or would like to suggest a new feature, please submit an issue to the corresponding repository.
-
-## License
-
-Antimony and all of its assets are distributed under the MIT license.
+Antimony is released under the [MIT license](LICENSE).
