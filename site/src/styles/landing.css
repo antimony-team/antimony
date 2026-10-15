@@ -215,25 +215,32 @@ main > section {
 	font-family: var(--mono);
 	font-size: 0.78rem;
 	color: var(--text-muted);
+	text-decoration: none;
 	margin-bottom: 1.6rem;
+	transition: border-color 0.15s;
 }
 
-.pulse {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background: var(--accent);
-	box-shadow: 0 0 0 0 rgb(63 207 173 / 0.6);
-	animation: pulse 2s infinite;
+.eyebrow:hover {
+	border-color: #00c9ff;
 }
 
-@keyframes pulse {
-	70% {
-		box-shadow: 0 0 0 8px rgb(63 207 173 / 0);
-	}
-	100% {
-		box-shadow: 0 0 0 0 rgb(63 207 173 / 0);
-	}
+.eyebrow strong {
+	color: var(--text);
+	font-weight: 600;
+}
+
+.eyebrow-logo {
+	display: flex;
+}
+
+.eyebrow-logo svg {
+	width: 20px;
+	height: 20px;
+}
+
+/* The mark's outline is black on containerlab.dev's light theme */
+.eyebrow-logo .outline {
+	fill: var(--text);
 }
 
 .hero h1 {
@@ -271,6 +278,9 @@ main > section {
 .cmd {
 	margin-top: 1.6rem;
 	display: inline-flex;
+	max-width: 100%;
+	overflow-x: auto;
+	white-space: nowrap;
 	align-items: center;
 	gap: 0.6rem;
 	padding: 0.65rem 0.9rem;
@@ -312,7 +322,7 @@ main > section {
 .topo {
 	position: relative;
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 290px;
+	grid-template-columns: minmax(0, 1fr) 310px;
 	border: 1px solid var(--border);
 	border-radius: 18px;
 	background:
@@ -408,6 +418,10 @@ main > section {
 
 .topo-yaml {
 	position: relative;
+	display: flex;
+	flex-direction: column;
+	/* The panel takes the graph's height and scrolls, instead of stretching the graph to the file's length */
+	contain: size;
 	background: rgb(24 25 30 / 0.85);
 	border-left: 1px solid var(--border);
 	font-family: var(--mono);
@@ -427,10 +441,26 @@ main > section {
 }
 
 .topo-yaml pre {
+	flex: 1;
+	min-height: 0;
 	margin: 0;
-	padding: 12px 14px;
-	line-height: 1.7;
-	overflow: hidden;
+	padding: 12px 0;
+	font-size: 11px;
+	line-height: 1.6;
+	overflow: auto;
+	scrollbar-width: thin;
+}
+
+.y-line {
+	display: block;
+	padding: 0 12px;
+	white-space: pre;
+	transition: background 0.2s;
+}
+
+.y-selected {
+	background: rgb(63 207 173 / 0.1);
+	box-shadow: inset 2px 0 var(--accent);
 }
 
 .y-k {
@@ -459,35 +489,37 @@ main > section {
 	opacity: 0;
 }
 
-/* Works with */
+/* At a glance */
 .stack {
-	display: flex;
-	align-items: center;
-	gap: 1.5rem;
-	flex-wrap: wrap;
 	padding-block: 1.5rem 0;
-	color: var(--text-faint);
-	font-size: 0.85rem;
-	text-transform: uppercase;
-	letter-spacing: 0.1em;
 }
 
-.stack ul {
+.stack dl {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.6rem;
 	margin: 0;
-	padding: 0;
-	list-style: none;
 }
 
-.stack li {
+.stack dl > div {
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
 	padding: 0.35rem 0.8rem;
 	border: 1px solid var(--border);
 	border-radius: 999px;
+}
+
+.stack dt {
+	color: var(--text-faint);
+	font-size: 0.7rem;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+}
+
+.stack dd {
+	margin: 0;
 	color: var(--text-muted);
-	text-transform: none;
-	letter-spacing: 0;
 	font-family: var(--mono);
 	font-size: 0.8rem;
 }
@@ -856,6 +888,42 @@ main > section {
 	color: var(--hoodie);
 }
 
+/* Editor showcase: the layers of the editor's graph */
+.showcase {
+	padding-block: clamp(4rem, 9vw, 8rem) 0;
+	text-align: center;
+}
+
+.showcase-copy {
+	position: relative;
+	max-width: 40rem;
+	margin: 0 auto 2rem;
+}
+
+.zoey-showcase {
+	left: -230px;
+	bottom: -20px;
+	width: clamp(120px, 13vw, 180px);
+}
+
+.showcase-copy > p:not(.step) {
+	color: var(--text-muted);
+	font-size: 1.08rem;
+}
+
+.showcase .editor-layers {
+	max-width: 900px;
+	margin-inline: auto;
+}
+
+.showcase-ticks {
+	grid-template-columns: repeat(4, auto);
+	justify-content: center;
+	column-gap: 2.4rem;
+	margin-top: 2rem;
+	text-align: left;
+}
+
 /* Extras */
 .extras {
 	padding-block: clamp(4rem, 9vw, 7rem) 0;
@@ -988,6 +1056,10 @@ main > section {
 
 /* Responsive */
 @media (max-width: 960px) {
+	.showcase-ticks {
+		grid-template-columns: repeat(2, auto);
+	}
+
 	.hero,
 	.story,
 	.classroom,
@@ -1017,7 +1089,18 @@ main > section {
 	}
 }
 
+/* The editor's Zoey sits next to the centred heading, where only wide screens have room */
+@media (max-width: 1180px) {
+	.zoey-showcase {
+		display: none;
+	}
+}
+
 @media (max-width: 640px) {
+	.showcase-ticks {
+		grid-template-columns: 1fr;
+	}
+
 	.nav nav {
 		display: none;
 	}
@@ -1039,6 +1122,7 @@ main > section {
 	}
 
 	.topo-yaml {
+		height: 320px;
 		border-left: 0;
 		border-top: 1px solid var(--border);
 	}

@@ -1,0 +1,117 @@
+name: Release
+
+# Pushing a tag like v1.4.2 creates the GitHub release of Antimony with the desktop app and the deployment
+# files. The backend and the interface are tagged with the same version first: their pipelines publish the
+# Docker images, and the desktop app is built from the interface at that tag. The release fails if the images
+# of its version don't exist yet, since both the desktop app and the deployment start them.
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check that the images of this version exist
+        run: |
+          for repository in antimony-backend antimony-interface; do
+            image="ghcr.io/antimony-team/$repository:${GITHUB_REF_NAME#v}"
+            if ! docker buildx imagetools inspect "$image" >/dev/null; then
+              echo "::error::$image doesn't exist. Tag $repository with $GITHUB_REF_NAME and wait for its pipeline first."
+              exit 1
+            fi
+          done
+
+      - name: Check out the interface
+        uses: actions/checkout@v5
+        with:
+          repository: antimony-team/antimony-interface
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: yarn
+
+      # Electron and electron-builder download large binaries outside the yarn cache
+      - name: Cache Electron binaries
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Install system dependencies
+        # electron-builder needs libarchive-tools and rpm for AppImage assembly, rsvg-convert renders the icons
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools rpm librsvg2-bin
+
+      - name: Set up Task
+        uses: go-task/setup-task@v2
+
+      # The app starts the backend image of its own version
+      - name: Set the version from the tag
+        run: yarn version --new-version "${GITHUB_REF_NAME#v}" --no-git-tag-version
+
+      - name: Build the AppImages (x64 and arm64)
+        run: task package-electron-linux -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload the AppImages
+        uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: release/*.AppImage
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    needs: appimage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Download the AppImages
+        uses: actions/download-artifact@v4
+        with:
+          name: appimage
+          path: release
+
+      # The deployment files, with the version of this release as the default image tag
+      - name: Package the deployment
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p package/antimony
+          cp -r docker-compose.yml config.yml kinds.conf.yml .env.example postgres LICENSE package/antimony/
+          sed -i "s/\${ANTIMONY_VERSION:-latest}/\${ANTIMONY_VERSION:-$version}/" package/antimony/docker-compose.yml
+          grep -q ":-$version}" package/antimony/docker-compose.yml
+          tar -czf release/antimony-deployment.tar.gz -C package antimony
+
+      # Pre-release versions such as v1.5.0-rc.1 become pre-releases
+      - name: Create the release
+        run: |
+          prerelease=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
+
+          gh release create "$GITHUB_REF_NAME" release/*.AppImage release/antimony-deployment.tar.gz \
+            --title "Antimony $GITHUB_REF_NAME" \
+            --generate-notes \
+            $prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}

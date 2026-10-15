@@ -16,7 +16,7 @@ The topology editor is where you create and change [containerlab topologies](htt
 
 ## Collections
 
-Topologies are organised in **collections**. A collection usually belongs to a class, a course or a team, and it decides who can see and use its topologies (see [permissions](/antimony/docs/deployment/authentication/#permissions)).
+Topologies are organised in **collections**. A collection usually belongs to a class, a course or a team, and it decides who can see and use its topologies (see [permissions](/docs/deployment/authentication/#permissions)).
 
 Administrators manage collections:
 
@@ -69,7 +69,7 @@ The toolbar shows the topology's collection and name. An asterisk marks unsaved 
 | **Sync Options** | Set the URL to sync the topology from. |
 | **Save** | Save the topology. Also <kbd>Ctrl</kbd>+<kbd>S</kbd>. Disabled while the topology is invalid. A red dot means there are unsaved changes. |
 | **Download** | Download the YAML as `<collection>_<topology>.yaml`. |
-| **Deploy** | Open the [deploy dialog](/antimony/docs/manual/deploying-labs/) for this topology. |
+| **Deploy** | Open the [deploy dialog](/docs/manual/deploying-labs/) for this topology. |
 
 If you try to leave with unsaved changes, Antimony asks whether to **Discard changes** or **Keep editing**.
 
@@ -114,32 +114,47 @@ The stabilization panel arranges the graph automatically with a force-directed l
 
 ## How the graph is stored
 
-Antimony stores everything about the graph in containerlab `labels` on each node, so the topology stays a valid containerlab file that works without Antimony too.
+The topology file only describes the lab. Everything about how it looks in the graph lives in a separate **annotations file** next to it, `<topology>.clab.yml.annotations.json`. It uses [containerlab's annotations format](https://containerlab.dev/manual/topo-def-file/), the same one the containerlab VS Code extension and TopoViewer read, so the layout carries over to those tools and the topology stays a plain containerlab file. The server validates the annotations against containerlab's annotations schema when you save.
 
-| Label | Meaning |
+Use the **Topology** / **Annotations** file switch in the editor to view and edit the annotations as JSON. Antimony writes them whenever you move a node, change a group or stabilize the graph.
+
+| Section | Contents |
 | --- | --- |
-| `graph-posX`, `graph-posY` | Position of the node in the graph. Written when you move a node or stabilize the graph. |
-| `graph-icon` | Icon of the node, see below. |
-| `graph-group` | Name of the group the node belongs to. |
-| `graph-level` | Optional. Nodes in groups with the same name but different levels are drawn in separate boxes. |
-| `graph-geoCoordinateLat`, `graph-geoCoordinateLng` | Geographic position, used when `graph-posX` and `graph-posY` are missing. |
+| `nodeAnnotations` | One entry per node, matched by `id` (the node name): its `position`, `icon` and the `groupId` of the group it is in. Nodes placed on a map use `geoCoordinates` instead of `position`. |
+| `groupStyleAnnotations` | The group boxes: `id`, `name`, `level`, the `position` of the top left corner, `width`, `height` and optional styling such as colors and borders. A group with a `parentId` is drawn inside another group. |
+| `freeTextAnnotations`, `freeShapeAnnotations` | Text, rectangles, circles and lines drawn on the canvas. |
+| `edgeAnnotations`, `viewerSettings`, … | Other settings from the format. Antimony keeps them when it saves, even those it doesn't use. |
 
-```yaml
-topology:
-  nodes:
-    leaf1:
-      kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux
-      labels:
-        graph-posX: "320.5"
-        graph-posY: "180"
-        graph-icon: switch
-        graph-group: fabric
+```json title="lab.clab.yml.annotations.json"
+{
+  "nodeAnnotations": [
+    {
+      "id": "leaf1",
+      "position": { "x": 320.5, "y": 180 },
+      "icon": "switch",
+      "groupId": "fabric"
+    }
+  ],
+  "groupStyleAnnotations": [
+    {
+      "id": "fabric",
+      "name": "fabric",
+      "level": "1",
+      "position": { "x": 240, "y": 110 },
+      "width": 320,
+      "height": 160
+    }
+  ]
+}
 ```
 
 Available icons: `router`, `switch`, `spine`, `dcgw`, `server`, `client`, `controller`, `pon` and `rgw`. `pe` is an alias for `router` and `leaf` for `switch`. Nodes without an icon, or with an unknown one, are shown as `client`.
 
 Nodes without a position are all placed at the same spot. Use **Graph Stabilization** to lay them out.
+
+### Layout in labels (older topologies)
+
+Antimony used to store the layout in containerlab `labels` on each node: `graph-posX`, `graph-posY`, `graph-icon`, `graph-group`, `graph-level`, `graph-geoCoordinateLat` and `graph-geoCoordinateLng`. These labels are deprecated in all containerlab tools. Antimony still reads them for nodes without an annotation, so older topologies keep their layout, but never writes them. As soon as you change the layout, the labels are removed from the topology and converted into annotations, with a group box created around the nodes of each former group.
 
 ## Bind files
 
@@ -161,7 +176,16 @@ topology:
         - configs/r1.conf:/etc/frr/frr.conf
 ```
 
-Bind file paths must stay inside the topology. Absolute paths and `..` are rejected.
+Bind file paths must stay inside the topology. Absolute paths and `..` are rejected. The [topology policy](/docs/deployment/topology-policy/#reading-files-from-the-server) also reports any file the topology refers to that isn't one of its bind files.
+
+Some names are reserved because Antimony, containerlab or netlab create files with them in the topology's directory. A bind file can't be created if the first part of its path matches one of them, ignoring case. Otherwise it could overwrite the topology or the lab's certificate authority at deploy time.
+
+| Reserved names | Used for |
+| --- | --- |
+| `topology.clab.yaml`, `topology.yml` and their `.annotations.json` files | The topology and its graph layout |
+| `clab-*` | containerlab's lab directory, with the lab's state and certificate authority |
+| `clab_templates`, `topology.clab_vars.*` | containerlab templating |
+| `netlab.snapshot.pickle`, `netlab.snapshot.yml`, `netlab.lock`, `hosts.yml`, `ansible.cfg`, `group_vars`, `host_vars`, `node_files`, `clab_files`, `config` | Files netlab generates |
 
 ## Sync from a URL
 

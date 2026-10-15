@@ -10,13 +10,13 @@ import { Image } from 'astro:assets';
 import zoey from '../../../../assets/zoey/c9s.png';
 import C9sDiagram from '../../../../components/diagrams/Clabernetes.astro';
 
-<Image class="zoey-aside" src={zoey} alt="Zoey hugging a bottle labelled C9S full of network nodes" width={190} />
+<Image class="zoey-aside" src={zoey} alt="Zoey hugging a bottle labelled C9S full of network nodes" width={190} densities={[1, 2]} />
 
 [Clabernetes](https://containerlab.dev/manual/clabernetes/) (c9s) runs containerlab topologies on Kubernetes. With the clabernetes provider, Antimony doesn't start containers itself. It hands each lab to clabernetes, which spreads the nodes across your cluster's workers.
 
 Use it when a single Docker host isn't enough: a whole class deploying labs at the same time, or topologies with many heavy network OS images.
 
-The Antimony server itself still runs outside the cluster, for example with the same Docker Compose setup as the [Docker deployment](/antimony/docs/deployment/docker/). It talks to the cluster through the Kubernetes API using a kubeconfig.
+The Antimony server itself still runs outside the cluster, for example with the same Docker Compose setup as the [Docker deployment](/docs/deployment/docker/). It talks to the cluster through the Kubernetes API using a kubeconfig.
 
 <C9sDiagram />
 
@@ -37,7 +37,7 @@ Antimony is built against **clabernetes 0.9.0**, which uses the native "direct" 
 
 ## Set up
 
-Start from the [Docker deployment](/antimony/docs/deployment/docker/). Then:
+Start from the [Docker deployment](/docs/deployment/docker/). Then:
 
 <Steps>
 
@@ -81,7 +81,7 @@ Start from the [Docker deployment](/antimony/docs/deployment/docker/). Then:
 <summary>**Private images, terminals and other details**</summary>
 
 - **Private registries.** The cluster pulls node images itself. Add your pull secrets to the clabernetes configuration with `kubectl -n c9s edit configs.c9s.run clabernetes` (`imagePull.pullSecrets`).
-- **Terminals** log in to nodes over SSH through a Kubernetes port-forward, with the credentials from [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, they fall back to a shell inside the container.
+- **Terminals** log in to nodes over SSH through a Kubernetes port-forward, with the credentials from [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, they fall back to a shell inside the container.
 - **Credentials lookup.** Antimony uses the in-cluster ServiceAccount if it runs in a pod, otherwise the `KUBECONFIG` environment variable, otherwise `~/.kube/config`. If no client can be created, the server stops with `Failed to create clabernetes client`.
 - **Exec plugins.** If your kubeconfig uses a credential plugin, the plugin must also exist inside the server container.
 - **Unused settings.** The Docker socket and the privileged settings of the server container are only needed for containerlab. You can remove them when you only use clabernetes.
@@ -91,7 +91,7 @@ Start from the [Docker deployment](/antimony/docs/deployment/docker/). Then:
 ## What happens when you deploy a lab
 
 1. Antimony **compiles the topology locally** with the clabernetes compiler. Topologies that use features clabernetes doesn't support, such as `macvlan` endpoints or custom management networks, fail right away with `topology is not supported by clabernetes: …`. See the [containerlab differences](https://containerlab.dev/manual/clabernetes/) in the clabernetes docs.
-2. It **removes all containerlab `labels`** from the definition. Antimony stores graph positions in labels, and clabernetes rejects some of those values.
+2. It **removes all containerlab `labels`** from the definition. Older topologies store their [graph layout in labels](/docs/manual/topology-editor/#layout-in-labels-older-topologies), and clabernetes rejects some of those values.
 3. It creates a **namespace** named `c9s-<instance name>` and a **`Topology`** resource (`topologies.c9s.run`) with the same name. Nodes are not exposed outside the cluster (`exposeType: None`); you reach them through Antimony.
 4. It **waits up to 10 minutes** for the topology to become ready. Progress (`Deployment status: 3/5 nodes ready`), pod events and image pulls appear in the lab's deployment log.
 
@@ -127,7 +127,7 @@ All of these streams pass through the API server, so its load and latency direct
 
 ## Traffic capture on clabernetes
 
-[Packet capture through Antimony's SSH server](/antimony/docs/manual/ssh-server/) works on clabernetes too, with a few differences:
+[Packet capture through Antimony's SSH server](/docs/manual/ssh-server/) works on clabernetes too, with a few differences:
 
 - Captures run inside the node pod's **`clabwire` sidecar**. Opening a capture takes a moment longer than on Docker.
 - Only the node's **lab link interfaces** can be captured, not the management or `c9s0` interfaces.

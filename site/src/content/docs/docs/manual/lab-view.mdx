@@ -43,7 +43,7 @@ The panel in the top left lists the lab's details:
 
 **Copy Link** copies a direct link to this lab. **Open Topology** opens the topology in the editor.
 
-The ID and instance name identify the lab when you connect to it through the [SSH server](/antimony/docs/manual/ssh-server/#choosing-a-node).
+The ID and instance name identify the lab when you connect to it through the [SSH server](/docs/manual/ssh-server/#choosing-a-node).
 
 ## The graph
 
@@ -61,7 +61,7 @@ The node panel shows the node's name, kind, container ID and name, management IP
 | --- | --- |
 | **Node Logs** | Opens the logs window with this node's container log. |
 | **Open Terminal** | Opens a [terminal](#terminals) on the node. Available once the node is ready. |
-| **Restart** / **Start** / **Shutdown** | Restarts, starts or stops the node. Only available for kinds marked `canRestart` in [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml); for other kinds the panel says so. |
+| **Restart** / **Start** / **Shutdown** | Restarts, starts or stops the node. Only available for kinds marked `canRestart` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml); for other kinds the panel says so. |
 
 ### Statistics
 
@@ -77,16 +77,16 @@ Below the statistics, each interface has a chart of its transmitted (TX) and rec
 ssh testing/dsfsfdf/alpine1@antimony.example.com -p 6969 eth1 | wireshark -k -i -
 ```
 
-Run it in a terminal on a machine with Wireshark installed. See [SSH server and packet capture](/antimony/docs/manual/ssh-server/) for how it works and what else you can do with it.
+Run it in a terminal on a machine with Wireshark installed. See [SSH server and packet capture](/docs/manual/ssh-server/) for how it works and what else you can do with it.
 
-Some interfaces, such as `lo` and management interfaces, are hidden. The list is set by `capture.excludedInterfaces` in the [configuration](/antimony/docs/deployment/configuration/#capture).
+Some interfaces, such as `lo` and management interfaces, are hidden. The list is set by `capture.excludedInterfaces` in the [configuration](/docs/deployment/configuration/#capture).
 
 ## Terminals
 
 **Open Terminal** opens a terminal window on the node. Antimony logs in to the node over SSH with the credentials from `kinds.conf.yml`, or opens a shell inside the container if that isn't possible.
 
 <figure class="shot">
-	<Image src={terminal} alt="A terminal window with tabs for alpine1, alpine1 and alpine2, showing the output of ip a s" width={700} />
+	<Image src={terminal} alt="A terminal window with tabs for alpine1, alpine1 and alpine2, showing the output of ip a s" width={700} densities={[1, 2]} />
 	<figcaption>Terminals open in tabs; several can be open on the same node.</figcaption>
 </figure>
 
@@ -97,7 +97,7 @@ Some interfaces, such as `lo` and management interfaces, are hidden. The list is
 - A terminal that has been idle for 30 minutes is closed and marked as expired.
 - You can have up to 20 terminals open at the same time.
 
-The idle timeout and the limit are set by `shell.timeout` and `shell.userLimit` in the [configuration](/antimony/docs/deployment/configuration/#shell).
+The idle timeout and the limit are set by `shell.timeout` and `shell.userLimit` in the [configuration](/docs/deployment/configuration/#shell).
 
 ## Logs
 
@@ -107,7 +107,7 @@ The idle timeout and the limit are set by `shell.timeout` and `shell.userLimit` 
 - a node: that node's container log
 
 <figure class="shot">
-	<Image src={logs} alt="The logs window showing containerlab output while deploying a lab" width={700} />
+	<Image src={logs} alt="The logs window showing containerlab output while deploying a lab" width={700} densities={[1, 2]} />
 	<figcaption>The deployment log of a lab.</figcaption>
 </figure>
 

@@ -8,7 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import DockerDiagram from '../../../../components/diagrams/DockerDeployment.astro';
 
-The [main repository](https://github.com/antimony-team/antimony) is a ready-to-use deployment: it contains a Docker Compose file with Antimony, PostgreSQL and the Traefik reverse proxy, plus the configuration files. Antimony deploys labs with containerlab on the same host.
+Every [release of Antimony](https://github.com/antimony-team/antimony/releases) comes with a ready-to-use deployment, `antimony-deployment.tar.gz`: a Docker Compose file with Antimony, PostgreSQL and the Traefik reverse proxy, plus the configuration files. It starts the Antimony images of its release from the GitHub container registry. Antimony deploys labs with containerlab on the same host.
 
 <DockerDiagram />
 
@@ -16,16 +16,16 @@ The [main repository](https://github.com/antimony-team/antimony) is a ready-to-u
 
 - A Linux host with Docker Engine and the Compose plugin
 - Enough memory for your labs: 1–4 GB per network node, depending on the image
-- For a trusted HTTPS certificate: a DNS name for the host, with ports 80 and 443 reachable from the internet
+- Port 8080 reachable for your users, or another port set with `SB_PORT`
 
 ## Install
 
 <Steps>
 
-1. **Clone the repository.**
+1. **Download the deployment** of the latest release.
 
     ```bash
-    git clone https://github.com/antimony-team/antimony
+    curl -fsSL https://github.com/antimony-team/antimony/releases/latest/download/antimony-deployment.tar.gz | tar -xz
     cd antimony
     ```
 
@@ -35,28 +35,28 @@ The [main repository](https://github.com/antimony-team/antimony) is a ready-to-u
     cp .env.example .env
     ```
 
-    Set at least `ANTIMONY_HOST` to your server's DNS name, `ACME_EMAIL` for Let's Encrypt, and the passwords and secrets. Generate random values with `openssl rand -hex 32`.
+    Set the passwords and secrets. Generate random values with `openssl rand -hex 32`. If port 8080 is taken on your host, set `SB_PORT` to another one.
 
 3. **Start Antimony.**
 
     ```bash
-    docker compose up -d --build
+    docker compose up -d
     ```
 
-    The first start builds the images and takes a few minutes. Then open `https://<ANTIMONY_HOST>` and sign in with `SB_NATIVE_USERNAME` and `SB_NATIVE_PASSWORD`.
+    The first start downloads the images. Then open `http://<host>:8080` and sign in with `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`.
 
 </Steps>
 
-That's it. To change settings, such as enabling [OpenID Connect](/antimony/docs/deployment/authentication/#openid-connect) or switching to [clabernetes](/antimony/docs/deployment/clabernetes/), edit `config.yml` and restart the server with `docker compose restart server`. All settings are described in [Configuration](/antimony/docs/deployment/configuration/).
+That's it. To change settings, such as enabling [OpenID Connect](/docs/deployment/authentication/#openid-connect) or switching to [clabernetes](/docs/deployment/clabernetes/), edit `config.yml` and restart the server with `docker compose restart server`. All settings are described in [Configuration](/docs/deployment/configuration/).
 
-## What's in the repository
+## What's in the deployment
 
 | File | Purpose |
 | --- | --- |
-| `docker-compose.yml` | The services: Traefik, PostgreSQL, the interface and the server. |
-| `.env.example` | Host name, e-mail address, passwords and secrets. Copy it to `.env`. |
-| `config.yml` | [Server configuration](/antimony/docs/deployment/configuration/). |
-| `kinds.conf.yml` | [Per-kind settings](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml), such as SSH logins for terminals. |
+| `docker-compose.yml` | The services: Traefik, PostgreSQL, the interface and the server, with the images of the release. |
+| `.env.example` | Web port, passwords, secrets and the version. Copy it to `.env`. |
+| `config.yml` | [Server configuration](/docs/deployment/configuration/). |
+| `kinds.conf.yml` | [Per-kind settings](/docs/deployment/configuration/#node-kinds-kindsconfyml), such as SSH logins for terminals. |
 | `postgres/init-database.sh` | Creates the database and its user on the first start. |
 
 Data is stored in:
@@ -65,8 +65,7 @@ Data is stored in:
 | --- | --- |
 | `/srv/antimony/` | Topologies, bind files and lab directories |
 | `./.db/` | PostgreSQL data |
-| `./mnt/ssh/` | Host key of the [SSH server](/antimony/docs/manual/ssh-server/) |
-| `./letsencrypt/` | TLS certificates |
+| `./mnt/ssh/` | Host key of the [SSH server](/docs/manual/ssh-server/) |
 
 Back up `/srv/antimony/` and `./.db/` together.
 
@@ -74,33 +73,51 @@ Back up `/srv/antimony/` and `./.db/` together.
 
 | Port | Service | Open to |
 | --- | --- | --- |
-| 80, 443 | Web interface and API, through Traefik | Your users |
-| 6969 | [SSH server](/antimony/docs/manual/ssh-server/) for terminals and packet capture | Trusted networks only. It doesn't authenticate clients. |
+| 8080 (`SB_PORT`) | Web interface and API over plain HTTP, through Traefik | Your users |
+| 6969 | [SSH server](/docs/manual/ssh-server/) for terminals and packet capture | Trusted networks only. It doesn't authenticate clients. |
 
-Everything else (the API on 3000, the interface on 8100, PostgreSQL on 5432) only listens on or is only needed from `localhost`.
+The API on 3000, the interface on 8100 and PostgreSQL on 5432 only listen on `localhost`. All services use the host's network, so these ports must still be free on the host.
+
+<Aside type="caution">
+	Antimony is served over plain HTTP, so passwords and login tokens travel unencrypted. That's fine on your own machine or a trusted network. Otherwise, put a reverse proxy with HTTPS in front of it, see [With HTTPS](#variations) below.
+</Aside>
+
+## Versions
+
+The deployment of a release starts the images of that release, `ghcr.io/antimony-team/antimony-backend:<version>` and `ghcr.io/antimony-team/antimony-interface:<version>`. To run another version, set it in `.env`:
+
+```bash title=".env"
+ANTIMONY_VERSION=1.4.2   # a release
+ANTIMONY_VERSION=dev     # the development version, updated with every change
+```
 
 ## Updating
 
-```bash
-git pull
-docker compose up -d --build
-```
+Run the [install script](/docs/getting-started/quick-start/) again in the folder above your installation, or update by hand:
 
-Running labs keep running while the server restarts, and the server [reattaches to them](/antimony/docs/architecture/lab-lifecycle/#restarting-the-server) when it's back. Set `SB_JWT_SECRET` in `.env` so that users stay signed in.
+1. Download the deployment of the new release, as when installing, into a new folder.
+2. Copy its `docker-compose.yml`, `.env.example` and `postgres/` over your installation. Keep your `.env`, `config.yml` and `kinds.conf.yml`, and compare them with the new examples.
+3. Start the new version:
+
+    ```bash
+    docker compose up -d
+    ```
+
+Running labs keep running while the server restarts, and the server [reattaches to them](/docs/architecture/lab-lifecycle/#restarting-the-server) when it's back. Set `SB_JWT_SECRET` in `.env` so that users stay signed in.
 
 ## Variations
 
 <details>
-<summary>**Without a domain name**</summary>
+<summary>**With HTTPS**</summary>
 
-Leave `ANTIMONY_HOST` at `localhost` or set it to the host's IP address. Let's Encrypt can't issue a certificate for those, so Traefik uses a self-signed one and your browser asks you to accept it once.
+Put a reverse proxy that handles HTTPS in front of Antimony, for example Caddy, nginx or your organization's proxy, and forward all requests to `localhost:8080` with WebSocket upgrades. Then only open the proxy's port to your users, not 8080.
 
 </details>
 
 <details>
 <summary>**SQLite instead of PostgreSQL**</summary>
 
-For small installations, start the server with `-sqlite` and remove the `database` service:
+For small installations, start the server with `-sqlite`, and remove the `database` service and the server's `depends_on: database`:
 
 ```yaml title="docker-compose.yml"
 services:
@@ -139,7 +156,7 @@ The server runs containerlab and reaches into the lab containers it creates:
 | --- | --- |
 | `/var/run/docker.sock` | Creating and controlling lab containers through the host's Docker |
 | `/var/run/netns`, `/var/lib/docker`, `/etc/hosts` | containerlab's network namespaces, links and host entries |
-| `privileged`, `user: root` | Creating links and [capturing packets](/antimony/docs/manual/ssh-server/) inside container network namespaces |
+| `privileged`, `user: root` | Creating links and [capturing packets](/docs/manual/ssh-server/) inside container network namespaces |
 | `pid: host` | Reading container interfaces and joining their namespaces through `/proc` |
 | `cgroup: host` | CPU and memory statistics from cgroup v2 |
 | `network_mode: host` | Reaching the nodes' management addresses for terminals |

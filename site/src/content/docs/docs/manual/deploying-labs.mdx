@@ -18,7 +18,7 @@ Open the deploy dialog in one of these ways:
 - the **▶** button or **Deploy** menu entry next to a topology in the editor's explorer
 
 <figure class="shot">
-	<Image src={deployDialog} alt="The Deploy topology dialog in Multiple labs mode, creating five labs named OSPF Lab 1 to 5" width={700} />
+	<Image src={deployDialog} alt="The Deploy topology dialog in Multiple labs mode, creating five labs named OSPF Lab 1 to 5" width={700} densities={[1, 2]} />
 	<figcaption>Creating five labs at once with "Multiple labs".</figcaption>
 </figure>
 
@@ -53,7 +53,7 @@ Labs that haven't started yet can be moved to another time. Open the [lab schedu
 
 ## Starting, stopping and redeploying
 
-The creator of a lab and administrators can control it from the [lab view](/antimony/docs/manual/lab-view/):
+The creator of a lab and administrators can control it from the [lab view](/docs/manual/lab-view/):
 
 | Action | What happens |
 | --- | --- |
@@ -68,6 +68,10 @@ Destroying asks for confirmation.
 **Lab Schedule** (the calendar in the top bar) shows all labs with an end time as events. Switch between **Month**, **Week** and **Agenda** views, and use **Today** to jump back. Click a day to see that week.
 
 Scheduled labs, marked with a pen icon, can be clicked to edit and reschedule them.
+
+## Topologies with unsafe features
+
+If the [topology policy](/docs/deployment/topology-policy/) is enabled, you can't deploy a topology that has findings unless you are an administrator. The server rejects it with *the topology contains unsafe features that the server rejected*. Remove the reported features, or ask an administrator to deploy the lab for you.
 
 ## When a deployment fails
 

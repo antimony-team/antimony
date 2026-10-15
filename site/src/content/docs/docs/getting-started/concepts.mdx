@@ -5,8 +5,12 @@ sidebar:
   order: 2
 ---
 
+import { Image } from 'astro:assets';
 import ConceptExplorer from '../../../../components/ConceptExplorer.astro';
 import DomainModel from '../../../../components/diagrams/DomainModel.astro';
+import zoey from '../../../../assets/zoey/think.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey thinking, with a question mark next to her" width={170} densities={[1, 2]} />
 
 Antimony is built around a short chain: a **collection** holds **topologies**, a topology is deployed as **labs**, and a running lab has an **instance** with **nodes**. Pick a concept to learn more.
 

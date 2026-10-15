@@ -1,5 +1,5 @@
 # Antimony server configuration.
-# All options: https://antimony-team.github.io/antimony/docs/deployment/configuration/
+# All options: https://antimony.run/docs/deployment/configuration/
 
 server:
   # Only reachable through Traefik on the same host.
@@ -11,10 +11,10 @@ deployment:
   provider: containerlab
 
 auth:
-  # Admin login with SB_NATIVE_USERNAME and SB_NATIVE_PASSWORD from .env.
-  enableNative: true
-  # Login through an OpenID Connect provider. The client secret goes in SB_OIDC_SECRET.
-  enableOpenId: false
+  # The ways to sign in: admin, openid or both.
+  #   admin   Admin login with SB_ADMIN_USERNAME and SB_ADMIN_PASSWORD from .env.
+  #   openid  Login through an OpenID Connect provider. The client secret goes in SB_OIDC_SECRET.
+  methods: [admin]
   openIdIssuer: ""
   openIdClientId: ""
   openIdRedirectHost: ""
@@ -40,6 +40,6 @@ ssh:
 capture:
   excludedInterfaces: ["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]
 
-fileSystem:
+filesystem:
   storage: /srv/antimony/storage/
   run: /srv/antimony/run/

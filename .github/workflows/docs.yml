@@ -1,0 +1,67 @@
+name: Docs
+
+# Builds the website and documentation in site/ on every change and publishes it to GitHub Pages from main.
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'site/**', '.github/workflows/docs.yml' ]
+
+  pull_request:
+    branches: [ development, main ]
+    paths: [ 'site/**', '.github/workflows/docs.yml' ]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only the newest deployment runs, an older one still in progress is cancelled
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the site
+        run: npm run build
+
+      - name: Upload the site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

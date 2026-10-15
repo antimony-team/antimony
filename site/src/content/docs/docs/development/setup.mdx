@@ -9,8 +9,10 @@ Contributions are welcome. Antimony is split into three repositories, and you us
 
 | Repository | Language | Run locally on |
 | --- | --- | --- |
-| [antimony-backend](https://github.com/antimony-team/antimony-backend) | Go | `localhost:3000` (API), `localhost:6969` (SSH) |
-| [antimony-interface](https://github.com/antimony-team/antimony-interface) | React, TypeScript, Vite | `localhost:8080` |
+| [antimony-backend](https://github.com/antimony-team/antimony-backend) | Go | `localhost:3100` (API), `localhost:6767` (SSH) |
+| [antimony-interface](https://github.com/antimony-team/antimony-interface) | React, TypeScript, Vite | `localhost:5173` |
+
+The development ports differ from those of the [Docker deployment](/docs/deployment/docker/) (8080, 3000 and 6969), so both can run on the same machine.
 | [antimony](https://github.com/antimony-team/antimony) | Astro, Starlight | `localhost:4321` (this documentation) |
 
 ## Server
@@ -42,10 +44,10 @@ The development `docker-compose.yaml` starts:
 - **PostgreSQL 18** on port 5432. Its init script in `test/postgres` creates the `antimony` user with password `password123`.
 - **Keycloak** on port 4022 with admin `admin` / `admin` and a realm imported from `test/keycloak`. The test configuration uses it as OpenID provider (`http://localhost:4022/realms/antimony`, admin group `antimony-admin`).
 
-The native login is `admin` / `admin`.
+The admin login is `admin` / `admin`. After an OpenID login, Keycloak redirects back to `http://localhost:3100/users/login/success`, which the imported realm allows. If you change `openIdRedirectHost` in the test configuration, also change the client's redirect URI in Keycloak.
 
 <Aside type="note" title="OpenID Connect on localhost">
-	The browser and the server must reach the OpenID provider under the same URL. With Keycloak in a container and the server on the host, both use `localhost:4022`, which works. If you run the server in a container too, OpenID login generally won't work without extra network setup; use the native login instead.
+	The browser and the server must reach the OpenID provider under the same URL. With Keycloak in a container and the server on the host, both use `localhost:4022`, which works. If you run the server in a container too, OpenID login generally won't work without extra network setup; use the admin login instead.
 </Aside>
 
 ### Other tasks
@@ -63,7 +65,7 @@ The native login is `admin` / `admin`.
 | `task lint` / `task lint-fmt` | Lints or formats the code with golangci-lint. |
 | `task swag` | Regenerates the Swagger documentation in `src/docs/`. |
 | `task swag-check` | Fails if the committed Swagger documentation is outdated. CI uses this. |
-| `task clean` | Removes `build/` and `docker/`. |
+| `task clean` | Removes `build/`. |
 
 The integration tests in `src/test/` run the whole server in-process with the dummy provider and a test OpenID server, so they don't need Docker.
 
@@ -77,6 +79,7 @@ The REST API is documented with [swag](https://github.com/swaggo/swag) annotatio
 
 - [Node.js](https://nodejs.org/) 26
 - [Yarn](https://classic.yarnpkg.com/) 1, for example through `corepack enable`
+- [Task](https://taskfile.dev/installation/), for builds and the desktop app. Some distributions install it as `go-task`.
 
 ### Run it
 
@@ -87,40 +90,51 @@ yarn install
 yarn start
 ```
 
-The development server runs on [localhost:8080](http://localhost:8080). It forwards `/api` (without the prefix) and `/socket.io` to a server on `localhost:3000`.
+The development server runs on [localhost:5173](http://localhost:5173). It forwards `/api` (without the prefix) and `/socket.io` to the development server of the backend on `localhost:3100`.
 
-### Scripts
+### Scripts and tasks
+
+The everyday commands are Yarn scripts:
 
 | Script | What it does |
 | --- | --- |
 | `yarn start` | Development server with hot reload. |
+| `yarn build` | Production build into `dist/`. |
+| `yarn test` | Runs the unit tests. |
 | `yarn lint` | Lints with [gts](https://github.com/google/gts). |
 | `yarn typecheck` | Type-checks without building. |
-| `yarn build:prod` | Production build into `dist/`. |
-| `yarn build:dev` | Development build with source maps. |
-| `yarn build:docker` | Builds the Docker image `antimony-interface`. |
-| `yarn build-electron:linux` | Builds the [desktop app](/antimony/docs/deployment/desktop-app/) as an AppImage. |
 | `yarn e2e` | Runs the end-to-end tests. |
 
-### Build-time settings
+Everything that takes more than one step is a task in `Taskfile.yml`. Tasks install the dependencies when needed and skip builds whose inputs haven't changed. `task --list` shows them all.
 
-The interface reads its settings at **build time** from `.env` files. Variables must start with `SB_`.
-
-| Variable | Description |
+| Task | What it does |
 | --- | --- |
-| `SB_API_SERVER_URL` | Base URL of the REST API. If unset, the page's own host is used. |
-| `SB_SOCKET_SERVER_URL` | Base URL of the Socket.IO server. If unset, the page's own host is used. |
-| `SB_CLAB_SCHEMA_URL` | Identifier of the containerlab schema in the editor. The schema itself comes from the server. |
+| `task check` | Lint, type check and unit tests in parallel. |
+| `task build-dev` | Development build with source maps into `dist/`. |
+| `task preview` | Builds and serves the production build. |
+| `task build-docker` | Builds the Docker image `antimony-interface:dev`. |
+| `task build-electron` | Builds the [desktop app](/docs/deployment/desktop-app/) without packaging it. Start it with `yarn electron .`. |
+| `task package-electron-linux` | Builds the desktop app as AppImages for x86_64 and ARM64 into `release/`. |
+| `task e2e-ui` | Opens the end-to-end tests in Playwright's UI. |
+| `task e2e-report` | Opens the report of the last end-to-end run. |
+| `task clean` | Removes the build output. |
 
-| File | Used by | API URL |
+### Where the interface finds the server
+
+The interface needs no configuration. In the browser, it calls `/api` and `/socket.io` on the address it was opened at, which the development server, the e2e preview and Traefik in the Docker deployment forward to the server. The desktop app gets the address of the server it started at runtime.
+
+To build an interface that talks to a server elsewhere, set these variables when building, for example `SB_API_SERVER_URL=https://lab.example.com/api yarn build`:
+
+| Variable | Default | Description |
 | --- | --- | --- |
-| `.env` | `yarn start` | `http://localhost:8080/api` (through the dev server's proxy) |
-| `docker/.env` | the Docker image | `/api` on the same origin |
-| `electron/.env` | the desktop app | `http://localhost:3000` |
+| `SB_API_SERVER_URL` | `/api` | Base URL of the REST API. |
+| `SB_SOCKET_SERVER_URL` | the page's own origin | Base URL of the Socket.IO server, without `/socket.io`. |
 
 ### End-to-end tests
 
-The [Playwright](https://playwright.dev/) tests start their own server container with the dummy provider and a test build of the interface, on ports that don't collide with development (API 3100, SSH 6100, interface 4180).
+The [Playwright](https://playwright.dev/) tests start their own server container with the dummy provider and a test build of the interface, on ports that don't collide with development (API 3200, SSH 6200, interface 4180).
+
+The end-to-end tests currently don't run in CI. Start them by hand, or with the `e2e.yml` workflow.
 
 ```bash
 # Once: build the server image in the antimony-backend repository
@@ -130,8 +144,8 @@ docker build -t antimony-backend:dev .
 npx playwright install chromium
 
 yarn e2e          # headless, like CI
-yarn e2e:ui       # interactive
-yarn e2e:report   # open the last report
+task e2e-ui       # interactive
+task e2e-report   # open the last report
 ```
 
 To test against another server image, set `SB_E2E_BACKEND_IMAGE=<image>`.
@@ -165,9 +179,13 @@ npm run sync-api -- ../../antimony-backend/src/docs/swagger.json   # from a loca
 
 | Repository | Workflow | Runs on | What it does |
 | --- | --- | --- | --- |
-| antimony-backend | `build.yml` | Pushes and PRs to `development` and `main` | Lint, Swagger check, build, tests with race detector |
-| antimony-backend | `publish.yml` | Tags `v*` | Builds and pushes `ghcr.io/antimony-team/antimony-backend:<version>` for amd64 and arm64 |
-| antimony-interface | `build.yml` | Pushes and PRs to `development` and `main` | Lint, type check, AppImage build (artifact `appimage`) |
-| antimony-interface | `e2e.yml` | Pushes and PRs to `development`, manually, or from the server repository | End-to-end tests against `ghcr.io/antimony-team/antimony-backend:dev` |
-| antimony-interface | `publish.yml` | Tags `v*` | Builds and pushes `ghcr.io/antimony-team/antimony-interface:<version>` for amd64 and arm64 |
-| antimony | `ci` | Pushes to `main` | Builds and publishes this documentation to GitHub Pages |
+| antimony-backend | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | Lint, Swagger check, build with a startup smoke test, tests with the race detector, then the Docker image |
+| antimony-backend | `fuzz.yml` | Nightly, manually | Fuzz tests |
+| antimony-interface | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | Lint, type check, unit tests, then the Docker image. The AppImages (x86_64 and ARM64) are built for tags and manual runs only, as the artifact `appimage`. |
+| antimony-interface | `e2e.yml` | Manually, or called by another workflow | End-to-end tests against `ghcr.io/antimony-team/antimony-backend:dev` |
+| antimony | `release.yml` | Tags `v*` | Builds the AppImages from the interface at the same tag, packs the deployment files with that version, and creates the GitHub release with them |
+| antimony | `docs.yml` | Pushes to `main`, PRs that change `site/`, manually | Builds this website and publishes it to GitHub Pages from `main` |
+
+Both `ci.yml` workflows build the images for amd64 and arm64. Pull requests only build them. Pushes publish them as `:dev` (from `development`) or `:main` (from `main`), and tags as `:<version>`, `:<major>.<minor>` and `:latest`, under `ghcr.io/antimony-team/antimony-backend` and `ghcr.io/antimony-team/antimony-interface`.
+
+To release a version, tag `antimony-backend`, `antimony-interface` and `antimony` with the same `v*` tag, in this order. The release in `antimony` checks that the images of that version exist. Its deployment archive and its desktop app both start the images of that version.

@@ -1,6 +1,6 @@
 ---
 title: Authentication and permissions
-description: Set up the native admin login and OpenID Connect, and control who can see, edit and deploy what.
+description: Set up the admin login and OpenID Connect, and control who can see, edit and deploy what.
 sidebar:
   label: Users & permissions
 ---
@@ -9,35 +9,39 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import zoey from '../../../../assets/zoey/classroom.png';
 
-<Image class="zoey-aside" src={zoey} alt="Zoey teaching with a network diagram on a whiteboard" width={220} />
+<Image class="zoey-aside" src={zoey} alt="Zoey teaching with a network diagram on a whiteboard" width={220} densities={[1, 2]} />
 
-Antimony supports two ways to sign in:
+Antimony supports these ways to sign in, listed in `auth.methods` in `config.yml`:
 
-- **Native login.** A single administrator account whose username and password come from environment variables. Good for local installations and small teams.
-- **OpenID Connect.** Users sign in with your organisation's identity provider, such as Keycloak, Microsoft Entra ID or authentik. Their group memberships decide what they can access. This is the way to run Antimony for a class or a team.
-
-You can enable both at the same time. The login screen then shows the username and password form and a **Continue with OpenID Connect** button.
-
-<Aside type="danger" title="If both are disabled">
-	With `enableNative: false` and `enableOpenId: false`, Antimony doesn't ask anyone to sign in, and everybody is an administrator. Only do this on your own machine.
-</Aside>
-
-## Native login
-
-Native login is enabled by default. Set the credentials in the server's environment:
-
-```bash title=".env"
-SB_NATIVE_USERNAME=admin
-SB_NATIVE_PASSWORD=change-me
-```
-
-The native account is always an administrator. If native login is enabled but the username or password is empty, the server logs a warning and accepts empty credentials, and the interface signs in automatically. Always set both in production.
-
-To turn native login off, for example once OpenID Connect works:
+| Method | Who signs in |
+| --- | --- |
+| `admin` | A single administrator account whose username and password come from environment variables. Good for local installations and small teams. |
+| `openid` | Users of your organisation's identity provider, such as Keycloak, Microsoft Entra ID or authentik. Their group memberships decide what they can access. This is the way to run Antimony for a class or a team. |
+| `desktop` | The [desktop app](/docs/deployment/desktop-app/), which starts its own server and signs in with a token it generates. You don't set this up yourself. |
 
 ```yaml title="config.yml"
 auth:
-  enableNative: false
+  methods: [admin, openid]
+```
+
+Without `auth.methods`, only `admin` is enabled. With `admin` and `openid` together, the login screen shows the username and password form and a **Continue with OpenID Connect** button. With an empty list, nobody can sign in.
+
+## Admin login
+
+The admin login is enabled by default. Set the credentials in the server's environment:
+
+```bash title=".env"
+SB_ADMIN_USERNAME=admin
+SB_ADMIN_PASSWORD=change-me
+```
+
+The account is always an administrator. If `admin` is enabled but the username or password is empty, the server doesn't start.
+
+To turn the admin login off, for example once OpenID Connect works:
+
+```yaml title="config.yml"
+auth:
+  methods: [openid]
 ```
 
 ## OpenID Connect
@@ -54,7 +58,7 @@ auth:
 
     ```yaml title="config.yml"
     auth:
-      enableOpenId: true
+      methods: [admin, openid]
       openIdIssuer: https://sso.example.com/realms/antimony
       openIdClientId: antimony
       openIdRedirectHost: https://antimony.example.com/api
@@ -81,7 +85,7 @@ Antimony's permissions are built on **collections**: folders of topologies, usua
 
 Administrators can do everything: create and manage collections, and edit, deploy and delete any topology and lab. A user is an administrator if:
 
-- they signed in with the native account, or
+- they signed in with the admin account or the desktop app, or
 - one of their OpenID groups is listed in `auth.openIdAdminGroups`.
 
 ### Collection access comes from group names
@@ -93,10 +97,10 @@ For example, a student in the groups `hs25-cn1` and `students` sees the collecti
 To give a class its own space:
 
 1. Create a group in your identity provider, for example `hs25-cn1`, and add the students.
-2. As an administrator, create a collection with the same name in the [topology editor](/antimony/docs/manual/topology-editor/#collections).
+2. As an administrator, create a collection with the same name in the [topology editor](/docs/manual/topology-editor/#collections).
 3. Add the topologies the students should work with.
 
-Native login has only the administrator account, so per-collection access needs OpenID Connect.
+The admin login has only the administrator account, so per-collection access needs OpenID Connect.
 
 ### What members can do
 
@@ -119,7 +123,7 @@ Independent of these settings, a user can always manage what they created themse
 | Close a terminal | The user who opened it, or an administrator |
 
 <Aside type="caution">
-	These permissions apply to the web interface and API. The [SSH server](/antimony/docs/manual/ssh-server/) doesn't check them.
+	These permissions apply to the web interface and API. The [SSH server](/docs/manual/ssh-server/) doesn't check them.
 </Aside>
 
 ## Sessions
@@ -131,4 +135,4 @@ After signing in, the browser holds two tokens:
 
 Tokens are signed with `SB_JWT_SECRET`. If that variable isn't set, the server picks a random secret at every start, and everyone has to sign in again after a restart.
 
-See [Authentication flow](/antimony/docs/architecture/auth-flow/) for the details.
+See [Authentication flow](/docs/architecture/auth-flow/) for the details.

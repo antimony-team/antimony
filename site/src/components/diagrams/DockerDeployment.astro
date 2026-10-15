@@ -6,7 +6,7 @@
 	<svg viewBox="0 0 880 420" role="img" aria-labelledby="dd-title dd-desc">
 		<title id="dd-title">Docker deployment</title>
 		<desc id="dd-desc">
-			Browsers connect to Traefik on port 443. Traefik routes the root path to the interface on port 8100, and /api and
+			Browsers connect to Traefik on port 8080. Traefik routes the root path to the interface on port 8100, and /api and
 			/socket.io to the Antimony server on port 3000. The server stores data in PostgreSQL and starts lab containers
 			through the Docker socket with containerlab. SSH clients connect to the server's SSH port directly.
 		</desc>
@@ -25,7 +25,7 @@
 		<!-- Users -->
 		<rect x="20" y="70" width="150" height="64" rx="10" class="box" />
 		<text x="36" y="96" class="t">Browser</text>
-		<text x="36" y="116" class="t-mono">https://host</text>
+		<text x="36" y="116" class="t-mono">http://host:8080</text>
 		<rect x="20" y="300" width="150" height="64" rx="10" class="box" />
 		<text x="36" y="326" class="t">SSH / Wireshark</text>
 		<text x="36" y="346" class="t-mono">ssh -p 6969</text>
@@ -36,8 +36,8 @@
 
 		<rect x="240" y="66" width="150" height="74" rx="10" class="box" />
 		<text x="256" y="92" class="t">Traefik</text>
-		<text x="256" y="112" class="t-mono">:80 → :443</text>
-		<text x="256" y="128" class="t-sub">Let's Encrypt</text>
+		<text x="256" y="112" class="t-mono">:8080 · HTTP</text>
+		<text x="256" y="128" class="t-sub">routes by path</text>
 		<path d="M170 102 H236" class="edge" marker-end="url(#dd-a)" />
 
 		<rect x="460" y="56" width="170" height="56" rx="10" class="box" />
@@ -78,6 +78,6 @@
 		<text x="553" y="316" class="t-sub">shells, capture</text>
 	</svg>
 	<figcaption>
-		The default Docker Compose setup. Traefik terminates TLS and routes requests by path. The server starts lab containers next to itself through the host's Docker daemon.
+		The default Docker Compose setup. Traefik routes requests by path to the interface and the server. The server starts lab containers next to itself through the host's Docker daemon.
 	</figcaption>
 </figure>

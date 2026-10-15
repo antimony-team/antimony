@@ -12,24 +12,18 @@ services:
       - --log.level=INFO
       - --providers.docker=true
       - --providers.docker.exposedByDefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      # Redirect HTTP to HTTPS
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      # Let's Encrypt. Without a public domain, Traefik serves a self-signed certificate.
-      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      # Antimony is served over plain HTTP, the only port that is open to the network besides SSH
+      - --entrypoints.web.address=:${SB_PORT:-8080}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./letsencrypt:/letsencrypt
 
   database:
     image: postgres:18
     restart: unless-stopped
     shm_size: 128mb
     network_mode: host
+    # Only the server on this host connects to the database
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SB_DATABASE_PASSWORD=${SB_DATABASE_PASSWORD:-antimony}
@@ -44,28 +38,23 @@ services:
       - ./postgres:/docker-entrypoint-initdb.d/
 
   interface:
-    # Until release images are published, the images are built from source.
-    # Once they are, replace `build:` with:
-    #   image: ghcr.io/antimony-team/antimony-interface:<version>
-    build:
-      context: https://github.com/antimony-team/antimony-interface.git#${ANTIMONY_BRANCH:-development}
-      dockerfile: docker/Dockerfile
+    # ANTIMONY_VERSION picks the version of Antimony, e.g. 1.4.2, or dev for the development branch.
+    # The deployment archive of a release has its own version as the default.
+    image: ghcr.io/antimony-team/antimony-interface:${ANTIMONY_VERSION:-latest}
     restart: unless-stopped
+    # Only reachable through Traefik on the same host
+    command: ["serve", "-s", "-l", "tcp://127.0.0.1:8100", "."]
     network_mode: host
     depends_on:
       - server
     labels:
       - traefik.enable=true
-      - traefik.http.routers.interface.rule=Host(`${ANTIMONY_HOST:-localhost}`)
-      - traefik.http.routers.interface.entrypoints=websecure
-      - traefik.http.routers.interface.tls.certresolver=letsencrypt
+      - traefik.http.routers.interface.rule=PathPrefix(`/`)
+      - traefik.http.routers.interface.entrypoints=web
       - traefik.http.services.interface.loadbalancer.server.port=8100
 
   server:
-    # Once release images are published, replace `build:` with:
-    #   image: ghcr.io/antimony-team/antimony-backend:<version>
-    build:
-      context: https://github.com/antimony-team/antimony-backend.git#${ANTIMONY_BRANCH:-development}
+    image: ghcr.io/antimony-team/antimony-backend:${ANTIMONY_VERSION:-latest}
     restart: unless-stopped
     command: -config=./config.yml
     network_mode: host
@@ -74,8 +63,8 @@ services:
     cgroup: host
     user: root
     environment:
-      - SB_NATIVE_USERNAME=${SB_NATIVE_USERNAME:-admin}
-      - SB_NATIVE_PASSWORD=${SB_NATIVE_PASSWORD:-admin}
+      - SB_ADMIN_USERNAME=${SB_ADMIN_USERNAME:-admin}
+      - SB_ADMIN_PASSWORD=${SB_ADMIN_PASSWORD:-admin}
       - SB_JWT_SECRET=${SB_JWT_SECRET:-}
       - SB_OIDC_SECRET=${SB_OIDC_SECRET:-}
       - SB_DATABASE_PASSWORD=${SB_DATABASE_PASSWORD:-antimony}
@@ -100,15 +89,13 @@ services:
     labels:
       - traefik.enable=true
       # REST API under /api, with the prefix removed
-      - traefik.http.routers.server-api.rule=Host(`${ANTIMONY_HOST:-localhost}`) && PathPrefix(`/api`)
-      - traefik.http.routers.server-api.entrypoints=websecure
-      - traefik.http.routers.server-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.server-api.rule=PathPrefix(`/api`)
+      - traefik.http.routers.server-api.entrypoints=web
       - traefik.http.routers.server-api.middlewares=api-strip-prefix
       - traefik.http.routers.server-api.service=server
       - traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api
       # Socket.IO
-      - traefik.http.routers.server-socket.rule=Host(`${ANTIMONY_HOST:-localhost}`) && PathPrefix(`/socket.io`)
-      - traefik.http.routers.server-socket.entrypoints=websecure
-      - traefik.http.routers.server-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.server-socket.rule=PathPrefix(`/socket.io`)
+      - traefik.http.routers.server-socket.entrypoints=web
       - traefik.http.routers.server-socket.service=server
       - traefik.http.services.server.loadbalancer.server.port=3000

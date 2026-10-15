@@ -3,7 +3,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <div class="topo" data-base={base}>
-	<svg class="topo-svg" viewBox="0 0 760 430" role="img" aria-label="An interactive network topology. Drag the nodes around.">
+	<svg class="topo-svg" viewBox="0 0 760 495" role="img" aria-label="An interactive network topology. Drag the nodes around.">
 		<g class="areas"></g>
 		<g class="links"></g>
 		<g class="packets"></g>
@@ -17,7 +17,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 </div>
 
 <script>
-	type Node = { id: string; kind: string; icon: string; x: number; y: number; group?: string };
+	type Node = { id: string; icon: string; x: number; y: number; group?: string; definition: string[] };
+	type Link = { a: string; aIf: string; b: string; bIf: string };
 
 	const SVG = 'http://www.w3.org/2000/svg';
 	const root = document.querySelector<HTMLDivElement>('.topo')!;
@@ -29,20 +30,39 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 	const gNodes = svg.querySelector('.nodes')!;
 	const code = root.querySelector('.topo-yaml code')!;
 
-	const nodes: Node[] = [
-		{ id: 'spine1', kind: 'nokia_srlinux', icon: 'spine', x: 270, y: 75, group: 'fabric' },
-		{ id: 'spine2', kind: 'nokia_srlinux', icon: 'spine', x: 490, y: 75, group: 'fabric' },
-		{ id: 'leaf1', kind: 'nokia_srlinux', icon: 'switch', x: 150, y: 205, group: 'fabric' },
-		{ id: 'leaf2', kind: 'nokia_srlinux', icon: 'switch', x: 380, y: 205, group: 'fabric' },
-		{ id: 'leaf3', kind: 'nokia_srlinux', icon: 'switch', x: 610, y: 205, group: 'fabric' },
-		{ id: 'srv1', kind: 'linux', icon: 'server', x: 150, y: 345, group: 'hosts' },
-		{ id: 'client1', kind: 'linux', icon: 'client', x: 380, y: 345, group: 'hosts' },
-		{ id: 'srv2', kind: 'linux', icon: 'server', x: 610, y: 345, group: 'hosts' },
+	// The definition shown in the editor panel. Images are set once per kind
+	const header = [
+		'name: dc-fabric',
+		'topology:',
+		'  kinds:',
+		'    nokia_srlinux:',
+		'      image: ghcr.io/nokia/srlinux',
+		'    linux:',
+		'      image: alpine:3.20',
+		'  nodes:',
 	];
-	const links: [string, string][] = [
-		['spine1', 'leaf1'], ['spine1', 'leaf2'], ['spine1', 'leaf3'],
-		['spine2', 'leaf1'], ['spine2', 'leaf2'], ['spine2', 'leaf3'],
-		['leaf1', 'srv1'], ['leaf2', 'client1'], ['leaf3', 'srv2'],
+	const srl = ['kind: nokia_srlinux'];
+	const linux = ['kind: linux'];
+	const nodes: Node[] = [
+		{ id: 'spine1', icon: 'spine', x: 270, y: 86, group: 'fabric', definition: srl },
+		{ id: 'spine2', icon: 'spine', x: 490, y: 86, group: 'fabric', definition: srl },
+		{ id: 'leaf1', icon: 'switch', x: 150, y: 236, group: 'fabric', definition: srl },
+		{ id: 'leaf2', icon: 'switch', x: 380, y: 236, group: 'fabric', definition: srl },
+		{ id: 'leaf3', icon: 'switch', x: 610, y: 236, group: 'fabric', definition: srl },
+		{ id: 'srv1', icon: 'server', x: 150, y: 397, group: 'hosts', definition: linux },
+		{ id: 'client1', icon: 'client', x: 380, y: 397, group: 'hosts', definition: linux },
+		{ id: 'srv2', icon: 'server', x: 610, y: 397, group: 'hosts', definition: linux },
+	];
+	const links: Link[] = [
+		{ a: 'spine1', aIf: 'e1-1', b: 'leaf1', bIf: 'e1-49' },
+		{ a: 'spine1', aIf: 'e1-2', b: 'leaf2', bIf: 'e1-49' },
+		{ a: 'spine1', aIf: 'e1-3', b: 'leaf3', bIf: 'e1-49' },
+		{ a: 'spine2', aIf: 'e1-1', b: 'leaf1', bIf: 'e1-50' },
+		{ a: 'spine2', aIf: 'e1-2', b: 'leaf2', bIf: 'e1-50' },
+		{ a: 'spine2', aIf: 'e1-3', b: 'leaf3', bIf: 'e1-50' },
+		{ a: 'leaf1', aIf: 'e1-1', b: 'srv1', bIf: 'eth1' },
+		{ a: 'leaf2', aIf: 'e1-1', b: 'client1', bIf: 'eth1' },
+		{ a: 'leaf3', aIf: 'e1-1', b: 'srv2', bIf: 'eth1' },
 	];
 	const byId = new Map(nodes.map((n) => [n.id, n]));
 	const R = 24;
@@ -64,12 +84,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 	});
 
 	// Links
-	const linkEls = links.map(([a, b], i) => {
+	const linkEls = links.map(({ a, aIf, b, bIf }) => {
 		const line = el('line', { class: 'link' }, gLinks);
 		const la = el('text', { class: 'iface' }, gLinks);
 		const lb = el('text', { class: 'iface' }, gLinks);
-		la.textContent = `e1-${(i % 3) + 1}`;
-		lb.textContent = `e1-${Math.floor(i / 3) + 1}`;
+		la.textContent = aIf;
+		lb.textContent = bIf;
 		return { a: byId.get(a)!, b: byId.get(b)!, line, la, lb };
 	});
 
@@ -86,25 +106,34 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 		return { n, g };
 	});
 
-	let selected = nodes[2];
+	let selected = nodes.find((n) => n.id === 'spine1')!;
 
-	const renderYaml = () => {
-		const n = selected;
-		const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-		const k = (s: string) => `<span class="y-k">${esc(s)}</span>`;
-		const v = (s: string) => `<span class="y-v">${esc(s)}</span>`;
-		const num = (s: string) => `<span class="y-n">${s}</span>`;
-		code.innerHTML = [
-			`${k('topology')}:`,
-			`  ${k('nodes')}:`,
-			`    ${k(n.id)}:`,
-			`      ${k('kind')}: ${v(n.kind)}`,
-			`      ${k('labels')}:`,
-			`        ${k('graph-posX')}: ${num(n.x.toFixed(2))}`,
-			`        ${k('graph-posY')}: ${num(n.y.toFixed(2))}`,
-			`        ${k('graph-icon')}: ${v(n.icon)}`,
-			`        ${k('graph-group')}: ${v(n.group ?? '')}`,
-		].join('\n');
+	// Renders the whole topology once. Moving nodes doesn't change it, the layout lives in a separate annotations file
+	const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+	const highlight = (l: string) => {
+		const [, indent, rest] = l.match(/^(\s*)(.*)$/)!;
+		if (rest.startsWith('- ')) return `${indent}- ${highlight(rest.slice(2)).trimStart()}`;
+		// A key needs a space or the line end after its colon, so www:/srv stays a plain value
+		const [, key, value] = rest.match(/^([\w-]+):(?:\s+(.*))?$/) ?? [];
+		if (key === undefined) return `${indent}<span class="y-v">${esc(rest)}</span>`;
+		return `${indent}<span class="y-k">${esc(key)}</span>:${value ? ` <span class="y-v">${esc(value)}</span>` : ''}`;
+	};
+	const line = (l: string, node?: string) =>
+		`<span class="y-line"${node ? ` data-node="${node}"` : ''}>${highlight(l)}</span>`;
+	code.innerHTML = [
+		...header.map((l) => line(l)),
+		...nodes.flatMap((n) => [line(`    ${n.id}:`, n.id), ...n.definition.map((l) => line(`      ${l}`, n.id))]),
+		line('  links:'),
+		...links.map(({ a, aIf, b, bIf }) => line(`    - endpoints: [${a}:${aIf}, ${b}:${bIf}]`)),
+	].join('');
+
+	// Highlights the selected node's definition and scrolls the panel (not the page) to it
+	const pre = code.parentElement!;
+	const showSelected = () => {
+		const lines = [...code.querySelectorAll<HTMLElement>('.y-line')];
+		for (const l of lines) l.classList.toggle('y-selected', l.dataset.node === selected.id);
+		const first = lines.find((l) => l.dataset.node === selected.id);
+		if (first) pre.scrollTo({ top: first.offsetTop - pre.offsetTop - pre.clientHeight / 3, behavior: 'smooth' });
 	};
 
 	const render = () => {
@@ -136,7 +165,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 			label.setAttribute('x', String(x0 + 12));
 			label.setAttribute('y', String(y1 + 18));
 		}
-		renderYaml();
 	};
 
 	// Dragging
@@ -150,6 +178,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 		g.addEventListener('pointerdown', (e) => {
 			const ev = e as PointerEvent;
 			selected = n;
+			showSelected();
 			root.classList.add('touched');
 			const start = toSvg(ev);
 			const ox = n.x - start.x, oy = n.y - start.y;
@@ -158,7 +187,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 			const move = (m: Event) => {
 				const p = toSvg(m as PointerEvent);
 				n.x = Math.max(R + 10, Math.min(760 - R - 10, p.x + ox));
-				n.y = Math.max(R + 10, Math.min(430 - R - 30, p.y + oy));
+				n.y = Math.max(R + 10, Math.min(495 - R - 30, p.y + oy));
 				render();
 			};
 			const up = () => {
@@ -174,6 +203,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 		});
 		g.addEventListener('focus', () => {
 			selected = n;
+			showSelected();
 			render();
 		});
 	}
@@ -206,5 +236,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 	};
 
 	render();
+	showSelected();
 	if (!reduced) requestAnimationFrame(tick);
 </script>

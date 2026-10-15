@@ -16,20 +16,20 @@ Only the access token grants access to resources. The refresh token's only purpo
 
 How you obtain the refresh token depends on the login method. Everything after that is the same.
 
-## Native login
+## Admin login
 
 <Sequence
-	title="Native login"
+	title="Admin login"
 	participants={['Interface', 'Antimony server']}
 	messages={[
 		{ from: 0, to: 1, label: 'POST /users/login/native' },
 		{ from: 1, to: 1, label: 'check credentials' },
 		{ from: 1, to: 0, label: 'set authToken, accessToken', reply: true },
 	]}
-	caption="The native admin account signs in with the credentials from the server's environment."
+	caption="The admin account signs in with the credentials from the server's environment."
 />
 
-The server compares the username and password with `SB_NATIVE_USERNAME` and `SB_NATIVE_PASSWORD` and sets both cookies.
+The server compares the username and password with `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD` and sets both cookies.
 
 ## OpenID Connect
 
@@ -55,7 +55,22 @@ The server compares the username and password with `SB_NATIVE_USERNAME` and `SB_
 3. The server exchanges the code for a token and reads `sub`, `email` and `groups` from the provider's userinfo endpoint.
 4. It creates or updates the user, sets `authToken`, `accessToken` and `authOidc`, and redirects back to the page you came from.
 
-The `groups` claim decides two things: whether the user is an administrator (`auth.openIdAdminGroups`) and which collections they can access (groups with the same name as a collection). See [permissions](/antimony/docs/deployment/authentication/#permissions).
+The `groups` claim decides two things: whether the user is an administrator (`auth.openIdAdminGroups`) and which collections they can access (groups with the same name as a collection). See [permissions](/docs/deployment/authentication/#permissions).
+
+## Desktop app
+
+<Sequence
+	title="Desktop login"
+	participants={['Desktop app', 'Antimony server']}
+	messages={[
+		{ from: 0, to: 1, label: 'POST /users/login/desktop' },
+		{ from: 1, to: 1, label: 'check the desktop token' },
+		{ from: 1, to: 0, label: 'access token in the response', reply: true },
+	]}
+	caption="The desktop app signs in with the token it gave the server it started."
+/>
+
+The [desktop app](/docs/deployment/desktop-app/) starts its own server with a random `SB_DESKTOP_TOKEN` and signs in by sending it as `{ "token": "<desktop token>" }`. It signs in as the admin account. The app's window is loaded from a file, where cookies don't work, so the server returns the access token in the response instead of setting cookies, and the app sends it in an `Authorization: Bearer <access token>` header. There is no refresh token: when the access token expires, the app signs in again with the desktop token.
 
 ## Using and refreshing the access token
 
@@ -71,13 +86,13 @@ The `groups` claim decides two things: whether the user is an administrator (`au
 	]}
 />
 
-- **REST requests** are authenticated with the `accessToken` cookie. A missing cookie gives `401`; an invalid or expired token gives `498`.
-- **Socket.IO connections** pass the access token in the handshake as `auth: { token: "<access token>" }`. All namespaces require it.
+- **REST requests** are authenticated with the `accessToken` cookie, or with an `Authorization: Bearer <access token>` header. A missing cookie gives `401`; an invalid or expired token gives `498`.
+- **Socket.IO connections** pass the access token in the handshake as `auth: { token: "<access token>" }`. All namespaces require it. Some also check access to a lab or a terminal, once when the client connects: a client that loses access stays connected until it reconnects. See [Socket.IO API](/docs/api/socket-io/#access-is-checked-when-connecting).
 - **Logging out** (`POST /users/logout`) clears all three cookies.
 - If the user signed in with OpenID (the `authOidc` cookie is set) and the refresh token is no longer valid, the interface sends them through the OpenID login again.
 
 ## After a server restart
 
-The server keeps signed-in users in memory. After a restart, OpenID users are recognised again on their next login. The native admin account is recreated at startup.
+The server keeps signed-in users in memory. After a restart, OpenID users are recognised again on their next login. The admin account is recreated at startup.
 
 Tokens survive a restart only if `SB_JWT_SECRET` is set. Without it, the server generates a new secret at every start, and every existing token becomes invalid.

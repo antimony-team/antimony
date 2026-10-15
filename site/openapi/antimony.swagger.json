@@ -11,6 +11,25 @@
 	},
 	"basePath": "/api",
 	"paths": {
+		"/clab-schema/annotations": {
+			"get": {
+				"produces": [
+					"application/json"
+				],
+				"tags": [
+					"schema"
+				],
+				"summary": "Returns the JSON schema to validate topology annotations",
+				"responses": {
+					"200": {
+						"description": "The schema as JSON object",
+						"schema": {
+							"$ref": "#/definitions/utils.OkResponse-any"
+						}
+					}
+				}
+			}
+		},
 		"/collections": {
 			"get": {
 				"security": [
@@ -937,7 +956,7 @@
 				"tags": [
 					"users"
 				],
-				"summary": "Create a non-admin native user (development mode only)",
+				"summary": "Create a non-admin native user (DEVELOPMENT MODE ONLY)",
 				"parameters": [
 					{
 						"description": "The user",
@@ -977,7 +996,7 @@
 				}
 			}
 		},
-		"/users/login/config": {
+		"/users/login/auth-config": {
 			"get": {
 				"consumes": [
 					"application/json"
@@ -993,8 +1012,47 @@
 					"200": {
 						"description": "The authentication config of the server",
 						"schema": {
-							"$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+							"$ref": "#/definitions/utils.OkResponse-user_AuthConfigOut"
 						}
+					}
+				}
+			}
+		},
+		"/users/login/desktop": {
+			"post": {
+				"consumes": [
+					"application/json"
+				],
+				"tags": [
+					"users"
+				],
+				"summary": "Authenticate the desktop app with its desktop token. Returns the access token instead of setting cookies.",
+				"parameters": [
+					{
+						"description": "The desktop token",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/user.DesktopTokenIn"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The new access token of the user",
+						"schema": {
+							"type": "string"
+						}
+					},
+					"400": {
+						"description": "The request body was invalid"
+					},
+					"401": {
+						"description": "Authentication via desktop token is disabled"
+					},
+					"403": {
+						"description": "The provided desktop token was invalid"
 					}
 				}
 			}
@@ -1059,9 +1117,9 @@
 				"summary": "Refresh the access token",
 				"responses": {
 					"200": {
-						"description": "The authentication config of the server",
+						"description": "The new access token of the user",
 						"schema": {
-							"$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+							"type": "string"
 						}
 					},
 					"401": {
@@ -1088,36 +1146,6 @@
 		}
 	},
 	"definitions": {
-		"auth.AuthConfig": {
-			"type": "object",
-			"properties": {
-				"native": {
-					"$ref": "#/definitions/auth.NativeAuthConfig"
-				},
-				"openId": {
-					"$ref": "#/definitions/auth.OpenIdAuthConfig"
-				}
-			}
-		},
-		"auth.NativeAuthConfig": {
-			"type": "object",
-			"properties": {
-				"allowEmpty": {
-					"type": "boolean"
-				},
-				"enabled": {
-					"type": "boolean"
-				}
-			}
-		},
-		"auth.OpenIdAuthConfig": {
-			"type": "object",
-			"properties": {
-				"enabled": {
-					"type": "boolean"
-				}
-			}
-		},
 		"collection.CollectionIn": {
 			"type": "object",
 			"required": [
@@ -1150,6 +1178,19 @@
 					"type": "boolean"
 				}
 			}
+		},
+		"config.AuthMethod": {
+			"type": "string",
+			"enum": [
+				"admin",
+				"openid",
+				"desktop"
+			],
+			"x-enum-varnames": [
+				"authAdmin",
+				"authOpenID",
+				"authDesktop"
+			]
 		},
 		"deployment.NodeInterface": {
 			"type": "object",
@@ -1186,17 +1227,42 @@
 		"device.DeviceConfig": {
 			"type": "object",
 			"properties": {
-				"interfacePattern": {
-					"type": "string"
+				"images": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				},
-				"interfaceStart": {
-					"type": "integer"
+				"interfaces": {
+					"description": "Interfaces name the same interfaces, new interfaces are named after the first one",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/device.InterfacePattern"
+					}
 				},
 				"kind": {
 					"type": "string"
 				},
+				"kindAliases": {
+					"description": "KindAliases are the other names containerlab accepts for the kind, e.g. srl",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
 				"name": {
 					"type": "string"
+				}
+			}
+		},
+		"device.InterfacePattern": {
+			"type": "object",
+			"properties": {
+				"pattern": {
+					"type": "string"
+				},
+				"start": {
+					"type": "integer"
 				}
 			}
 		},
@@ -1293,6 +1359,87 @@
 				}
 			}
 		},
+		"policy.Finding": {
+			"type": "object",
+			"properties": {
+				"impact": {
+					"$ref": "#/definitions/policy.Impact"
+				},
+				"message": {
+					"type": "string"
+				},
+				"path": {
+					"type": "string"
+				},
+				"ruleId": {
+					"$ref": "#/definitions/policy.RuleId"
+				}
+			}
+		},
+		"policy.Impact": {
+			"type": "string",
+			"enum": [
+				"deploy",
+				"shell",
+				"unreviewed"
+			],
+			"x-enum-varnames": [
+				"impactDeploy",
+				"impactShell",
+				"impactUnreviewed"
+			]
+		},
+		"policy.RuleId": {
+			"type": "string",
+			"enum": [
+				"netlab",
+				"unreviewed-field",
+				"go-template",
+				"env-expansion",
+				"mgmt",
+				"prefix",
+				"settings",
+				"env-files",
+				"host-kind",
+				"image-not-allowed",
+				"privileged",
+				"privileges",
+				"host-namespace",
+				"kernel-settings",
+				"runtime",
+				"host-ports",
+				"volumes",
+				"static-mgmt-address",
+				"host-exec",
+				"remote-file",
+				"foreign-file",
+				"host-link"
+			],
+			"x-enum-varnames": [
+				"ruleNetlab",
+				"ruleUnreviewedField",
+				"ruleGoTemplate",
+				"ruleEnvExpansion",
+				"ruleMgmt",
+				"rulePrefix",
+				"ruleSettings",
+				"ruleEnvFiles",
+				"ruleHostKind",
+				"ruleImageNotAllowed",
+				"rulePrivileged",
+				"rulePrivileges",
+				"ruleHostNamespace",
+				"ruleKernelSettings",
+				"ruleRuntime",
+				"ruleHostPorts",
+				"ruleVolumes",
+				"ruleStaticMgmtAddress",
+				"ruleHostExec",
+				"ruleRemoteFile",
+				"ruleForeignFile",
+				"ruleHostLink"
+			]
+		},
 		"serverconfig.CaptureConfig": {
 			"type": "object",
 			"properties": {
@@ -1358,11 +1505,15 @@
 		"topology.TopologyIn": {
 			"type": "object",
 			"required": [
+				"annotations",
 				"collectionId",
 				"definition",
 				"syncUrl"
 			],
 			"properties": {
+				"annotations": {
+					"type": "string"
+				},
 				"collectionId": {
 					"type": "string"
 				},
@@ -1466,6 +1617,9 @@
 				"startTime": {
 					"type": "string"
 				},
+				"topologyAnnotations": {
+					"type": "string"
+				},
 				"topologyDefinition": {
 					"type": "string"
 				},
@@ -1477,6 +1631,9 @@
 		"transport.TopologyOut": {
 			"type": "object",
 			"properties": {
+				"annotations": {
+					"type": "string"
+				},
 				"bindFiles": {
 					"type": "array",
 					"items": {
@@ -1498,6 +1655,12 @@
 				"lastDeployFailed": {
 					"type": "boolean"
 				},
+				"policyFindings": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/policy.Finding"
+					}
+				},
 				"syncUrl": {
 					"type": "string"
 				}
@@ -1514,13 +1677,39 @@
 				}
 			}
 		},
+		"user.AuthConfigOut": {
+			"type": "object",
+			"properties": {
+				"methods": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/config.AuthMethod"
+					}
+				}
+			}
+		},
 		"user.CredentialsIn": {
 			"type": "object",
+			"required": [
+				"password",
+				"username"
+			],
 			"properties": {
 				"password": {
 					"type": "string"
 				},
 				"username": {
+					"type": "string"
+				}
+			}
+		},
+		"user.DesktopTokenIn": {
+			"type": "object",
+			"required": [
+				"token"
+			],
+			"properties": {
+				"token": {
 					"type": "string"
 				}
 			}
@@ -1618,14 +1807,6 @@
 				}
 			}
 		},
-		"utils.OkResponse-auth_AuthConfig": {
-			"type": "object",
-			"properties": {
-				"payload": {
-					"$ref": "#/definitions/auth.AuthConfig"
-				}
-			}
-		},
 		"utils.OkResponse-string": {
 			"type": "object",
 			"properties": {
@@ -1647,6 +1828,14 @@
 			"properties": {
 				"payload": {
 					"$ref": "#/definitions/transport.TopologyOut"
+				}
+			}
+		},
+		"utils.OkResponse-user_AuthConfigOut": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"$ref": "#/definitions/user.AuthConfigOut"
 				}
 			}
 		}

@@ -10,7 +10,7 @@ import SshDiagram from '../../../../components/diagrams/SshServer.astro';
 import { Image } from 'astro:assets';
 import zoey from '../../../../assets/zoey/traffic.png';
 
-<Image class="zoey-aside" src={zoey} alt="Zoey inspecting HTTP, TCP, UDP and ICMP traffic with a magnifying glass" width={170} />
+<Image class="zoey-aside" src={zoey} alt="Zoey inspecting HTTP, TCP, UDP and ICMP traffic with a magnifying glass" width={170} densities={[1, 2]} />
 
 Next to the web interface, the Antimony server runs its own SSH server. It does two things:
 
@@ -29,7 +29,7 @@ You don't connect to the node itself. You connect to Antimony and tell it which 
 
 ## Connecting
 
-The server listens on `ssh.sshHost` and `ssh.sshPort` from the [configuration](/antimony/docs/deployment/configuration/#ssh). If your config doesn't set a port, the server uses **6969**. The examples on this page use `antimony.example.com` and port 6969.
+The server listens on `ssh.sshHost` and `ssh.sshPort` from the [configuration](/docs/deployment/configuration/#ssh). If your config doesn't set a port, the server uses **6969**. The examples on this page use `antimony.example.com` and port 6969.
 
 ### Choosing a node
 
@@ -55,7 +55,7 @@ ssh -t -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com
 ssh -t -p 6969 -l "testing/OSPF Lab 1/r1" antimony.example.com
 ```
 
-Antimony opens the shell the same way as the [browser terminal](/antimony/docs/manual/lab-view/#terminals): it first logs in to the node over SSH on port 22, using the username and password from [`kinds.conf.yml`](/antimony/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, for example on a plain Linux container without an SSH daemon, it falls back to `bash` or `sh` inside the container.
+Antimony opens the shell the same way as the [browser terminal](/docs/manual/lab-view/#terminals): it first logs in to the node over SSH on port 22, using the username and password from [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, for example on a plain Linux container without an SSH daemon, it falls back to `bash` or `sh` inside the container.
 
 Terminal resizes are passed through. When you exit the node's shell, the SSH session ends.
 
@@ -78,7 +78,7 @@ ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com et
 ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 | tcpdump -n -r -
 ```
 
-You don't have to type these. In the [lab view](/antimony/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands in the `<collection>/<lab name>/<node>` form, for example:
+You don't have to type these. In the [lab view](/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands in the `<collection>/<lab name>/<node>` form, for example:
 
 ```bash
 ssh testing/dsfsfdf/alpine1@antimony.example.com -p 6969 eth1 | wireshark -k -i -
@@ -116,10 +116,10 @@ Only the interface option is read; every other `tcpdump` option and any filter e
 
 <Tabs>
 	<TabItem label="containerlab">
-		Antimony opens a raw packet socket (`AF_PACKET`) inside the node container's network namespace. This is why the Antimony server needs to run on the same host as the containers, with host PID visibility and elevated privileges (the `privileged` and `pid: host` settings in the [Docker deployment](/antimony/docs/deployment/docker/)).
+		Antimony opens a raw packet socket (`AF_PACKET`) inside the node container's network namespace. This is why the Antimony server needs to run on the same host as the containers, with host PID visibility and elevated privileges (the `privileged` and `pid: host` settings in the [Docker deployment](/docs/deployment/docker/)).
 	</TabItem>
 	<TabItem label="clabernetes">
-		Antimony runs the packet capture tool of the pod's `clabwire` sidecar through the Kubernetes API. Only the node's lab link interfaces can be captured. The sidecar limits single captures to one hour; Antimony chains them so your stream keeps going. See [traffic capture on clabernetes](/antimony/docs/deployment/clabernetes/#traffic-capture-on-clabernetes).
+		Antimony runs the packet capture tool of the pod's `clabwire` sidecar through the Kubernetes API. Only the node's lab link interfaces can be captured. The sidecar limits single captures to one hour; Antimony chains them so your stream keeps going. See [traffic capture on clabernetes](/docs/deployment/clabernetes/#traffic-capture-on-clabernetes).
 	</TabItem>
 </Tabs>
 

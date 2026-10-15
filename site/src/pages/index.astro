@@ -3,18 +3,22 @@ import { Image } from 'astro:assets';
 import '../styles/fonts.css';
 import '../styles/landing.css';
 import logo from '../assets/logo.svg?raw';
+import containerlabLogo from '../assets/containerlab.svg?raw';
 import editor from '../assets/screenshots/antimony-editor.png';
 import zoeyBlueprint from '../assets/zoey/plan.png';
-import zoeyDrill from '../assets/zoey/drill.png';
+import zoeyQuality from '../assets/zoey/quality.png';
+import zoeyDesigner from '../assets/zoey/designer.png';
 import zoeyTraffic from '../assets/zoey/traffic.png';
 import zoeyClassroom from '../assets/zoey/classroom.png';
 import zoeyLaptop from '../assets/zoey/laptop.png';
 import Topology from '../components/Topology.astro';
+import EditorLayers from '../components/diagrams/EditorLayers.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const docs = `${base}/docs/`;
 const quickStart = `${base}/docs/getting-started/quick-start/`;
 const github = 'https://github.com/antimony-team/antimony';
+const installCommand = 'curl -fsSL https://antimony.run/deploy.sh | bash';
 
 const extras = [
 	{ title: 'Live logs', text: 'containerlab and per-node container logs, streamed and highlighted.' },
@@ -22,7 +26,7 @@ const extras = [
 	{ title: 'Git sync', text: 'Keep a topology in sync with a file in a Git repository.' },
 	{ title: 'Bind files', text: 'Attach configs and startup files to a topology, right in the editor.' },
 	{ title: 'Archive import', text: 'Drop in an existing containerlab project and keep going.' },
-	{ title: 'Desktop app', text: 'The same interface as an installable app for Linux and Windows.' },
+	{ title: 'Desktop app', text: 'Antimony on your own Linux machine, without setting up a server.' },
 	{ title: 'Kubernetes', text: 'Deploy through clabernetes when one host is not enough.' },
 	{ title: 'REST + Socket.IO API', text: 'Everything the interface does is available to your scripts.' },
 ];
@@ -56,7 +60,7 @@ const extras = [
 			<!-- Hero -->
 			<section class="hero">
 				<div class="hero-copy">
-					<p class="eyebrow"><span class="pulse"></span> Open source · built on containerlab</p>
+					<a class="eyebrow" href="https://containerlab.dev"><span class="eyebrow-logo" set:html={containerlabLogo} /> Powered by <strong>containerlab</strong></a>
 					<h1>Draw the network.<br /><em>Antimony</em> runs it.</h1>
 					<p class="lead">
 						Design network labs on a canvas, deploy them with one click and operate every node from your
@@ -66,23 +70,21 @@ const extras = [
 						<a class="btn" href={quickStart}>Get started</a>
 						<a class="btn btn-ghost" href={github}>Star on GitHub</a>
 					</div>
-					<button class="cmd" data-copy="git clone https://github.com/antimony-team/antimony && cd antimony && docker compose up -d --build" aria-label="Copy install command">
-						<span class="prompt">$</span> docker compose up <span class="cmd-hint">copy</span>
+					<button class="cmd" data-copy={installCommand} aria-label="Copy install command">
+						<span class="prompt">$</span> {installCommand} <span class="cmd-hint">copy</span>
 					</button>
 				</div>
 				<Topology />
 			</section>
 
-			<section class="stack" aria-label="Works with">
-				<span>Works with</span>
-				<ul>
-					<li>containerlab</li>
-					<li>Docker</li>
-					<li>Kubernetes · clabernetes</li>
-					<li>OpenID Connect</li>
-					<li>Wireshark</li>
-					<li>PostgreSQL · SQLite</li>
-				</ul>
+			<section class="stack" aria-label="At a glance">
+				<dl>
+					<div><dt>Runs on</dt><dd>containerlab · clabernetes</dd></div>
+					<div><dt>Access</dt><dd>OpenID Connect</dd></div>
+					<div><dt>Capture</dt><dd>Wireshark</dd></div>
+					<div><dt>Built with</dt><dd>Go · React</dd></div>
+					<div><dt>Desktop</dt><dd>Electron · Linux</dd></div>
+				</dl>
 			</section>
 
 			<!-- Design -->
@@ -106,8 +108,29 @@ const extras = [
 						<div class="window-bar"><i></i><i></i><i></i><span>Topology Editor</span></div>
 						<Image src={editor} alt="The Antimony topology editor: topologies on the left, YAML in the middle, the network graph on the right" widths={[800, 1400]} sizes="(min-width: 960px) 640px, 100vw" />
 					</div>
-					<Image class="zoey zoey-right" src={zoeyBlueprint} alt="" width={220} />
+					<Image class="zoey zoey-right" src={zoeyBlueprint} alt="" width={220} densities={[1, 2]} />
 				</div>
+			</section>
+
+			<!-- Editor -->
+			<section class="showcase" id="editor">
+				<div class="showcase-copy">
+					<Image class="zoey zoey-showcase" src={zoeyDesigner} alt="" width={230} densities={[1, 2]} />
+					<p class="step">Under the canvas</p>
+					<h2>An editor that feels like a design tool.</h2>
+					<p>
+						Lay out a lab the way you'd draw it on a whiteboard. Frame nodes in groups, sketch with shapes and
+						arrows, and write notes in Markdown. Everything snaps into line, and arrows stay connected when you
+						move things around.
+					</p>
+				</div>
+				<EditorLayers framed={false} />
+				<ul class="ticks showcase-ticks">
+					<li>Alignment guides and equal spacing</li>
+					<li>Arrows that stay connected to shapes</li>
+					<li>Nested groups, shapes and Markdown notes</li>
+					<li>Copy, paste and undo for everything</li>
+				</ul>
 			</section>
 
 			<!-- Deploy -->
@@ -152,7 +175,7 @@ const extras = [
 							</div>
 						</div>
 					</div>
-					<Image class="zoey zoey-left" src={zoeyDrill} alt="" width={230} />
+					<Image class="zoey zoey-left" src={zoeyQuality} alt="" width={230} densities={[1, 2]} />
 				</div>
 			</section>
 
@@ -187,13 +210,13 @@ ethernet-1/1 is <span class="t-ok">up</span>, speed 25G, type None
 						<span class="muted">Capture e1-1 on leaf1</span>
 						<code>ssh 3f9c…@antimony.lab -p 22 e1-1 <b>| wireshark -k -i -</b></code>
 					</div>
-					<Image class="zoey zoey-right" src={zoeyTraffic} alt="" width={220} />
+					<Image class="zoey zoey-right" src={zoeyTraffic} alt="" width={220} densities={[1, 2]} />
 				</div>
 			</section>
 
 			<!-- Classroom -->
 			<section class="classroom" id="classroom">
-				<Image class="zoey-plan" src={zoeyClassroom} alt="Zoey explaining a network topology on a whiteboard" width={360} />
+				<Image class="zoey-plan" src={zoeyClassroom} alt="Zoey explaining a network topology on a whiteboard" width={360} densities={[1, 2]} />
 				<div>
 					<p class="step">Built for teaching</p>
 					<h2>One server. A whole class of labs.</h2>
@@ -234,13 +257,11 @@ ethernet-1/1 is <span class="t-ok">up</span>, speed 25G, type None
 
 			<!-- CTA -->
 			<section class="cta">
-				<Image class="zoey-cta" src={zoeyLaptop} alt="" width={240} />
+				<Image class="zoey-cta" src={zoeyLaptop} alt="" width={240} densities={[1, 2]} />
 				<div>
-					<h2>Your first lab is three commands away.</h2>
-<pre class="cta-cmd"><code><span class="prompt">$</span> git clone {github}
-<span class="prompt">$</span> cd antimony
-<span class="prompt">$</span> docker compose up -d --build</code></pre>
-					<p class="muted">Then open <code>https://localhost</code> and sign in with <code>admin</code> / <code>admin</code>.</p>
+					<h2>Your first lab is one command away.</h2>
+<pre class="cta-cmd"><code><span class="prompt">$</span> curl -fsSL https://antimony.run/deploy.sh | bash</code></pre>
+					<p class="muted">Then open <code>http://localhost:8080</code> and sign in with the password it prints.</p>
 					<div class="actions">
 						<a class="btn" href={quickStart}>Read the quick start</a>
 						<a class="btn btn-ghost" href={docs}>Browse the docs</a>

@@ -5,8 +5,7 @@ import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
 
 // https://astro.build/config
 export default defineConfig({
-	site: 'https://antimony-team.github.io',
-	base: '/antimony',
+	site: 'https://antimony.run',
 	integrations: [
 		starlight({
 			title: 'Antimony',
@@ -50,6 +49,7 @@ export default defineConfig({
 						'docs/deployment/desktop-app',
 						'docs/deployment/configuration',
 						'docs/deployment/authentication',
+						'docs/deployment/topology-policy',
 					],
 				},
 				{

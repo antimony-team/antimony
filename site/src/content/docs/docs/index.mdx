@@ -7,7 +7,7 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import zoey from '../../../assets/zoey/laptop.png';
 
-<Image class="zoey-aside" src={zoey} alt="Zoey working on a laptop" width={170} />
+<Image class="zoey-aside" src={zoey} alt="Zoey working on a laptop" width={170} densities={[1, 2]} />
 
 Antimony is an open-source platform for designing, deploying and operating network labs. It builds on [containerlab](https://containerlab.dev): you describe a network as a containerlab topology, and Antimony turns it into running routers, switches and hosts, either on a single Docker host or on a Kubernetes cluster with [clabernetes](https://containerlab.dev/manual/clabernetes/).
 
@@ -23,10 +23,10 @@ Antimony was started as a bachelor's thesis at the [OST Eastern Switzerland Univ
 ## Where to start
 
 <CardGrid>
-	<LinkCard title="Quick start" href="/antimony/docs/getting-started/quick-start/" description="Run Antimony on your machine and deploy a first lab." />
-	<LinkCard title="Concepts" href="/antimony/docs/getting-started/concepts/" description="Collections, topologies, labs and nodes." />
-	<LinkCard title="Deploy with Docker" href="/antimony/docs/deployment/docker/" description="Set up Antimony for your team or class." />
-	<LinkCard title="User manual" href="/antimony/docs/manual/dashboard/" description="Everything the interface can do." />
+	<LinkCard title="Quick start" href="/docs/getting-started/quick-start/" description="Run Antimony on your machine and deploy a first lab." />
+	<LinkCard title="Concepts" href="/docs/getting-started/concepts/" description="Collections, topologies, labs and nodes." />
+	<LinkCard title="Deploy with Docker" href="/docs/deployment/docker/" description="Set up Antimony for your team or class." />
+	<LinkCard title="User manual" href="/docs/manual/dashboard/" description="Everything the interface can do." />
 </CardGrid>
 
 ## Repositories
