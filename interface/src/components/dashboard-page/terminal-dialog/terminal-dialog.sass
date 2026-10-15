@@ -1,16 +1,14 @@
 .sb-terminal-dialog
   width: min(1000px, 70vw)
-  height: 560px
-
-  .sb-dialog-content
-    background: var(--secondary-color) !important
+  height: 625px
 
   .xterm-viewport
-    background: var(--secondary-color) !important
+    background: var(--surface-sunken) !important
 
   .sb-dialog-content
     position: relative
-    background-color: #0b1219
+    display: flex
+    flex-direction: column
     padding: 0
     overflow: hidden
 
@@ -19,8 +17,20 @@
 
 .sb-terminal-container
   position: relative
+  display: flex
+  background-color: var(--surface-sunken)
+  border-radius: 8px
+  margin: 8px
   padding: 8px
-  background-color: var(--secondary-color)
+  flex-grow: 1
+  min-height: 0
+
+  // xterm's FitAddon measures its parent including padding (border-box), so the parent must not have any
+  .sb-terminal-host
+    flex-grow: 1
+    min-width: 0
+    min-height: 0
+    overflow: hidden
 
   .sb-terminal-expired
     backdrop-filter: blur(4px)
@@ -36,48 +46,32 @@
     justify-content: center
 
     .sb-terminal-expired-title
-      font-size: 48px
+      font-size: 40px
       font-weight: 700
       margin-bottom: 10px
-      color: var(--primary-color-border)
+      color: var(--text)
 
     .sb-terminal-expired-text
-      font-size: 20px
+      font-size: 18px
       margin-bottom: 18px
-      color: rgba(255, 255, 255, 0.6)
+      color: var(--text-muted)
+      font-style: italic
 
 .sb-terminal-new-tab-overlay
-  background-color: var(--overlay-color)
-  border-color: var(--primary-color-border)
+  .sb-terminal-new-tab-overlay-entry
+    display: flex
+    align-items: center
+    gap: 4px
+    padding: 12px
+    cursor: pointer
+    user-select: none
+    border-radius: 6px
 
-  .p-listbox
-    width: unset !important
-    max-width: 500px
+    &:hover
+      background-color: var(--hover)
 
-  .p-listbox
-    border: none
-    background-color: transparent
-
-    .p-listbox-item-group
-      background-color: transparent
-      border: 1px solid transparent
-      padding: 0
-      user-select: none
-      font-weight: 400
-      cursor: pointer
-      border-radius: 2px
-
-      div
-        padding: 12px
-
-      &:hover
-        backdrop-filter: brightness(1.2)
-
-      &:active
-        backdrop-filter: brightness(1.3)
-
-    .p-listbox-list
-      padding: 0
+    &:active
+      background-color: var(--active)
 
 .sb-terminal-tab-header
   display: flex
@@ -87,7 +81,7 @@
   height: 20px
   line-height: 20px
   align-content: center
-  color: var(--primary-color-text)
+  color: var(--text)
 
   i
     font-size: 10px
@@ -108,38 +102,82 @@
     line-height: unset
 
 .sb-terminal-tab-header-add
-  line-height: 1.2
+  line-height: 1.1
 
   i
-    font-size: 14px
+    font-size: 12px
 
-.p-tabview
-  .p-tabview-panels
-    display: none
+.sb-terminal-tabs
+  display: flex
+  padding: 6px 12px
+  gap: 4px
+  overflow-x: auto
+  scrollbar-width: none
+  border-bottom: 1px solid var(--border)
 
-  .p-tabview-nav-btn
-    box-shadow: 0 3px 1px -2px rgba(0, 0, 0, 0.5), 0px 2px 2px 0px rgba(0, 0, 0, 0.5), 0px 1px 20px 0px rgba(0, 0, 0, 0.8)
-    background: var(--overlay-color)
-    color: var(--primary-color-border)
+  .sb-terminal-tab
+    display: flex
+    flex-shrink: 0
+    padding: 0 6px 0 12px
+    align-items: center
+    gap: 6px
+    cursor: pointer
+    border: 1px solid transparent
+    border-radius: 8px
+    min-width: 100px
+    color: var(--text-muted)
 
-  .p-tabview-nav-content
-    background: var(--overlay-color)
+    .sb-terminal-tab-indicator
+      width: 7px
+      height: 7px
+      border-radius: 50%
+      background-color: var(--success-color-text)
+      transform: translateY(1px)
 
-  .p-tabview-nav
-    border: none
+      &.expired
+        background-color: var(--danger-color-text)
 
-    li
-      .p-tabview-nav-link
-        border: 0 solid transparent
-        border-top: 2px transparent solid
-        border-radius: 0
-        margin: 0
-        padding: 12px 16px
-        background: var(--overlay-color)
+    .p-button
+      padding: 0
+      width: 20px
+      height: 20px
+      transform: translateY(1px)
 
-      &.p-tabview-selected
-        .p-tabview-nav-link
-          border-top-color: var(--primary-color-border)
-          border-bottom-color: var(--primary-color)
-          color: var(--primary-color-border)
-          background-color: var(--secondary-color)
+      .p-button-icon
+        font-size: 10px
+        color: var(--text-muted)
+
+      &:hover
+        background-color: var(--active)
+
+    &:hover
+      border-color: var(--border-strong)
+
+    &:active
+      background-color: var(--active)
+
+    &.selected
+      background-color: var(--surface-selected)
+      color: var(--text)
+
+      .p-button-icon
+        color: var(--text)
+
+    .sb-terminal-tab-label
+      font-weight: 600
+      flex-grow: 1
+
+  .sb-terminal-tab-add
+    flex-shrink: 0
+    width: 35px
+    margin-right: 2px
+    color: var(--text-muted)
+
+    span
+      font-size: 14px
+
+    &:hover
+      border-color: var(--border-strong)
+
+    &:active
+      background-color: var(--active)

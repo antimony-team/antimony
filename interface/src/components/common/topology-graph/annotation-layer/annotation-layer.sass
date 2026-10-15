@@ -1,0 +1,40 @@
+.sb-graph-group
+  position: absolute
+  box-sizing: border-box
+
+  // The group that dragged nodes are added to when they are dropped
+  &.drop-target
+    border-color: var(--accent) !important
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 30%, transparent), inset 0 0 0 100vmax color-mix(in oklab, var(--accent) 10%, transparent)
+
+  .sb-graph-group-label
+    position: absolute
+    overflow: hidden
+    font-size: 12px
+    white-space: nowrap
+    text-overflow: ellipsis
+    user-select: none
+
+    &.hidden
+      visibility: hidden
+
+.sb-graph-shape
+  position: absolute
+  box-sizing: border-box
+
+.sb-graph-line
+  position: absolute
+  overflow: visible
+
+.sb-graph-draw-preview
+  position: absolute
+  box-sizing: border-box
+  border: 1.5px dashed var(--accent)
+  border-radius: 6px
+
+// The halo of a selected line or link, drawn behind it
+.sb-graph-line-selection
+  fill: none
+  stroke: var(--accent)
+  stroke-opacity: .18
+  stroke-linecap: round

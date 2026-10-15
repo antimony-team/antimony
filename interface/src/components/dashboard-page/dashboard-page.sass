@@ -1,75 +1,35 @@
-.sb-dashboard-filter
+.sb-dashboard
+  width: 100%
   display: flex
-  gap: 28px
-  justify-content: space-between
-  align-items: baseline
-  border-bottom: 1px solid var(--primary-color-border)
+  position: relative
+  contain: size
 
-  .sb-dashboard-filter-chips
-    display: flex
-    flex-wrap: wrap
-    gap: 8px
-    margin: 12px 16px 12px 16px
+  > .p-splitter > .p-splitter-panel:first-child
+    min-width: 350px
 
-  .sb-dashboard-filter-search
-    display: flex
-    margin: 12px 8px 12px 12px
+  .p-splitter-gutter
+    background-color: transparent !important
+    width: 8px !important
 
-.sb-dashboard-search-bar
+  .p-splitter-gutter-handle
+    background-color: var(--surface-page)
+
+.sb-lab-explorer
   display: flex
-  align-items: center
-  padding: 8px
-  border-bottom: 1px solid var(--primary-color-border)
+  flex-direction: column
+  padding: 16px
+  gap: 6px
+
+  .p-icon-field
+    margin-bottom: 6px
+
+.sb-dashboard-container
+  display: flex
+  flex-direction: column
+  flex: 1
 
 .sb-dashboard-search-bar-input
   flex-grow: 1
-
-.sb-dashboard-container
-  position: relative
-
-.sb-labs-container
-  display: flex
-  flex-direction: column
-  background-color: var(--secondary-color)
-  gap: 16px
-  margin-bottom: 16px
-
-.sb-dashboard-content
-  position: relative
-  min-height: 0
-  flex-grow: 1
-  display: flex
-  flex-direction: column
-  margin: 0 16px
-  gap: 10px
-
-.search-bar-icon
-  flex-shrink: 0
-  display: flex
-  align-items: center
-  justify-content: center
-  padding: 0 0.75em
-  color: var(--primary-color-text)
-  font-size: 1.2em
-  width: auto
-  cursor: pointer
-
-.sb-dashboard-pagination-controls
-  position: absolute
-  bottom: 0
-  left: 0
-  right: 0
-  display: flex
-  justify-content: space-around
-  align-items: center
-  flex-direction: row
-
-  svg
-    color: var(--primary-color-text)
-
-  .p-paginator
-    background-color: transparent
-    border: none
 
 .sb-dashboard-empty
   width: 100%
@@ -78,9 +38,8 @@
   align-items: center
   justify-content: center
   flex-direction: column
-  color: var(--primary-color-text)
+  color: var(--text)
 
   img
     filter: invert(1)
     opacity: 0.3
-

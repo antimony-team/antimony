@@ -90,10 +90,15 @@ typings/
 
 src/**/*.js
 
-.css
-.css.map
+*.css
+*.css.map
 
 build/
 release/
 dist-electron/
 dist/
+.task/
+
+# End-to-end tests
+e2e/.tmp/
+e2e/.auth/

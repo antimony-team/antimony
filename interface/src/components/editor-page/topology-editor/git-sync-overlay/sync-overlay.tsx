@@ -1,14 +1,16 @@
-import {Topology} from '@sb/types/domain/topology';
 import React, {useRef} from 'react';
 
 import {observer} from 'mobx-react-lite';
+
+import {Button} from 'primereact/button';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
-import './sync-overlay.sass';
-import {Button} from 'primereact/button';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {fetchResource, isValidURL} from '@sb/lib/utils/utils';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
+import {fetchSyncUrl} from '@sb/lib/utils/utils';
+import {Topology} from '@sb/types/domain/topology';
+
+import './sync-overlay.sass';
 
 interface SyncOverlayProps {
   popOverRef: React.RefObject<OverlayPanel | null>;
@@ -33,17 +35,8 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
     const value = urlFieldRef.current.input.current.value;
     const [validationError, content] = await fetchSyncUrl(value);
     if (validationError === null) {
-      if (topologyStore.manager.hasEdits()) {
-        notificationStore.confirm({
-          message: 'Discard unsaved changes?',
-          header: 'Unsaved Changes',
-          icon: 'pi pi-info-circle',
-          severity: 'warning',
-          onAccept: () => onSaveConfirm(content!),
-        });
-      } else {
-        void onSaveConfirm(content!);
-      }
+      props.onSetContent(content!);
+      props.popOverRef.current?.hide();
     } else {
       urlFieldRef.current.setValidationError(validationError);
     }
@@ -54,7 +47,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
 
     const value = urlFieldRef.current.input.current.value;
     if (value === props.topology?.syncUrl) {
-      notificationStore.success('Sync URL has been udpated successfully.');
+      notificationStore.success('Sync URL has been updated successfully.');
       return;
     }
 
@@ -65,7 +58,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
       });
 
       if (response.isOk()) {
-        notificationStore.success('Sync URL has been udpated successfully.');
+        notificationStore.success('Sync URL has been updated successfully.');
       } else {
         notificationStore.error('Failed to update sync URL.');
       }
@@ -74,36 +67,11 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
     }
   }
 
-  async function onSaveConfirm(content: string) {
-    props.onSetContent(content);
-  }
-
-  async function fetchSyncUrl(
-    value: string,
-  ): Promise<[string | null, string | null]> {
-    if (value !== '' && !isValidURL(value)) {
-      return ['Specified URL is not valid', null];
-    }
-
-    const response = await fetchResource(value);
-
-    if (!response?.ok) {
-      return ['Unable to fetch from the provided resource.', null];
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('text')) {
-      return ['Unable to fetch from the provided resource.', null];
-    } else {
-      return [null, await response.text()];
-    }
-  }
-
   return (
     <OverlayPanel ref={props.popOverRef} className="sync-overlay-panel">
       <div className="flex flex-column gap-2">
         <SBInput
-          id="sb-node-name"
+          id="sync-url"
           ref={urlFieldRef}
           label="Sync URL"
           placeholder="e.g. https://example.com/topology.yaml"
@@ -130,7 +98,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
             label="Save"
             outlined
             onClick={onSave}
-            aria-label="Save"
+            aria-label="Save Sync URL"
           />
         </div>
       </div>

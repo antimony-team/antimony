@@ -1,28 +1,23 @@
-.graph-container
-  position: relative
-  width: 100%
-  height: 100%
-
-  .grid-canvas
-    position: absolute
-    z-index: 0
-    pointer-events: none
-
-  .cytoscape-container
-    position: absolute
-    z-index: 1
-
 .vis-tooltip
   font-family: Iosevka, monospace !important
-  background-color: var(--overlay-color) !important
-  border-color: var(--primary-color-border) !important
-  color: var(--primary-color-text) !important
+  background-color: var(--surface-overlay) !important
+  border-color: var(--border) !important
+  color: var(--text) !important
 
 .sb-node-editor
   width: 100%
   height: 100%
   position: relative
-  backdrop-filter: brightness(1.05)
+  overflow: hidden
+
+  &.sb-node-editor-hand, &.sb-node-editor-hand *
+    cursor: grab
+
+    &:active
+      cursor: grabbing
+
+  &.sb-node-editor-draw, &.sb-node-editor-draw *
+    cursor: crosshair
 
 .sb-node-editor-menubar
   position: absolute
@@ -34,14 +29,3 @@
 
   &.sb-node-editor-menubar-disabled
     top: -60px
-
-.sb-node-editor-dial
-  position: absolute
-  visibility: hidden
-
-  ul
-    visibility: visible
-
-    .p-speeddial-action
-      background-color: rgb(139, 184, 182)
-      box-shadow: 1px 1px 4px 0 rgba(0,0,0,0.75)

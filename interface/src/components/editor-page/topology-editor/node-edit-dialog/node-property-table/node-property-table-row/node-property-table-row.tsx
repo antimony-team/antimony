@@ -1,15 +1,17 @@
 import React, {useMemo} from 'react';
 
+import classNames from 'classnames';
+
 import {Button} from 'primereact/button';
+import {Checkbox} from 'primereact/checkbox';
 import {Message} from 'primereact/message';
 import {Tooltip} from 'primereact/tooltip';
-import {Checkbox} from 'primereact/checkbox';
 
+import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
+import SBInput from '@sb/components/common/sb-input/sb-input';
+import NodePropertyArray from '@sb/components/editor-page/topology-editor/node-edit-dialog/node-property-table/node-property-array/node-property-array';
 import {PropertyIO} from '@sb/lib/node-editor';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import SBInput from '@sb/components/common/sb-input/sb-input';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
-import NodePropertyArray from '../node-property-array/node-property-array';
 
 interface NodePropertyTableRowProps {
   propertyKey: string;
@@ -19,9 +21,7 @@ interface NodePropertyTableRowProps {
   isKeyEditable?: boolean;
 }
 
-const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
-  props: NodePropertyTableRowProps,
-) => {
+const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
   const dropdownOptions = useMemo(
     () =>
       props.property.availableValues?.map(value => ({
@@ -29,6 +29,15 @@ const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
       })) ?? null,
     [props.property],
   );
+
+  const isInherited = props.property.value === undefined;
+  const hasInheritedValue = props.property.inheritedValue !== undefined;
+
+  // An inherited value is shown as the placeholder, so writing a value doesn't need clearing the field
+  const placeholder =
+    isInherited && hasInheritedValue
+      ? `${String(props.property.inheritedValue)} (inherited)`
+      : 'Empty';
 
   function onTextInputSubmit(value: string): string | null {
     if (props.property.type === 'number') {
@@ -54,7 +63,7 @@ const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
           </When>
         </Choose>
         <Choose>
-          <When condition={props.isKeyEditable}>
+          <When condition={props.isKeyEditable && !isInherited}>
             <SBInput
               key={props.property.key}
               onValueSubmit={props.property.onUpdateKey}
@@ -80,7 +89,8 @@ const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
         <Choose>
           <When condition={dropdownOptions}>
             <SBDropdown
-              value={props.property.value as string}
+              value={(props.property.value as string | undefined) ?? null}
+              placeholder={isInherited ? placeholder : undefined}
               options={dropdownOptions!}
               optionLabel="value"
               isHidden={true}
@@ -92,13 +102,24 @@ const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
           </When>
           <When condition={props.property.type === 'boolean'}>
             <Checkbox
+              className={classNames({
+                'sb-property-table-inherited': isInherited,
+              })}
               onChange={e => props.property.onUpdateValue(e.checked!)}
-              checked={props.property.value as boolean}
+              checked={
+                ((props.property.value ??
+                  props.property.inheritedValue) as boolean) ?? false
+              }
+              tooltip={isInherited ? 'Inherited' : undefined}
+              tooltipOptions={{showDelay: 500}}
             />
           </When>
           <When condition={props.property.isArray}>
             <NodePropertyArray
-              entries={props.property.value as string[]}
+              entries={(props.property.value as string[] | undefined) ?? []}
+              inheritedEntries={
+                (props.property.inheritedValue as string[] | undefined) ?? []
+              }
               onUpdateValue={props.property.onUpdateValue}
               minItems={props.property.minItems ?? 0}
               uniqueItems={props.property.uniqueItems}
@@ -106,10 +127,12 @@ const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
           </When>
           <Otherwise>
             <SBInput
-              key={props.property.value as string}
+              key={String(props.property.value)}
               onValueSubmit={onTextInputSubmit}
-              defaultValue={props.property.value as string}
-              placeholder="Empty"
+              defaultValue={
+                isInherited ? '' : String(props.property.value as string)
+              }
+              placeholder={placeholder}
               keyfilter={props.property.type === 'number' ? 'int' : undefined}
               isHidden={true}
             />
@@ -122,27 +145,33 @@ const NodePropertyTableRow: React.FC<NodePropertyTableRowProps> = (
         </td>
       </If>
       <td className="flex justify-content-center">
-        <Button
-          icon="pi pi-undo"
-          severity="secondary"
-          rounded
-          text
-          onClick={props.property.onReset}
-          tooltip="Revert property"
-          tooltipOptions={{showDelay: 500}}
-          disabled={!props.property.wasEdited}
-          aria-label="Undo"
-        />
-        <Button
-          icon="pi pi-trash"
-          severity="danger"
-          rounded
-          text
-          tooltip="Remove property"
-          tooltipOptions={{showDelay: 500}}
-          onClick={props.property.onDelete}
-          aria-label="Redo"
-        />
+        <Choose>
+          <When condition={isInherited}></When>
+          <When condition={hasInheritedValue}>
+            <Button
+              icon="pi pi-undo"
+              severity="secondary"
+              rounded
+              text
+              onClick={props.property.onReset}
+              tooltip="Reset to the inherited value"
+              tooltipOptions={{showDelay: 500}}
+              aria-label="Reset Property"
+            />
+          </When>
+          <Otherwise>
+            <Button
+              icon="pi pi-trash"
+              severity="danger"
+              rounded
+              text
+              tooltip="Remove property"
+              tooltipOptions={{showDelay: 500}}
+              onClick={props.property.onReset}
+              aria-label="Remove Property"
+            />
+          </Otherwise>
+        </Choose>
       </td>
     </tr>
   );

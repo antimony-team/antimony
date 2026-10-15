@@ -1,34 +1,32 @@
 import React from 'react';
 
-import {Toast} from 'primereact/toast';
 import {action, computed, observable, ObservableSet} from 'mobx';
 
-import {RootStore} from '@sb/lib/stores/root-store';
+import {Toast} from 'primereact/toast';
+
 import {
   SBConfirmOpenProps,
   SBConfirmRef,
 } from '@sb/components/common/sb-confirm/sb-confirm';
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {RootStore} from '@sb/lib/stores/root-store';
 import {
   Severity,
   SeverityMapping,
   StatusMessage,
   StatusMessageOut,
 } from '@sb/types/domain/status-message';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 
 export class StatusMessageStore {
-  protected rootStore: RootStore;
-
-  private data: StatusMessage[] = observable<StatusMessage>([]);
-  private lookup: Map<string, StatusMessage> = new Map();
-
-  private toastRef: React.RefObject<Toast | null> | null = null;
-  private confirmRef: React.RefObject<SBConfirmRef | null> | null = null;
-
   @observable accessor countBySeverity: Map<Severity, number> = new Map();
   @observable accessor filteredMessages: StatusMessage[] = [];
   @observable accessor severityFilter: ObservableSet<Severity> =
     new ObservableSet();
+  protected rootStore: RootStore;
+  private data: StatusMessage[] = observable<StatusMessage>([]);
+  private lookup: Map<string, StatusMessage> = new Map();
+  private toastRef: React.RefObject<Toast | null> | null = null;
+  private confirmRef: React.RefObject<SBConfirmRef | null> | null = null;
 
   constructor(rootStore: RootStore) {
     this.rootStore = rootStore;
@@ -39,22 +37,20 @@ export class StatusMessageStore {
     );
   }
 
-  @action
-  private handleMessage(data: DataResponse<StatusMessageOut>) {
-    const message = StatusMessageStore.parseMessage(data.payload, false);
-    this.lookup.set(message.id, message);
+  @computed
+  public get hasUnreadMessages(): boolean {
+    return this.data.filter(msg => !msg.isRead).length > 0;
+  }
 
-    this.countBySeverity.set(
-      message.severity,
-      (this.countBySeverity.get(message.severity) ?? 0) + 1,
-    );
-    this.data.push(message);
-    this.send(message.content, message.source, message.severity);
-    console.log(
-      `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`,
-    );
-
-    this.updateFilteredMessages();
+  public static parseMessage(
+    input: StatusMessageOut,
+    isRead: boolean,
+  ): StatusMessage {
+    return {
+      ...input,
+      timestamp: new Date(input.timestamp),
+      isRead,
+    };
   }
 
   @action
@@ -66,21 +62,6 @@ export class StatusMessageStore {
     }
 
     this.updateFilteredMessages();
-  }
-
-  @action
-  private updateFilteredMessages() {
-    this.filteredMessages = this.data
-      .filter(
-        msg =>
-          this.severityFilter.size < 1 || this.severityFilter.has(msg.severity),
-      )
-      .toReversed();
-  }
-
-  @computed
-  public get hasUnreadMessages(): boolean {
-    return this.data.filter(msg => !msg.isRead).length > 0;
   }
 
   @action
@@ -135,6 +116,34 @@ export class StatusMessageStore {
   }
 
   @action
+  private handleMessage(data: DataResponse<StatusMessageOut>) {
+    const message = StatusMessageStore.parseMessage(data.payload, false);
+    this.lookup.set(message.id, message);
+
+    this.countBySeverity.set(
+      message.severity,
+      (this.countBySeverity.get(message.severity) ?? 0) + 1,
+    );
+    this.data.push(message);
+    this.send(message.content, message.source, message.severity);
+    console.log(
+      `[SERVER] ${Severity[message.severity].toUpperCase()} ${message.logContent}`,
+    );
+
+    this.updateFilteredMessages();
+  }
+
+  @action
+  private updateFilteredMessages() {
+    this.filteredMessages = this.data
+      .filter(
+        msg =>
+          this.severityFilter.size < 1 || this.severityFilter.has(msg.severity),
+      )
+      .toReversed();
+  }
+
+  @action
   private send(message: string, title: string, severity: Severity): void {
     if (!this.toastRef?.current) return;
     const msg = {
@@ -143,16 +152,5 @@ export class StatusMessageStore {
       severity: SeverityMapping[severity],
     };
     this.toastRef.current.show(msg);
-  }
-
-  public static parseMessage(
-    input: StatusMessageOut,
-    isRead: boolean,
-  ): StatusMessage {
-    return {
-      ...input,
-      timestamp: new Date(input.timestamp),
-      isRead,
-    };
   }
 }

@@ -3,6 +3,7 @@ import React from 'react';
 import {Image} from 'primereact/image';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import {useServerConfig} from '@sb/lib/stores/root-store';
 
 import './credits-dialog.sass';
 
@@ -12,29 +13,29 @@ interface CreditsDialogProps {
 }
 
 const CreditsDialog = (props: CreditsDialogProps) => {
+  const serverConfig = useServerConfig();
+
   return (
     <SBDialog
       isOpen={props.isOpen}
       onClose={props.onClose}
       headerTitle="Antimony"
       hideButtons={true}
-      headerIcon="./icons/favicon-dark.png"
+      headerIcon="./antimony-logo.svg"
       className="sb-credits-dialog"
     >
-      <div className="flex flex-row gap-2">
+      <div className="flex flex-row gap-2 align-items-end">
         <div className="flex flex-column justify-content-between">
           <div className="mb-4">
-            Antimony is a 2025 student project of the&nbsp;
-            <a href="https://www.ost.ch/" target="_blank">
-              University of Applied Sciences Rapperswil (OST)
-            </a>
-            .
+            A visual approach to designing and managing Containerlab networks.
           </div>
-          <div>
+          <div className="flex flex-column gap-2">
             <div className="sb-credits-header">Version</div>
             <div className="mb-2">v1.0.0</div>
             <div className="sb-credits-header">Authors</div>
             <div className="mb-2">Kian Gribi, Tom Stromer</div>
+            <div className="sb-credits-header">Deployment Provider</div>
+            <div className="mb-2">{serverConfig?.deployment?.provider}</div>
             <div className="sb-credits-header">Provided by</div>
             <div className="mb-2">
               <a
@@ -47,8 +48,8 @@ const CreditsDialog = (props: CreditsDialogProps) => {
           </div>
         </div>
         <Image
-          src="./icons/zoey-bg.png"
-          width="140px"
+          src="./zoey.png"
+          height="200px"
           title="Zoey, the Antimony girl"
         />
       </div>

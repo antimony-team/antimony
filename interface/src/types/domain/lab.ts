@@ -13,11 +13,11 @@ export type LabOut = LabIn & {
   id: uuid4;
   creator: User;
   collectionId: uuid4;
-  instanceName: string;
 
   topologyDefinition: string;
+  topologyAnnotations: string;
 
-  instance?: InstanceOut;
+  instance: InstanceOut | null;
 };
 
 export type Lab = {
@@ -26,23 +26,22 @@ export type Lab = {
   startTime: Date;
   endTime: Date | null;
   creator: User;
+  state: InstanceState;
 
-  topologyId: uuid4;
+  topologyId: uuid4 | null;
   collectionId: uuid4;
   topologyDefinition: RunTopology;
 
   instance: Instance | null;
-  instanceName: string | null;
-  state: InstanceState;
 };
 
 export type InstanceOut = {
+  name: string;
   deployed: Date;
-  edgesharkLink: string;
   state: InstanceState;
   latestStateChange: Date;
   nodes: InstanceNode[];
-  recovered: boolean;
+  isRecovered: boolean;
 };
 
 export type Instance = InstanceOut & {
@@ -51,16 +50,17 @@ export type Instance = InstanceOut & {
 
 export type InstanceNode = {
   name: string;
+  kind: string;
   ipv4: string;
   ipv6: string;
   port: number;
-  kind: string;
   user: string;
-  state: string;
-  webSSH: string;
   containerId: string;
   containerName: string;
   interfaces: NodeInterface[];
+
+  state: InstanceNodeState;
+  isReady: boolean;
 
   canRestart: boolean;
 };
@@ -72,6 +72,13 @@ export type NodeInterface = {
   state: string;
 };
 
+export enum InstanceNodeState {
+  Stopped,
+  Starting,
+  Running,
+  Stopping,
+}
+
 export enum InstanceState {
   Deploying,
   Running,
@@ -82,15 +89,15 @@ export enum InstanceState {
   Scheduled = -2,
 }
 
-export type NodeStatsOut = {
+export type NodeStats = {
   timestamp: string;
   cpuPercent: number;
   memoryUsage: number;
   memoryLimit: number;
-  interfaces: Record<string, NodeInterfaceStatsOut>;
+  interfaces: Record<string, NodeInterfaceStats>;
 };
 
-export type NodeInterfaceStatsOut = {
+export type NodeInterfaceStats = {
   rxBps: number;
   txBps: number;
 };
@@ -125,20 +132,21 @@ export enum ShellCommand {
   ShellClose,
 }
 
-export type LabCommandData = {
+export type RuntimeCommandPayload = {
   labId: string;
-  command: LabCommand;
+  command: RuntimeCommand;
   node?: string;
   shellId?: string;
 };
 
-export enum LabCommand {
-  Deploy,
-  Destroy,
+export enum RuntimeCommand {
+  DeployLab,
+  DestroyLab,
   StartNode,
   StopNode,
   RestartNode,
   FetchShells,
   OpenShell,
   CloseShell,
+  ResizeShell,
 }

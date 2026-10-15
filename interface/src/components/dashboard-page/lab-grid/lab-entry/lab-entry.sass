@@ -1,0 +1,112 @@
+.sb-dashboard-lab-card
+  background-color: var(--surface-inset)
+  border: 1px solid var(--border)
+  border-radius: 8px
+  overflow: hidden
+  cursor: pointer
+
+  &:hover
+    border-color: var(--border-strong)
+
+  --status-color: var(--text-muted)
+  --status-shadow: none
+
+  &.running
+    --status-color: var(--success-color-text)
+
+  &.deploying
+    --status-color: var(--warning-color-text)
+    --status-shadow: 0 0 0 3px color-mix(in oklab, var(--warning-color-text) 25%, transparent)
+
+  &.stopping
+    --status-color: var(--subtle-color-text)
+    --status-shadow: 0 0 0 3px color-mix(in oklab, var(--subtle-color-text) 25%, transparent)
+
+  &.failed
+    --status-color: var(--danger-color-text)
+
+  &.scheduled
+    --status-color: var(--info-color-text)
+
+  .sb-dashboard-lab-content
+    display: flex
+    flex-direction: column
+    gap: 10px
+    padding: 14px
+
+    .sb-dashboard-lab-card-header
+      display: flex
+      justify-content: space-between
+
+    .sb-dashboard-lab-card-header-nodes
+      background-color: var(--surface-selected)
+      color: var(--text-muted)
+      padding: 2px 8px
+      border-radius: 9999px
+
+    .sb-dashboard-lab-card-footer
+      display: grid
+      grid-template-columns: minmax(max-content, 1fr) auto 1fr
+      font-size: 14px
+      color: var(--text-muted)
+
+      > div
+        display: flex
+        align-items: center
+        gap: 4px
+
+        &:last-child
+          justify-self: end
+
+      .sb-dashboard-lab-card-footer-deleted
+        font-style: italic
+
+      .material-symbols-outlined
+        font-size: 16px
+
+      .sb-lab-grid-card-footer-owner
+        margin-left: auto
+
+.sb-dashboard-lab-card-band
+  position: relative
+  display: flex
+  align-items: center
+  gap: 8px
+  height: 36px
+  padding: 0 14px
+  font-size: 14px
+  font-weight: 500
+  color: var(--status-color)
+  background-color: color-mix(in oklab, var(--status-color) 10%, transparent)
+  border-bottom: 1px solid var(--border)
+
+  // the progress line, drawn over the divider
+  &::after
+    content: ''
+    position: absolute
+    left: 0
+    right: 0
+    bottom: -1px
+    height: 2px
+    background-color: color-mix(in oklab, var(--status-color) 55%, transparent)
+    transform: scaleX(var(--progress, 0))
+    transform-origin: left
+    transition: transform 0.6s ease-out
+
+  .sb-dashboard-lab-card-band-state
+    flex-grow: 1
+
+  .sb-dashboard-lab-card-band-time
+    font-weight: 400
+    color: var(--text-muted)
+
+  .dot
+    width: 8px
+    height: 8px
+    border-radius: 50%
+    background-color: var(--status-color)
+    box-shadow: var(--status-shadow)
+
+  @media (prefers-reduced-motion: reduce)
+    &::after
+      transition: none

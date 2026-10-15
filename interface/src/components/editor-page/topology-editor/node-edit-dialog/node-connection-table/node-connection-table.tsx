@@ -1,12 +1,13 @@
-import React from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 
 import {Image} from 'primereact/image';
 import {InputNumber, InputNumberChangeEvent} from 'primereact/inputnumber';
 
+import {interfaceName, matchInterface} from '@sb/lib/graph/interfaces';
 import {NodeEditor} from '@sb/lib/node-editor';
-import {NodeConnection} from '@sb/types/domain/topology';
+import {useDeviceStore} from '@sb/lib/stores/root-store';
 import {Choose, Otherwise, When} from '@sb/types/control';
-import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
+import {TopologyLink} from '@sb/types/domain/topology-definition';
 
 import './node-connection-table.sass';
 
@@ -15,80 +16,90 @@ interface NodeConnectionTableProps {
 }
 
 const NodeConnectionTable = (props: NodeConnectionTableProps) => {
-  const topologyStore = useTopologyStore();
   const deviceStore = useDeviceStore();
+  const [links, setLinks] = useState<TopologyLink[]>([]);
 
-  function onHostChange(
-    connection: NodeConnection,
+  const onTopologyUpdate = useCallback(() => {
+    setLinks(props.nodeEditor.getLinks());
+  }, [props.nodeEditor]);
+
+  useEffect(() => {
+    props.nodeEditor.onEdit.register(onTopologyUpdate);
+    onTopologyUpdate();
+
+    return () => props.nodeEditor.onEdit.unregister(onTopologyUpdate);
+  }, [props.nodeEditor, onTopologyUpdate]);
+
+  // The ends of a link from the current node, the first one is at the node
+  function linkEnds(link: TopologyLink) {
+    const hostIndex = Math.max(
+      link.endpoints.findIndex(
+        endpoint => endpoint.node === props.nodeEditor.getNodeName(),
+      ),
+      0,
+    );
+
+    return [hostIndex, 1 - hostIndex].map(endpointIndex => {
+      const endpoint = link.endpoints[endpointIndex];
+      const config = deviceStore.getInterfaceConfig(
+        props.nodeEditor.getTopology().nodes.get(endpoint.node)?.device,
+      );
+
+      // The number is changed in the pattern the interface is written in
+      const match = matchInterface(endpoint.interface, config);
+
+      return {
+        endpointIndex,
+        endpoint,
+        pattern: match?.pattern ?? config.interfaces[0],
+        number: match?.number ?? null,
+      };
+    });
+  }
+
+  function onInterfaceChange(
+    link: TopologyLink,
+    end: ReturnType<typeof linkEnds>[number],
     event: InputNumberChangeEvent,
   ) {
     if (!event.value) return;
 
-    props.nodeEditor.modifyConnection({
-      ...connection,
-      hostInterfaceIndex: event.value,
-    });
+    props.nodeEditor.renameInterface(
+      link.index,
+      end.endpointIndex,
+      interfaceName(event.value, end.pattern),
+    );
   }
-
-  function onTargetChange(
-    connection: NodeConnection,
-    event: InputNumberChangeEvent,
-  ) {
-    if (!event.value) return;
-
-    props.nodeEditor.modifyConnection({
-      ...connection,
-      targetInterfaceIndex: event.value,
-    });
-  }
-
-  const nodeConnections = topologyStore.manager.topology?.connectionMap.get(
-    props.nodeEditor.getNodeName(),
-  );
 
   return (
     <div className="node-connection-table">
       <Choose>
-        <When condition={nodeConnections}>
-          {nodeConnections!.map(connection => (
-            <div className="node-connection-table-entry" key={connection.index}>
-              <div className="node-connection-table-entry-group">
-                <Image
-                  src={deviceStore.getNodeIcon(props.nodeEditor.getNode())}
-                  width="45px"
-                />
-                <span className="node-connection-table-entry-text">
-                  {connection.hostNode}:{connection.hostInterface}
-                </span>
-                <InputNumber
-                  value={connection.hostInterfaceIndex}
-                  min={connection.hostInterfaceConfig.interfaceStart}
-                  max={99}
-                  onChange={e => onHostChange(connection, e)}
-                  showButtons
-                />
-              </div>
-              <div className="node-connection-table-entry-group">
-                <Image
-                  src={deviceStore.getNodeIcon(
-                    props.nodeEditor.getTopology().toJS().topology.nodes[
-                      connection.targetNode
-                    ],
-                  )}
-                  width="45px"
-                />
-
-                <span className="node-connection-table-entry-text">
-                  {connection.targetNode}:{connection.targetInterface}
-                </span>
-                <InputNumber
-                  value={connection.targetInterfaceIndex}
-                  min={connection.targetInterfaceConfig.interfaceStart}
-                  max={99}
-                  onChange={e => onTargetChange(connection, e)}
-                  showButtons
-                />
-              </div>
+        <When condition={links.length > 0}>
+          {links.map(link => (
+            <div className="node-connection-table-entry" key={link.index}>
+              {linkEnds(link).map(end => (
+                <div
+                  className="node-connection-table-entry-group"
+                  key={end.endpointIndex}
+                >
+                  <Image
+                    src={deviceStore.getNodeIcon(
+                      props.nodeEditor.getNodeIcon(end.endpoint.node),
+                    )}
+                    width="45px"
+                  />
+                  <span className="node-connection-table-entry-text">
+                    {end.endpoint.node}:{end.endpoint.interface}
+                  </span>
+                  <InputNumber
+                    value={end.number}
+                    min={end.pattern.start}
+                    max={99}
+                    onChange={e => onInterfaceChange(link, end, e)}
+                    showButtons
+                  />
+                </div>
+              ))}
             </div>
           ))}
         </When>

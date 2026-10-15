@@ -10,18 +10,22 @@ export default function baseConfig(mode: string): UserConfig {
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
     },
     server: {
-      host: '0.0.0.0',
-      port: 8080,
+      host: '127.0.0.1',
+      port: 5173,
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: 'http://localhost:3100',
           changeOrigin: true,
           rewrite: p => p.replace(/^\/api/, ''),
         },
         '/socket.io': {
-          target: 'ws://localhost:3000',
+          target: 'ws://localhost:3100',
           ws: true,
+          changeOrigin: true,
         },
+      },
+      cors: {
+        origin: true,
       },
     },
     build: {sourcemap: mode === 'development'},

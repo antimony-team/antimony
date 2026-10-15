@@ -1,3 +1,5 @@
+import {action, observable, ObservableMap, runInAction} from 'mobx';
+
 import {
   DataBinder,
   DataResponse,
@@ -7,7 +9,7 @@ import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {Binding} from '@sb/lib/utils/binding';
 import {
   Lab,
-  LabCommand,
+  RuntimeCommand,
   ShellCommand,
   ShellCommandData,
   ShellData,
@@ -16,88 +18,65 @@ import {
 import {ErrorCodes} from '@sb/types/error-codes';
 import {Result} from '@sb/types/result';
 import {uuid4} from '@sb/types/types';
-import {action, observable, ObservableMap, runInAction} from 'mobx';
 
 export class ShellStore {
   @observable accessor currentShell: ShellData | null = null;
-  @observable accessor openShells: Map<string, ShellData[]> =
+  @observable accessor openShells: ObservableMap<string, ShellData[]> =
     new ObservableMap();
+  @observable accessor terminalSize: {cols: number; rows: number} = {
+    cols: 80,
+    rows: 24,
+  };
 
-  private readonly labCommandsSubscription: Subscription;
   public readonly onData: Binding<ArrayBuffer> = new Binding();
-
+  private readonly commandsSubscription: Subscription;
   private currentDataSubscription: Subscription | null = null;
 
   private dataBinder: DataBinder;
   private statusMessageStore: StatusMessageStore;
 
+  private currentOnConnect: (() => void) | undefined = undefined;
+
   constructor(dataBinder: DataBinder, statusMessageStore: StatusMessageStore) {
     this.dataBinder = dataBinder;
     this.statusMessageStore = statusMessageStore;
 
-    this.labCommandsSubscription =
-      this.dataBinder.subscribeNamespace('lab-commands');
+    this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
 
     this.handleData = this.handleData.bind(this);
     this.handleControl = this.handleControl.bind(this);
 
-    this.dataBinder.subscribeNamespace('shell-commands', this.handleControl);
-  }
-
-  private handleData(data: ArrayBuffer) {
-    this.onData.update(data);
+    this.dataBinder.subscribeNamespace('shell-control', this.handleControl);
   }
 
   @action
-  private handleControl(data: DataResponse<ShellCommandData>) {
-    if (!this.openShells.has(data.payload.labId)) return;
+  public clearExpiredShells() {
+    const shellsToRemove = new Set<string>();
 
-    switch (data.payload.command) {
-      case ShellCommand.ShellError:
-        this.handleShellError(data.payload);
-        break;
-      case ShellCommand.ShellClose:
-        this.handleShellClose(data.payload);
-        break;
-    }
-  }
-
-  private handleShellError(data: ShellCommandData) {
-    console.error('Received error in shell', data);
-  }
-
-  @action
-  private handleShellClose(data: ShellCommandData) {
-    this.openShells.set(
-      data.labId,
-      this.openShells.get(data.labId)!.map(shell => {
-        if (shell.id === data.shellId) {
-          return {
-            ...shell,
-            expired: true,
-          };
+    for (const [labId, shells] of this.openShells) {
+      for (const shell of shells) {
+        if (shell.expired) {
+          shellsToRemove.add(shell.id);
         }
+      }
 
-        return shell;
-      }),
-    );
-
-    if (this.currentShell?.id === data.shellId) {
-      this.currentShell = {
-        ...this.currentShell,
-        expired: true,
-      };
+      this.openShells.set(
+        labId,
+        this.openShells
+          .get(labId)!
+          .filter(shell => !shellsToRemove.has(shell.id)),
+      );
     }
   }
 
   public async fetchShellsForLab(lab: Lab) {
     if (!lab.instance) return;
 
-    const result = (await this.labCommandsSubscription.socket!.emitWithAck(
+    const result = (await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify({
         labId: lab.id,
-        command: LabCommand.FetchShells,
+        command: RuntimeCommand.FetchShells,
       }),
     )) as DataResponse<ShellDataOut[]>;
 
@@ -156,16 +135,21 @@ export class ShellStore {
   public switchToShell(shell: ShellData) {
     if (this.currentShell) {
       this.dataBinder.unsubscribeNamespace(
-        `shells/${this.currentShell.id}`,
+        `shell/${this.currentShell.id}`,
         this.handleData,
+        this.currentOnConnect,
       );
     }
 
     this.currentShell = {...shell};
+    this.currentOnConnect = () => {
+      void this.resizeShell(shell);
+    };
 
     this.currentDataSubscription = this.dataBinder.subscribeNamespace(
-      `shells/${this.currentShell.id}`,
+      `shell/${this.currentShell.id}`,
       this.handleData,
+      this.currentOnConnect,
     );
   }
 
@@ -175,7 +159,7 @@ export class ShellStore {
 
     if (this.currentDataSubscription) {
       this.dataBinder.unsubscribeNamespace(
-        `shells/${this.currentShell.id}`,
+        `shell/${this.currentShell.id}`,
         this.handleData,
       );
     }
@@ -198,12 +182,14 @@ export class ShellStore {
       this.openShells.set(lab.id, []);
     }
 
-    const result = (await this.labCommandsSubscription.socket!.emitWithAck(
+    const result = (await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify({
         labId: lab.id,
         node: nodeName,
-        command: LabCommand.OpenShell,
+        command: RuntimeCommand.OpenShell,
+        cols: this.terminalSize.cols,
+        rows: this.terminalSize.rows,
       }),
     )) as DataResponse<uuid4>;
 
@@ -239,17 +225,7 @@ export class ShellStore {
     if (!labShells) return;
 
     const shell = labShells.find(shell => shell.id === shellId);
-
-    if (shell && !shell.expired) {
-      await this.labCommandsSubscription.socket!.emitWithAck(
-        'data',
-        JSON.stringify({
-          labId: lab.id,
-          shellId: shellId,
-          command: LabCommand.CloseShell,
-        }),
-      );
-    }
+    if (!shell) return;
 
     runInAction(() => {
       this.openShells.set(
@@ -257,5 +233,79 @@ export class ShellStore {
         labShells.filter(shell => shell.id !== shellId),
       );
     });
+
+    // We wait 50 ms before actually closing the shell so that the tab can properly
+    // close before getting flagged as inactive. This is purely a UX thing.
+    setTimeout(() => {
+      void this.commandsSubscription.socket!.emitWithAck(
+        'data',
+        JSON.stringify({
+          labId: lab.id,
+          shellId: shellId,
+          command: RuntimeCommand.CloseShell,
+        }),
+      );
+    }, 20);
+  }
+
+  public async resizeShell(shell: ShellData | null) {
+    if (!shell || shell.expired) return;
+
+    await this.commandsSubscription.socket!.emitWithAck(
+      'data',
+      JSON.stringify({
+        shellId: shell.id,
+        command: RuntimeCommand.ResizeShell,
+        cols: this.terminalSize.cols,
+        rows: this.terminalSize.rows,
+      }),
+    );
+  }
+
+  private handleData(data: ArrayBuffer) {
+    this.onData.update(data);
+  }
+
+  @action
+  private handleControl(data: DataResponse<ShellCommandData>) {
+    if (!this.openShells.has(data.payload.labId)) return;
+
+    switch (data.payload.command) {
+      case ShellCommand.ShellError:
+        this.handleShellError(data.payload);
+        break;
+      case ShellCommand.ShellClose:
+        this.handleShellClose(data.payload);
+        break;
+    }
+  }
+
+  private handleShellError(data: ShellCommandData) {
+    console.error('Received error in shell', data);
+    this.handleShellClose(data);
+  }
+
+  @action
+  private handleShellClose(data: ShellCommandData) {
+    this.openShells.set(
+      data.labId,
+      this.openShells.get(data.labId)!.map(shell => {
+        if (shell.id === data.shellId) {
+          return {
+            ...shell,
+            expired: true,
+          };
+        }
+
+        return shell;
+      }),
+    );
+
+    if (this.currentShell?.id === data.shellId) {
+      this.currentShell = {
+        ...this.currentShell,
+        expired: true,
+      };
+    }
   }
 }

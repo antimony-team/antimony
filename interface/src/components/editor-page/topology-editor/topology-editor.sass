@@ -1,51 +1,195 @@
 .sb-topology-editor-container
   display: flex
   flex-direction: column
-  background-color: var(--secondary-color)
-  border-radius: 6px
+  background-color: var(--surface-raised)
+  border-radius: 12px
   height: 100%
-
+  overflow: hidden
+  flex-grow: 1
   transition: opacity 0.08s ease-in
 
-.sb-topology-editor-node-editor-panel,.sb-topology-editor-splitter-gutter
+.sb-topology-editor-empty
+  display: flex
+  flex-grow: 1
+  align-items: center
+  justify-content: center
+  color: var(--text)
+
+.sb-editor-graph, .sb-topology-editor-splitter-gutter
   transition: opacity 0.08s ease-in
 
 .sb-topology-editor-toolbar
-  display: flex
+  // Lets the view switch hide its labels when the toolbar gets narrow
+  container-type: inline-size
+  display: grid
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr)
   flex-direction: row
-  justify-content: space-between
-  padding: 8px
-  border-bottom: 1px solid var(--primary-color-border)
+  align-items: center
+  padding: 0 8px
+  gap: 8px
+  height: 60px
+  border-bottom: 1px solid var(--border)
 
-  button
-    padding: 10px !important
+  overflow-x: auto
+  scrollbar-width: none
+
+  &::-webkit-scrollbar
+    display: none
+
+  .sb-topology-editor-toolbar-crumbs
+    display: flex
+    align-items: center
+    list-style: none
+    margin: 0
+    padding: 0
+    gap: 4px
+
+    li
+      display: flex
+      align-items: center
+
+    li + li::before
+      content: "/"
+      color: var(--text-muted)
+      margin-right: 4px
+
+    &:first-child
+      margin-left: 4px
+
+  .sb-topology-editor-toolbar-right
+    display: flex
+    align-items: center
+    justify-content: flex-end
+    gap: 8px
+
+  .sb-topology-editor-toolbar-subtitle
+    display: flex
+    align-items: center
+    color: var(--text-muted)
+    font-size: 17px
+    gap: 4px
+
+    .material-symbols-outlined
+      font-size: 16px
+
+  .sb-topology-editor-toolbar-title
+    display: flex
+    align-items: center
+    color: var(--text)
+    font-size: 17px
+    gap: 4px
+
+    .material-symbols-outlined
+      font-size: 16px
+
+  .sb-editor-toolbar-separator
+    flex: 0 0 auto
+    width: 1px
+    height: 20px
+    background-color: var(--border)
+    margin: 0 12px
+
+  .sb-editor-view-switch
+    margin: auto
+
+  .sb-topology-editor-deploy-button
+    height: 40px
+    padding: 4px 16px
+
+    .pi
+      color: var(--success-color-text)
+
+  .p-button.p-button-icon-only
+    width: 42px
+    height: 42px
 
   // This makes it so the node editor menu can hide between the topbar
   z-index: 2
 
+  // Only the icon is left when the toolbar gets narrow
+  @container (max-width: 850px)
+    .sb-topology-editor-deploy-button
+      width: 40px
+      padding: 0
+
+      .p-button-label
+        display: none
+
+      .p-button-icon
+        margin: 0
+
 .sb-topology-editor-content
   flex-grow: 1
+  min-height: 0
+
+  &.view-code
+    .sb-editor-graph, .p-splitter-gutter
+      display: none
+
+    .sb-editor-monaco
+      flex-basis: 100% !important
+
+  // Graph only, the same the other way round
+  &.view-graph
+    .sb-editor-monaco, .p-splitter-gutter
+      display: none
+
+    .sb-editor-graph
+      flex-basis: 100% !important
+
+  .p-splitter
+    height: 100%
+
+  .p-splitter-gutter
+    background-color: var(--surface-sunken) !important
+    width: 8px !important
+
+  .p-splitter-gutter-handle
+    height: 40px
+    width: 4px
+    background-color: var(--surface-overlay) !important
+
+  .sb-editor-monaco
+    min-width: 450px !important
+    background-color: var(--surface-sunken)
+
+  .sb-editor-graph
+    background-color: var(--surface-sunken)
+
+.sb-topology-editor-footer
+  display: flex
+  flex-direction: row
+  align-items: center
+  padding: 0 16px 0 10px
+  border-top: 1px solid var(--border)
+  height: 40px
+  gap: 8px
+  color: var(--text-muted)
+
+  .sb-monaco-wrapper-error
+    display: flex
+    align-items: center
+    user-select: none
+    padding: 4px 8px
+    border-radius: 8px
+
+    &:hover
+      background-color: var(--hover)
+
+  .sb-topology-editor-footer-position
+    flex-grow: 1
+
+  // Only the keywords of a hint stand out, like the key to press
+  .sb-topology-editor-footer-keyword
+    color: var(--text)
+    font-weight: 600
+
+  i
+    font-size: 14px
+    margin-right: 8px
 
 .sb-toplogy-editor-validation
   overflow: hidden
   word-wrap: break-word
   user-select: none
 
-.sb-node-speed-dial
-  position: absolute
-
-.sb-topology-editor-empty
-  width: 100%
-  height: 100%
-  align-items: center
-  justify-content: center
-  gap: 32px
-  display: flex
-  flex-direction: column
-  opacity: 0.3
-  font-style: italic
-  font-size: 22px
-  box-shadow: none !important
-
-  img
-    filter: invert(1)

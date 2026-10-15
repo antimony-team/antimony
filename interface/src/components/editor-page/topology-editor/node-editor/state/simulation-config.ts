@@ -3,14 +3,6 @@ import {createContext, useContext} from 'react';
 import {action, autorun, computed, observable} from 'mobx';
 
 export class SimulationConfig {
-  @observable accessor liveSimulation: boolean = false;
-  @observable accessor nodeRepulsion: number;
-  @observable accessor idealEdgeLength: number;
-  @observable accessor edgeElasticity: number;
-
-  @observable accessor panelOpen: boolean;
-  @observable accessor isStabilizing: boolean = false;
-
   public static readonly DefaultPhysics = {
     name: 'cose-bilkent',
     animate: true,
@@ -23,6 +15,12 @@ export class SimulationConfig {
     padding: 30,
     randomize: true,
   };
+  @observable accessor liveSimulation: boolean = false;
+  @observable accessor nodeRepulsion: number;
+  @observable accessor idealEdgeLength: number;
+  @observable accessor edgeElasticity: number;
+  @observable accessor panelOpen: boolean;
+  @observable accessor isStabilizing: boolean = false;
 
   constructor() {
     this.panelOpen = this.readBool('simPanelOpen') ?? false;
@@ -46,33 +44,6 @@ export class SimulationConfig {
     this.setSpringConstant = this.setSpringConstant.bind(this);
     this.setIsStabilizing = this.setIsStabilizing.bind(this);
     this.togglePanel = this.togglePanel.bind(this);
-  }
-
-  private writeBool(key: string, value: boolean) {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  }
-
-  private writeInt(key: string, value: number) {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  }
-
-  private writeFloat(key: string, value: number) {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  }
-
-  private readBool(key: string): boolean | null {
-    const item = sessionStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
-  }
-
-  private readInt(key: string): number | null {
-    const item = sessionStorage.getItem(key);
-    return item ? parseInt(item, 10) : null;
-  }
-
-  private readFloat(key: string): number | null {
-    const item = sessionStorage.getItem(key);
-    return item ? parseFloat(item) : null;
   }
 
   @computed
@@ -117,6 +88,33 @@ export class SimulationConfig {
       this.liveSimulation = false;
     }
     this.panelOpen = !this.panelOpen;
+  }
+
+  private writeBool(key: string, value: boolean) {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  }
+
+  private writeInt(key: string, value: number) {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  }
+
+  private writeFloat(key: string, value: number) {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  }
+
+  private readBool(key: string): boolean | null {
+    const item = sessionStorage.getItem(key);
+    return item ? JSON.parse(item) : null;
+  }
+
+  private readInt(key: string): number | null {
+    const item = sessionStorage.getItem(key);
+    return item ? parseInt(item, 10) : null;
+  }
+
+  private readFloat(key: string): number | null {
+    const item = sessionStorage.getItem(key);
+    return item ? parseFloat(item) : null;
   }
 }
 

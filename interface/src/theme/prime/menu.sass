@@ -1,0 +1,124 @@
+// Popup menus: Menu, ContextMenu, TieredMenu
+.p-menu, .p-contextmenu, .p-tieredmenu
+  padding: 8px
+  min-width: 200px
+  width: auto
+  background-color: var(--surface-overlay)
+  border: 1px solid var(--border)
+  border-radius: 10px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+
+  .p-menuitem-content
+    background-color: transparent
+    border-radius: 6px
+    transition: background-color 0.08s ease-in
+
+  .p-menuitem-link
+    display: flex
+    align-items: center
+    gap: 10px
+    height: 36px
+    padding: 0 12px 0 10px
+    color: var(--text)
+
+    &:focus-visible
+      outline: none
+
+  .p-menuitem-text
+    font-size: 16px
+    color: var(--text)
+
+  // Icons: one 18px box for PrimeIcons, Material Symbols and SVG icons
+  .p-menuitem-link
+    .p-menuitem-icon, .pi, .material-symbols-outlined, > svg
+      flex: 0 0 18px
+      width: 18px
+      height: 18px
+      margin: 0
+      display: inline-flex
+      align-items: center
+      justify-content: center
+      color: var(--text)
+
+    .pi
+      font-size: 16px
+
+    .material-symbols-outlined
+      font-size: 20px
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20
+
+    > svg
+      stroke-width: 1.8
+
+  .p-submenu-icon
+    margin-left: auto
+    color: var(--text-faint)
+
+  .sb-menuitem-keybind
+    margin-left: auto
+    padding-left: 24px
+    font-size: 13px
+    color: var(--text-faint)
+
+  .p-menuitem:not(.p-disabled)
+    > .p-menuitem-content:hover,
+    > .p-menuitem-content.p-focus
+      background-color: var(--hover)
+
+    > .p-menuitem-content:active
+      background-color: var(--active)
+
+  .p-menuitem.p-disabled .p-menuitem-content
+    opacity: 0.4
+
+  .p-menuitem-separator
+    height: 1px
+    margin: 4px 6px
+    background-color: var(--border)
+    border: none
+
+  .p-submenu-header
+    padding: 8px 10px 4px
+    background-color: transparent
+    font-size: 11px
+    font-weight: 500
+    letter-spacing: .04em
+    text-transform: uppercase
+    color: var(--text-faint)
+
+  // Severity items: colour on text + icon, tinted hover wash
+  .p-menuitem.sb-menuitem-danger
+    .p-menuitem-text, .p-menuitem-icon, .pi, .material-symbols-outlined, .p-menuitem-link > svg
+      color: var(--danger-color-text)
+
+    &:not(.p-disabled) > .p-menuitem-content:hover
+      background-color: color-mix(in oklab, var(--danger-color-text) 10%, transparent)
+
+  .p-menuitem.sb-menuitem-success
+    .p-menuitem-text, .p-menuitem-icon, .pi, .material-symbols-outlined, .p-menuitem-link > svg
+      color: var(--success-color-text)
+
+    &:not(.p-disabled) > .p-menuitem-content:hover
+      background-color: color-mix(in oklab, var(--success-color-text) 10%, transparent)
+
+// Long menus scroll, context menus don't, as their submenus would be cut off
+.p-menu
+  overflow-y: auto
+
+// Submenus of a tiered/context menu are their own panels
+.p-contextmenu .p-submenu-list, .p-tieredmenu .p-submenu-list
+  padding: 4px
+  background-color: var(--surface-overlay)
+  border: 1px solid var(--border)
+  border-radius: 10px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+
+.p-menubar
+  background-color: var(--primary-color)
+  border: var(--border) solid 1px
+  border-radius: 0 0 4px 4px
+  margin-right: -1px
+
+.p-megamenu-panel
+  background-color: var(--primary-color)
+  border-radius: 4px

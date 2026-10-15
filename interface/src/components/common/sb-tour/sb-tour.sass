@@ -1,0 +1,90 @@
+@keyframes sb-tour-float-in
+  from
+    opacity: 0
+    transform: translateY(6px) scale(0.98)
+
+// The popover and the highlight frame are rendered by driver.js at the end of the body
+.driver-popover.sb-tour-popover
+  min-width: 280px
+  max-width: 360px
+  padding: 18px 20px 16px
+  border: 1px solid rgba(255, 255, 255, 0.1)
+  border-radius: 16px
+  background-color: color-mix(in oklab, var(--surface-overlay) 72%, transparent)
+  backdrop-filter: blur(18px) saturate(140%)
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06)
+  color: var(--text)
+  font-family: var(--font-family), system-ui, sans-serif
+  animation: sb-tour-float-in 0.3s ease-out
+
+  @media (prefers-reduced-motion: reduce)
+    animation: none
+
+  .driver-popover-title
+    padding-right: 20px
+    font-size: 17px
+    font-weight: 600
+    color: var(--text)
+
+  .driver-popover-description
+    font-size: 15px
+    line-height: 1.55
+    color: var(--text-muted)
+
+  .driver-popover-close-btn
+    top: 6px
+    right: 6px
+    font-size: 20px
+    color: var(--text-faint)
+
+    &:hover, &:focus
+      color: var(--text)
+
+  .driver-popover-footer
+    margin-top: 18px
+
+  .driver-popover-progress-text
+    font-size: 13px
+    color: var(--text-faint)
+
+  .driver-popover-footer-btn
+    padding: 6px 14px
+    border: 1px solid rgba(255, 255, 255, 0.1)
+    border-radius: 8px
+    background-color: rgba(255, 255, 255, 0.06)
+    font-family: inherit
+    font-size: 14px
+    color: var(--text)
+    text-shadow: none
+    transition: border-color 0.15s ease-out, background-color 0.15s ease-out
+
+    &:hover, &:focus-visible
+      border-color: var(--border-strong)
+      background-color: rgba(255, 255, 255, 0.1)
+
+  .driver-popover-next-btn
+    border-color: transparent
+    background-color: var(--accent)
+    color: var(--surface-page)
+
+    &:hover, &:focus-visible
+      border-color: transparent
+      background-color: color-mix(in oklab, var(--accent) 88%, white)
+
+  .driver-popover-navigation-btns button + button
+    margin-left: 8px
+
+  // The card floats freely, without pointing at the element
+  .driver-popover-arrow
+    display: none
+
+.sb-tour-stage
+  position: fixed
+  z-index: 10001
+  pointer-events: none
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--accent) 65%, transparent), 0 0 0 6px color-mix(in oklab, var(--accent) 12%, transparent), 0 0 36px color-mix(in oklab, var(--accent) 18%, transparent), 0 20px 60px rgba(0, 0, 0, 0.6)
+  $move: 0.25s cubic-bezier(0.22, 1, 0.36, 1)
+  transition: top $move, left $move, width $move, height $move, opacity 0.2s ease
+
+  @media (prefers-reduced-motion: reduce)
+    transition: opacity 0.2s ease

@@ -1,13 +1,28 @@
 .sb-dialog-header
-  background-color: var(--header-color)
-  height: 50px
-  border-radius: 6px 6px 0 0
-  //margin: -1px -1px 0 -1px
+  border-radius: 12px 12px 0 0
   display: flex
   align-items: center
   justify-content: space-between
-  font-size: 21px
-  font-weight: 700
+  background-color: var(--surface-overlay)
+  border-bottom: 1px solid var(--border)
+  padding: 18px 0 18px 18px
+
+  .sb-dialog-title
+    font-size: 20px
+
+  .sb-dialog-subtitle
+    font-size: 16px
+    color: var(--text-muted)
+
+    &::before
+      content: ""
+      border-radius: 50%
+      width: 0.3ch
+      height: 0.3ch
+      display: inline-block
+      margin-right: 0.7ch
+      background: var(--text-muted)
+      vertical-align: middle
 
 .sb-dialog-heading
   font-weight: 500
@@ -15,36 +30,35 @@
   margin-bottom: 12px
 
 .sb-dialog-header-title
+  font-weight: 400
   user-select: none
-  margin-left: 12px
   display: flex
   align-items: center
   gap: 8px
 
 .sb-dialog-header-close
-  border-left: var(--primary-color-border) solid 1px
-
   button
-    height: 50px
-    width: 50px
     border: none
+    padding: 0 !important
+
+    span
+      font-size: 16px
 
     &:hover
       background-color: unset !important
 
 .sb-dialog-content
-  padding: 16px
+  padding: 20px
   //margin-top: 1px
   flex-grow: 1
   overflow-y: auto
-  background-color: var(--secondary-color)
+  background-color: var(--surface-overlay)
 
 .sb-dialog-footer
-  background-color: var(--secondary-color)
   display: flex
-  justify-content: space-between
+  justify-content: end
   gap: 16px
   padding: 16px
-
-  .p-button
-    margin: -1px
+  background-color: var(--surface-overlay)
+  border-top: 1px solid var(--border)
+  border-radius: 0 0 12px 12px

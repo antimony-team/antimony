@@ -1,24 +1,25 @@
-import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
-import {DataStore} from '@sb/lib/stores/data-store';
-import {DeviceStore} from '@sb/lib/stores/device-store';
+import {action, observable, runInAction} from 'mobx';
 
+import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
+import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
+import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
+import {TopologyFormat} from '@sb/lib/topology/topology-format';
 import {TopologyManager} from '@sb/lib/topology-manager';
+import {createDuplicateName} from '@sb/lib/utils/utils';
 import {
   BindFile,
   BindFileIn,
   Topology,
-  TopologyDefinition,
+  TopologyAnnotations,
   TopologyIn,
   TopologyOut,
 } from '@sb/types/domain/topology';
-import {uuid4, YAMLDocument} from '@sb/types/types';
-import {validate} from 'jsonschema';
-import {action, observable, observe, runInAction} from 'mobx';
-import {parseDocument} from 'yaml';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {Result} from '@sb/types/result';
-import {ArchiveUploadFile} from '@sb/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog';
+import {uuid4} from '@sb/types/types';
 
 export class TopologyStore extends DataStore<
   Topology,
@@ -29,6 +30,9 @@ export class TopologyStore extends DataStore<
 
   public manager: TopologyManager;
 
+  // The format the topologies are written in
+  public readonly format: TopologyFormat;
+
   private dataBinder: DataBinder;
   private schemaStore: SchemaStore;
 
@@ -37,47 +41,19 @@ export class TopologyStore extends DataStore<
     dataBinder: DataBinder,
     schemaStore: SchemaStore,
     deviceStore: DeviceStore,
+    format: TopologyFormat,
+    dependencies: DataStoreDependency[] = [],
   ) {
-    super(rootStore);
+    super(rootStore, dependencies);
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
+    this.format = format;
 
     this.manager = new TopologyManager(this, deviceStore);
-
-    observe(rootStore._schemaStore, () => this.fetch());
   }
 
   protected get resourcePath(): string {
     return '/topologies';
-  }
-
-  @action
-  protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
-    if (!this.schemaStore.clabSchema) return;
-
-    const topologies: Topology[] = [];
-    const bindFiles: BindFile[] = [];
-
-    for (const topologyOut of response.payload) {
-      const existingTopology = this.lookup.get(topologyOut.id);
-      if (existingTopology) {
-        this.updateTopologyValues(existingTopology, topologyOut);
-        topologies.push(existingTopology);
-      } else {
-        const topology = this.parseTopology(topologyOut);
-        if (!topology) continue;
-
-        topologies.push(topology);
-      }
-
-      for (const bindFile of topologyOut.bindFiles) {
-        bindFiles.push(bindFile);
-      }
-    }
-
-    this.data = topologies;
-    this.lookup = new Map(this.data.map(topology => [topology.id, topology]));
-    this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
   }
 
   public override async update(
@@ -212,24 +188,100 @@ export class TopologyStore extends DataStore<
     return result;
   }
 
+  /**
+   * Reads the text of a topology as its definition, null if it isn't valid.
+   * The definition keeps the text as it's written.
+   */
+  public readTopology(definitionString: string): TopologyDefinition | null {
+    const definition = this.format.read(definitionString);
+    if (!definition || this.format.validate(definition) !== null) return null;
+
+    return definition;
+  }
+
+  public parseTopologyAnnotations(
+    annotationsString: string,
+  ): TopologyAnnotations | null {
+    let annotations: TopologyAnnotations;
+
+    try {
+      annotations = JSON.parse(annotationsString);
+    } catch {
+      return null;
+    }
+
+    if (
+      this.schemaStore.annotationsValidator &&
+      !this.schemaStore.annotationsValidator(annotations)
+    ) {
+      return null;
+    }
+
+    return annotations;
+  }
+
+  public createDuplicateName(topologyName: string) {
+    return createDuplicateName(
+      topologyName,
+      this.data
+        .map(topology => topology.definition.name)
+        .filter(name => name !== undefined),
+    );
+  }
+
+  @action
+  protected handleUpdate(response: DataResponse<TopologyOut[]>): void {
+    if (!this.schemaStore.clabSchema) return;
+
+    const topologies: Topology[] = [];
+    const bindFiles: BindFile[] = [];
+
+    for (const topologyOut of response.payload) {
+      const existingTopology = this.lookup.get(topologyOut.id);
+      if (existingTopology) {
+        this.updateTopologyValues(existingTopology, topologyOut);
+        topologies.push(existingTopology);
+      } else {
+        const topology = this.parseTopology(topologyOut);
+        if (!topology) continue;
+
+        topologies.push(topology);
+      }
+
+      for (const bindFile of topologyOut.bindFiles) {
+        bindFiles.push(bindFile);
+      }
+    }
+
+    this.data = topologies;
+    this.lookup = new Map(this.data.map(topology => [topology.id, topology]));
+    this.bindFileLookup = new Map(bindFiles.map(file => [file.id, file]));
+  }
+
   @action
   private updateTopologyValues(
     target: Topology,
     source: TopologyOut | Partial<TopologyIn>,
   ) {
     if (source.definition) {
-      const updatedDefinition = this.parseTopologyDefinition(source.definition);
+      const definition = this.readTopology(source.definition);
 
-      if (updatedDefinition) {
-        const metadata = this.manager.buildTopologyMetadata(updatedDefinition);
-
-        target.name = updatedDefinition.get('name') as string;
-        target.definition = updatedDefinition;
-        target.definitionString = updatedDefinition.toString();
-        target.connections = metadata.connections;
-        target.connectionMap = metadata.connectionMap;
+      if (definition) {
+        target.definition = definition;
       } else {
         console.error('[NET] Failed to parse incoming topology: ', source);
+      }
+    }
+
+    if (source.annotations) {
+      const updatedAnnotations = this.parseTopologyAnnotations(
+        source.annotations,
+      );
+
+      if (updatedAnnotations) {
+        target.annotations = updatedAnnotations;
+      } else {
+        console.error('[NET] Failed to parse incoming annotations: ', source);
       }
     }
 
@@ -255,35 +307,33 @@ export class TopologyStore extends DataStore<
   }
 
   private parseTopology(input: TopologyOut): Topology | null {
-    const definition = this.parseTopologyDefinition(input.definition);
+    const definition = this.readTopology(input.definition);
 
     if (!definition) {
       console.error('[NET] Failed to parse incoming topology: ', input);
       return null;
     }
 
-    return observable({
-      ...input,
-      name: definition.get('name') as string,
-      definition: definition,
-      definitionString: input.definition,
-      ...this.manager.buildTopologyMetadata(definition),
-    });
-  }
+    // Broken annotations only lose the layout, the topology itself is still usable
+    const annotations = this.parseTopologyAnnotations(input.annotations);
 
-  public parseTopologyDefinition(
-    definitionString: string,
-  ): YAMLDocument<TopologyDefinition> | null {
-    const definition = parseDocument(definitionString, {
-      keepSourceTokens: true,
-    });
-    if (
-      definition.errors.length > 0 ||
-      validate(definition.toJS(), this.schemaStore.clabSchema).errors.length > 0
-    ) {
-      return null;
+    if (!annotations) {
+      console.error('[NET] Failed to parse incoming annotations: ', input);
     }
 
-    return definition;
+    return observable(
+      {
+        id: input.id,
+        collectionId: input.collectionId,
+        creator: input.creator,
+        syncUrl: input.syncUrl,
+        bindFiles: input.bindFiles,
+        lastDeployFailed: input.lastDeployFailed,
+        definition: definition,
+        annotations: annotations ?? {},
+      },
+      // The definition and the annotations are replaced as a whole on every edit
+      {definition: observable.ref, annotations: observable.ref},
+    );
   }
 }

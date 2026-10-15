@@ -1,42 +1,52 @@
-import './lab-view-drawer.sass';
-import React, {useEffect, useMemo, useRef} from 'react';
-import {Lab, NodeInterfaceStatsOut, NodeStatsOut} from '@sb/types/domain/lab';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+
+import uPlot from 'uplot';
 import UplotReact from 'uplot-react';
+
+import {Button} from 'primereact/button';
+import {Divider} from 'primereact/divider';
+import {Message} from 'primereact/message';
+import {ProgressBar} from 'primereact/progressbar';
+
+import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
 import {
+  useCollectionStore,
+  useDataBinder,
   useLabStore,
   useServerConfig,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
-import uPlot from 'uplot';
-import {
-  formatBytes,
-  getInterfaceCaptureCommand,
-  getNodeDisplayName,
-} from '@sb/lib/utils/utils';
-import {Divider} from 'primereact/divider';
-import {Button} from 'primereact/button';
-import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
+import {formatBytes, getSSHCommand} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {
+  InstanceNode,
+  InstanceNodeState,
+  Lab,
+  NodeInterfaceStats,
+  NodeStats,
+} from '@sb/types/domain/lab';
 
+import './lab-view-drawer.sass';
 import 'uplot/dist/uPlot.min.css';
-import {Message} from 'primereact/message';
 
 interface LabViewDrawer {
   lab: Lab | null;
   nodeName: string | null;
 
-  onOpenTerminal: () => void;
-  onOpenLogs: () => void;
+  onOpenTerminal: (nodeId: string | null) => void;
+  onOpenLogs: (nodeId: string | null) => void;
 
-  onNodeStart: () => void;
-  onNodeStop: () => void;
-  onNodeRestart: () => void;
+  onNodeStart: (nodeId: string | null) => void;
+  onNodeStop: (nodeId: string | null) => void;
+  onNodeRestart: (nodeId: string | null) => void;
 }
 
 const LabDialogDrawer = (props: LabViewDrawer) => {
   const labStore = useLabStore();
   const serverConfig = useServerConfig();
+  const dataBinder = useDataBinder();
+  const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
   const wrapperRef = useRef(null);
@@ -52,6 +62,13 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
   const memoryUsageBufferRef = useRef<[number[], number[]]>([[], []]);
   const memoryTotalRef = useRef<number>(0);
 
+  const [networkRates, setNetworkRates] = useState<
+    Record<string, {tx: number; rx: number}>
+  >({});
+
+  const [cpuRate, setCpuRate] = useState<number>(0);
+  const [memoryRate, setMemoryRate] = useState<number>(0);
+
   const node = useMemo(() => {
     if (!props.lab?.instance || !props.nodeName) {
       return null;
@@ -66,9 +83,25 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     return new NodeActionChecker(props.lab.instance, node);
   }, [props.lab, node]);
 
-  const nodeName = useMemo(() => {
-    return getNodeDisplayName(node?.name ?? '', props.lab?.instance, node);
-  }, [node]);
+  const labCollection = useMemo(() => {
+    if (!props.lab) return null;
+
+    return collectionStore.lookup.get(props.lab.collectionId)!;
+  }, [props.lab]);
+
+  const memoryOptions = useMemo(() => getMemoryUsagePlotOptions(), []);
+  const cpuOptions = useMemo(() => getCPUPlotOptions(), []);
+
+  const ifaceOptions = useMemo(
+    () =>
+      Object.fromEntries(
+        (node?.interfaces ?? []).map(i => [
+          i.name,
+          getNetworkPlotOptions(i.name),
+        ]),
+      ),
+    [node?.interfaces],
+  );
 
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -89,7 +122,9 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
       cpuUsageBufferRef.current = [[], []];
       memoryUsageBufferRef.current = [[], []];
 
-      labStore.subscribeNodeStats(node.containerId, handleData);
+      if (node.state === InstanceNodeState.Running) {
+        labStore.subscribeNodeStats(node.containerId, handleData);
+      }
     }
 
     return () => {
@@ -103,11 +138,11 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     widthRef.current = width;
     trafficChartsRef.current.entries().forEach(([ifName, chart]) => {
       if (!chart) return;
-      chart.setSize({width, height: 200});
+      chart.setSize({width, height: 100});
       chart.setData(trafficBuffersRef.current.get(ifName)!);
     });
-    cpuUsageChartRef.current?.setSize({width: width / 2, height: 200});
-    memoryUsageChartRef.current?.setSize({width: width / 2, height: 200});
+    cpuUsageChartRef.current?.setSize({width: width / 2 - 28, height: 50});
+    memoryUsageChartRef.current?.setSize({width: width / 2 - 28, height: 50});
   }
 
   function formatBps(v: number | null) {
@@ -122,180 +157,90 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     return v.toFixed(0) + ' bps';
   }
 
-  function getMemoryUsagePlotOptions(): uPlot.Options {
+  function getCPUPlotOptions(): uPlot.Options {
     return {
-      width: 800,
-      height: 200,
-      cursor: {
-        drag: {
-          x: false,
-          y: false,
-        },
-        points: {show: false},
-      },
-      padding: [null, 70, null, null],
+      width: 300, // overridden by the resize observer
+      height: 50,
+      legend: {show: false},
+      cursor: {show: false},
+      padding: [2, 0, 2, 0],
+      axes: [{show: false}, {show: false}],
       scales: {
         x: {
           time: true,
           range: () => {
-            if (!cpuUsageBufferRef.current) return [0, 1];
             const [ts] = cpuUsageBufferRef.current;
             const end = ts.length ? ts[ts.length - 1] : Date.now() / 1000;
             return [end - 20, end];
           },
         },
-        y: {
-          range: (_u, _min, max) => [0, max * 1.8 || 100],
-        },
+        y: {range: (_u, _min, max) => [0, Math.max(max * 1.5, 0.1)]},
       },
-      axes: [
-        {
-          stroke: '#cdcbcb',
-          splits: (_u, _axisIdx, min, max) => [min, max],
-          values: (_u, ticks) => {
-            return ticks.map(t => new Date(t * 1000).toLocaleTimeString());
-          },
-        },
-        {
-          stroke: '#cdcbcb',
-          grid: {stroke: '#3d3d3d', width: 1},
-          values: (_u, ticks) => ticks.map(n => formatBytes(n)),
-          size: 65,
-        },
-      ],
       series: [
+        {},
         {
-          value: (_u, t) => {
-            const [ys] = memoryUsageBufferRef.current;
-            const lastValue = ys[ys.length - 1];
-            const value = t === null ? lastValue : t;
-            return value !== undefined
-              ? new Date(value * 1000).toLocaleTimeString()
-              : '--';
-          },
-        },
-        {
-          label: 'Usage',
           stroke: '#3fcfad',
-          fill: 'rgba(63, 207, 173, 0.15)',
-          width: 2,
-          value: (_u, v) => {
-            const [, ts] = memoryUsageBufferRef.current;
-            const lastValue = ts[ts.length - 1];
-            const value = v === null ? lastValue : v;
-            return value !== undefined ? formatBytes(value) : '--';
-          },
+          fill: 'rgba(63, 207, 173, 0.08)',
+          width: 1.5,
+          points: {show: false},
         },
       ],
-      hooks: {
-        draw: [
-          u => {
-            const {ctx} = u;
-            const {left, top, width, height} = u.bbox;
-            ctx.save();
-            ctx.strokeStyle = '#3d3d3d';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(left, top, width, height);
-            ctx.restore();
-          },
-        ],
-      },
     };
   }
 
-  function getCPUPlotOptions(): uPlot.Options {
+  function getMemoryUsagePlotOptions(): uPlot.Options {
     return {
-      width: 800,
-      height: 200,
-      cursor: {
-        drag: {
-          x: false,
-          y: false,
-        },
-        points: {show: false},
-      },
-      padding: [null, 55, null, null],
+      width: 300,
+      height: 50,
+      legend: {show: false},
+      cursor: {show: false},
+      padding: [2, 0, 2, 0],
+      axes: [{show: false}, {show: false}],
       scales: {
         x: {
           time: true,
           range: () => {
-            if (!cpuUsageBufferRef.current) return [0, 1];
-            const [ts] = cpuUsageBufferRef.current;
+            const [ts] = memoryUsageBufferRef.current;
             const end = ts.length ? ts[ts.length - 1] : Date.now() / 1000;
             return [end - 20, end];
           },
         },
         y: {
-          range: () => [0, 1],
+          range: (_u, _min, max) => [
+            0,
+            Math.max(max * 1.5, memoryTotalRef.current * 0.25 || 1),
+          ],
         },
       },
-      axes: [
-        {
-          stroke: '#cdcbcb',
-          splits: (_u, _axisIdx, min, max) => [min, max],
-          values: (_u, ticks) => {
-            return ticks.map(t => new Date(t * 1000).toLocaleTimeString());
-          },
-        },
-        {
-          stroke: '#cdcbcb',
-          grid: {stroke: '#3d3d3d', width: 1},
-          values: (_u, ticks) => ticks.map(n => `${n * 100}%`),
-          size: 80,
-        },
-      ],
       series: [
+        {},
         {
-          value: (_u, t) => {
-            const [ys] = cpuUsageBufferRef.current;
-            const lastValue = ys[ys.length - 1];
-            const value = t === null ? lastValue : t;
-            return value !== undefined
-              ? new Date(value * 1000).toLocaleTimeString()
-              : '--';
-          },
-        },
-        {
-          label: 'Usage',
           stroke: '#3fcfad',
-          fill: 'rgba(63, 207, 173, 0.15)',
-          width: 2,
-          value: (_u, v) => {
-            const [, ts] = cpuUsageBufferRef.current;
-            const lastValue = ts[ts.length - 1];
-            const value = v === null ? lastValue : v;
-            return value !== undefined ? `${(value * 100).toFixed(1)}%` : '--';
-          },
+          fill: 'rgba(63, 207, 173, 0.08)',
+          width: 1.5,
+          points: {show: false},
         },
       ],
-      hooks: {
-        draw: [
-          u => {
-            const {ctx} = u;
-            const {left, top, width, height} = u.bbox;
-            ctx.save();
-            ctx.strokeStyle = '#3d3d3d';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(left, top, width, height);
-            ctx.restore();
-          },
-        ],
-      },
     };
   }
 
   function getNetworkPlotOptions(ifName: string): uPlot.Options {
     return {
-      width: 800,
-      height: 250,
-      cursor: {
-        drag: {
-          x: false,
-          y: false,
+      width: 300,
+      height: 100,
+      legend: {show: false},
+      cursor: {show: false},
+      padding: [2, 32, 2, 0],
+      axes: [
+        {
+          show: false,
+          stroke: '#8b93a1',
+          splits: (_u, _axisIdx, min, max) => [min, max],
+          values: (_u, ticks) =>
+            ticks.map(t => new Date(t * 1000).toLocaleTimeString()),
         },
-        points: {show: false},
-      },
-      padding: [null, 70, null, null],
+        {show: false},
+      ],
       scales: {
         x: {
           time: true,
@@ -306,78 +251,26 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
             return [end - 20, end];
           },
         },
-        y: {
-          range: (_u, _min, max) => [0, max || 100],
-        },
+        y: {range: (_u, _min, max) => [0, max * 1.2 || 100]},
       },
-      axes: [
-        {
-          stroke: '#cdcbcb',
-          splits: (_u, _axisIdx, min, max) => [min, max],
-          values: (_u, ticks) => {
-            return ticks.map(t => new Date(t * 1000).toLocaleTimeString());
-          },
-        },
-        {
-          stroke: '#cdcbcb',
-          grid: {stroke: '#3d3d3d', width: 1},
-          values: (_u, ticks) => ticks.map(formatBps),
-          size: 80,
-        },
-      ],
       series: [
+        {},
         {
-          value: (_u, t) => {
-            const [ys] = trafficBuffersRef.current.get(ifName)!;
-            const lastValue = ys[ys.length - 1];
-            const value = t === null ? lastValue : t;
-            return value !== undefined
-              ? new Date(value * 1000).toLocaleTimeString()
-              : '--';
-          },
-        },
-        {
-          label: 'TX',
           stroke: '#f59e0b',
-          fill: 'rgba(245, 158, 11, 0.15)',
-          width: 2,
-          value: (_u, v) => {
-            const [, tsx] = trafficBuffersRef.current.get(ifName)!;
-            const lastValue = tsx[tsx.length - 1];
-            const value = v === null ? lastValue : v;
-            return value !== undefined ? formatBps(value) : '--';
-          },
+          fill: 'rgba(245, 158, 11, 0.12)',
+          width: 1.5,
+          points: {show: false},
         },
         {
-          label: 'RX',
           stroke: '#3b82f6',
-          fill: 'rgba(59, 130, 246, 0.15)',
-          width: 2,
-          value: (_u, v) => {
-            const [, , rsx] = trafficBuffersRef.current.get(ifName)!;
-            const lastValue = rsx[rsx.length - 1];
-            const value = v === null ? lastValue : v;
-            return value !== undefined ? formatBps(value) : '--';
-          },
+          fill: 'rgba(59, 130, 246, 0.12)',
+          width: 1.5,
+          points: {show: false},
         },
       ],
-      hooks: {
-        draw: [
-          u => {
-            const {ctx} = u;
-            const {left, top, width, height} = u.bbox;
-            ctx.save();
-            ctx.strokeStyle = '#3d3d3d';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(left, top, width, height);
-            ctx.restore();
-          },
-        ],
-      },
     };
   }
-
-  function handleData(data: NodeStatsOut) {
+  function handleData(data: NodeStats) {
     if (!node) return;
 
     const ts_sec = Date.parse(data.timestamp) / 1000;
@@ -390,36 +283,41 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     }
   }
 
-  function addCpuUsageData(data: NodeStatsOut, currentSeconds: number) {
+  function addCpuUsageData(data: NodeStats, currentSeconds: number) {
     if (!cpuUsageChartRef.current) return;
+    const value = Math.min(data.cpuPercent, 1);
 
     const [ts, tx] = cpuUsageBufferRef.current;
 
     // Add initial point to draw line to the bottom when graph is not yet filled
     if (ts.length === 0) {
-      ts.push(currentSeconds - 1);
-      tx.push(0);
+      ts.push(currentSeconds - 20);
+      tx.push(value);
     }
+
+    setCpuRate(data.cpuPercent);
 
     // We clamp the CPU percentage to 100% to prevent weird spikes when restarting
     ts.push(currentSeconds);
-    tx.push(Math.min(data.cpuPercent, 1));
+    tx.push(value);
 
     cpuUsageChartRef.current.setData([ts, tx]);
   }
 
-  function addMemoryUsageData(data: NodeStatsOut, currentSeconds: number) {
+  function addMemoryUsageData(data: NodeStats, currentSeconds: number) {
     if (!memoryUsageChartRef.current) return;
 
     const [ts, tx] = memoryUsageBufferRef.current;
 
     // Add initial point to draw line to the bottom when graph is not yet filled
     if (ts.length === 0) {
-      ts.push(currentSeconds - 1);
-      tx.push(0);
+      ts.push(currentSeconds - 20);
+      tx.push(data.memoryUsage);
     }
 
     memoryTotalRef.current = data.memoryLimit;
+
+    setMemoryRate(data.memoryUsage);
 
     ts.push(currentSeconds);
     tx.push(data.memoryUsage);
@@ -429,7 +327,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
 
   function addInterfaceData(
     ifName: string,
-    data: NodeInterfaceStatsOut,
+    data: NodeInterfaceStats,
     currentSeconds: number,
   ) {
     if (!trafficBuffersRef.current.has(ifName)) return;
@@ -439,11 +337,16 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     const txValue = data.txBps;
     const rxValue = data.rxBps;
 
+    setNetworkRates(prev => ({
+      ...prev,
+      [ifName]: {tx: txValue, rx: rxValue},
+    }));
+
     // Add initial point to draw line to the bottom when graph is not yet filled
     if (ts.length === 0) {
-      ts.push(currentSeconds - 1);
-      txs.push(0);
-      rxs.push(0);
+      ts.push(currentSeconds - 20);
+      txs.push(txValue);
+      rxs.push(rxValue);
     }
 
     ts.push(currentSeconds);
@@ -453,129 +356,200 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
     trafficChartsRef.current.get(ifName)!.setData([ts, txs, rxs]);
   }
 
-  function copyCaptureToClipboard(ifName: string) {
-    if (!node) return;
+  function copyCaptureToClipboard(
+    node: InstanceNode | null,
+    captureInterface?: string,
+  ) {
+    if (!node || !props.lab || !labCollection) return;
 
-    const cmd = getInterfaceCaptureCommand(
-      node.containerName,
-      ifName,
-      window.location.hostname,
-      serverConfig.capture.port,
+    const cmd = getSSHCommand(
+      labCollection.name,
+      props.lab.name,
+      node.name,
+      dataBinder.serverHost,
+      serverConfig.ssh.port,
+      captureInterface,
     );
     void navigator.clipboard.writeText(cmd);
 
-    statusMessageStore.success('Capture command copied to clipboard!');
+    statusMessageStore.success('Command copied to clipboard!');
+  }
+
+  function runtimeValue(value: string | undefined) {
+    if (node!.state === InstanceNodeState.Starting) {
+      return <span className="pending">Pending</span>;
+    }
+    if (!value) {
+      return <span>N/A</span>;
+    }
+    return <SBCopyableProperty value={value} />;
   }
 
   return (
     <div className="lab-dialog-drawer-content" ref={wrapperRef}>
       <If condition={node && nodeActionChecker}>
         <div className="lab-dialog-drawer-content-inner">
-          <div className="lab-dialog-drawer-title">
-            {nodeName} ({node!.state})
-          </div>
-          <div className="flex flex-row gap-4 justify-content-between">
-            <div className="flex flex-column gap-1">
-              <div className="flex gap-1 flex-wrap">
-                <span className="property-title">Container ID:</span>
-                <SBCopyableProperty value={node!.containerId} />
-              </div>
+          <NodeHeader node={node!} />
+          <Divider />
+          <dl className="lab-dialog-drawer-props">
+            <dt>Name</dt>
+            <dd>
+              <SBCopyableProperty value={node!.name} />
+            </dd>
 
-              <div className="flex gap-1 flex-wrap">
-                <span className="property-title">Container Name:</span>
-                <SBCopyableProperty value={node!.containerName} />
-              </div>
+            <dt>Kind</dt>
+            <dd>
+              <SBCopyableProperty value={node!.kind} />
+            </dd>
 
-              <div className="flex gap-1 flex-wrap">
-                <span className="property-title">Mgmt IPv4:</span>
-                <SBCopyableProperty value={node!.ipv4} />
-              </div>
+            <If condition={node!.state !== InstanceNodeState.Stopped}>
+              <dt>Container ID</dt>
+              <dd>{runtimeValue(node!.containerId)}</dd>
 
-              <div className="flex gap-1 flex-wrap">
-                <span className="property-title">Mgmt IPv6:</span>
-                <SBCopyableProperty value={node!.ipv6} />
-              </div>
+              <dt>Container Name</dt>
+              <dd>{runtimeValue(node!.containerName)}</dd>
 
-              <div className="flex gap-1 flex-wrap">
-                <span className="property-title">Interfaces:</span>
-                <span className="property-value">
-                  <Choose>
-                    <When condition={node!.interfaces.length}>
-                      {node!.interfaces.map(iface => iface.name).join(', ')}
-                    </When>
-                    <Otherwise>N/A</Otherwise>
-                  </Choose>
+              <dt>Mgmt IPv4</dt>
+              <dd>{runtimeValue(node!.ipv4)}</dd>
+
+              <dt>Mgmt IPv6</dt>
+              <dd>{runtimeValue(node!.ipv6)}</dd>
+
+              <dt>Interfaces</dt>
+              <dd>
+                <Choose>
+                  <When
+                    condition={
+                      !node!.isReady &&
+                      node!.state === InstanceNodeState.Starting
+                    }
+                  >
+                    <span className="pending">Pending</span>
+                  </When>
+                  <When condition={node!.interfaces!.length === 0}>
+                    <span>None</span>
+                  </When>
+                  <Otherwise>
+                    <span>
+                      {node!.interfaces!.map(iface => iface.name).join(', ')}
+                    </span>
+                  </Otherwise>
+                </Choose>
+              </dd>
+            </If>
+          </dl>
+          <div className="lab-dialog-drawer-special-buttons">
+            <Button
+              icon={
+                <span className="material-symbols-outlined">
+                  quick_reference_all
                 </span>
+              }
+              label="Node Logs"
+              aria-label="Node Logs"
+              outlined
+              onClick={() => props.onOpenLogs(props.nodeName)}
+              disabled={!nodeActionChecker!.canShowLogs}
+            />
+            <Button
+              icon={<span className="material-symbols-outlined">terminal</span>}
+              label="Open Terminal"
+              aria-label="Open Terminal"
+              outlined
+              onClick={() => props.onOpenTerminal(props.nodeName)}
+              disabled={!nodeActionChecker!.canOpenTerminal}
+            />
+          </div>
+          <If condition={node!.isReady}>
+            <div className="flex mt-4 gap-4">
+              <div className="lab-details-plot">
+                <div className="lab-details-plot-header">
+                  <div>
+                    <div className="lab-details-plot-title">CPU</div>
+                    <div className="lab-details-plot-rates">
+                      {cpuRate.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+                <ProgressBar
+                  value={Math.round(cpuRate)}
+                  showValue={false}
+                  className="metric-bar"
+                />
+                <UplotReact
+                  options={cpuOptions}
+                  onCreate={chart => {
+                    cpuUsageChartRef.current = chart;
+                    chart.setSize({
+                      width: widthRef.current / 2 - 28,
+                      height: 50,
+                    });
+                  }}
+                  data={[]}
+                />
+              </div>
+              <div className="lab-details-plot">
+                <div className="lab-details-plot-header">
+                  <div>
+                    <div className="lab-details-plot-title">Memory Usage</div>
+                    <div className="lab-details-plot-rates">
+                      {formatBytes(memoryRate)}
+                    </div>
+                  </div>
+                </div>
+                <ProgressBar
+                  value={((memoryRate / memoryTotalRef.current) * 100).toFixed(
+                    2,
+                  )}
+                  showValue={false}
+                  className="metric-bar"
+                />
+                <UplotReact
+                  options={memoryOptions}
+                  onCreate={chart => {
+                    memoryUsageChartRef.current = chart;
+                    chart.setSize({
+                      width: widthRef.current / 2 - 28,
+                      height: 50,
+                    });
+                  }}
+                  data={[]}
+                />
               </div>
             </div>
-            <div className="lab-dialog-drawer-special-buttons">
-              <Button
-                icon={
-                  <span className="material-symbols-outlined">
-                    quick_reference_all
-                  </span>
-                }
-                label="Node Logs"
-                aria-label="Node Logs"
-                outlined
-                onClick={props.onOpenLogs}
-                disabled={!nodeActionChecker!.canShowLogs}
-              />
-              <Button
-                icon={
-                  <span className="material-symbols-outlined">terminal</span>
-                }
-                label="Open Terminal"
-                aria-label="Open Terminal"
-                outlined
-                onClick={props.onOpenTerminal}
-                disabled={!nodeActionChecker!.canOpenTerminal}
-              />
-            </div>
-          </div>
-          <div className="flex mt-4">
-            <div>
-              <div className="lab-details-plot-title">CPU Usage</div>
-              <UplotReact
-                options={getCPUPlotOptions()}
-                onCreate={chart => {
-                  cpuUsageChartRef.current = chart;
-                  chart.setSize({width: widthRef.current / 2, height: 200});
-                }}
-                data={[]}
-              />
-            </div>
-            <div>
-              <div className="lab-details-plot-title">Memory Usage</div>
-              <UplotReact
-                options={getMemoryUsagePlotOptions()}
-                onCreate={chart => {
-                  memoryUsageChartRef.current = chart;
-                  chart.setSize({width: widthRef.current / 2, height: 200});
-                }}
-                data={[]}
-              />
-            </div>
-          </div>
+          </If>
           {node!.interfaces.map((iface, i) => (
-            <div style={{position: 'relative'}} key={i}>
+            <div className="lab-details-plot" key={i}>
               <Divider />
-              <div className="lab-details-plot-title">{iface.name}</div>
+              <div className="lab-details-plot-header">
+                <div>
+                  <div className="lab-details-net-plot-title">{iface.name}</div>
+                  <div className="lab-details-net-plot-rates">
+                    <span>
+                      <i className="swatch tx" /> TX{' '}
+                      {formatBps(networkRates[iface.name]?.tx ?? 0)}
+                    </span>
+                    <span>
+                      <i className="swatch rx" /> RX{' '}
+                      {formatBps(networkRates[iface.name]?.rx ?? 0)}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  outlined
+                  icon="pi pi-copy"
+                  label="Copy capture command"
+                  onClick={() => copyCaptureToClipboard(node, iface.name)}
+                  aria-label={`Copy capture command for ${iface.name}`}
+                />
+              </div>
               <UplotReact
-                options={getNetworkPlotOptions(iface.name)}
+                options={ifaceOptions[iface.name]}
                 onCreate={chart => {
                   trafficChartsRef.current.set(iface.name, chart);
-                  chart.setSize({width: widthRef.current, height: 200});
+                  chart.setSize({width: widthRef.current, height: 100});
                 }}
                 data={[]}
-              />
-              <Button
-                style={{position: 'absolute', top: 4, right: 0}}
-                outlined
-                icon="pi pi-eye"
-                label="Start Capture"
-                onClick={() => copyCaptureToClipboard(iface.name)}
-                aria-label="Submit"
               />
             </div>
           ))}
@@ -589,34 +563,57 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
           </If>
           <div className="flex gap-2">
             <Button
-              icon="pi pi-play"
-              severity="success"
-              label="Start"
-              outlined
-              onClick={props.onNodeStart}
-              disabled={!nodeActionChecker!.canStart}
-            />
-            <Button
               icon="pi pi-sync"
-              severity="warning"
               label="Restart"
               outlined
-              onClick={props.onNodeRestart}
+              onClick={() => props.onNodeRestart(props.nodeName)}
               disabled={!nodeActionChecker!.canRestart}
             />
-            <Button
-              icon="pi pi-power-off"
-              severity="danger"
-              label="Shutdown"
-              outlined
-              onClick={props.onNodeStop}
-              disabled={!nodeActionChecker!.canStop}
-            />
+            <Choose>
+              <When condition={nodeActionChecker!.canStart}>
+                <Button
+                  icon="pi pi-play"
+                  label="Start"
+                  outlined
+                  onClick={() => props.onNodeStart(props.nodeName)}
+                  disabled={!nodeActionChecker!.canStart}
+                />
+              </When>
+              <Otherwise>
+                <Button
+                  icon="pi pi-power-off"
+                  severity="danger"
+                  label="Shutdown"
+                  outlined
+                  onClick={() => props.onNodeStop(props.nodeName)}
+                  disabled={!nodeActionChecker!.canStop}
+                />
+              </Otherwise>
+            </Choose>
           </div>
         </div>
       </If>
     </div>
   );
 };
+
+function NodeHeader({node}: {node: InstanceNode}) {
+  const stateString = useMemo(() => {
+    let state = node.state;
+
+    if (state === InstanceNodeState.Running && !node.isReady) {
+      state = InstanceNodeState.Starting;
+    }
+
+    return InstanceNodeState[state].toLocaleLowerCase();
+  }, [node]);
+
+  return (
+    <div className={`lab-dialog-drawer-header ${stateString}`}>
+      <span className="lab-dialog-drawer-header-title">{node.name}</span>
+      <span className="lab-dialog-drawer-header-state">{stateString}</span>
+    </div>
+  );
+}
 
 export default LabDialogDrawer;

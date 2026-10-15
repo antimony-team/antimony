@@ -1,39 +1,168 @@
-import {app, BrowserWindow, shell} from 'electron';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  shell,
+  Tray,
+} from 'electron';
+
+import {DesktopConfig, startServer, stopServer} from './server';
+import {Splash} from './splash';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function createWindow() {
-  const win = new BrowserWindow({
+// The app and tray icons, rendered from the logo by the build, see build-electron in Taskfile.yml
+const APP_ICON = path.join(__dirname, 'icons/icon.png');
+const TRAY_ICON = path.join(__dirname, 'icons/tray.png');
+
+let window: BrowserWindow | null = null;
+let tray: Tray | null = null;
+
+// Set when the app quits for real, closing the window only hides it in the tray
+let isQuitting = false;
+
+// Only the instance that started the server stops it, a second instance quits without touching it
+let hasServer = false;
+let isServerStopped = false;
+
+function showWindow() {
+  if (!window) {
+    createWindow();
+    return;
+  }
+
+  window.show();
+  window.focus();
+}
+
+function createWindow() {
+  window = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: APP_ICON,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
     autoHideMenuBar: true,
   });
 
   // Open external links in the user's browser, not inside the app.
-  win.webContents.setWindowOpenHandler(({url}) => {
+  window.webContents.setWindowOpenHandler(({url}) => {
     void shell.openExternal(url);
     return {action: 'deny'};
   });
 
-  void win.loadFile(path.join(__dirname, '../dist/index.html'));
+  // The window only shows the app, other pages would get the server's token through the preload script
+  window.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('file://')) return;
+
+    event.preventDefault();
+    void shell.openExternal(url);
+  });
+
+  // Closing the window keeps Antimony and its labs running in the tray
+  window.on('close', event => {
+    if (isQuitting) return;
+
+    event.preventDefault();
+    window?.hide();
+  });
+  window.on('closed', () => (window = null));
+
+  void window.loadFile(path.join(__dirname, '../dist/index.html'));
 }
 
-app.whenReady().then(() => {
-  void createWindow();
+function createTray() {
+  // Electron picks tray@2x.png next to it on high resolution screens
+  tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
+  tray.setToolTip('Antimony');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {label: 'Open Antimony', click: showWindow},
+      {type: 'separator'},
+      {label: 'Quit Antimony', click: () => app.quit()},
+    ]),
+  );
+  tray.on('click', showWindow);
+}
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+function fail(error: unknown) {
+  dialog.showErrorBox(
+    'Antimony',
+    error instanceof Error ? error.message : String(error),
+  );
+  app.quit();
+}
+
+// Only one instance runs at a time, it has the server; starting the app again shows its window
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', showWindow);
+
+  app.whenReady().then(async () => {
+    const splash = new Splash();
+    hasServer = true;
+
+    let desktop: DesktopConfig;
+    try {
+      const server = await startServer((text, progress) =>
+        splash.setStatus(text, progress),
+      );
+      desktop = server.desktop;
+
+      void server.exited.then(code => {
+        if (isQuitting) return;
+        fail(
+          `The Antimony server stopped unexpectedly (code ${code}). See server.log in ${app.getPath('userData')}.`,
+        );
+      });
+    } catch (error) {
+      splash.close();
+      fail(error);
+      return;
+    }
+
+    // The window asks for the server's address and token, they never appear on a command line
+    ipcMain.handle('antimony:desktop', () => desktop);
+
+    createTray();
+    createWindow();
+    splash.close();
+
+    app.on('activate', showWindow);
   });
+}
+
+// The app keeps running in the tray when its window is closed
+app.on('window-all-closed', () => {});
+
+app.on('before-quit', () => (isQuitting = true));
+
+// The server's container is removed before the app exits, quitting waits for it
+app.on('will-quit', event => {
+  if (!hasServer || isServerStopped) return;
+
+  event.preventDefault();
+  void stopServer()
+    .catch(error => console.error('Failed to stop the Antimony server', error))
+    .finally(() => {
+      isServerStopped = true;
+      app.quit();
+    });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+// Ctrl+C in a terminal quits the app the same way, so the server is removed too
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => app.quit());
+}

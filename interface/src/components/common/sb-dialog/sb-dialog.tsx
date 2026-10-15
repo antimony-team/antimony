@@ -1,8 +1,8 @@
 import React from 'react';
 
-import {Image} from 'primereact/image';
-import {Dialog} from 'primereact/dialog';
 import {Button} from 'primereact/button';
+import {Dialog} from 'primereact/dialog';
+import {Image} from 'primereact/image';
 
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 
@@ -14,6 +14,8 @@ interface SBDialogProps {
 
   headerTitle: string | React.ReactNode;
   headerIcon?: string | React.ReactNode;
+
+  width?: string;
 
   draggable?: boolean;
   resizeable?: boolean;
@@ -34,6 +36,7 @@ interface SBDialogProps {
   onShow?: () => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  onResizeEnd?: () => void;
 }
 
 const SBDialog = (props: SBDialogProps) => {
@@ -41,7 +44,7 @@ const SBDialog = (props: SBDialogProps) => {
     <Dialog
       visible={props.isOpen}
       dismissableMask={true}
-      className={props.className}
+      className={`sb-dialog ${props.className ?? ''}`}
       onHide={props.onClose}
       onShow={props.onShow}
       draggable={props.draggable}
@@ -50,13 +53,15 @@ const SBDialog = (props: SBDialogProps) => {
       onDragStart={props.onDragStart}
       onDragEnd={props.onDragEnd}
       keepInViewport={false}
+      onResizeEnd={props.onResizeEnd}
+      style={{width: props.width}}
       header={
         <div className="sb-dialog-header">
           <div className="sb-dialog-header-title">
             <If condition={props.headerIcon}>
               <Choose>
                 <When condition={typeof props.headerIcon === 'string'}>
-                  <Image src={props.headerIcon as string} width="35px" />
+                  <Image src={props.headerIcon as string} height="24px" />
                 </When>
                 <Otherwise>{props.headerIcon}</Otherwise>
               </Choose>
@@ -85,23 +90,19 @@ const SBDialog = (props: SBDialogProps) => {
         <div className="sb-dialog-footer w-full">
           <Button
             outlined
-            icon="pi pi-times"
             label={props.cancelLabel ?? 'Cancel'}
             onClick={() =>
               props.onCancel?.call(null) ?? props.onClose?.call(null)
             }
-            className="w-8rem"
-            aria-label="Cancel"
+            aria-label={props.cancelLabel ?? 'Cancel'}
           />
           <Button
-            icon="pi pi-check"
+            className="sb-button-accent"
             label={props.submitLabel ?? 'Submit'}
             onClick={() => {
-              console.log('ON SUBMIT BUTTON');
               props.onSubmit?.call(null);
             }}
-            className="w-8rem"
-            aria-label="Submit"
+            aria-label={props.submitLabel ?? 'Submit'}
             disabled={props.canSubmit === false}
           />
         </div>

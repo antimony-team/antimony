@@ -1,21 +1,26 @@
 $material-symbols-font-path: '~material-symbols/'
 
-@use "sb-fonts"
 @use "sb-colors"
-@use "sb-prime"
+@use "prime/prime"
 
 :root
-  --font-family: 'Figtree', Roboto, sans-serif
+  --font-family: 'Figtree Variable'
   --rt-transition-show-delay: 0.1s !important
   --rt-transition-closing-delay: 0.1s !important
   --rt-opacity: 1 !important
+  font-family: var(--font-family), sans-serif
+
+// Disable keyboard focus ring for everything
+*:focus,
+*:focus-visible
+  outline: none !important
+  box-shadow: none !important
 
 html
   height: 100%
-  background-color: var(--primary-color)
+  background-color: var(--surface-page)
 
 body
-  font-family: 'Figtree', Roboto, sans-serif
   margin: 0
   height: 100%
   overflow: hidden
@@ -30,10 +35,10 @@ body
   background-color: transparent
   backdrop-filter: brightness(1.4)
 
-.sb-card
-  border-radius: 6px
-  //border: 2px solid var(--primary-color-border)
-  //box-shadow: 0 0 8px 2px rgba(0,0,0,0.3)
+.sb-island
+  background-color: var(--surface-raised)
+  border-radius: 12px
+  border: 1px solid var(--border)
 
 .sb-table
   border-collapse: collapse
@@ -43,7 +48,7 @@ body
 
   thead
     font-weight: 700
-    background-color: var(--primary-color)
+    background-color: var(--surface-sunken)
 
     td
       padding: 16px
@@ -74,18 +79,21 @@ body
   height: 6px
 
 ::-webkit-scrollbar-thumb
-  background-color: var(--primary-color-border)
+  background-color: var(--border)
   border-radius: 8px
   background-clip: padding-box
 
+/*
+ * The transition duration has to be kept in sync with FADE_DURATION_MS in
+ * sb-overlay.tsx, which unmounts the overlay content once the fade is done.
+ */
 .sb-animated-overlay
   opacity: 0
   pointer-events: none
-  transition: opacity ease-in 0.14s
+  transition: opacity ease-in 0.1s
 
   &.visible
     opacity: 1
-    animation: 0.14s ease-in appear
     pointer-events: auto
 
 label
@@ -103,9 +111,46 @@ label
     opacity: 1
 
 .react-tooltip
-  background-color: var(--primary-color) !important
+  border: 1px solid var(--border)
+  background-color: var(--surface-overlay) !important
   padding: 10px !important
   z-index: 1200
 
+  .react-tooltip-arrow
+    border-right: 1px solid var(--border)
+    border-bottom: 1px solid var(--border)
+
+
 .sb-edit-dialog
-  width: 400px
+  width: 520px
+
+.sb-form
+  display: flex
+  flex-direction: column
+  gap: 20px
+
+.sb-form-field
+  display: flex
+  flex-direction: column
+  gap: 6px
+
+.sb-dot-separated
+  --dot-size: 3px
+  --dot-gap: 8px
+  --dot-color: var(--text-muted)
+
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+
+  > * + *::before
+    content: ''
+    display: inline-block
+    flex: 0 0 auto
+    width: var(--dot-size)
+    height: var(--dot-size)
+    margin: 0 var(--dot-gap)
+    border-radius: 50%
+    background-color: var(--dot-color)
+    // Centres the dot on the cap height rather than the baseline
+    vertical-align: calc(0.5cap - var(--dot-size) / 2)

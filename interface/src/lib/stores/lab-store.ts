@@ -1,29 +1,29 @@
+import dayjs from 'dayjs';
+import {action, computed, observable, reaction, runInAction} from 'mobx';
+
 import {
   DataBinder,
   DataResponse,
   Subscription,
 } from '@sb/lib/stores/data-binder/data-binder';
-
-import {DataStore} from '@sb/lib/stores/data-store';
+import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {QueryBuilder} from '@sb/lib/utils/query-builder';
 import {
   Instance,
   InstanceOut,
   InstanceState,
   Lab,
-  LabCommand,
-  LabCommandData,
   LabIn,
   LabOut,
   LabUpdateOut,
-  NodeStatsOut,
+  NodeStats,
+  RuntimeCommand,
+  RuntimeCommandPayload,
 } from '@sb/types/domain/lab';
-import {Result} from '@sb/types/result';
-import dayjs from 'dayjs';
-import {action, computed, observable, observe, runInAction} from 'mobx';
+import {ErrorCodes} from '@sb/types/error-codes';
+import {ErrorResult, Result} from '@sb/types/result';
 
 export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor offset: number = 0;
@@ -44,7 +44,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor startDate: string | null = null;
   @observable accessor endDate: string | null = null;
 
-  private readonly labCommandsSubscription: Subscription;
+  private commandsSubscription: Subscription | null = null;
 
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
@@ -55,98 +55,67 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     dataBinder: DataBinder,
     topologyStore: TopologyStore,
     statusMessageStore: StatusMessageStore,
+    dependencies: DataStoreDependency[] = [],
   ) {
-    super(rootStore);
+    super(rootStore, dependencies);
 
     this.dataBinder = dataBinder;
     this.topologyStore = topologyStore;
     this.statusMessageStore = statusMessageStore;
 
-    observe(this, 'getParams' as keyof this, () => this.fetch());
-
-    this.dataBinder.subscribeNamespace(
-      'lab-updates',
-      this.onLabUpdate.bind(this),
-    );
-
-    this.labCommandsSubscription =
-      this.dataBinder.subscribeNamespace('lab-commands');
+    this.onLabUpdate = this.onLabUpdate.bind(this);
   }
 
   protected get resourcePath(): string {
     return '/labs';
   }
 
-  @action
-  private async fetchSingle(labId: string) {
-    const response = await this.rootStore._dataBinder.get<LabOut>(
-      this.resourcePath + '/' + labId,
-    );
-
-    if (response.isOk()) {
-      const updatedLab = this.parseLab(response.data.payload);
-
-      runInAction(() => {
-        this.data = [
-          ...this.data
-            .map(lab => {
-              if (lab.id !== labId) return lab;
-
-              return updatedLab;
-            })
-            .filter(lab => lab !== null),
-        ];
-
-        this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
-      });
-    }
-  }
-
   @computed
   protected get getParams() {
-    return new QueryBuilder()
-      .add('limit', this.limit)
-      .add('offset', this.offset)
-      .add('searchQuery', this.searchQuery)
-      .addList('stateFilter', this.stateFilter)
-      .addList('collectionFilter', this.collectionFilter)
-      .add('startDate', this.startDate)
-      .add('endDate', this.endDate)
-      .toString();
+    return '';
+
+    // TODO(kian): For now, we fetch all collections
+    // return new QueryBuilder()
+    //   .add('limit', this.limit)
+    //   .add('offset', this.offset)
+    //   .add('searchQuery', this.searchQuery)
+    //   .addList('stateFilter', this.stateFilter)
+    //   .addList('collectionFilter', this.collectionFilter)
+    //   .add('startDate', this.startDate)
+    //   .add('endDate', this.endDate)
+    //   .toString();
   }
 
-  public async sendLabCommand(command: LabCommandData): Promise<Result<null>> {
-    const response = await this.labCommandsSubscription.socket!.emitWithAck(
-      'data',
-      JSON.stringify(command),
-    );
+  public init(filterFromParams: boolean) {
+    this.dataBinder.subscribeNamespace('lab-updates', this.onLabUpdate);
+    this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
 
-    if (!('payload' in response)) {
-      console.error('Failed to execute lab command: ', response);
-      return Result.createErr(response);
+    if (filterFromParams) {
+      reaction(
+        () => this.getParams,
+        () => this.fetch(),
+      );
     }
-
-    return Result.createOk(response);
   }
 
   public subscribeNodeStats(
     containerId: string,
-    onEvent: (data: NodeStatsOut) => void,
+    onEvent: (data: NodeStats) => void,
   ) {
     this.dataBinder.subscribeNamespace(`stats/${containerId}`, onEvent);
   }
 
   public unsubscribeNodeStats(
     containerId: string,
-    onEvent: (data: NodeStatsOut) => void,
+    onEvent: (data: NodeStats) => void,
   ) {
     this.dataBinder.unsubscribeNamespace(`stats/${containerId}`, onEvent);
   }
 
   public async deployLab(lab: Lab): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.Deploy,
+      command: RuntimeCommand.DeployLab,
     });
 
     if (result.isErr()) {
@@ -160,9 +129,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async destroyLab(lab: Lab): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.Destroy,
+      command: RuntimeCommand.DestroyLab,
     });
 
     if (result.isErr()) {
@@ -176,9 +145,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async stopNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.StopNode,
+      command: RuntimeCommand.StopNode,
       node: nodeName,
     });
 
@@ -193,9 +162,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async startNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.StartNode,
+      command: RuntimeCommand.StartNode,
       node: nodeName,
     });
 
@@ -210,9 +179,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   }
 
   public async restartNode(lab: Lab, nodeName: string): Promise<Result<null>> {
-    const result = await this.sendLabCommand({
+    const result = await this.sendRuntimeCommand({
       labId: lab.id,
-      command: LabCommand.RestartNode,
+      command: RuntimeCommand.RestartNode,
       node: nodeName,
     });
 
@@ -224,24 +193,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     }
 
     return result;
-  }
-
-  @action
-  protected handleUpdate(response: DataResponse<LabOut[]>): void {
-    this.data = this.parseLabs(response.payload);
-    this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
-
-    if (response.headers && response.headers.has('X-Total-Count')) {
-      this.totalEntries = Number(response.headers!.get('X-Total-Count'));
-    }
-  }
-
-  private onLabUpdate(data: DataResponse<LabUpdateOut>) {
-    if (data.payload.labId && this.lookup.has(data.payload.labId)) {
-      void this.fetchSingle(data.payload.labId);
-    } else {
-      void this.fetch();
-    }
   }
 
   @action
@@ -293,6 +244,97 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     this.endDate = endDate;
   }
 
+  public override dispose() {
+    super.dispose();
+
+    this.dataBinder.unsubscribeNamespace('lab-updates', this.onLabUpdate);
+    this.commandsSubscription = null;
+  }
+
+  @action
+  protected handleUpdate(response: DataResponse<LabOut[]>): void {
+    this.data = this.parseLabs(response.payload);
+    this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
+
+    if (response.headers && response.headers.has('X-Total-Count')) {
+      this.totalEntries = Number(response.headers!.get('X-Total-Count'));
+    }
+  }
+
+  @action
+  private async fetchSingle(labId: string) {
+    console.log('FETCH SINGLE');
+    const response = await this.rootStore._dataBinder.get<LabOut>(
+      this.resourcePath + '/' + labId,
+    );
+
+    if (response.isOk()) {
+      const updatedLab = this.parseLab(response.data.payload);
+
+      runInAction(() => {
+        this.data = [
+          ...this.data
+            .map(lab => {
+              if (lab.id !== labId) return lab;
+
+              return updatedLab;
+            })
+            .filter(lab => lab !== null),
+        ];
+
+        this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
+      });
+    }
+  }
+
+  private async sendRuntimeCommand(
+    command: RuntimeCommandPayload,
+  ): Promise<Result<null>> {
+    if (!this.commandsSubscription) {
+      return Result.createErr(
+        'Lab store has not initialized its commands subscription.',
+      );
+    }
+
+    const response = await this.commandsSubscription.socket!.emitWithAck(
+      'data',
+      JSON.stringify(command),
+    );
+
+    if (!('payload' in response)) {
+      // Ignore operation in progress as they are caused by the user spamming action buttons.
+      if (
+        (response as ErrorResult).code ===
+        ErrorCodes.ErrorLabOperationInProgress
+      ) {
+        return Result.createOk(null);
+      }
+
+      console.error('Failed to execute runtime command: ', response);
+      return Result.createErr(response);
+    }
+
+    return Result.createOk(response);
+  }
+
+  private onLabUpdate(data: DataResponse<LabUpdateOut>) {
+    if (data.payload.labId && this.lookup.has(data.payload.labId)) {
+      // if (data.payload.newState !== null) {
+      //   const lab = this.lookup.get(data.payload.labId);
+      //   runInAction(() => {
+      //     lab!.state = data.payload.newState!;
+      //   });
+      // } else {
+      //   void this.fetchSingle(data.payload.labId);
+      // }
+
+      void this.fetchSingle(data.payload.labId);
+    } else {
+      console.log('FETCH FROM LAB UPDATE');
+      void this.fetch();
+    }
+  }
+
   private parseLabs(input: LabOut[]): Lab[] {
     return input.map(lab => this.parseLab(lab)).filter(lab => lab !== null);
   }
@@ -301,7 +343,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     const startTime = new Date(input.startTime);
     const endTime = input.endTime ? new Date(input.endTime) : null;
 
-    const definition = this.topologyStore.parseTopologyDefinition(
+    const definition = this.topologyStore.readTopology(
       input.topologyDefinition,
     );
 
@@ -310,31 +352,53 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
       return null;
     }
 
+    const annotations = this.topologyStore.parseTopologyAnnotations(
+      input.topologyAnnotations,
+    );
+
+    if (!annotations) {
+      console.error('[NET] Failed to parse incoming run annotations: ', input);
+    }
+
     return {
       ...input,
       startTime: startTime,
       endTime: endTime,
-      state: input.instance
-        ? input.instance.state
-        : endTime &&
-            endTime >= dayjs(new Date()).toDate() &&
-            startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate()
-          ? InstanceState.Scheduled
-          : InstanceState.Inactive,
+      state: this.getInstanceState(input.instance, startTime, endTime),
       instance: this.parseInstance(input.instance),
-      instanceName: input.instanceName,
       topologyDefinition: {
-        ...this.topologyStore.manager.buildTopologyMetadata(definition),
         definition: definition,
+        annotations: annotations ?? {},
       },
     };
   }
 
-  private parseInstance(input?: InstanceOut): Instance | null {
-    if (input === undefined) return null;
+  private getInstanceState(
+    instance: InstanceOut | null,
+    startTime: Date,
+    endTime: Date | null,
+  ) {
+    if (instance !== null) return instance.state;
+
+    if (endTime !== null) {
+      const isBeforeEndTime = endTime >= dayjs(new Date()).toDate();
+      const isBeforeStartTime =
+        startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate();
+
+      if (isBeforeStartTime && isBeforeEndTime) {
+        return InstanceState.Scheduled;
+      }
+    }
+
+    return InstanceState.Inactive;
+  }
+
+  private parseInstance(input: InstanceOut | null): Instance | null {
+    if (input === null) return null;
 
     return {
       ...input,
+      deployed: new Date(input.deployed),
       nodeMap: new Map(input.nodes?.map(node => [node.name, node])),
     };
   }

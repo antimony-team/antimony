@@ -17,6 +17,16 @@ export class Result<T> {
     protected readonly value: T | ErrorResult,
   ) {}
 
+  get data(): T {
+    if (this.isOk()) return this.value as T;
+    throw new Error('Cannot get data from an err result');
+  }
+
+  get error(): ErrorResult {
+    if (this.isErr()) return this.value as ErrorResult;
+    throw new Error('Cannot get error from an ok result');
+  }
+
   static createOk<T>(data: T): Ok<T> {
     return new Result('ok', data) as Ok<T>;
   }
@@ -31,15 +41,5 @@ export class Result<T> {
 
   isErr(): this is Err {
     return this._tag === 'err';
-  }
-
-  get data(): T {
-    if (this.isOk()) return this.value as T;
-    throw new Error('Cannot get data from an err result');
-  }
-
-  get error(): ErrorResult {
-    if (this.isErr()) return this.value as ErrorResult;
-    throw new Error('Cannot get error from an ok result');
   }
 }

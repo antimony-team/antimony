@@ -1,31 +1,71 @@
-import {action, computed, observable, ObservableMap, observe} from 'mobx';
+import {action, computed, observable, ObservableMap, reaction} from 'mobx';
 
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
+import {RootStore} from '@sb/lib/stores/root-store';
+import {Result} from '@sb/types/result';
 import {
   DefaultFetchReport,
   FetchReport,
   FetchState,
   uuid4,
 } from '@sb/types/types';
-import {RootStore} from '@sb/lib/stores/root-store';
-import {Result} from '@sb/types/result';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 
 export abstract class DataStore<T, I, O> {
-  protected rootStore: RootStore;
-
   @observable accessor data: T[] = [];
   @observable accessor lookup: Map<string, T> = new ObservableMap();
   @observable accessor fetchReport: FetchReport = DefaultFetchReport;
+  protected rootStore: RootStore;
+  protected disposers: (() => void)[] = [];
 
-  protected abstract get resourcePath(): string;
-  protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
-
-  constructor(rootStore: RootStore) {
+  constructor(rootStore: RootStore, dependencies: DataStoreDependency[] = []) {
     this.rootStore = rootStore;
 
-    observe(rootStore._dataBinder, () => this.fetch());
+    this.disposers.push(
+      // Fetch once the user is logged in and all dependencies have loaded
+      reaction(
+        () =>
+          rootStore._dataBinder.isLoggedIn &&
+          dependencies.every(d => d.fetchReport.state === FetchState.Done),
+        ready => {
+          if (ready) void this.fetch();
+        },
+        {fireImmediately: true},
+      ),
+      // Drop all data on logout
+      reaction(
+        () => rootStore._dataBinder.isLoggedIn,
+        isLoggedIn => {
+          if (!isLoggedIn) this.reset();
+        },
+      ),
+    );
+  }
 
-    void this.fetch();
+  protected abstract get resourcePath(): string;
+
+  @computed
+  protected get getParams() {
+    return '';
+  }
+
+  @computed
+  protected get postParams() {
+    return '';
+  }
+
+  @computed
+  protected get patchParams() {
+    return '';
+  }
+
+  @computed
+  protected get deleteParams() {
+    return '';
+  }
+
+  public dispose() {
+    this.disposers.forEach(dispose => dispose());
+    this.disposers = [];
   }
 
   @action
@@ -80,6 +120,15 @@ export abstract class DataStore<T, I, O> {
     return result;
   }
 
+  protected abstract handleUpdate(updatedData: DataResponse<O | O[]>): void;
+
+  @action
+  protected reset() {
+    this.data = [];
+    this.lookup = new ObservableMap();
+    this.fetchReport = DefaultFetchReport;
+  }
+
   @action
   private handleData(result: Result<DataResponse<O | O[]>>) {
     if (result.isOk()) {
@@ -95,24 +144,8 @@ export abstract class DataStore<T, I, O> {
       };
     }
   }
+}
 
-  @computed
-  protected get getParams() {
-    return '';
-  }
-
-  @computed
-  protected get postParams() {
-    return '';
-  }
-
-  @computed
-  protected get patchParams() {
-    return '';
-  }
-
-  @computed
-  protected get deleteParams() {
-    return '';
-  }
+export interface DataStoreDependency {
+  readonly fetchReport: FetchReport;
 }

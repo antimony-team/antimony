@@ -1,15 +1,24 @@
-.sb-dropdown-label
-  font-weight: 700
-
-.sb-dropdown-hidden
-  background-color: transparent
-  border: 1px solid transparent
-  cursor: pointer
-  box-shadow: none
-
+.sb-dropdown
   &:placeholder-shown
     font-weight: 200
     font-style: italic
 
-  &:active
-    outline: none
+  &.sb-dropdown-hidden
+    padding: 8px 12px
+
+  &.sb-dropdown-disabled
+    background-color: transparent
+    border: 1px solid transparent
+    cursor: pointer
+
+  &.sb-dropdown-error, &.p-invalid
+    border: 1px solid var(--danger-color-text)
+
+.sb-dropdown-label
+  font-size: 15px
+  font-weight: 500
+  color: var(--text-muted)
+
+.sb-dropdown-value-prefix
+  color: var(--text-muted)
+  margin-right: -4px

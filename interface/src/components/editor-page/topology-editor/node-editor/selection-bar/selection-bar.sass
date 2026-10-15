@@ -1,0 +1,113 @@
+.sb-selection-bar
+  position: absolute
+  z-index: 10
+  display: flex
+  align-items: center
+  gap: 2px
+  padding: 4px
+  transform: translateX(-50%)
+  background-color: var(--surface-raised)
+  border: 1px solid var(--border)
+  border-radius: 12px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+  white-space: nowrap
+
+  &.hidden, .sb-selection-bar-part.hidden
+    display: none
+
+  .sb-selection-bar-part
+    display: contents
+
+  > .p-button, .sb-selection-bar-part > .p-button
+    height: 34px
+    padding: 0 8px
+    color: var(--text-muted)
+
+    &:not(.p-button-icon-only)
+      padding: 0 12px 0 8px
+
+    &:enabled:hover
+      color: var(--text)
+      background-color: var(--hover)
+
+    &.sb-selection-bar-delete:enabled:hover
+      color: var(--danger-color-text)
+
+    &.toggled
+      color: var(--text)
+      background-color: var(--surface-selected)
+
+    // The icon buttons of the theme show Material Symbols larger than the PrimeIcons next to them
+    .material-symbols-outlined
+      font-size: 20px
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20
+
+  .sb-selection-bar-swatch
+    display: inline-flex
+    align-items: center
+    gap: 4px
+    height: 30px
+    padding: 0 6px 0 8px
+    border: 0
+    border-radius: 7px
+    background: transparent
+    color: var(--text-muted)
+    cursor: pointer
+
+    &:hover, &.active
+      background-color: var(--surface-selected)
+
+    .pi
+      font-size: 10px
+
+    .sb-color-swatch
+      width: 14px
+      height: 14px
+      border-radius: 4px
+
+      &.ring
+        background: transparent
+        border-width: 2.5px
+        border-style: solid
+
+  .p-selectbutton.p-button-group
+    padding: 2px
+
+    &.p-disabled
+      opacity: .4
+
+    .p-button
+      height: 28px
+      padding: 0 8px
+
+  .sb-markdown-toolbar
+    display: flex
+    gap: 2px
+
+  .sb-markdown-toolbar-button
+    display: inline-flex
+    align-items: center
+    justify-content: center
+    width: 30px
+    height: 30px
+    border-radius: 7px
+    color: var(--text-muted)
+    cursor: pointer
+
+    &:hover
+      color: var(--text)
+      background-color: var(--hover)
+
+    .material-symbols-outlined
+      font-size: 18px
+
+  .sb-selection-bar-line
+    width: 20px
+    border-top-width: 2px
+    border-top-color: currentColor
+
+  .sb-selection-bar-separator
+    width: 1px
+    height: 20px
+    margin: 0 4px
+    background-color: var(--border)

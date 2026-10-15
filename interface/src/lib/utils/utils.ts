@@ -1,10 +1,10 @@
-import {DeviceStore} from '@sb/lib/stores/device-store';
-import {TopologyManager} from '@sb/lib/topology-manager';
-import {Instance, InstanceNode, InstanceState} from '@sb/types/domain/lab';
-import {RunTopology, Topology} from '@sb/types/domain/topology';
-import {FetchState, Position} from '@sb/types/types';
-import cytoscape, {ElementDefinition} from 'cytoscape';
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration';
+
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
+
+import {FetchState, Position} from '@sb/types/types';
+dayjs.extend(duration);
 
 export async function fetchResource<T>(
   url: string,
@@ -63,185 +63,6 @@ export function pushOrCreateList<T, R>(map: Map<T, R[]>, key: T, value: R) {
   }
 }
 
-export function generateGraph(
-  topology: Topology | RunTopology,
-  deviceStore: DeviceStore,
-  topologyManager: TopologyManager,
-  instance: Instance | null = null,
-  omitLabels: boolean = false,
-): ElementDefinition[] {
-  const elements: ElementDefinition[] = [];
-  const addedGroups = new Set<string>();
-
-  const topologyNodes = Object.entries(
-    topology.definition.toJS().topology.nodes,
-  );
-
-  for (const [nodeName, node] of topologyNodes) {
-    const posX = parseFloat(node?.labels?.['graph-posX'] ?? '');
-    const posY = parseFloat(node?.labels?.['graph-posY'] ?? '');
-
-    let position = {x: 0, y: 0};
-
-    if (!isNaN(posX) && !isNaN(posY)) {
-      position = {x: posX, y: posY};
-    } else {
-      const lat = parseFloat(node?.labels?.['graph-geoCoordinateLat'] ?? '');
-      const lng = parseFloat(node?.labels?.['graph-geoCoordinateLng'] ?? '');
-
-      if (!isNaN(lat) && !isNaN(lng)) {
-        position = convertLatLngToXY(lat, lng);
-      }
-    }
-
-    const group = node?.labels?.['graph-group'];
-    const level = node?.labels?.['graph-level'];
-
-    let parentId: string | undefined = undefined;
-
-    if (group !== undefined) {
-      const groupId = level !== undefined ? `${group}:${level}` : group;
-
-      const groupLabel = omitLabels ? '' : group;
-
-      if (!addedGroups.has(groupId)) {
-        elements.push({
-          group: 'nodes',
-          data: {
-            id: groupId,
-            label: groupLabel,
-          },
-          classes: 'drawn-shape',
-        });
-        addedGroups.add(groupId);
-      }
-
-      parentId = groupId;
-    }
-
-    let label;
-
-    if (!omitLabels) {
-      label = getNodeDisplayName(
-        nodeName,
-        instance,
-        instance?.nodeMap.get(nodeName),
-      );
-    } else {
-      label = '';
-    }
-
-    elements.push({
-      data: {
-        id: nodeName,
-        parent: parentId,
-        label: label,
-        title: topologyManager.getNodeTooltip(nodeName),
-        kind: node?.kind ?? '',
-        image: deviceStore.getNodeIcon(node),
-        shape: deviceStore.getNodeShape(node),
-      },
-      selectable: true,
-      position: position,
-      classes: 'topology-node',
-    });
-  }
-
-  for (const connection of topology.connections) {
-    elements.push({
-      data: {
-        id: connection.index.toString(),
-        source: connection.hostNode,
-        target: connection.targetNode,
-        title: topologyManager.getEdgeTooltip(connection),
-        sourceLabel: connection.hostInterface,
-        targetLabel: connection.targetInterface,
-      },
-      classes: 'edge',
-    });
-  }
-
-  return elements;
-}
-
-export function getNodeDisplayName(
-  nodeName: string,
-  instance?: Instance | null,
-  node?: InstanceNode | null,
-) {
-  if (!instance) return nodeName;
-
-  if (node?.state === 'running') {
-    return `🟢 ${nodeName}`;
-  } else if (
-    node?.state === 'starting' ||
-    instance?.state === InstanceState.Deploying
-  ) {
-    return `🟠 ${nodeName}`;
-  }
-
-  return `🔴 ${nodeName}`;
-}
-
-export function drawGraphGrid(
-  container: HTMLDivElement,
-  canvas: HTMLCanvasElement,
-  cy: cytoscape.Core,
-) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  canvas.width = container.clientWidth;
-  canvas.height = container.clientHeight;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawCytoscapeGrid(cy, ctx);
-}
-
-export function drawCytoscapeGrid(
-  cy: cytoscape.Core,
-  ctx: CanvasRenderingContext2D,
-): void {
-  const GRID_SPACING = 35;
-  const DOT_RADIUS = 1.2;
-  const DOT_COLOR = 'rgba(150, 150, 170, 0.4)';
-
-  const pan = cy.pan();
-  const zoom = cy.zoom();
-
-  const W = ctx.canvas.width;
-  const H = ctx.canvas.height;
-
-  ctx.clearRect(0, 0, W, H);
-
-  const modelLeft = (0 - pan.x) / zoom;
-  const modelTop = (0 - pan.y) / zoom;
-  const modelRight = (W - pan.x) / zoom;
-  const modelBottom = (H - pan.y) / zoom;
-
-  const startX = Math.ceil(modelLeft / GRID_SPACING) * GRID_SPACING;
-  const startY = Math.ceil(modelTop / GRID_SPACING) * GRID_SPACING;
-
-  ctx.fillStyle = DOT_COLOR;
-
-  const r = DOT_RADIUS * zoom;
-
-  ctx.beginPath();
-
-  for (let mx = startX; mx <= modelRight; mx += GRID_SPACING) {
-    const sx = mx * zoom + pan.x;
-
-    for (let my = startY; my <= modelBottom; my += GRID_SPACING) {
-      const sy = my * zoom + pan.y;
-
-      ctx.moveTo(sx + r, sy);
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-    }
-  }
-
-  ctx.fill();
-}
-
 export function getDistance(a: Position, b: Position): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
@@ -253,31 +74,6 @@ export const SBTooltipOptions: TooltipOptions = {
   showDelay: 200,
   showOnDisabled: true,
 };
-
-const CANVAS_WIDTH = 5000;
-const CANVAS_HEIGHT = 3000;
-const LATITUDE_RANGE = 1.0;
-const LONGITUDE_RANGE = 1.0;
-const DEFAULT_AVERAGE_LAT = 48.6848;
-const DEFAULT_AVERAGE_LNG = 9.0078;
-
-export function convertXYToLatLng(
-  x: number,
-  y: number,
-): {lat: number; lng: number} {
-  const lat = DEFAULT_AVERAGE_LAT - (y / CANVAS_HEIGHT) * LATITUDE_RANGE;
-  const lng = DEFAULT_AVERAGE_LNG + (x / CANVAS_WIDTH) * LONGITUDE_RANGE;
-  return {lat: Number(lat.toFixed(15)), lng: Number(lng.toFixed(15))};
-}
-
-export function convertLatLngToXY(
-  lat: number,
-  lng: number,
-): {x: number; y: number} {
-  const y = (DEFAULT_AVERAGE_LAT - lat) * (CANVAS_HEIGHT / LATITUDE_RANGE);
-  const x = (lng - DEFAULT_AVERAGE_LNG) * (CANVAS_WIDTH / LONGITUDE_RANGE);
-  return {x: Number(x.toFixed(2)), y: Number(y.toFixed(2))};
-}
 
 export function conditional<T>(condition: boolean, onTrue: T, onFalse: T) {
   return condition ? onTrue : onFalse;
@@ -292,13 +88,24 @@ export function isValidURL(url: string) {
   }
 }
 
-export function getInterfaceCaptureCommand(
-  containerName: string,
-  ifName: string,
+export function getSSHCommand(
+  collectionName: string,
+  labName: string,
+  nodeName: string,
   serverHost: string,
   serverPort: number,
+  captureInterface?: string,
 ) {
-  return `ssh -o StrictHostKeyChecking=no ${containerName}@${serverHost} -p ${serverPort} ${ifName} | wireshark -k -i -`;
+  let command = `ssh ${collectionName}/${labName}/${nodeName}@${serverHost}`;
+  if (serverPort !== 22) {
+    command += ` -p ${serverPort}`;
+  }
+
+  if (captureInterface) {
+    command += ` ${captureInterface} | wireshark -k -i -`;
+  }
+
+  return command;
 }
 
 export function formatBytes(v: number | null) {
@@ -311,4 +118,72 @@ export function formatBytes(v: number | null) {
   if (abs >= 1024 ** 2) return fmt(v / 1024 ** 2) + ' MB';
   if (abs >= 1024) return fmt(v / 1024) + ' KB';
   return v.toFixed(0) + ' B';
+}
+
+export function formatUptime(deployed: string | Date, now = dayjs()) {
+  const d = dayjs.duration(now.diff(dayjs(deployed)));
+  const days = Math.floor(d.asDays());
+  if (days >= 1) return `${days} d ${d.hours()} h`;
+  if (d.asHours() >= 1) return `${d.hours()} h ${d.minutes()} min`;
+  if (d.asMinutes() >= 1) return `${d.minutes()} min ${d.seconds()} s`;
+  return `${d.seconds()} s`;
+}
+
+export function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  if (seconds < 60) return `${seconds} s`;
+
+  const minutes = Math.ceil(seconds / 60);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+
+  if (days) return hours ? `${days} d ${hours} h` : `${days} d`;
+  if (hours) return mins ? `${hours} h ${mins} min` : `${hours} h`;
+  return `${mins} min`;
+}
+
+export function pluralize(count: number, singular: string, plural: string) {
+  return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
+}
+
+export async function fetchSyncUrl(
+  value: string,
+): Promise<[string | null, string | null]> {
+  if (value !== '' && !isValidURL(value)) {
+    return ['Specified URL is not valid', null];
+  }
+
+  const response = await fetchResource(value);
+
+  if (!response?.ok) {
+    return ['Unable to fetch from the provided resource.', null];
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('text')) {
+    return ['Unable to fetch from the provided resource.', null];
+  } else {
+    return [null, await response.text()];
+  }
+}
+
+/**
+ * Returns a free name for a duplicate of the topology with the given name, e.g.
+ * "topology-1" for "topology". A name that already ends in a number counts on
+ * from it, so a copy of "topology-1" is "topology-2" instead of "topology-1-1".
+ */
+export function createDuplicateName(
+  name: string,
+  takenNames: string[],
+): string {
+  const taken = new Set(takenNames);
+  const match = /^(.*)-(\d+)$/.exec(name);
+
+  const base = match ? match[1] : name;
+  let number = match ? Number(match[2]) + 1 : 1;
+
+  while (taken.has(`${base}-${number}`)) number++;
+
+  return `${base}-${number}`;
 }

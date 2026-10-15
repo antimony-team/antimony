@@ -1,68 +1,15 @@
 .sb-topology-explorer
   width: 100%
-  height: 100%
-  position: relative
-  background-color: var(--secondary-color)
+  border-radius: 12px
+  background-color: var(--surface-raised)
+  overflow-y: auto
 
   // A little workaround to match the separator border with the dashboard page
   .p-tree-header
-    border-bottom: 1px solid var(--primary-color-border)
-    margin: -8px -8px 0 -8px
-    padding: 8px 8px 1px 8px
+    margin: 8px
 
   .p-tree-container
     margin-top: 8px
-
-.sb-explorer-node-buttons
-  height: 40px
-  display: flex
-  align-items: center
-
-  .p-button-icon-only
-    width: 2rem
-    height: 2rem
-    padding: 0
-    transition: opacity 0.1s ease
-
-    &:hover
-      filter: brightness(1.2) !important
-
-.p-treenode-droppoint
-  height: 0
-
-.p-treenode-content
-  border: 1px transparent solid
-
-  span.material-symbols-outlined
-    margin-right: 8px
-    color: rgba(255, 255, 255, 0.6)
-
-  &.sb-explorer-bindfile-node, &.sb-explorer-bindfile-directory-node
-    height: 35px
-
-  &.sb-explorer-bindfile-node, &.sb-explorer-topology-node, &.sb-explorer-collection-node, &.sb-explorer-bindfile-directory-node
-    .p-button-icon-only
-      opacity: 0
-
-      &:hover
-        border: unset
-
-    &:hover
-      .p-button-icon-only
-        opacity: 1
-
-    &.p-highlight
-      background-color: var(--primary-color)
-
-      .p-button-icon-only
-        opacity: 1
-
-  &.sb-explorer-bindfile-node, &.sb-explorer-topology-node
-    &:hover
-      border-color: var(--primary-color-border)
-
-  .sb-input
-    width: 160px
 
 .sb-topology-explorer-empty
   margin-top: 16px
@@ -70,14 +17,8 @@
   display: flex
   align-items: center
   flex-direction: column
-  color: var(--primary-color-text)
+  color: var(--text)
 
-  img
-    filter: invert(1)
+  .material-symbols-outlined
+    font-size: 64px
     opacity: 0.3
-
-.sb-topology-explorer-add-collection
-  position: absolute
-  bottom: 12px
-  right: 12px
-  border-radius: 100%

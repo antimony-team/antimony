@@ -1,35 +1,46 @@
 import _, {isEqual} from 'lodash';
-import {validate} from 'jsonschema';
 import objectPath from 'object-path';
-import {YAMLMap, YAMLSeq} from 'yaml';
 
+import {
+  findNodeAnnotation,
+  renameNodeAnnotation,
+  updateNodeAnnotations,
+} from '@sb/lib/graph/topology-annotations';
+import {readNodeIcon} from '@sb/lib/graph/topology-graph';
+import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+import {TopologyFormat} from '@sb/lib/topology/topology-format';
+import {Binding} from '@sb/lib/utils/binding';
+import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
 import {
   ClabSchema,
   PatternPropertyDefinition,
   PropertySchema,
   PropertyType,
 } from '@sb/types/domain/schema';
+import {NodeLabels, TopologyAnnotations} from '@sb/types/domain/topology';
 import {
-  NodeConnection,
   TopologyDefinition,
+  TopologyLink,
   TopologyNode,
-} from '@sb/types/domain/topology';
-import {Binding} from '@sb/lib/utils/binding';
-import {FieldType, YAMLDocument} from '@sb/types/types';
-import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
-import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+} from '@sb/types/domain/topology-definition';
+import {FieldType} from '@sb/types/types';
 
 /*
  * Object used by the view to communicate with the Node Editor.
  */
 export type PropertyIO = PropertyDefinition & {
   key: string;
-  value: FieldType;
+
+  // The value the node sets itself, undefined if it only inherits the property
+  value: FieldType | undefined;
+
+  // The value the node would inherit without its own, for lists the inherited entries it adds to
+  inheritedValue: FieldType | undefined;
   wasEdited: boolean;
   wasAdded: boolean;
 
+  // Removes the value of the node itself, so the inherited value applies again
   onReset: () => void;
-  onDelete: () => void;
   onUpdateValue: (value: FieldType) => string | null;
   onUpdateKey: (value: string) => string | null;
 };
@@ -44,29 +55,37 @@ export type PropertyDefinition = {
 };
 
 export class NodeEditor {
-  private readonly originalTopology: YAMLDocument<TopologyDefinition>;
-  private readonly statusMessageStore: StatusMessageStore;
   public readonly clabSchema: ClabSchema;
-
-  public readonly onEdit: Binding<YAMLDocument<TopologyDefinition>> =
-    new Binding();
-
+  private readonly format: TopologyFormat;
+  public readonly onEdit: Binding<TopologyDefinition> = new Binding();
+  private readonly originalTopology: TopologyDefinition;
+  private readonly statusMessageStore: StatusMessageStore;
+  // Name of the current node in the original topology, which isn't changed by renaming
+  private readonly originalNode: string;
   private editingNode: string;
-  private editingTopology: YAMLDocument<TopologyDefinition>;
+  private editingTopology: TopologyDefinition;
+  private originalAnnotations: TopologyAnnotations;
+  private editingAnnotations: TopologyAnnotations;
 
   private hasChangedName: boolean = false;
 
   constructor(
     clabSchema: ClabSchema,
+    format: TopologyFormat,
     editingNode: string,
-    originalTopology: YAMLDocument<TopologyDefinition>,
+    originalTopology: TopologyDefinition,
+    originalAnnotations: TopologyAnnotations,
     statusMessageStore: StatusMessageStore,
   ) {
     this.clabSchema = clabSchema;
+    this.format = format;
+    this.originalNode = editingNode;
     this.editingNode = editingNode;
     this.statusMessageStore = statusMessageStore;
     this.originalTopology = originalTopology;
-    this.editingTopology = originalTopology.clone();
+    this.editingTopology = originalTopology;
+    this.originalAnnotations = originalAnnotations;
+    this.editingAnnotations = originalAnnotations;
 
     this.onUpdateName = this.onUpdateName.bind(this);
     this.getObjectProperties = this.getObjectProperties.bind(this);
@@ -84,58 +103,25 @@ export class NodeEditor {
 
     const oldName = this.editingNode;
 
-    if (this.editingTopology.getIn(['topology', 'nodes', value])) {
+    if (this.editingTopology.nodes.has(value)) {
       return 'A node with that name already exists';
     }
 
-    this.editingTopology.setIn(
-      ['topology', 'nodes', value],
-      this.editingTopology.getIn(['topology', 'nodes', this.editingNode]),
-    );
+    this.editingTopology = this.editingTopology.renameNode(oldName, value);
 
-    this.originalTopology.setIn(
-      ['topology', 'nodes', value],
-      this.originalTopology.getIn(['topology', 'nodes', this.editingNode]),
+    this.editingAnnotations = renameNodeAnnotation(
+      this.editingAnnotations,
+      oldName,
+      value,
     );
-
-    this.editingTopology.deleteIn(['topology', 'nodes', this.editingNode]);
-    this.originalTopology.deleteIn(['topology', 'nodes', this.editingNode]);
+    this.originalAnnotations = renameNodeAnnotation(
+      this.originalAnnotations,
+      oldName,
+      value,
+    );
 
     this.editingNode = value;
     this.hasChangedName = true;
-
-    // Update links to still connect with the renamed node
-    const linksObj = this.editingTopology.getIn([
-      'topology',
-      'links',
-    ]) as YAMLSeq;
-
-    if (!linksObj) {
-      return null;
-    }
-
-    const links = linksObj.toJS(this.editingTopology) as {
-      endpoints: string[];
-    }[];
-
-    for (const [index, link] of links.entries()) {
-      const endpoint1 = link.endpoints[0].split(':');
-      const endpoint2 = link.endpoints[1].split(':');
-
-      if (endpoint1[0] === oldName) {
-        this.editingTopology.setIn(
-          ['topology', 'links', index, 'endpoints', 0],
-          `${value}:${endpoint1[1]}`,
-        );
-      }
-
-      if (endpoint2[0] === oldName) {
-        this.editingTopology.setIn(
-          ['topology', 'links', index, 'endpoints', 1],
-          `${value}:${endpoint2[1]}`,
-        );
-      }
-    }
 
     return null;
   }
@@ -153,45 +139,41 @@ export class NodeEditor {
     objectKey: string = '',
     schemaKey: string = 'node-config',
   ): PropertyIO[] {
-    const properties: PropertyIO[] = [];
+    const objectPath = objectPathOf(objectKey);
 
-    const obj = objectPath.get(
-      this.editingTopology.toJS().topology.nodes[this.editingNode],
-      objectKey,
-    );
-
-    if (!obj) return [];
-
-    for (const [propertyKey, value] of Object.entries(obj)) {
-      if (IgnoredGenericProperties.has(propertyKey)) continue;
-
+    return this.propertyKeys(objectKey).flatMap(propertyKey => {
       const propertyType = this.getPropertyType(propertyKey, schemaKey);
 
       // Skip object properties as they are handled manually.
-      if (propertyType.type === 'object') continue;
+      if (propertyType.type === 'object') return [];
 
-      properties.push({
-        key: propertyKey,
-        value: value as FieldType,
-        wasEdited: this.wasPropertyEdited(propertyKey, objectKey, schemaKey),
-        wasAdded: this.wasPropertyAdded(propertyKey, objectKey),
-        ...propertyType,
-        onReset: () => {
-          this.setPropertyDefault(propertyKey, objectKey, schemaKey);
-        },
-        onDelete: () => {
-          this.deleteProperty(propertyKey, objectKey);
-        },
-        onUpdateValue: value => {
-          return this.updatePropertyValue(propertyKey, objectKey, value);
-        },
-        onUpdateKey: value => {
-          return this.updatePropertyKey(propertyKey, objectKey, value);
-        },
-      });
-    }
+      const path = [...objectPath, propertyKey];
+      const value = this.getNode()?.own(path) as FieldType | undefined;
 
-    return properties;
+      return [
+        {
+          key: propertyKey,
+          value,
+          inheritedValue: this.inheritedValue(path, value),
+          wasEdited: this.wasPropertyEdited(propertyKey, objectKey),
+          wasAdded: this.wasPropertyAdded(propertyKey, objectKey),
+          ...propertyType,
+          onReset: () => {
+            this.resetProperty(propertyKey, objectKey);
+          },
+          onUpdateValue: value => {
+            return this.updatePropertyValue(propertyKey, objectKey, value);
+          },
+          onUpdateKey: value => {
+            return this.updatePropertyKey(propertyKey, objectKey, value);
+          },
+        },
+      ];
+    });
+  }
+
+  /**
+   * Returns a list of available    return properties;
   }
 
   /**
@@ -214,13 +196,7 @@ export class NodeEditor {
 
     const schemaPropertyKeys = new Set(Object.keys(schemaProperties));
 
-    const setProperties = objectPath.get(
-      this.editingTopology.toJS().topology.nodes[this.editingNode],
-      objectKey,
-    );
-    if (!setProperties) return [...schemaPropertyKeys];
-
-    const setPropertyKeys = new Set(Object.keys(setProperties));
+    const setPropertyKeys = new Set(this.propertyKeys(objectKey));
 
     return [...schemaPropertyKeys.difference(setPropertyKeys)].filter(
       property => !IgnoredGenericProperties.has(property),
@@ -239,26 +215,45 @@ export class NodeEditor {
     objectRootPath: string,
     schemaRootPath: string,
   ): string | null {
-    return this.setPropertyDefault(
-      propertyKey,
-      objectRootPath,
-      schemaRootPath,
-      false,
-    );
+    return this.setPropertyDefault(propertyKey, objectRootPath, schemaRootPath);
   }
 
   /**
    * Returns the current topology.
    */
-  public getTopology(): YAMLDocument<TopologyDefinition> {
+  public getTopology(): TopologyDefinition {
     return this.editingTopology;
   }
 
   /**
-   * Returns the current node.
+   * Returns the current annotations.
+   */
+  public getAnnotations(): TopologyAnnotations {
+    return this.editingAnnotations;
+  }
+
+  /**
+   * Returns the current node with its inherited properties.
    */
   public getNode(): TopologyNode | undefined {
-    return this.editingTopology.toJS().topology.nodes[this.editingNode];
+    return this.editingTopology.nodes.get(this.editingNode);
+  }
+
+  /**
+   * Returns the links between the current node and other nodes.
+   */
+  public getLinks(): TopologyLink[] {
+    return this.editingTopology
+      .linksOf(this.editingNode)
+      .filter(
+        link =>
+          link.endpoints.length === 2 &&
+          link.endpoints.every(
+            endpoint =>
+              endpoint.interface &&
+              this.editingTopology.nodes.has(endpoint.node),
+          ),
+      );
   }
 
   /**
@@ -280,11 +275,17 @@ export class NodeEditor {
     objectRootPath: string,
     value: FieldType,
   ): string | null {
-    const updatedTopology = this.editingTopology.clone();
+    // An emptied value of an inherited property is the inherited value again
+    if (
+      value === '' &&
+      this.getNode()?.inherited(
+        this.propertyPath(objectRootPath, propertyKey),
+      ) !== undefined
+    ) {
+      return this.resetProperty(propertyKey, objectRootPath);
+    }
 
-    this.ensureBaseNodeExists(updatedTopology);
-
-    updatedTopology.setIn(
+    const updatedTopology = this.editingNodeIn(this.editingTopology).set(
       this.propertyPath(objectRootPath, propertyKey),
       value,
     );
@@ -295,12 +296,23 @@ export class NodeEditor {
     );
   }
 
-  public onUpdateIcon(icon: string): string | null {
-    const updatedTopology = this.editingTopology.clone();
+  /**
+   * Returns the icon of a node, the current node by default.
+   */
+  public getNodeIcon(nodeName: string = this.editingNode): string | undefined {
+    return readNodeIcon(
+      this.editingTopology.nodes.get(nodeName)?.get('labels') as
+        | NodeLabels
+        | undefined,
+      findNodeAnnotation(this.editingAnnotations, nodeName),
+    );
+  }
 
-    updatedTopology.setIn(this.propertyPath('labels', 'graph-icon'), icon);
-
-    return this.validateAndSetTopology(updatedTopology, "Invalid icon'");
+  public onUpdateIcon(icon: string) {
+    this.editingAnnotations = updateNodeAnnotations(
+      this.editingAnnotations,
+      new Map([[this.editingNode, {icon}]]),
+    );
   }
 
   /**
@@ -308,8 +320,31 @@ export class NodeEditor {
    */
   public hasEdits(): boolean {
     return (
-      !isEqual(this.originalTopology.toJS(), this.editingTopology.toJS()) ||
+      !this.originalTopology.equals(this.editingTopology) ||
+      !isEqual(this.originalAnnotations, this.editingAnnotations) ||
       this.hasChangedName
+    );
+  }
+
+  /**
+   * Renames the interface at an end of a link of the current node.
+   *
+   * @param linkIndex The position of the link in the topology.
+   * @param endpointIndex The position of the endpoint in the link.
+   * @param interfaceName The new name of the interface.
+   */
+  public renameInterface(
+    linkIndex: number,
+    endpointIndex: number,
+    interfaceName: string,
+  ) {
+    this.validateAndSetTopology(
+      this.editingTopology.renameInterface(
+        linkIndex,
+        endpointIndex,
+        interfaceName,
+      ),
+      'Failed to update connection.',
     );
   }
 
@@ -325,16 +360,13 @@ export class NodeEditor {
     objectRootPath: string,
     newKey: string,
   ): string | null {
-    const updatedTopology = this.editingTopology.clone();
-
-    updatedTopology.setIn(
-      this.propertyPath(objectRootPath, newKey),
-      this.editingTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
+    const node = this.editingNodeIn(this.editingTopology);
+    const updatedTopology = this.editingNodeIn(
+      node.set(
+        this.propertyPath(objectRootPath, newKey),
+        node.own(this.propertyPath(objectRootPath, propertyKey)),
       ),
-    );
-
-    updatedTopology.deleteIn(this.propertyPath(objectRootPath, propertyKey));
+    ).reset(this.propertyPath(objectRootPath, propertyKey));
 
     return this.validateAndSetTopology(
       updatedTopology,
@@ -343,62 +375,38 @@ export class NodeEditor {
   }
 
   /**
-   * Deletes a property of an object of the current node.
+   * Removes the value the current node sets itself, so it inherits the
+   * property again. Objects that are empty without it are removed as well.
    *
    * @param propertyKey The key of the property.
    * @param objectRootPath The key path of the property's parent.
    */
-  private deleteProperty(propertyKey: string, objectRootPath: string) {
-    const updatedTopology = this.editingTopology.clone();
-
-    updatedTopology.deleteIn(this.propertyPath(objectRootPath, propertyKey));
-
-    /*
-     * Remove the object if it's now empty. Note that this only works on
-     * child objects and not the node itself, as the objectRootPath is empty
-     * for the node object.
-     */
-    const obj = objectPath.get(
-      updatedTopology.toJS().topology.nodes[this.editingNode],
-      objectRootPath,
+  private resetProperty(propertyKey: string, objectRootPath: string) {
+    const updatedTopology = this.editingNodeIn(this.editingTopology).reset(
+      this.propertyPath(objectRootPath, propertyKey),
     );
-
-    if (_.isEmpty(obj)) {
-      updatedTopology.deleteIn(this.propertyPath(objectRootPath));
-    }
 
     return this.validateAndSetTopology(
       updatedTopology,
-      'Unable to remove property.',
+      'Unable to reset property.',
     );
   }
 
   /**
-   * Adds a new or resets an existing property to an object of the current node.
+   * Adds a new property with its default value to an object of the current node.
    *
    * @param propertyKey The key of the property.
    * @param objectRootPath The key path of the property's parent.
    * @param schemaRootPath The key path of the property's parent in the schema.
-   * @param searchOriginal Whether to look in the original object for a default value first.
    */
   private setPropertyDefault(
     propertyKey: string,
     objectRootPath: string,
     schemaRootPath: string,
-    searchOriginal: boolean = true,
   ) {
-    const updatedTopology = this.editingTopology.clone();
-
-    this.ensureBaseNodeExists(updatedTopology);
-
-    updatedTopology.setIn(
+    const updatedTopology = this.editingNodeIn(this.editingTopology).set(
       this.propertyPath(objectRootPath, propertyKey),
-      this.getPropertyDefault(
-        propertyKey,
-        objectRootPath,
-        schemaRootPath,
-        searchOriginal,
-      ),
+      this.getPropertyDefault(propertyKey, schemaRootPath),
     );
 
     return this.validateAndSetTopology(
@@ -408,7 +416,7 @@ export class NodeEditor {
   }
 
   /**
-   * Checks whether a property has been added.
+   * Checks whether the current node sets a property that it didn't set before.
    *
    * @param propertyKey The key of the property.
    * @param objectRootPath The key path of the property's parent.
@@ -418,62 +426,76 @@ export class NodeEditor {
     objectRootPath: string,
   ): boolean {
     return (
-      this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
-      ) === undefined
+      this.originalValue(objectRootPath, propertyKey) === undefined &&
+      this.getNode()?.own(this.propertyPath(objectRootPath, propertyKey)) !==
+        undefined
     );
   }
 
   /**
-   * Checks whether the value of an existing property was changed.
+   * Checks whether the value the current node sets itself was changed.
    *
    * @param propertyKey The key of the property.
    * @param objectRootPath The key path of the property's parent.
-   * @param schemaRootPath The key path of the property's parent in the schema.
    */
   private wasPropertyEdited(
     propertyKey: string,
     objectRootPath: string,
-    schemaRootPath: string,
   ): boolean {
-    const currentValue = this.editingTopology.getIn(
+    const originalValue = this.originalValue(objectRootPath, propertyKey);
+    const currentValue = this.getNode()?.own(
       this.propertyPath(objectRootPath, propertyKey),
     );
 
-    const originalValue =
-      this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
-      ) ?? this.getPropertyDefault(propertyKey, objectRootPath, schemaRootPath);
+    return (
+      originalValue !== undefined && !_.isEqual(currentValue, originalValue)
+    );
+  }
 
-    return !_.isEqual(currentValue, originalValue);
+  // The keys of an object of the current node, the ones it sets itself and the inherited ones
+  private propertyKeys(objectKey: string): string[] {
+    const path = objectPathOf(objectKey);
+    const node = this.getNode();
+
+    return [
+      ...new Set([
+        ...Object.keys(asObject(node?.own(path))),
+        ...Object.keys(asObject(node?.valueAt(path))),
+      ]),
+    ].filter(key => !IgnoredGenericProperties.has(key));
+  }
+
+  /*
+   * The inherited value of a property. Lists are added to the inherited ones,
+   * so the inherited entries are the ones the node doesn't set itself.
+   */
+  private inheritedValue(
+    path: string[],
+    ownValue: FieldType | undefined,
+  ): FieldType | undefined {
+    const node = this.getNode();
+    const value = (
+      Array.isArray(ownValue) ? node?.valueAt(path) : node?.inherited(path)
+    ) as FieldType | undefined;
+
+    if (Array.isArray(value)) {
+      const entries = value.filter(
+        entry => !Array.isArray(ownValue) || !ownValue.includes(entry),
+      );
+      return entries.length > 0 ? entries : undefined;
+    }
+
+    return value;
   }
 
   /**
-   * Returns the default value of a property. If searchOriginal is set to true,
-   * for existing properties, this is the original property value.
-   * Otheriwse and for newly added properties, this is either
-   * the first value of their enum or their type's default value.
+   * Returns the default value of a property, the first value of its enum or
+   * the default value of its type.
    *
    * @param propertyKey The key of the property.
-   * @param objectRootPath The key path of the property's parent.
    * @param schemaRootPath The key path of the property's parent in the schema.
-   * @param searchOriginal Whether to look in the original object for a default value first.
-   * @private
    */
-  private getPropertyDefault(
-    propertyKey: string,
-    objectRootPath: string,
-    schemaRootPath: string,
-    searchOriginal: boolean = true,
-  ) {
-    if (searchOriginal) {
-      const originalValue = this.originalTopology.getIn(
-        this.propertyPath(objectRootPath, propertyKey),
-      );
-
-      if (originalValue) return originalValue;
-    }
-
+  private getPropertyDefault(propertyKey: string, schemaRootPath: string) {
     const propertyType = this.getPropertyType(propertyKey, schemaRootPath);
 
     const defaultEnumValue = propertyType.availableValues
@@ -555,17 +577,23 @@ export class NodeEditor {
   }
 
   /**
-   * Ensures that the YAMLMap object for the whole node exists.
-   *
-   * This is important when adding properties to a blank object.
-   * @param topology The topology to check the node in.
-   * @private
+   * Returns the current node in the given topology. A new node is added to the
+   * topology with an empty definition, so properties can be set on it.
    */
-  private ensureBaseNodeExists(topology: YAMLDocument<TopologyDefinition>) {
-    const nodeObjectPath = ['topology', 'nodes', this.editingNode];
-    if (!topology.getIn(nodeObjectPath)) {
-      topology.setIn(nodeObjectPath, new YAMLMap());
-    }
+  private editingNodeIn(topology: TopologyDefinition): TopologyNode {
+    const node = topology.nodes.get(this.editingNode);
+    if (node) return node;
+
+    return topology
+      .addNodes([{name: this.editingNode, definition: {}}], [], new Map())
+      .nodes.get(this.editingNode)!;
+  }
+
+  // The value the current node itself set in the original topology
+  private originalValue(objectRootPath: string, propertyKey: string): unknown {
+    return this.originalTopology.nodes
+      .get(this.originalNode)
+      ?.own(this.propertyPath(objectRootPath, propertyKey));
   }
 
   /**
@@ -633,38 +661,6 @@ export class NodeEditor {
     return {type};
   }
 
-  public modifyConnection(updatedConnection: NodeConnection) {
-    if (!this.editingTopology) return;
-
-    const updatedTopology = this.editingTopology.clone();
-
-    const links = updatedTopology.getIn(['topology', 'links']) as YAMLSeq;
-
-    const updatedHostInterface =
-      updatedConnection.hostInterfaceConfig.interfacePattern.replaceAll(
-        '$',
-        String(updatedConnection.hostInterfaceIndex),
-      );
-
-    const updatedTargetInterface =
-      updatedConnection.targetInterfaceConfig.interfacePattern.replaceAll(
-        '$',
-        String(updatedConnection.targetInterfaceIndex),
-      );
-
-    links.set(updatedConnection.index, {
-      endpoints: [
-        `${updatedConnection.hostNode}:${updatedHostInterface}`,
-        `${updatedConnection.targetNode}:${updatedTargetInterface}`,
-      ],
-    });
-
-    this.validateAndSetTopology(
-      updatedTopology,
-      'Failed to update connection.',
-    );
-  }
-
   /**
    * Validates and replaces the current topology with the updated one if the
    * validation was successful. Returns an error message and shows a
@@ -675,44 +671,48 @@ export class NodeEditor {
    * @private
    */
   private validateAndSetTopology(
-    topology: YAMLDocument<TopologyDefinition>,
+    topology: TopologyDefinition,
     customErrorMessage: string | null = null,
   ): string | null {
-    const validation = validate(topology.toJS(), this.clabSchema);
+    const errorMessage = this.format.validate(topology);
 
-    if (validation.errors.length < 1) {
+    if (errorMessage === null) {
       this.editingTopology = topology;
       this.onEdit.update(topology);
       return null;
-    } else {
-      console.error(
-        `[YAML] Failed to apply node edit: ${validation}`,
-        topology,
-      );
-      this.statusMessageStore.error(
-        customErrorMessage ?? validation.errors[0].message,
-        'YAML Schema Error',
-      );
-      return validation.errors[0].message;
     }
+
+    console.error(
+      `[YAML] Failed to apply node edit: ${errorMessage}`,
+      topology,
+    );
+    this.statusMessageStore.error(
+      customErrorMessage ?? errorMessage,
+      'YAML Schema Error',
+    );
+    return errorMessage;
   }
 
   /**
-   * Combines the root path and key of a property to a path.
-   *
-   * If the root path is empty, only the key will be returned. This is needed
-   * because objectPath doesn't skip empty values and will instead create
-   * a new object with an empty key.
+   * Combines the root path and key of a property to a path in the node.
    *
    * @param root The path to the root of the object.
    * @param key The path to the property.
    */
   private propertyPath(root?: string, ...key: string[]): string[] {
-    const prefix = 'topology.nodes.' + this.editingNode + '.';
-    if (!root) return (prefix + key.join('.')).split('.');
-
-    return (prefix + root + '.' + key.join('.')).split('.');
+    return [...objectPathOf(root), ...key.flatMap(objectPathOf)];
   }
+}
+
+function asObject(value: unknown): object {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : {};
+}
+
+// The keys of a dotted path, an empty path is the node itself
+function objectPathOf(path?: string): string[] {
+  return path ? path.split('.') : [];
 }
 
 // These properties are ignored in the generic property list due to being covered individually

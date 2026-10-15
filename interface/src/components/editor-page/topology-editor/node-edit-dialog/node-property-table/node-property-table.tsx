@@ -9,16 +9,17 @@ import React, {
 } from 'react';
 
 import {Button} from 'primereact/button';
-import {ListBox} from 'primereact/listbox';
 import {IconField} from 'primereact/iconfield';
 import {InputIcon} from 'primereact/inputicon';
 import {InputText} from 'primereact/inputtext';
-import {SelectItem} from 'primereact/selectitem';
+import {ListBox} from 'primereact/listbox';
 import {OverlayPanel} from 'primereact/overlaypanel';
+import {SelectItem} from 'primereact/selectitem';
 
-import {If} from '@sb/types/control';
 import {NodeEditor} from '@sb/lib/node-editor';
 import {matchesSearch} from '@sb/lib/utils/utils';
+import {If} from '@sb/types/control';
+
 import NodePropertyTableRow from './node-property-table-row/node-property-table-row';
 
 import './node-property-table.sass';
@@ -43,9 +44,7 @@ interface NodePropertyTableProps {
   addText?: string;
 }
 
-const NodePropertyTable: React.FC<NodePropertyTableProps> = (
-  props: NodePropertyTableProps,
-) => {
+const NodePropertyTable = (props: NodePropertyTableProps) => {
   // List of available properties or null, if property does not have any restrictions.
   const [availableProperties, setAvailableProperties] = useState<
     SelectItem[] | null

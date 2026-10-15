@@ -9,6 +9,8 @@ import unusedImports from 'eslint-plugin-unused-imports';
 import {fixupConfigRules, fixupPluginRules} from '@eslint/compat';
 import jsxControlStatements from 'eslint-plugin-jsx-control-statements';
 import typescriptEslintEslintPlugin from '@typescript-eslint/eslint-plugin';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import noRelativeImportPaths from 'eslint-plugin-no-relative-import-paths';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +25,7 @@ export default [
     ignores: [
       '**/build/',
       'vite.config.ts',
+      'vitest.config.ts',
       'eslint.config.js',
       '.prettierrc.cjs',
       'start.js',
@@ -45,6 +48,8 @@ export default [
       'unused-imports': unusedImports,
       import: fixupPluginRules(_import),
       'jsx-control-statements': fixupPluginRules(jsxControlStatements),
+      'simple-import-sort': simpleImportSort,
+      'no-relative-import-paths': noRelativeImportPaths,
     },
 
     languageOptions: {
@@ -58,7 +63,7 @@ export default [
       sourceType: 'module',
 
       parserOptions: {
-        project: './tsconfig.json',
+        project: ['./tsconfig.json', './e2e/tsconfig.json'],
       },
     },
 
@@ -96,6 +101,33 @@ export default [
         },
       ],
       'n/no-extraneous-import': ['off'],
+
+      'no-relative-import-paths/no-relative-import-paths': [
+        'error',
+        {allowSameFolder: true, rootDir: 'src', prefix: '@sb'},
+      ],
+
+      'simple-import-sort/imports': [
+        'error',
+        {
+          groups: [
+            // 1. React
+            ['^react$', '^react/'],
+            // 2. Other packages
+            ['^@?\\w'],
+            // 3. PrimeReact
+            ['^primereact'],
+            // 4. Own imports with @sb prefix
+            ['^@sb/'],
+            // 5. Relative imports
+            ['^\\.'],
+            // 6. CSS imports
+            ['^\\u0000.+\\.(css|scss|sass)$'],
+            // 7. The component's own stylesheet (./<name>.sass in the same folder)
+            ['^\\u0000\\./[^/]+\\.(css|scss|sass)$'],
+          ],
+        },
+      ],
     },
   },
 ];

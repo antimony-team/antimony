@@ -1,44 +1,54 @@
-import {Image} from 'primereact/image';
-import {OverlayPanel} from 'primereact/overlaypanel';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import objectPath from 'object-path';
-import {Accordion, AccordionTab} from 'primereact/accordion';
 
+import {Accordion, AccordionTab} from 'primereact/accordion';
+import {Image} from 'primereact/image';
+import {OverlayPanel} from 'primereact/overlaypanel';
+
+import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
+import SBDropdown, {
+  SBDropdownRef,
+} from '@sb/components/common/sb-dropdown/sb-dropdown';
+import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {updateNodeAnnotations} from '@sb/lib/graph/topology-annotations';
+import {NodeEditor} from '@sb/lib/node-editor';
 import {
   useDeviceStore,
-  useStatusMessages,
   useSchemaStore,
+  useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {If} from '@sb/types/control';
-import {YAMLDocument} from '@sb/types/types';
-import {NodeEditor} from '@sb/lib/node-editor';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
-import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
-import {TopologyDefinition} from '@sb/types/domain/topology';
-import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import SBDropdown from '@sb/components/common/sb-dropdown/sb-dropdown';
-import NodePropertyTable from './node-property-table/node-property-table';
+import {If} from '@sb/types/control';
+import {TopologyAnnotations} from '@sb/types/domain/topology';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
+import {Position} from '@sb/types/types';
+
 import NodeConnectionTable from './node-connection-table/node-connection-table';
+import NodePropertyTable from './node-property-table/node-property-table';
 
 import './node-edit-dialog.sass';
 
 interface NodeEditDialogProps {
-  editingTopology: YAMLDocument<TopologyDefinition> | null;
+  editingTopology: TopologyDefinition | null;
+  editingAnnotations: TopologyAnnotations | null;
 
   // Set to null if the dialog is creating a new node
   editingNode: string | null;
+
+  // Position in the graph where a new node is placed
+  newNodePosition: Position | null;
   isOpen: boolean;
 
   onClose: () => void;
 }
 
-const NodeEditDialog: React.FC<NodeEditDialogProps> = (
-  props: NodeEditDialogProps,
-) => {
+const NodeEditDialog = (props: NodeEditDialogProps) => {
   const [nodeKind, setNodeKind] = useState<string | null>(null);
+  const [inheritedKind, setInheritedKind] = useState<string | null>(null);
   const nameFieldRef = useRef<SBInputRef>(null);
+  const kindDropdownRef = useRef<SBDropdownRef>(null);
   const iconSelectorOverlay = useRef<OverlayPanel>(null);
   const iconSelectorAnchor = useRef<HTMLDivElement>(null);
 
@@ -64,20 +74,29 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
   }, [schemaStore.clabSchema]);
 
   const nodeEditor = useMemo(() => {
-    if (!props.editingTopology || !schemaStore.clabSchema) {
+    if (
+      !props.editingTopology ||
+      !props.editingAnnotations ||
+      !schemaStore.clabSchema ||
+      !schemaStore.clabValidator
+    ) {
       return null;
     }
 
     return new NodeEditor(
       schemaStore.clabSchema,
+      topologyStore.format,
       props.editingNode ?? '',
       props.editingTopology,
+      props.editingAnnotations,
       notificationStore,
     );
   }, [
     schemaStore.clabSchema,
+    topologyStore.format,
     props.editingNode,
     props.editingTopology,
+    props.editingAnnotations,
     notificationStore,
     props.isOpen,
   ]);
@@ -85,7 +104,10 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
   const onTopologyUpdate = useCallback(() => {
     if (!nodeEditor || !nodeEditor.getNode()) return;
 
-    setNodeKind(nodeEditor.getNode()?.kind ?? null);
+    // The kind the node sets itself, an inherited kind is shown as the placeholder
+    const node = nodeEditor.getNode();
+    setNodeKind((node?.own(['kind']) as string | undefined) ?? null);
+    setInheritedKind((node?.inherited(['kind']) as string | undefined) ?? null);
   }, [nodeEditor]);
 
   useEffect(() => {
@@ -94,7 +116,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     nodeEditor.onEdit.register(onTopologyUpdate);
     onTopologyUpdate();
 
-    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNode()));
+    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNodeIcon()));
 
     return () => nodeEditor.onEdit.unregister(onTopologyUpdate);
   }, [nodeEditor, onTopologyUpdate]);
@@ -117,6 +139,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
 
   function onClose() {
     setNodeKind(null);
+    setInheritedKind(null);
     props.onClose();
   }
 
@@ -126,10 +149,31 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
       return;
     }
 
+    // We want every node to require a kind. Even though the topolody schema allows
+    // empty nodes, it doesn't make a lot of sense to have them.
+    if (!nodeEditor!.getNode()?.device) {
+      kindDropdownRef.current?.setValidationError('The node needs a kind');
+      return;
+    }
+
     if (nodeEditor) {
+      let annotations = nodeEditor.getAnnotations();
+
+      // If the dialog is adding a new node and a position has been supplied,
+      // set that position in the annotations.
+      if (!props.editingNode && props.newNodePosition) {
+        annotations = updateNodeAnnotations(
+          annotations,
+          new Map([
+            [nodeEditor.getNodeName(), {position: props.newNodePosition}],
+          ]),
+        );
+      }
+
       topologyStore.manager.editTopology(
         nodeEditor.getTopology(),
         TopologyEditSource.NodeEditor,
+        annotations,
       );
     }
 
@@ -151,14 +195,13 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
     if (!nodeEditor) return;
 
     nodeEditor.onUpdateIcon(icon);
-    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNode()));
+    setNodeIcon(deviceStore.getNodeIcon(nodeEditor.getNodeIcon()));
     iconSelectorOverlay.current?.hide();
   }
 
   return (
     <SBDialog
       isOpen={props.isOpen}
-      headerIcon={deviceStore.getNodeIcon(nodeEditor?.getNode())}
       headerTitle={!props.editingNode ? 'Add Node' : 'Edit Node'}
       className="sb-node-edit-dialog"
       submitLabel="Save"
@@ -188,6 +231,7 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
             />
             <SBDropdown
               id="node-editor-kind"
+              ref={kindDropdownRef}
               label="Kind"
               hasFilter={true}
               value={nodeKind}
@@ -196,7 +240,9 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
               useItemTemplate={true}
               useSelectTemplate={true}
               optionLabel="value"
-              placeholder="Select a Kind"
+              placeholder={
+                inheritedKind ? `${inheritedKind} (inherited)` : 'Select a Kind'
+              }
               onValueSubmit={value =>
                 nodeEditor!.updatePropertyValue('kind', '', value)
               }
@@ -245,14 +291,6 @@ const NodeEditDialog: React.FC<NodeEditDialogProps> = (
               nodeEditor={nodeEditor!}
               objectKey="dns"
               schemaKey="dns-config"
-            />
-          </AccordionTab>
-          <AccordionTab header="Extras">
-            <NodePropertyTable
-              isKeyEditable={true}
-              nodeEditor={nodeEditor!}
-              objectKey="extras"
-              schemaKey="extras-config"
             />
           </AccordionTab>
           <AccordionTab header="Labels">

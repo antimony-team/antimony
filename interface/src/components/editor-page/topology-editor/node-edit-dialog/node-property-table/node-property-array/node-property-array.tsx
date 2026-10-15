@@ -2,22 +2,23 @@ import React, {useMemo} from 'react';
 
 import {Button} from 'primereact/button';
 
-import {If} from '@sb/types/control';
 import SBInput from '@sb/components/common/sb-input/sb-input';
+import {If} from '@sb/types/control';
 
 import './node-property-array.sass';
 
 interface NodePropertyArrayProps {
   entries: string[];
+
+  // The inherited entries the node adds its entries to
+  inheritedEntries: string[];
   minItems: number;
   uniqueItems?: boolean;
 
   onUpdateValue: (entries: string[]) => string | null;
 }
 
-const NodePropertyArray: React.FC<NodePropertyArrayProps> = (
-  props: NodePropertyArrayProps,
-) => {
+const NodePropertyArray = (props: NodePropertyArrayProps) => {
   const entries = useMemo(() => {
     if (!props.entries) return [];
     return [
@@ -48,6 +49,13 @@ const NodePropertyArray: React.FC<NodePropertyArrayProps> = (
   return (
     <>
       <div className="sb-node-property-array">
+        {props.inheritedEntries.map(entry => (
+          <div key={`inherited-${entry}`}>
+            <span className="sb-property-table-inherited">
+              {entry} (inherited)
+            </span>
+          </div>
+        ))}
         {entries.map(entry => (
           <div key={entry.index}>
             <SBInput

@@ -1,74 +1,43 @@
-import useResizeObserver from '@react-hook/resize-observer';
+import React, {useEffect, useMemo, useState} from 'react';
+
+import {observer} from 'mobx-react-lite';
+import {useSearchParams} from 'react-router';
+
+import {
+  Splitter,
+  SplitterPanel,
+  SplitterResizeEndEvent,
+} from 'primereact/splitter';
+
 import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
-import LabEntry from '@sb/components/dashboard-page/lab-entry/lab-entry';
-import LabFilterOverlay from '@sb/components/dashboard-page/lab-filter-overlay/lab-filter-overlay';
+import LabExplorer from '@sb/components/dashboard-page/lab-explorer/lab-explorer';
+import LabGrid from '@sb/components/dashboard-page/lab-grid/lab-grid';
+import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
+import {useLabStore, useStatusMessages} from '@sb/lib/stores/root-store';
+import {useDialogState} from '@sb/lib/utils/hooks';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {InstanceState, Lab} from '@sb/types/domain/lab';
 
 import './dashboard-page.sass';
 
-import {
-  useCollectionStore,
-  useLabStore,
-  useStatusMessages,
-} from '@sb/lib/stores/root-store';
-import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
-import {Choose, Otherwise, When} from '@sb/types/control';
-import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
-import classNames from 'classnames';
-
-import {observer} from 'mobx-react-lite';
-import {Chip} from 'primereact/chip';
-import {IconField} from 'primereact/iconfield';
-import {Image} from 'primereact/image';
-import {InputIcon} from 'primereact/inputicon';
-import {InputText} from 'primereact/inputtext';
-import {OverlayPanel} from 'primereact/overlaypanel';
-import {Paginator} from 'primereact/paginator';
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {useSearchParams} from 'react-router';
-import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
-
-const DashboardPage: React.FC = observer(() => {
-  const [currentPage, setCurrentPage] = useState<number>(0);
+const DashboardPage = observer(() => {
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
 
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const labFilterOverlay = useRef<OverlayPanel>(null);
-  const typingTimeoutRef = useRef<number | undefined>(undefined);
-  const searchQueryFieldRef = useRef<HTMLInputElement>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [openLab, setOpenLab] = useState<Lab | null>(null);
-
   const labStore = useLabStore();
-  const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
-  const calculatePageSize = useCallback(() => {
-    if (!containerRef.current) return;
 
-    const {height} = containerRef.current.getBoundingClientRect();
-    const adjustedHeight = height - 68;
-    const pageSize = Math.floor(adjustedHeight / 80);
-    labStore.setLimit(pageSize);
-    labStore.setOffset(pageSize * currentPage);
-  }, [currentPage, labStore]);
-
-  useEffect(() => {
-    if (searchQueryFieldRef.current && labStore.searchQuery === '') {
-      searchQueryFieldRef.current.value = '';
-    }
-  }, [labStore.searchQuery]);
-
-  useResizeObserver(containerRef, () => {
-    calculatePageSize();
-  });
-
-  useEffect(() => {
-    calculatePageSize();
-  }, [calculatePageSize, labStore.totalEntries]);
+  const [splitterPosition, setSplitterPosition] = usePersistentState<number>(
+    'main-splitter',
+    20,
+    isNumber,
+  );
 
   useEffect(() => {
     if (searchParams.has('l') && labStore.lookup.has(searchParams.get('l')!)) {
@@ -81,25 +50,36 @@ const DashboardPage: React.FC = observer(() => {
     }
   }, [labStore.lookup, searchParams]);
 
-  function handleSearchChange(value: string) {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = window.setTimeout(() => {
-      labStore.setSearchQuery(value);
-    }, 100);
-  }
-
   function onCloseLabView() {
     setSearchParams('');
   }
 
-  function onOpenLabView(lab: Lab) {
-    setSearchParams({l: lab.id});
-  }
+  const [collectionLabCounts, collectionLabStateCounts] = useMemo(() => {
+    const labCounts: {[collectionId: string]: number} = {};
+    const stateCounts: {[collectionId: string]: {[state: string]: number}} = {};
 
-  function onDestroyLabRequest(lab: Lab) {
+    labStore.data.forEach(lab => {
+      if (lab.collectionId in labCounts) {
+        labCounts[lab.collectionId]++;
+      } else {
+        labCounts[lab.collectionId] = 1;
+      }
+
+      if (!(lab.collectionId in stateCounts)) {
+        stateCounts[lab.collectionId] = {};
+      }
+
+      const state = InstanceState[lab.state].toLowerCase();
+      if (state in stateCounts[lab.collectionId]) {
+        stateCounts[lab.collectionId][state]++;
+      } else {
+        stateCounts[lab.collectionId][state] = 1;
+      }
+    });
+    return [labCounts, stateCounts];
+  }, [labStore.data]);
+
+  function onDestroyLab(lab: Lab) {
     notificationStore.confirm({
       header: `Destroy Lab '${lab.name}'?`,
       icon: 'pi pi-power-off',
@@ -108,124 +88,43 @@ const DashboardPage: React.FC = observer(() => {
     });
   }
 
-  // if (labStore.fetchReport.state !== FetchState.Done) {
-  //   return <></>;
-  // }
-
   return (
-    <>
-      <Choose>
-        <When condition={false}></When>
-        {/*<When condition={labDialogState.isOpen}>*/}
-        {/*  <LabDialog*/}
-        {/*    dialogState={labDialogState}*/}
-        {/*    onDestroyLabRequest={onDestroyLabRequest}*/}
-        {/*  />*/}
-        {/*</When>*/}
-        <Otherwise>
-          <div className="height-100 width-100 sb-card sb-dashboard-container">
-            <LabView
-              lab={openLab}
-              onClose={onCloseLabView}
-              // dialogState={onCloseLabView}
-              onDestroyLabRequest={onDestroyLabRequest}
-            />
-            <div className="height-100 overflow-y-hidden overflow-x-hidden sb-labs-container sb-card">
-              <div className="sb-dashboard-filter">
-                {/*<div style={{display: 'flex', margin: '0 16px', gap: '5px'}}>*/}
-                <div className="sb-dashboard-filter-chips">
-                  {InstanceStates.map((state, i) => (
-                    <div
-                      key={i}
-                      className={classNames('fake-state-filter-chip', {
-                        hidden: !labStore.stateFilter.includes(state),
-                      })}
-                    >
-                      {InstanceState[state]}
-                      <i
-                        className="pi pi-times-circle"
-                        onClick={() => labStore.toggleState(state)}
-                      ></i>
-                    </div>
-                  ))}
-                  {labStore.collectionFilter.map((collectionId, i) => {
-                    return (
-                      <Chip
-                        key={i}
-                        label={collectionStore.lookup.get(collectionId)!.name}
-                        removable={true}
-                        onRemove={() => {
-                          labStore.toggleCollection(collectionId);
-                          return true;
-                        }}
-                        className="state-filter-chip"
-                      />
-                    );
-                  })}
-                </div>
-                <div className="sb-dashboard-filter-search">
-                  <IconField
-                    className="sb-dashboard-filter-search-field"
-                    iconPosition="right"
-                  >
-                    <InputText
-                      ref={searchQueryFieldRef}
-                      className="width-100"
-                      placeholder="Search"
-                      onChange={e => handleSearchChange(e.target.value)}
-                    />
-                    <InputIcon className="pi pi-search" />
-                  </IconField>
-                  <span
-                    className="search-bar-icon"
-                    onClick={e => labFilterOverlay.current?.toggle(e)}
-                  >
-                    <i className="pi pi-filter" />
-                  </span>
-                </div>
-              </div>
-              <div className="sb-dashboard-content" ref={containerRef}>
-                <Choose>
-                  <When condition={labStore.data!.length > 0}>
-                    {labStore.data!.map((lab, i) => (
-                      <LabEntry
-                        key={i}
-                        lab={lab}
-                        onOpenLab={() => onOpenLabView(lab)}
-                        onRescheduleLab={() =>
-                          labEditDialogState.openWith({
-                            editingLab: lab,
-                            topologyId: lab.topologyId,
-                            action: DialogAction.Edit,
-                          })
-                        }
-                        onDestroyLabRequest={() => onDestroyLabRequest(lab)}
-                      />
-                    ))}
-                  </When>
-                  <Otherwise>
-                    <div className="sb-dashboard-empty">
-                      <Image src="/icons/no-results.png" width="200px" />
-                      <span>No labs found :(</span>
-                    </div>
-                  </Otherwise>
-                </Choose>
-                <div className="sb-dashboard-pagination-controls">
-                  <Paginator
-                    first={currentPage * labStore.limit}
-                    rows={labStore.limit}
-                    totalRecords={labStore.totalEntries ?? 0}
-                    onPageChange={e => setCurrentPage(e.page)}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </Otherwise>
-      </Choose>
-      <LabFilterOverlay popOverRef={labFilterOverlay} />
+    <div className="sb-dashboard">
+      <Splitter
+        onResizeEnd={(e: SplitterResizeEndEvent) =>
+          setSplitterPosition(e.sizes[0])
+        }
+      >
+        <SplitterPanel
+          className="sb-lab-explorer sb-island"
+          size={splitterPosition}
+        >
+          <LabExplorer
+            collectionFilter={collectionFilter}
+            setCollectionFilter={setCollectionFilter}
+            collectionLabStateCounts={collectionLabStateCounts}
+            collectionLabCounts={collectionLabCounts}
+          />
+        </SplitterPanel>
+        <SplitterPanel
+          className="sb-dashboard-container sb-island"
+          size={100 - splitterPosition}
+        >
+          <LabGrid
+            collectionFilter={collectionFilter}
+            collectionLabCounts={collectionLabCounts}
+            labEditDialogState={labEditDialogState}
+            onDestroyLab={onDestroyLab}
+          />
+        </SplitterPanel>
+      </Splitter>
+      <LabView
+        lab={openLab}
+        onClose={onCloseLabView}
+        onDestroyLabRequest={onDestroyLab}
+      />
       <LabEditDialog dialogState={labEditDialogState} />
-    </>
+    </div>
   );
 });
 

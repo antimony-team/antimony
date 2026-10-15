@@ -1,0 +1,178 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+  install:
+    desc: Install the dependencies when package.json, yarn.lock or the patches changed
+    run: once
+    sources:
+      - package.json
+      - yarn.lock
+      - patches/**/*
+    generates:
+      - node_modules/.yarn-integrity
+    cmds:
+      # Also applies the patches through the postinstall script
+      - yarn install
+
+  clean:
+    dir: '.'
+    cmds:
+      - rm -rf ./dist/
+      - rm -rf ./dist-electron/
+      - rm -rf ./release/
+      - rm -rf ./.task/
+
+  dev:
+    desc: Start the Vite development server
+    deps:
+      - install
+    cmds:
+      - yarn start {{.CLI_ARGS}}
+
+  preview:
+    desc: Serve the production build
+    deps:
+      - build
+    cmds:
+      - yarn vite preview {{.CLI_ARGS}}
+
+  check:
+    desc: Run the linter, type check and unit tests in parallel
+    deps:
+      - lint
+      - typecheck
+      - test
+
+  lint:
+    deps:
+      - install
+    cmds:
+      - yarn lint
+
+  typecheck:
+    deps:
+      - install
+    cmds:
+      - yarn typecheck
+
+  test:
+    deps:
+      - install
+    cmds:
+      - yarn test {{.CLI_ARGS}}
+
+  build:
+    desc: Production build into dist/
+    cmds:
+      - task: vite-build
+        vars:
+          MODE: production
+
+  build-dev:
+    desc: Development build with source maps into dist/
+    cmds:
+      - task: vite-build
+        vars:
+          MODE: development
+
+  # The web and Electron builds both write to dist/, which Vite empties first. Every build leaves a marker file there,
+  # so once another build has replaced dist/, the marker is gone, and the build runs again.
+  vite-build:
+    internal: true
+    label: 'build-{{.MODE}}'
+    deps:
+      - install
+    sources:
+      - src/**/*
+      - public/**/*
+      - index.html
+      - vite.config.ts
+      - .babelrc
+      - package.json
+    generates:
+      - dist/.built-{{.MODE}}
+    cmds:
+      - yarn build --mode {{.MODE}}
+      - touch dist/.built-{{.MODE}}
+
+  build-docker:
+    preconditions:
+      - sh: docker info >/dev/null 2>&1
+        msg: Docker isn't reachable.
+    cmds:
+      - docker build -t antimony-interface:dev . --file docker/Dockerfile
+
+  build-electron:
+    desc: Build the desktop app into dist/ and dist-electron/, start it with `yarn electron .`
+    deps:
+      - install
+    preconditions:
+      - sh: command -v rsvg-convert
+        msg: The app icons are rendered with rsvg-convert. Install librsvg (librsvg2-bin on Debian and Ubuntu).
+    sources:
+      - src/**/*
+      - public/**/*
+      - index.html
+      - vite.config.ts
+      - tsconfig.json
+      - .babelrc
+      - package.json
+      - yarn.lock
+      - patches/**/*
+      - electron/**/*
+    generates:
+      - dist/.built-electron
+      - dist-electron/main.js
+      - dist-electron/preload.cjs
+      - dist-electron/icons/*.png
+    cmds:
+      - yarn build --config electron/vite.config.ts
+      # Electron can't load SVGs, so the app and tray icons are rendered from the logo
+      - mkdir -p dist-electron/icons
+      - rsvg-convert -w 512 -h 512 public/icons/favicon-dark.svg -o dist-electron/icons/icon.png
+      - rsvg-convert -w 22 -h 22 public/icons/favicon-dark.svg -o dist-electron/icons/tray.png
+      - rsvg-convert -w 44 -h 44 public/icons/favicon-dark.svg -o dist-electron/icons/tray@2x.png
+      - touch dist/.built-electron
+
+  package-electron-linux:
+    desc: Package the desktop app as AppImages for x64 and arm64 into release/
+    platforms:
+      - linux
+    deps:
+      - build-electron
+    sources:
+      - dist/**/*
+      - dist-electron/**/*
+      - electron/electron-builder.yml
+      - package.json
+    generates:
+      - release/*.AppImage
+    cmds:
+      - yarn electron-builder --linux --config electron/electron-builder.yml {{.CLI_ARGS}}
+
+  e2e:
+    desc: End-to-end tests against a backend container
+    deps:
+      - install
+    preconditions:
+      - sh: docker info >/dev/null 2>&1
+        msg: The end-to-end tests start the backend in Docker, but Docker isn't reachable.
+    cmds:
+      - yarn e2e {{.CLI_ARGS}}
+
+  e2e-ui:
+    desc: End-to-end tests in the Playwright UI
+    interactive: true
+    cmds:
+      - task: e2e
+        vars:
+          CLI_ARGS: --ui
+
+  e2e-report:
+    desc: Show the report of the last end-to-end run
+    deps:
+      - install
+    cmds:
+      - yarn playwright show-report e2e/.tmp/report

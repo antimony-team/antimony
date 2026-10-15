@@ -1,7 +1,86 @@
-.sb-lab-dialog-panel-properties
-  left: 8px
-  top: 8px
-  width: 380px
+.sb-lab-view-properties
+  position: absolute
+  background-color: var(--surface-raised)
+  border: 1px solid var(--border)
+  border-radius: 12px
+  padding: 12px
+  margin: 12px
+  z-index: 10
+
+  .sb-lab-view-properties-table
+    display: grid
+    grid-template-columns: max-content minmax(0, 1fr)
+    column-gap: 1.25rem
+    row-gap: .45rem
+    margin: 0
+    align-items: baseline
+
+    dt
+      font-size: 15px
+      white-space: nowrap
+      color: var(--text-muted)
+      letter-spacing: .03em
+
+    dd
+      font-size: 16px
+      margin: 0
+      min-width: 0
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+
+      .copyable
+        user-select: none
+
+        &:hover
+          text-decoration: underline
+          cursor: copy
+
+    .lab-props-italic
+      font-style: italic
+
+    .lab-props-link
+      display: inline-flex
+      align-items: center
+      gap: 6px
+      text-decoration: none
+      color: var(--accent)
+
+      &:hover
+        text-decoration: underline
+
+      .pi
+        font-size: 12px
+
+    .lab-props-facts
+      .pi
+        font-size: 12px
+        margin-right: 1ch
+        color: var(--fg-muted)
+
+      > span:not(:first-child)::before
+        content: ""
+        display: inline-block
+        width: 0.5ch
+        height: 0.5ch
+        border-radius: 50%
+        background: var(--text)
+        margin: 0 0.7ch
+        vertical-align: middle
+
+  .sb-lab-view-properties-footer
+    margin-top: 12px
+    display: flex
+    gap: 8px
+
+    .p-button
+      flex: 1
+
+  .p-divider
+    margin: 8px 0
+
+  .p-button
+    padding: 8px
 
   .property-title
     user-select: none
@@ -20,7 +99,7 @@
   .topology-reference
     padding: 0 !important
     width: 1.5rem
-    color: var(--primary-color-text)
+    color: var(--text)
 
     &:hover
       border-color: transparent !important

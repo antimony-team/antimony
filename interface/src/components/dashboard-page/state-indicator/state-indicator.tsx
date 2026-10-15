@@ -1,7 +1,10 @@
+import React from 'react';
+
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+
 import {If} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
-import classNames from 'classnames';
-import React from 'react';
 
 import './state-indicator.sass';
 
@@ -28,7 +31,7 @@ interface StateIndicatorProps {
   showText: boolean;
 }
 
-const StateIndicator = (props: StateIndicatorProps) => {
+const StateIndicator = observer((props: StateIndicatorProps) => {
   return (
     <div
       className={classNames(
@@ -42,6 +45,6 @@ const StateIndicator = (props: StateIndicatorProps) => {
       </If>
     </div>
   );
-};
+});
 
 export default StateIndicator;

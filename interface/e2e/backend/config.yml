@@ -1,0 +1,25 @@
+# Configuration of the Antimony backend for the e2e tests. Mounted into the container as /app/config.yml,
+# so relative paths are relative to /app (data/ comes with the image). Only settings that differ from the
+# server's defaults are listed.
+#
+# The ports 3200 (API) and 6200 (SSH) must match e2e/settings.ts and e2e/scripts/start-backend.sh. They
+# differ from the development backend (3100 and 6767), so a test run never talks to a backend that deploys
+# real labs.
+server:
+  # Published by Docker, so it has to listen on all interfaces of the container
+  host: 0.0.0.0
+  port: 3200
+deployment:
+  # Nothing is deployed
+  provider: dummy
+auth:
+  # No OpenID provider runs in the tests
+  methods: [admin]
+database:
+  localFile: ./db/antimony.db
+ssh:
+  sshHost: 0.0.0.0
+  sshPort: 6200
+containerlab:
+  # The bundled schema, so runs don't depend on GitHub being reachable
+  schemaUrl: ""

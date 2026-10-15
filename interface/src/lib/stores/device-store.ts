@@ -1,7 +1,6 @@
+import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore} from '@sb/lib/stores/data-store';
 import {DeviceInfo, InterfaceConfig} from '@sb/types/domain/device-info';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
-import {TopologyNode} from '@sb/types/domain/topology';
 
 export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
   private readonly iconCacheMap = new Map<string, HTMLImageElement>();
@@ -10,14 +9,8 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     return '/devices';
   }
 
-  protected handleUpdate(response: DataResponse<DeviceInfo[]>): void {
-    this.data = response.payload;
-    this.lookup = new Map(this.data.map(device => [device.kind, device]));
-  }
-
-  public getNodeIcon(node?: TopologyNode | null): string {
+  public getNodeIcon(icon?: string): string {
     let iconPath = './icons/nodes/client.svg';
-    const icon = node?.labels?.['graph-icon'];
     if (icon !== undefined) {
       if (NodeIconMap.has(icon)) {
         iconPath = `./icons/nodes/${NodeIconMap.get(icon)!}.svg`;
@@ -42,9 +35,8 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     ]);
   }
 
-  public getNodeShape(node?: TopologyNode | null): string {
+  public getNodeShape(icon?: string): string {
     let iconShape = 'octagon';
-    const icon = node?.labels?.['graph-icon'];
     if (icon !== undefined) {
       if (IconShapeMap.has(icon)) {
         iconShape = IconShapeMap.get(icon)!;
@@ -63,6 +55,17 @@ export class DeviceStore extends DataStore<DeviceInfo, DeviceInfo, DeviceInfo> {
     if (!nodeKind) return DefaultDeviceConfig;
 
     return this.lookup.get(nodeKind) ?? DefaultDeviceConfig;
+  }
+
+  protected handleUpdate(response: DataResponse<DeviceInfo[]>): void {
+    this.data = response.payload;
+    this.lookup = new Map(
+      this.data.flatMap(device =>
+        [device.kind, ...(device.kindAliases ?? [])].map(
+          kind => [kind, device] as const,
+        ),
+      ),
+    );
   }
 }
 
@@ -95,6 +98,5 @@ const IconShapeMap = new Map<string, string>([
 ]);
 
 const DefaultDeviceConfig: InterfaceConfig = {
-  interfacePattern: 'eth$',
-  interfaceStart: 1,
+  interfaces: [{pattern: 'eth$', start: 1}],
 };

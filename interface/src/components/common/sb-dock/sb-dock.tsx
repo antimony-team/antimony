@@ -1,5 +1,18 @@
+import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
+
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+import {useLocation, useNavigate} from 'react-router';
+
+import {Badge} from 'primereact/badge';
+import {Button} from 'primereact/button';
+import {Image} from 'primereact/image';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
+
 import CalendarDialog from '@sb/components/calendar-dialog/calendar-dialog';
 import StatusMessagePanel from '@sb/components/common/sb-dock/status-message-panel/status-message-panel';
+import SBTour from '@sb/components/common/sb-tour/sb-tour';
 import CreditsDialog from '@sb/components/credits-dialog/credits-dialog';
 import {
   useAuthUser,
@@ -7,22 +20,12 @@ import {
   useDataBinder,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
-
+import {readPersistentValue} from '@sb/lib/utils/persistent-state';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {observer} from 'mobx-react-lite';
-import {Badge} from 'primereact/badge';
-import {Button} from 'primereact/button';
-
-import {Image} from 'primereact/image';
-import {OverlayPanel} from 'primereact/overlaypanel';
-import React, {useMemo, useRef, useState} from 'react';
-import {useNavigate} from 'react-router';
 
 import './sb-dock.sass';
-import classNames from 'classnames';
-import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
-const SBDock: React.FC = observer(() => {
+const SBDock = observer(() => {
   const [isCreditsOpen, setCreditsOpen] = useState<boolean>(false);
   const [isCalendarOpen, setCalendarOpen] = useState<boolean>(false);
 
@@ -31,6 +34,8 @@ const SBDock: React.FC = observer(() => {
   const collectionStore = useCollectionStore();
   const navigate = useNavigate();
   const notificationStore = useStatusMessages();
+
+  const {pathname} = useLocation();
 
   const overlayRef = useRef<OverlayPanel>(null);
 
@@ -43,45 +48,77 @@ const SBDock: React.FC = observer(() => {
     showDelay: 500,
   };
 
-  const windowLocation = window.location.hash.split('?')[0];
+  const pageButtonsRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const nav = pageButtonsRef.current;
+    if (!nav) return;
+
+    const update = () => {
+      const selected = nav.querySelector<HTMLElement>('.p-button.selected');
+      nav.style.setProperty('--indicator-x', `${selected?.offsetLeft ?? 0}px`);
+      nav.style.setProperty('--indicator-w', `${selected?.offsetWidth ?? 0}px`);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    const frame = requestAnimationFrame(() => (nav.dataset.ready = ''));
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [pathname]);
+
+  function openEditor() {
+    let path = '/editor';
+    const lastOpenFile = readPersistentValue('last-open-file');
+    if (lastOpenFile) {
+      path += `?f=${lastOpenFile}`;
+    }
+    void navigate(path);
+  }
 
   return (
-    <div className="flex align-items-stretch justify-content-between sb-card sb-dock">
+    <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
       <div className="flex align-items-center gap-3">
-        <div className="sb-logo-tab" onClick={() => navigate('/')}>
-          <Image
-            src="./icons/favicon-dark.png"
-            width="45px"
-            alt="Antimony Logo"
-          />
+        <div className="sb-dock-logo" onClick={() => navigate('/')}>
+          <Image src="./antimony-logo.svg" width="25px" alt="Antimony Logo" />
+          <span>Antimony</span>
+          <span className="sb-dock-separator" />
         </div>
         <Choose>
           {/* Only show buttons in online mode and if the user has access to the editor */}
           <When condition={hasEditorAccess}>
-            <Button
-              text
-              icon={
-                <span className="material-symbols-outlined">dashboard</span>
-              }
-              className={classNames('sb-dock-page-button', {
-                selected: windowLocation === '#/' || windowLocation === '',
-              })}
-              label="Dashboard"
-              onClick={() => navigate('/')}
-              aria-label="Dashboard Page"
-            />
-            <Button
-              text
-              icon={
-                <span className="material-symbols-outlined">construction</span>
-              }
-              className={classNames('sb-dock-page-button', {
-                selected: windowLocation === '#/editor',
-              })}
-              label="Topology Editor"
-              onClick={() => navigate('/editor')}
-              aria-label="Topology Editor Page"
-            />
+            <div className="sb-dock-page-buttons" ref={pageButtonsRef}>
+              <Button
+                text
+                icon={
+                  <span className="material-symbols-outlined">dashboard</span>
+                }
+                className={classNames('sb-dock-page-button', {
+                  selected: pathname === '/' || pathname === '',
+                })}
+                label="Dashboard"
+                onMouseDown={() => navigate('/')}
+                aria-label="Dashboard Page"
+              />
+              <Button
+                text
+                icon={
+                  <span className="material-symbols-outlined">
+                    network_node
+                  </span>
+                }
+                className={classNames('sb-dock-page-button', {
+                  selected: pathname === '/editor',
+                })}
+                label="Topology Editor"
+                onMouseDown={openEditor}
+                aria-label="Topology Editor Page"
+              />
+            </div>
           </When>
           <Otherwise>
             <span className="sb-dock-title">Antimony</span>
@@ -89,6 +126,7 @@ const SBDock: React.FC = observer(() => {
         </Choose>
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
+        <SBTour />
         <Button
           text
           icon="pi pi-bell"
@@ -99,7 +137,7 @@ const SBDock: React.FC = observer(() => {
               className: 'p-overlay-badge',
               children: (
                 <If condition={notificationStore.hasUnreadMessages}>
-                  <Badge severity="danger" />
+                  <Badge severity="secondary" />
                 </If>
               ),
             },
@@ -126,18 +164,13 @@ const SBDock: React.FC = observer(() => {
           onClick={() => setCreditsOpen(true)}
           aria-label="Credits"
         />
-        <If
-          condition={
-            !dataBinder.isAuthDisabled &&
-            (!dataBinder.useNativeAutoLogin ||
-              dataBinder.isAuthenticatedWithOidc)
-          }
-        >
+        {/* The desktop app logs in by itself, logging out would only log in again */}
+        <If condition={!dataBinder.isDesktop}>
           <Button
             text
             size="large"
             icon="pi pi-sign-out"
-            onClick={() => dataBinder.logout()}
+            onClick={() => dataBinder.logout(true)}
             tooltip="Log Out"
             tooltipOptions={dockButtonTooltipOptions}
             aria-label="Log Out"
@@ -146,17 +179,19 @@ const SBDock: React.FC = observer(() => {
         </If>
       </div>
 
-      <CreditsDialog
-        isOpen={isCreditsOpen}
-        onClose={() => setCreditsOpen(false)}
-      />
+      <If condition={dataBinder.isLoggedIn}>
+        <CreditsDialog
+          isOpen={isCreditsOpen}
+          onClose={() => setCreditsOpen(false)}
+        />
 
-      <CalendarDialog
-        isOpen={isCalendarOpen}
-        onClose={() => setCalendarOpen(false)}
-      />
+        <CalendarDialog
+          isOpen={isCalendarOpen}
+          onClose={() => setCalendarOpen(false)}
+        />
 
-      <StatusMessagePanel ref={overlayRef} />
+        <StatusMessagePanel ref={overlayRef} />
+      </If>
     </div>
   );
 });

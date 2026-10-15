@@ -1,45 +1,59 @@
-// import LabDetailsOverlay from '@sb/components/dashboard-page/lab-dialog/lab-details-overlay/lab-details-overlay';
+import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
+
+import classNames from 'classnames';
+import cytoscape from 'cytoscape';
+import {observer} from 'mobx-react-lite';
+
+import {MenuItem} from 'primereact/menuitem';
+import {Splitter, SplitterPanel} from 'primereact/splitter';
+
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
+import AnnotationLayer from '@sb/components/common/topology-graph/annotation-layer/annotation-layer';
+import TextLayer from '@sb/components/common/topology-graph/text-layer/text-layer';
+import TopologyGraph, {
+  TopologyGraphRef,
+} from '@sb/components/common/topology-graph/topology-graph';
+import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
+import LabViewHeader from '@sb/components/dashboard-page/lab-view/lab-view-header/lab-view-header';
+import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
 import LogDialog, {
+  ANTIMONY_LOG,
   LogDialogState,
 } from '@sb/components/dashboard-page/log-dialog/log-dialog';
-
 import TerminalDialog, {
   TerminalDialogState,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
-import {topologyStyle} from '@sb/lib/cytoscape-styles';
+import {
+  annotationBoxes,
+  readGraphTexts,
+} from '@sb/lib/graph/annotation-geometry';
+import {
+  generateGraph,
+  generateGroups,
+  generateLayerItems,
+} from '@sb/lib/graph/cytoscape-utils';
 import {
   useCollectionStore,
+  useDataBinder,
   useDeviceStore,
   useLabStore,
   useServerConfig,
   useStatusMessages,
-  useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {useDialogState} from '@sb/lib/utils/hooks';
-import {
-  drawGraphGrid,
-  generateGraph,
-  getInterfaceCaptureCommand,
-} from '@sb/lib/utils/utils';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
-import {InstanceState, Lab} from '@sb/types/domain/lab';
-
-import cytoscape from 'cytoscape';
-import {ExpandLines} from 'iconoir-react';
-import {observer} from 'mobx-react-lite';
-import {ContextMenu} from 'primereact/contextmenu';
-import {MenuItem} from 'primereact/menuitem';
-import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
-import {Button} from 'primereact/button';
-import StateIndicator from '@sb/components/dashboard-page/state-indicator/state-indicator';
-import classNames from 'classnames';
+import {getSSHCommand} from '@sb/lib/utils/utils';
+import {If} from '@sb/types/control';
+import {
+  InstanceNode,
+  InstanceNodeState,
+  InstanceState,
+  Lab,
+} from '@sb/types/domain/lab';
 
 import './lab-view.sass';
-import {Splitter, SplitterPanel} from 'primereact/splitter';
-import LabDialogDrawer from '@sb/components/dashboard-page/lab-view/lab-view-drawer/lab-view-drawer';
-import LabViewPanelProperties from '@sb/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties';
-import CytoscapeComponent from 'react-cytoscapejs';
 
 interface LabDialogProps {
   lab: Lab | null;
@@ -47,81 +61,104 @@ interface LabDialogProps {
   onDestroyLabRequest: (lab: Lab) => void;
 }
 
-const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
+const ALL_STATE_CLASSES = [
+  'ready',
+  'running',
+  'starting',
+  'stopping',
+  'stopped',
+  'settling',
+];
+
+const PULSING = ['starting', 'stopping', 'settling'];
+
+const LabView = observer((props: LabDialogProps) => {
+  const graphRef = useRef<TopologyGraphRef>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
-  const gridCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  // const [hostsHidden, setHostsHidden] = useState(false);
-  const nodeContextMenuRef = useRef<ContextMenu | null>(null);
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
+
+  // The node that is currently selected and active in the drawer
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+
+  // The node that is currently targeted by the context menu
+  const [contextTargetNode, setContextTargetNode] = useState<string | null>(
+    null,
+  );
+
   const logDialogState = useDialogState<LogDialogState>();
   const terminalDialogState = useDialogState<TerminalDialogState>();
 
-  const [isCyReady, setIsCyReady] = useState<boolean>(false);
-
   const serverConfig = useServerConfig();
-  const collectionStore = useCollectionStore();
+  const dataBinder = useDataBinder();
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
-  const topologyStore = useTopologyStore();
+  const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
-  const groupName = useMemo(() => {
-    if (!props.lab) return;
-
-    const collectionId = props.lab.collectionId;
-    if (!collectionStore.lookup.has(collectionId)) return;
-    return collectionStore.lookup.get(collectionId)!.name;
-  }, [props.lab, collectionStore.lookup]);
-
   useEffect(() => {
-    // Reset selected node when lab changes
-    // setSelectedNode(null);
-  }, [props.lab]);
+    if (!cyRef.current || !props.lab?.instance) return;
 
-  useEffect(() => {
-    if (isCyReady && cyRef.current && props.lab) {
-      initCytoscape(cyRef.current);
-    }
-  }, [isCyReady, props.lab]);
+    const nodes = props.lab.instance.nodes;
+
+    cyRef.current.batch(() => {
+      if (!cyRef.current) return;
+
+      for (const node of nodes) {
+        const el = cyRef.current.getElementById(node.name);
+        if (el.nonempty()) applyNodeState(el, node);
+      }
+    });
+  }, [props.lab?.instance?.nodes, props.lab?.state]);
 
   const elements = useMemo(() => {
     if (!props.lab) return [];
 
-    return generateGraph(
+    return generateGraph(props.lab.topologyDefinition, deviceStore);
+  }, [props.lab?.id]);
+
+  const layerItems = useMemo(() => {
+    if (!props.lab) return [];
+
+    return generateLayerItems(
       props.lab.topologyDefinition,
-      deviceStore,
-      topologyStore.manager,
-      props.lab.instance,
-      false,
+      generateGroups(props.lab.topologyDefinition, elements),
     );
-  }, [props.lab?.topologyDefinition, props.lab?.instance]);
+  }, [elements]);
+
+  const texts = useMemo(
+    () =>
+      readGraphTexts(
+        props.lab?.topologyDefinition.annotations.freeTextAnnotations ?? [],
+      ),
+    [props.lab?.id],
+  );
+
+  const labCollection = useMemo(() => {
+    if (!props.lab) return null;
+
+    return collectionStore.lookup.get(props.lab.collectionId)!;
+  }, [props.lab]);
 
   function onGraphContext(event: cytoscape.EventObject) {
-    if (!nodeContextMenuRef.current || !cyRef.current) return;
+    if (!contextMenuRef.current) return;
 
     const mouseEvent = event.originalEvent as unknown as MouseEvent;
     mouseEvent.preventDefault();
     mouseEvent.stopPropagation();
 
-    if (event.target === cyRef.current) {
-      setSelectedNode(null);
-      nodeContextMenuRef.current.show(mouseEvent);
+    if (event.target === event.cy) {
+      setContextTargetNode(null);
+      contextMenuRef.current.show(mouseEvent);
       return;
     }
 
-    // Ignore node and group context event if lab is not currently started
+    // Ignore node context events if lab is not currently started
     if (!props.lab?.instance) return;
-
-    // Ignore context events on group nodes
-    if (event.target.hasClass('drawn-shape')) {
-      return;
-    }
 
     if (event.target.hasClass('topology-node')) {
       const nodeId = event.target.id();
-      setSelectedNode(nodeId);
-      nodeContextMenuRef.current.show(mouseEvent);
+      setContextTargetNode(nodeId);
+      contextMenuRef.current.show(mouseEvent);
     }
   }
 
@@ -135,107 +172,119 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
     }
   }
 
-  function onNodeStart() {
+  function onNodeStart(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
-    void labStore.startNode(props.lab, selectedNode);
+    void labStore.startNode(props.lab, nodeId);
   }
 
-  function onNodeStop() {
+  function onNodeStop(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
-    void labStore.stopNode(props.lab, selectedNode);
+    void labStore.stopNode(props.lab, nodeId);
   }
 
-  function onNodeRestart() {
+  function onNodeRestart(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
-    void labStore.restartNode(props.lab, selectedNode);
+    void labStore.restartNode(props.lab, nodeId);
   }
 
-  function onOpenContainerlabLogs() {
+  function openLabLogs() {
     logDialogState.openWith({
       lab: props.lab!,
-      source: '-1',
+      source: ANTIMONY_LOG,
     });
   }
 
-  function onOpenLogs() {
+  function onOpenLogs(nodeId: string | null) {
     const instance = props.lab!.instance!;
 
     logDialogState.openWith({
       lab: props.lab!,
-      source: selectedNode
-        ? instance.nodeMap.get(selectedNode)!.containerId
-        : '-1',
+      source: nodeId ? instance.nodeMap.get(nodeId)!.name : ANTIMONY_LOG,
     });
   }
 
-  function onOpenTerminal() {
+  function onOpenTerminal(nodeId: string | null) {
     if (
-      !selectedNode ||
+      !nodeId ||
       !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
+      !props.lab.instance.nodeMap.has(nodeId)
     ) {
       return;
     }
 
     terminalDialogState.openWith({
       lab: props.lab!,
-      node: selectedNode,
+      node: nodeId,
     });
-  }
-
-  function openWebSsh() {
-    if (
-      !selectedNode ||
-      !props.lab?.instance ||
-      !props.lab.instance.nodeMap.has(selectedNode)
-    ) {
-      return;
-    }
-
-    const instance = props.lab.instance;
-    const webSshUrl = instance.nodeMap.get(selectedNode)!.webSSH;
-
-    window.open(webSshUrl, '_blank');
   }
 
   const graphContextMenuModel = [
     {
-      label: 'Fit Graph',
+      label: 'Deploy lab',
+      icon: 'pi pi-play',
+      disabled: !canDeployLab(),
+      command: () => labStore.deployLab(props.lab!),
+    },
+    {
+      label: 'Redeploy lab',
+      icon:
+        props.lab?.state === InstanceState.Deploying
+          ? 'pi pi-sync pi-spin'
+          : 'pi pi-sync',
+      disabled: !canRedeployLab(),
+      command: () => labStore.deployLab(props.lab!),
+    },
+    {
+      label: 'Destroy lab',
+      icon: 'pi pi-power-off',
+      disabled: !canDestroylab(),
+      command: () => props.onDestroyLabRequest(props.lab!),
+    },
+    {
+      separator: true,
+    },
+    {
+      label: 'View logs',
       icon: (
-        <ExpandLines
-          style={{transform: 'rotate(90deg)'}}
-          width={24}
-          height={24}
-        />
+        <span className="material-symbols-outlined">quick_reference_all</span>
       ),
+      disabled: !canOpenLabLogs(),
+      command: () => onOpenLogs(null),
+    },
+    {
+      separator: true,
+    },
+    {
+      label: 'Fit graph',
+      icon: <span className="material-symbols-outlined">fit_screen</span>,
       command: onFitGraph,
     },
   ];
 
   const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
     // If the selected node is null, the graph itself is selected
-    if (selectedNode === null) {
+    if (contextTargetNode === null) {
       return graphContextMenuModel;
     }
 
@@ -245,49 +294,50 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
       return undefined;
     }
 
-    // Return an empty context menu if selected node is a group node
-    if (cyRef.current.getElementById(selectedNode).hasClass('drawn-shape')) {
-      return;
-    }
-
-    const node = instance.nodeMap.get(selectedNode);
+    const node = instance.nodeMap.get(contextTargetNode);
     const nodeActionChecker = new NodeActionChecker(instance, node);
 
     const entries: MenuItem[] = [
       {
-        label: 'Start Node',
+        label: 'Start node',
         icon: 'pi pi-power-off',
-        command: onNodeStart,
+        command: () => onNodeStart(contextTargetNode),
         disabled: !nodeActionChecker.canStart,
       },
       {
-        label: 'Stop Node',
+        label: 'Stop node',
         icon: 'pi pi-power-off',
-        command: onNodeStop,
+        command: () => onNodeStop(contextTargetNode),
         disabled: !nodeActionChecker.canStop,
       },
       {
-        label: 'Restart Node',
+        label: 'Restart node',
         icon: 'pi pi-sync',
-        command: onNodeRestart,
+        command: () => onNodeRestart(contextTargetNode),
         disabled: !nodeActionChecker.canRestart,
       },
       {
         separator: true,
       },
       {
-        label: 'Open Terminal',
+        label: 'Open terminal',
         icon: <span className="material-symbols-outlined">terminal</span>,
-        command: onOpenTerminal,
+        command: () => onOpenTerminal(contextTargetNode),
         disabled: !nodeActionChecker.canOpenTerminal,
       },
       {
-        label: 'Show Logs',
+        label: 'Show logs',
         icon: (
           <span className="material-symbols-outlined">quick_reference_all</span>
         ),
         disabled: !nodeActionChecker.canShowLogs,
-        command: onOpenLogs,
+        command: () => onOpenLogs(contextTargetNode),
+      },
+      {
+        label: 'Copy SSH command',
+        icon: <span className="material-symbols-outlined">terminal</span>,
+        disabled: !nodeActionChecker.canShowLogs,
+        command: () => copyCaptureToClipboard(node),
       },
     ];
 
@@ -298,156 +348,170 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
 
       for (const iface of node.interfaces) {
         entries.push({
-          label: 'Open Capture for ' + iface.name,
-          icon: 'pi pi-eye',
-          command: () => copyCaptureToClipboard(node.containerName, iface.name),
+          label: 'Copy capture for ' + iface.name,
+          icon: 'pi pi-copy',
+          command: () => copyCaptureToClipboard(node, iface.name),
         });
       }
     }
 
-    if (node?.webSSH) {
-      entries.push({
-        label: 'Web SSH',
-        icon: 'pi pi-external-link',
-        command: openWebSsh,
-      });
-    }
-
     return entries;
-  }, [selectedNode, props.lab]);
+  }, [contextTargetNode, props.lab]);
 
-  function copyCaptureToClipboard(containerName: string, ifName: string) {
-    const cmd = getInterfaceCaptureCommand(
-      containerName,
-      ifName,
-      window.location.hostname,
-      serverConfig.capture.port,
+  function copyCaptureToClipboard(
+    node?: InstanceNode,
+    captureInterface?: string,
+  ) {
+    if (!node || !props.lab || !labCollection) return;
+
+    const cmd = getSSHCommand(
+      labCollection.name,
+      props.lab.name,
+      node.name,
+      dataBinder.serverHost,
+      serverConfig.ssh.port,
+      captureInterface,
     );
     void navigator.clipboard.writeText(cmd);
 
-    statusMessageStore.success('Capture command copied to clipboard!');
+    statusMessageStore.success('Command copied to clipboard!');
   }
 
-  function initCytoscape(cy: cytoscape.Core) {
-    cy.minZoom(0.3);
-    cy.maxZoom(10);
+  function applyNodeState(
+    cyNode: cytoscape.NodeSingular,
+    node: InstanceNode,
+  ): void {
+    const cls = getNodeStateClass(node);
+    if (cyNode.hasClass(cls)) return;
+    if (cls === 'ready' && cyNode.hasClass('settling')) return; // switch already scheduled
 
-    cy.on('tap', onNodeClick);
-    cy.on('cxttap', onGraphContext);
-    cy.on('render', drawGridOverlay);
-    // cy.on('zoom', onZoom);
-    // cy.on('mousedown', onMouseDown);
-    cy.style().fromJson(topologyStyle).update();
+    const wasPulsing = PULSING.some(c => cyNode.hasClass(c));
+    cyNode.removeClass(ALL_STATE_CLASSES.join(' '));
 
-    cy.nodes().lock();
-    cy.fit(undefined, 130);
+    // Pulsing → ready: let the current pulse finish, then switch to green.
+    if (cls === 'ready' && wasPulsing) {
+      cyNode.addClass('settling');
+      setTimeout(() => {
+        if (!cyNode.hasClass('settling')) return; // state changed again meanwhile
+
+        cyNode.removeClass('settling').addClass('ready');
+        cyNode.removeStyle('background-image-opacity');
+      }, pulseRemainingRef.current(cyNode));
+      return;
+    }
+
+    cyNode.addClass(cls);
+
+    if (cls === 'starting' || cls === 'stopping') {
+      // Entering a pulse: start on this node's own clock.
+      if (!wasPulsing) cyNode.scratch('pulseStart', performance.now());
+      return;
+    }
+
+    // Settled state reached without pulsing to completion:
+    // hand the status dot back to the stylesheet.
+    if (wasPulsing) {
+      cyNode.removeStyle('background-image-opacity');
+    }
   }
 
-  function drawGridOverlay(event: cytoscape.EventObject) {
-    if (!gridCanvasRef.current || !containerRef.current || !event.cy) return;
+  function startStatePing(cy: cytoscape.Core) {
+    const period = 1400;
+    const minOpacity = 0.3;
+    let frame = 0;
 
-    drawGraphGrid(containerRef.current, gridCanvasRef.current, event.cy);
+    // ms until the current pulse is back at full opacity
+    pulseRemainingRef.current = (n: cytoscape.NodeSingular) => {
+      const s = n.scratch('pulseStart');
+      return s === undefined ? 0 : period - ((performance.now() - s) % period);
+    };
+
+    const tick = (now: number) => {
+      const active = cy.nodes(
+        '.topology-node.starting, .topology-node.stopping, .topology-node.settling',
+      );
+      if (active.length > 0) {
+        cy.batch(() => {
+          active.forEach(n => {
+            const s = n.scratch('pulseStart') ?? now;
+            const t = ((now - s) % period) / period;
+            const wave = (1 + Math.cos(t * 2 * Math.PI)) / 2;
+            const dotOpacity = minOpacity + (1 - minOpacity) * wave;
+            n.style({'background-image-opacity': `1 ${dotOpacity}`});
+          });
+        });
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
   }
+
+  const pulseRemainingRef = useRef<(n: cytoscape.NodeSingular) => number>(
+    () => 0,
+  );
 
   useEffect(() => {
     if (!props.lab) return;
 
-    if (logDialogState.isOpen) {
-      if (!props.lab.instance) {
-        logDialogState.close();
-      } else {
-        logDialogState.openWith({
-          lab: props.lab,
-          source: '-1',
-        });
-      }
+    if (logDialogState.isOpen && !props.lab.instance) {
+      logDialogState.close();
     }
   }, [props.lab]);
 
   function onFitGraph() {
-    if (!cyRef.current) return;
+    graphRef.current?.fit(true);
+  }
 
-    cyRef.current.fit(undefined, 120);
+  function canOpenLabLogs() {
+    return (
+      Boolean(props.lab?.instance) ||
+      props.lab?.state === InstanceState.Deploying ||
+      props.lab?.state === InstanceState.Failed
+    );
+  }
+
+  function canDeployLab() {
+    return (
+      !props.lab?.instance &&
+      props.lab?.state !== InstanceState.Deploying &&
+      props.lab?.state !== InstanceState.Stopping
+    );
+  }
+
+  function canRedeployLab() {
+    return (
+      Boolean(props.lab?.instance) && props.lab?.state === InstanceState.Running
+    );
+  }
+
+  function canDestroylab() {
+    return (
+      Boolean(props.lab?.instance) &&
+      (props.lab!.state === InstanceState.Running ||
+        props.lab!.state === InstanceState.Deploying)
+    );
   }
 
   return (
     <>
       <div
-        className={classNames('sb-card sb-lab-view', {
+        className={classNames('sb-island sb-lab-view', {
           open: props.lab,
         })}
       >
-        <div className="sb-lab-view-header">
-          <Button
-            text
-            icon="pi pi-arrow-left"
-            size="large"
-            onClick={() => props.onClose()}
-            tooltip="Back"
-            tooltipOptions={{position: 'bottom', showDelay: 500}}
-            aria-label="Download"
+        <If condition={props.lab}>
+          <LabViewHeader
+            lab={props.lab!}
+            onClose={props.onClose}
+            onOpenLabLogs={openLabLogs}
+            onDestroyLabRequest={props.onDestroyLabRequest}
+            canDeployLab={canDeployLab}
+            canRedeployLab={canRedeployLab}
+            canDestroyLab={canDestroylab}
+            canOpenLabLogs={canOpenLabLogs}
           />
-          <If condition={props.lab}>
-            <StateIndicator lab={props.lab!} showText={false} />
-          </If>
-          <span className="sb-lab-dialog-title-name">{groupName + ' / '}</span>
-          <span>{props.lab?.name}</span>
-          <div className="flex-grow-1" />
-          <div className="sb-lab-view-header-buttons">
-            <Choose>
-              <When condition={!props.lab?.instance}>
-                <Button
-                  outlined
-                  icon="pi pi-play"
-                  label="Deploy Now"
-                  aria-label="Deploy Now"
-                  severity="success"
-                  onClick={() => labStore.deployLab(props.lab!)}
-                />
-              </When>
-              <Otherwise>
-                <Button
-                  outlined
-                  icon={
-                    <span className="material-symbols-outlined">
-                      quick_reference_all
-                    </span>
-                  }
-                  label="Containerlab Logs"
-                  aria-label="Containerlab Logs"
-                  onClick={onOpenContainerlabLogs}
-                />
-                <Button
-                  outlined
-                  icon={
-                    props.lab?.state === InstanceState.Deploying
-                      ? 'pi pi-sync pi-spin'
-                      : 'pi pi-sync'
-                  }
-                  severity="warning"
-                  aria-label="Redeploy Lab"
-                  onClick={() => labStore.deployLab(props.lab!)}
-                  disabled={props.lab?.state === InstanceState.Deploying}
-                  tooltipOptions={{
-                    showOnDisabled: true,
-                  }}
-                />
-                <Button
-                  outlined
-                  icon="pi pi-power-off"
-                  aria-label={
-                    props.lab!.state === InstanceState.Scheduled
-                      ? 'Delete Lab'
-                      : 'Destroy Lab'
-                  }
-                  severity="danger"
-                  onClick={() => props.onDestroyLabRequest(props.lab!)}
-                  disabled={props.lab!.state === InstanceState.Inactive}
-                />
-              </Otherwise>
-            </Choose>
-          </div>
-        </div>
+        </If>
         <div className="sb-lab-view-content">
           <div className="sb-lab-view-drawer-container">
             <Splitter
@@ -460,7 +524,6 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
                         ? '1'
                         : '0',
                   },
-                  className: 'sb-lab-view-drawer-gutter',
                 },
               }}
             >
@@ -484,27 +547,45 @@ const LabView: React.FC<LabDialogProps> = observer((props: LabDialogProps) => {
               </SplitterPanel>
             </Splitter>
           </div>
-          <div className="topology-graph-container" ref={containerRef}>
+          <div className="topology-graph-container">
             <If condition={props.lab}>
               <LabViewPanelProperties lab={props.lab!} />
-              <canvas ref={gridCanvasRef} className="grid-canvas" />
             </If>
-            <CytoscapeComponent
-              className="cytoscape-container"
+            <TopologyGraph
+              ref={graphRef}
               elements={elements}
-              cy={(cy: cytoscape.Core) => {
+              fitKey={props.lab?.id ?? null}
+              isLocked={true}
+              events={{tap: onNodeClick, cxttap: onGraphContext}}
+              onInstance={cy => {
                 cyRef.current = cy;
-                setIsCyReady(true);
+                return startStatePing(cy);
               }}
+              underlay={<AnnotationLayer items={layerItems} />}
+              overlay={<TextLayer texts={texts} />}
+              getLayerBoxes={() => annotationBoxes(layerItems, texts)}
             />
           </div>
         </div>
       </div>
-      <ContextMenu model={networkContextMenuItems} ref={nodeContextMenuRef} />
+      <SBContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
       <LogDialog dialogState={logDialogState} />
       <TerminalDialog dialogState={terminalDialogState} />
     </>
   );
 });
+
+function getNodeStateClass(node: InstanceNode) {
+  switch (node.state) {
+    case InstanceNodeState.Stopped:
+      return 'stopped';
+    case InstanceNodeState.Stopping:
+      return 'stopping';
+    case InstanceNodeState.Starting:
+      return 'starting';
+    case InstanceNodeState.Running:
+      return node.isReady ? 'ready' : 'starting';
+  }
+}
 
 export default LabView;

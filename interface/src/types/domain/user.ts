@@ -8,14 +8,10 @@ export type AuthenticatedUser = User & {
   isAdmin: boolean;
 };
 
+export type AuthMethod = 'admin' | 'openid' | 'desktop';
+
 export type AuthConfig = {
-  openId: {
-    enabled: boolean;
-  };
-  native: {
-    enabled: boolean;
-    allowEmpty: boolean;
-  };
+  methods: AuthMethod[];
 };
 
 export const EMPTY_AUTH_USER = {

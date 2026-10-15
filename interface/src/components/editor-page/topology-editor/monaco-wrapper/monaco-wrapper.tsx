@@ -9,42 +9,50 @@ import React, {
 
 import {toJS} from 'mobx';
 import {observer} from 'mobx-react-lite';
-import {Tooltip} from 'primereact/tooltip';
-import {configureMonacoYaml} from 'monaco-yaml';
-import {AntimonyTheme, MonacoOptions} from './monaco.conf';
-
 import * as monaco from 'monaco-editor';
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import {configureMonacoYaml} from 'monaco-yaml';
+import YamlWorker from 'monaco-yaml/yaml.worker?worker';
 
-import {BindFile, Topology} from '@sb/types/domain/topology';
-import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {GraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
+import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
 import {
   useAuthUser,
   useSchemaStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
+import {TopologyHistory, TopologyHistoryEntry} from '@sb/lib/topology-history';
 import {
   BindFileEditReport,
   BindFileEditSource,
+  OpenFileType,
   TopologyEditReport,
   TopologyEditSource,
   TopologyManager,
 } from '@sb/lib/topology-manager';
-import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
+import {usePromiseWithResolvers} from '@sb/lib/utils/hooks';
+import {If} from '@sb/types/control';
+import {
+  BindFile,
+  Topology,
+  TopologyAnnotations,
+  TopologyFileType,
+} from '@sb/types/domain/topology';
+import {TopologyDefinition} from '@sb/types/domain/topology-definition';
+
+import {AntimonyTheme, MonacoOptions} from './monaco.conf';
 
 import './monaco-wrapper.sass';
-
 import ICodeEditor = monaco.editor.ICodeEditor;
 import ITextModel = monaco.editor.ITextModel;
-import {usePromiseWithResolvers} from '@sb/lib/utils/hooks';
+import ICodeEditorViewState = monaco.editor.ICodeEditorViewState;
 
-const schemaModelUri = 'inmemory://schema.yaml';
-
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
-import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
-import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
-import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
-import YamlWorker from 'monaco-yaml/yaml.worker?worker';
+const definitionModelUri = 'inmemory://schema.yaml';
+const annotationsModelUri = 'inmemory://topology.clab.yaml.annotations.json';
 
 window.MonacoEnvironment = {
   getWorker(_, label) {
@@ -78,11 +86,24 @@ interface MonacoWrapperProps {
   onSaveFile: () => void;
   onBindFileLinkClick: (bindFileName: string) => void;
 
-  setContent: (content: string) => void;
+  setContent: (content: string, file: TopologyFileType) => void;
   setValidationError?: (error: string | null) => void;
 
   openTopology: Topology | null;
+  openTopologyFile: TopologyFileType;
   openBindFile: BindFile | null;
+
+  // Called when undo or redo restores a change in a file that isn't shown
+  onOpenTopologyFile: (file: TopologyFileType) => void;
+
+  // Undo history of the open topology, bind files use the history of monaco instead
+  history: TopologyHistory;
+
+  // Kept with changes of the graph, so undo and redo restore it
+  graphSelection: GraphSelection;
+
+  onLanguageChange: (language: string) => void;
+  onCursorChange: (line: number, column: number) => void;
 }
 
 export interface MonacoWrapperRef {
@@ -97,10 +118,36 @@ const MonacoWrapper = observer(
     const [isReadOnly, setReadOnly] = useState(false);
     const [hasLastDeployFailed, setLastDeployFailed] = useState(false);
 
+    // Holds the topology definition or the open bind file
     const textModelRef = useRef<ITextModel | null>(null);
+    const annotationsModelRef = useRef<ITextModel | null>(null);
     const editorRef = useRef<ICodeEditor | null>(null);
 
+    // The scroll and cursor positions of the models that are currently not shown
+    const viewStates = useRef(new Map<ITextModel, ICodeEditorViewState>());
+
     const currentlyOpenFileId = useRef<string | null>(null);
+
+    // Set while content from the topology manager is applied, which doesn't have to be reported back to it
+    const isApplyingManagerContent = useRef(false);
+
+    // The definition and annotations that are currently shown in the models
+    // We store this so we don't always have to serialize and compare the string
+    // representations of the definitions and annotations
+    const currentDefinitionRef = useRef<TopologyDefinition | null>(null);
+    const currentAnnotationsRef = useRef<TopologyAnnotations | null>(null);
+
+    // The history doesn't change, it's a ref so the callbacks that are only registered once can use it
+    const history = useRef(props.history);
+
+    // Set while an entry of the history is applied, which doesn't have to be recorded again
+    const isApplyingHistory = useRef(false);
+
+    // Set while content is changed by other means than typing
+    const isReplacingContent = useRef(false);
+
+    // Selections to restore once the file of an undone or redone change is shown
+    const pendingSelections = useRef<monaco.ISelection[] | null>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
 
     const authUser = useAuthUser();
@@ -112,6 +159,15 @@ const MonacoWrapper = observer(
     const onBindFileLinkClickRef = useRef(props.onBindFileLinkClick);
     onBindFileLinkClickRef.current = props.onBindFileLinkClick;
 
+    const setContentRef = useRef(props.setContent);
+    setContentRef.current = props.setContent;
+
+    const openTopologyFileRef = useRef(props.openTopologyFile);
+    openTopologyFileRef.current = props.openTopologyFile;
+
+    const onOpenTopologyFileRef = useRef(props.onOpenTopologyFile);
+    onOpenTopologyFileRef.current = props.onOpenTopologyFile;
+
     useEffect(() => {
       void onTopologyOpen();
     }, [props.openTopology]);
@@ -119,6 +175,43 @@ const MonacoWrapper = observer(
     useEffect(() => {
       void onBindFileOpen();
     }, [props.openBindFile]);
+
+    useEffect(() => {
+      void showOpenFile();
+    }, [props.openTopologyFile, props.openTopology, props.openBindFile]);
+
+    async function showOpenFile() {
+      await editorReadyPromise.promise;
+
+      const editor = editorRef.current;
+      const model =
+        props.openTopology &&
+        props.openTopologyFile === TopologyFileType.Annotations
+          ? annotationsModelRef.current
+          : textModelRef.current;
+      if (!editor || !model) return;
+
+      const currentModel = editor.getModel();
+      if (currentModel !== model) {
+        const viewState = editor.saveViewState();
+        if (currentModel && viewState) {
+          viewStates.current.set(currentModel, viewState);
+        }
+
+        editor.setModel(model);
+        editor.restoreViewState(viewStates.current.get(model) ?? null);
+      }
+
+      if (pendingSelections.current) {
+        restoreSelections(pendingSelections.current);
+        pendingSelections.current = null;
+      }
+
+      props.onLanguageChange(model.getLanguageId());
+
+      const markers = monaco.editor.getModelMarkers({resource: model.uri});
+      props.setValidationError?.(markers[0]?.message ?? null);
+    }
 
     const onTopologyOpen = useCallback(async () => {
       if (!props.openTopology) return;
@@ -137,10 +230,18 @@ const MonacoWrapper = observer(
         !authUser.isAdmin && authUser.id !== props.openTopology.creator.id,
       );
 
-      if (textModelRef.current) {
+      if (textModelRef.current && annotationsModelRef.current) {
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
         textModelRef.current.setValue(props.openTopology.definition.toString());
+        annotationsModelRef.current.setValue(
+          TopologyManager.serializeAnnotations(props.openTopology.annotations),
+        );
+        currentDefinitionRef.current = props.openTopology.definition;
+        currentAnnotationsRef.current = props.openTopology.annotations;
+        viewStates.current.clear();
         currentlyOpenFileId.current = props.openTopology.id;
+
+        history.current.reset(historyEntry(TopologyFileType.Definition));
       }
     }, [props.openTopology]);
 
@@ -168,28 +269,58 @@ const MonacoWrapper = observer(
 
         monaco.editor.setModelLanguage(textModelRef.current, language);
         textModelRef.current.setValue(props.openBindFile.content);
+        viewStates.current.clear();
         currentlyOpenFileId.current = props.openBindFile.id;
       }
     }, [props.openBindFile]);
 
     const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
-      if (
-        !textModelRef.current ||
-        editReport.source === TopologyEditSource.TextEditor
-      ) {
+      if (editReport.source === TopologyEditSource.TextEditor) {
         return;
       }
 
-      const updatedContent = TopologyManager.serializeTopology(
-        editReport.updatedTopology.definition,
-      );
-      const existingContent = textModelRef.current.getValue();
+      const {definition, annotations} = editReport.updatedTopology;
+      let hasChanged = false;
 
-      const updatedContentStripped = updatedContent.replaceAll(' ', '');
-      const existingContentStripped = existingContent.replaceAll(' ', '');
+      isApplyingManagerContent.current = true;
+      if (textModelRef.current && definition !== currentDefinitionRef.current) {
+        currentDefinitionRef.current = definition;
 
-      if (updatedContentStripped !== existingContentStripped) {
-        setContent(updatedContent);
+        const updatedContent = definition.toString();
+        const existingContent = textModelRef.current.getValue();
+
+        if (updatedContent !== existingContent) {
+          setContent(updatedContent);
+          hasChanged = true;
+        }
+      }
+
+      if (
+        annotationsModelRef.current &&
+        annotations !== currentAnnotationsRef.current
+      ) {
+        currentAnnotationsRef.current = annotations;
+
+        const updatedAnnotations =
+          TopologyManager.serializeAnnotations(annotations);
+        const existingAnnotations = annotationsModelRef.current.getValue();
+
+        if (updatedAnnotations !== existingAnnotations) {
+          setContent(updatedAnnotations, annotationsModelRef.current);
+          hasChanged = true;
+        }
+      }
+      isApplyingManagerContent.current = false;
+
+      // One entry for both files, so a change of the graph is undone in one step
+      if (hasChanged) {
+        history.current.record(
+          {
+            ...historyEntry(openTopologyFileRef.current),
+            graphSelectionBefore: props.graphSelection.snapshot,
+          },
+          editReport.mergeKey ?? null,
+        );
       }
     }, []);
 
@@ -225,30 +356,146 @@ const MonacoWrapper = observer(
     useImperativeHandle(ref, () => ({
       undo: onTriggerUndo,
       redo: onTriggerRedo,
-      setContent: setContent,
+      setContent: (content: string) => {
+        isReplacingContent.current = true;
+        setContent(content);
+        isReplacingContent.current = false;
+      },
     }));
 
-    function setContent(content: string) {
-      if (!textModelRef.current) return;
+    /**
+     * Replaces the content of a model as an edit, so it can be undone. Only the
+     * changed part is replaced, so the cursor stays where it is.
+     */
+    function setContent(
+      content: string,
+      model: ITextModel | null = textModelRef.current,
+    ) {
+      if (!model) return;
 
-      textModelRef.current.setValue(content);
+      const existingContent = model.getValue();
+      if (existingContent === content) return;
+
+      const maxLength = Math.min(existingContent.length, content.length);
+
+      let start = 0;
+      while (start < maxLength && existingContent[start] === content[start]) {
+        start++;
+      }
+
+      let end = 0;
+      while (
+        end < maxLength - start &&
+        existingContent[existingContent.length - 1 - end] ===
+          content[content.length - 1 - end]
+      ) {
+        end++;
+      }
+
+      model.pushStackElement();
+      model.pushEditOperations(
+        [],
+        [
+          {
+            range: monaco.Range.fromPositions(
+              model.getPositionAt(start),
+              model.getPositionAt(existingContent.length - end),
+            ),
+            text: content.slice(start, content.length - end),
+            forceMoveMarkers: true,
+          },
+        ],
+        () => null,
+      );
+      model.pushStackElement();
+    }
+
+    /**
+     * Returns the current content of both topology files as history entry.
+     */
+    function historyEntry(file: TopologyFileType): TopologyHistoryEntry {
+      const model = getTopologyModel(file);
+
+      return {
+        definition: textModelRef.current?.getValue() ?? '',
+        annotations: annotationsModelRef.current?.getValue() ?? '',
+        file,
+        selections:
+          model && editorRef.current?.getModel() === model
+            ? editorRef.current.getSelections()
+            : null,
+      };
+    }
+
+    function getTopologyModel(file: TopologyFileType) {
+      return file === TopologyFileType.Annotations
+        ? annotationsModelRef.current
+        : textModelRef.current;
+    }
+
+    function applyHistoryEntry(
+      entry: TopologyHistoryEntry,
+      file: TopologyFileType,
+    ) {
+      isApplyingHistory.current = true;
+      setContent(entry.definition, textModelRef.current);
+      setContent(entry.annotations, annotationsModelRef.current);
+      isApplyingHistory.current = false;
+
+      const selections = entry.file === file ? entry.selections : null;
+
+      if (file !== openTopologyFileRef.current) {
+        // The selections are restored once the file is shown
+        pendingSelections.current = selections;
+        onOpenTopologyFileRef.current(file);
+      } else if (selections) {
+        restoreSelections(selections);
+      }
+    }
+
+    function restoreSelections(selections: monaco.ISelection[]) {
+      const editor = editorRef.current;
+      if (!editor || selections.length === 0) return;
+
+      editor.setSelections(selections);
+      editor.revealRangeInCenterIfOutsideViewport(
+        monaco.Selection.liftSelection(selections[0]),
+      );
+    }
+
+    function isEditorReadOnly() {
+      return (
+        editorRef.current?.getOption(monaco.editor.EditorOption.readOnly) ??
+        true
+      );
     }
 
     const onGlobalKeyPress = useCallback(
       (event: KeyboardEvent) => {
         if (!event.ctrlKey) return;
 
-        switch (event.key) {
-          case 's':
-            props.onSaveFile();
-            event.preventDefault();
-            break;
-          case 'z':
-            onTriggerUndo();
-            break;
-          case 'y':
-            onTriggerRedo();
-            break;
+        if (event.key === 's') {
+          props.onSaveFile();
+          event.preventDefault();
+          return;
+        }
+
+        // The editor handles undo and redo with its own commands, and inputs keep their own undo
+        const target = event.target as HTMLElement | null;
+        if (
+          editorContainerRef.current?.contains(target) ||
+          target?.closest('input, textarea, [contenteditable="true"]')
+        ) {
+          return;
+        }
+
+        // Browsers have their own shortcuts on these keys, e.g. reopening a closed tab
+        if (event.key === 'z') {
+          event.preventDefault();
+          onTriggerUndo();
+        } else if (event.key === 'y' || event.key === 'Z') {
+          event.preventDefault();
+          onTriggerRedo();
         }
       },
       [props],
@@ -263,11 +510,33 @@ const MonacoWrapper = observer(
     }, [onGlobalKeyPress]);
 
     function onTriggerUndo() {
-      editorRef.current?.trigger('', 'undo', '');
+      if (topologyStore.manager.currentFileType !== OpenFileType.Topology) {
+        editorRef.current?.trigger('', 'undo', '');
+        return;
+      }
+
+      if (isEditorReadOnly()) return;
+
+      const undone = history.current.undo(props.graphSelection.snapshot);
+      if (!undone) return;
+
+      props.graphSelection.setPendingSelection(undone.graphSelection ?? null);
+      applyHistoryEntry(undone.entry, undone.file);
     }
 
     function onTriggerRedo() {
-      editorRef.current?.trigger('', 'redo', '');
+      if (topologyStore.manager.currentFileType !== OpenFileType.Topology) {
+        editorRef.current?.trigger('', 'redo', '');
+        return;
+      }
+
+      if (isEditorReadOnly()) return;
+
+      const redone = history.current.redo();
+      if (!redone) return;
+
+      props.graphSelection.setPendingSelection(redone.graphSelection ?? null);
+      applyHistoryEntry(redone.entry, redone.file);
     }
 
     function initializeEditor() {
@@ -276,14 +545,14 @@ const MonacoWrapper = observer(
         return () => {};
       }
 
-      // if (props.language === 'yaml') {
       const yamlPlugin = configureMonacoYaml(monaco, {
         enableSchemaRequest: false,
         schemas: [
           {
             fileMatch: ['**/*.yaml'],
             schema: toJS(schemaStore.clabSchema),
-            uri: import.meta.env.SB_CLAB_SCHEMA_URL!,
+            // The schema comes from the server, Monaco only uses its URI as its name
+            uri: 'https://containerlab.dev/clab.schema.json',
           },
         ],
       });
@@ -343,35 +612,88 @@ const MonacoWrapper = observer(
         },
       );
 
+      if (schemaStore.annotationsSchema) {
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+          validate: true,
+          enableSchemaRequest: false,
+          schemas: [
+            {
+              uri: 'inmemory://clab-annotations.schema.json',
+              fileMatch: [annotationsModelUri],
+              schema: toJS(schemaStore.annotationsSchema),
+            },
+          ],
+        });
+      }
+
       const markerCallback = monaco.editor.onDidChangeMarkers(() => {
-        const markers = monaco.editor.getModelMarkers({});
+        const model = editorRef.current?.getModel();
+        if (!model) return;
+
+        const markers = monaco.editor.getModelMarkers({resource: model.uri});
         if (markers.length > 0 && props.setValidationError) {
           props.setValidationError(markers[0].message);
         }
       });
-      // }
 
       monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
 
       textModelRef.current = monaco.editor.createModel(
         '',
         'text',
-        monaco.Uri.parse(schemaModelUri),
+        monaco.Uri.parse(definitionModelUri),
       );
 
-      editorRef.current = monaco.editor.create(editorContainerRef.current, {
+      annotationsModelRef.current = monaco.editor.createModel(
+        '',
+        'json',
+        monaco.Uri.parse(annotationsModelUri),
+      );
+
+      const editor = monaco.editor.create(editorContainerRef.current, {
         model: textModelRef.current,
         language: 'text',
         theme: 'antimonyTheme',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: 'JetBrains Mono Variable, monospace',
+      });
+      editorRef.current = editor;
+
+      editor.updateOptions(MonacoOptions);
+
+      // Topology files are undone with the topology history instead of the history of monaco
+      editor.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ,
+        onTriggerUndo,
+      );
+      editor.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY,
+        onTriggerRedo,
+      );
+      editor.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
+        onTriggerRedo,
+      );
+
+      const textModel = textModelRef.current;
+      const annotationsModel = annotationsModelRef.current;
+      const textModelListener = textModel.onDidChangeContent(() =>
+        onContentChange(textModel, TopologyFileType.Definition),
+      );
+      const annotationsModelListener = annotationsModel.onDidChangeContent(() =>
+        onContentChange(annotationsModel, TopologyFileType.Annotations),
+      );
+
+      const cursorListener = editorRef.current.onDidChangeCursorPosition(e => {
+        props.onCursorChange?.(e.position.lineNumber, e.position.column);
       });
 
-      editorRef.current.updateOptions(MonacoOptions);
-      editorRef.current.onDidChangeModelContent(onContentChange);
-
       return () => {
+        cursorListener.dispose();
+        textModelListener.dispose();
+        annotationsModelListener.dispose();
         editorRef.current?.dispose();
         textModelRef.current?.dispose();
+        annotationsModelRef.current?.dispose();
         yamlPlugin.dispose();
         bindFileLinkProvider.dispose();
         markerCallback.dispose();
@@ -395,15 +717,26 @@ const MonacoWrapper = observer(
         editorDisposable();
 
         textModelRef.current = null;
+        annotationsModelRef.current = null;
         editorRef.current = null;
         resizeObserver.disconnect();
       };
     }, []);
 
-    function onContentChange() {
-      if (textModelRef.current) {
-        props.setContent(textModelRef.current.getValue());
+    function onContentChange(model: ITextModel, file: TopologyFileType) {
+      if (isApplyingManagerContent.current) return;
+
+      if (
+        !isApplyingHistory.current &&
+        topologyStore.manager.currentFileType === OpenFileType.Topology
+      ) {
+        history.current.record(
+          historyEntry(file),
+          isReplacingContent.current ? null : `typing-${file}`,
+        );
       }
+
+      setContentRef.current(model.getValue(), file);
     }
 
     return (
@@ -422,44 +755,6 @@ const MonacoWrapper = observer(
             </div>
           </If>
           <div className="sb-monaco-wrapper">
-            <div
-              className="sb-monaco-wrapper-error"
-              data-pr-tooltip={props.validationError ?? 'Schema Valid'}
-              data-pr-position="right"
-            >
-              {props.showValidation && (
-                <Choose>
-                  <When
-                    condition={props.validationState === ValidationState.Error}
-                  >
-                    <i
-                      className="pi pi-times"
-                      style={{color: 'var(--danger-color-text)'}}
-                    />
-                  </When>
-                  <When
-                    condition={
-                      props.validationState === ValidationState.Working
-                    }
-                  >
-                    <i
-                      className="pi pi-spinner pi-spin"
-                      style={{color: 'var(--warning-color-text)'}}
-                    />
-                  </When>
-                  <Otherwise>
-                    <i
-                      className="pi pi-check"
-                      style={{color: 'var(--success-color-text)'}}
-                    />
-                  </Otherwise>
-                </Choose>
-              )}
-              <Tooltip
-                className="sb-monaco-wrapper-error-tooltip"
-                target=".sb-monaco-wrapper-error"
-              />
-            </div>
             <div ref={editorContainerRef} style={{height: '100%'}}></div>
           </div>
         </div>

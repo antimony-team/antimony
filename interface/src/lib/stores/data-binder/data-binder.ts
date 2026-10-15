@@ -1,14 +1,16 @@
+import Cookies from 'js-cookie';
+import {action, autorun, computed, observable, runInAction} from 'mobx';
+import {io, Socket} from 'socket.io-client';
+
 import {fetchResource} from '@sb/lib/utils/utils';
 import {
   AuthConfig,
   AuthenticatedUser,
+  AuthMethod,
   EMPTY_AUTH_USER,
 } from '@sb/types/domain/user';
 import {Result} from '@sb/types/result';
-import {UserCredentials} from '@sb/types/types';
-import Cookies from 'js-cookie';
-import {action, autorun, computed, observable, runInAction} from 'mobx';
-import {io, Socket} from 'socket.io-client';
+import {ConnectionState, UserCredentials} from '@sb/types/types';
 
 type AuthResponse = {
   token: string;
@@ -35,14 +37,13 @@ const SOCKETIO_CONFIG = {
   transports: ['websocket'],
 };
 
+// How long to wait before retrying a fetch request on network error
+const FETCH_RETRY_TIMER = 5000;
+
+// How long to wait before retrying a subscription if the namespace is invalid
+const INVALID_NAMESPACE_RETRY_TIMER = 5000;
+
 export class DataBinder {
-  private readonly apiUrl =
-    import.meta.env.SB_API_SERVER_URL ?? window.location.host;
-  private readonly socketUrl =
-    import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.host;
-
-  protected readonly fetchRetryTimer = 5000;
-
   // Set to true when all preloading and auth processes have finished
   @observable accessor isReady = false;
 
@@ -50,80 +51,34 @@ export class DataBinder {
   @observable accessor isLoggedIn = false;
 
   @observable accessor authUser: AuthenticatedUser = EMPTY_AUTH_USER;
-
   @observable accessor hasAPIError = false;
   @observable accessor hasSocketError = false;
 
-  @observable accessor isOpenIdAuthEnabled = false;
+  @observable accessor authMethods: AuthMethod[] = [];
 
-  @observable accessor isNativeAuthEnabled = false;
-  @observable accessor useNativeAutoLogin = false;
+  /*
+   * The desktop app passes the address of the server it started, web builds use
+   * their own origin, which a proxy forwards to the server, unless a build sets its own.
+   */
+  private apiUrl = import.meta.env.SB_API_SERVER_URL ?? '/api';
+  private socketUrl =
+    import.meta.env.SB_SOCKET_SERVER_URL ?? window.location.origin;
 
   private refreshTokenPromise: Promise<Result<null>> | null = null;
-  private accessToken: string = '';
 
+  private accessToken: string = '';
+  private desktopToken: string | null = null;
+
+  // All currently active socket.io namespace subscriptions
   private subscriptions: Map<string, Subscription> = new Map();
 
   constructor() {
-    void this.initAuth();
-  }
-
-  @action
-  private async initAuth() {
-    const authConfigResponse = await this.get<AuthConfig>(
-      '/users/login/config',
-      false,
-    );
-    if (authConfigResponse.isErr()) {
-      this.hasAPIError = true;
-      return;
-    }
-
-    const authConfig = authConfigResponse.data.payload;
-    this.isOpenIdAuthEnabled = authConfig.openId.enabled;
-    this.isNativeAuthEnabled = authConfig.native.enabled;
-    this.useNativeAutoLogin = authConfig.native.allowEmpty;
-
-    if (this.isAuthDisabled) {
-      runInAction(() => {
-        this.isLoggedIn = true;
-        this.authUser = {
-          id: '',
-          isAdmin: true,
-          name: 'Admin',
-        };
-      });
-      return;
-    }
-
-    if (Cookies.get('accessToken') !== undefined) {
-      // If access token has been set previously, attempt to refresh token
-      const refreshResult = await this.refreshToken();
-
-      if (refreshResult.isOk()) {
-        runInAction(() => (this.isLoggedIn = true));
-      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
-        /*
-         * Redirect to OpenID login if existing auth token is invalid, auth via
-         * OpenID is enabled, and the user has previously logged in via OpenID.
-         */
-        this.loginWithOpenId();
-        return;
-      }
-    } else {
-      if (
-        this.isNativeAuthEnabled &&
-        authConfig.native.allowEmpty &&
-        !authConfig.openId.enabled
-      ) {
-        await this.loginNative({
-          username: '',
-          password: '',
-        });
-      }
-    }
-
-    // Automatically connect / disconnect subscriptions when logged in
+    /*
+     * Automatically connect / disconnect subscriptions when logged in.
+     *
+     * Registered here rather than at the end of `initAuth` so that it is also
+     * active on the code paths that log the user in and return early.
+     */
     autorun(() => {
       if (this.isLoggedIn) {
         this.connectSubscriptions();
@@ -132,116 +87,62 @@ export class DataBinder {
       }
     });
 
-    runInAction(() => (this.isReady = true));
+    void this.initAuth();
   }
 
   public get isAuthenticatedWithOidc() {
     return Cookies.get('authOidc') === 'true';
   }
 
-  private connectSubscriptions() {
-    for (const [, subscription] of this.subscriptions) {
-      this.connectSubscription(subscription);
-    }
-  }
-
-  private disconnectSubscriptions() {
-    for (const [, subscription] of this.subscriptions) {
-      subscription.socket?.close();
-    }
+  @computed
+  public get isOpenIdAuthEnabled() {
+    return this.authMethods.includes('openid');
   }
 
   @computed
-  public get isAuthDisabled() {
-    return !this.isOpenIdAuthEnabled && !this.isNativeAuthEnabled;
+  public get isAdminAuthEnabled() {
+    return this.authMethods.includes('admin');
+  }
+
+  /*
+   * The host name of the server, e.g. for SSH commands. Web builds reach the server on the page's
+   * own host, the desktop app on the address of the server it started.
+   */
+  public get serverHost() {
+    return new URL(this.apiUrl, window.location.href).hostname;
+  }
+
+  public get isDesktop() {
+    return this.desktopToken !== null;
   }
 
   /**
-   * Creates a socket and registers callbacks for a given subscription.
-   * @param subscription
-   * @private
+   * Whether the connection was interrupted after the user has already logged in.
+   *
+   * The app stays usable in that case, so this only drives the connection
+   * banner rather than a full-screen takeover.
    */
-  private connectSubscription(subscription: Subscription) {
-    if (subscription.isAnonymous) {
-      try {
-        subscription.socket = io(
-          `${this.socketUrl}/${subscription.namespace}`,
-          SOCKETIO_CONFIG,
-        );
-      } catch {
-        subscription.socket?.close();
-        return;
-      }
-    } else {
-      try {
-        subscription.socket = io(
-          `${this.socketUrl}/${subscription.namespace}`,
-          {
-            ...SOCKETIO_CONFIG,
-            auth: {
-              token: this.accessToken,
-            },
-          },
-        );
-      } catch {
-        subscription.socket?.close();
-        return;
-      }
-    }
+  @computed
+  public get connectionWasInterrupted() {
+    return this.isLoggedIn && this.hasConnectionError;
+  }
 
-    subscription.socket.on('connect', () => {
-      console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
-      runInAction(() => (this.hasSocketError = false));
+  @computed
+  public get hasConnectionError() {
+    return this.hasAPIError || this.hasSocketError;
+  }
 
-      subscription.onConnectCallbacks.forEach(callback => callback());
-    });
+  @computed
+  public get apiState(): ConnectionState {
+    return this.hasAPIError ? ConnectionState.Retrying : ConnectionState.Ok;
+  }
 
-    subscription.socket.on('disconnect', () => {
-      console.log(`[SOCK] Disconnected from ns ${subscription.namespace}`);
+  @computed
+  public get socketState(): ConnectionState {
+    // The sockets are only connected once the user is logged in.
+    if (!this.isLoggedIn) return ConnectionState.Unknown;
 
-      subscription.onDisconnectCallbacks.forEach(callback => callback());
-    });
-
-    subscription.socket.on('connect_error', e => {
-      if (e.message === 'Invalid Token') {
-        void this.refreshToken().then(result => {
-          if (result.isOk()) {
-            // Retry socket subscription if token was refreshed successfully
-            this.connectSubscription(subscription);
-          } else {
-            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
-              this.loginWithOpenId();
-            }
-          }
-        });
-
-        return;
-      }
-
-      runInAction(() => (this.hasSocketError = true));
-
-      if (e.message === 'Invalid namespace') {
-        subscription.socket?.disconnect();
-        setTimeout(() => {
-          subscription.socket?.connect();
-        }, 2000);
-
-        return;
-      }
-
-      console.error('Socket Error:', e, 'namespace:', subscription.namespace);
-    });
-
-    subscription.onDataCallbacks.forEach(callback => {
-      subscription.socket!.on('backlog', data => {
-        if (data instanceof ArrayBuffer) {
-          callback(data);
-        } else {
-          for (const msg of data) callback(msg);
-        }
-      });
-      subscription.socket!.on('data', callback);
-    });
+    return this.hasSocketError ? ConnectionState.Retrying : ConnectionState.Ok;
   }
 
   /**
@@ -371,148 +272,20 @@ export class DataBinder {
     return true;
   }
 
-  protected async fetch<R, T>(
-    path: string,
-    method: string,
-    body?: R,
-    authenticated = true,
-  ): Promise<Result<DataResponse<T>>> {
-    // If the request is authenticated, wait until the user is logged in
-    if (authenticated && !this.isLoggedIn) {
-      return Result.createErr({code: -1, message: 'Unauthorized'});
-    }
-
-    const response = await fetchResource(this.apiUrl + path, method, body, {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    });
-
-    if (!response || response.status === 504) {
-      runInAction(() => (this.hasAPIError = true));
-      await new Promise(resolve => setTimeout(resolve, this.fetchRetryTimer));
-      return this.fetch(path, method, body, authenticated);
-    }
-
-    if (response.status >= 500) {
-      return Result.createErr({code: -1, message: 'Server Error'});
-    }
-
-    // Acecss token is expired, attempt to refresh before retrying
-    if (response.status === 498) {
-      const refreshResponse = await this.refreshToken();
-      if (refreshResponse.isErr()) {
-        if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
-          this.loginWithOpenId();
-          return refreshResponse;
-        } else if (this.isNativeAuthEnabled && this.useNativeAutoLogin) {
-          await this.loginNative({
-            username: '',
-            password: '',
-          });
-        } else {
-          this.logout();
-        }
-        return refreshResponse;
-      } else {
-        return this.fetch(path, method, body, authenticated);
-      }
-    }
-
-    // Auth token is expired or invalid
-    if (response.status === 401) {
-      this.logout();
-      return Result.createErr({code: -1, message: 'Unauthorized request.'});
-    }
-
-    let responseBody = {payload: {} as T};
-
-    try {
-      responseBody = await response.json();
-    } catch {
-      /* empty */
-    }
-
-    runInAction(() => (this.hasAPIError = false));
-
-    if (!('payload' in responseBody)) {
-      return Result.createErr(responseBody);
-    }
-
-    return Result.createOk({
-      payload: responseBody.payload,
-      headers: response.headers,
-    });
-  }
-
-  /**
-   * Sets the auth user based on the access token.
-   */
   @action
-  private processAccessToken(accessToken: string) {
-    try {
-      const tokenData = JSON.parse(atob(accessToken.split('.')[1]));
-      this.accessToken = accessToken;
-      this.authUser = {
-        id: tokenData.id,
-        name: tokenData.id,
-        isAdmin: tokenData.isAdmin,
-      };
-    } catch {
-      console.error('Failed to parse access token. Logging out.');
-      this.logout();
-    }
-  }
-
-  /**
-   * Refreshes the access token for the Antimony API.
-   *
-   * @returns Ok<null> if the refreshing was successful.
-   */
-  private async refreshToken(): Promise<Result<null>> {
-    // Make sure only one promise to refresh the token is running at a time
-    if (this.refreshTokenPromise === null) {
-      this.refreshTokenPromise = fetchResource(
-        this.apiUrl + '/users/login/refresh',
-        'GET',
-      )
-        .then(response => {
-          if (!response || response.status !== 200) {
-            return Result.createErr({code: -1, message: 'Unauthorized'});
-          }
-          this.processAccessToken(Cookies.get('accessToken')!);
-
-          return Result.createOk(null);
-        })
-        .finally(() => (this.refreshTokenPromise = null));
-    }
-
-    return this.refreshTokenPromise;
-  }
-
-  @action
-  public logout() {
+  public logout(reloadApp: boolean = false) {
     // Make sure logout is only executed once
     if (!this.isLoggedIn) return;
 
-    this.isLoggedIn = false;
-    this.hasSocketError = false;
-    this.hasAPIError = false;
-
     void fetchResource(this.apiUrl + '/users/logout', 'POST');
-    this.authUser = EMPTY_AUTH_USER;
-  }
 
-  @computed
-  public get hasConnectionError() {
-    return this.hasAPIError || this.hasSocketError;
-  }
-
-  @action
-  private handleNetworkError(status: number | undefined) {
-    if (!status || status === 503 || status === 504) {
-      this.hasAPIError = true;
-    } else if (status === 401) {
-      this.logout();
+    if (reloadApp) {
+      window.location.reload();
+    } else {
+      this.isLoggedIn = false;
+      this.hasSocketError = false;
+      this.hasAPIError = false;
+      this.authUser = EMPTY_AUTH_USER;
     }
   }
 
@@ -552,5 +325,314 @@ export class DataBinder {
     authenticated = true,
   ): Promise<Result<DataResponse<T>>> {
     return this.fetch<Partial<R>, T>(path, 'PATCH', body, authenticated);
+  }
+
+  protected async fetch<R, T>(
+    path: string,
+    method: string,
+    body?: R,
+    authenticated = true,
+  ): Promise<Result<DataResponse<T>>> {
+    // If the request is authenticated, wait until the user is logged in
+    if (authenticated && !this.isLoggedIn) {
+      return Result.createErr({code: -1, message: 'Unauthorized'});
+    }
+
+    const response = await fetchResource(this.apiUrl + path, method, body, {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      // The desktop app's window can't use cookies, so instead it sends the
+      // access token explicitly via header
+      ...(this.isDesktop && {Authorization: `Bearer ${this.accessToken}`}),
+    });
+
+    if (!response || response.status === 504) {
+      runInAction(() => (this.hasAPIError = true));
+      await new Promise(resolve => setTimeout(resolve, FETCH_RETRY_TIMER));
+      return this.fetch(path, method, body, authenticated);
+    }
+
+    if (response.status >= 500) {
+      return Result.createErr({code: -1, message: 'Server Error'});
+    }
+
+    // Acecss token is expired, attempt to refresh before retrying
+    if (response.status === 498) {
+      const refreshResponse = await this.refreshToken();
+      if (refreshResponse.isOk()) {
+        return this.fetch(path, method, body, authenticated);
+      }
+
+      if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
+        this.loginWithOpenId();
+      } else {
+        this.logout();
+      }
+      return refreshResponse;
+    }
+
+    // Auth token is expired or invalid
+    if (response.status === 401) {
+      this.logout();
+      return Result.createErr({code: -1, message: 'Unauthorized request.'});
+    }
+
+    let responseBody = {payload: {} as T};
+
+    try {
+      responseBody = await response.json();
+    } catch {
+      /* empty */
+    }
+
+    runInAction(() => (this.hasAPIError = false));
+
+    if (!('payload' in responseBody)) {
+      return Result.createErr(responseBody);
+    }
+
+    return Result.createOk({
+      payload: responseBody.payload,
+      headers: response.headers,
+    });
+  }
+
+  private async initAuth() {
+    // The desktop app talks to the server it started and logs in with its token
+    const desktop = await window.antimonyDesktop?.config();
+    if (desktop) {
+      this.apiUrl = desktop.serverUrl;
+      this.socketUrl = desktop.serverUrl;
+      this.desktopToken = desktop.token;
+    }
+
+    const authConfigResponse = await this.get<AuthConfig>(
+      '/users/login/auth-config',
+      false,
+    );
+    if (authConfigResponse.isErr()) {
+      runInAction(() => (this.hasAPIError = true));
+
+      /*
+       * `fetch` only retries on network failures and gateway timeouts, so a
+       * server-side error here would leave the client stuck on the connection
+       * screen forever. Retry on our own to recover once the server is back.
+       */
+      setTimeout(() => void this.initAuth(), FETCH_RETRY_TIMER);
+      return;
+    }
+
+    runInAction(
+      () => (this.authMethods = authConfigResponse.data.payload.methods),
+    );
+
+    if (this.isDesktop) {
+      // refreshToken() logs in with the desktop token, see below
+      if ((await this.refreshToken()).isOk()) {
+        runInAction(() => (this.isLoggedIn = true));
+      }
+    } else if (Cookies.get('accessToken') !== undefined) {
+      // If access token has been set previously, attempt to refresh token
+      const refreshResult = await this.refreshToken();
+
+      if (refreshResult.isOk()) {
+        runInAction(() => (this.isLoggedIn = true));
+      } else if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
+        /*
+         * Redirect to OpenID login if existing auth token is invalid, auth via
+         * OpenID is enabled, and the user has previously logged in via OpenID.
+         */
+        this.loginWithOpenId();
+        return;
+      }
+    }
+
+    runInAction(() => (this.isReady = true));
+  }
+
+  private connectSubscriptions() {
+    for (const [, subscription] of this.subscriptions) {
+      this.connectSubscription(subscription);
+    }
+  }
+
+  private disconnectSubscriptions() {
+    for (const [, subscription] of this.subscriptions) {
+      subscription.socket?.close();
+    }
+  }
+
+  /**
+   * Creates a socket and registers callbacks for a given subscription.
+   * @param subscription
+   * @private
+   */
+  private connectSubscription(subscription: Subscription) {
+    if (subscription.isAnonymous) {
+      try {
+        subscription.socket = io(
+          `${this.socketUrl}/${subscription.namespace}`,
+          SOCKETIO_CONFIG,
+        );
+      } catch {
+        subscription.socket?.close();
+        return;
+      }
+    } else {
+      try {
+        subscription.socket = io(
+          `${this.socketUrl}/${subscription.namespace}`,
+          {
+            ...SOCKETIO_CONFIG,
+            auth: {
+              token: this.accessToken,
+            },
+          },
+        );
+      } catch {
+        subscription.socket?.close();
+        return;
+      }
+    }
+
+    subscription.socket.on('connect', () => {
+      console.log(`[SOCK] Connected to ns ${subscription.namespace}`);
+      runInAction(() => (this.hasSocketError = false));
+
+      subscription.onConnectCallbacks.forEach(callback => callback());
+    });
+
+    subscription.socket.on('disconnect', () => {
+      console.log(`[SOCK] Disconnected from ns ${subscription.namespace}`);
+
+      subscription.onDisconnectCallbacks.forEach(callback => callback());
+    });
+
+    subscription.socket.on('connect_error', e => {
+      if (e.message === 'Invalid Token') {
+        void this.refreshToken().then(result => {
+          if (result.isOk()) {
+            // Retry socket subscription if token was refreshed successfully
+            this.connectSubscription(subscription);
+          } else {
+            if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
+              this.loginWithOpenId();
+            }
+          }
+        });
+
+        return;
+      }
+
+      if (e.message === 'Invalid namespace') {
+        console.warn(
+          '[SOCK] Tried to connect to invalid namespace:',
+          subscription.namespace,
+        );
+
+        subscription.socket?.disconnect();
+        setTimeout(() => {
+          subscription.socket?.connect();
+        }, INVALID_NAMESPACE_RETRY_TIMER);
+
+        return;
+      }
+
+      runInAction(() => (this.hasSocketError = true));
+      console.error(
+        '[SOCK] Socket Error:',
+        e,
+        'namespace:',
+        subscription.namespace,
+      );
+    });
+
+    subscription.socket.on('backlog', (data: unknown) => {
+      const items = data instanceof ArrayBuffer ? [data] : (data as unknown[]);
+      for (const msg of items) {
+        subscription.onDataCallbacks.forEach(cb => cb(msg));
+      }
+    });
+
+    subscription.socket.on('data', (data: unknown) => {
+      subscription.onDataCallbacks.forEach(cb => cb(data));
+    });
+
+    // subscription.onDataCallbacks.forEach(callback => {
+    //   subscription.socket!.on('backlog', data => {
+    //     if (data instanceof ArrayBuffer) {
+    //       callback(data);
+    //     } else {
+    //       for (const msg of data) callback(msg);
+    //     }
+    //   });
+    //   subscription.socket!.on('data', callback);
+    // });
+  }
+
+  /**
+   * Sets the auth user based on the access token.
+   */
+  @action
+  private processAccessToken(accessToken: string) {
+    try {
+      const tokenData = JSON.parse(atob(accessToken.split('.')[1]));
+      this.accessToken = accessToken;
+      this.authUser = {
+        id: tokenData.id,
+        name: tokenData.id,
+        isAdmin: tokenData.isAdmin,
+      };
+    } catch {
+      console.error('Failed to parse access token. Logging out.');
+      this.logout();
+    }
+  }
+
+  /**
+   * Refreshes the access token for the Antimony API.
+   *
+   * @returns Ok<null> if the refreshing was successful.
+   */
+  private async refreshToken(): Promise<Result<null>> {
+    // Make sure only one promise to refresh the token is running at a time
+    if (this.refreshTokenPromise === null) {
+      this.refreshTokenPromise = (
+        this.isDesktop ? this.loginDesktop() : this.refreshFromCookie()
+      ).finally(() => (this.refreshTokenPromise = null));
+    }
+
+    return this.refreshTokenPromise;
+  }
+
+  // Gets a new access token with the refresh token cookie
+  private async refreshFromCookie(): Promise<Result<null>> {
+    const response = await fetchResource(
+      this.apiUrl + '/users/login/refresh',
+      'GET',
+    );
+    if (!response || response.status !== 200) {
+      return Result.createErr({code: -1, message: 'Unauthorized'});
+    }
+
+    this.processAccessToken(Cookies.get('accessToken')!);
+    return Result.createOk(null);
+  }
+
+  // Logs in with the desktop app's token, the access token comes in the response
+  private async loginDesktop(): Promise<Result<null>> {
+    const response = await fetchResource(
+      this.apiUrl + '/users/login/desktop',
+      'POST',
+      {token: this.desktopToken},
+      {'Content-Type': 'application/json'},
+    );
+    if (!response || response.status !== 200) {
+      return Result.createErr({code: -1, message: 'Unauthorized'});
+    }
+
+    const {payload} = (await response.json()) as {payload: string};
+    this.processAccessToken(payload);
+    return Result.createOk(null);
   }
 }

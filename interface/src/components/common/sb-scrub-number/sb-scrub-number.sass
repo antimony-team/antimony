@@ -1,0 +1,36 @@
+.sb-scrub-number
+  display: inline-flex
+  align-items: center
+  gap: 4px
+  height: 30px
+  padding: 0 8px
+  box-sizing: border-box
+  border: 1px solid var(--border)
+  border-radius: 7px
+  background-color: var(--surface-inset)
+  color: var(--text)
+  cursor: ns-resize
+
+  &.active, &.editing
+    border-color: var(--accent)
+
+  &.editing
+    cursor: text
+
+  &.disabled
+    color: var(--text-faint)
+    cursor: default
+
+  .material-symbols-outlined
+    font-size: 16px
+    color: var(--text-muted)
+
+  .p-inputnumber-input
+    width: auto
+    padding: 0
+    border: 0
+    background: transparent
+    color: inherit
+    font-size: 12px
+    font-variant-numeric: tabular-nums
+    cursor: inherit
