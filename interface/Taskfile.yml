@@ -137,7 +137,7 @@ tasks:
       - touch dist/.built-electron
 
   package-electron-linux:
-    desc: Package the desktop app as AppImages for x64 and arm64 into release/
+    desc: Package Antimony Desktop as AppImage, .deb and .rpm for x64 and arm64 into release/
     platforms:
       - linux
     deps:
@@ -149,6 +149,8 @@ tasks:
       - package.json
     generates:
       - release/*.AppImage
+      - release/*.deb
+      - release/*.rpm
     cmds:
       - yarn electron-builder --linux --config electron/electron-builder.yml {{.CLI_ARGS}}
 

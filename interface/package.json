@@ -1,5 +1,7 @@
 {
   "name": "antimony-interface",
+  "description": "Design, deploy and operate containerlab network labs",
+  "homepage": "https://antimony.run",
   "packageManager": "yarn@1.22.22",
   "author": {
     "name": "Kian Gribi",
