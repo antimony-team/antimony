@@ -19,6 +19,25 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/clab-schema/annotations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Returns the JSON schema to validate topology annotations",
+                "responses": {
+                    "200": {
+                        "description": "The schema as JSON object",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-any"
+                        }
+                    }
+                }
+            }
+        },
         "/collections": {
             "get": {
                 "security": [
@@ -37,7 +56,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_collection_CollectionOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_transport_CollectionOut"
                         }
                     },
                     "401": {
@@ -227,7 +246,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_serverconfig_ServerConfig"
                         }
                     },
                     "401": {
@@ -299,7 +318,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_lab_LabOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_transport_LabOut"
                         }
                     },
                     "401": {
@@ -383,7 +402,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-lab_LabOut"
+                            "$ref": "#/definitions/utils.OkResponse-transport_LabOut"
                         }
                     },
                     "401": {
@@ -550,7 +569,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-array_topology_TopologyOut"
+                            "$ref": "#/definitions/utils.OkResponse-array_transport_TopologyOut"
                         }
                     },
                     "401": {
@@ -634,7 +653,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-topology_TopologyOut"
+                            "$ref": "#/definitions/utils.OkResponse-transport_TopologyOut"
                         }
                     },
                     "401": {
@@ -929,7 +948,63 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/login/config": {
+        "/users": {
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Create a non-admin native user (DEVELOPMENT MODE ONLY)",
+                "parameters": [
+                    {
+                        "description": "The user",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.NativeUserIn"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ID of the newly created user",
+                        "schema": {
+                            "$ref": "#/definitions/utils.OkResponse-string"
+                        }
+                    },
+                    "400": {
+                        "description": "The credentials were empty or the username is taken",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "The user isn't authorized"
+                    },
+                    "403": {
+                        "description": "The user is not an admin",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "498": {
+                        "description": "The provided access token is not valid"
+                    }
+                }
+            }
+        },
+        "/users/login/auth-config": {
             "get": {
                 "consumes": [
                     "application/json"
@@ -945,8 +1020,47 @@ const docTemplate = `{
                     "200": {
                         "description": "The authentication config of the server",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                            "$ref": "#/definitions/utils.OkResponse-user_AuthConfigOut"
                         }
+                    }
+                }
+            }
+        },
+        "/users/login/desktop": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Authenticate the desktop app with its desktop token. Returns the access token instead of setting cookies.",
+                "parameters": [
+                    {
+                        "description": "The desktop token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.DesktopTokenIn"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The new access token of the user",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "The request body was invalid"
+                    },
+                    "401": {
+                        "description": "Authentication via desktop token is disabled"
+                    },
+                    "403": {
+                        "description": "The provided desktop token was invalid"
                     }
                 }
             }
@@ -1011,9 +1125,9 @@ const docTemplate = `{
                 "summary": "Refresh the access token",
                 "responses": {
                     "200": {
-                        "description": "The authentication config of the server",
+                        "description": "The new access token of the user",
                         "schema": {
-                            "$ref": "#/definitions/utils.OkResponse-auth_AuthConfig"
+                            "type": "string"
                         }
                     },
                     "401": {
@@ -1040,36 +1154,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "auth.AuthConfig": {
-            "type": "object",
-            "properties": {
-                "native": {
-                    "$ref": "#/definitions/auth.NativeAuthConfig"
-                },
-                "openId": {
-                    "$ref": "#/definitions/auth.OpenIdAuthConfig"
-                }
-            }
-        },
-        "auth.NativeAuthConfig": {
-            "type": "object",
-            "properties": {
-                "allowEmpty": {
-                    "type": "boolean"
-                },
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "auth.OpenIdAuthConfig": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
         "collection.CollectionIn": {
             "type": "object",
             "required": [
@@ -1103,25 +1187,18 @@ const docTemplate = `{
                 }
             }
         },
-        "collection.CollectionOut": {
-            "type": "object",
-            "properties": {
-                "creator": {
-                    "$ref": "#/definitions/user.UserOut"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "publicDeploy": {
-                    "type": "boolean"
-                },
-                "publicWrite": {
-                    "type": "boolean"
-                }
-            }
+        "config.AuthMethod": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "openid",
+                "desktop"
+            ],
+            "x-enum-varnames": [
+                "authAdmin",
+                "authOpenID",
+                "authDesktop"
+            ]
         },
         "deployment.NodeInterface": {
             "type": "object",
@@ -1141,97 +1218,114 @@ const docTemplate = `{
             }
         },
         "deployment.NodeState": {
-            "type": "string",
+            "type": "integer",
             "enum": [
-                "starting",
-                "running",
-                "exited"
+                0,
+                1,
+                2,
+                3
             ],
             "x-enum-varnames": [
+                "stopped",
                 "starting",
                 "running",
-                "exited"
+                "stopping"
             ]
         },
         "device.DeviceConfig": {
             "type": "object",
             "properties": {
-                "interfacePattern": {
-                    "type": "string"
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "interfaceStart": {
-                    "type": "integer"
+                "interfaces": {
+                    "description": "Interfaces name the same interfaces, new interfaces are named after the first one",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/device.InterfacePattern"
+                    }
                 },
                 "kind": {
                     "type": "string"
+                },
+                "kindAliases": {
+                    "description": "KindAliases are the other names containerlab accepts for the kind, e.g. srl",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "type": "string"
                 }
             }
         },
-        "lab.InstanceNode": {
+        "device.InterfacePattern": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "integer"
+                }
+            }
+        },
+        "instance.InstanceNode": {
             "type": "object",
             "properties": {
                 "canRestart": {
+                    "description": "CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.",
                     "type": "boolean"
                 },
                 "containerId": {
+                    "description": "ContainerId is the globally unique identifier for the container running the node.\n\nWith containerlab as the deployment provider, this is the node's docker container ID.\nWith clabernetes as the deployment provider, this is the node's pod UID.\n\nLeft empty if the node is currently not running.",
                     "type": "string"
                 },
                 "containerName": {
+                    "description": "ContainerName is the name of the container running the node. Currently unused outside of display purposes.\n\nWith containerlab as the deployment provider, this is the node's docker container name.\nWith clabernetes as the deployment provider, this is equal to the node's name.\n\nLeft empty if the node is currently not running.",
                     "type": "string"
                 },
                 "interfaces": {
+                    "description": "Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.\nLeft empty if the node is currently not running.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/deployment.NodeInterface"
                     }
                 },
                 "ipv4": {
+                    "description": "IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.\n\nLeft empty if the node is currently not running or there is no IPv4 or IPv6 address assigned.",
                     "type": "string"
                 },
                 "ipv6": {
                     "type": "string"
                 },
-                "kind": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "state": {
-                    "$ref": "#/definitions/deployment.NodeState"
-                }
-            }
-        },
-        "lab.InstanceOut": {
-            "type": "object",
-            "properties": {
-                "deployed": {
-                    "type": "string"
-                },
-                "latestStateChange": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "nodes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/lab.InstanceNode"
-                    }
-                },
-                "recovered": {
+                "isReady": {
+                    "description": "IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.\nThis is initially set to false and set to true once the node's startup listener succeeded.",
                     "type": "boolean"
                 },
+                "kind": {
+                    "description": "Kind is the type of the node as defined in the topology file.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the name of the node as defined in the topology file.",
+                    "type": "string"
+                },
                 "state": {
-                    "$ref": "#/definitions/lab.InstanceState"
+                    "description": "State is the current state of the node.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/deployment.NodeState"
+                        }
+                    ]
                 }
             }
         },
-        "lab.InstanceState": {
+        "instance.InstanceState": {
             "type": "integer",
             "enum": [
                 0,
@@ -1253,13 +1347,13 @@ const docTemplate = `{
         "lab.LabIn": {
             "type": "object",
             "required": [
-                "endTime",
                 "name",
                 "startTime",
                 "topologyId"
             ],
             "properties": {
                 "endTime": {
+                    "description": "EndTime is deliberately optional. A lab created without one runs indefinitely.",
                     "type": "string"
                 },
                 "name": {
@@ -1273,56 +1367,88 @@ const docTemplate = `{
                 }
             }
         },
-        "lab.LabOut": {
+        "policy.Finding": {
             "type": "object",
             "properties": {
-                "collectionId": {
+                "impact": {
+                    "$ref": "#/definitions/policy.Impact"
+                },
+                "message": {
                     "type": "string"
                 },
-                "creator": {
-                    "$ref": "#/definitions/user.UserOut"
-                },
-                "endTime": {
+                "path": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "string"
-                },
-                "instance": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/lab.InstanceOut"
-                        }
-                    ],
-                    "x-nullable": true
-                },
-                "instanceName": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "name": {
-                    "type": "string"
-                },
-                "startTime": {
-                    "type": "string"
-                },
-                "topologyDefinition": {
-                    "type": "string"
-                },
-                "topologyId": {
-                    "type": "string"
+                "ruleId": {
+                    "$ref": "#/definitions/policy.RuleId"
                 }
             }
         },
-        "serverConfig.ServerConfigOut": {
-            "type": "object",
-            "properties": {
-                "capture": {
-                    "$ref": "#/definitions/serverConfig.captureConfigOut"
-                }
-            }
+        "policy.Impact": {
+            "type": "string",
+            "enum": [
+                "deploy",
+                "shell",
+                "unreviewed"
+            ],
+            "x-enum-varnames": [
+                "impactDeploy",
+                "impactShell",
+                "impactUnreviewed"
+            ]
         },
-        "serverConfig.captureConfigOut": {
+        "policy.RuleId": {
+            "type": "string",
+            "enum": [
+                "netlab",
+                "unreviewed-field",
+                "go-template",
+                "env-expansion",
+                "mgmt",
+                "prefix",
+                "settings",
+                "env-files",
+                "host-kind",
+                "image-not-allowed",
+                "privileged",
+                "privileges",
+                "host-namespace",
+                "kernel-settings",
+                "runtime",
+                "host-ports",
+                "volumes",
+                "static-mgmt-address",
+                "host-exec",
+                "remote-file",
+                "foreign-file",
+                "host-link"
+            ],
+            "x-enum-varnames": [
+                "ruleNetlab",
+                "ruleUnreviewedField",
+                "ruleGoTemplate",
+                "ruleEnvExpansion",
+                "ruleMgmt",
+                "rulePrefix",
+                "ruleSettings",
+                "ruleEnvFiles",
+                "ruleHostKind",
+                "ruleImageNotAllowed",
+                "rulePrivileged",
+                "rulePrivileges",
+                "ruleHostNamespace",
+                "ruleKernelSettings",
+                "ruleRuntime",
+                "ruleHostPorts",
+                "ruleVolumes",
+                "ruleStaticMgmtAddress",
+                "ruleHostExec",
+                "ruleRemoteFile",
+                "ruleForeignFile",
+                "ruleHostLink"
+            ]
+        },
+        "serverconfig.CaptureConfig": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -1333,9 +1459,39 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "serverconfig.DeploymentConfig": {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "serverconfig.SSHConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
                 },
                 "port": {
                     "type": "integer"
+                }
+            }
+        },
+        "serverconfig.ServerConfig": {
+            "type": "object",
+            "properties": {
+                "capture": {
+                    "$ref": "#/definitions/serverconfig.CaptureConfig"
+                },
+                "deployment": {
+                    "$ref": "#/definitions/serverconfig.DeploymentConfig"
+                },
+                "ssh": {
+                    "$ref": "#/definitions/serverconfig.SSHConfig"
                 }
             }
         },
@@ -1354,7 +1510,30 @@ const docTemplate = `{
                 }
             }
         },
-        "topology.BindFileOut": {
+        "topology.TopologyIn": {
+            "type": "object",
+            "required": [
+                "annotations",
+                "collectionId",
+                "definition",
+                "syncUrl"
+            ],
+            "properties": {
+                "annotations": {
+                    "type": "string"
+                },
+                "collectionId": {
+                    "type": "string"
+                },
+                "definition": {
+                    "type": "string"
+                },
+                "syncUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "transport.BindFileOut": {
             "type": "object",
             "properties": {
                 "content": {
@@ -1371,39 +1550,109 @@ const docTemplate = `{
                 }
             }
         },
-        "topology.TopologyIn": {
+        "transport.CollectionOut": {
             "type": "object",
-            "required": [
-                "collectionId",
-                "definition",
-                "syncUrl"
-            ],
+            "properties": {
+                "creator": {
+                    "$ref": "#/definitions/transport.UserOut"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "publicDeploy": {
+                    "type": "boolean"
+                },
+                "publicWrite": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "transport.InstanceOut": {
+            "type": "object",
+            "properties": {
+                "deployed": {
+                    "type": "string"
+                },
+                "isRecovered": {
+                    "type": "boolean"
+                },
+                "latestStateChange": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/instance.InstanceNode"
+                    }
+                },
+                "state": {
+                    "$ref": "#/definitions/instance.InstanceState"
+                }
+            }
+        },
+        "transport.LabOut": {
+            "type": "object",
             "properties": {
                 "collectionId": {
                     "type": "string"
                 },
-                "definition": {
+                "creator": {
+                    "$ref": "#/definitions/transport.UserOut"
+                },
+                "endTime": {
                     "type": "string"
                 },
-                "syncUrl": {
+                "id": {
+                    "type": "string"
+                },
+                "instance": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/transport.InstanceOut"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string"
+                },
+                "startTime": {
+                    "type": "string"
+                },
+                "topologyAnnotations": {
+                    "type": "string"
+                },
+                "topologyDefinition": {
+                    "type": "string"
+                },
+                "topologyId": {
                     "type": "string"
                 }
             }
         },
-        "topology.TopologyOut": {
+        "transport.TopologyOut": {
             "type": "object",
             "properties": {
+                "annotations": {
+                    "type": "string"
+                },
                 "bindFiles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/topology.BindFileOut"
+                        "$ref": "#/definitions/transport.BindFileOut"
                     }
                 },
                 "collectionId": {
                     "type": "string"
                 },
                 "creator": {
-                    "$ref": "#/definitions/user.UserOut"
+                    "$ref": "#/definitions/transport.UserOut"
                 },
                 "definition": {
                     "type": "string"
@@ -1414,13 +1663,45 @@ const docTemplate = `{
                 "lastDeployFailed": {
                     "type": "boolean"
                 },
+                "policyFindings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policy.Finding"
+                    }
+                },
                 "syncUrl": {
                     "type": "string"
                 }
             }
         },
+        "transport.UserOut": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.AuthConfigOut": {
+            "type": "object",
+            "properties": {
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/config.AuthMethod"
+                    }
+                }
+            }
+        },
         "user.CredentialsIn": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "password": {
                     "type": "string"
@@ -1430,13 +1711,34 @@ const docTemplate = `{
                 }
             }
         },
-        "user.UserOut": {
+        "user.DesktopTokenIn": {
             "type": "object",
+            "required": [
+                "token"
+            ],
             "properties": {
-                "id": {
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.NativeUserIn": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "collections": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "password": {
                     "type": "string"
                 },
-                "name": {
+                "username": {
                     "type": "string"
                 }
             }
@@ -1458,17 +1760,6 @@ const docTemplate = `{
                 "payload": {}
             }
         },
-        "utils.OkResponse-array_collection_CollectionOut": {
-            "type": "object",
-            "properties": {
-                "payload": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/collection.CollectionOut"
-                    }
-                }
-            }
-        },
         "utils.OkResponse-array_device_DeviceConfig": {
             "type": "object",
             "properties": {
@@ -1480,52 +1771,47 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-array_lab_LabOut": {
+        "utils.OkResponse-array_serverconfig_ServerConfig": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/lab.LabOut"
+                        "$ref": "#/definitions/serverconfig.ServerConfig"
                     }
                 }
             }
         },
-        "utils.OkResponse-array_serverConfig_ServerConfigOut": {
+        "utils.OkResponse-array_transport_CollectionOut": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/serverConfig.ServerConfigOut"
+                        "$ref": "#/definitions/transport.CollectionOut"
                     }
                 }
             }
         },
-        "utils.OkResponse-array_topology_TopologyOut": {
+        "utils.OkResponse-array_transport_LabOut": {
             "type": "object",
             "properties": {
                 "payload": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/topology.TopologyOut"
+                        "$ref": "#/definitions/transport.LabOut"
                     }
                 }
             }
         },
-        "utils.OkResponse-auth_AuthConfig": {
+        "utils.OkResponse-array_transport_TopologyOut": {
             "type": "object",
             "properties": {
                 "payload": {
-                    "$ref": "#/definitions/auth.AuthConfig"
-                }
-            }
-        },
-        "utils.OkResponse-lab_LabOut": {
-            "type": "object",
-            "properties": {
-                "payload": {
-                    "$ref": "#/definitions/lab.LabOut"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/transport.TopologyOut"
+                    }
                 }
             }
         },
@@ -1537,11 +1823,27 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.OkResponse-topology_TopologyOut": {
+        "utils.OkResponse-transport_LabOut": {
             "type": "object",
             "properties": {
                 "payload": {
-                    "$ref": "#/definitions/topology.TopologyOut"
+                    "$ref": "#/definitions/transport.LabOut"
+                }
+            }
+        },
+        "utils.OkResponse-transport_TopologyOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/transport.TopologyOut"
+                }
+            }
+        },
+        "utils.OkResponse-user_AuthConfigOut": {
+            "type": "object",
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/user.AuthConfigOut"
                 }
             }
         }

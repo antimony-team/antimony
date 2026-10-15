@@ -1,24 +1,5 @@
 basePath: /
 definitions:
-  auth.AuthConfig:
-    properties:
-      native:
-        $ref: '#/definitions/auth.NativeAuthConfig'
-      openId:
-        $ref: '#/definitions/auth.OpenIdAuthConfig'
-    type: object
-  auth.NativeAuthConfig:
-    properties:
-      allowEmpty:
-        type: boolean
-      enabled:
-        type: boolean
-    type: object
-  auth.OpenIdAuthConfig:
-    properties:
-      enabled:
-        type: boolean
-    type: object
   collection.CollectionIn:
     properties:
       name:
@@ -41,19 +22,16 @@ definitions:
       publicWrite:
         type: boolean
     type: object
-  collection.CollectionOut:
-    properties:
-      creator:
-        $ref: '#/definitions/user.UserOut'
-      id:
-        type: string
-      name:
-        type: string
-      publicDeploy:
-        type: boolean
-      publicWrite:
-        type: boolean
-    type: object
+  config.AuthMethod:
+    enum:
+    - admin
+    - openid
+    - desktop
+    type: string
+    x-enum-varnames:
+    - authAdmin
+    - authOpenID
+    - authDesktop
   deployment.NodeInterface:
     properties:
       address:
@@ -67,66 +45,102 @@ definitions:
     type: object
   deployment.NodeState:
     enum:
-    - starting
-    - running
-    - exited
-    type: string
+    - 0
+    - 1
+    - 2
+    - 3
+    type: integer
     x-enum-varnames:
+    - stopped
     - starting
     - running
-    - exited
+    - stopping
   device.DeviceConfig:
     properties:
-      interfacePattern:
-        type: string
-      interfaceStart:
-        type: integer
+      images:
+        items:
+          type: string
+        type: array
+      interfaces:
+        description: Interfaces name the same interfaces, new interfaces are named
+          after the first one
+        items:
+          $ref: '#/definitions/device.InterfacePattern'
+        type: array
       kind:
         type: string
+      kindAliases:
+        description: KindAliases are the other names containerlab accepts for the
+          kind, e.g. srl
+        items:
+          type: string
+        type: array
       name:
         type: string
     type: object
-  lab.InstanceNode:
+  device.InterfacePattern:
+    properties:
+      pattern:
+        type: string
+      start:
+        type: integer
+    type: object
+  instance.InstanceNode:
     properties:
       canRestart:
+        description: CanRestart whether the node can be restarted. Determined by the
+          node's kind and the kind config file.
         type: boolean
       containerId:
+        description: |-
+          ContainerId is the globally unique identifier for the container running the node.
+
+          With containerlab as the deployment provider, this is the node's docker container ID.
+          With clabernetes as the deployment provider, this is the node's pod UID.
+
+          Left empty if the node is currently not running.
         type: string
       containerName:
+        description: |-
+          ContainerName is the name of the container running the node. Currently unused outside of display purposes.
+
+          With containerlab as the deployment provider, this is the node's docker container name.
+          With clabernetes as the deployment provider, this is equal to the node's name.
+
+          Left empty if the node is currently not running.
         type: string
       interfaces:
+        description: |-
+          Interfaces are the network interfaces of the node. Fetched after the node's startup listener succeeded.
+          Left empty if the node is currently not running.
         items:
           $ref: '#/definitions/deployment.NodeInterface'
         type: array
       ipv4:
+        description: |-
+          IPv4 and IPv6 are the management IP addresses assigned by the deployment backend.
+
+          Left empty if the node is currently not running or there is no IPv4 or IPv6 address assigned.
         type: string
       ipv6:
         type: string
-      kind:
-        type: string
-      name:
-        type: string
-      state:
-        $ref: '#/definitions/deployment.NodeState'
-    type: object
-  lab.InstanceOut:
-    properties:
-      deployed:
-        type: string
-      latestStateChange:
-        type: string
-      name:
-        type: string
-      nodes:
-        items:
-          $ref: '#/definitions/lab.InstanceNode'
-        type: array
-      recovered:
+      isReady:
+        description: |-
+          IsReady is true if the node and its running software (e.g., SRLinux) are fully running and ready to be used.
+          This is initially set to false and set to true once the node's startup listener succeeded.
         type: boolean
+      kind:
+        description: Kind is the type of the node as defined in the topology file.
+        type: string
+      name:
+        description: Name is the name of the node as defined in the topology file.
+        type: string
       state:
-        $ref: '#/definitions/lab.InstanceState'
+        allOf:
+        - $ref: '#/definitions/deployment.NodeState'
+        description: State is the current state of the node.
     type: object
-  lab.InstanceState:
+  instance.InstanceState:
     enum:
     - 0
     - 1
@@ -145,6 +159,8 @@ definitions:
   lab.LabIn:
     properties:
       endTime:
+        description: EndTime is deliberately optional. A lab created without one runs
+          indefinitely.
         type: string
       name:
         type: string
@@ -153,43 +169,80 @@ definitions:
       topologyId:
         type: string
     required:
-    - endTime
     - name
     - startTime
     - topologyId
     type: object
-  lab.LabOut:
+  policy.Finding:
     properties:
-      collectionId:
+      impact:
+        $ref: '#/definitions/policy.Impact'
+      message:
         type: string
-      creator:
-        $ref: '#/definitions/user.UserOut'
-      endTime:
+      path:
         type: string
-      id:
-        type: string
-      instance:
-        allOf:
-        - $ref: '#/definitions/lab.InstanceOut'
-        x-nullable: true
-      instanceName:
-        type: string
-        x-nullable: true
-      name:
-        type: string
-      startTime:
-        type: string
-      topologyDefinition:
-        type: string
-      topologyId:
-        type: string
+      ruleId:
+        $ref: '#/definitions/policy.RuleId'
     type: object
-  serverConfig.ServerConfigOut:
-    properties:
-      capture:
-        $ref: '#/definitions/serverConfig.captureConfigOut'
-    type: object
-  serverConfig.captureConfigOut:
+  policy.Impact:
+    enum:
+    - deploy
+    - shell
+    - unreviewed
+    type: string
+    x-enum-varnames:
+    - impactDeploy
+    - impactShell
+    - impactUnreviewed
+  policy.RuleId:
+    enum:
+    - netlab
+    - unreviewed-field
+    - go-template
+    - env-expansion
+    - mgmt
+    - prefix
+    - settings
+    - env-files
+    - host-kind
+    - image-not-allowed
+    - privileged
+    - privileges
+    - host-namespace
+    - kernel-settings
+    - runtime
+    - host-ports
+    - volumes
+    - static-mgmt-address
+    - host-exec
+    - remote-file
+    - foreign-file
+    - host-link
+    type: string
+    x-enum-varnames:
+    - ruleNetlab
+    - ruleUnreviewedField
+    - ruleGoTemplate
+    - ruleEnvExpansion
+    - ruleMgmt
+    - rulePrefix
+    - ruleSettings
+    - ruleEnvFiles
+    - ruleHostKind
+    - ruleImageNotAllowed
+    - rulePrivileged
+    - rulePrivileges
+    - ruleHostNamespace
+    - ruleKernelSettings
+    - ruleRuntime
+    - ruleHostPorts
+    - ruleVolumes
+    - ruleStaticMgmtAddress
+    - ruleHostExec
+    - ruleRemoteFile
+    - ruleForeignFile
+    - ruleHostLink
+  serverconfig.CaptureConfig:
     properties:
       enabled:
         type: boolean
@@ -197,8 +250,27 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  serverconfig.DeploymentConfig:
+    properties:
+      provider:
+        type: string
+    type: object
+  serverconfig.SSHConfig:
+    properties:
+      enabled:
+        type: boolean
       port:
         type: integer
+    type: object
+  serverconfig.ServerConfig:
+    properties:
+      capture:
+        $ref: '#/definitions/serverconfig.CaptureConfig'
+      deployment:
+        $ref: '#/definitions/serverconfig.DeploymentConfig'
+      ssh:
+        $ref: '#/definitions/serverconfig.SSHConfig'
     type: object
   topology.BindFileIn:
     properties:
@@ -210,7 +282,23 @@ definitions:
     - content
     - filePath
     type: object
-  topology.BindFileOut:
+  topology.TopologyIn:
+    properties:
+      annotations:
+        type: string
+      collectionId:
+        type: string
+      definition:
+        type: string
+      syncUrl:
+        type: string
+    required:
+    - annotations
+    - collectionId
+    - definition
+    - syncUrl
+    type: object
+  transport.BindFileOut:
     properties:
       content:
         type: string
@@ -221,37 +309,99 @@ definitions:
       topologyId:
         type: string
     type: object
-  topology.TopologyIn:
+  transport.CollectionOut:
+    properties:
+      creator:
+        $ref: '#/definitions/transport.UserOut'
+      id:
+        type: string
+      name:
+        type: string
+      publicDeploy:
+        type: boolean
+      publicWrite:
+        type: boolean
+    type: object
+  transport.InstanceOut:
+    properties:
+      deployed:
+        type: string
+      isRecovered:
+        type: boolean
+      latestStateChange:
+        type: string
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/instance.InstanceNode'
+        type: array
+      state:
+        $ref: '#/definitions/instance.InstanceState'
+    type: object
+  transport.LabOut:
     properties:
       collectionId:
         type: string
-      definition:
+      creator:
+        $ref: '#/definitions/transport.UserOut'
+      endTime:
         type: string
-      syncUrl:
+      id:
         type: string
-    required:
-    - collectionId
-    - definition
-    - syncUrl
+      instance:
+        allOf:
+        - $ref: '#/definitions/transport.InstanceOut'
+        x-nullable: true
+      name:
+        type: string
+      startTime:
+        type: string
+      topologyAnnotations:
+        type: string
+      topologyDefinition:
+        type: string
+      topologyId:
+        type: string
     type: object
-  topology.TopologyOut:
+  transport.TopologyOut:
     properties:
+      annotations:
+        type: string
       bindFiles:
         items:
-          $ref: '#/definitions/topology.BindFileOut'
+          $ref: '#/definitions/transport.BindFileOut'
         type: array
       collectionId:
         type: string
       creator:
-        $ref: '#/definitions/user.UserOut'
+        $ref: '#/definitions/transport.UserOut'
       definition:
         type: string
       id:
         type: string
       lastDeployFailed:
         type: boolean
+      policyFindings:
+        items:
+          $ref: '#/definitions/policy.Finding'
+        type: array
       syncUrl:
         type: string
+    type: object
+  transport.UserOut:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  user.AuthConfigOut:
+    properties:
+      methods:
+        items:
+          $ref: '#/definitions/config.AuthMethod'
+        type: array
     type: object
   user.CredentialsIn:
     properties:
@@ -259,13 +409,30 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - password
+    - username
     type: object
-  user.UserOut:
+  user.DesktopTokenIn:
     properties:
-      id:
+      token:
         type: string
-      name:
+    required:
+    - token
+    type: object
+  user.NativeUserIn:
+    properties:
+      collections:
+        items:
+          type: string
+        type: array
+      password:
         type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
     type: object
   utils.ErrorResponse:
     properties:
@@ -278,13 +445,6 @@ definitions:
     properties:
       payload: {}
     type: object
-  utils.OkResponse-array_collection_CollectionOut:
-    properties:
-      payload:
-        items:
-          $ref: '#/definitions/collection.CollectionOut'
-        type: array
-    type: object
   utils.OkResponse-array_device_DeviceConfig:
     properties:
       payload:
@@ -292,46 +452,53 @@ definitions:
           $ref: '#/definitions/device.DeviceConfig'
         type: array
     type: object
-  utils.OkResponse-array_lab_LabOut:
+  utils.OkResponse-array_serverconfig_ServerConfig:
     properties:
       payload:
         items:
-          $ref: '#/definitions/lab.LabOut'
+          $ref: '#/definitions/serverconfig.ServerConfig'
         type: array
     type: object
-  utils.OkResponse-array_serverConfig_ServerConfigOut:
+  utils.OkResponse-array_transport_CollectionOut:
     properties:
       payload:
         items:
-          $ref: '#/definitions/serverConfig.ServerConfigOut'
+          $ref: '#/definitions/transport.CollectionOut'
         type: array
     type: object
-  utils.OkResponse-array_topology_TopologyOut:
+  utils.OkResponse-array_transport_LabOut:
     properties:
       payload:
         items:
-          $ref: '#/definitions/topology.TopologyOut'
+          $ref: '#/definitions/transport.LabOut'
         type: array
     type: object
-  utils.OkResponse-auth_AuthConfig:
+  utils.OkResponse-array_transport_TopologyOut:
     properties:
       payload:
-        $ref: '#/definitions/auth.AuthConfig'
-    type: object
-  utils.OkResponse-lab_LabOut:
-    properties:
-      payload:
-        $ref: '#/definitions/lab.LabOut'
+        items:
+          $ref: '#/definitions/transport.TopologyOut'
+        type: array
     type: object
   utils.OkResponse-string:
     properties:
       payload:
         type: string
     type: object
-  utils.OkResponse-topology_TopologyOut:
+  utils.OkResponse-transport_LabOut:
     properties:
       payload:
-        $ref: '#/definitions/topology.TopologyOut'
+        $ref: '#/definitions/transport.LabOut'
+    type: object
+  utils.OkResponse-transport_TopologyOut:
+    properties:
+      payload:
+        $ref: '#/definitions/transport.TopologyOut'
+    type: object
+  utils.OkResponse-user_AuthConfigOut:
+    properties:
+      payload:
+        $ref: '#/definitions/user.AuthConfigOut'
     type: object
 info:
   contact:
@@ -341,6 +508,18 @@ info:
   title: Antimony API
   version: "1.0"
 paths:
+  /clab-schema/annotations:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The schema as JSON object
+          schema:
+            $ref: '#/definitions/utils.OkResponse-any'
+      summary: Returns the JSON schema to validate topology annotations
+      tags:
+      - schema
   /collections:
     get:
       produces:
@@ -349,7 +528,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_collection_CollectionOut'
+            $ref: '#/definitions/utils.OkResponse-array_transport_CollectionOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -468,7 +647,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_serverConfig_ServerConfigOut'
+            $ref: '#/definitions/utils.OkResponse-array_serverconfig_ServerConfig'
         "401":
           description: The user isn't authorized
         "403":
@@ -512,7 +691,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_lab_LabOut'
+            $ref: '#/definitions/utils.OkResponse-array_transport_LabOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -564,7 +743,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-lab_LabOut'
+            $ref: '#/definitions/utils.OkResponse-transport_LabOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -669,7 +848,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-array_topology_TopologyOut'
+            $ref: '#/definitions/utils.OkResponse-array_transport_TopologyOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -721,7 +900,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.OkResponse-topology_TopologyOut'
+            $ref: '#/definitions/utils.OkResponse-transport_TopologyOut'
         "401":
           description: The user isn't authorized
         "403":
@@ -911,7 +1090,42 @@ paths:
       summary: Update an existing bind file of a topology
       tags:
       - bindFiles
-  /users/login/config:
+  /users:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The user
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.NativeUserIn'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The ID of the newly created user
+          schema:
+            $ref: '#/definitions/utils.OkResponse-string'
+        "400":
+          description: The credentials were empty or the username is taken
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: The user isn't authorized
+        "403":
+          description: The user is not an admin
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "498":
+          description: The provided access token is not valid
+      security:
+      - BasicAuth: []
+      summary: Create a non-admin native user (DEVELOPMENT MODE ONLY)
+      tags:
+      - users
+  /users/login/auth-config:
     get:
       consumes:
       - application/json
@@ -921,8 +1135,34 @@ paths:
         "200":
           description: The authentication config of the server
           schema:
-            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+            $ref: '#/definitions/utils.OkResponse-user_AuthConfigOut'
       summary: Get the server's authentication config
+      tags:
+      - users
+  /users/login/desktop:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: The desktop token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.DesktopTokenIn'
+      responses:
+        "200":
+          description: The new access token of the user
+          schema:
+            type: string
+        "400":
+          description: The request body was invalid
+        "401":
+          description: Authentication via desktop token is disabled
+        "403":
+          description: The provided desktop token was invalid
+      summary: Authenticate the desktop app with its desktop token. Returns the access
+        token instead of setting cookies.
       tags:
       - users
   /users/login/native:
@@ -963,9 +1203,9 @@ paths:
     get:
       responses:
         "200":
-          description: The authentication config of the server
+          description: The new access token of the user
           schema:
-            $ref: '#/definitions/utils.OkResponse-auth_AuthConfig'
+            type: string
         "401":
           description: The auth token cookie is not set
         "403":

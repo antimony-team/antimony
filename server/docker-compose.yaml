@@ -8,7 +8,6 @@ services:
     shm_size: 128mb
     environment:
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_PASSWORD_SB=antimony
       - PGDATA=/var/lib/postgresql/data/pgdata
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
@@ -17,7 +16,7 @@ services:
       retries: 10
     volumes:
       - ./.db:/var/lib/postgresql/data
-      - ./test/postgres:/docker-entrypoint-initdb.d/
+      - ./test/postgres:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
   keycloak-server:

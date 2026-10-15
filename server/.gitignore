@@ -31,7 +31,6 @@ go.work.sum
 antimony.db
 .db/
 
-storage/
 run/
 build/
 docker/
@@ -39,3 +38,8 @@ docker/
 config.yml
 
 coverage/
+
+# Inputs the Go fuzzer generates, the ones worth keeping are seeds in the fuzz tests
+**/testdata/fuzz/
+
+scripts/__pycache__/

@@ -2,7 +2,6 @@ package main
 
 import (
 	"antimonyBackend/auth"
-	"antimonyBackend/capture"
 	"antimonyBackend/config"
 	"antimonyBackend/deployment"
 	_ "antimonyBackend/docs"
@@ -10,17 +9,37 @@ import (
 	"antimonyBackend/domain/device"
 	"antimonyBackend/domain/lab"
 	"antimonyBackend/domain/schema"
-	"antimonyBackend/domain/serverConfig"
-	"antimonyBackend/domain/statusMessage"
+	"antimonyBackend/domain/serverconfig"
+	"antimonyBackend/domain/statusmessage"
 	"antimonyBackend/domain/topology"
 	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
+	"antimonyBackend/runtime/commands"
+	"antimonyBackend/runtime/instance"
+	"antimonyBackend/runtime/scheduler"
+	"antimonyBackend/runtime/shell"
 	"antimonyBackend/socket"
+	"antimonyBackend/sshserver"
 	"antimonyBackend/storage"
+	collectiontransport "antimonyBackend/transport/http/collection"
+	"antimonyBackend/transport/http/cors"
+	devicetransport "antimonyBackend/transport/http/device"
+	labtransport "antimonyBackend/transport/http/lab"
+	schematransport "antimonyBackend/transport/http/schema"
+	serverconfigtransport "antimonyBackend/transport/http/serverconfig"
+	topologytransport "antimonyBackend/transport/http/topology"
+	usertransport "antimonyBackend/transport/http/user"
 	"antimonyBackend/utils"
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"slices"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -29,7 +48,7 @@ import (
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	socketio "github.com/zishang520/socket.io/socket"
+	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -44,88 +63,270 @@ import (
 
 //	@BasePath	/
 
+// shutdownTimeout is how long running HTTP requests get to finish when the server shuts down.
+const shutdownTimeout = 10 * time.Second
+
 // @securityDefinitions.basic	BasicAuth
 func main() {
 	// Load environment variables from .env file if present
 	_ = godotenv.Load()
 
+	log.SetTimeFormat("[2006-01-02 15:04:05]")
+
 	cmdArgs := utils.ParseArguments()
 	isDevMode := *cmdArgs.DevelopmentMode
 
-	log.SetTimeFormat("[2006-01-02 15:04:05]")
-
 	if isDevMode {
+		log.Warn("Antimony is starting Development mode. Do not use in production.")
+
+		// Set the umask to 0 so that lab and topology files are created with loose permissions
+		syscall.Umask(0)
+	}
+
+	if lvl, err := log.ParseLevel(os.Getenv("SB_LOG_LEVEL")); err == nil {
+		log.Info("Starting with custom log level", "level", lvl.String())
+		log.SetLevel(lvl)
+	} else if isDevMode {
+		log.Info("Starting in development mode with custopm log level", "level", "debug")
+		log.SetLevel(log.DebugLevel)
 		log.SetReportCaller(true)
 	}
 
-	antimonyConfig := config.Load(*cmdArgs.ConfigFile)
+	antimonyConfig, err := config.Load(*cmdArgs.ConfigFile)
+	if err != nil {
+		log.Error("Failed to load configuration file.", "error", err.Error())
+		return
+	}
 
-	db := connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
-
-	authManager := auth.CreateAuthManager(antimonyConfig)
-	socketManager := socket.CreateSocketManager(authManager)
-	storageManager := storage.CreateStorageManager(antimonyConfig)
-	deploymentProvider := deployment.GetProvider(antimonyConfig)
-	captureService := capture.CreateService(antimonyConfig, deploymentProvider)
-
-	statusMessageNamespace := socket.CreateOutputNamespace[statusMessage.StatusMessage](
-		socketManager, false, nil, false, nil, "status-messages",
-	)
-
+	// Infrastructure components
 	var (
-		serverConfigService = serverConfig.CreateService(antimonyConfig)
-		serverConfigHandler = serverConfig.CreateHandler(serverConfigService)
-
-		devicesService = device.CreateService(antimonyConfig)
-		devicesHandler = device.CreateHandler(devicesService)
-
-		schemaService = schema.CreateService(antimonyConfig)
-		schemaHandler = schema.CreateHandler(schemaService)
-
-		userRepository = user.CreateRepository(db)
-		userService    = user.CreateService(userRepository, authManager)
-		userHandler    = user.CreateHandler(userService)
-
-		collectionRepository = collection.CreateRepository(db)
-		collectionService    = collection.CreateService(collectionRepository, userRepository)
-		collectionHandler    = collection.CreateHandler(collectionService)
-
-		topologyRepository = topology.CreateRepository(db)
-		topologyService    = topology.CreateService(
-			topologyRepository, userRepository, collectionRepository,
-			schemaService, storageManager,
-		)
-		topologyHandler = topology.CreateHandler(topologyService)
-
-		labRepository = lab.CreateRepository(db)
-		labService    = lab.CreateService(
-			antimonyConfig, labRepository, userRepository, topologyRepository, schemaService,
-			topologyService, storageManager, socketManager, statusMessageNamespace, deploymentProvider,
-		)
-		labHandler = lab.CreateHandler(labService)
+		db                 = connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
+		authManager        = auth.CreateManager(antimonyConfig)
+		socketManager      = socket.CreateManager(authManager)
+		storageManager     = storage.CreateManager(antimonyConfig, isDevMode)
+		deploymentProvider = deployment.CreateProvider(antimonyConfig)
 	)
 
-	go labService.RunScheduler()
+	// The lab event bus allows communication of runtime and domain components with the scheduler.
+	//
+	// Supported Events:
+	//  - lab.created           -> A new lab is created and put into the deployment and destruction queues.
+	//  - lab.moved             -> A lab's start or end time has been changed, and it will be rescheduled accordingly.
+	//  - lab.deleted           -> A lab is deleted and will be removed from the deployment and destruction queues.
+	//  - lab.manually-deployed -> A lab has been manually deployed and will be moved from the deployment into the destruction queue.
+	//  - lab.restored          -> A running lab has been restored and will be added to the destruction queue.
+	labEventBus := utils.CreateEventBus[*lab.Lab]()
 
+	// Global socket namespaces
+	var (
+		statusMessageNamespace = socket.CreateOutputNamespace[statusmessage.Message](
+			socketManager, false, nil, false, nil, "status-messages",
+		)
+	)
+
+	// Domain repository layer components
+	var (
+		labRepository        = lab.CreateRepository(db)
+		userRepository       = user.CreateRepository(db)
+		topologyRepository   = topology.CreateRepository(db)
+		collectionRepository = collection.CreateRepository(db)
+	)
+
+	topologyPolicyEngine := policy.CreateEngine(policy.Options{
+		AllowedImagePrefixes: antimonyConfig.Security.AllowedImagePrefixes,
+	})
+
+	// Domain service layer components
+	var (
+		devicesService      = device.CreateService(antimonyConfig)
+		schemaService       = schema.CreateService(antimonyConfig)
+		serverConfigService = serverconfig.CreateService(antimonyConfig)
+		userService         = user.CreateService(userRepository, authManager, antimonyConfig)
+		collectionService   = collection.CreateService(collectionRepository, userRepository)
+
+		topologyService = topology.CreateService(
+			topologyRepository,
+			userRepository,
+			collectionRepository,
+			schemaService,
+			storageManager,
+			topologyPolicyEngine,
+		)
+
+		labService = lab.CreateService(
+			labRepository,
+			userRepository,
+			topologyRepository,
+			schemaService,
+			topologyService,
+			storageManager,
+			antimonyConfig,
+			labEventBus,
+			topologyPolicyEngine,
+			statusMessageNamespace,
+		)
+	)
+
+	collectionService.SetLabRemover(labService)
+	collectionService.SetTopologyRemover(topologyService)
+
+	// Runtime services and components
+	instanceService, shellService := createRuntime(
+		antimonyConfig,
+		socketManager,
+		storageManager,
+		labRepository,
+		labService,
+		schemaService,
+		topologyService,
+		labEventBus,
+		deploymentProvider,
+		statusMessageNamespace,
+	)
+
+	labScheduler := scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
+	go labScheduler.Run()
+
+	// After the scheduler is subscribed is it safe to restore the labs that survived the last shutdown. The revive
+	// function publishes 'lab.restored' and 'lab.created', and the event bus has no replay, so anything published
+	// before this point would be dropped.
+	instanceService.Revive()
+
+	commands.CreateHandler(shellService, instanceService, socketManager)
+
+	sshServer := sshserver.Create(antimonyConfig, shellService, instanceService, deploymentProvider)
+	webServer := createWebServer(
+		authManager,
+		socketManager,
+		labService,
+		userService,
+		schemaService,
+		devicesService,
+		instanceService,
+		topologyService,
+		collectionService,
+		serverConfigService,
+		slices.Contains(antimonyConfig.Auth.Methods, config.AuthMethods.Desktop),
+		isDevMode,
+	)
+
+	webConnection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	sshConnection := fmt.Sprintf("%s:%d", antimonyConfig.SSH.SSHHost, antimonyConfig.SSH.SSHPort)
+	httpServer := &http.Server{Addr: webConnection, Handler: webServer}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var serverWaitGroup sync.WaitGroup
+
+	serverWaitGroup.Add(1)
+	go startWebServer(httpServer, webConnection, &serverWaitGroup)
+
+	if antimonyConfig.SSH.Enabled {
+		serverWaitGroup.Add(1)
+		go startSshServer(sshServer, sshConnection, &serverWaitGroup)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if antimonyConfig.SSH.Enabled {
+		log.Info("Antimony API is running and ready to serve calls!", "api", webConnection, "ssh", sshConnection)
+	} else {
+		log.Info("Antimony API is running and ready to serve calls!", "api", webConnection)
+	}
+
+	serversDone := make(chan struct{})
 	go func() {
-		if err := captureService.StartServer(); err != nil {
-			log.Errorf("Failed to start capture service: %s", err.Error())
-		}
+		serverWaitGroup.Wait()
+		close(serversDone)
 	}()
+
+	select {
+	case <-ctx.Done():
+		// From now on, another signal ends the process right away
+		stop()
+		log.Info("Shutting down, press Ctrl+C again to force it")
+	case <-serversDone:
+		// The servers failed to start
+	}
+
+	shutdown(httpServer, socketManager, sshServer, labScheduler, shellService, instanceService)
+	serverWaitGroup.Wait()
+
+	log.Info("Antimony has shut down")
+}
+
+// shutdown stops taking new requests, sessions, and deployments, then closes everything that is still running. The
+// labs keep running, Revive picks them up again on the next start.
+func shutdown(
+	httpServer *http.Server,
+	socketManager *socket.Manager,
+	sshServer *sshserver.Server,
+	labScheduler *scheduler.Scheduler,
+	shellService *shell.Service,
+	instanceService *instance.Service,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	// The HTTP server doesn't wait for or close hijacked connections, i.e., websockets. Closing socket.io first also
+	// ends its long-polling requests, which the HTTP server would otherwise wait for.
+	socketManager.Server().Close(nil)
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Warn("Failed to shut down the web server gracefully", "err", err.Error())
+	}
+	sshServer.Close()
+
+	labScheduler.Close()
+	shellService.Close()
+	instanceService.Close()
+}
+
+func createWebServer(
+	authManager *auth.Manager,
+	socketManager *socket.Manager,
+	labService *lab.Service,
+	userService *user.Service,
+	schemaService *schema.Service,
+	devicesService *device.Service,
+	instanceService *instance.Service,
+	topologyService *topology.Service,
+	collectionService *collection.Service,
+	serverConfigService *serverconfig.Service,
+	isDesktopEnabled bool,
+	isDevMode bool,
+) *gin.Engine {
+	var (
+		labHandler          = labtransport.CreateHandler(labService, instanceService)
+		userHandler         = usertransport.CreateHandler(userService)
+		devicesHandler      = devicetransport.CreateHandler(devicesService)
+		schemaHandler       = schematransport.CreateHandler(schemaService)
+		topologyHandler     = topologytransport.CreateHandler(topologyService)
+		collectionHandler   = collectiontransport.CreateHandler(collectionService)
+		serverConfigHandler = serverconfigtransport.CreateHandler(serverConfigService)
+	)
 
 	gin.SetMode(gin.ReleaseMode)
 	webServer := gin.Default()
 
-	// Public endpoints
-	user.RegisterRoutes(webServer, userHandler)
-	schema.RegisterRoutes(webServer, schemaHandler)
+	// Registered before the routes, so it also answers preflight requests, which have no route
+	webServer.Use(cors.Middleware(isDesktopEnabled))
 
-	// Authenticated endpoints
-	lab.RegisterRoutes(webServer, labHandler, authManager)
-	device.RegisterRoutes(webServer, devicesHandler, authManager)
-	topology.RegisterRoutes(webServer, topologyHandler, authManager)
-	collection.RegisterRoutes(webServer, collectionHandler, authManager)
-	serverConfig.RegisterRoutes(webServer, serverConfigHandler, authManager)
+	// Register public HTTP endpoints
+	usertransport.RegisterRoutes(webServer, userHandler)
+
+	if isDevMode {
+		usertransport.RegisterDevRoutes(webServer, userHandler, authManager)
+	}
+	schematransport.RegisterRoutes(webServer, schemaHandler)
+
+	// Register authenticated HTTP endpoints
+	labtransport.RegisterRoutes(webServer, labHandler, authManager)
+	devicetransport.RegisterRoutes(webServer, devicesHandler, authManager)
+	topologytransport.RegisterRoutes(webServer, topologyHandler, authManager)
+	collectiontransport.RegisterRoutes(webServer, collectionHandler, authManager)
+	serverconfigtransport.RegisterRoutes(webServer, serverConfigHandler, authManager)
 
 	// Register Socket.IO endpoints in web server
 	c := socketio.DefaultServerOptions()
@@ -134,15 +335,39 @@ func main() {
 
 	webServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	var serverWaitGroup sync.WaitGroup
-	connection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	return webServer
+}
 
-	serverWaitGroup.Add(1)
-	go startWebServer(webServer, connection, &serverWaitGroup)
-	time.Sleep(100 * time.Millisecond)
+func createRuntime(
+	config *config.AntimonyConfig,
+	socketManager *socket.Manager,
+	storageManager *storage.Manager,
+	labRepo *lab.Repository,
+	labService *lab.Service,
+	schemaService *schema.Service,
+	topologyService *topology.Service,
+	labEventBus *utils.EventBus[*lab.Lab],
+	deploymentProvider deployment.DeploymentProvider,
+	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
+) (*instance.Service, *shell.Service) {
+	instanceService := instance.CreateService(
+		config,
+		schemaService,
+		labRepo,
+		topologyService,
+		storageManager,
+		socketManager,
+		labEventBus,
+		statusMessageNamespace,
+		deploymentProvider,
+	)
 
-	log.Info("Antimony API is ready to serve calls!", "conn", connection)
-	serverWaitGroup.Wait()
+	shellService := shell.CreateService(config, labRepo, instanceService, socketManager, deploymentProvider)
+
+	// Wire instance service back to lab service through shared interface
+	labService.SetRuntimeService(instanceService)
+
+	return instanceService, shellService
 }
 
 func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *gorm.DB {
@@ -211,10 +436,18 @@ func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *go
 	return db
 }
 
-func startWebServer(server *gin.Engine, socket string, waitGroup *sync.WaitGroup) {
+func startWebServer(server *http.Server, connection string, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
-	if err := server.Run(socket); err != nil {
-		log.Errorf("Failed to start web server on %s: %s", socket, err.Error())
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Errorf("Failed to start web server on %s: %s", connection, err.Error())
+	}
+}
+
+func startSshServer(server *sshserver.Server, connection string, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	if err := server.Start(); err != nil {
+		log.Errorf("Failed to start SSH server on %s: %s", connection, err.Error())
 	}
 }

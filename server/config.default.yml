@@ -1,29 +1,45 @@
-general:
-  # The provider that will be used to deploy nodes [containerlab, clabernetes].
-  # Note: The clabernetes provider is not yet implemented and will be available in a future release.
-  # Default: containerlab
-  provider: containerlab
 server:
   # The host to which the antimony server will be bound.
-  # Default: 0.0.0.0
-  host: 0.0.0.0
+  # Default: 127.0.0.1
+  host: 127.0.0.1
   # The port to which the antimony server will be bound.
   # Default: 3000
   port: 3000
+deployment:
+  # The provider that will be used to deploy nodes [containerlab, clabernetes, dummy].
+  # Note: The dummy provider is only for testing purposes and doesn't deploy anything.
+  # Default: containerlab
+  provider: containerlab
 auth:
-  # Whether to enable the native admin login. Username and password have to be set via env variables.
-  # Default: true
-  enableNative: true
-  # Whether to enable authentication via OpenID Connect.
-  # Default: false
-  enableOpenId: false
+  # The authentication methods that are enabled. ['admin', 'openid', 'desktop']
+  # Admin: The admin login is enabled. Credentials have to be set via SB_ADMIN_USERNAME and SB_ADMIN_PASSWORD variables.
+  # OpenID: The OpenID Connect login is enabled. OpenId settings have to be set below.
+  # Desktop: Login via desktop token is enabled. Desktop token has to be set via SB_DESKTOP_TOKEN variable.
+  # Default: ['admin']
+  methods: ['admin']
+  # The URL of the OpenID Connect issuer.
   # Default: ""
   openIdIssuer: ""
+  # The OpenID client ID that is used to authenticate at the OpenID issuer.
   # Default: ""
   openIdClientId: ""
-  # A list of OpenID groups that are considered admin groups.
+  # The host the OpenID issuer will redirect to after authentication.
+  # Default: ""
+  openIdRedirectHost: ""
+  # A list of OpenID groups that are considered admin groups. Users in these groups are granted admin privileges.
   # Default: []
   openIdAdminGroups: [ ]
+security:
+  # Whether the topology policy engine is enabled.
+  # If the engine is enabled, non-admin users are not able to deploy topologies with unsafe features. Unsafe features
+  # are anything that can access or affect the host or other labs, e.g., host binds, privileged nodes, host stage
+  # commands or netlab topologies.
+  # Default: true
+  topologyPolicy: true
+  # A list of container image prefixes that are allowed to be deployed as nodes in the topology.
+  # If the list is empty, all images are allowed.
+  # Default: []
+  allowedImagePrefixes: [ ]
 shell:
   # The maximum number of shells a user can have open at the same time.
   # Default: 20
@@ -47,22 +63,26 @@ database:
   # The DB file that is used if the local database flag is set.
   # Default: ./db/antimony.db
   localFile: ./db/antimony.db
-capture:
-  # Whether the interface traffic capture SSH server is enabled.
+ssh:
+  # Whether the SSH server is enabled.
   # Default: yes
   enabled: yes
-  # The host to which the capture server will be bound.
-  # Default: 0.0.0.0
-  sshHost: 0.0.0.0
-  # The port to which the capture server will be bound.
+  # The host to which the SSH server will be bound.
+  # Default: 127.0.0.1
+  sshHost: 127.0.0.1
+  # The port to which the SSH server will be bound.
   # Default: 6969
   sshPort: 6969
-  # The path to the SSH key that is used to authenticate the traffic capture SSH server.
+  # The path to the host SSH key that is used to authenticate the SSH server.
   # Default: ./key
   sshKeyPath: ./key
-  # Interfaces that are excluded from traffic capture and monitoring.
-  # Default: ["lo", "gway-2800", "monit_in", "mgmt0-0"]
-  excludedInterfaces: [ "lo", "gway-2800", "monit_in", "mgmt0-0" ]
+capture:
+  # Whether the interface traffic capture via SSH server is enabled. This presupposes the SSH server being enabled.
+  # Default: yes
+  enabled: yes
+  # Interfaces that are excluded from SSH traffic capture and monitoring.
+  # Default: ["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]
+  excludedInterfaces: [ "lo", "gway-*", "monit_in", "mgmt0*", "c9s*" ]
 streaming:
   # The maximum number of container log entries that will be kept in memory.
   # Default: 1000
@@ -70,7 +90,7 @@ streaming:
   # The maximum number of containerlab log entries that will be kept in memory.
   # Default: 1000
   clabLogBacklog: 1000
-  # The maximum number of lines that will be kept in memory for an open shell (scrollback buffer).
+  # Unused. Browser terminals keep the last clabLogBacklog bytes of output as their scrollback.
   # Default: 1000
   shellLinesBacklog: 1000
 filesystem:
@@ -87,6 +107,15 @@ containerlab:
   # The path to a local schema that will be used if the remote schema is not available.
   # Default: ./data/clab.schema.json
   schemaFallback: ./data/clab.schema.json
+  # The URL where the server is trying to fetch the topology annotations schema from. If empty, the local schema is used.
+  # Default: ""
+  annotationsSchemaUrl: ""
+  # The path to a local annotations schema that will be used if the remote schema is not available.
+  # Default: ./data/clab.annotations.schema.json
+  annotationsSchemaFallback: ./data/clab.annotations.schema.json
   # The path to the device config file.
   # Default: ./data/device-config.json
   deviceConfig: ./data/device-config.json
+  # The path to the kinds config file.
+  # Default: ./kinds.conf.yml
+  kindsConfig: ./kinds.conf.yml

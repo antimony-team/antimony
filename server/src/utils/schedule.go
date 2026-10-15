@@ -8,17 +8,7 @@ import (
 )
 
 type (
-	Schedule[T any] interface {
-		Schedule(item *T)
-		Reschedule(item *T)
-		IsScheduled(key string) bool
-
-		Remove(key string)
-
-		TryPop() *T
-	}
-
-	schedule[T any] struct {
+	Schedule[T any] struct {
 		schedule    []*T
 		scheduleMap map[string]*T
 
@@ -29,8 +19,8 @@ type (
 	}
 )
 
-func CreateSchedule[T any](keyGetter func(T) string, timeGetter func(T) *time.Time) Schedule[T] {
-	schedule := &schedule[T]{
+func CreateSchedule[T any](keyGetter func(T) string, timeGetter func(T) *time.Time) *Schedule[T] {
+	schedule := &Schedule[T]{
 		schedule:    make([]*T, 0),
 		scheduleMap: make(map[string]*T),
 		mutex:       &sync.Mutex{},
@@ -41,7 +31,7 @@ func CreateSchedule[T any](keyGetter func(T) string, timeGetter func(T) *time.Ti
 	return schedule
 }
 
-func (s *schedule[T]) Schedule(item *T) {
+func (s *Schedule[T]) Schedule(item *T) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -53,36 +43,49 @@ func (s *schedule[T]) Schedule(item *T) {
 	s.insert(s.keyGetter(*item), item)
 }
 
-func (s *schedule[T]) Reschedule(item *T) {
+func (s *Schedule[T]) Reschedule(item *T) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if _, isScheduled := s.scheduleMap[s.keyGetter(*item)]; isScheduled {
-		s.remove(s.keyGetter(*item))
+	key := s.keyGetter(*item)
+
+	if _, isScheduled := s.scheduleMap[key]; isScheduled {
+		s.remove(key)
 	}
 
-	s.insert(s.keyGetter(*item), item)
+	// Skip scheduling if the item's time is nil
+	if s.timeGetter(*item) == nil {
+		return
+	}
+
+	s.insert(key, item)
 }
 
-func (s *schedule[T]) IsScheduled(key string) bool {
+func (s *Schedule[T]) IsScheduled(key string) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	return s.has(key)
 }
 
-func (s *schedule[T]) Remove(key string) {
+func (s *Schedule[T]) Remove(key string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	s.remove(key)
 }
 
-func (s *schedule[T]) TryPop() *T {
+// TryPop removes and returns the first item if it is due now, or returns nil.
+func (s *Schedule[T]) TryPop() *T {
+	return s.TryPopAt(time.Now())
+}
+
+// TryPopAt removes and returns the first item if it is due at the given time, or returns nil.
+func (s *Schedule[T]) TryPopAt(now time.Time) *T {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if len(s.schedule) > 0 && s.timeGetter(*s.schedule[0]).Unix() <= time.Now().Unix() {
+	if len(s.schedule) > 0 && s.timeGetter(*s.schedule[0]).Unix() <= now.Unix() {
 		item := s.schedule[0]
 
 		s.schedule = s.schedule[1:]
@@ -94,13 +97,13 @@ func (s *schedule[T]) TryPop() *T {
 	return nil
 }
 
-func (s *schedule[T]) has(key string) bool {
+func (s *Schedule[T]) has(key string) bool {
 	_, ok := s.scheduleMap[key]
 
 	return ok
 }
 
-func (s *schedule[T]) remove(key string) {
+func (s *Schedule[T]) remove(key string) {
 	if item, isScheduled := s.scheduleMap[key]; isScheduled {
 		delete(s.scheduleMap, key)
 		itemIndex := slices.Index(s.schedule, item)
@@ -108,7 +111,7 @@ func (s *schedule[T]) remove(key string) {
 	}
 }
 
-func (s *schedule[T]) insert(key string, item *T) {
+func (s *Schedule[T]) insert(key string, item *T) {
 	itemTime := s.timeGetter(*item).Unix()
 	insertIndex := sort.Search(len(s.schedule), func(i int) bool {
 		return s.timeGetter(*s.schedule[i]).Unix() >= itemTime

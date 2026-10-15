@@ -1,0 +1,77 @@
+package topology
+
+import (
+	"antimonyBackend/domain/collection"
+	"antimonyBackend/domain/user"
+	"antimonyBackend/policy"
+
+	"gorm.io/gorm"
+)
+
+type Topology struct {
+	gorm.Model
+	UUID         string `gorm:"uniqueIndex;not null"`
+	Name         string `gorm:"index:idx_topologies_collection_name,unique,priority:2,where:deleted_at IS NULL;not null"`
+	SyncUrl      string
+	Collection   collection.Collection
+	CollectionID uint `gorm:"index:idx_topologies_collection_name,unique,priority:1;not null"`
+	Creator      user.User
+	CreatorID    uint `gorm:"not null"`
+
+	// LastDeployFailed Indicating if the last deployment of this topology was successful or not.
+	//
+	// This field is set to true whenever a lab referencing this topology fails to deploy and set to false whenever
+	// the deployment succeeds.
+	LastDeployFailed bool `gorm:"default:false;not null"`
+}
+
+type TopologyIn struct {
+	Definition   *string `json:"definition"   binding:"required"`
+	Annotations  *string `json:"annotations"  binding:"required"`
+	SyncUrl      *string `json:"syncUrl"      binding:"required"`
+	CollectionId *string `json:"collectionId" binding:"required"`
+}
+
+type TopologyInPartial struct {
+	Definition   *string `json:"definition"`
+	Annotations  *string `json:"annotations"`
+	SyncUrl      *string `json:"syncUrl"`
+	CollectionId *string `json:"collectionId"`
+}
+
+type TopologyFull struct {
+	ID               string
+	Definition       string
+	Annotations      string
+	SyncUrl          string
+	Collection       collection.Collection
+	Creator          user.User
+	BindFiles        []BindFileFull
+	LastDeployFailed bool
+	PolicyFindings   []policy.Finding
+}
+
+type BindFile struct {
+	gorm.Model
+	UUID       string   `gorm:"uniqueIndex;not null"`
+	FilePath   string   `gorm:"not null"`
+	Topology   Topology `gorm:"not null"`
+	TopologyID uint     `gorm:"not null"`
+}
+
+type BindFileFull struct {
+	ID       string
+	FilePath string
+	Content  string
+	Topology Topology
+}
+
+type BindFileIn struct {
+	Content  *string `json:"content"  binding:"required"`
+	FilePath *string `json:"filePath" binding:"required"`
+}
+
+type BindFileInPartial struct {
+	Content  *string `json:"content"`
+	FilePath *string `json:"filePath"`
+}

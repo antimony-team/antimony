@@ -3,6 +3,7 @@ package deployment
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -11,7 +12,7 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-func runClabCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
+func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
 	var outputBuffer bytes.Buffer
 	cmd.Stdout = &outputBuffer
 
@@ -25,33 +26,23 @@ func runClabCommandSync(cmd *exec.Cmd, onLog func(string)) (*string, error) {
 		return nil, err
 	}
 
-	go streamOutput(stderr, onLog)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		streamOutput(stderr, onStderr)
+	}()
+
+	// Wait closes the pipe, so all of stderr has to be read first.
+	<-done
 
 	err = cmd.Wait()
 	output := outputBuffer.String()
-	return &output, err
-}
 
-func runClabCommand(cmd *exec.Cmd, onLog func(string), onDone func(*string, error)) {
-	var outputBuffer bytes.Buffer
-	cmd.Stdout = &outputBuffer
-
-	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		onDone(nil, err)
-		return
+		err = fmt.Errorf("sub-process '%s' failed: %w", cmd.String(), err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		onDone(nil, err)
-		return
-	}
-
-	go streamOutput(stderr, onLog)
-
-	err = cmd.Wait()
-	output := outputBuffer.String()
-	onDone(&output, err)
+	return &output, err
 }
 
 func streamOutput(pipe io.Reader, onLog func(data string)) {

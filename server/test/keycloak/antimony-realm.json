@@ -492,7 +492,7 @@
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
     "secret" : "MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd",
-    "redirectUris" : [ "http://localhost:3000/users/login/success" ],
+    "redirectUris" : [ "http://localhost:3100/users/login/success" ],
     "webOrigins" : [ "/*" ],
     "notBefore" : 0,
     "bearerOnly" : false,

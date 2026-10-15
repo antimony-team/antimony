@@ -1,0 +1,765 @@
+package test
+
+import (
+	"antimonyBackend/domain/topology"
+	"antimonyBackend/transport"
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// A definition with a name that does not collide with any seeded topology.
+const freshTopologyDefinition = `name: fresh-topo
+topology:
+  nodes:
+    host1:
+      kind: linux
+      image: alpine:latest
+`
+
+// A layout that differs from the ones of the seeded topologies.
+const freshTopologyAnnotations = `{"nodeAnnotations": [{"id": "host1", "position": {"x": 35, "y": 70}}]}`
+
+// Annotations that are rejected, keyed by why they are invalid.
+var invalidTopologyAnnotations = map[string]string{
+	"not json":              `{"nodeAnnotations": [`,
+	"schema violation":      `{"nodeAnnotations": [{"position": {"x": 0, "y": 0}}]}`,
+	"empty string":          "",
+	"not an object":         `["host1"]`,
+	"wrong field clabtypes": `{"nodeAnnotations": [{"id": "host1", "position": {"x": "left", "y": 0}}]}`,
+}
+
+/*
+ * GET /topologies
+ */
+
+func TestGetTopologies_AdminSeesEverything(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologies []transport.TopologyOut
+	h.GET("/topologies", h.Seed.Admin.Token).RequireOk(&topologies)
+
+	assert.ElementsMatch(t, []string{
+		TopologyAdminID, TopologyMemberID, TopologyPrivateID, TopologyHiddenID,
+	}, topologyIDs(topologies))
+}
+
+func TestGetTopologies_MemberOnlySeesItsCollections(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologies []transport.TopologyOut
+	h.GET("/topologies", h.Seed.Member.Token).RequireOk(&topologies)
+
+	ids := topologyIDs(topologies)
+
+	assert.ElementsMatch(t, []string{TopologyAdminID, TopologyMemberID, TopologyPrivateID}, ids)
+	assert.NotContains(t, ids, TopologyHiddenID, "the hidden collection must stay hidden")
+}
+
+func TestGetTopologies_OutsiderSeesAnEmptyList(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologies []transport.TopologyOut
+	h.GET("/topologies", h.Seed.Outsider.Token).RequireOk(&topologies)
+
+	assert.Empty(t, topologies)
+}
+
+func TestGetTopologies_CarriesDefinitionCreatorAndBindFiles(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologies []transport.TopologyOut
+	h.GET("/topologies", h.Seed.Admin.Token).RequireOk(&topologies)
+
+	found := findTopology(t, topologies, TopologyAdminID)
+
+	assert.Equal(t, AdminTopologyDefinition, found.Definition)
+	assert.Equal(t, h.Seed.PublicBoth.UUID, found.CollectionId)
+	assert.Equal(t, h.Seed.Admin.ID(), found.Creator.ID)
+	assert.False(t, found.LastDeployFailed)
+	assert.Empty(t, found.SyncUrl)
+
+	require.Len(t, found.BindFiles, 1)
+	assert.Equal(t, BindFileID, found.BindFiles[0].ID)
+	assert.Equal(t, BindFileContent, found.BindFiles[0].Content)
+	assert.Equal(t, TopologyAdminID, found.BindFiles[0].TopologyId)
+}
+
+func TestGetTopologies_RequiresAuthentication(t *testing.T) {
+	h := NewHarness(t)
+
+	h.GET("/topologies", "").RequireError(http.StatusUnauthorized, 401)
+	h.GET("/topologies", "garbage").RequireError(498, 498)
+}
+
+/*
+ * GET /topologies/:topologyId
+ */
+
+func TestGetTopologyByUuid_ReturnsTheTopology(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologyOut transport.TopologyOut
+	h.GET("/topologies/"+TopologyAdminID, h.Seed.Admin.Token).RequireOk(&topologyOut)
+
+	assert.Equal(t, TopologyAdminID, topologyOut.ID)
+	assert.Equal(t, AdminTopologyDefinition, topologyOut.Definition)
+}
+
+func TestGetTopologyByUuid_ReturnsTheAnnotations(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologyOut transport.TopologyOut
+	h.GET("/topologies/"+TopologyAdminID, h.Seed.Admin.Token).RequireOk(&topologyOut)
+
+	assert.JSONEq(t, AdminTopologyAnnotations, topologyOut.Annotations)
+}
+
+func TestGetTopologies_CarriesTheAnnotations(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologies []transport.TopologyOut
+	h.GET("/topologies", h.Seed.Admin.Token).RequireOk(&topologies)
+
+	for _, topologyOut := range topologies {
+		if topologyOut.ID == TopologyAdminID {
+			assert.JSONEq(t, AdminTopologyAnnotations, topologyOut.Annotations)
+		} else {
+			assert.Equal(t, EmptyTopologyAnnotations, topologyOut.Annotations, topologyOut.ID)
+		}
+	}
+}
+
+func TestGetTopologyByUuid_MemberCanReadOneInItsCollections(t *testing.T) {
+	h := NewHarness(t)
+
+	var topologyOut transport.TopologyOut
+	h.GET("/topologies/"+TopologyAdminID, h.Seed.Member.Token).RequireOk(&topologyOut)
+
+	assert.Equal(t, TopologyAdminID, topologyOut.ID)
+}
+
+// TestGetTopologyByUuid_InaccessibleTopologyIsForbidden covers the access check on a single
+// topology.
+//
+// This used to be masked as a 404 to stop existence probing, but the IDs are server-generated
+// UUIDs so that bought very little, and it made the topology and lab endpoints disagree about the
+// same situation. Both now answer 403 with a real message.
+func TestGetTopologyByUuid_InaccessibleTopologyIsForbidden(t *testing.T) {
+	h := NewHarness(t)
+
+	errorResponse := h.GET("/topologies/"+TopologyHiddenID, h.Seed.Member.Token).
+		RequireError(http.StatusForbidden, 403)
+
+	assert.Contains(t, errorResponse.Message, "access to the provided topology is not granted")
+}
+
+func TestGetTopologyByUuid_UnknownIdIsNotFound(t *testing.T) {
+	h := NewHarness(t)
+
+	h.GET("/topologies/does-not-exist", h.Seed.Admin.Token).RequireError(http.StatusNotFound, -1)
+}
+
+/*
+ * POST /topologies
+ */
+
+func TestCreateTopology_AdminCanCreateAnywhere(t *testing.T) {
+	h := NewHarness(t)
+
+	var createdID string
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr("https://example.com/topo.yml"),
+		CollectionId: ptr(h.Seed.Hidden.UUID),
+	}, h.Seed.AdminBare.Token).RequireOk(&createdID)
+
+	require.NotEmpty(t, createdID)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), createdID)
+	require.NoError(t, err)
+
+	assert.Equal(t, "fresh-topo", stored.Name, "the name must be derived from the definition")
+	assert.Equal(t, "https://example.com/topo.yml", stored.SyncUrl)
+	assert.Equal(t, h.Seed.Hidden.UUID, stored.Collection.UUID)
+
+	// The definition must have been written to storage, not just recorded in the database.
+	var onDisk string
+	require.NoError(t, h.Storage.ReadTopology(createdID, &onDisk, new(string)))
+	assert.Equal(t, freshTopologyDefinition, onDisk)
+}
+
+func TestCreateTopology_StoresTheAnnotations(t *testing.T) {
+	h := NewHarness(t)
+
+	var createdID string
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(freshTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicBoth.UUID),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	var definition, annotations string
+	require.NoError(t, h.Storage.ReadTopology(createdID, &definition, &annotations))
+	assert.JSONEq(t, freshTopologyAnnotations, annotations, "the annotations must be written to storage")
+
+	var topologyOut transport.TopologyOut
+	h.GET("/topologies/"+createdID, h.Seed.Admin.Token).RequireOk(&topologyOut)
+	assert.JSONEq(t, freshTopologyAnnotations, topologyOut.Annotations)
+}
+
+// TestCreateTopology_InvalidAnnotationsAreRejected covers annotations that are not JSON or don't
+// validate against data/clab.annotations.schema.json. Nothing may be created in that case.
+func TestCreateTopology_InvalidAnnotationsAreRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	for name, annotations := range invalidTopologyAnnotations {
+		t.Run(name, func(t *testing.T) {
+			h.POST("/topologies", topology.TopologyIn{
+				Definition:   ptr(freshTopologyDefinition),
+				Annotations:  ptr(annotations),
+				SyncUrl:      ptr(""),
+				CollectionId: ptr(h.Seed.PublicBoth.UUID),
+			}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 3003)
+
+			created, err := h.TopologyRepo.GetByName(t.Context(), "fresh-topo", h.Seed.PublicBoth.UUID)
+			require.NoError(t, err)
+			assert.Empty(t, created, "a topology with invalid annotations must not be created")
+		})
+	}
+}
+
+func TestCreateTopology_MemberCanCreateInAPublicWriteCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	var createdID string
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicRW.UUID),
+	}, h.Seed.Member.Token).RequireOk(&createdID)
+
+	assert.NotEmpty(t, createdID)
+}
+
+func TestCreateTopology_MemberCannotCreateInANonPublicWriteCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	response := h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicDeploy.UUID),
+	}, h.Seed.Member.Token)
+
+	errorResponse := response.RequireError(http.StatusForbidden, 403)
+	assert.Contains(t, errorResponse.Message, "write access to the provided collection is not granted")
+}
+
+func TestCreateTopology_MemberCannotCreateInACollectionItIsNotAMemberOf(t *testing.T) {
+	h := NewHarness(t)
+
+	// The hidden collection is publicWrite, but membership is also required.
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.Hidden.UUID),
+	}, h.Seed.Member.Token).RequireError(http.StatusForbidden, 403)
+}
+
+func TestCreateTopology_OutsiderIsForbidden(t *testing.T) {
+	h := NewHarness(t)
+
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicRW.UUID),
+	}, h.Seed.Outsider.Token).RequireError(http.StatusForbidden, 403)
+}
+
+func TestCreateTopology_DuplicateNameInTheSameCollectionIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	response := h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(AdminTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicBoth.UUID),
+	}, h.Seed.Admin.Token)
+
+	response.RequireError(http.StatusBadRequest, 3001)
+}
+
+func TestCreateTopology_SameNameInADifferentCollectionIsAllowed(t *testing.T) {
+	h := NewHarness(t)
+
+	// Topology names are only unique within a collection.
+	var createdID string
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(AdminTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicRW.UUID),
+	}, h.Seed.Admin.Token).RequireOk(&createdID)
+
+	assert.NotEmpty(t, createdID)
+}
+
+func TestCreateTopology_InvalidYamlIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	response := h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr("\tnot: valid: yaml:\n\t\tbroken"),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicBoth.UUID),
+	}, h.Seed.Admin.Token)
+
+	errorResponse := response.RequireError(http.StatusBadRequest, 3003)
+	assert.Contains(t, errorResponse.Message, "topology provided was invalid")
+}
+
+// TestCreateTopology_SchemaViolationIsRejected covers a definition that parses as YAML but does not
+// satisfy the containerlab schema.
+//
+// The response says which field is wrong and why, but not the validator's own wording around it, as
+// the "jsonschema" prefix and the URL of the schema tell the client nothing.
+func TestCreateTopology_SchemaViolationIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	cases := map[string]struct {
+		definition string
+		detail     string
+	}{
+		"nodes is a sequence": {
+			definition: "name: bad\ntopology:\n  nodes:\n    - not-a-map\n",
+			detail:     "topology.nodes: ",
+		},
+		"no topology section": {
+			definition: "name: bad\n",
+			detail:     "missing properties: 'topology'",
+		},
+		"unknown top level": {
+			definition: "name: bad\ntopology:\n  nodes:\n    a:\n      kind: linux\nbogus: true\n",
+			detail:     "'bogus' not allowed",
+		},
+		"a field of a node": {
+			definition: "name: bad\ntopology:\n  nodes:\n    a:\n      kind: 123\n",
+			detail:     "topology.nodes.a.kind: ",
+		},
+	}
+
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			response := h.POST("/topologies", topology.TopologyIn{
+				Definition:   ptr(testCase.definition),
+				Annotations:  ptr(EmptyTopologyAnnotations),
+				SyncUrl:      ptr(""),
+				CollectionId: ptr(h.Seed.PublicBoth.UUID),
+			}, h.Seed.Admin.Token)
+
+			errorResponse := response.RequireError(http.StatusBadRequest, 3003)
+
+			assert.Contains(t, errorResponse.Message, "topology provided was invalid")
+			assert.Contains(t, errorResponse.Message, testCase.detail, "the response must say what is wrong")
+			assert.NotContains(t, errorResponse.Message, "jsonschema",
+				"the raw validator error must not reach the client")
+			assert.NotContains(t, errorResponse.Message, "containerlab.dev",
+				"the upstream schema URL must not reach the client")
+			assert.NotContains(t, errorResponse.Message, "unmarshal",
+				"the Go types of the definition must not reach the client")
+		})
+	}
+}
+
+// An invalid name gets its own error, so the client can point at the name field, and the message is
+// about the name even if other fields are invalid as well.
+func TestCreateTopology_InvalidNameIsRejectedOnItsOwn(t *testing.T) {
+	h := NewHarness(t)
+
+	response := h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr("name: has spaces\ntopology:\n  nodes:\n    a:\n      kind: linux\nbogus: true\n"),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicBoth.UUID),
+	}, h.Seed.Admin.Token)
+
+	errorResponse := response.RequireError(http.StatusBadRequest, 3004)
+
+	assert.Contains(t, errorResponse.Message, "name for the topology is invalid")
+	assert.Contains(t, errorResponse.Message, "name: ", "the detail must be the one about the name")
+	assert.NotContains(t, errorResponse.Message, "bogus", "other invalid fields must not take its place")
+	assert.NotContains(t, errorResponse.Message, "jsonschema")
+}
+
+func TestCreateTopology_UnknownCollectionIsNotFound(t *testing.T) {
+	h := NewHarness(t)
+
+	h.POST("/topologies", topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr("no-such-collection"),
+	}, h.Seed.Admin.Token).RequireError(http.StatusNotFound, -1)
+}
+
+func TestCreateTopology_MissingRequiredFieldsAreRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	annotations := EmptyTopologyAnnotations
+	bodies := map[string]map[string]any{
+		"no definition": {
+			"annotations": annotations, "syncUrl": "", "collectionId": h.Seed.PublicBoth.UUID,
+		},
+		"no annotations": {
+			"definition": freshTopologyDefinition, "syncUrl": "", "collectionId": h.Seed.PublicBoth.UUID,
+		},
+		"no syncUrl": {
+			"definition": freshTopologyDefinition, "annotations": annotations, "collectionId": h.Seed.PublicBoth.UUID,
+		},
+		"no collectionId": {
+			"definition": freshTopologyDefinition, "annotations": annotations, "syncUrl": "",
+		},
+		"empty object": {},
+	}
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			h.POST("/topologies", body, h.Seed.Admin.Token).RequireValidationError()
+		})
+	}
+}
+
+func TestCreateTopology_RequiresAuthentication(t *testing.T) {
+	h := NewHarness(t)
+
+	body := topology.TopologyIn{
+		Definition:   ptr(freshTopologyDefinition),
+		Annotations:  ptr(EmptyTopologyAnnotations),
+		SyncUrl:      ptr(""),
+		CollectionId: ptr(h.Seed.PublicBoth.UUID),
+	}
+
+	h.POST("/topologies", body, "").RequireError(http.StatusUnauthorized, 401)
+	h.POST("/topologies", body, "garbage").RequireError(498, 498)
+}
+
+/*
+ * PATCH /topologies/:topologyId
+ */
+
+func TestUpdateTopology_OwnerCanReplaceTheDefinition(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Definition: ptr(freshTopologyDefinition),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
+	require.NoError(t, err)
+	assert.Equal(t, "fresh-topo", stored.Name, "the name must be re-derived from the new definition")
+
+	var onDisk string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &onDisk, new(string)))
+	assert.Equal(t, freshTopologyDefinition, onDisk, "storage must be rewritten")
+}
+
+func TestUpdateTopology_CanUpdateOnlyTheSyncUrl(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		SyncUrl: ptr("https://example.com/new.yml"),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://example.com/new.yml", stored.SyncUrl)
+	assert.Equal(t, "admin-topo", stored.Name, "the definition must be untouched")
+
+	var onDisk string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &onDisk, new(string)))
+	assert.Equal(t, AdminTopologyDefinition, onDisk)
+}
+
+func TestUpdateTopology_CanUpdateOnlyTheAnnotations(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Annotations: ptr(freshTopologyAnnotations),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	var definition, annotations string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &definition, &annotations))
+	assert.JSONEq(t, freshTopologyAnnotations, annotations, "the annotations must be rewritten")
+	assert.Equal(t, AdminTopologyDefinition, definition, "the definition must be untouched")
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
+	require.NoError(t, err)
+	assert.Equal(t, "admin-topo", stored.Name)
+}
+
+func TestUpdateTopology_ReplacingTheDefinitionKeepsTheAnnotations(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Definition: ptr(freshTopologyDefinition),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	var definition, annotations string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &definition, &annotations))
+	assert.Equal(t, freshTopologyDefinition, definition)
+	assert.JSONEq(t, AdminTopologyAnnotations, annotations, "the annotations must be untouched")
+}
+
+func TestUpdateTopology_CanReplaceDefinitionAndAnnotationsTogether(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Definition:  ptr(freshTopologyDefinition),
+		Annotations: ptr(freshTopologyAnnotations),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+
+	var definition, annotations string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &definition, &annotations))
+	assert.Equal(t, freshTopologyDefinition, definition)
+	assert.JSONEq(t, freshTopologyAnnotations, annotations)
+}
+
+func TestUpdateTopology_InvalidAnnotationsAreRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	for name, annotations := range invalidTopologyAnnotations {
+		t.Run(name, func(t *testing.T) {
+			h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+				Annotations: ptr(annotations),
+			}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 3003)
+
+			var definition, onDisk string
+			require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &definition, &onDisk))
+			assert.JSONEq(t, AdminTopologyAnnotations, onDisk, "storage must be left alone")
+		})
+	}
+}
+
+// TestUpdateTopology_InvalidAnnotationsDiscardTheWholeUpdate checks that a valid definition sent
+// together with invalid annotations isn't written either.
+func TestUpdateTopology_InvalidAnnotationsDiscardTheWholeUpdate(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Definition:  ptr(freshTopologyDefinition),
+		Annotations: ptr(invalidTopologyAnnotations["schema violation"]),
+	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 3003)
+
+	var definition, annotations string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &definition, &annotations))
+	assert.Equal(t, AdminTopologyDefinition, definition)
+	assert.JSONEq(t, AdminTopologyAnnotations, annotations)
+}
+
+func TestUpdateTopology_CanMoveToAnotherWritableCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyMemberID, topology.TopologyInPartial{
+		CollectionId: ptr(h.Seed.PublicRW.UUID),
+	}, h.Seed.Member.Token).RequireOk(nil)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyMemberID)
+	require.NoError(t, err)
+	assert.Equal(t, h.Seed.PublicRW.UUID, stored.Collection.UUID)
+}
+
+func TestUpdateTopology_CannotMoveToANonWritableCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyMemberID, topology.TopologyInPartial{
+		CollectionId: ptr(h.Seed.PublicDeploy.UUID),
+	}, h.Seed.Member.Token).RequireError(http.StatusForbidden, 403)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyMemberID)
+	require.NoError(t, err)
+	assert.Equal(t, h.Seed.PublicBoth.UUID, stored.Collection.UUID, "the move must not have happened")
+}
+
+func TestUpdateTopology_NonOwnerIsForbidden(t *testing.T) {
+	h := NewHarness(t)
+
+	response := h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		SyncUrl: ptr("https://hijacked.example"),
+	}, h.Seed.Member.Token)
+
+	errorResponse := response.RequireError(http.StatusForbidden, 403)
+	assert.Contains(t, errorResponse.Message, "write access to the provided topology is not granted")
+}
+
+func TestUpdateTopology_AdminCanUpdateSomeoneElsesTopology(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyMemberID, topology.TopologyInPartial{
+		SyncUrl: ptr("https://example.com/admin-edit.yml"),
+	}, h.Seed.AdminBare.Token).RequireOk(nil)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyMemberID)
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/admin-edit.yml", stored.SyncUrl)
+}
+
+func TestUpdateTopology_RenamingOntoAnExistingNameIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	// Rename the member topology to the admin topology's name; both live in PublicBoth.
+	h.PATCH("/topologies/"+TopologyMemberID, topology.TopologyInPartial{
+		Definition: ptr(AdminTopologyDefinition),
+	}, h.Seed.Member.Token).RequireError(http.StatusBadRequest, 3001)
+}
+
+func TestUpdateTopology_ResubmittingTheSameDefinitionIsAllowed(t *testing.T) {
+	h := NewHarness(t)
+
+	// The duplicate check must skip the topology being edited.
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Definition: ptr(AdminTopologyDefinition),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+}
+
+func TestUpdateTopology_InvalidDefinitionIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{
+		Definition: ptr("\tbroken: yaml: here\n\t\tmore"),
+	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 3003)
+
+	// The stored definition must survive a rejected update.
+	var onDisk string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &onDisk, new(string)))
+	assert.Equal(t, AdminTopologyDefinition, onDisk)
+}
+
+func TestUpdateTopology_UnknownIdIsNotFound(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/does-not-exist", topology.TopologyInPartial{
+		SyncUrl: ptr(""),
+	}, h.Seed.Admin.Token).RequireError(http.StatusNotFound, -1)
+}
+
+func TestUpdateTopology_EmptyPatchIsANoOp(t *testing.T) {
+	h := NewHarness(t)
+
+	h.PATCH("/topologies/"+TopologyAdminID, topology.TopologyInPartial{}, h.Seed.Admin.Token).
+		RequireOk(nil)
+
+	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
+	require.NoError(t, err)
+	assert.Equal(t, "admin-topo", stored.Name)
+}
+
+func TestUpdateTopology_MalformedJsonIsRejected(t *testing.T) {
+	h := NewHarness(t)
+
+	h.RawBody(http.MethodPatch, "/topologies/"+TopologyAdminID, `{"syncUrl":`, h.Seed.Admin.Token).
+		RequireValidationError()
+}
+
+/*
+ * DELETE /topologies/:topologyId
+ */
+
+func TestDeleteTopology_OwnerCanDelete(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/"+TopologyMemberID, h.Seed.Member.Token).RequireOk(nil)
+
+	_, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyMemberID)
+	require.Error(t, err)
+}
+
+func TestDeleteTopology_AdminCanDeleteSomeoneElsesTopology(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/"+TopologyMemberID, h.Seed.AdminBare.Token).RequireOk(nil)
+
+	_, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyMemberID)
+	require.Error(t, err)
+}
+
+func TestDeleteTopology_NonOwnerIsForbidden(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/"+TopologyAdminID, h.Seed.Member.Token).
+		RequireError(http.StatusForbidden, 403)
+
+	_, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
+	require.NoError(t, err, "the topology must survive a forbidden delete")
+}
+
+func TestDeleteTopology_UnknownIdIsNotFound(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/does-not-exist", h.Seed.Admin.Token).RequireError(http.StatusNotFound, -1)
+}
+
+func TestDeleteTopology_DeletingTwiceIsNotFound(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/"+TopologyMemberID, h.Seed.Member.Token).RequireOk(nil)
+	h.DELETE("/topologies/"+TopologyMemberID, h.Seed.Member.Token).RequireError(http.StatusNotFound, -1)
+}
+
+// TestDeleteTopology_LeavesTheDefinitionOnDisk documents that deleting a topology is a database-only
+// operation: the stored definition and any bind files stay behind in the storage directory.
+//
+// Whether that is intentional (recoverability) or a leak is a product decision, but it is worth
+// knowing that deleting a topology does not reclaim its disk space.
+func TestDeleteTopology_LeavesTheDefinitionOnDisk(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/"+TopologyAdminID, h.Seed.Admin.Token).RequireOk(nil)
+
+	var onDisk string
+	require.NoError(t, h.Storage.ReadTopology(TopologyAdminID, &onDisk, new(string)),
+		"the definition file is left behind after the row is deleted")
+	assert.Equal(t, AdminTopologyDefinition, onDisk)
+}
+
+func TestDeleteTopology_RequiresAuthentication(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DELETE("/topologies/"+TopologyAdminID, "").RequireError(http.StatusUnauthorized, 401)
+	h.DELETE("/topologies/"+TopologyAdminID, "garbage").RequireError(498, 498)
+}
+
+/*
+ * Helpers.
+ */
+
+func topologyIDs(topologies []transport.TopologyOut) []string {
+	ids := make([]string, 0, len(topologies))
+	for _, item := range topologies {
+		ids = append(ids, item.ID)
+	}
+
+	return ids
+}
+
+func findTopology(t *testing.T, topologies []transport.TopologyOut, id string) transport.TopologyOut {
+	t.Helper()
+
+	for _, item := range topologies {
+		if item.ID == id {
+			return item
+		}
+	}
+
+	t.Fatalf("topology %q not found in %v", id, topologyIDs(topologies))
+
+	return transport.TopologyOut{}
+}

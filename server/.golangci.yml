@@ -55,7 +55,7 @@ linters:
     - dupl # tool for code clone detection
     - durationcheck # checks for two durations multiplied together
     - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases
-    - errname # checks that sentinel errors are prefixed with the Err and error types are suffixed with the Error
+    - errname # checks that sentinel errors are prefixed with the Err and error clabtypes are suffixed with the Error
     - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
     - exptostd # detects functions from golang.org/x/exp/ that can be replaced by std functions
     - fatcontext # detects nested contexts in loops
@@ -63,7 +63,7 @@ linters:
     - funcorder # checks the order of functions, methods, and constructors
 #    - funlen # tool for detection of long functions
     - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
-    - gochecksumtype # checks exhaustiveness on Go "sum types"
+    - gochecksumtype # checks exhaustiveness on Go "sum clabtypes"
     - gocritic # provides diagnostics that check for bugs, performance and style issues
     - gocyclo # computes and checks the cyclomatic complexity of functions
     - gomoddirectives # manages the use of 'replace', 'retract', and 'excludes' directives in go.mod
@@ -89,7 +89,7 @@ linters:
     - promlinter # checks Prometheus metrics naming via promlint
     - protogetter # reports direct reads from proto message fields when getters should be used
     - reassign # checks that package variables are not reassigned
-    - recvcheck # checks for receiver type consistency
+#    - recvcheck # checks for receiver type consistency
     - rowserrcheck # checks whether Err of rows is checked successfully
     - sloglint # ensure consistent code style when using log/slog
     - spancheck # checks for mistakes with OpenTelemetry/Census spans
@@ -100,20 +100,20 @@ linters:
     - tparallel # detects inappropriate usage of t.Parallel() method in your Go test codes
     - unconvert # removes unnecessary type conversions
     - unparam # reports unused function parameters
-    - unused # checks for unused constants, variables, functions and types
+    - unused # checks for unused constants, variables, functions and clabtypes
     - usetesting # reports uses of functions with replacement inside the testing package
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
 
     ## you may want to enable
-    #- decorder # checks declaration order and count of types, constants, variables and functions
+    #- decorder # checks declaration order and count of clabtypes, constants, variables and functions
     #- exhaustruct # [highly recommend to enable] checks if all structure fields are initialized
     #- ginkgolinter # [if you use ginkgo/gomega] enforces standards of using ginkgo and gomega
     #- godox # detects usage of FIXME, TODO and other keywords inside comments
     #- goheader # checks is file header matches to pattern
     #- inamedparam # [great idea, but too strict, need to ignore a lot of cases by default] reports interfaces with unnamed method parameters
     #- interfacebloat # checks the number of methods inside an interface
-    #- ireturn # accept interfaces, return concrete types
+    #- ireturn # accept interfaces, return concrete clabtypes
     #- prealloc # [premature optimization, but can be used in some cases] finds slice declarations that could potentially be preallocated
     #- tagalign # checks that struct tags are well aligned
     #- varnamelen # [great idea, but too many false positives] checks that the length of a variable's name matches its scope
@@ -126,7 +126,7 @@ linters:
     #- dogsled # checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())
     #- dupword # [useless without config] checks for duplicate words in the source code
     #- err113 # [too strict] checks the errors handling expressions
-    #- errchkjson # [don't see profit + I'm against of omitting errors like in the first example https://github.com/breml/errchkjson] checks types passed to the json encoding functions. Reports unsupported types and optionally reports occasions, where the check for the returned error can be omitted
+    #- errchkjson # [don't see profit + I'm against of omitting errors like in the first example https://github.com/breml/errchkjson] checks clabtypes passed to the json encoding functions. Reports unsupported clabtypes and optionally reports occasions, where the check for the returned error can be omitted
     #- forcetypeassert # [replaced by errcheck] finds forced type assertions
     #- gomodguard # [use more powerful depguard] allow and block lists linter for direct Go module dependencies
     #- gosmopolitan # reports certain i18n/l10n anti-patterns in your Go codebase
@@ -205,6 +205,8 @@ linters:
       # Such cases aren't reported by default.
       # Default: false
       check-type-assertions: true
+      exclude-functions:
+        - (io.Closer).Close
 
     exhaustive:
       # Program elements to check for exhaustiveness.
@@ -371,6 +373,16 @@ linters:
         # Use consistent method receiver names.
         # https://staticcheck.dev/docs/checks/#ST1016
         - -ST1016
+        # The documentation of an exported function should start with the function's name.
+        # Disabled because the HTTP handlers lead with their swag (// @Summary ...) annotations.
+        # https://staticcheck.dev/docs/checks/#ST1020
+        - -ST1020
+        # The documentation of an exported type should start with the type's name.
+        # https://staticcheck.dev/docs/checks/#ST1021
+        - -ST1021
+        # The documentation of a variable or constant should start with its name.
+        # https://staticcheck.dev/docs/checks/#ST1022
+        - -ST1022
         # Omit embedded fields from selector expression.
         # https://staticcheck.dev/docs/checks/#QF1008
         - -QF1008

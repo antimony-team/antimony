@@ -1,0 +1,769 @@
+package deployment
+
+import (
+	"antimonyBackend/utils"
+	"antimonyBackend/utils/serverlog"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/charmbracelet/log"
+	cerrdefs "github.com/containerd/errdefs"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/google/gopacket"
+	afpacket "github.com/google/gopacket/afpacket"
+	"github.com/samber/lo"
+	"github.com/vishvananda/netns"
+)
+
+// capturePollTimeout bounds how long a capture read waits for a packet, and with it how long closing a capture takes.
+const capturePollTimeout = 200 * time.Millisecond
+
+// dockerStates maps Docker's container statuses (as relayed by Containerlab's Inspect) onto NodeState.
+var dockerStates = map[string]NodeState{
+	"created":    NodeStates.Stopped,
+	"exited":     NodeStates.Stopped,
+	"dead":       NodeStates.Stopped,
+	"paused":     NodeStates.Stopped,
+	"restarting": NodeStates.Starting,
+	"running":    NodeStates.Running,
+	"removing":   NodeStates.Stopping,
+}
+
+type (
+	ContainerlabProvider struct {
+		client client.APIClient
+
+		statsReader *StatsReader[dockerRef]
+	}
+
+	// tpacketSource makes an afpacket capture safe to close from another goroutine. TPacket.Close unmaps the packet ring
+	// that a running read may still use, which crashes the process, so the capture is only released while no read runs.
+	tpacketSource struct {
+		tp *afpacket.TPacket
+
+		// readMutex is held while a read uses the packet ring
+		readMutex sync.Mutex
+		closed    atomic.Bool
+		released  bool
+	}
+
+	dockerExecSession struct {
+		net.Conn
+		client client.APIClient
+		execId string
+	}
+
+	// clabInspectContainer mirrors the JSON that "containerlab inspect --format json" produces.
+	//
+	// It exists so that NodeState does not need a text unmarshaller of its own. NodeState used to carry
+	// one so that Docker's status strings could be decoded straight into InspectContainer — with no
+	// matching marshaller, which made the type asymmetric: encoding/json wrote it as a number and then
+	// refused to read that number back, so a client could not decode this API's own response using the
+	// transport clabtypes. Keeping the string handling local to the provider that needs it leaves NodeState
+	// a plain integer in both directions.
+	clabInspectContainer struct {
+		Name          string `json:"name"`
+		LabName       string `json:"lab_name"`
+		LabPath       string `json:"labPath"`
+		Image         string `json:"image"`
+		State         string `json:"state"`
+		ContainerId   string `json:"container_id"`
+		ContainerName string `json:"container_name"`
+		IPv4Address   string `json:"ipv4_address"`
+		IPv6Address   string `json:"ipv6_address"`
+	}
+)
+
+func CreateContainerlabProvider() *ContainerlabProvider {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.Fatalf("Failed to create containerlab client: %s", err.Error())
+	}
+
+	provider := &ContainerlabProvider{
+		client: cli,
+	}
+
+	provider.statsReader = CreateStatsReader(createDockerSampler(provider.resolveNode))
+
+	return provider
+}
+
+func (p *ContainerlabProvider) Deploy(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	onLog LogFunc,
+) error {
+	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+
+	sendClabOutput(output, onLog)
+
+	return err
+}
+
+func (p *ContainerlabProvider) Redeploy(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	onLog LogFunc,
+) error {
+	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+
+	sendClabOutput(output, onLog)
+
+	return err
+}
+
+func (p *ContainerlabProvider) Destroy(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	onLog LogFunc,
+) error {
+	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+
+	sendClabOutput(output, onLog)
+
+	return err
+}
+
+func (p *ContainerlabProvider) InspectLabs(
+	ctx context.Context,
+	onLog LogFunc,
+) (map[string][]InspectContainer, error) {
+	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
+
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+	if err != nil {
+		return nil, err
+	}
+
+	if *output == "" {
+		return map[string][]InspectContainer{}, nil
+	}
+
+	var rawOutput map[string][]clabInspectContainer
+	if err = json.Unmarshal([]byte(*output), &rawOutput); err != nil {
+		return nil, err
+	}
+
+	return convertInspectOutput(rawOutput), nil
+}
+
+func (p *ContainerlabProvider) InspectLab(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	onLog LogFunc,
+) ([]InspectContainer, error) {
+	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
+
+	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+	if err != nil {
+		return nil, err
+	}
+
+	if *output == "" {
+		return make([]InspectContainer, 0), nil
+	}
+
+	var rawOutput map[string][]clabInspectContainer
+	if err = json.Unmarshal([]byte(*output), &rawOutput); err != nil {
+		return nil, err
+	}
+
+	// Select the requested lab before converting, so a host running many labs does not pay to
+	// convert all of them just to discard the rest.
+	rawContainers, ok := rawOutput[instanceName]
+	if !ok {
+		return nil, utils.ErrLabNotRunning
+	}
+
+	return clabToInspectContainer(instanceName, rawContainers), nil
+}
+
+func (p *ContainerlabProvider) InspectNode(
+	ctx context.Context,
+	topologyFile string,
+	instanceName string,
+	nodeName string,
+	onLog LogFunc,
+) (InspectContainer, error) {
+	labInspect, err := p.InspectLab(ctx, topologyFile, instanceName, onLog)
+	if err != nil {
+		return InspectContainer{}, err
+	}
+
+	nodeInspect, ok := lo.Find(labInspect, func(i InspectContainer) bool {
+		return i.Name == nodeName
+	})
+
+	if !ok {
+		return InspectContainer{}, utils.ErrNodeNotFound
+	}
+
+	return nodeInspect, nil
+}
+
+func (p *ContainerlabProvider) Exec(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+	cmd []string,
+) (string, int, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return "", 0, err
+	}
+
+	execId, err := p.createExec(ctx, containerId, cmd, false)
+	if err != nil {
+		return "", 0, err
+	}
+
+	hr, err := p.client.ContainerExecAttach(ctx, execId, container.ExecAttachOptions{})
+	if err != nil {
+		return "", 0, err
+	}
+	defer hr.Close()
+
+	var out bytes.Buffer
+	_, _ = stdcopy.StdCopy(&out, &out, hr.Reader)
+
+	insp, err := p.client.ContainerExecInspect(ctx, execId)
+	if err != nil {
+		return out.String(), 0, err
+	}
+
+	return out.String(), insp.ExitCode, nil
+}
+
+func (p *ContainerlabProvider) ExecInteractive(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+	cmd []string,
+) (ShellExecSession, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	execId, err := p.createExec(ctx, containerId, cmd, true)
+	if err != nil {
+		return nil, err
+	}
+
+	hr, err := p.client.ContainerExecAttach(ctx, execId, container.ExecAttachOptions{Tty: true})
+	if err != nil {
+		return nil, err
+	}
+
+	time.Sleep(20 * time.Millisecond)
+
+	inspect, err := p.client.ContainerExecInspect(ctx, execId)
+	if err != nil {
+		hr.Close()
+		return nil, err
+	}
+
+	if !inspect.Running && inspect.ExitCode != 0 {
+		hr.Close()
+		return nil, fmt.Errorf(
+			"command %v failed to start (exit code %d): command not found or not executable",
+			cmd,
+			inspect.ExitCode,
+		)
+	}
+
+	return &dockerExecSession{Conn: hr.Conn, client: p.client, execId: execId}, nil
+}
+
+func (p *ContainerlabProvider) DialNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+	port int,
+) (net.Conn, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	insp, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return nil, err
+	}
+	var ip string
+	for _, n := range insp.NetworkSettings.Networks {
+		if n.IPAddress != "" {
+			ip = n.IPAddress
+			break
+		}
+	}
+	if ip == "" {
+		return nil, utils.ErrNodeNotRunning
+	}
+
+	var d net.Dialer
+	return d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", ip, port))
+}
+
+func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error {
+	eventFilter := filters.NewArgs()
+	eventFilter.Add("type", "container")
+	eventFilter.Add("event", "start")
+	eventFilter.Add("event", "stop")
+	eventFilter.Add("event", "die")
+	eventFilter.Add("event", "destroy")
+	eventFilter.Add("event", "create")
+
+	channel, errs := p.client.Events(ctx, events.ListOptions{
+		Filters: eventFilter,
+	})
+
+	for {
+		select {
+		case msg := <-channel:
+			nodeName := msg.Actor.Attributes["clab-node-name"]
+			// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
+			if nodeName != "" {
+				onUpdate(nodeName)
+			}
+		case err := <-errs:
+			if err != nil {
+				log.Errorf("Failed to receive docker events: %s", err.Error())
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (p *ContainerlabProvider) ReadNodeStats(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) (*NodeStats, error) {
+	nodeId := instanceName + "/" + nodeName
+
+	return p.statsReader.Read(ctx, nodeId, dockerRef{instanceName, nodeName})
+}
+
+func (p *ContainerlabProvider) OpenCapture(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+	interfaceName string,
+) (CaptureSource, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return nil, fmt.Errorf("inspect %q: %w", containerId, err)
+	}
+
+	if info.State == nil || info.State.Pid == 0 {
+		return nil, fmt.Errorf("container %q is not running", containerId)
+	}
+
+	tp, err := openCaptureInNetns(info.State.Pid, interfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("open capture on %q/%s: %w", containerId, interfaceName, err)
+	}
+
+	return &tpacketSource{tp: tp}, nil
+}
+
+func (p *ContainerlabProvider) StartNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return err
+	}
+
+	return p.client.ContainerStart(ctx, containerId, container.StartOptions{})
+}
+
+func (p *ContainerlabProvider) StopNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return err
+	}
+
+	return p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: new(10)})
+}
+
+func (p *ContainerlabProvider) RestartNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) error {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return err
+	}
+
+	return p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: new(10)})
+}
+
+func (p *ContainerlabProvider) StreamContainerLogs(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+	onLog LogFunc,
+) error {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return err
+	}
+
+	info, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return err
+	}
+	if info.State == nil {
+		return utils.ErrNodeNotRunning
+	}
+
+	logOptions := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+		Timestamps: true,
+		Tail:       "all",
+		Since:      info.State.StartedAt,
+	}
+
+	out, err := p.client.ContainerLogs(ctx, containerId, logOptions)
+	if err != nil {
+		return err
+	}
+
+	go streamOutput(out, onLog)
+
+	return nil
+}
+
+func (p *ContainerlabProvider) GetNetworkInterfaces(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) ([]NodeInterface, error) {
+	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := p.client.ContainerInspect(ctx, containerId)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.State == nil || info.State.Pid == 0 {
+		return nil, utils.ErrNodeNotRunning
+	}
+
+	containerPid := info.State.Pid
+	base := fmt.Sprintf("/proc/%d/root/sys/class/net", containerPid)
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", base, err)
+	}
+
+	var result []NodeInterface
+	for _, e := range entries {
+		name := e.Name()
+		if name == "lo" {
+			continue
+		}
+		dir := filepath.Join(base, name)
+
+		mtu, _ := strconv.Atoi(readFileOrEmpty(filepath.Join(dir, "mtu")))
+		result = append(result, NodeInterface{
+			Name:    name,
+			Address: readFileOrEmpty(filepath.Join(dir, "address")),
+			MTU:     mtu,
+			State:   readFileOrEmpty(filepath.Join(dir, "operstate")),
+		})
+	}
+
+	return result, nil
+}
+
+func (p *ContainerlabProvider) createExec(
+	ctx context.Context,
+	containerId string,
+	cmd []string,
+	tty bool,
+) (string, error) {
+	resp, err := p.client.ContainerExecCreate(ctx, containerId, container.ExecOptions{
+		Cmd:          cmd,
+		AttachStdin:  tty,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          tty,
+	})
+
+	if cerrdefs.IsConflict(err) {
+		return "", utils.ErrNodeNotRunning
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return resp.ID, nil
+}
+
+// containerForNode returns the id of the container backing a node, running
+// or not. It returns ErrNodeNotFound if no such container exists.
+func (p *ContainerlabProvider) containerForNode(ctx context.Context, instanceName, nodeName string) (string, error) {
+	f := filters.NewArgs()
+	f.Add("label", "containerlab="+instanceName)
+	f.Add("label", "clab-node-name="+nodeName)
+
+	containers, err := p.client.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
+	if err != nil {
+		return "", err
+	}
+	if len(containers) == 0 {
+		return "", fmt.Errorf("%w: %s/%s", utils.ErrNodeNotFound, instanceName, nodeName)
+	}
+	return containers[0].ID, nil
+}
+
+func (p *ContainerlabProvider) resolveNode(
+	ctx context.Context,
+	instanceName string,
+	nodeName string,
+) (dockerTarget, error) {
+	id, err := p.containerForNode(ctx, instanceName, nodeName)
+
+	if err != nil {
+		return dockerTarget{}, err
+	}
+
+	insp, err := p.client.ContainerInspect(ctx, id)
+	if err != nil {
+		return dockerTarget{}, err
+	}
+
+	if insp.State == nil || insp.State.Pid <= 0 {
+		return dockerTarget{}, fmt.Errorf("%w: %s/%s", utils.ErrNodeNotRunning, instanceName, nodeName)
+	}
+
+	return dockerTarget{fullContainerId: insp.ID, pid: insp.State.Pid}, nil
+}
+
+func (s *tpacketSource) ReadPacketData() ([]byte, gopacket.CaptureInfo, error) {
+	s.readMutex.Lock()
+	defer s.readMutex.Unlock()
+
+	for !s.closed.Load() {
+		// ReadPacketData copies the packet out of the ring, so the data stays valid after the capture is released
+		data, ci, err := s.tp.ReadPacketData()
+		if errors.Is(err, afpacket.ErrTimeout) {
+			continue
+		}
+		return data, ci, err
+	}
+
+	return nil, gopacket.CaptureInfo{}, io.EOF
+}
+
+// Close stops the capture. A running read notices within one poll timeout, and Close waits for it before releasing.
+func (s *tpacketSource) Close() {
+	s.closed.Store(true)
+
+	s.readMutex.Lock()
+	defer s.readMutex.Unlock()
+
+	if !s.released {
+		s.released = true
+		s.tp.Close()
+	}
+}
+
+func (s *dockerExecSession) Resize(cols uint, rows uint) error {
+	return s.client.ContainerExecResize(context.Background(), s.execId, container.ResizeOptions{
+		Width:  cols,
+		Height: rows,
+	})
+}
+
+func (c clabInspectContainer) toInspectContainer() InspectContainer {
+	return InspectContainer{
+		Name:          c.Name,
+		LabName:       c.LabName,
+		LabPath:       c.LabPath,
+		Image:         c.Image,
+		State:         parseDockerState(c.State),
+		ContainerId:   c.ContainerId,
+		ContainerName: c.ContainerName,
+		IPv4Address:   c.IPv4Address,
+		IPv6Address:   c.IPv6Address,
+	}
+}
+
+// sendClabOutput sends the data from the containerlab stdout to the log
+// This function strips all ansi characters and splits the data into lines
+func sendClabOutput(output *string, onLog LogFunc) {
+	if output != nil {
+		lines := strings.Split(*output, "\n")
+		for _, line := range lines {
+			if line != "" {
+				onLog.Log(serverlog.ReplaceAnsiCharacters(line))
+			}
+		}
+	}
+}
+
+// parseInspectContainer parses the containerlab inspect output to fit the InspectContainer requirements
+func parseInspectContainer(container *InspectContainer, containerNamePrefix string) {
+	container.ContainerName = container.Name
+	container.Name = strings.TrimPrefix(container.Name, containerNamePrefix)
+
+	if container.IPv4Address == "N/A" {
+		container.IPv4Address = ""
+	}
+
+	if container.IPv6Address == "N/A" {
+		container.IPv6Address = ""
+	}
+}
+
+// parseDockerState maps a Docker container status, as relayed by containerlab, onto a NodeState.
+func parseDockerState(raw string) NodeState {
+	normalised := strings.ToLower(strings.TrimSpace(raw))
+	if fields := strings.Fields(normalised); len(fields) > 0 {
+		normalised = fields[0]
+	}
+
+	state, ok := dockerStates[normalised]
+	if !ok {
+		log.Warn("Unknown docker state, treating as stopped", "state", raw)
+
+		return NodeStates.Stopped
+	}
+
+	return state
+}
+
+// convertInspectOutput turns every lab's DTOs into the shared inspect containers.
+func convertInspectOutput(raw map[string][]clabInspectContainer) map[string][]InspectContainer {
+	out := make(map[string][]InspectContainer, len(raw))
+
+	for labName, containers := range raw {
+		out[labName] = clabToInspectContainer(labName, containers)
+	}
+
+	return out
+}
+
+// clabToInspectContainer turns one lab's DTOs into the shared [InspectContainer] objects, applying that lab's
+// container name prefix as it goes.
+func clabToInspectContainer(labName string, raw []clabInspectContainer) []InspectContainer {
+	containerNamePrefix := fmt.Sprintf("clab-%s-", labName)
+
+	converted := make([]InspectContainer, len(raw))
+	for i, inspectContainer := range raw {
+		converted[i] = inspectContainer.toInspectContainer()
+		parseInspectContainer(&converted[i], containerNamePrefix)
+	}
+
+	return converted
+}
+
+// openCaptureInNetns opens a capture on an interface in the network namespace of a process. The socket stays in that
+// namespace, so it can be read from any thread afterward.
+func openCaptureInNetns(pid int, interfaceName string) (*afpacket.TPacket, error) {
+	type result struct {
+		tp  *afpacket.TPacket
+		err error
+	}
+
+	// The namespace is switched on a thread of its own, which is thrown away if it can't switch back, so the caller's
+	// goroutine always gets a result
+	done := make(chan result, 1)
+	go func() {
+		tp, err := switchNetnsAndOpenCapture(pid, interfaceName)
+		done <- result{tp, err}
+	}()
+
+	r := <-done
+	return r.tp, r.err
+}
+
+// switchNetnsAndOpenCapture opens the capture on the calling goroutine's thread. If the thread can't return to its
+// original namespace, it stays locked, and Go terminates it once the goroutine ends instead of reusing it.
+func switchNetnsAndOpenCapture(pid int, interfaceName string) (*afpacket.TPacket, error) {
+	runtime.LockOSThread()
+
+	orig, err := netns.Get()
+	if err != nil {
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("get current netns: %w", err)
+	}
+	defer orig.Close()
+
+	targetNs, err := netns.GetFromPid(pid)
+	if err != nil {
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("get netns for pid %d: %w", pid, err)
+	}
+	defer targetNs.Close()
+
+	if err := netns.Set(targetNs); err != nil {
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("enter target netns: %w", err)
+	}
+
+	tp, err := afpacket.NewTPacket(
+		afpacket.OptInterface(interfaceName),
+		afpacket.OptPollTimeout(capturePollTimeout),
+	)
+
+	if revertErr := netns.Set(orig); revertErr != nil {
+		if tp != nil {
+			tp.Close()
+		}
+		return nil, fmt.Errorf("return to the original netns: %w", revertErr)
+	}
+
+	runtime.UnlockOSThread()
+	return tp, err
+}

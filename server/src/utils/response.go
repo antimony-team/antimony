@@ -26,25 +26,38 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 1001, Message: err.Error()}
 	case errors.Is(err, ErrCollectionExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 2001, Message: err.Error()}
-	case errors.Is(err, ErrTopologyExists):
+	case errors.Is(err, ErrTopologyNameExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 3001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidTopology):
 		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}
+	case errors.Is(err, ErrInvalidTopologyName):
+		return http.StatusBadRequest, ErrorResponse{Code: 3004, Message: err.Error()}
+	case errors.Is(err, ErrUnsafeTopology):
+		return http.StatusBadRequest, ErrorResponse{Code: 3005, Message: err.Error()}
 	case errors.Is(err, ErrBindFileExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidBindFilePath):
 		return http.StatusBadRequest, ErrorResponse{Code: 4002, Message: err.Error()}
+	case errors.Is(err, ErrLabRunning):
+		return http.StatusBadRequest, ErrorResponse{Code: 4003, Message: err.Error()}
+	case errors.Is(err, ErrLabNameExists):
+		return http.StatusBadRequest, ErrorResponse{Code: 5001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidLabName):
+		return http.StatusBadRequest, ErrorResponse{Code: 5002, Message: err.Error()}
 	case errors.Is(err, ErrDatabaseError):
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
 	case errors.Is(err, ErrUnauthorized),
+		errors.Is(err, ErrAdminAuthDisabledError),
 		errors.Is(err, ErrOpenIDAuthDisabledError),
-		errors.Is(err, ErrNativeAuthDisabledError):
+		errors.Is(err, ErrDesktopAuthDisabledError):
 		return http.StatusUnauthorized, ErrorResponse{Code: 401, Message: err.Error()}
-	case errors.Is(err, ErrTokenInvalid):
+	case errors.Is(err, ErrAccessTokenInvalid):
 		return 498, ErrorResponse{Code: 498, Message: err.Error()}
 	case errors.Is(err, ErrForbidden),
+		errors.Is(err, ErrDesktopTokenInvalid),
 		errors.Is(err, ErrNoAccessToLab),
+		errors.Is(err, ErrNoAccessToTopology),
 		errors.Is(err, ErrNoWriteAccessToLab),
 		errors.Is(err, ErrNoWriteAccessToBindFile),
 		errors.Is(err, ErrNoWriteAccessToTopology),
@@ -64,30 +77,46 @@ func CreateValidationError(err error) (int, ErrorResponse) {
 
 func CreateSocketErrorResponse(err error) ErrorResponse {
 	switch {
+	// Generic request errors
 	case errors.Is(err, ErrAntimony):
 		return ErrorResponse{Code: 5000, Message: err.Error()}
-	case errors.Is(err, ErrContainerlab):
-		return ErrorResponse{Code: 5001, Message: err.Error()}
-	case errors.Is(err, ErrLabIsDeploying):
-		return ErrorResponse{Code: 5002, Message: err.Error()}
-	case errors.Is(err, ErrLabNotRunning):
-		return ErrorResponse{Code: 5003, Message: err.Error()}
-	case errors.Is(err, ErrNodeNotRunning):
-		return ErrorResponse{Code: 5004, Message: err.Error()}
-	case errors.Is(err, ErrUuidNotFound):
-		return ErrorResponse{Code: 5005, Message: err.Error()}
-	case errors.Is(err, ErrNodeNotFound):
-		return ErrorResponse{Code: 5006, Message: err.Error()}
-	case errors.Is(err, ErrShellNotFound):
-		return ErrorResponse{Code: 5007, Message: err.Error()}
-	case errors.Is(err, ErrShellLimitReached):
-		return ErrorResponse{Code: 5008, Message: err.Error()}
+	case errors.Is(err, ErrInvalidRuntimeCommand):
+		return ErrorResponse{Code: 5400, Message: err.Error()}
 	case errors.Is(err, ErrInvalidSocketRequest):
 		return ErrorResponse{Code: 5422, Message: err.Error()}
+	case errors.Is(err, ErrUuidNotFound):
+		return ErrorResponse{Code: 5404, Message: err.Error()}
+	case errors.Is(err, ErrProvider):
+		return ErrorResponse{Code: 5500, Message: err.Error()}
+
+	// Lab errors
+	case errors.Is(err, ErrLabNotFound):
+		return ErrorResponse{Code: 5011, Message: err.Error()}
+	case errors.Is(err, ErrLabNotRunning):
+		return ErrorResponse{Code: 5012, Message: err.Error()}
+	case errors.Is(err, ErrLabOperationInProgress):
+		return ErrorResponse{Code: 5013, Message: err.Error()}
+
+	// Node errors
+	case errors.Is(err, ErrNodeNotFound):
+		return ErrorResponse{Code: 5021, Message: err.Error()}
+	case errors.Is(err, ErrNodeNotRunning):
+		return ErrorResponse{Code: 5022, Message: err.Error()}
+	case errors.Is(err, ErrInvalidNodeOperation):
+		return ErrorResponse{Code: 5023, Message: err.Error()}
+
+	// Shell errors
+	case errors.Is(err, ErrShellNotFound):
+		return ErrorResponse{Code: 5031, Message: err.Error()}
+	case errors.Is(err, ErrShellLimitReached):
+		return ErrorResponse{Code: 5032, Message: err.Error()}
+
 	// Permission / Access errors
 	case errors.Is(err, ErrNoDestroyAccessToLab),
+		errors.Is(err, ErrNoDeployAccessToLab),
 		errors.Is(err, ErrNoAccessToShell),
-		errors.Is(err, ErrNoAccessToLab):
+		errors.Is(err, ErrNoAccessToLab),
+		errors.Is(err, ErrNoAccessToTopology):
 		return ErrorResponse{Code: 5403, Message: err.Error()}
 	}
 

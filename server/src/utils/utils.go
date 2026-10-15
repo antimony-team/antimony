@@ -1,13 +1,14 @@
 package utils
 
 import (
-	"os"
+	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 )
 
 func GenerateUuid() string {
-	uuid1, err := uuid.NewUUID()
+	uuid1, err := uuid.NewRandom()
 	if err != nil {
 		panic("Failed to generate UUID")
 	}
@@ -15,48 +16,16 @@ func GenerateUuid() string {
 	return uuid1.String()
 }
 
-func IsDirectoryWritable(path string) bool {
-	info, err := os.Stat(path)
-
-	// TODO: Proper access check implementation
-	return err == nil && info.IsDir() && info.Mode().Perm()&(1<<(uint(7))) != 0
+// IsUuid reports whether str is a UUID in the form GenerateUuid produces.
+func IsUuid(str string) bool {
+	parsed, err := uuid.Parse(str)
+	return err == nil && parsed.String() == str
 }
 
-func StringPtr(s string) *string {
-	return &s
-}
-
-func NounCounter(noun string, count int) string {
-	if count == 1 {
-		return noun
+// ParseEnum returns s as T if it's one of the allowed values.
+func ParseEnum[T ~string](what string, s string, allowed ...T) (T, error) {
+	if slices.Contains(allowed, T(s)) {
+		return T(s), nil
 	}
-	return noun + "s"
-}
-
-func GetItemsFromList[T any](list []T, limit int, offset int) []T {
-	if offset >= len(list) {
-		return make([]T, 0)
-	}
-
-	end := offset + limit
-	if end > len(list) {
-		end = len(list)
-	}
-
-	return list[offset:end]
-}
-
-func GetTopologyValue(topologyDefinition map[string]any, keys ...string) (any, bool) {
-	var current any = topologyDefinition
-	for _, key := range keys {
-		cm, ok := current.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		current, ok = cm[key]
-		if !ok {
-			return nil, false
-		}
-	}
-	return current, true
+	return "", fmt.Errorf("unknown %s %q (expected one of %v)", what, s, allowed)
 }

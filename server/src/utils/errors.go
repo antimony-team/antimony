@@ -1,13 +1,25 @@
 package utils
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 /*
  * Generic errors.
  */
 
 var ErrAntimony = errors.New("the antimony server encountered an error. please check the logs")
-var ErrContainerlab = errors.New("the containerlab subprocess encountered an error")
+var ErrProvider = errors.New("the provider subprocess encountered an error")
+
+// ErrCaptureNotSupported is returned by providers that cannot attach to a node's interfaces.
+//
+// It wraps [ErrProvider] so it maps onto the existing provider error code rather than adding a new
+// one to the socket contract.
+var ErrCaptureNotSupported = fmt.Errorf(
+	"%w: packet capture is not supported by this provider",
+	ErrProvider,
+)
 var ErrDatabaseError = errors.New("the antimony database encountered an error. please check the logs")
 var ErrFileStorage = errors.New("the antimony storage service encountered an error. please check the logs")
 var ErrOpenIDError = errors.New("failed to authenticate via openid connect")
@@ -24,24 +36,31 @@ var ErrShellNotFound = errors.New("the provided shell id does not exist")
  * Input processing errors.
  */
 
-var ErrLabRunning = errors.New("modifications to a running lab are not allowed")
-var ErrTopologyExists = errors.New("a topology with that name already exists in that collection")
+var ErrLabRunning = errors.New("the lab is still running")
+var ErrLabNameExists = errors.New("a lab with that name already exists in that collection")
+var ErrInvalidLabName = errors.New("the name of the lab is invalid")
+var ErrTopologyNameExists = errors.New("a topology with that name already exists in that collection")
+var ErrInvalidTopologyName = errors.New("the name for the topology is invalid")
+var ErrUnsafeTopology = errors.New("the topology contains unsafe features that the server rejected")
 var ErrBindFileExists = errors.New("a file with that path already exists for that topology")
 var ErrCollectionExists = errors.New("a collection with that name already exists")
-var ErrInvalidTopology = errors.New("the topology provided were invalid")
+var ErrInvalidTopology = errors.New("the topology provided was invalid")
 var ErrInvalidBindFilePath = errors.New("the provided bind file path was invalid")
 
 /*
  * Permission / Access errors.
  */
 
+var ErrAdminAuthDisabledError = errors.New("authentication via admin login is disabled")
 var ErrOpenIDAuthDisabledError = errors.New("authentication via openid is disabled")
-var ErrNativeAuthDisabledError = errors.New("native authentication is disabled")
+var ErrDesktopAuthDisabledError = errors.New("authentication via desktop token is disabled")
 var ErrInvalidCredentials = errors.New("the provided native credentials were invalid")
-var ErrTokenInvalid = errors.New("the auth token provided was invalid")
+var ErrDesktopTokenInvalid = errors.New("the provided desktop token was invalid")
+var ErrAccessTokenInvalid = errors.New("the provided access token was invalid")
 var ErrUnauthorized = errors.New("the request was unauthorized")
 var ErrForbidden = errors.New("access to the requested resource is forbidden")
 var ErrNoAccessToLab = errors.New("access to the provided lab is not granted")
+var ErrNoAccessToTopology = errors.New("access to the provided topology is not granted")
 var ErrNoWriteAccessToLab = errors.New("write access to the provided lab is not granted")
 var ErrNoWriteAccessToTopology = errors.New("write access to the provided topology is not granted")
 var ErrNoWriteAccessToBindFile = errors.New("write access to the provided file is not granted")
@@ -55,10 +74,12 @@ var ErrNoPermissionToCreateCollections = errors.New("permission to create collec
  * Socket-exclusive errors.
  */
 
+var ErrLabNotFound = errors.New("the specified lab has not been found")
 var ErrLabNotRunning = errors.New("the specified lab is not running")
 var ErrShellLimitReached = errors.New("user shell limit reached")
 var ErrNodeNotRunning = errors.New("the specified node is not running")
-var ErrLabIsDeploying = errors.New("the specified lab is already being deployed")
-var ErrInvalidLabCommand = errors.New("the provided lab command was invalid")
+var ErrLabOperationInProgress = errors.New("lab is busy, try again once the current operation has finished")
+var ErrInvalidNodeOperation = errors.New("the provided node operation was not allowed")
+var ErrInvalidRuntimeCommand = errors.New("the provided runtime command was invalid")
 var ErrNoAccessToShell = errors.New("access to the provided shell is not granted")
 var ErrInvalidSocketRequest = errors.New("the socket request was invalid")
