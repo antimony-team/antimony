@@ -1,3 +1,4 @@
+import {topologyDefinition} from '../fixtures/api';
 import {expect, knownBug, test} from '../fixtures/test';
 import {ConfirmDialog, toast} from '../pages/dialogs';
 import {EditorPage} from '../pages/editor-page';
@@ -264,9 +265,6 @@ test('moving a topology leaves the open topology alone', async ({
   createCollection,
   createTopology,
 }) => {
-  knownBug(
-    "after dragging a topology into another collection, the open topology's editor gets the moved topology's definition",
-  );
   const open = await createTopology();
   const moved = await createTopology({collection: open.collection});
   const target = await createCollection();
@@ -284,6 +282,31 @@ test('moving a topology leaves the open topology alone', async ({
 
   await expect(editor.editor.title).toHaveText(new RegExp(`${open.name}$`));
   expect(await editor.editor.text()).toContain(`name: ${open.name}`);
+});
+
+test('moving the open topology keeps its unsaved edits', async ({
+  page,
+  api,
+  createCollection,
+  createTopology,
+}) => {
+  const open = await createTopology();
+  const target = await createCollection();
+  await createTopology({collection: target});
+  const editor = new EditorPage(page);
+  await editor.open(open.id, open.name);
+  await editor.editor.setText(
+    topologyDefinition(open.name, ['host1', 'host2', 'unsaved']),
+  );
+  await expect(editor.editor.title).toHaveText(new RegExp(`${open.name}\\*$`));
+  await editor.explorer.expand(open.collection.name);
+
+  await editor.explorer.row(open.name).dragTo(editor.explorer.row(target.name));
+  await expect
+    .poll(async () => (await api.getTopology(open.id)).collectionId)
+    .toBe(target.id);
+
+  await expect.poll(() => editor.editor.text()).toContain('unsaved:');
 });
 
 test('the explorer filter shows only matching topologies', async ({

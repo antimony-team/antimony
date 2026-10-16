@@ -190,13 +190,16 @@ Users see buttons that then fail.
   file if it isn't there any more. Server bug 9 remains, so the server would still accept such a
   request.
 
-### 18. Moving a topology overwrites the open topology in the editor
+### 18. ~~Moving a topology overwrites the open topology in the editor~~ (fixed)
 
-- **Status:** verified — `topologies.spec.ts` › "moving a topology leaves the open topology alone"
+- **Status:** fixed — `topologies.spec.ts` › "moving a topology leaves the open topology alone", "moving the
+  open topology keeps its unsaved edits"
 - **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (after a drag and drop it calls
   `topologyStore.manager.editTopology(topologyBackup, …)`)
 - **What happens:** dragging a topology into another collection replaces the open topology's definition
   with the moved topology's. Saving would then overwrite the open topology.
+- **Fix:** the editor is only restored when the moved topology is the open one, and from the editor's own
+  content, so unsaved edits are kept. Moving another topology doesn't touch the editor.
 
 ### 19. Deleting the last link makes the topology unsaveable
 

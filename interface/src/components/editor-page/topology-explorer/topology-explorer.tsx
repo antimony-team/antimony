@@ -893,9 +893,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
-    // We need to make a backup of the topology before moving it and restore
-    // it afterward, as the update and single fetch will overwrite it.
-    const topologyBackup = topology.definition;
+    // The update and single fetch reset the open topology, so if it's the one
+    // being moved, its content in the editor (with unsaved edits) is restored
+    // afterward. Other topologies don't touch the editor.
+    const editorBackup =
+      topologyStore.manager.editingFileId === topology.id
+        ? topologyStore.manager.topology?.definition
+        : null;
 
     const result = await topologyStore.update(topology.id, {
       collectionId: collectionId,
@@ -904,10 +908,12 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (result.isErr()) {
       notificationStore.error(result.error.message, 'Failed to move topology');
     } else {
-      topologyStore.manager.editTopology(
-        topologyBackup,
-        TopologyEditSource.System,
-      );
+      if (editorBackup) {
+        topologyStore.manager.editTopology(
+          editorBackup,
+          TopologyEditSource.System,
+        );
+      }
 
       // If the move was successful, expand the target collection node
       expandNode(collectionId);
