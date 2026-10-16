@@ -213,9 +213,6 @@ test.describe('nodes and links', () => {
     api,
     createTopology,
   }) => {
-    knownBug(
-      'removing the last link writes "links: []", which the containerlab schema rejects, so the topology can no longer be saved',
-    );
     const topology = await createTopology();
     const {editor, graph} = await openGraph(page, topology);
 
@@ -231,6 +228,10 @@ test.describe('nodes and links', () => {
     await expect
       .poll(async () => (await api.getTopology(topology.id)).definition)
       .not.toContain('host2');
+    // Without links, there's no `links` key left (an empty list isn't allowed)
+    expect((await api.getTopology(topology.id)).definition).not.toContain(
+      'links',
+    );
   });
 
   test('a link can be deleted from its menu', async ({

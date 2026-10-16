@@ -455,6 +455,9 @@ function deleteLinkItems(
   for (const index of [...new Set(linkIndices)].sort((a, b) => b - a)) {
     links.delete(index);
   }
+
+  // containerlab doesn't allow an empty list of links, only none at all
+  if (links.items.length === 0) document.deleteIn(['topology', 'links']);
 }
 
 // The endpoints of a link, written as 'node:interface' strings or as maps

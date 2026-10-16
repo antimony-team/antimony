@@ -201,15 +201,17 @@ Users see buttons that then fail.
 - **Fix:** the editor is only restored when the moved topology is the open one, and from the editor's own
   content, so unsaved edits are kept. Moving another topology doesn't touch the editor.
 
-### 19. Deleting the last link makes the topology unsaveable
+### 19. ~~Deleting the last link makes the topology unsaveable~~ (fixed)
 
-- **Status:** verified — `graph-editor.spec.ts` › "deleting the last link leaves a topology that can be
+- **Status:** fixed — `graph-editor.spec.ts` › "deleting the last link leaves a topology that can be
   saved"
 - **Where:** the graph editor's delete (`lib/topology-manager.ts`)
 - **What happens:** deleting the last link (or a node with the last link) leaves `links: []`. The
   containerlab schema requires at least one item, so the server rejects the save ("topology.links: minimum
   1 items required") and the editor then shows the file as invalid.
-- **Fix idea:** remove the `links` key when it becomes empty.
+- **Fix:** `deleteLinkItems` (`lib/topology/containerlab/containerlab-definition.ts`) removes the `links`
+  key when its last item is deleted. All link deletions go through it, including deleting nodes and
+  "Clear graph".
 
 ### 20. A node can be connected to itself
 
