@@ -7,17 +7,6 @@ Each entry is either **suspected** (found by reading the code, not reproduced ye
 
 ## Suspected
 
-### 3. Container stats assume Docker's systemd cgroup driver
-
-- `deployment/sampler_docker.go` `readTarget`
-
-The cgroup path is fixed to `/sys/fs/cgroup/system.slice/docker-<id>.scope`. With the `cgroupfs` driver
-(`/sys/fs/cgroup/docker/<id>`) or rootless Docker the files don't exist, so every stats read reports
-the node as not running.
-
-Not reproducible here: the local machine and the CI runners use the systemd driver, where
-`ReadNodeStats` passes in the e2e tests.
-
 ### 5. Containerlab log streams are never closed
 
 - `deployment/containerlab.go` `StreamContainerLogs`
@@ -49,6 +38,26 @@ A node attached to more than one network gets a random one of them on each call.
 None left, see "Fixed".
 
 ## Fixed
+
+### 3. Container stats assume Docker's systemd cgroup driver
+
+- `deployment/sampler_docker.go` `readTarget`
+
+The cgroup path is fixed to `/sys/fs/cgroup/system.slice/docker-<id>.scope`. With the `cgroupfs` driver
+(`/sys/fs/cgroup/docker/<id>`) or rootless Docker the files don't exist, so every stats read reports
+the node as not running.
+
+Not reproducible here: the local machine and the CI runners use the systemd driver, where
+`ReadNodeStats` passes in the e2e tests.
+
+**Fixed** (it stays unreproduced on a real host, since every host here uses the systemd driver): the sampler no
+longer builds the path. It reads the container's cgroup v2 path from `/proc/<pid>/cgroup` (the `0::` line) when it
+resolves the node, joins it with the cgroup root, and caches it with the PID. That works for every cgroup driver
+and parent, rootless Docker and Podman. A path starting with `/..` means the server runs in a cgroup namespace of
+its own; the sampler then says so instead of reporting the node as not running. `/proc` and the cgroup root are
+fields of the sampler now, so the new `TestDockerSampler_*` tests can build both trees in a temp directory:
+systemd and cgroupfs drivers, a custom parent, rootless Docker, Podman, a hybrid hierarchy, a foreign namespace, an
+exited process and a removed container. Still to run at the end: the stats e2e steps on containerlab.
 
 ### 12. A clabernetes shell for a command that doesn't exist opens anyway
 

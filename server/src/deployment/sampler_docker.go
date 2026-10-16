@@ -27,7 +27,16 @@ type dockerRef struct {
 type dockerTarget struct {
 	fullContainerId string
 	pid             int
+
+	// cgroupDir is the container's cgroup v2 directory, which depends on the runtime's cgroup driver and parent
+	cgroupDir string
 }
+
+// errForeignCgroupNamespace is returned when the server can't see the nodes' cgroups, because it runs in a cgroup
+// namespace of its own.
+var errForeignCgroupNamespace = errors.New(
+	"the node's cgroup is outside the server's cgroup namespace, run the server in the host's cgroup namespace",
+)
 
 // resolveFunc turns a node into its container's full id and init pid.
 type nodeResolveFunc func(ctx context.Context, instanceName, node string) (dockerTarget, error)
@@ -37,6 +46,10 @@ type nodeResolveFunc func(ctx context.Context, instanceName, node string) (docke
 // for a containerlab provider that orchestrates containers on the same system.
 type dockerSampler struct {
 	nodeResolver nodeResolveFunc
+
+	// procRoot and cgroupRoot are where /proc and the cgroup v2 hierarchy are mounted
+	procRoot   string
+	cgroupRoot string
 
 	systemMemoryTotal uint64
 
@@ -67,6 +80,8 @@ func createDockerSampler(nodeResolver nodeResolveFunc) *dockerSampler {
 
 	return &dockerSampler{
 		nodeResolver:      nodeResolver,
+		procRoot:          "/proc",
+		cgroupRoot:        "/sys/fs/cgroup",
 		systemMemoryTotal: total,
 		targetCache:       make(map[dockerRef]dockerTarget),
 		targetCacheMutex:  sync.Mutex{},
@@ -104,6 +119,15 @@ func (s *dockerSampler) getTarget(ctx context.Context, ref dockerRef) (dockerTar
 		return dockerTarget{}, err
 	}
 
+	t.cgroupDir, err = s.findCgroupDir(t.pid)
+	if errors.Is(err, os.ErrNotExist) {
+		// The process exited since the container was inspected
+		return dockerTarget{}, fmt.Errorf("%w: %s/%s", utils.ErrNodeNotRunning, ref.instanceName, ref.nodeName)
+	}
+	if err != nil {
+		return dockerTarget{}, err
+	}
+
 	s.targetCacheMutex.Lock()
 	s.targetCache[ref] = t
 	s.targetCacheMutex.Unlock()
@@ -113,7 +137,7 @@ func (s *dockerSampler) getTarget(ctx context.Context, ref dockerRef) (dockerTar
 func (s *dockerSampler) readTarget(target dockerTarget) (statsSample, error) {
 	var sample statsSample
 
-	base := filepath.Join("/sys/fs/cgroup/system.slice", fmt.Sprintf("docker-%s.scope", target.fullContainerId))
+	base := target.cgroupDir
 
 	cpuStat, err := readLines(filepath.Join(base, "cpu.stat"))
 	if err != nil {
@@ -134,7 +158,7 @@ func (s *dockerSampler) readTarget(target dockerTarget) (statsSample, error) {
 	}
 	sample.memLimit = parseMemoryMax(string(memMax), s.systemMemoryTotal)
 
-	netDev, err := readLines(fmt.Sprintf("/proc/%d/net/dev", target.pid))
+	netDev, err := readLines(filepath.Join(s.procRoot, strconv.Itoa(target.pid), "net", "dev"))
 	if err != nil {
 		return sample, err
 	}
@@ -142,6 +166,31 @@ func (s *dockerSampler) readTarget(target dockerTarget) (statsSample, error) {
 
 	sample.systemNs, sample.onlineCPUs, err = s.systemCPU()
 	return sample, err
+}
+
+// findCgroupDir returns the cgroup v2 directory of a process. The kernel lists it in /proc/<pid>/cgroup, which works
+// for every cgroup driver and parent, rootless runtimes included.
+func (s *dockerSampler) findCgroupDir(pid int) (string, error) {
+	lines, err := readLines(filepath.Join(s.procRoot, strconv.Itoa(pid), "cgroup"))
+	if err != nil {
+		return "", err
+	}
+
+	for _, line := range lines {
+		path, ok := strings.CutPrefix(line, "0::")
+		if !ok {
+			continue
+		}
+
+		// A cgroup outside the reader's cgroup namespace is listed relative to it
+		if strings.HasPrefix(path, "/..") {
+			return "", errForeignCgroupNamespace
+		}
+
+		return filepath.Join(s.cgroupRoot, path), nil
+	}
+
+	return "", fmt.Errorf("process %d has no cgroup v2 entry", pid)
 }
 
 func (s *dockerSampler) forgetTarget(ref dockerRef) {
@@ -158,7 +207,7 @@ func (s *dockerSampler) systemCPU() (uint64, int, error) {
 		return s.sysCPUNs, s.sysCPUCount, nil
 	}
 
-	lines, err := readLines("/proc/stat")
+	lines, err := readLines(filepath.Join(s.procRoot, "stat"))
 	if err != nil {
 		return 0, 0, err
 	}
