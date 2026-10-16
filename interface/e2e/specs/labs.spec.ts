@@ -192,13 +192,10 @@ test.describe('schedule', () => {
     expect((await api.getLab(lab.id)).name).toBe(newName);
   });
 
-  test('the date pickers show times in the 24-hour format', async ({
+  test("the date pickers show times in the user's locale", async ({
     page,
     createLab,
   }) => {
-    knownBug(
-      'the date pickers use the 12-hour clock (hh) without AM or PM, so 15:00 shows as 03:00',
-    );
     const start = new Date();
     start.setUTCDate(start.getUTCDate() + 1);
     start.setUTCHours(15, 0, 0, 0);
@@ -211,7 +208,8 @@ test.describe('schedule', () => {
     await schedule.getByText(lab.name).click();
 
     const dialog = new LabEditDialog(page, 'Edit lab');
-    await expect(dialog.start).toHaveValue(/15:00:00/);
+    // The contexts use en-US, so the 12-hour clock with AM and PM
+    await expect(dialog.start).toHaveValue(/^\d{2}\/\d{2}\/\d{4} 03:00:00 PM$/);
   });
 });
 

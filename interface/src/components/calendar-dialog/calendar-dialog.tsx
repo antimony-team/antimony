@@ -1,8 +1,9 @@
 import React, {useEffect, useMemo, useState} from 'react';
 
+import dayjs from 'dayjs';
+import updateLocale from 'dayjs/plugin/updateLocale';
 import {observer} from 'mobx-react-lite';
-import moment from 'moment';
-import {Calendar, momentLocalizer, View, Views} from 'react-big-calendar';
+import {Calendar, dayjsLocalizer, View, Views} from 'react-big-calendar';
 
 import LabEditDialog, {
   LabEditDialogState,
@@ -13,12 +14,44 @@ import {
   useDialogState,
   useScopedLabStore,
 } from '@sb/lib/utils/hooks';
+import {formatTime, localeFirstDayOfWeek} from '@sb/lib/utils/utils';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 import {uuid4} from '@sb/types/types';
 
 import './calendar-dialog.sass';
 
-const localizer = momentLocalizer(moment);
+dayjs.extend(updateLocale);
+dayjs.updateLocale('en', {weekStart: localeFirstDayOfWeek()});
+const localizer = dayjsLocalizer(dayjs);
+
+// The dayjs localizer starts the month on a Monday in leap years, whatever the first day of the week is
+localizer.firstVisibleDay = (date: Date) =>
+  dayjs(date).startOf('month').startOf('week').toDate();
+localizer.visibleDays = (date: Date) => {
+  const last = dayjs(date).endOf('month').endOf('week');
+  const days: Date[] = [];
+  for (
+    let day = dayjs(localizer.firstVisibleDay(date, localizer));
+    !day.isAfter(last);
+    day = day.add(1, 'day')
+  ) {
+    days.push(day.toDate());
+  }
+  return days;
+};
+
+function formatDay(date: Date, options: Intl.DateTimeFormatOptions) {
+  return date.toLocaleDateString([], options);
+}
+
+function formatTimeRange({start, end}: {start: Date; end: Date}) {
+  return `${formatTime(start)} – ${formatTime(end)}`;
+}
+
+function formatDayRange({start, end}: {start: Date; end: Date}) {
+  const options: Intl.DateTimeFormatOptions = {day: 'numeric', month: 'short'};
+  return `${formatDay(start, options)} – ${formatDay(end, options)}`;
+}
 
 interface CalendarDialogProps {
   isOpen: boolean;
@@ -97,8 +130,8 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
 
   useEffect(() => {
     labStore.setDates(
-      moment(currentDate).startOf('month').toISOString(),
-      moment(currentDate).endOf('month').toISOString(),
+      dayjs(currentDate).startOf('month').toISOString(),
+      dayjs(currentDate).endOf('month').toISOString(),
     );
     labStore.setLimit(1000);
     labStore.setStateFilter([
@@ -165,12 +198,22 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
           showMore: total => `+${total} more`,
         }}
         formats={{
-          timeGutterFormat: 'HH:mm',
-          agendaTimeFormat: 'HH:mm',
-          eventTimeRangeFormat: ({start, end}, culture, localizer) =>
-            `${localizer!.format(start, 'HH:mm', culture)} – ${localizer!.format(end, 'HH:mm', culture)}`,
-          agendaTimeRangeFormat: ({start, end}, culture, localizer) =>
-            `${localizer!.format(start, 'HH:mm', culture)} – ${localizer!.format(end, 'HH:mm', culture)}`,
+          timeGutterFormat: date => formatTime(date),
+          agendaTimeFormat: date => formatTime(date),
+          eventTimeRangeFormat: formatTimeRange,
+          agendaTimeRangeFormat: formatTimeRange,
+          selectRangeFormat: formatTimeRange,
+          monthHeaderFormat: date =>
+            formatDay(date, {month: 'long', year: 'numeric'}),
+          dayHeaderFormat: date =>
+            formatDay(date, {weekday: 'long', day: 'numeric', month: 'long'}),
+          dayRangeHeaderFormat: formatDayRange,
+          agendaHeaderFormat: formatDayRange,
+          weekdayFormat: date => formatDay(date, {weekday: 'short'}),
+          dayFormat: date =>
+            formatDay(date, {weekday: 'short', day: 'numeric'}),
+          agendaDateFormat: date =>
+            formatDay(date, {weekday: 'short', day: 'numeric', month: 'short'}),
         }}
         onDrillDown={date => {
           setCurrentView('week');

@@ -1,6 +1,5 @@
 import React, {useMemo} from 'react';
 
-import dayjs from 'dayjs';
 import {useNavigate} from 'react-router';
 
 import {Button} from 'primereact/button';
@@ -12,6 +11,7 @@ import {
   useDataBinder,
   useServerConfig,
 } from '@sb/lib/stores/root-store';
+import {formatDateTime} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 
@@ -74,9 +74,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
           <dd>
             <Choose>
               <When condition={props.lab.instance}>
-                {dayjs(props.lab.instance!.deployed).format(
-                  'D MMM YYYY, HH:mm',
-                )}
+                {formatDateTime(props.lab.instance!.deployed)}
               </When>
               <Otherwise>N/A</Otherwise>
             </Choose>
@@ -97,9 +95,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
           <dd>
             <Choose>
               <When condition={props.lab.endTime === null}>Indefinitely</When>
-              <Otherwise>
-                {dayjs(props.lab.endTime).format('D MMM YYYY, HH:mm')}
-              </Otherwise>
+              <Otherwise>{formatDateTime(props.lab.endTime!)}</Otherwise>
             </Choose>
           </dd>
 

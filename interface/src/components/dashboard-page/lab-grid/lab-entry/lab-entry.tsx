@@ -10,7 +10,7 @@ import {
   useCollectionStore,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {formatDuration} from '@sb/lib/utils/utils';
+import {formatDuration, formatTime} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
@@ -94,11 +94,7 @@ const LabEntry = observer((props: LabEntryProps) => {
     props.lab.state !== InstanceState.Stopping && isChangeable;
 
   function formatWhen(date: Date, now: number): string {
-    const time = date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    });
+    const time = formatTime(date);
 
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);

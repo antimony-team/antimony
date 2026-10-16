@@ -23,6 +23,7 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+import {localeDatePattern, uses12HourClock} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {Lab, LabIn} from '@sb/types/domain/lab';
 import {ErrorCodes} from '@sb/types/error-codes';
@@ -31,6 +32,9 @@ import './lab-edit-dialog.sass';
 
 const MinInstances = 2;
 const MaxInstances = 50;
+
+const datePattern = localeDatePattern();
+const hourFormat = uses12HourClock() ? '12' : '24';
 
 const DeployModes = [
   {label: 'Single lab', value: 'single'},
@@ -415,9 +419,8 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
                   if (date) runInAction(() => (editingLab.startTime = date));
                 }}
                 selectionMode="single"
-                formatDateTime={date => {
-                  return dayjs(date).format('YYYY-MM-DD hh:mm:ss');
-                }}
+                dateFormat={datePattern}
+                hourFormat={hourFormat}
                 showIcon
                 showTime
                 showSeconds
@@ -437,9 +440,8 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
                   if (date) runInAction(() => (editingLab.endTime = date));
                 }}
                 selectionMode="single"
-                formatDateTime={date => {
-                  return dayjs(date).format('YYYY-MM-DD hh:mm:ss');
-                }}
+                dateFormat={datePattern}
+                hourFormat={hourFormat}
                 showIcon
                 showTime
                 showSeconds

@@ -120,6 +120,65 @@ export function formatBytes(v: number | null) {
   return v.toFixed(0) + ' B';
 }
 
+export function formatDateTime(date: string | Date) {
+  return new Date(date).toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+export function formatDate(date: string | Date) {
+  return new Date(date).toLocaleDateString([], {dateStyle: 'short'});
+}
+
+export function formatTime(date: string | Date, withSeconds = false) {
+  return new Date(date).toLocaleTimeString([], {
+    timeStyle: withSeconds ? 'medium' : 'short',
+  });
+}
+
+export function uses12HourClock() {
+  const hourCycle = new Intl.DateTimeFormat([], {
+    hour: 'numeric',
+  }).resolvedOptions().hourCycle;
+  return hourCycle === 'h11' || hourCycle === 'h12';
+}
+
+/**
+ * The locale's numeric date pattern in the notation of PrimeReact's Calendar, e.g. mm/dd/yy for en-US.
+ */
+export function localeDatePattern() {
+  return new Intl.DateTimeFormat([], {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+    .formatToParts(new Date(2000, 0, 1))
+    .map(part => {
+      switch (part.type) {
+        case 'day':
+          return 'dd';
+        case 'month':
+          return 'mm';
+        case 'year':
+          return 'yy';
+        default:
+          return part.value.replace(/'/g, "''");
+      }
+    })
+    .join('');
+}
+
+/** The locale's first day of the week, 0 being Sunday. */
+export function localeFirstDayOfWeek() {
+  const locale = new Intl.Locale(navigator.language) as Intl.Locale & {
+    getWeekInfo?: () => {firstDay: number};
+    weekInfo?: {firstDay: number};
+  };
+  const firstDay = (locale.getWeekInfo?.() ?? locale.weekInfo)?.firstDay;
+  return firstDay === undefined ? 0 : firstDay % 7;
+}
+
 export function formatUptime(deployed: string | Date, now = dayjs()) {
   const d = dayjs.duration(now.diff(dayjs(deployed)));
   const days = Math.floor(d.asDays());

@@ -11,7 +11,7 @@ import {
   useCollectionStore,
   useLabStore,
 } from '@sb/lib/stores/root-store';
-import {formatUptime} from '@sb/lib/utils/utils';
+import {formatDateTime, formatUptime} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, Lab} from '@sb/types/domain/lab';
 
@@ -82,9 +82,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
                   <When condition={props.lab.endTime === null}>
                     indefinitely
                   </When>
-                  <Otherwise>
-                    {dayjs(props.lab.endTime).format('DD/MM/YYYY HH:mm')}
-                  </Otherwise>
+                  <Otherwise>{formatDateTime(props.lab.endTime!)}</Otherwise>
                 </Choose>
               </span>
               <span>{props.lab.creator.name}</span>

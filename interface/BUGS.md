@@ -298,12 +298,16 @@ Users see buttons that then fail.
 - **Fix:** "Deployed" shows "N/A" without an instance, like "Instance". The "(Recovered)" note has the
   class the tooltip targets, and its position attribute is fixed.
 
-### 27. The date pickers use the 12-hour clock without AM or PM
+### 27. ~~The date pickers use the 12-hour clock without AM or PM~~ (fixed)
 
-- **Status:** verified — `labs.spec.ts` › "the date pickers show times in the 24-hour format"
+- **Status:** fixed — `labs.spec.ts` › "the date pickers show times in the user's locale"
 - **Where:** `components/common/lab-edit-dialog/lab-edit-dialog.tsx` (`YYYY-MM-DD hh:mm:ss`)
-- **What happens:** 15:00 is shown as 03:00:00.
-- **Fix idea:** `HH:mm:ss`.
+- **What happened:** 15:00 was shown as 03:00:00.
+- **Fix:** The pickers take their date pattern and 12- or 24-hour clock from the user's locale
+  (`localeDatePattern`, `uses12HourClock` in `lib/utils/utils.ts`), so typed dates are parsed in the same
+  format. All other dates and times (lab properties and header, lab cards, status messages, the schedule
+  including its first day of the week) now also follow the locale through shared helpers.
+  The schedule now uses dayjs instead of moment, which was imported without being a dependency.
 
 ### 28. "Download YAML" in the topology menu does nothing
 

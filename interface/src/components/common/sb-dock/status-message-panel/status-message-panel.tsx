@@ -10,6 +10,7 @@ import {ListBox} from 'primereact/listbox';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
 import {useStatusMessages} from '@sb/lib/stores/root-store';
+import {formatDate, formatTime} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {
   Severity,
@@ -40,20 +41,8 @@ const StatusMessagePanel = observer(
           >
             <i className={SeverityIconMap[message.severity]}></i>
             <div className="sb-dock-status-messages-date">
-              <span>
-                {message.timestamp.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                })}
-              </span>
-              <span>
-                {message.timestamp.toLocaleDateString([], {
-                  month: 'numeric',
-                  day: '2-digit',
-                  year: 'numeric',
-                })}
-              </span>
+              <span>{formatTime(message.timestamp, true)}</span>
+              <span>{formatDate(message.timestamp)}</span>
             </div>
             <If condition={!message.isRead}>
               <Badge severity="danger"></Badge>
