@@ -283,17 +283,20 @@ Users see buttons that then fail.
 - **Fix:** a lab without an instance is Scheduled while it hasn't started, if it has no end time or the
   end time hasn't passed (`getInstanceState`). The calendar still only shows labs with an end time.
 
-### 25. Collapsing the Scheduled group isn't remembered
+### 25. ~~Collapsing the Scheduled group isn't remembered~~ (fixed)
 
-- **Status:** verified — `dashboard.spec.ts` › "a collapsed Scheduled group stays collapsed after a reload"
+- **Status:** fixed — `dashboard.spec.ts` › "a collapsed Scheduled group stays collapsed after a reload"
 - **Where:** `components/dashboard-page/lab-grid/lab-grid.tsx` (the stored groups are validated with
   `oneOf('Active', 'Inactive', 'Archived')`, so a set with "Scheduled" is invalid and everything resets)
+- **Fix:** the check allows the existing groups, `oneOf('Active', 'Scheduled', 'Inactive')`.
 
-### 26. Labs that never ran show the current time as "Deployed"
+### 26. ~~Labs that never ran show the current time as "Deployed"~~ (fixed)
 
-- **Status:** verified — `lab-view.spec.ts` › "a lab that never ran shows no deployment time"
+- **Status:** fixed — `lab-view.spec.ts` › "a lab that never ran shows no deployment time"
 - **Where:** `components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties.tsx`.
   The "(Recovered)" tooltip there doesn't work either (wrong target class, typo in `data-pr-my`).
+- **Fix:** "Deployed" shows "N/A" without an instance, like "Instance". The "(Recovered)" note has the
+  class the tooltip targets, and its position attribute is fixed.
 
 ### 27. The date pickers use the 12-hour clock without AM or PM
 

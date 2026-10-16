@@ -1,5 +1,5 @@
 import {InstanceState} from '../fixtures/api';
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {clickGraphNode, graphEdges, graphNodes} from '../helpers/cytoscape';
 import {ConfirmDialog, contextMenu, toast} from '../pages/dialogs';
 import {LabView, LogDialog, TerminalDialog} from '../pages/lab-view';
@@ -143,12 +143,11 @@ test.describe('properties', () => {
     page,
     createLab,
   }) => {
-    knownBug('labs without an instance show the current time as Deployed');
     const lab = await createLab();
     const labView = new LabView(page);
     await labView.open(lab.id);
 
-    await expect(labView.property('Deployed')).not.toHaveText(/\d/);
+    await expect(labView.property('Deployed')).toHaveText('N/A');
   });
 });
 

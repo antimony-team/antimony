@@ -44,7 +44,7 @@ const LabGrid = (props: LabGridProps) => {
   const [collapsed, setCollapsed] = usePersistentState<Set<string>>(
     'lab-grid-collapsed-groups',
     new Set(['Inactive']),
-    setOf(oneOf('Active', 'Inactive', 'Archived')),
+    setOf(oneOf('Active', 'Scheduled', 'Inactive')),
   );
 
   const containerRef = useRef<HTMLDivElement>(null);

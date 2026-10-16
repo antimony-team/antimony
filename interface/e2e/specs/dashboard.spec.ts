@@ -1,4 +1,4 @@
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {DashboardPage} from '../pages/dashboard-page';
 import {LabView} from '../pages/lab-view';
 
@@ -168,9 +168,6 @@ test('a collapsed Scheduled group stays collapsed after a reload', async ({
   page,
   createLab,
 }) => {
-  knownBug(
-    'the stored groups only accept Active, Inactive and Archived, so collapsing Scheduled resets everything on reload',
-  );
   await createLab();
   const dashboard = new DashboardPage(page);
   await dashboard.goto();
