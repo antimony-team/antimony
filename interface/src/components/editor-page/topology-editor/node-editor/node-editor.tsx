@@ -2330,7 +2330,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function onNodeClick(event: cytoscape.EventObject) {
     const nodeId = event.target.id();
 
-    if (nodeConnectionSource.current && nodeConnectionSource !== nodeId) {
+    // Clicking the source node again links it to itself, which containerlab allows
+    if (nodeConnectionSource.current) {
       topologyStore.manager.connectNodes(nodeConnectionSource.current, nodeId);
       exitConnectionMode();
     }

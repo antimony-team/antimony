@@ -166,26 +166,25 @@ test.describe('nodes and links', () => {
       .toMatch(/a:eth2"?[\s\S]{0,20}c:eth2/);
   });
 
-  test('a node can not be connected to itself', async ({
+  test('a node can be connected to itself with two interfaces', async ({
     page,
+    api,
     createTopology,
   }) => {
-    knownBug(
-      'the self-check compares the ref object instead of its value, so clicking the source node again links it to itself',
-    );
     const topology = await createTopology();
-    const {graph} = await openGraph(page, topology);
+    const {editor, graph} = await openGraph(page, topology);
 
     await graph.nodeMenu('host1', 'Connect');
     await graph.clickNode('host1');
 
     await expect
       .poll(() => graphEdges(graph.canvas))
-      .toEqual([['host1', 'host2']]);
-    // Wait a moment for a link that shouldn't come
-    await expect(async () =>
-      expect(await graphEdges(graph.canvas)).toHaveLength(1),
-    ).toPass({timeout: 1500});
+      .toContainEqual(['host1', 'host1']);
+    await editor.editor.save.click();
+    // host1:eth1 is taken by the link to host2, so the loop gets the next two
+    await expect
+      .poll(async () => (await api.getTopology(topology.id)).definition)
+      .toMatch(/host1:eth2"?[\s\S]{0,20}host1:eth3/);
   });
 
   test('a node can be deleted with the Delete key', async ({

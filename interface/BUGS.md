@@ -231,12 +231,17 @@ Users see buttons that then fail.
   key when its last item is deleted. All link deletions go through it, including deleting nodes and
   "Clear graph".
 
-### 20. A node can be connected to itself
+### 20. ~~Links from a node to itself get the same interface on both ends~~ (fixed)
 
-- **Status:** verified — `graph-editor.spec.ts` › "a node can not be connected to itself"
-- **Where:** `components/editor-page/topology-editor/node-editor/node-editor.tsx`
-  (`nodeConnectionSource !== nodeId` compares the ref instead of `.current`)
-- **What happens:** after "Connect", clicking the same node again links it to itself.
+- **Status:** fixed — `graph-editor.spec.ts` › "a node can be connected to itself with two interfaces"
+- **Where:** `lib/topology-manager.ts` (`connectNodes`), `lib/graph/interfaces.ts` (`nextInterface`)
+- **What happened:** containerlab allows links between two interfaces of the same node. The editor picked
+  the next free interface for both ends from the same topology, so a self-link got the same interface
+  twice (`host1:eth2` ↔ `host1:eth2`), which containerlab can't deploy.
+- **Fix:** `nextInterface` takes the interfaces that are already taken, and `connectNodes` passes the
+  first end's interface for the second end of a self-link (`host1:eth2` ↔ `host1:eth3`). The broken check
+  in `onNodeClick` that compared the ref object was removed: clicking the source node again creates the
+  self-link on purpose.
 
 ### 21. "Delete group and nodes" keeps the nodes
 

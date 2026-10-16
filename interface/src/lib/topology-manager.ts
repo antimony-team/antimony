@@ -798,20 +798,29 @@ export class TopologyManager {
   public connectNodes(nodeName1: string, nodeName2: string) {
     if (!this.editingTopology || !this.deviceStore.data) return;
 
-    // Each end gets the next free interface in the pattern of the node's device
+    // Each end gets the next free interface in the pattern of the node's device.
+    // A link from a node to itself needs two different ones.
     const {definition} = this.editingTopology;
-    const updatedTopology = definition.connect(
-      [nodeName1, nodeName2].map(nodeName => ({
-        node: nodeName,
-        interface: nextInterface(
-          definition,
-          nodeName,
-          this.deviceStore.getInterfaceConfig(
-            definition.nodes.get(nodeName)?.device,
-          ),
+    const freeInterface = (nodeName: string, taken: string[] = []) =>
+      nextInterface(
+        definition,
+        nodeName,
+        this.deviceStore.getInterfaceConfig(
+          definition.nodes.get(nodeName)?.device,
         ),
-      })),
+        taken,
+      );
+
+    const interface1 = freeInterface(nodeName1);
+    const interface2 = freeInterface(
+      nodeName2,
+      nodeName1 === nodeName2 ? [interface1] : [],
     );
+
+    const updatedTopology = definition.connect([
+      {node: nodeName1, interface: interface1},
+      {node: nodeName2, interface: interface2},
+    ]);
 
     this.editTopology(updatedTopology, TopologyEditSource.NodeEditor);
   }

@@ -42,21 +42,29 @@ export function interfaceName(
 /**
  * Returns the first interface of a node that none of its links uses yet,
  * named after the first pattern of its device.
+ *
+ * @param taken Interfaces of the node that are taken although no link uses
+ * them yet, e.g. the other end of a link from the node to itself.
  */
 export function nextInterface(
   definition: TopologyDefinition,
   nodeName: string,
   config: InterfaceConfig,
+  taken: string[] = [],
 ): string {
   const [pattern] = config.interfaces;
 
   // The interfaces by their position from the first one, the same in all patterns
   const used = new Set(
-    definition
-      .linksOf(nodeName)
-      .flatMap(link => link.endpoints)
-      .filter(endpoint => endpoint.node === nodeName)
-      .map(endpoint => matchInterface(endpoint.interface, config))
+    [
+      ...definition
+        .linksOf(nodeName)
+        .flatMap(link => link.endpoints)
+        .filter(endpoint => endpoint.node === nodeName)
+        .map(endpoint => endpoint.interface),
+      ...taken,
+    ]
+      .map(name => matchInterface(name, config))
       .filter(match => match !== null)
       .map(match => match.number - match.pattern.start),
   );
