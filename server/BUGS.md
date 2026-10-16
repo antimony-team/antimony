@@ -7,6 +7,14 @@ Each entry is either **suspected** (found by reading the code, not reproduced ye
 
 ## Suspected
 
+None left, see "Fixed".
+
+## Confirmed
+
+None left, see "Fixed".
+
+## Fixed
+
 ### 8. Dialing a containerlab node picks a random network
 
 - `deployment/containerlab.go` `DialNode`
@@ -14,11 +22,12 @@ Each entry is either **suspected** (found by reading the code, not reproduced ye
 The provider takes the first network with an address from `NetworkSettings.Networks`, which is a map.
 A node attached to more than one network gets a random one of them on each call.
 
-## Confirmed
-
-None left, see "Fixed".
-
-## Fixed
+**Fixed:** `DialNode` takes the node's management address from `InspectNode`, which containerlab reports for the
+management network only, and which is a bare address since #4. It prefers IPv4, falls back to IPv6, and reports a
+node without any address as not running, with "has no management address" in the error. That costs a
+`containerlab inspect --all` call per dial instead of a Docker inspect, which is fine for opening a shell. The unit
+tests run against the fake `containerlab` CLI now, with a new case for an unknown node; the fake Docker client no
+longer needs node addresses. Still to run at the end: `DialNode` on containerlab.
 
 ### 6. A failing interactive command is detected with a fixed 20 ms wait
 

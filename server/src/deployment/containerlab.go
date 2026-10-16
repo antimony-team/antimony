@@ -311,28 +311,23 @@ func (p *ContainerlabProvider) DialNode(
 	nodeName string,
 	port int,
 ) (net.Conn, error) {
-	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
+	// The node is reached on its management address, which containerlab knows even when the container is attached to
+	// more networks than its management network
+	node, err := p.InspectNode(ctx, "", instanceName, nodeName, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	insp, err := p.client.ContainerInspect(ctx, containerId)
-	if err != nil {
-		return nil, err
+	address := node.IPv4Address
+	if address == "" {
+		address = node.IPv6Address
 	}
-	var ip string
-	for _, n := range insp.NetworkSettings.Networks {
-		if n.IPAddress != "" {
-			ip = n.IPAddress
-			break
-		}
-	}
-	if ip == "" {
-		return nil, utils.ErrNodeNotRunning
+	if address == "" {
+		return nil, fmt.Errorf("%w: %s/%s has no management address", utils.ErrNodeNotRunning, instanceName, nodeName)
 	}
 
 	var d net.Dialer
-	return d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", ip, port))
+	return d.DialContext(ctx, "tcp", net.JoinHostPort(address, strconv.Itoa(port)))
 }
 
 func (p *ContainerlabProvider) RegisterListener(

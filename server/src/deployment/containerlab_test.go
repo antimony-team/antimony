@@ -22,7 +22,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	afpacket "github.com/google/gopacket/afpacket"
@@ -694,25 +693,18 @@ func newFakeDocker() *fakeDocker {
 	}
 }
 
-// addNode registers a containerlab node container. Its IP is empty for a node without an address,
-// and its pid 0 for a stopped node.
-func (d *fakeDocker) addNode(lab, node, id, ip string, pid int) {
+// addNode registers a containerlab node container. Its pid is 0 for a stopped node.
+func (d *fakeDocker) addNode(lab, node, id string, pid int) {
 	d.containers = append(d.containers, container.Summary{
 		ID:     id,
 		Labels: map[string]string{"containerlab": lab, "clab-node-name": node},
 	})
-
-	networks := map[string]*network.EndpointSettings{}
-	if ip != "" {
-		networks["clab"] = &network.EndpointSettings{IPAddress: ip}
-	}
 
 	d.inspects[id] = container.InspectResponse{
 		ContainerJSONBase: &container.ContainerJSONBase{
 			ID:    id + "-full",
 			State: &container.State{Pid: pid, Running: pid != 0},
 		},
-		NetworkSettings: &container.NetworkSettings{Networks: networks},
 	}
 }
 
@@ -823,9 +815,9 @@ func multiplexed(t *testing.T, stdout, stderr string) []byte {
 
 func TestContainerForNode_LooksUpTheNodeByItsContainerlabLabels(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 0)
-	docker.addNode("demo", "host1", "c-host1", "", 0)
-	docker.addNode("other", "srl1", "c-other", "", 0)
+	docker.addNode("demo", "srl1", "c-srl1", 0)
+	docker.addNode("demo", "host1", "c-host1", 0)
+	docker.addNode("other", "srl1", "c-other", 0)
 	provider := &ContainerlabProvider{client: docker}
 
 	id, err := provider.containerForNode(context.Background(), "demo", "srl1")
@@ -845,7 +837,7 @@ func TestContainerForNode_ReportsAnUnknownNode(t *testing.T) {
 
 func TestResolveNode_ReturnsTheFullIdAndPid(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 
 	target, err := (&ContainerlabProvider{client: docker}).resolveNode(context.Background(), "demo", "srl1")
 
@@ -855,7 +847,7 @@ func TestResolveNode_ReturnsTheFullIdAndPid(t *testing.T) {
 
 func TestResolveNode_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 0)
+	docker.addNode("demo", "srl1", "c-srl1", 0)
 
 	_, err := (&ContainerlabProvider{client: docker}).resolveNode(context.Background(), "demo", "srl1")
 
@@ -868,7 +860,7 @@ func TestResolveNode_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
 
 func TestContainerlabExec_ReturnsTheCombinedOutputAndExitCode(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	docker.execOutput = multiplexed(t, "out\n", "err\n")
 	docker.execInspect = container.ExecInspect{ExitCode: 3}
 
@@ -885,7 +877,7 @@ func TestContainerlabExec_ReturnsTheCombinedOutputAndExitCode(t *testing.T) {
 
 func TestContainerlabExec_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 0)
+	docker.addNode("demo", "srl1", "c-srl1", 0)
 	// Docker refuses an exec in a stopped container with a conflict.
 	docker.execCreateErr = fmt.Errorf("container is not running: %w", cerrdefs.ErrConflict)
 
@@ -896,7 +888,7 @@ func TestContainerlabExec_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
 
 func TestContainerlabExecInteractive_ConnectsToTheRunningShell(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	local, remote := net.Pipe()
 	docker.execConn = local
 	docker.execInspect = container.ExecInspect{Running: true}
@@ -926,7 +918,7 @@ func TestContainerlabExecInteractive_ConnectsToTheRunningShell(t *testing.T) {
 
 func TestContainerlabExecInteractive_FailsForACommandThatDoesNotStart(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 127}
 
 	_, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
@@ -939,7 +931,7 @@ func TestContainerlabExecInteractive_FailsForACommandThatDoesNotStart(t *testing
 
 func TestContainerlabExecInteractive_FailsForACommandThatFailsSlowly(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	local, remote := net.Pipe()
 	docker.execConn = local
 	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 127}
@@ -960,7 +952,7 @@ func TestContainerlabExecInteractive_FailsForACommandThatFailsSlowly(t *testing.
 
 func TestContainerlabExecInteractive_HandsOutACommandThatPrintsNothingAfterTheTimeout(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	local, remote := net.Pipe()
 	docker.execConn = local
 	docker.execInspect = container.ExecInspect{Running: true}
@@ -983,7 +975,7 @@ func TestContainerlabExecInteractive_HandsOutACommandThatPrintsNothingAfterTheTi
 
 func TestContainerlabExecInteractive_ACommandThatExitsCleanlyAtOnceEndsTheSession(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 0}
 
 	session, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
@@ -1001,7 +993,14 @@ func TestContainerlabExecInteractive_ACommandThatExitsCleanlyAtOnceEndsTheSessio
  * DialNode
  */
 
-func TestContainerlabDialNode_ConnectsToTheNodesAddress(t *testing.T) {
+// dialFixture is containerlab's inspect output for lab "demo" with the node srl1 on 127.0.0.1, and the node host1 on
+// no network.
+const dialFixture = `{"demo": [
+  {"lab_name": "demo", "name": "clab-demo-srl1", "state": "running", "ipv4_address": "127.0.0.1/8", "ipv6_address": "N/A"},
+  {"lab_name": "demo", "name": "clab-demo-host1", "state": "running", "ipv4_address": "N/A", "ipv6_address": "N/A"}
+]}`
+
+func TestContainerlabDialNode_ConnectsToTheNodesManagementAddress(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer listener.Close()
@@ -1014,26 +1013,36 @@ func TestContainerlabDialNode_ConnectsToTheNodesAddress(t *testing.T) {
 		}
 	}()
 
-	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "127.0.0.1", 4242)
+	clab := newFakeClab(t)
+	clab.respond(t, dialFixture, "", 0)
 	port := listener.Addr().(*net.TCPAddr).Port
 
-	conn, err := (&ContainerlabProvider{client: docker}).DialNode(context.Background(), "demo", "srl1", port)
+	conn, err := (&ContainerlabProvider{}).DialNode(context.Background(), "demo", "srl1", port)
 	require.NoError(t, err)
 	defer conn.Close()
 
 	banner, err := io.ReadAll(conn)
 	require.NoError(t, err)
 	assert.Equal(t, "SSH-2.0", string(banner))
+	assert.Equal(t, []string{"inspect --all --format json"}, clab.calls(t))
 }
 
 func TestContainerlabDialNode_ReportsANodeWithoutAddressAsNotRunning(t *testing.T) {
-	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 0)
+	clab := newFakeClab(t)
+	clab.respond(t, dialFixture, "", 0)
 
-	_, err := (&ContainerlabProvider{client: docker}).DialNode(context.Background(), "demo", "srl1", 22)
+	_, err := (&ContainerlabProvider{}).DialNode(context.Background(), "demo", "host1", 22)
 
 	assert.ErrorIs(t, err, utils.ErrNodeNotRunning)
+}
+
+func TestContainerlabDialNode_ReportsAnUnknownNode(t *testing.T) {
+	clab := newFakeClab(t)
+	clab.respond(t, dialFixture, "", 0)
+
+	_, err := (&ContainerlabProvider{}).DialNode(context.Background(), "demo", "missing", 22)
+
+	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
 }
 
 /*
@@ -1042,7 +1051,7 @@ func TestContainerlabDialNode_ReportsANodeWithoutAddressAsNotRunning(t *testing.
 
 func TestContainerlabOpenCapture_FailsForAStoppedNode(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 0)
+	docker.addNode("demo", "srl1", "c-srl1", 0)
 
 	_, err := (&ContainerlabProvider{client: docker}).OpenCapture(context.Background(), "demo", "srl1", "eth1")
 
@@ -1062,7 +1071,7 @@ func TestContainerlabOpenCapture_ReportsAnUnknownNode(t *testing.T) {
 
 func TestContainerlabNodeLifecycle_ActsOnTheNodesContainer(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	provider := &ContainerlabProvider{client: docker}
 
 	require.NoError(t, provider.StartNode(context.Background(), "demo", "srl1"))
@@ -1076,7 +1085,7 @@ func TestContainerlabNodeLifecycle_ActsOnTheNodesContainer(t *testing.T) {
 
 func TestContainerlabNodeLifecycle_GivesTheNodeTenSecondsToStop(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	provider := &ContainerlabProvider{client: docker}
 
 	require.NoError(t, provider.StopNode(context.Background(), "demo", "srl1"))
@@ -1151,7 +1160,7 @@ func nodeEvent(lab, node string) events.Message {
 
 func TestContainerlabStreamContainerLogs_FollowsTheContainerLog(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	docker.logs = "2026-10-01T14:00:00Z booting\n2026-10-01T14:00:01Z ready\n"
 	logs := &logCollector{}
 
@@ -1178,7 +1187,7 @@ func TestContainerlabGetNetworkInterfaces_ReadsTheInterfacesOfTheNodesNetworkNam
 	// The provider reads /proc/<pid>/root/sys/class/net, so this test's own pid stands in for a node
 	// and the interfaces of the host it runs on are the expected result.
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", os.Getpid())
+	docker.addNode("demo", "srl1", "c-srl1", os.Getpid())
 
 	interfaces, err := (&ContainerlabProvider{client: docker}).GetNetworkInterfaces(
 		context.Background(),
@@ -1200,7 +1209,7 @@ func TestContainerlabGetNetworkInterfaces_ReadsTheInterfacesOfTheNodesNetworkNam
 
 func TestContainerlabGetNetworkInterfaces_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
 	docker := newFakeDocker()
-	docker.addNode("demo", "srl1", "c-srl1", "", 0)
+	docker.addNode("demo", "srl1", "c-srl1", 0)
 
 	_, err := (&ContainerlabProvider{client: docker}).GetNetworkInterfaces(context.Background(), "demo", "srl1")
 
