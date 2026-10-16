@@ -156,14 +156,18 @@ Users see buttons that then fail.
 - **Not done yet:** the graph's context menus still show edit entries (they do nothing now), and nodes can
   still be dragged on screen (the move isn't kept).
 
-### 13. Members of a collection anyone can edit get no Add Topology button
+### 13. ~~Members of a collection anyone can edit get no Add Topology button~~ (fixed)
 
-- **Status:** verified — `permissions.spec.ts` › "a collection anyone can edit has the Add Topology button
-  for members"
+- **Status:** fixed — `permissions.spec.ts` › "a collection anyone can edit has the Add Topology button
+  for members", "a read-only collection has no Add Topology button for members"
 - **Where:** `components/editor-page/topology-explorer/explorer-tree-node/explorer-tree-node.tsx`
   (`isCollectionWritable` is only computed for topology rows, so it's false for collections)
 - **What happens:** the hover buttons of a collection are only shown to admins. Members have to use the
   right-click menu.
+- **Fix:** `CollectionStore.canWriteIn()` (admins always, others with "Anyone can edit") decides the hover
+  buttons of collection rows, the collection menu and the collections offered in the topology dialog.
+- **Not done:** topology rows can still be dragged by their creator into collections the server won't
+  accept, which ends in an error toast.
 
 ### 14. Policy findings are never shown
 

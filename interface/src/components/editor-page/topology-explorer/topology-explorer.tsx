@@ -696,7 +696,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       const collection = collectionStore.lookup.get(collectionId);
       if (!collection) return [];
 
-      if (!collection.publicWrite && !authUser.isAdmin) return [];
+      if (!collectionStore.canWriteIn(collection.id)) return [];
 
       const entries = [];
 

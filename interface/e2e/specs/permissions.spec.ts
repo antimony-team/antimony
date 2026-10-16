@@ -358,9 +358,6 @@ test.describe('interface', () => {
     createTopology,
     loginAs,
   }) => {
-    knownBug(
-      'the hover buttons of a collection are only shown to admins, even when anyone can edit it',
-    );
     const collection = await createCollection({publicWrite: true});
     await createTopology({collection});
     const user = await loginAs({collections: [collection]});
@@ -371,6 +368,23 @@ test.describe('interface', () => {
     await expect(
       editor.explorer.rowButton(collection.name, 'Add Topology'),
     ).toBeVisible();
+  });
+
+  test('a read-only collection has no Add Topology button for members', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    const collection = await createCollection({publicDeploy: true});
+    await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const editor = new EditorPage(user.page);
+    await editor.goto();
+
+    await editor.explorer.row(collection.name).hover();
+    await expect(
+      editor.explorer.rowButton(collection.name, 'Add Topology'),
+    ).toBeHidden();
   });
 
   test('a member deploys a lab in a collection anyone can deploy', async ({

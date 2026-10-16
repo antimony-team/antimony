@@ -25,6 +25,16 @@ export class CollectionStore extends DataStore<
     return this.lookup.get(collectionId)?.publicDeploy ?? false;
   }
 
+  /**
+   * Whether the user may add topologies to a collection: admins always, everyone
+   * else if anyone can edit it.
+   */
+  public canWriteIn(collectionId: string): boolean {
+    if (this.rootStore._dataBinder.authUser.isAdmin) return true;
+
+    return this.lookup.get(collectionId)?.publicWrite ?? false;
+  }
+
   @computed
   public get hasDeployableCollections(): boolean {
     return this.data.some(collection => this.canDeployIn(collection.id));

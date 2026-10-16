@@ -52,21 +52,12 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
     return !!topology && collectionStore.canDeployIn(topology.collectionId);
   }, [authUser, collectionStore.data, topologyStore.data]);
 
-  const isCollectionWritable = useMemo(() => {
-    if (props.node.type !== ExplorerTreeNodeType.Topology) {
-      return false;
-    }
-
-    if (authUser.isAdmin) return true;
-
-    const topology = topologyStore.lookup.get(props.node.key as string);
-    if (!topology) return false;
-
-    const collection = collectionStore.lookup.get(topology.collectionId);
-    if (!collection) return false;
-
-    return collection.publicWrite;
-  }, [authUser, collectionStore.data, topologyStore.data]);
+  const isCollectionWritable = useMemo(
+    () =>
+      props.node.type === ExplorerTreeNodeType.Collection &&
+      collectionStore.canWriteIn(props.node.key as string),
+    [authUser, collectionStore.data],
+  );
 
   const isWritable = useMemo(() => {
     if (authUser.isAdmin) return true;
@@ -111,7 +102,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
         <Choose>
           {/* Collection */}
           <When condition={props.node.type === ExplorerTreeNodeType.Collection}>
-            <If condition={authUser.isAdmin || isCollectionWritable}>
+            <If condition={isCollectionWritable}>
               <Button
                 text
                 icon="pi pi-plus"

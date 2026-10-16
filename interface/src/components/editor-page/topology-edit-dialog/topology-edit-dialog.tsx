@@ -11,7 +11,6 @@ import SBDropdown, {
 } from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {
-  useAuthUser,
   useCollectionStore,
   useStatusMessages,
   useTopologyStore,
@@ -53,7 +52,6 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
     collectionId: props.dialogState.state?.collectionId ?? '',
   }));
 
-  const authUser = useAuthUser();
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
@@ -238,8 +236,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
     return collectionStore.data
       .filter(
         collection =>
-          collection.publicWrite ||
-          authUser.isAdmin ||
+          collectionStore.canWriteIn(collection.id) ||
           collection.id === props.dialogState.state?.collectionId,
       )
       .map(collection => ({
