@@ -7,6 +7,7 @@ Found while writing the end-to-end tests (October 2026). Each entry says how it 
   reports the test as unexpectedly passing; then remove the `knownBug()` line. `E2E_KNOWN_BUGS=1 yarn e2e`
   runs these tests as normal tests, to see them fail.
 - **from the code**: found by reading the code, not covered by a test.
+- **fixed**: fixed, and its test runs as a normal test again.
 
 Paths of the interface are relative to `src/`, those of the server to `antimony-server/src/`.
 
@@ -165,16 +166,18 @@ Users see buttons that then fail.
 
 ## Interface: data
 
-### 16. Renaming or deleting a directory also hits directories with a similar name (data loss)
+### 16. ~~Renaming or deleting a directory also hits directories with a similar name~~ (fixed)
 
-- **Status:** verified — `bind-files.spec.ts` › "renaming a directory leaves directories with a similar name
-  alone", "deleting a directory leaves directories with a similar name alone"
+- **Status:** fixed — `bind-files.spec.ts` › "renaming a directory leaves files with a similar name alone",
+  "deleting a directory leaves files with a similar name alone"
 - **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (delete),
   `components/editor-page/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog.tsx` (rename)
 - **What happens:** both select files with `filePath.startsWith(directoryPath)`, without a trailing `/`.
   With `node1/startup.cfg` and `node10/startup.cfg`, renaming `node1` to `router1` also renames `node10/`
   to `router10/`, and deleting `node1` also deletes `node10/startup.cfg`.
-- **Fix idea:** match `filePath.startsWith(directoryPath + '/')`.
+- **Fix:** both use `isInDirectory()` (`lib/utils/utils.ts`), which matches the directory followed by `/`.
+  Renaming replaces exactly the directory's prefix. The tests also cover a file next to the directory
+  (`node1.cfg`).
 
 ### 17. Archive upload overwrites another topology's file (data corruption)
 

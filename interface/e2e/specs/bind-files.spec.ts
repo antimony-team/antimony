@@ -222,16 +222,17 @@ test.describe('directories', () => {
       .toEqual(['other.cfg']);
   });
 
-  test('renaming a directory leaves directories with a similar name alone', async ({
+  test('renaming a directory leaves files with a similar name alone', async ({
     page,
     api,
     createTopology,
   }) => {
-    knownBug(
-      'renaming a directory also renames directories whose name starts with the same text',
-    );
     const topology = await createTopology({
-      files: {'node1/startup.cfg': 'a', 'node10/startup.cfg': 'b'},
+      files: {
+        'node1/startup.cfg': 'a',
+        'node10/startup.cfg': 'b',
+        'node1.cfg': 'c',
+      },
     });
     const editor = new EditorPage(page);
     await editor.goto();
@@ -257,19 +258,20 @@ test.describe('directories', () => {
       (await api.getTopology(topology.id)).bindFiles
         .map(f => f.filePath)
         .sort(),
-    ).toEqual(['node10/startup.cfg', 'router1/startup.cfg']);
+    ).toEqual(['node1.cfg', 'node10/startup.cfg', 'router1/startup.cfg']);
   });
 
-  test('deleting a directory leaves directories with a similar name alone', async ({
+  test('deleting a directory leaves files with a similar name alone', async ({
     page,
     api,
     createTopology,
   }) => {
-    knownBug(
-      'deleting a directory also deletes the files of directories whose name starts with the same text',
-    );
     const topology = await createTopology({
-      files: {'node1/startup.cfg': 'a', 'node10/startup.cfg': 'b'},
+      files: {
+        'node1/startup.cfg': 'a',
+        'node10/startup.cfg': 'b',
+        'node1.cfg': 'c',
+      },
     });
     const editor = new EditorPage(page);
     await editor.goto();
@@ -290,8 +292,10 @@ test.describe('directories', () => {
       .toBe(false);
     await page.waitForTimeout(2000);
     expect(
-      (await api.getTopology(topology.id)).bindFiles.map(f => f.filePath),
-    ).toEqual(['node10/startup.cfg']);
+      (await api.getTopology(topology.id)).bindFiles
+        .map(f => f.filePath)
+        .sort(),
+    ).toEqual(['node1.cfg', 'node10/startup.cfg']);
   });
 
   test('a directory with a dash in its name opens on click', async ({

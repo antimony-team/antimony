@@ -143,6 +143,14 @@ export function formatDuration(ms: number): string {
   return `${mins} min`;
 }
 
+/**
+ * Whether a bind file path lies inside a directory, e.g. "node1/startup.cfg" in "node1", but not
+ * "node10/startup.cfg" or "node1.cfg".
+ */
+export function isInDirectory(filePath: string, directory: string) {
+  return filePath.startsWith(`${directory}/`);
+}
+
 export function pluralize(count: number, singular: string, plural: string) {
   return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
 }

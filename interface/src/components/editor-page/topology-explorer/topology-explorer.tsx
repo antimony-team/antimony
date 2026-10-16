@@ -44,6 +44,7 @@ import {
   setOf,
   usePersistentState,
 } from '@sb/lib/utils/persistent-state';
+import {isInDirectory} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {BindFile, Topology} from '@sb/types/domain/topology';
 import {FetchState, uuid4} from '@sb/types/types';
@@ -311,7 +312,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     const topology = topologyStore.lookup.get(topologyId)!;
 
     const filesToDelete = topology.bindFiles.filter(file =>
-      file.filePath.startsWith(filePath),
+      isInDirectory(file.filePath, filePath),
     );
 
     notificationStore.confirm({

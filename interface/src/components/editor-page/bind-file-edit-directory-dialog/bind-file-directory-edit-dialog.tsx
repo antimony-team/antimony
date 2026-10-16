@@ -6,6 +6,7 @@ import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogState} from '@sb/lib/utils/hooks';
+import {isInDirectory} from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 
 import './bind-file-directory-edit-dialog.sass';
@@ -50,7 +51,7 @@ const BindFileDirectoryEditDialog = observer(
       const topology = props.dialogState.state.topology;
 
       const filesToEdit = topology.bindFiles.filter(file =>
-        file.filePath.startsWith(oldFilePath),
+        isInDirectory(file.filePath, oldFilePath),
       );
 
       for (const bindFile of filesToEdit) {
@@ -59,7 +60,7 @@ const BindFileDirectoryEditDialog = observer(
           bindFile.id,
           {
             content: bindFile.content,
-            filePath: bindFile.filePath.replace(oldFilePath, filePath),
+            filePath: filePath + bindFile.filePath.slice(oldFilePath.length),
           },
           true,
         );
