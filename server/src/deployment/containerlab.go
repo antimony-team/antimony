@@ -278,28 +278,27 @@ func (p *ContainerlabProvider) ExecInteractive(
 	// Docker's buffered reader, not the raw connection, so nothing read while attaching is lost
 	output := newStartedReader(hr.Reader)
 
-	ended, err := output.waitForStart(ctx, interactiveStartTimeout)
+	if err := output.waitForStart(ctx, interactiveStartTimeout); err != nil {
+		hr.Close()
+		return nil, err
+	}
+
+	// Docker writes a failure to start, like a missing executable, into the output and has the exec's exit code set by
+	// then, so the first output alone doesn't tell whether the command runs
+	inspect, err := p.client.ContainerExecInspect(ctx, execId)
 	if err != nil {
 		hr.Close()
 		return nil, err
 	}
 
-	// The output ended before anything was printed, so the command exited, and its exit code tells whether it ran
-	if ended {
-		inspect, err := p.client.ContainerExecInspect(ctx, execId)
-		if err != nil {
-			hr.Close()
-			return nil, err
-		}
+	if !inspect.Running && inspect.ExitCode != 0 {
+		hr.Close()
 
-		if inspect.ExitCode != 0 {
-			hr.Close()
-			return nil, fmt.Errorf(
-				"command %v failed to start (exit code %d): command not found or not executable",
-				cmd,
-				inspect.ExitCode,
-			)
+		reason := strings.TrimSpace(output.firstOutput())
+		if reason == "" {
+			reason = "command not found or not executable"
 		}
+		return nil, fmt.Errorf("command %v failed to start (exit code %d): %s", cmd, inspect.ExitCode, reason)
 	}
 
 	return &dockerExecSession{Conn: hr.Conn, output: output, client: p.client, execId: execId}, nil

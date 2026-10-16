@@ -397,9 +397,10 @@ func TestProviderE2E_EventsReachTheRightLabWhenNodeNamesRepeat(t *testing.T) {
 	target := labIds[labCount-1]
 	instanceName := e.instanceName(t, target)
 
-	// noticed reports whether the target lab sees host2 reach state within a grace period
+	// noticed reports whether the target lab sees host2 reach state while a node operation may take. Stopping a node
+	// takes about half a minute on clabernetes.
 	noticed := func(state deployment.NodeState) bool {
-		deadline := time.Now().Add(30 * time.Second)
+		deadline := time.Now().Add(e.timeout)
 		for time.Now().Before(deadline) {
 			if e.nodes(target)["host2"].State == state {
 				return true

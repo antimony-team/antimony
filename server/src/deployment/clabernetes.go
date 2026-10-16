@@ -365,7 +365,8 @@ func (p *ClabernetesProvider) Exec(
 		return "", 0, err
 	}
 
-	var stdout, stderr bytes.Buffer
+	// When ctx ends, the stream returns before it stops writing, so the output is read under a lock
+	var stdout, stderr lockedBuffer
 	err = executor.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: &stdout,
 		Stderr: &stderr,
@@ -452,7 +453,7 @@ func openInteractiveSession(
 	}()
 
 	// The stream's error, such as a missing executable, ends the output before anything was printed
-	if _, err := output.waitForStart(ctx, startTimeout); err != nil {
+	if err := output.waitForStart(ctx, startTimeout); err != nil {
 		_ = session.Close()
 		return nil, err
 	}
@@ -656,7 +657,7 @@ func (p *ClabernetesProvider) OpenCapture(
 		return nil, err
 	}
 
-	return openSidecarCapture(ctx, func(ctx context.Context, stdout, stderr io.Writer) error {
+	capture, err := openSidecarCapture(ctx, func(ctx context.Context, stdout, stderr io.Writer) error {
 		executor, err := p.createContainerExec(namespace, pod.Name, connectivityContainer, cmd, false)
 		if err != nil {
 			return err
@@ -664,6 +665,12 @@ func (p *ClabernetesProvider) OpenCapture(
 
 		return executor.StreamWithContext(ctx, remotecommand.StreamOptions{Stdout: stdout, Stderr: stderr})
 	})
+	if err != nil {
+		// A nil *sidecarCapture would make a CaptureSource that isn't nil
+		return nil, err
+	}
+
+	return capture, nil
 }
 
 func (p *ClabernetesProvider) StartNode(
@@ -1165,7 +1172,7 @@ func (c *sidecarCapture) startRun() error {
 	c.stdoutMutex.Unlock()
 
 	go func() {
-		var stderr bytes.Buffer
+		var stderr lockedBuffer
 		err := c.run(c.ctx, stdoutW, &stderr)
 		if err != nil {
 			err = captureRunError(err, stderr.Bytes())

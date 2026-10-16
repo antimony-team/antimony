@@ -15,6 +15,39 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 15. Clabernetes exec output is read while the stream may still write it
+
+- `deployment/clabernetes.go` `Exec`, and `sidecarCapture.startRun` (the capture's stderr buffer)
+
+`Exec` collects stdout and stderr in `bytes.Buffer`s and reads them once `StreamWithContext` returns. When the
+context ends, client-go returns before its copy goroutines are done, so they can still write into the buffers while
+`Exec` reads them. That's a data race, and a read during a buffer resize can return garbage or even panic. The
+capture runs collect stderr the same way. It happens whenever an exec is cut short by its context: the readiness
+probe of a lab that is being destroyed, or any caller with a timeout.
+
+Confirmed by the race detector on the local kind cluster, in `TestProviderE2E_CapturesStreamTheNodesTraffic`, whose
+pinger cancels its execs.
+
+**Fixed:** `Exec` and the capture runs collect their output in a new `lockedBuffer` (`deployment/utils.go`), a
+`bytes.Buffer` behind a mutex, so the copy goroutines and the reader never touch it at the same time. New unit test
+`TestLockedBuffer_CanBeWrittenWhileItIsRead`; the e2e capture test runs under the race detector.
+
+### 14. A failed clabernetes capture returns a capture that panics when closed
+
+- `deployment/clabernetes.go` `OpenCapture`
+
+When `openSidecarCapture` fails, it returns a nil `*sidecarCapture` together with the error. `OpenCapture` returns
+that as a `CaptureSource`, an interface holding a nil pointer, which is not `nil`. A caller that checks the capture
+instead of the error, like `if capture != nil { capture.Close() }`, calls `Close` on a nil pointer and panics. The
+SSH server checks the error first, so it isn't affected today. It only showed up since #10 was fixed, because
+before that every capture failed earlier with "not supported".
+
+Confirmed on the local kind cluster: `TestProviderE2E/OpenCapture/fails_for_an_unknown_interface` panicked with a nil
+pointer dereference in `(*sidecarCapture).Close`, which ended the rest of the clabernetes provider suite.
+
+**Fixed:** `OpenCapture` returns a plain `nil` capture when `openSidecarCapture` fails. Covered by
+`TestProviderE2E/OpenCapture/fails_for_an_unknown_interface` on clabernetes.
+
 ### 8. Dialing a containerlab node picks a random network
 
 - `deployment/containerlab.go` `DialNode`
@@ -46,7 +79,11 @@ exited, so Docker's exit code decides: non-zero is "failed to start"), or one se
 as before). The helper for that, `startedReader`, moved from `clabernetes.go` to `utils.go` and is shared by both
 providers. The session now reads from Docker's buffered reader instead of the raw connection. New unit tests for a
 command that fails after 200 ms, one that prints nothing, and one that exits cleanly at once; the prompt test checks
-that a shell is handed out without waiting. Still to run at the end: `ExecInteractive` on containerlab.
+that a shell is handed out without waiting. The final e2e run showed that this wasn't enough: with a TTY, Docker writes its "OCI runtime exec failed …
+executable file not found" message into the output about 70 ms after attaching, so a failing command looked as if
+it had started. By the time that output arrives, Docker's inspect already shows the exit code, so `ExecInteractive`
+now asks for it once the wait is over, whatever ended it, and includes Docker's message in the error. New unit test
+`TestContainerlabExecInteractive_FailsWhenDockerPrintsWhyTheCommandDidNotStart`.
 
 ### 5. Log streams stop at a line over 64 KiB
 

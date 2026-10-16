@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -79,4 +80,25 @@ func TestRunCommandSync_FinishesWhenTheCommandWritesALongStderrLine(t *testing.T
 	require.NoError(t, ctx.Err(), "the command didn't finish")
 	assert.Equal(t, "done\n", *output)
 	assert.Equal(t, 200000, stderr.Len())
+}
+
+func TestLockedBuffer_CanBeWrittenWhileItIsRead(t *testing.T) {
+	var buffer lockedBuffer
+
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for range 1000 {
+			_, _ = buffer.Write([]byte("output "))
+		}
+	})
+	wg.Go(func() {
+		for range 1000 {
+			_ = buffer.String()
+			_ = buffer.Len()
+			_ = buffer.Bytes()
+		}
+	})
+	wg.Wait()
+
+	assert.Equal(t, 7000, buffer.Len())
 }

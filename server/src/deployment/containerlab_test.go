@@ -929,6 +929,23 @@ func TestContainerlabExecInteractive_FailsForACommandThatDoesNotStart(t *testing
 	assert.Contains(t, err.Error(), "exit code 127")
 }
 
+func TestContainerlabExecInteractive_FailsWhenDockerPrintsWhyTheCommandDidNotStart(t *testing.T) {
+	docker := newFakeDocker()
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
+	// With a TTY, Docker writes the failure into the output, and the exec has ended by then
+	docker.execOutput = []byte("OCI runtime exec failed: exec failed: unable to start container process: " +
+		"exec: \"missing-shell\": executable file not found in $PATH\r\n")
+	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 127}
+
+	_, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
+		context.Background(), "demo", "srl1", []string{"missing-shell"},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exit code 127")
+	assert.Contains(t, err.Error(), "executable file not found", "the error carries Docker's reason")
+}
+
 func TestContainerlabExecInteractive_FailsForACommandThatFailsSlowly(t *testing.T) {
 	docker := newFakeDocker()
 	docker.addNode("demo", "srl1", "c-srl1", 4242)

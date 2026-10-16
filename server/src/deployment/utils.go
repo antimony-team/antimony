@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -107,24 +108,31 @@ func newStartedReader(reader io.Reader) *startedReader {
 	return output
 }
 
-// waitForStart waits until the command printed something, its output ended, timeout passed or ctx ended. It reports
-// whether the output ended without anything printed, and the error it ended with unless that was a clean EOF. It must
-// not run concurrently with Read.
-func (r *startedReader) waitForStart(ctx context.Context, timeout time.Duration) (bool, error) {
+// waitForStart waits until the command printed something, its output ended, timeout passed or ctx ended. It returns
+// the error the output ended with before anything was printed, unless that was a clean EOF. It must not run
+// concurrently with Read.
+func (r *startedReader) waitForStart(ctx context.Context, timeout time.Duration) error {
 	select {
 	case <-r.started:
-		if len(r.first) > 0 {
-			return false, nil
+		if len(r.first) > 0 || r.firstErr == nil || errors.Is(r.firstErr, io.EOF) {
+			return nil
 		}
-		if r.firstErr == nil || errors.Is(r.firstErr, io.EOF) {
-			return true, nil
-		}
-		return true, r.firstErr
+		return r.firstErr
 	case <-time.After(timeout):
 		// The command started without printing anything, or it is still starting
-		return false, nil
+		return nil
 	case <-ctx.Done():
-		return false, ctx.Err()
+		return ctx.Err()
+	}
+}
+
+// firstOutput returns the output of the first read if it returned already, or "" if not.
+func (r *startedReader) firstOutput() string {
+	select {
+	case <-r.started:
+		return string(r.first)
+	default:
+		return ""
 	}
 }
 
@@ -155,4 +163,38 @@ func (r *startedReader) Read(p []byte) (int, error) {
 	}
 
 	return r.reader.Read(p)
+}
+
+// lockedBuffer is a bytes.Buffer that one goroutine can write while another reads it.
+type lockedBuffer struct {
+	mutex  sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	return b.buffer.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	return b.buffer.String()
+}
+
+func (b *lockedBuffer) Len() int {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	return b.buffer.Len()
+}
+
+func (b *lockedBuffer) Bytes() []byte {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	return bytes.Clone(b.buffer.Bytes())
 }
