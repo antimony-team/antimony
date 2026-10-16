@@ -116,6 +116,12 @@ tasks:
     cmds:
       - kind delete cluster --name c9s
       - kind create cluster --name c9s
+      - task: install-c9s
+
+  install-c9s:
+    desc: Installs clabernetes into the cluster of the current kubeconfig
+    dir: '.'
+    cmds:
       - >-
         helm upgrade --install --create-namespace --namespace c9s --version 0.9.0
         clabernetes oci://ghcr.io/clabernetes/clabernetes/clabernetes
@@ -135,6 +141,39 @@ tasks:
       CGO_ENABLED: '1'
     cmds:
       - go test -race -shuffle=on ./...
+
+  test-e2e-containerlab:
+    desc: Provider and server e2e tests against containerlab on this Docker host, run as root
+    dir: './src'
+    env:
+      CGO_ENABLED: '1'
+    cmds:
+      - mkdir -p ../build/e2e ../coverage
+      - go test -c -race -tags e2e -cover -coverpkg=./... -o ../build/e2e/ ./deployment ./test
+      - >-
+        sudo -E env ANTIMONY_E2E_PROVIDER=containerlab ../build/e2e/deployment.test
+        -test.run '^TestProviderE2E$' -test.v -test.timeout 20m
+        -test.coverprofile=../coverage/e2e-containerlab-provider.out
+      - >-
+        sudo -E env ANTIMONY_E2E_PROVIDER=containerlab ../build/e2e/test.test
+        -test.run '^TestProviderE2E_' -test.v -test.timeout 30m
+        -test.coverprofile=../coverage/e2e-containerlab-server.out
+
+  test-e2e-clabernetes:
+    desc: Provider and server e2e tests against clabernetes in the cluster of the current kubeconfig (see setup-kind)
+    dir: './src'
+    env:
+      CGO_ENABLED: '1'
+      ANTIMONY_E2E_PROVIDER: clabernetes
+    cmds:
+      - mkdir -p ../build/e2e ../coverage
+      - go test -c -race -tags e2e -cover -coverpkg=./... -o ../build/e2e/ ./deployment ./test
+      - >-
+        ../build/e2e/deployment.test -test.run '^TestProviderE2E$' -test.v -test.timeout 40m
+        -test.coverprofile=../coverage/e2e-clabernetes-provider.out
+      - >-
+        ../build/e2e/test.test -test.run '^TestProviderE2E_' -test.v -test.timeout 60m
+        -test.coverprofile=../coverage/e2e-clabernetes-server.out
 
   test-coverage:
     dir: './src'

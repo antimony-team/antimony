@@ -300,6 +300,22 @@ func (c *SocketClient) EmitRaw(payload string) SocketAck {
 func (c *SocketClient) EmitArgs(args ...any) SocketAck {
 	c.T.Helper()
 
+	return c.emitArgsWithin(socketTimeout, args...)
+}
+
+// EmitWithin behaves like Emit but waits up to timeout for the ack, for commands that wait on a real provider.
+func (c *SocketClient) EmitWithin(timeout time.Duration, payload any) SocketAck {
+	c.T.Helper()
+
+	encoded, err := json.Marshal(payload)
+	require.NoError(c.T, err)
+
+	return c.emitArgsWithin(timeout, string(encoded))
+}
+
+func (c *SocketClient) emitArgsWithin(timeout time.Duration, args ...any) SocketAck {
+	c.T.Helper()
+
 	acked := make(chan []any, 1)
 
 	c.socket.EmitWithAck("data", args...)(func(ackArgs []any, err error) {
@@ -323,7 +339,7 @@ func (c *SocketClient) EmitArgs(args ...any) SocketAck {
 		require.NoError(c.T, err)
 
 		return SocketAck{T: c.T, Raw: encoded}
-	case <-time.After(socketTimeout):
+	case <-time.After(timeout):
 		c.T.Fatalf("timed out waiting for an ack on namespace %q", c.Namespace)
 		return SocketAck{T: c.T}
 	}

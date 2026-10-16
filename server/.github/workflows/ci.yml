@@ -104,6 +104,76 @@ jobs:
         working-directory: ./src
         run: task test-race
 
+  # Runs the provider e2e tests against a real containerlab on the runner's Docker
+  e2e-containerlab:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Install Go Task
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Install containerlab
+        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.78.2
+
+      - name: Run the provider e2e tests
+        run: task test-e2e-containerlab
+
+  # Runs the provider e2e tests against clabernetes in a kind cluster
+  e2e-clabernetes:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Install Go Task
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Create the kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: c9s
+
+      - name: Install clabernetes
+        run: task install-c9s
+
+      - name: Run the provider e2e tests
+        run: task test-e2e-clabernetes
+        env:
+          ANTIMONY_E2E_KEEP_FAILED: '1'
+
+      - name: Show the cluster state
+        if: failure()
+        run: |
+          kubectl get all,topologies.c9s.run,nodes.c9s.run -A -o wide || true
+          for namespace in $(kubectl get namespaces -o name | sed -n 's|namespace/\(c9s-e2e-.*\)|\1|p'); do
+            kubectl -n "$namespace" describe pods || true
+            kubectl -n "$namespace" get events --sort-by=.lastTimestamp || true
+          done
+          kubectl -n c9s logs deployment/clabernetes-manager --tail=300 || true
+
   # Each platform is built natively on its own runner, the merge job joins them into one image
   docker-image:
     needs: [ lint, swagger, build, test ]

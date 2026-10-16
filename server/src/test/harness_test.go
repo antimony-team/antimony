@@ -62,7 +62,7 @@ linux:
 
 // Harness is the full Antimony service graph wired against temporary, in-process infrastructure:
 // an in-memory SQLite database, a temp-dir storage manager and a DummyProvider in place of
-// containerlab. It exposes both a gin engine (for fast in-process HTTP assertions) and a real
+// containerlab, unless WithRuntimeProvider hands it a real provider. It exposes both a gin engine (for fast in-process HTTP assertions) and a real
 // httptest server (which socket.io needs, since it cannot run over httptest.ResponseRecorder).
 //
 // Build one with NewHarness. Everything is torn down through t.Cleanup.
@@ -75,6 +75,9 @@ type Harness struct {
 	Auth     *auth.Manager
 	Sockets  *socket.Manager
 	Provider *deployment.DummyProvider
+
+	// Runtime is the provider the services run on, Provider unless WithRuntimeProvider replaced it
+	Runtime deployment.DeploymentProvider
 
 	LabEventBus *utils.EventBus[*lab.Lab]
 
@@ -138,6 +141,7 @@ type harnessOptions struct {
 	devMode       bool
 
 	configureProvider func(*deployment.DummyProvider)
+	runtimeProvider   deployment.DeploymentProvider
 }
 
 // HarnessOption customises the harness before any service is constructed.
@@ -243,6 +247,11 @@ func WithProvider(configure func(*deployment.DummyProvider)) HarnessOption {
 }
 
 // WithScheduler starts the lab scheduler loop, stopping it again when the test ends.
+// WithRuntimeProvider runs the services on a real provider instead of the dummy, which is then not used.
+func WithRuntimeProvider(provider deployment.DeploymentProvider) HarnessOption {
+	return func(o *harnessOptions) { o.runtimeProvider = provider }
+}
+
 func WithScheduler() HarnessOption {
 	return func(o *harnessOptions) { o.withScheduler = true }
 }
@@ -364,6 +373,11 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		opts.configureProvider(provider)
 	}
 
+	var runtimeProvider deployment.DeploymentProvider = provider
+	if opts.runtimeProvider != nil {
+		runtimeProvider = opts.runtimeProvider
+	}
+
 	labEventBus := utils.CreateEventBus[*lab.Lab]()
 	startupEvents := recordLabEvents(t, labEventBus, labEventTopics...)
 
@@ -411,6 +425,7 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 		Auth:                authManager,
 		Sockets:             socketManager,
 		Provider:            provider,
+		Runtime:             runtimeProvider,
 		LabEventBus:         labEventBus,
 		StatusMessages:      statusMessages,
 		StartupEvents:       startupEvents,
@@ -438,11 +453,11 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	// The runtime services must come after seeding for the same reason.
 	h.InstanceService = instance.CreateService(
 		cfg, schemaService, labRepo, topologyService, storageManager,
-		socketManager, labEventBus, statusMessages, provider,
+		socketManager, labEventBus, statusMessages, runtimeProvider,
 	)
 	t.Cleanup(h.InstanceService.Close)
 
-	h.ShellService = shell.CreateService(cfg, labRepo, h.InstanceService, socketManager, provider)
+	h.ShellService = shell.CreateService(cfg, labRepo, h.InstanceService, socketManager, runtimeProvider)
 	t.Cleanup(h.ShellService.Close)
 
 	labService.SetRuntimeService(h.InstanceService)
