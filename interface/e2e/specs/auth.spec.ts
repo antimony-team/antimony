@@ -3,70 +3,85 @@ import {Dock} from '../pages/dock';
 import {LoginPage} from '../pages/login-page';
 import {ADMIN} from '../settings';
 
-test.describe('authentication', () => {
-  // These tests start logged out, instead of with the admin session from auth.setup.ts
+/*
+ * Signing in and out with the login form. The e2e server enables the admin login and the desktop
+ * login; the desktop login has no form and is tested in desktop.spec.ts.
+ */
+
+test.describe('logged out', () => {
+  // A fresh browser without the admin's session
   test.use({storageState: {cookies: [], origins: []}});
 
-  test('the login page is shown when logged out', async ({page}) => {
-    const loginPage = new LoginPage(page);
+  test('the login page shows the admin login form only', async ({page}) => {
+    const login = new LoginPage(page);
+    await login.goto();
 
-    await loginPage.goto();
-
-    await expect(loginPage.submit).toBeVisible();
-    await expect(new Dock(page).logout).toBeHidden();
+    await expect(page.getByText('Sign in to continue')).toBeVisible();
+    await expect(login.username).toBeVisible();
+    await expect(login.password).toBeVisible();
+    await expect(login.submit).toBeVisible();
+    // OpenID isn't enabled, so there's neither its button nor the "or" between the two
+    await expect(
+      page.getByRole('button', {name: 'Continue with OpenID Connect'}),
+    ).toBeHidden();
+    await expect(page.locator('.sb-login-divider')).toBeHidden();
   });
 
   test('wrong credentials are rejected', async ({page}) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
+    const login = new LoginPage(page);
+    await login.goto();
 
-    await loginPage.login({username: ADMIN.username, password: 'wrong'});
+    await login.login({username: ADMIN.username, password: 'wrong'});
 
-    await expect(loginPage.error).toHaveText('Invalid username or password');
+    await expect(login.error).toHaveText('Invalid username or password');
     await expect(new Dock(page).logout).toBeHidden();
   });
 
-  test('a user can log in and out', async ({page}) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
+  test('an unknown user is rejected', async ({page, uniqueName}) => {
+    const login = new LoginPage(page);
+    await login.goto();
 
-    await loginPage.login(ADMIN);
+    await login.login({username: uniqueName('nobody'), password: 'secret'});
+
+    await expect(login.error).toHaveText('Invalid username or password');
+  });
+
+  test('the admin can log in, stays logged in and logs out', async ({page}) => {
+    const login = new LoginPage(page);
     const dock = new Dock(page);
+    await login.goto();
+
+    await login.login(ADMIN);
+    await expect(dock.logout).toBeVisible();
+    await expect(dock.editor).toBeVisible();
+
+    await page.reload();
     await expect(dock.logout).toBeVisible();
 
     await dock.logout.click();
+    await expect(login.submit).toBeVisible();
 
-    await expect(loginPage.submit).toBeVisible();
+    // The session is gone, not only hidden
+    await page.reload();
+    await expect(login.submit).toBeVisible();
     await expect(dock.logout).toBeHidden();
   });
 
-  test('the session survives a reload', async ({page}) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await loginPage.login(ADMIN);
-    await expect(new Dock(page).logout).toBeVisible();
-
-    await page.reload();
-
-    await expect(new Dock(page).logout).toBeVisible();
-    await expect(loginPage.submit).toBeHidden();
-  });
-
-  test('a student can log in with the login form', async ({
+  test('a user created by the admin can log in with the form', async ({
     page,
-    api,
-    uniqueName,
+    createCollection,
+    createUser,
   }) => {
-    const credentials = {username: uniqueName('student'), password: 'secret'};
-    await api.createUser(credentials, []);
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
+    const collection = await createCollection();
+    const user = await createUser({collections: [collection]});
+    const login = new LoginPage(page);
+    await login.goto();
 
-    await loginPage.login(credentials);
+    await login.login(user);
 
     const dock = new Dock(page);
     await expect(dock.logout).toBeVisible();
-    // Without accessible collections there is no editor in the dock
-    await expect(dock.editor).toBeHidden();
+    // A member of a collection may use the editor
+    await expect(dock.editor).toBeVisible();
   });
 });

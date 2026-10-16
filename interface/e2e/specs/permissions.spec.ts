@@ -1,186 +1,461 @@
-import {expect, test} from '../fixtures/test';
-import {editorText, setEditorText} from '../helpers/monaco';
+import {ApiError, topologyDefinition} from '../fixtures/api';
+import {expect, knownBug, test} from '../fixtures/test';
 import {DashboardPage} from '../pages/dashboard-page';
-import {Dialog, toast} from '../pages/dialogs';
+import {menuItem, toast} from '../pages/dialogs';
+import {Dock} from '../pages/dock';
 import {EditorPage} from '../pages/editor-page';
+import {LabEditDialog} from '../pages/lab-edit-dialog';
+import {LabView} from '../pages/lab-view';
 
 /*
- * Students are non-admin users created per test (see createStudent in fixtures/test.ts). They only
- * see collections they are a member of. In those, publicWrite lets them create and edit their own
- * topologies, and publicDeploy lets them deploy labs.
+ * What users who aren't admins may do. A user is a member of the collections named in their groups.
+ * Collections decide the rest:
+ *
+ * - "Anyone can edit" (publicWrite): members may add topologies, and edit the ones they created
+ * - "Anyone can deploy" (publicDeploy): members may create labs from its topologies
+ *
+ * Deploying, destroying and node commands of a lab, and editing or deleting a topology, are only for
+ * its creator and the admins. The server enforces all of this; the interface should only offer what is
+ * allowed. The first part checks the server, the second what the interface shows.
  */
-test.describe('permissions', () => {
-  test('a student without collections has no access to the editor', async ({
-    createStudent,
-  }) => {
-    const student = await createStudent();
-    const editor = new EditorPage(student.page);
 
-    await editor.goto();
+/** Runs an API call and returns the HTTP status it failed with, or 200. */
+async function status(call: Promise<unknown>): Promise<number> {
+  try {
+    await call;
+    return 200;
+  } catch (error) {
+    if (error instanceof ApiError) return error.status;
+    throw error;
+  }
+}
 
-    await expect(student.page.getByText('403')).toBeVisible();
-    await expect(
-      student.page.getByText('You do not have access to this page'),
-    ).toBeVisible();
-  });
-
-  test('a student only sees labs of their collections', async ({
+test.describe('server rules', () => {
+  test('users only see the collections, topologies and labs they are members of', async ({
+    createCollection,
     createLab,
-    createStudent,
+    createUser,
   }) => {
-    const visible = await createLab();
-    const hidden = await createLab();
-    const student = await createStudent([visible.topology.collection.name]);
-    const dashboard = new DashboardPage(student.page);
-    await dashboard.goto();
+    const mine = await createCollection();
+    const theirs = await createCollection();
+    const myLab = await createLab({collection: mine});
+    const theirLab = await createLab({collection: theirs});
+    const user = await createUser({collections: [mine]});
 
-    await dashboard.searchFor(visible.name);
-    await expect(dashboard.labCard(visible.id)).toBeVisible();
-    await dashboard.searchFor(hidden.name);
-    await expect(dashboard.labCard(hidden.id)).toBeHidden();
+    expect((await user.api.getCollections()).map(c => c.id)).toEqual([mine.id]);
+    const topologies = (await user.api.getTopologies()).map(t => t.id);
+    expect(topologies).toContain(myLab.topology.id);
+    expect(topologies).not.toContain(theirLab.topology.id);
+    expect((await user.api.getLabs()).map(l => l.id)).toEqual([myLab.id]);
+
+    expect(await status(user.api.getTopology(theirLab.topology.id))).toBe(403);
+    expect(await status(user.api.getLab(theirLab.id))).toBe(403);
   });
 
-  test('a student only sees collections they are a member of', async ({
+  test('only admins create, change and delete collections', async ({
     createCollection,
-    createStudent,
-  }) => {
-    const member = await createCollection();
-    // Even fully public collections stay invisible to non-members
-    const other = await createCollection({
-      publicWrite: true,
-      publicDeploy: true,
-    });
-    const student = await createStudent([member.name]);
-    const editor = new EditorPage(student.page);
-
-    await editor.goto();
-
-    await expect(editor.explorer.row(member.name)).toBeVisible();
-    await expect(editor.explorer.row(other.name)).toBeHidden();
-  });
-
-  test('a private collection is read-only for students', async ({
-    createTopology,
-    createStudent,
-  }) => {
-    const topology = await createTopology();
-    const student = await createStudent([topology.collection.name]);
-    const editor = new EditorPage(student.page);
-    await editor.goto();
-    await editor.explorer.expand(topology.collection.name);
-
-    // The buttons only show up on hover, but they are disabled either way
-    await editor.explorer.row(topology.collection.name).hover();
-    await expect(
-      editor.explorer
-        .row(topology.collection.name)
-        .getByRole('button', {name: 'Add Topology'}),
-    ).toBeDisabled();
-    await editor.explorer.row(topology.name).hover();
-    for (const action of [
-      'Edit Topology',
-      'Delete Topology',
-      'Deploy Topology',
-    ]) {
-      await expect(
-        editor.explorer.row(topology.name).getByRole('button', {name: action}),
-      ).toBeDisabled();
-    }
-  });
-
-  test("a student can't edit a topology they didn't create", async ({
-    createCollection,
-    createTopology,
-    createStudent,
-  }) => {
-    const collection = await createCollection({publicWrite: true});
-    const topology = await createTopology({collection});
-    const student = await createStudent([collection.name]);
-    const editor = new EditorPage(student.page);
-    await editor.goto(topology.id);
-    await expect
-      .poll(() => editorText(editor.editor.monaco))
-      .toContain(topology.name);
-
-    await setEditorText(editor.editor.monaco, 'name: changed\n');
-
-    // The editor is read-only, so nothing changes and there is nothing to save
-    await expect
-      .poll(() => editorText(editor.editor.monaco))
-      .toContain(topology.name);
-    await expect(editor.editor.unsavedBadge).toBeHidden();
-  });
-
-  test('a student can create topologies in a publicWrite collection', async ({
-    api,
-    createCollection,
-    createStudent,
+    createUser,
     uniqueName,
   }) => {
     const collection = await createCollection({publicWrite: true});
-    const student = await createStudent([collection.name]);
-    const name = uniqueName('topology');
-    const editor = new EditorPage(student.page);
-    await editor.goto();
+    const user = await createUser({collections: [collection]});
 
-    await editor.explorer.rowAction(collection.name, 'Add Topology');
-    const dialog = new Dialog(student.page, 'Add Topology');
-    await dialog.fill('Topology Name', name);
-    await dialog.button('Apply').click();
-
-    await expect(
-      toast(student.page, 'Topology has been created successfully.'),
-    ).toBeVisible();
-    const topologies = await api.getTopologies();
-    expect(topologies.some(t => t.definition.includes(`name: ${name}`))).toBe(
-      true,
-    );
+    expect(await status(user.api.createCollection(uniqueName('c')))).toBe(403);
+    expect(
+      await status(user.api.updateCollection(collection.id, {name: 'x'})),
+    ).toBe(403);
+    expect(await status(user.api.deleteCollection(collection.id))).toBe(403);
   });
 
-  test('a student can deploy in a publicDeploy collection', async ({
+  test('members add topologies only to collections anyone can edit', async ({
+    createCollection,
+    createUser,
+    uniqueName,
+  }) => {
+    const writable = await createCollection({publicWrite: true});
+    const readOnly = await createCollection({publicDeploy: true});
+    const outside = await createCollection({publicWrite: true});
+    const user = await createUser({collections: [writable, readOnly]});
+    const create = (collectionId: string) =>
+      user.api.createTopology(
+        collectionId,
+        topologyDefinition(uniqueName('t'), ['a']),
+      );
+
+    expect(await status(create(writable.id))).toBe(200);
+    expect(await status(create(readOnly.id))).toBe(403);
+    // Not a member: publicWrite alone isn't enough
+    expect(await status(create(outside.id))).toBe(403);
+  });
+
+  test('only the creator edits a topology', async ({
+    createCollection,
+    createTopology,
+    createUser,
+  }) => {
+    const collection = await createCollection({publicWrite: true});
+    const creator = await createUser({collections: [collection]});
+    const other = await createUser({collections: [collection]});
+    const topology = await createTopology({collection, by: creator});
+    const edit = (user: typeof creator) =>
+      user.api.updateTopology(topology.id, {
+        definition: topologyDefinition(topology.name, ['edited']),
+      });
+
+    expect(await status(edit(other))).toBe(403);
+    expect(await status(other.api.deleteTopology(topology.id))).toBe(403);
+    expect(
+      await status(other.api.createBindFile(topology.id, 'x.cfg', '')),
+    ).toBe(403);
+    expect(await status(edit(creator))).toBe(200);
+  });
+
+  test('a creator can no longer edit once the collection is read-only', async ({
     api,
     createCollection,
     createTopology,
-    createStudent,
+    createUser,
+  }) => {
+    const collection = await createCollection({publicWrite: true});
+    const creator = await createUser({collections: [collection]});
+    const topology = await createTopology({collection, by: creator});
+
+    await api.updateCollection(collection.id, {publicWrite: false});
+
+    expect(
+      await status(
+        creator.api.updateTopology(topology.id, {
+          definition: topologyDefinition(topology.name, ['edited']),
+        }),
+      ),
+    ).toBe(403);
+  });
+
+  test('a creator can not change bind files once the collection is read-only', async ({
+    api,
+    createCollection,
+    createTopology,
+    createUser,
+  }) => {
+    knownBug(
+      "bind files and deleting a topology only check the creator, not the collection's publicWrite",
+    );
+    const collection = await createCollection({publicWrite: true});
+    const creator = await createUser({collections: [collection]});
+    const topology = await createTopology({collection, by: creator});
+
+    await api.updateCollection(collection.id, {publicWrite: false});
+
+    expect(
+      await status(creator.api.createBindFile(topology.id, 'x.cfg', '')),
+    ).toBe(403);
+  });
+
+  test('members create labs only in collections anyone can deploy', async ({
+    createCollection,
+    createTopology,
+    createUser,
+    uniqueName,
+  }) => {
+    const deployable = await createCollection({publicDeploy: true});
+    const editable = await createCollection({publicWrite: true});
+    const a = await createTopology({collection: deployable});
+    const b = await createTopology({collection: editable});
+    const user = await createUser({collections: [deployable, editable]});
+
+    expect(await status(user.api.createLab(a.id, uniqueName('lab')))).toBe(200);
+    expect(await status(user.api.createLab(b.id, uniqueName('lab')))).toBe(403);
+  });
+
+  test('only the creator deploys, destroys and controls a lab', async ({
+    api,
+    createCollection,
+    createLab,
+    createUser,
+  }) => {
+    const collection = await createCollection({publicDeploy: true});
+    const creator = await createUser({collections: [collection]});
+    const other = await createUser({collections: [collection]});
+    const lab = await createLab({collection, by: creator});
+
+    expect((await other.api.command(0, lab.id)).code).toBe(5403);
+    expect(await status(other.api.updateLab(lab.id, {name: 'x'}))).toBe(403);
+    expect(await status(other.api.deleteLab(lab.id))).toBe(403);
+
+    await creator.api.deployLab(lab.id);
+    expect((await other.api.command(3, lab.id, {node: 'host1'})).code).toBe(
+      5403,
+    );
+    expect((await other.api.command(1, lab.id)).code).toBe(5403);
+
+    // Admins may do everything
+    await api.destroyLab(lab.id);
+  });
+
+  test("members may open terminals on other members' labs", async ({
+    createCollection,
+    createLab,
+    createUser,
+  }) => {
+    const collection = await createCollection({publicDeploy: true});
+    const creator = await createUser({collections: [collection]});
+    const member = await createUser({collections: [collection]});
+    const outsider = await createUser();
+    const lab = await createLab({collection, by: creator, deployed: true});
+
+    const open = (user: typeof member) =>
+      user.api.command(6, lab.id, {node: 'host1', cols: 80, rows: 24});
+    expect((await open(member)).payload).toBeTruthy();
+    expect((await open(outsider)).code).toBe(5403);
+  });
+});
+
+test.describe('interface', () => {
+  test('a member of a read-only collection sees its topologies read-only', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    const collection = await createCollection();
+    const topology = await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const editor = new EditorPage(user.page);
+
+    await editor.open(topology.id, topology.name);
+
+    await expect(editor.editor.readOnlyBanner).toContainText(
+      'The current file is opened in read-only mode.',
+    );
+    // Nothing to add, edit or delete in the explorer
+    await editor.explorer.row(collection.name).click({button: 'right'});
+    await expect(
+      user.page.locator('.p-contextmenu').filter({visible: true}),
+    ).toHaveCount(0);
+    await editor.explorer.expand(collection.name);
+    await editor.explorer.row(topology.name).click({button: 'right'});
+    await expect(menuItem(user.page, 'Delete')).toHaveCount(0);
+    await expect(menuItem(user.page, 'Edit')).toHaveCount(0);
+  });
+
+  test('the graph of a read-only topology can not be edited', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    knownBug(
+      'the graph editor ignores read-only topologies; edits are only rejected when saving',
+    );
+    const collection = await createCollection();
+    const topology = await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const editor = new EditorPage(user.page);
+    await editor.open(topology.id, topology.name);
+    await editor.editor.view('Graph').click();
+    await editor.graph.waitForNodes(2);
+
+    await editor.graph.clickNode('host1');
+    await user.page.keyboard.press('Delete');
+
+    await expect(editor.editor.save).toBeDisabled();
+    await editor.graph.waitForNodes(2);
+  });
+
+  test('without "Anyone can deploy" members get no Deploy button', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    knownBug(
+      "the editor's and the explorer's Deploy buttons ignore publicDeploy (only the context menu checks it)",
+    );
+    const collection = await createCollection({publicWrite: true});
+    const topology = await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const editor = new EditorPage(user.page);
+    await editor.open(topology.id, topology.name);
+
+    await expect(editor.editor.deploy).toBeHidden();
+  });
+
+  test('a member can add a topology to a collection anyone can edit', async ({
+    api,
+    createCollection,
+    createTopology,
+    loginAs,
+    uniqueName,
+  }) => {
+    const collection = await createCollection({publicWrite: true});
+    await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const name = uniqueName('topology');
+    const editor = new EditorPage(user.page);
+    await editor.goto();
+
+    await editor.explorer.menu(collection.name, 'New topology');
+    const dialog = editor.explorer.topologyDialog('Add topology');
+    await editor.explorer.waitForDialogCollection(dialog, collection.name);
+    await dialog.fill('Name', name);
+    await dialog.submit('Apply');
+
+    await editor.explorer.expand(collection.name);
+    await expect(editor.explorer.row(name)).toBeVisible();
+    const created = (await api.getTopologies()).find(t =>
+      t.definition.includes(`name: ${name}`),
+    );
+    expect(created?.creator.name).toBe(user.username);
+    // The creator may edit it
+    await editor.explorer.open(name);
+    await expect(editor.editor.readOnlyBanner).toBeHidden();
+    await api.deleteTopology(created!.id);
+  });
+
+  test('a collection anyone can edit has the Add Topology button for members', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    knownBug(
+      'the hover buttons of a collection are only shown to admins, even when anyone can edit it',
+    );
+    const collection = await createCollection({publicWrite: true});
+    await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const editor = new EditorPage(user.page);
+    await editor.goto();
+
+    await editor.explorer.row(collection.name).hover();
+    await expect(
+      editor.explorer.rowButton(collection.name, 'Add Topology'),
+    ).toBeVisible();
+  });
+
+  test('a member deploys a lab in a collection anyone can deploy', async ({
+    api,
+    createCollection,
+    createTopology,
+    loginAs,
     uniqueName,
   }) => {
     const collection = await createCollection({publicDeploy: true});
     const topology = await createTopology({collection});
-    const student = await createStudent([collection.name]);
-    const labName = uniqueName('lab');
-    const editor = new EditorPage(student.page);
-    await editor.goto();
-    await editor.explorer.expand(collection.name);
+    const user = await loginAs({collections: [collection]});
+    const name = uniqueName('lab');
+    const dashboard = new DashboardPage(user.page);
+    await dashboard.goto();
 
-    await editor.explorer.rowAction(topology.name, 'Deploy Topology');
-    const dialog = new Dialog(student.page, 'Deploy Topology');
-    await dialog.fill('Lab Name', labName);
-    await dialog.button('Deploy').click();
+    await dashboard.newLab.click();
+    const dialog = new LabEditDialog(user.page);
+    await dialog.setName(name);
+    await dialog.selectTopology(topology.name);
+    await dialog.submit('Deploy');
 
     await expect(
-      toast(student.page, 'Lab has been created successfully.'),
+      toast(user.page, 'Lab has been created successfully.'),
     ).toBeVisible();
-    const lab = await api.findLab(labName);
-    expect(lab?.topologyId).toBe(topology.id);
+    await expect(dashboard.cardState(name)).toHaveText('Running');
+    const lab = await api.findLab(name);
+    expect(lab?.creator.name).toBe(user.username);
+    await api.destroyLab(lab!.id);
+    await api.deleteLab(lab!.id);
   });
 
-  test('a student loses access when their collection is deleted', async ({
+  test('creating a lab in a collection nobody may deploy shows an error', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+    uniqueName,
+  }) => {
+    const collection = await createCollection({publicWrite: true});
+    const topology = await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    await new DashboardPage(user.page).goto();
+
+    await new DashboardPage(user.page).newLab.click();
+    const dialog = new LabEditDialog(user.page);
+    await dialog.setName(uniqueName('lab'));
+    await dialog.selectTopology(topology.name);
+    await dialog.submit('Deploy');
+
+    await expect(user.page.locator('.p-toast-message-error')).toBeVisible();
+    await expect(dialog.root).toBeVisible();
+  });
+
+  test("a member's own lab can be deployed and destroyed by them", async ({
+    createCollection,
+    createLab,
+    loginAs,
+  }) => {
+    const collection = await createCollection({publicDeploy: true});
+    const user = await loginAs({collections: [collection]});
+    const lab = await createLab({collection, by: user});
+    const labView = new LabView(user.page);
+    await labView.open(lab.id);
+
+    await labView.deploy();
+    await expect(labView.state).toHaveText('running');
+    await labView.destroy();
+    await expect(labView.deployButton).toBeVisible();
+  });
+
+  test("another member's lab offers no deploy or destroy", async ({
+    createCollection,
+    createLab,
+    createUser,
+    loginAs,
+  }) => {
+    knownBug(
+      'the lab view shows deploy, redeploy and destroy to everyone, the server then refuses',
+    );
+    const collection = await createCollection({publicDeploy: true});
+    const creator = await createUser({collections: [collection]});
+    const lab = await createLab({collection, by: creator});
+    const member = await loginAs({collections: [collection]});
+    const labView = new LabView(member.page);
+
+    await labView.open(lab.id);
+
+    await expect(labView.title).toContainText(lab.name);
+    await expect(labView.deployButton).toBeHidden();
+  });
+
+  test("deploying another member's lab is refused with a message", async ({
     api,
     createCollection,
-    createStudent,
+    createLab,
+    createUser,
+    loginAs,
   }) => {
-    const collection = await createCollection();
-    const student = await createStudent([collection.name]);
-    const editor = new EditorPage(student.page);
-    await editor.goto();
-    await expect(editor.explorer.row(collection.name)).toBeVisible();
+    const collection = await createCollection({publicDeploy: true});
+    const creator = await createUser({collections: [collection]});
+    const lab = await createLab({collection, by: creator});
+    const member = await loginAs({collections: [collection]});
+    const labView = new LabView(member.page);
+    await labView.open(lab.id);
 
-    await api.deleteCollection(collection.id);
-    await student.page.reload();
+    await labView.deploy();
 
-    // It was the student's only collection, so the editor is gone as well
-    await expect(
-      student.page.getByText('You do not have access to this page'),
-    ).toBeVisible();
+    await expect(toast(member.page, 'Failed to deploy lab')).toBeVisible();
+    expect((await api.getLab(lab.id)).instance).toBeNull();
+  });
+
+  test('users only see the labs of their collections on the dashboard', async ({
+    createCollection,
+    createLab,
+    loginAs,
+  }) => {
+    const mine = await createCollection();
+    const theirs = await createCollection();
+    const myLab = await createLab({collection: mine});
+    const theirLab = await createLab({collection: theirs});
+    const user = await loginAs({collections: [mine]});
+    const dashboard = new DashboardPage(user.page);
+
+    await dashboard.goto();
+
+    await expect(dashboard.card(myLab.name)).toBeVisible();
+    await expect(dashboard.card(theirLab.name)).toBeHidden();
+    await expect(dashboard.explorerItem(theirs.name)).toBeHidden();
+    // Members of a collection may use the editor
+    await expect(new Dock(user.page).editor).toBeVisible();
   });
 });

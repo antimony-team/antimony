@@ -28,8 +28,10 @@ on:
         default: ghcr.io/antimony-team/antimony-server:dev
 
 env:
-  # The image e2e/scripts/start-backend.sh runs
+  # The image e2e/scripts/start-backend.sh runs. Without it, the script builds a local server checkout.
   SB_E2E_BACKEND_IMAGE: ${{ inputs.backend-image || 'ghcr.io/antimony-team/antimony-server:dev' }}
+  # The tests run the web build; only the desktop packages need Electron
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
 jobs:
   e2e:

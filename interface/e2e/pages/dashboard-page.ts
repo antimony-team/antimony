@@ -1,62 +1,75 @@
 import {Locator, Page} from '@playwright/test';
 
-/** The lab list on the dashboard. */
+/**
+ * The dashboard: the collections on the left (lab explorer), the lab cards in groups on the right.
+ * The fixtures start every context with all groups expanded.
+ */
 export class DashboardPage {
+  readonly explorer: Locator;
   readonly search: Locator;
-  readonly filterButton: Locator;
+  readonly grid: Locator;
+  readonly title: Locator;
+  readonly subtitle: Locator;
+  readonly newLab: Locator;
 
   constructor(private readonly page: Page) {
-    this.search = page
-      .locator('.sb-dashboard-filter-search')
-      .getByPlaceholder('Search');
-    this.filterButton = page.getByRole('button', {name: 'Filter Labs'});
+    this.explorer = page.locator('.sb-lab-explorer');
+    this.search = this.explorer.getByPlaceholder('Search labs');
+    this.grid = page.locator('.sb-dashboard-container');
+    this.title = page.locator('.sb-lab-grid-header-title');
+    this.subtitle = page.locator('.sb-lab-grid-header-subtitle');
+    this.newLab = this.grid
+      .locator('.sb-lab-grid-header')
+      .getByRole('button', {name: 'New lab'});
   }
 
   async goto() {
     await this.page.goto('/');
   }
 
-  /**
-   * Shows only labs matching the text. The list is paginated and all tests share one backend, so
-   * tests search for their own lab instead of expecting it on the first page.
-   */
-  async searchFor(text: string) {
-    await this.search.fill(text);
+  /** The card of a lab, found by its (unique) name. */
+  card(labName: string): Locator {
+    return this.page.locator('.sb-dashboard-lab-card').filter({
+      has: this.page
+        .locator('.sb-dashboard-lab-card-header > span:first-child')
+        .getByText(labName, {exact: true}),
+    });
   }
 
-  /** Opens a lab's view by searching for it and clicking its card, like a user would. */
-  async openLab(labId: string, labName: string) {
-    await this.goto();
-    await this.searchFor(labName);
-    await this.labCard(labId).click();
+  /** The state written on a lab's card, e.g. "Running" or "Scheduled". */
+  cardState(labName: string): Locator {
+    return this.card(labName).locator('.sb-dashboard-lab-card-band-state');
   }
 
-  /** The card of a lab in the list. */
-  labCard(labId: string): Locator {
-    return this.page.locator(
-      `[data-testid="lab-card"][data-lab-id="${labId}"]`,
-    );
+  /** A group of cards: "Active", "Scheduled" or "Inactive". */
+  group(label: string): Locator {
+    return this.grid.locator('.sb-lab-grid-group').filter({
+      has: this.page.locator('.sb-lab-grid-group-header', {hasText: label}),
+    });
   }
 
-  /** The state shown on a lab's card, e.g. "Running" or "Inactive". */
-  labState(labId: string): Locator {
-    return this.labCard(labId).locator('.lab-state-label-icon');
+  groupHeader(label: string): Locator {
+    return this.group(label).locator('.sb-lab-grid-group-header');
   }
 
-  /** Removes a state from the state filter via the × on its chip above the list. */
-  async removeStateFilter(state: string) {
-    await this.page
-      .getByRole('button', {name: `Remove ${state} Filter`})
-      .click();
+  /** An entry of the lab explorer: "All labs" or a collection name. */
+  explorerItem(name: string): Locator {
+    return this.explorer.locator('.sb-lab-explorer-item').filter({
+      has: this.page
+        .locator('.sb-lab-explorer-item-label')
+        .getByText(name, {exact: true}),
+    });
   }
 
-  /** Toggles a state or collection filter in the filter overlay. */
-  async toggleFilter(label: string) {
-    await this.filterButton.click();
-    await this.page
-      .locator('.filter-overlay-panel .filter-chip')
-      .getByText(label, {exact: true})
-      .click();
-    await this.page.keyboard.press('Escape');
+  /** A state filter chip, e.g. "Running" or "Inactive". */
+  stateChip(state: string): Locator {
+    return this.grid
+      .locator('.sb-lab-grid-filter-chip')
+      .filter({hasText: new RegExp(`^${state}$`)});
+  }
+
+  /** Opens a lab by clicking its card. */
+  async openLab(labName: string) {
+    await this.card(labName).click();
   }
 }

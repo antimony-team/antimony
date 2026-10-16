@@ -1,220 +1,331 @@
 # Known bugs
 
-Found while writing the end-to-end tests. Each entry says how it was confirmed. Bugs with a
-"Test" line are reproduced by an e2e test marked with `test.fail()`: the test asserts the correct
-behaviour and is expected to fail. Once a bug is fixed, Playwright reports the test as unexpectedly
-passing, and the `test.fail()` line should be removed.
+Found while writing the end-to-end tests (October 2026). Each entry says how it was confirmed:
 
-Status: **verified** = reproduced in the running application, **suspected** = found by reading the
-code, not (yet) reproducible.
+- **verified**: reproduced by an e2e test. The test asserts the correct behaviour and starts with
+  `knownBug('…')`, so it's expected to fail and the suite stays green. Once the bug is fixed, Playwright
+  reports the test as unexpectedly passing; then remove the `knownBug()` line. `E2E_KNOWN_BUGS=1 yarn e2e`
+  runs these tests as normal tests, to see them fail.
+- **from the code**: found by reading the code, not covered by a test.
+
+Paths of the interface are relative to `src/`, those of the server to `antimony-server/src/`.
 
 ---
 
-## Interface
+## Server
 
-### 1. Directory rename and delete affect directories with a similar name (data loss)
+### 1. The SSH server lets anyone in, without authentication (security)
 
-- **Status:** verified
-- **Where:** `src/components/editor-page/topology-explorer/topology-explorer.tsx:265` (delete),
-  `src/components/editor-page/topology-explorer/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog.tsx` (rename)
-- **What happens:** Both select the files of a directory with `filePath.startsWith(directoryPath)`,
-  without a trailing `/`. With the files `node1/startup.cfg` and `node10/startup.cfg`:
-  - renaming `node1` to `router1` also renames `node10/` to `router10/`
-  - deleting `node1` also deletes `node10/startup.cfg`
+- **Status:** verified — `server.spec.ts` › "the SSH server asks who is connecting"
+- **Where:** `sshserver/sshserver.go` (no auth handlers, so gliderlabs/ssh allows every client), and
+  `runtime/instance/service.go` (`GetInstanceNode` is called without a user)
+- **What happens:** `ssh -p <port> <collection>/<lab>/<node>@<server>` opens a shell on any running node,
+  for anyone who can reach the SSH port, without a password or key. The same goes for packet captures.
+- **Fix idea:** authenticate SSH clients (e.g. with the user's access token as the password, or keys), and
+  check the user's access to the lab like the socket namespaces do.
+
+### 2. Every signed-in user hears about every lab
+
+- **Status:** verified — `server.spec.ts` › "users don't hear about labs of collections they aren't in"
+- **Where:** `main.go` (`/status-messages`), `runtime/instance/service.go` (`/lab-updates`),
+  `runtime/instance/monitor.go` (`/stats/<id>`, no access check), `runtime/shell/service.go`
+  (`/shell-control`)
+- **What happens:** a user without any collection receives the status messages (lab names, internal log
+  lines with lab IDs) and lab updates of all labs. From the code, `/stats/*` and `/shell-control` (shell IDs,
+  labs and nodes of all users) are open to everyone as well.
+- **Fix idea:** send these only to admins and members of the lab's collection.
+
+### 3. The topology policy is only checked when a lab is created
+
+- **Status:** verified — `server.spec.ts` › "a lab created from a safe topology can not be deployed once it
+  is unsafe"
+- **Where:** `domain/lab/service.go` (only `POST /labs` checks the policy), `runtime/instance/service.go`
+  (socket deploy), the scheduler
+- **What happens:** a user creates a lab while the topology is safe. Once the topology contains unsafe
+  features (changed by its creator or an admin), the user can still deploy the lab with the Deploy button,
+  and the scheduler starts it as well.
+- **Fix idea:** check the policy whenever a lab is deployed by a user who isn't an admin.
+
+### 4. Bind files and topology deletion ignore "Anyone can edit"
+
+- **Status:** verified — `permissions.spec.ts` › "a creator can not change bind files once the collection is
+  read-only"
+- **Where:** `domain/topology/service.go` (bind file create, update, delete and topology delete check only
+  the creator)
+- **What happens:** editing a topology needs the collection to be writable, but its creator can still add,
+  change and delete its bind files, and delete it, after the collection is made read-only or they lost
+  their membership. Bind files can change the policy findings of a topology.
+- **Fix idea:** check publicWrite and membership like the topology update does.
+
+### 5. Destroying a lab that isn't running removes it from the schedule
+
+- **Status:** verified — `server.spec.ts` › "destroying a lab that is not running leaves its schedule alone"
+- **Where:** `runtime/instance/service.go` (`DestroyLabCommand` publishes `lab.deleted` before checking that
+  the lab runs)
+- **What happens:** the command fails with 5012 "lab not running", but the lab silently drops out of the
+  schedule and never starts. The dashboard still shows it as Scheduled.
+
+### 6. Pages of `GET /labs` are short for users who aren't admins
+
+- **Status:** verified — `server.spec.ts` › "a page of labs is full for users who are not admins"
+- **Where:** `domain/lab/repository.go` (limit and offset in SQL), `domain/lab/service.go` (membership filter
+  afterwards)
+- **What happens:** `?limit=1` returns no lab at all when the first lab in the database belongs to another
+  collection. The interface doesn't page, so it's only visible to API users.
+
+### 7. Labs can end before they start
+
+- **Status:** verified — `server.spec.ts` › "a lab can not end before it starts"
+- **Where:** `domain/lab/service.go` (create and update)
+- **What happens:** `endTime` before `startTime` is accepted.
+
+### 8. Empty lab names and collection names with a slash are accepted
+
+- **Status:** verified — `server.spec.ts` › "collection and lab names are checked on the server"
+- **Where:** `domain/lab/entity.go`, `domain/collection/entity.go` (`required` accepts `""`), no name
+  validation for collections
+- **What happens:** a lab can be called `""`. A collection can be called `a/b`, which breaks the SSH
+  syntax `<collection>/<lab>/<node>`.
+
+### 9. Smaller server issues, from the code
+
+- **Bind file updates don't check the topology in the URL:** `PATCH /topologies/A/files/<file of B>`
+  changes B's file (admins only). `transport/http/topology/handler.go` ignores `:topologyId`.
+- **Access and refresh tokens are interchangeable, and logout revokes nothing:** any valid token with an
+  `id` works as either (`auth/manager.go`). The 30-day refresh token works as a Bearer access token.
+- **Socket permissions are a snapshot:** they're cached per token when a socket connects and never
+  updated (`socket/manager.go`), so removed access only applies after reconnecting.
+- **Admins can close other users' shells but can't attach to or list them**
+  (`runtime/shell/service.go`).
+- **Opening a shell on an unknown lab answers 5021 (node not found)** instead of 5011.
+- **`policyFindings` is `null` instead of `[]`** for topologies without findings (`policy/engine.go`).
+- **`GET /labs` with an invalid query answers 500** instead of 422, and `GET /topologies/{id}` answers 403
+  instead of 404 for non-members.
+- **Two tabs of the same user overwrite each other** in the socket's client map
+  (`socket/namespace.go`); harmless for broadcasts.
+- **Shell races:** `lastInteraction` is written without a lock, and the shell limit is counted and
+  checked non-atomically (`runtime/shell/service.go`).
+- **`NativeUserID` has 35 characters** instead of the 36 of a UUID (`auth/manager.go`).
+
+---
+
+## Interface: permissions
+
+The interface checks permissions in few places; the server is the only enforcement for most actions.
+Users see buttons that then fail.
+
+### 10. The lab view offers deploy and destroy to everyone
+
+- **Status:** verified — `permissions.spec.ts` › "another member's lab offers no deploy or destroy"
+- **Where:** `components/dashboard-page/lab-view/lab-view-header/lab-view-header.tsx`, the node menu and
+  the drawer in `lab-view/`
+- **What happens:** members see Deploy, Redeploy, Destroy and the node actions on labs they didn't
+  create. The server refuses with "Failed to deploy lab".
+
+### 11. The Deploy buttons ignore "Anyone can deploy"
+
+- **Status:** verified — `permissions.spec.ts` › "without "Anyone can deploy" members get no Deploy button"
+- **Where:** `components/editor-page/topology-editor/topology-editor.tsx` (toolbar),
+  `explorer-tree-node.tsx` (row button). Only the explorer's context menu checks it.
+- **What happens:** the editor's Deploy button and the topology row's Deploy button are shown in
+  collections nobody may deploy. The dashboard's "New lab" lists all topologies, too.
+
+### 12. The graph editor ignores read-only topologies
+
+- **Status:** verified — `permissions.spec.ts` › "the graph of a read-only topology can not be edited"
+- **Where:** `components/editor-page/topology-editor/node-editor/node-editor.tsx`
+- **What happens:** the code editor is read-only for users who may not edit the topology, but the graph
+  lets them move, delete and add elements, and enables Save; saving then fails.
+
+### 13. Members of a collection anyone can edit get no Add Topology button
+
+- **Status:** verified — `permissions.spec.ts` › "a collection anyone can edit has the Add Topology button
+  for members"
+- **Where:** `components/editor-page/topology-explorer/explorer-tree-node/explorer-tree-node.tsx`
+  (`isCollectionWritable` is only computed for topology rows, so it's false for collections)
+- **What happens:** the hover buttons of a collection are only shown to admins. Members have to use the
+  right-click menu.
+
+### 14. Policy findings are never shown
+
+- **Status:** verified — `policy.spec.ts` › "the editor warns about an unsafe topology before deploying"
+- **Where:** `types/domain/topology.ts` (no `policyFindings`), the editor and the deploy dialog
+- **What happens:** the server reports what makes a topology unsafe, but the interface doesn't show it.
+  Users only learn about it when creating a lab fails (see 15).
+
+### 15. Errors when creating a lab are titled "Failed to update lab"
+
+- **Status:** verified — `policy.spec.ts` › "the error for a refused lab is titled for creating, not
+  updating"
+- **Where:** `components/common/lab-edit-dialog/lab-edit-dialog.tsx`
+- **What happens:** e.g. "Failed to update lab — the topology contains unsafe features that the server
+  rejected" for a new lab. Code 3005 isn't in `types/error-codes.ts`.
+
+---
+
+## Interface: data
+
+### 16. Renaming or deleting a directory also hits directories with a similar name (data loss)
+
+- **Status:** verified — `bind-files.spec.ts` › "renaming a directory leaves directories with a similar name
+  alone", "deleting a directory leaves directories with a similar name alone"
+- **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (delete),
+  `components/editor-page/bind-file-edit-directory-dialog/bind-file-directory-edit-dialog.tsx` (rename)
+- **What happens:** both select files with `filePath.startsWith(directoryPath)`, without a trailing `/`.
+  With `node1/startup.cfg` and `node10/startup.cfg`, renaming `node1` to `router1` also renames `node10/`
+  to `router10/`, and deleting `node1` also deletes `node10/startup.cfg`.
 - **Fix idea:** match `filePath.startsWith(directoryPath + '/')`.
-- **Tests:** `e2e/specs/bind-files.spec.ts` › "renaming a directory leaves directories with a similar
-  name alone", "deleting a directory leaves directories with a similar name alone"
 
-### 2. Archive upload overwrites another topology's file (data corruption)
+### 17. Archive upload overwrites another topology's file (data corruption)
 
-- **Status:** verified
-- **Where:** `src/lib/stores/topology-store.ts:139` (`uploadArchiveFiles`)
-- **What happens:** For files that already exist, the upload looks up the existing bind file by path
-  across *all* topologies (`bindFileLookup.values().find(...)`), not only the target topology. If an
-  earlier topology has a file with the same path, that file is overwritten and the target topology's
-  file stays unchanged.
-- **Fix idea:** search only `topology.bindFiles` of the target topology.
-- **Related backend gap:** see backend bug 2.
-- **Test:** `e2e/specs/archive-upload.spec.ts` › "overwriting a file leaves other topologies' files
-  alone"
+- **Status:** verified — `bind-files.spec.ts` › "overwriting a file leaves other topologies' files alone"
+- **Where:** `lib/stores/topology-store.ts` (`uploadArchiveFiles` looks up existing files across all
+  topologies)
+- **What happens:** if another topology has a file with the same path, that file is overwritten and the
+  target topology's file stays unchanged. Server bug 9 (bind file updates) lets this happen.
+- **Fix idea:** search only the target topology's bind files.
 
-### 3. Connecting two nodes in the graph editor doesn't work
+### 18. Moving a topology overwrites the open topology in the editor
 
-- **Status:** verified
-- **Where:** `src/lib/cytoscape-styles.ts` (`.ghost-edge` style),
-  `src/components/editor-page/topology-editor/node-editor/node-editor.tsx` (`onEdgeClick`)
-- **What happens:** After "Connect" on a node, a dashed ghost edge is drawn from the node to the
-  cursor. Its end is always exactly under the cursor, so the click on the target node hits the ghost
-  edge instead. `onEdgeClick` treats a click on the ghost edge as "cancel", so the connection is never
-  made. `.ghost-node` has `events: 'no'`, `.ghost-edge` doesn't.
-- **Fix idea:** add `events: 'no'` to the `.ghost-edge` style.
-- **Test:** `e2e/specs/node-editor.spec.ts` › "two nodes can be connected"
+- **Status:** verified — `topologies.spec.ts` › "moving a topology leaves the open topology alone"
+- **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (after a drag and drop it calls
+  `topologyStore.manager.editTopology(topologyBackup, …)`)
+- **What happens:** dragging a topology into another collection replaces the open topology's definition
+  with the moved topology's. Saving would then overwrite the open topology.
 
-### 4. Deleting a collection keeps its topologies
+### 19. Deleting the last link makes the topology unsaveable
 
-- **Status:** verified
-- **Where:** interface: confirmation in `topology-explorer.tsx` (`onDeleteCollection`); backend:
-  `src/domain/collection/service.go` / `repository.go` (`Delete`)
-- **What happens:** The confirmation dialog says "The following topologies will be deleted", but the
-  backend only soft-deletes the collection. Its topologies (and their labs) stay in the database,
-  attached to the deleted collection, and are still returned by `GET /topologies`.
-- **Fix idea:** delete (or refuse to delete) collections with topologies in the backend, and make the
-  dialog match.
-- **Test:** `e2e/specs/collections.spec.ts` › "deleting a collection deletes its topologies, as the
-  dialog says"
+- **Status:** verified — `graph-editor.spec.ts` › "deleting the last link leaves a topology that can be
+  saved"
+- **Where:** the graph editor's delete (`lib/topology-manager.ts`)
+- **What happens:** deleting the last link (or a node with the last link) leaves `links: []`. The
+  containerlab schema requires at least one item, so the server rejects the save ("topology.links: minimum
+  1 items required") and the editor then shows the file as invalid.
+- **Fix idea:** remove the `links` key when it becomes empty.
 
-### 5. Downloading a bind file does nothing
+### 20. A node can be connected to itself
 
-- **Status:** verified
-- **Where:** `src/components/editor-page/topology-editor/topology-editor.tsx:281` (`onDownload`)
-- **What happens:** For an open bind file, the download looks up the topology with
-  `topologyStore.lookup.get(openBindFile.id)`, the bind file's ID, which never matches, and returns
-  silently.
-- **Fix idea:** use `openBindFile.topologyId` (or drop the lookup, it isn't used afterwards).
-- **Test:** `e2e/specs/bind-files.spec.ts` › "a bind file can be downloaded"
+- **Status:** verified — `graph-editor.spec.ts` › "a node can not be connected to itself"
+- **Where:** `components/editor-page/topology-editor/node-editor/node-editor.tsx`
+  (`nodeConnectionSource !== nodeId` compares the ref instead of `.current`)
+- **What happens:** after "Connect", clicking the same node again links it to itself.
 
-### 6. The archive upload dialog doesn't close after uploading
+### 21. "Delete group and nodes" keeps the nodes
 
-- **Status:** verified
-- **Where:** `src/components/editor-page/topology-explorer/archive-upload-dialog/archive-upload-dialog.tsx`
-  (`onSubmit`)
-- **What happens:** "Upload" uploads the files, but the dialog stays open. Errors of the upload are
-  ignored as well (`void topologyStore.uploadArchiveFiles(...)` in `topology-explorer.tsx`).
-- **Test:** `e2e/specs/archive-upload.spec.ts` › "the dialog closes after uploading"
-
-### 7. Nodes without stored positions are all drawn on the same spot
-
-- **Status:** verified (screenshot); needs a decision whether this is intended
-- **Where:** `src/lib/utils/utils.ts:87` (`generateGraph`)
-- **What happens:** In the topology editor, a node's position comes only from its `graph-posX` /
-  `graph-posY` labels; without them it is placed at (0, 0). Topologies that were not laid out in the
-  graph editor (pasted YAML, git sync, created via the API) show all nodes stacked in the top-left
-  corner of the graph, under the node toolbar. The lab view lays such topologies out automatically.
-- **Fix idea:** run an automatic layout for nodes without a stored position.
-- **Test:** `e2e/specs/node-editor.spec.ts` › "nodes without stored positions are spread out"
-
-### 8. Links between nodes of different kinds get wrong interface names
-
-- **Status:** suspected (not reproducible through the UI while bug 3 exists)
-- **Where:** `src/lib/topology-manager.ts:387` (`connectNodes`)
-- **What happens:** `nodeKind2` is read from `nodeName1`, so the target's interface name is derived
-  from the source node's kind. Connecting a `linux` node to a `nokia_srlinux` node would produce
-  `srl1:eth1` instead of `srl1:e1-1`.
-- **Test:** `e2e/specs/node-editor.spec.ts` › "connecting nodes of different kinds uses the right
-  interface names" (currently fails because of bug 3)
-
-### 9. A node can probably be connected to itself
-
-- **Status:** suspected (not reproducible through the UI while bug 3 exists)
-- **Where:** `src/components/editor-page/topology-editor/node-editor/node-editor.tsx:321`
-- **What happens:** `nodeConnectTarget !== nodeId` compares the ref object instead of
-  `nodeConnectTarget.current`, so the check is always true and clicking the source node again would
-  create a self-link.
-
-### 10. Indefinite scheduled labs are shown as "Inactive"
-
-- **Status:** suspected; needs a decision whether this is intended
-- **Where:** `src/lib/stores/lab-store.ts:366` (`getInstanceState`)
-- **What happens:** A lab without an instance is only shown as "Scheduled" if it has an end time. A
-  lab that starts in the future and runs indefinitely is shown as "Inactive" until it starts.
-
-### 11. Labs without an instance show the current time as "Deployed"
-
-- **Status:** suspected (from the code)
-- **Where:** `src/components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties.tsx`
-- **What happens:** `dayjs(props.lab.instance?.deployed)` is `dayjs(undefined)`, i.e. now, for labs
-  without an instance.
-
-### 12. The build workflow fails because `.nvmrc` is missing
-
-- **Status:** verified (GitHub Actions log)
-- **Where:** `.github/workflows/build.yml` (`node-version-file: .nvmrc`)
-- **What happens:** Every run since "Cleaned up CI/CD" fails with "The specified node version file at:
-  …/.nvmrc does not exist". The e2e workflow pins Node 26 instead, so it is not affected.
-
-### 13. A lab link (`#/?l=<id>`) only opens labs on the current dashboard page
-
-- **Status:** verified
-- **Where:** `src/components/dashboard-page/dashboard-page.tsx:73` (the `searchParams` effect)
-- **What happens:** The lab view only opens if the lab is in `labStore.lookup`, which holds the labs
-  of the current page (page size = list height / 80, about 9–11). The very first load fetches every
-  lab (initial limit 1000), so the view opens for a moment, and closes again once the dashboard has
-  loaded its first page. Links to labs further down the list (labs are sorted by start time) do
-  nothing.
-- **Fix idea:** fetch the linked lab on its own (`GET /labs/{id}`) when it isn't in the lookup.
-- **Test:** `e2e/specs/labs.spec.ts` › "a lab can be opened by its link"
-
-### 14. Right after deploying from the lab view, right-clicking a node shows no menu
-
-- **Status:** verified
-- **Where:** `src/components/dashboard-page/lab-view/lab-view.tsx:135` (`onGraphContext`), registered
-  once with `cy.on('cxttap', ...)` at line 406
-- **What happens:** The Cytoscape handler keeps the `props.lab` from when the graph was set up. If the
-  lab had no instance then and is deployed from the open view, the handler still sees no instance and
-  returns before showing the node menu. The graph's own menu (right-click on the background) works,
-  and the node menu works after closing and reopening the view.
-- **Fix idea:** read the current lab from a ref inside the handler, or re-register the handler when
-  the lab changes.
-- **Test:** `e2e/specs/nodes.spec.ts` › "the node context menu works right after deploying"
-
-### 15. The date pickers show times on a 12-hour clock without AM/PM
-
-- **Status:** verified
-- **Where:** `src/components/common/lab-edit-dialog/lab-edit-dialog.tsx` (`formatDateTime` uses
-  `YYYY-MM-DD hh:mm:ss`)
-- **What happens:** `hh` is the 12-hour clock, so a lab starting at 14:30 is shown as `02:30:00`, the
-  same as one starting at 2:30 at night.
-- **Fix idea:** use `HH`.
-- **Test:** `e2e/specs/calendar.spec.ts` › "times are shown unambiguously"
-
-### 16. The "Add Group" button covers rows of a long explorer tree
-
-- **Status:** verified (screenshot and an intercepted click in a test run); no stable test
-- **Where:** `src/components/editor-page/topology-explorer/topology-explorer.tsx` (the
-  `sb-topology-explorer-add-collection` button) and its styles
-- **What happens:** The floating "+" button sits inside the scrolling content of the explorer, at the
-  bottom of the panel's initial view. Once the tree is longer than the panel, it covers the action
-  buttons (e.g. "Delete Collection", "Add Topology") of whichever row lies under it, and it scrolls
-  along with the rows. In a test run, clicking "Delete Collection" of a collection was blocked by it.
-- **Fix idea:** position the button relative to the panel (fixed / sticky), outside the scrolling
-  content, or leave space for it below the tree.
-- **Note:** The e2e fixtures delete what each test creates, which keeps the tree short; that's why no
-  other test runs into this.
-
+- **Status:** verified — `graph-editor.spec.ts` › ""Delete group and nodes" deletes the nodes of the group"
+- **Where:** `components/editor-page/topology-editor/node-editor/graph-context-menus.tsx` (label),
+  `node-editor.tsx` (`onDeleteSelection` keeps the members)
+- **What happens:** only the group box is deleted. Either the label or the behaviour is wrong; the
+  selection bar's Delete has the same tooltip.
 
 ---
 
-## Backend
+## Interface: other bugs
 
-### 1. The `filesystem` config section is ignored
+### 22. There's no way to delete a lab
 
-- **Status:** verified
-- **Where:** `src/config/config.go` (`yaml:"fileSystem"`), `config.default.yml` and `test/*.yml`
-  (`filesystem:`)
-- **What happens:** YAML keys are case-sensitive, so `filesystem:` never reaches the config. It goes
-  unnoticed because the example configs use the default paths. The e2e config uses `fileSystem`.
-- **Fix idea:** change either the struct tag or the example configs.
+- **Status:** verified — `labs.spec.ts` › "a scheduled lab can be deleted"
+- **Where:** `components/dashboard-page/lab-grid/lab-entry/lab-entry.tsx` (card buttons commented out),
+  `lab-view-header.tsx` (the "Delete Lab" variant is never enabled)
+- **What happens:** labs pile up; only the API can delete them.
 
-### 2. Bind file updates don't check that the file belongs to the topology in the URL
+### 23. The dashboard search does nothing
 
-- **Status:** verified (admins only, not a security issue)
-- **Where:** `PATCH /topologies/{topologyId}/files/{fileId}` (topology service, `UpdateBindFile`)
-- **What happens:** An admin's `PATCH /topologies/A/files/<file of topology B>` succeeds and changes
-  B's file. Non-admins get 403 either way, because access is checked on the file. This is what let
-  interface bug 2 corrupt data silently instead of failing.
-- **Fix idea:** reject requests where the file's topology differs from the one in the URL.
+- **Status:** verified — `dashboard.spec.ts` › "the search shows only matching labs"
+- **Where:** `components/dashboard-page/lab-explorer/lab-explorer.tsx` sets `labStore.searchQuery`, but
+  `lab-grid.tsx` (`filteredLabs`) and `lib/stores/lab-store.ts` (`getParams`) ignore it.
 
-### 3. `NativeUserID` is not a valid UUID
+### 24. Labs that start later and run indefinitely are shown as Inactive
 
-- **Status:** verified (from the code)
-- **Where:** `src/auth/manager.go` (`NativeUserID = "00000000-0000-0000-0000-00000000000"`)
-- **What happens:** 35 characters instead of 36. It works because it's only ever compared as a
-  string.
+- **Status:** verified — `dashboard.spec.ts` › "a lab without an end time that starts later is shown as
+  scheduled"
+- **Where:** `lib/stores/lab-store.ts` (a lab is only Scheduled if it has an end time)
+
+### 25. Collapsing the Scheduled group isn't remembered
+
+- **Status:** verified — `dashboard.spec.ts` › "a collapsed Scheduled group stays collapsed after a reload"
+- **Where:** `components/dashboard-page/lab-grid/lab-grid.tsx` (the stored groups are validated with
+  `oneOf('Active', 'Inactive', 'Archived')`, so a set with "Scheduled" is invalid and everything resets)
+
+### 26. Labs that never ran show the current time as "Deployed"
+
+- **Status:** verified — `lab-view.spec.ts` › "a lab that never ran shows no deployment time"
+- **Where:** `components/dashboard-page/lab-view/lab-view-panel-properties/lab-view-panel-properties.tsx`.
+  The "(Recovered)" tooltip there doesn't work either (wrong target class, typo in `data-pr-my`).
+
+### 27. The date pickers use the 12-hour clock without AM or PM
+
+- **Status:** verified — `labs.spec.ts` › "the date pickers show times in the 24-hour format"
+- **Where:** `components/common/lab-edit-dialog/lab-edit-dialog.tsx` (`YYYY-MM-DD hh:mm:ss`)
+- **What happens:** 15:00 is shown as 03:00:00.
+- **Fix idea:** `HH:mm:ss`.
+
+### 28. "Download YAML" in the topology menu does nothing
+
+- **Status:** verified — `topologies.spec.ts` › "Download YAML in the topology menu downloads the topology"
+- **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (empty handler). The toolbar's
+  Download button works.
+
+### 29. Directories with a dash in their name don't open
+
+- **Status:** verified — `bind-files.spec.ts` › "a directory with a dash in its name opens on click"
+- **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (directories are recognised by
+  `key.split('-').length === 6`, so `core-1/` counts as a file)
+
+### 30. Bind files get no unsaved marker
+
+- **Status:** verified — `bind-files.spec.ts` › "an edited file is marked as unsaved"
+- **Where:** `components/editor-page/topology-editor/topology-editor.tsx`
+- **What happens:** topologies show `name*` while they have unsaved changes; bind files don't, although Save
+  is enabled.
+
+### 31. Smaller interface issues, from the code
+
+- **Shortcuts only work with Ctrl:** the editor's Ctrl+S, Ctrl+Z and Ctrl+Y check `event.ctrlKey` only
+  (`monaco-wrapper.tsx`), so Cmd doesn't work on macOS, unlike the graph shortcuts. They also check for a
+  lowercase key, so they don't work with Caps Lock on.
+- **The dashboard doesn't update lab states over time:** the state is worked out when the labs are
+  loaded, so a lab whose start has passed keeps showing "Scheduled" until something reloads the labs
+  (seen in the tests).
+- **Stabilizing saves the layout before the animation ends** (`node-editor.tsx`, `onSaveGraph()` right
+  after starting `cose-bilkent` with `animate: true`), so the saved positions may not be the shown ones.
+- **Upload errors are ignored:** the archive upload doesn't report failed files
+  (`editor-page.tsx`, `void uploadArchiveFiles`).
+- **"Copy SSH command" ignores `ssh.enabled`** and uses the logs' condition for being disabled; the
+  drawer's "Copy capture command" ignores `capture.enabled` (`lab-view.tsx`, `lab-view-drawer.tsx`).
+- **The setup screen's "New topology" uses the first collection**, even if the user can't write to it
+  (`editor-setup.tsx`).
+- **Crashes when a lab's collection is missing:** `lab-entry.tsx`, `lab-grid.tsx` and
+  `lab-view-panel-properties.tsx` use `!` on the collection lookup.
+- **Login can fail silently:** `loginNative` returns true even when the refresh after it fails
+  (`data-binder.ts`).
+- **Logout may not reach the server:** the page reloads right after sending the request
+  (`data-binder.ts`), which can cancel it.
+- **The loading screen** checks `Connecting` while it's only shown during `Loading`, and never shows again
+  once hidden (`app.tsx`).
+- **`StatusMessageStore.clear()`** leaves `lookup` and the counts behind.
+- **Accessibility:** every "…" button in the explorer is labelled "Edit Collection", even on topologies and
+  files; the terminal tab's close button and the selection bar's arrange button have no name; the file
+  switch's options have no `role="option"`.
+- **The credits show a hard-coded version** "v1.0.0" (`credits-dialog.tsx`).
+- **Undeclared dependencies:** `moment` (`calendar-dialog.tsx`) and `lodash` (`lab-edit-dialog.tsx`) only
+  come in through other packages.
 
 ---
+
+## Fixed since the previous list
+
+Connecting nodes in the graph editor; deleting a collection now deletes its topologies; downloading bind
+files; the archive dialog closes after uploading; nodes without positions are spread out; links between
+different kinds get the right interface names; the build workflow's `.nvmrc`; lab links open any lab; the
+node menu right after deploying; the "Add Group" button covering rows (removed); the server's
+`filesystem` config section.
 
 ## Not bugs, but worth knowing
 
-- Git sync: "Fetch" is only enabled once the topology has a saved sync URL, so a new URL has to be
-  saved before it can be fetched.
-- "Clear Graph" removes all nodes without asking for confirmation (it can be undone).
+- Members may open terminals on other members' labs, but only the lab's creator (and admins) may deploy,
+  destroy or start and stop its nodes.
+- Saving a change made in the graph writes the whole YAML back, in block style.
+- Sync URL: "Fetch" is only enabled once the topology has a saved sync URL.
+- "Clear graph" removes all nodes without asking (it can be undone).
+- The topology dialog fills in the collection a moment after it opens.
