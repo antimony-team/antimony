@@ -76,6 +76,9 @@ interface NodeToolbarProps {
   onFitGraph: () => void;
   onGroupSelection: () => void;
   onToggleStabilization: () => void;
+
+  // Only the tools for looking at the graph, without the ones that change it
+  readOnly: boolean;
 }
 
 const NodeToolbar = observer((props: NodeToolbarProps) => {
@@ -94,6 +97,22 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
       aria-label={tool.label}
     />
   );
+
+  if (props.readOnly) {
+    return (
+      <div className="sb-node-editor-toolbar">
+        {POINTER_TOOLS.map(toolButton)}
+        <Divider />
+        <Button
+          icon={<span className="material-symbols-outlined">fit_screen</span>}
+          text
+          tooltip="Fit graph"
+          onClick={props.onFitGraph}
+          aria-label="Fit graph"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="sb-node-editor-toolbar">

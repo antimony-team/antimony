@@ -20,11 +20,7 @@ import YamlWorker from 'monaco-yaml/yaml.worker?worker';
 
 import {GraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
-import {
-  useAuthUser,
-  useSchemaStore,
-  useTopologyStore,
-} from '@sb/lib/stores/root-store';
+import {useSchemaStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {TopologyHistory, TopologyHistoryEntry} from '@sb/lib/topology-history';
 import {
   BindFileEditReport,
@@ -150,7 +146,6 @@ const MonacoWrapper = observer(
     const pendingSelections = useRef<monaco.ISelection[] | null>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
 
-    const authUser = useAuthUser();
     const schemaStore = useSchemaStore();
     const topologyStore = useTopologyStore();
 
@@ -226,9 +221,7 @@ const MonacoWrapper = observer(
       }
 
       setLastDeployFailed(props.openTopology.lastDeployFailed);
-      setReadOnly(
-        !authUser.isAdmin && authUser.id !== props.openTopology.creator.id,
-      );
+      setReadOnly(!topologyStore.canEdit(props.openTopology));
 
       if (textModelRef.current && annotationsModelRef.current) {
         monaco.editor.setModelLanguage(textModelRef.current, 'yaml');
@@ -257,7 +250,7 @@ const MonacoWrapper = observer(
       if (!topology) return;
 
       setLastDeployFailed(topology.lastDeployFailed);
-      setReadOnly(!authUser.isAdmin && authUser.id !== topology.creator.id);
+      setReadOnly(!topologyStore.canEdit(topology));
 
       if (textModelRef.current) {
         const languages = monaco.languages.getLanguages();

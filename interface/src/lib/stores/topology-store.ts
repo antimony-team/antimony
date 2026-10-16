@@ -105,6 +105,20 @@ export class TopologyStore extends DataStore<
     }
   }
 
+  /**
+   * Whether the user may edit a topology: admins always, everyone else if they
+   * created it and anyone can edit its collection, like the server checks it.
+   */
+  public canEdit(topology: Topology): boolean {
+    const authUser = this.rootStore._dataBinder.authUser;
+    if (authUser.isAdmin) return true;
+
+    const collection = this.rootStore._collectionStore.lookup.get(
+      topology.collectionId,
+    );
+    return topology.creator.id === authUser.id && !!collection?.publicWrite;
+  }
+
   public async uploadArchiveFiles(
     topologyId: string,
     files: ArchiveUploadFile[],

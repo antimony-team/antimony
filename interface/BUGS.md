@@ -142,12 +142,19 @@ Users see buttons that then fail.
   to deploy. Unsafe topologies are left to bug 14.
 - **Also changed:** the lab schedule in the dock is only shown to admins.
 
-### 12. The graph editor ignores read-only topologies
+### 12. ~~The graph editor ignores read-only topologies~~ (fixed)
 
-- **Status:** verified — `permissions.spec.ts` › "the graph of a read-only topology can not be edited"
+- **Status:** fixed — `permissions.spec.ts` › "the graph of a read-only topology can not be edited", "a
+  creator can not edit once the collection is read-only"
 - **Where:** `components/editor-page/topology-editor/node-editor/node-editor.tsx`
 - **What happens:** the code editor is read-only for users who may not edit the topology, but the graph
   lets them move, delete and add elements, and enables Save; saving then fails.
+- **Fix:** `TopologyStore.canEdit()` decides like the server: admins, or the creator while anyone can edit
+  the collection (before, a creator could edit in a read-only collection and saving failed). The code
+  editor uses it, `TopologyManager` ignores graph edits of read-only topologies, the graph toolbar only
+  keeps Select, Hand and Fit graph, and the read-only notice is shown over the graph too.
+- **Not done yet:** the graph's context menus still show edit entries (they do nothing now), and nodes can
+  still be dragged on screen (the move isn't kept).
 
 ### 13. Members of a collection anyone can edit get no Add Topology button
 

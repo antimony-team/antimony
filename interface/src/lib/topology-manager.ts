@@ -167,6 +167,17 @@ export class TopologyManager {
     return this.editingTopology;
   }
 
+  /**
+   * Whether the open topology is read-only for the user, so the graph editor
+   * can't change it.
+   */
+  public get isReadOnly(): boolean {
+    return (
+      !!this.editingTopology &&
+      !this.topologyStore.canEdit(this.editingTopology)
+    );
+  }
+
   public get bindFile() {
     return this.editingBindFile;
   }
@@ -615,6 +626,7 @@ export class TopologyManager {
     mergeKey?: string,
   ) {
     if (!this.editingTopology) return;
+    if (source === TopologyEditSource.NodeEditor && this.isReadOnly) return;
 
     // The graph-* labels are converted to annotations on the first edit in the graph
     if (source === TopologyEditSource.NodeEditor) {
@@ -660,6 +672,7 @@ export class TopologyManager {
     mergeKey?: string,
   ) {
     if (!this.editingTopology) return;
+    if (source === TopologyEditSource.NodeEditor && this.isReadOnly) return;
 
     if (source === TopologyEditSource.NodeEditor) {
       const converted = convertGraphLabels(
@@ -714,7 +727,7 @@ export class TopologyManager {
 
   public clear() {
     if (this.openFileType === OpenFileType.Topology) {
-      if (!this.editingTopology) return;
+      if (!this.editingTopology || this.isReadOnly) return;
 
       const {definition} = this.editingTopology;
 

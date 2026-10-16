@@ -19,6 +19,17 @@
   &.sb-node-editor-draw, &.sb-node-editor-draw *
     cursor: crosshair
 
+.sb-node-editor-readonly
+  position: absolute
+  z-index: 1
+  top: 8px
+  left: 50%
+  transform: translateX(-50%)
+  padding: 8px 12px
+  border-radius: 4px
+  background-color: var(--warning-color)
+  pointer-events: none
+
 .sb-node-editor-menubar
   position: absolute
   z-index: 1

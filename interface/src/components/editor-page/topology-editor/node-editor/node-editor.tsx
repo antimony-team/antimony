@@ -164,6 +164,7 @@ import {NodeLayout} from '@sb/lib/graph/topology-graph';
 import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
 import {useStableCallbacks} from '@sb/lib/utils/hooks';
+import {If} from '@sb/types/control';
 import {
   FreeShapeAnnotation,
   FreeTextAnnotation,
@@ -343,6 +344,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   const deviceStore = useDeviceStore();
   const topologyStore = useTopologyStore();
+  const isReadOnly =
+    !!props.openTopology && !topologyStore.canEdit(props.openTopology);
   const simulationConfig = useSimulationConfig();
   const graphSelection = useGraphSelection();
 
@@ -3817,7 +3820,13 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onFitGraph={callbacks.onFitGraph}
         onGroupSelection={callbacks.onGroupSelection}
         onToggleStabilization={callbacks.onToggleStabilization}
+        readOnly={isReadOnly}
       />
+      <If condition={isReadOnly}>
+        <div className="sb-node-editor-readonly">
+          The current file is opened in read-only mode.
+        </div>
+      </If>
       <SimulationPanel onStabilizeGraph={callbacks.onStabilizeGraph} />
       <SBContextMenu
         model={contextMenuModel ?? undefined}

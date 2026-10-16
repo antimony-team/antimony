@@ -243,9 +243,6 @@ test.describe('interface', () => {
     createTopology,
     loginAs,
   }) => {
-    knownBug(
-      'the graph editor ignores read-only topologies; edits are only rejected when saving',
-    );
     const collection = await createCollection();
     const topology = await createTopology({collection});
     const user = await loginAs({collections: [collection]});
@@ -254,11 +251,38 @@ test.describe('interface', () => {
     await editor.editor.view('Graph').click();
     await editor.graph.waitForNodes(2);
 
+    // The notice is shown over the graph too, and only the viewing tools are left
+    await expect(user.page.locator('.sb-node-editor-readonly')).toContainText(
+      'read-only',
+    );
+    await expect(editor.graph.tool('Select')).toBeVisible();
+    await expect(editor.graph.tool('Fit graph')).toBeVisible();
+    await expect(editor.graph.tool('Rectangle')).toBeHidden();
+    await expect(editor.graph.tool('Add node')).toBeHidden();
+    await expect(editor.graph.tool('Clear graph')).toBeHidden();
+
+    // Keyboard shortcuts don't change it either
     await editor.graph.clickNode('host1');
     await user.page.keyboard.press('Delete');
-
-    await expect(editor.editor.save).toBeDisabled();
     await editor.graph.waitForNodes(2);
+    await expect(editor.editor.save).toBeDisabled();
+  });
+
+  test('a creator can not edit once the collection is read-only', async ({
+    api,
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    const collection = await createCollection({publicWrite: true});
+    const user = await loginAs({collections: [collection]});
+    const topology = await createTopology({collection, by: user});
+    await api.updateCollection(collection.id, {publicWrite: false});
+    const editor = new EditorPage(user.page);
+
+    await editor.open(topology.id, topology.name);
+
+    await expect(editor.editor.readOnlyBanner).toBeVisible();
   });
 
   test('without "Anyone can deploy" members get no Deploy buttons', async ({
