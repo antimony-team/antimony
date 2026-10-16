@@ -1388,9 +1388,13 @@ func stripTopologyLabels(content []byte) (string, error) {
 // c9s documentation describes it.
 func packetCaptureCommand(pod *corev1.Pod, interfaceName string) ([]string, error) {
 	nodeUID := pod.Annotations[nodeUIDAnnotation]
-	hasSidecar := slices.ContainsFunc(pod.Spec.Containers, func(c corev1.Container) bool {
-		return c.Name == connectivityContainer
-	})
+	// c9s 0.9.0 runs the sidecar as a native sidecar, an init container that keeps running
+	hasSidecar := slices.ContainsFunc(
+		slices.Concat(pod.Spec.InitContainers, pod.Spec.Containers),
+		func(c corev1.Container) bool {
+			return c.Name == connectivityContainer
+		},
+	)
 
 	// Only pods of the direct device runtime have the sidecar
 	if nodeUID == "" || !hasSidecar {

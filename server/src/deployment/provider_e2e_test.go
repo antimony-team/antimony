@@ -462,15 +462,8 @@ func (l *e2eLab) testOpenCapture(t *testing.T) {
 		assertNodeUnavailable(t, err)
 	})
 
-	var capture CaptureSource
-	l.knownBug(t, "clabernetes", "BUGS.md #10", func(t assert.TestingT) {
-		var err error
-		capture, err = l.provider.OpenCapture(ctx, l.name, "host1", "eth1")
-		assert.NoError(t, err)
-	})
-	if capture == nil {
-		return
-	}
+	capture, err := l.provider.OpenCapture(ctx, l.name, "host1", "eth1")
+	require.NoError(t, err)
 	defer capture.Close()
 
 	packets := make(chan []byte, 64)

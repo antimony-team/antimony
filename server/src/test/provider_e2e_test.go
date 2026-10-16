@@ -207,37 +207,6 @@ func (e *e2eEnv) mustExec(t *testing.T, labId string, node string, cmd ...string
 	require.Equalf(t, 0, code, "%v in %s failed: %s", cmd, node, out)
 }
 
-// knownBug runs assertions that a bug in BUGS.md makes fail with the given provider. While the bug is there, the
-// failure is only logged. Once the assertions pass, the test fails, so the marker gets removed with the fix. With
-// other providers the assertions apply as usual.
-func (e *e2eEnv) knownBug(t *testing.T, provider string, bug string, check func(t assert.TestingT)) {
-	t.Helper()
-
-	if e.providerName != provider {
-		check(t)
-		return
-	}
-
-	recorder := &failureRecorder{}
-	check(recorder)
-
-	if len(recorder.failures) == 0 {
-		t.Errorf("%s doesn't happen anymore, remove the knownBug marker and the entry", bug)
-		return
-	}
-
-	t.Logf("known bug, see %s:\n%s", bug, strings.Join(recorder.failures, "\n"))
-}
-
-// failureRecorder collects the failures of assertions instead of failing the test.
-type failureRecorder struct {
-	failures []string
-}
-
-func (r *failureRecorder) Errorf(format string, args ...any) {
-	r.failures = append(r.failures, fmt.Sprintf(format, args...))
-}
-
 /*
  * Deploying and destroying
  */
@@ -523,14 +492,7 @@ func TestProviderE2E_CapturesStreamTheNodesTraffic(t *testing.T) {
 	capture := startCaptureSession(t, server.dial(t, instanceName+"/host1"), "tcpdump -U -i eth1 -w -", nil)
 	defer capture.client.Close()
 
-	opened := false
-	e.knownBug(t, "clabernetes", "BUGS.md #10", func(c assert.TestingT) {
-		opened = capture.waitForHeader(t, 30*time.Second)
-		assert.True(c, opened, "the capture didn't start: %s", capture.stderr.String())
-	})
-	if !opened {
-		return
-	}
+	require.True(t, capture.waitForHeader(t, 30*time.Second), "the capture didn't start: %s", capture.stderr.String())
 
 	pinger, cancelPing := context.WithCancel(t.Context())
 	defer cancelPing()

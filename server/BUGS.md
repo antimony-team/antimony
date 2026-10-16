@@ -46,21 +46,6 @@ A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
 
-### 10. Packet capture is never possible on clabernetes 0.9.0
-
-- `deployment/clabernetes.go` `packetCaptureCommand`
-
-The provider only allows a capture if the pod has a `clabwire` container in `pod.Spec.Containers`. c9s
-0.9.0 renders `clabwire` as a native sidecar: an init container with `restartPolicy: Always`
-(`renderHelpers` in `internal/directpod/renderer.go` of the c9s module). So it is in
-`pod.Spec.InitContainers`, and `OpenCapture` returns `ErrCaptureNotSupported` for every node. The unit
-test fixture in `clabernetes_test.go` adds `clabwire` to `Containers`, which is why the unit tests pass.
-
-Confirmed on a c9s 0.9.0 kind cluster: `OpenCapture` on `eth1`, a link interface, fails with "packet
-capture is not supported by this provider".
-
-Test: `TestProviderE2E/OpenCapture`, marked with `knownBug` for clabernetes.
-
 ### 4. Containerlab and clabernetes report node addresses differently
 
 - `deployment/containerlab.go` `parseInspectContainer`
@@ -100,6 +85,28 @@ Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, 
 for clabernetes.
 
 ## Fixed
+
+### 10. Packet capture is never possible on clabernetes 0.9.0
+
+- `deployment/clabernetes.go` `packetCaptureCommand`
+
+The provider only allows a capture if the pod has a `clabwire` container in `pod.Spec.Containers`. c9s
+0.9.0 renders `clabwire` as a native sidecar: an init container with `restartPolicy: Always`
+(`renderHelpers` in `internal/directpod/renderer.go` of the c9s module). So it is in
+`pod.Spec.InitContainers`, and `OpenCapture` returns `ErrCaptureNotSupported` for every node. The unit
+test fixture in `clabernetes_test.go` adds `clabwire` to `Containers`, which is why the unit tests pass.
+
+Confirmed on a c9s 0.9.0 kind cluster: `OpenCapture` on `eth1`, a link interface, fails with "packet
+capture is not supported by this provider".
+
+Test: `TestProviderE2E/OpenCapture`, marked with `knownBug` for clabernetes.
+
+**Fixed:** `packetCaptureCommand` looks for `clabwire` in the init containers as well as the containers. The rest
+of the capture already matched c9s 0.9.0: the node UID annotation is set on every node pod, and the command is the
+one c9s generates itself (`internal/directpod/renderer.go`). The test fixture now renders the sidecar like c9s
+0.9.0, as an init container with `restartPolicy: Always`, and a new test keeps the regular-container case working.
+The `knownBug` markers in the provider and server e2e tests are removed. Still to run at the end: both capture e2e
+tests on clabernetes.
 
 ### 9. Containerlab reports a missing lab or node container as a generic failure
 

@@ -1017,11 +1017,14 @@ func TestRegisterListener_ReportsNodesBeingScaled(t *testing.T) {
  * server. The command and the pod lookups are covered here, the pcap stream with fake runs.
  */
 
-// capturePod is the pod of the running node a1 of the direct device runtime, with the connectivity sidecar.
+// capturePod is the pod of the running node a1 of the direct device runtime. Like c9s 0.9.0 renders it, the
+// connectivity sidecar is a native sidecar: an init container that keeps running.
 func capturePod() *corev1.Pod {
 	pod := nodePod("a1-pod", "a1", corev1.PodRunning, true)
 	pod.Annotations[nodeUIDAnnotation] = "node-uid-a1"
-	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: connectivityContainer})
+
+	always := corev1.ContainerRestartPolicyAlways
+	pod.Spec.InitContainers = []corev1.Container{{Name: connectivityContainer, RestartPolicy: &always}}
 
 	return pod
 }
@@ -1050,6 +1053,17 @@ func TestPacketCaptureCommand_CapturesTheInterfaceOfThePodsNode(t *testing.T) {
 	)
 }
 
+func TestPacketCaptureCommand_FindsASidecarThatIsARegularContainer(t *testing.T) {
+	pod := capturePod()
+	pod.Spec.InitContainers = nil
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: connectivityContainer})
+
+	cmd, err := packetCaptureCommand(pod, "e1-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, "node-uid-a1", flagValue(cmd, "--nodeID"))
+}
+
 func TestPacketCaptureCommand_StaysWithinTheSidecarsBounds(t *testing.T) {
 	cmd, err := packetCaptureCommand(capturePod(), "e1-1")
 	require.NoError(t, err)
@@ -1071,7 +1085,7 @@ func TestPacketCaptureCommand_IsNotSupportedForPodsWithoutTheSidecar(t *testing.
 	delete(withoutUID.Annotations, nodeUIDAnnotation)
 
 	withoutSidecar := capturePod()
-	withoutSidecar.Spec.Containers = withoutSidecar.Spec.Containers[:1]
+	withoutSidecar.Spec.InitContainers = nil
 
 	cases := map[string]*corev1.Pod{"without node UID": withoutUID, "without sidecar": withoutSidecar}
 
