@@ -874,7 +874,34 @@ func TestStopNode_FailsForAnUnknownNode(t *testing.T) {
 
 	err := cluster.provider.StopNode(context.Background(), "demo", "missing")
 
-	assert.True(t, apierrors.IsNotFound(err))
+	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+}
+
+func TestStartNode_FailsForAnUnknownNode(t *testing.T) {
+	cluster := newFakeCluster(t, nil, nil)
+
+	err := cluster.provider.StartNode(context.Background(), "demo", "missing")
+
+	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+}
+
+func TestStartNode_FailsForANodeWithoutADeployment(t *testing.T) {
+	cluster := newFakeCluster(t, nil, []runtime.Object{c9sNode("b1")})
+
+	err := cluster.provider.StartNode(context.Background(), "demo", "b1")
+
+	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+}
+
+func TestRestartNode_FailsForAnUnknownNode(t *testing.T) {
+	cluster := newFakeCluster(t, nil, nil)
+
+	err := cluster.provider.RestartNode(context.Background(), "demo", "missing")
+
+	require.ErrorIs(t, err, utils.ErrNodeNotFound)
+	for _, action := range cluster.k8s.Actions() {
+		assert.NotEqual(t, "delete-collection", action.GetVerb(), "nothing may be deleted for an unknown node")
+	}
 }
 
 // deleteCollectionOf returns the DeleteCollection call the provider made on pods.
@@ -893,7 +920,7 @@ func deleteCollectionOf(t *testing.T, cluster *fakeCluster) k8stesting.DeleteCol
 }
 
 func TestRestartNode_DeletesOnlyTheNodesPodsGracefully(t *testing.T) {
-	cluster := newFakeCluster(t, nil, nil)
+	cluster := newFakeCluster(t, []runtime.Object{nodeDeployment("a1", 1)}, nil)
 
 	require.NoError(t, cluster.provider.RestartNode(context.Background(), "demo", "a1"))
 

@@ -670,6 +670,12 @@ func (p *ClabernetesProvider) RestartNode(
 	namespace := namespaceFor(instanceName)
 	grace := int64(10)
 
+	// Deleting the pods of a node that doesn't exist would succeed without doing anything
+	_, err := p.clientset.AppsV1().Deployments(namespace).Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nodeError(err, namespace, nodeName)
+	}
+
 	return p.clientset.CoreV1().Pods(namespace).DeleteCollection(ctx,
 		metav1.DeleteOptions{GracePeriodSeconds: &grace},
 		metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + nodeName},
@@ -1098,7 +1104,7 @@ func (p *ClabernetesProvider) setIgnoreReconcile(ctx context.Context, ns, node s
 	}
 	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%s}}}`, clabernetesconstants.LabelIgnoreReconcile, value)
 	_, err := p.c9s.C9sV1alpha1().Nodes(ns).Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
-	return err
+	return nodeError(err, ns, node)
 }
 
 func (p *ClabernetesProvider) scaleNode(ctx context.Context, ns, node string, replicas int32) error {
@@ -1106,6 +1112,14 @@ func (p *ClabernetesProvider) scaleNode(ctx context.Context, ns, node string, re
 	_, err := p.clientset.AppsV1().
 		Deployments(ns).
 		Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
+	return nodeError(err, ns, node)
+}
+
+// nodeError reports a missing object of a node as utils.ErrNodeNotFound, like the containerlab provider does.
+func nodeError(err error, namespace, node string) error {
+	if apierrors.IsNotFound(err) {
+		return fmt.Errorf("%w: %s/%s", utils.ErrNodeNotFound, namespace, node)
+	}
 	return err
 }
 

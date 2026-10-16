@@ -599,18 +599,9 @@ func (l *e2eLab) testNodeLifecycle(t *testing.T) {
 	})
 
 	t.Run("an unknown node", func(t *testing.T) {
-		l.knownBug(t, "clabernetes", "BUGS.md #11", func(t assert.TestingT) {
-			for _, err := range []error{
-				l.provider.StopNode(ctx, l.name, "missing"),
-				l.provider.StartNode(ctx, l.name, "missing"),
-				l.provider.RestartNode(ctx, l.name, "missing"),
-			} {
-				assert.True(t,
-					errors.Is(err, utils.ErrNodeNotFound) || errors.Is(err, utils.ErrNodeNotRunning),
-					"expected the node to be reported as not found or not running, got: %v", err,
-				)
-			}
-		})
+		assertNodeUnavailable(t, l.provider.StopNode(ctx, l.name, "missing"))
+		assertNodeUnavailable(t, l.provider.StartNode(ctx, l.name, "missing"))
+		assertNodeUnavailable(t, l.provider.RestartNode(ctx, l.name, "missing"))
 	})
 
 	cancel()

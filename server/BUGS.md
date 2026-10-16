@@ -46,19 +46,6 @@ A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
 
-### 11. Clabernetes node operations don't report an unknown node like containerlab does
-
-- `deployment/clabernetes.go` `StopNode`, `StartNode` (through `setIgnoreReconcile`) and `RestartNode`
-
-For a node that doesn't exist, containerlab returns `utils.ErrNodeNotFound`. Clabernetes returns the raw
-Kubernetes "not found" error from patching the `Node` for stop and start. Restart deletes the pods by label,
-which finds nothing and succeeds silently. The instance service checks the node against its own lab first,
-so this only matters when the node's resources disappeared from the cluster.
-
-Confirmed on a c9s 0.9.0 kind cluster: stop and start fail with `nodes.c9s.run "missing" not found`.
-
-Test: `TestProviderE2E/NodeLifecycle/an_unknown_node`, marked with `knownBug` for clabernetes.
-
 ### 12. A clabernetes shell for a command that doesn't exist opens anyway
 
 - `deployment/clabernetes.go` `ExecInteractive`
@@ -73,6 +60,27 @@ Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, 
 for clabernetes.
 
 ## Fixed
+
+### 11. Clabernetes node operations don't report an unknown node like containerlab does
+
+- `deployment/clabernetes.go` `StopNode`, `StartNode` (through `setIgnoreReconcile`) and `RestartNode`
+
+For a node that doesn't exist, containerlab returns `utils.ErrNodeNotFound`. Clabernetes returns the raw
+Kubernetes "not found" error from patching the `Node` for stop and start. Restart deletes the pods by label,
+which finds nothing and succeeds silently. The instance service checks the node against its own lab first,
+so this only matters when the node's resources disappeared from the cluster.
+
+Confirmed on a c9s 0.9.0 kind cluster: stop and start fail with `nodes.c9s.run "missing" not found`.
+
+Test: `TestProviderE2E/NodeLifecycle/an_unknown_node`, marked with `knownBug` for clabernetes.
+
+**Fixed:** a new `nodeError` helper turns Kubernetes' "not found" into `utils.ErrNodeNotFound` for the `Node` patch
+and the Deployment scale, so stop and start report an unknown node like containerlab. `RestartNode` gets the node's
+Deployment first and returns `ErrNodeNotFound` without deleting anything if it doesn't exist. Restarting a stopped
+node still does nothing, since its Deployment has no pod to delete. The service only restarts running nodes, so
+that is left as it is. `TestStopNode_FailsForAnUnknownNode` expects `ErrNodeNotFound` now, and there are new unit
+tests for start and restart. The `knownBug` marker in the e2e test is removed. Still to run at the end:
+`NodeLifecycle/an_unknown_node` on clabernetes.
 
 ### 4. Containerlab and clabernetes report node addresses differently
 
