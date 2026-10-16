@@ -179,30 +179,19 @@ func (p *ContainerlabProvider) InspectLab(
 	instanceName string,
 	onLog LogFunc,
 ) ([]InspectContainer, error) {
-	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "-t", topologyFile, "--format", "json")
-
-	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
+	// Inspecting by topology file fails as a whole when a single node has no container, so the lab is picked from the
+	// inspection of all labs, which finds containers by their labels. A node without a container is then just missing.
+	labs, err := p.InspectLabs(ctx, onLog)
 	if err != nil {
 		return nil, err
 	}
 
-	if *output == "" {
-		return make([]InspectContainer, 0), nil
-	}
-
-	var rawOutput map[string][]clabInspectContainer
-	if err = json.Unmarshal([]byte(*output), &rawOutput); err != nil {
-		return nil, err
-	}
-
-	// Select the requested lab before converting, so a host running many labs does not pay to
-	// convert all of them just to discard the rest.
-	rawContainers, ok := rawOutput[instanceName]
+	containers, ok := labs[instanceName]
 	if !ok {
 		return nil, utils.ErrLabNotRunning
 	}
 
-	return clabToInspectContainer(instanceName, rawContainers), nil
+	return containers, nil
 }
 
 func (p *ContainerlabProvider) InspectNode(

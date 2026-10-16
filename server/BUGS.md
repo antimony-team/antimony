@@ -46,30 +46,6 @@ A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
 
-### 9. Containerlab reports a missing lab or node container as a generic failure
-
-- `deployment/containerlab.go` `InspectLab` (and `InspectNode`, which calls it)
-
-Containerlab 0.78 builds `inspect -t <topology>` from the topology file and exits with status 1 as soon as
-one node has no container:
-
-```
-Failed to list containers based on topology: could not get container for node clab-e2e-nope-a: Node: clab-e2e-nope-a. containers not found.
-```
-
-The provider expects the lab to be missing from the JSON output instead, so it never returns
-`utils.ErrLabNotRunning`. The unit test `TestContainerlabInspectLab_ReportsAMissingLabAsNotRunning` uses a
-fake `containerlab` that answers the way the provider expects, which the real one doesn't.
-
-It goes further than the error type: if a single node's container of a running lab is gone (removed by
-hand, or never created), inspecting the lab fails. Then `InspectNode` fails for every node of that lab, so
-`fetchNode` ignores all their events, and the inspect after a deployment marks the whole lab as failed.
-Confirmed by hand: deploy a two-node lab, `docker rm -f` one node's container, and
-`containerlab inspect -t` fails with the error above.
-
-Tests: `TestProviderE2E/Inspect/a_lab_that_isn't_deployed_is_not_running` and `TestProviderE2E/Destroy`,
-both marked with `knownBug` for containerlab.
-
 ### 10. Packet capture is never possible on clabernetes 0.9.0
 
 - `deployment/clabernetes.go` `packetCaptureCommand`
@@ -124,6 +100,37 @@ Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, 
 for clabernetes.
 
 ## Fixed
+
+### 9. Containerlab reports a missing lab or node container as a generic failure
+
+- `deployment/containerlab.go` `InspectLab` (and `InspectNode`, which calls it)
+
+Containerlab 0.78 builds `inspect -t <topology>` from the topology file and exits with status 1 as soon as
+one node has no container:
+
+```
+Failed to list containers based on topology: could not get container for node clab-e2e-nope-a: Node: clab-e2e-nope-a. containers not found.
+```
+
+The provider expects the lab to be missing from the JSON output instead, so it never returns
+`utils.ErrLabNotRunning`. The unit test `TestContainerlabInspectLab_ReportsAMissingLabAsNotRunning` uses a
+fake `containerlab` that answers the way the provider expects, which the real one doesn't.
+
+It goes further than the error type: if a single node's container of a running lab is gone (removed by
+hand, or never created), inspecting the lab fails. Then `InspectNode` fails for every node of that lab, so
+`fetchNode` ignores all their events, and the inspect after a deployment marks the whole lab as failed.
+Confirmed by hand: deploy a two-node lab, `docker rm -f` one node's container, and
+`containerlab inspect -t` fails with the error above.
+
+Tests: `TestProviderE2E/Inspect/a_lab_that_isn't_deployed_is_not_running` and `TestProviderE2E/Destroy`,
+both marked with `knownBug` for containerlab.
+
+**Fixed:** `InspectLab` now picks the lab from `InspectLabs` (`containerlab inspect --all`), which finds containers by
+their labels. A lab without containers is reported as `ErrLabNotRunning`, and a node without a container is just
+missing, so `InspectNode` returns `ErrNodeNotFound` for it and the other nodes stay usable. The unit tests expect
+the `--all` call, and the `knownBug` markers in the e2e test are removed. New e2e step
+`TestProviderE2E/MissingNodeContainer` (containerlab only) removes a node's container with Docker and checks the rest
+of the lab. Still to run at the end: the containerlab e2e tests.
 
 ### 2. Resizing a clabernetes shell while it closes can crash the server
 

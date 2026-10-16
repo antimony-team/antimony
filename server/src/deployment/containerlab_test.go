@@ -559,7 +559,8 @@ func TestContainerlabInspectLab_SelectsTheRequestedLab(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"inspect -t /run/demo/topology.clab.yaml --format json"}, clab.calls(t))
+	// Inspecting by topology file fails as a whole when one node has no container, so the lab is picked from all labs
+	assert.Equal(t, []string{"inspect --all --format json"}, clab.calls(t))
 	require.Len(t, containers, 1)
 	assert.Equal(t, "host1", containers[0].Name)
 }
@@ -573,13 +574,22 @@ func TestContainerlabInspectLab_ReportsAMissingLabAsNotRunning(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrLabNotRunning)
 }
 
-func TestContainerlabInspectLab_ReturnsNoNodesForEmptyOutput(t *testing.T) {
+func TestContainerlabInspectLab_ReportsALabWithoutContainersAsNotRunning(t *testing.T) {
 	newFakeClab(t)
 
-	containers, err := (&ContainerlabProvider{}).InspectLab(context.Background(), "", "demo-lab", (&logCollector{}).log)
+	_, err := (&ContainerlabProvider{}).InspectLab(context.Background(), "", "demo-lab", (&logCollector{}).log)
 
-	require.NoError(t, err)
-	assert.Empty(t, containers)
+	assert.ErrorIs(t, err, utils.ErrLabNotRunning)
+}
+
+func TestContainerlabInspectLab_FailsForAFailingCommand(t *testing.T) {
+	clab := newFakeClab(t)
+	clab.respond(t, "", "", 1)
+
+	_, err := (&ContainerlabProvider{}).InspectLab(context.Background(), "", "demo-lab", (&logCollector{}).log)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, utils.ErrLabNotRunning)
 }
 
 func TestContainerlabInspectNode_FindsTheNodeByItsShortName(t *testing.T) {

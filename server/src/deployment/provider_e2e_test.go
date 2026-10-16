@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/samber/lo"
@@ -103,6 +104,7 @@ func TestProviderE2E(t *testing.T) {
 	t.Run("StreamContainerLogs", lab.testStreamContainerLogs)
 	t.Run("NodeLifecycle", lab.testNodeLifecycle)
 	t.Run("Redeploy", lab.testRedeploy)
+	t.Run("MissingNodeContainer", lab.testMissingNodeContainer)
 
 	if t.Failed() && os.Getenv(e2eKeepFailedEnv) != "" {
 		lab.keep = true
@@ -215,10 +217,8 @@ func (l *e2eLab) testInspect(t *testing.T) {
 		topology := fmt.Sprintf(e2eTopologyTemplate, missing, "alpine:latest", e2eLogMarker)
 		require.NoError(t, os.WriteFile(file, []byte(topology), 0o600))
 
-		l.knownBug(t, "containerlab", "BUGS.md #9", func(t assert.TestingT) {
-			_, err := l.provider.InspectLab(ctx, file, missing, nil)
-			assert.ErrorIs(t, err, utils.ErrLabNotRunning)
-		})
+		_, err := l.provider.InspectLab(ctx, file, missing, nil)
+		require.ErrorIs(t, err, utils.ErrLabNotRunning)
 
 		labs, err := l.provider.InspectLabs(ctx, nil)
 		require.NoError(t, err)
@@ -642,6 +642,31 @@ func (l *e2eLab) testRedeploy(t *testing.T) {
 	assert.Equal(t, 1, code, "the node wasn't recreated")
 }
 
+// testMissingNodeContainer removes a node's container behind the provider's back, the rest of the lab stays usable.
+func (l *e2eLab) testMissingNodeContainer(t *testing.T) {
+	provider, ok := l.provider.(*ContainerlabProvider)
+	if !ok {
+		t.Skip("only containerlab nodes can lose their container, clabernetes recreates a missing pod")
+	}
+
+	ctx := t.Context()
+
+	containerId, err := provider.containerForNode(ctx, l.name, "host2")
+	require.NoError(t, err)
+	require.NoError(t, provider.client.ContainerRemove(ctx, containerId, container.RemoveOptions{Force: true}))
+
+	nodes, err := l.provider.InspectLab(ctx, l.topologyFile, l.name, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"host1"}, nodeNames(nodes))
+
+	host1, err := l.provider.InspectNode(ctx, l.topologyFile, l.name, "host1", nil)
+	require.NoError(t, err)
+	assert.Equal(t, NodeStates.Running, host1.State)
+
+	_, err = l.provider.InspectNode(ctx, l.topologyFile, l.name, "host2", nil)
+	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+}
+
 func (l *e2eLab) testDestroy(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
@@ -649,10 +674,8 @@ func (l *e2eLab) testDestroy(t *testing.T) {
 	logs := &logCollector{}
 	require.NoError(t, l.provider.Destroy(ctx, l.topologyFile, l.name, logs.log))
 
-	l.knownBug(t, "containerlab", "BUGS.md #9", func(t assert.TestingT) {
-		_, err := l.provider.InspectLab(ctx, l.topologyFile, l.name, nil)
-		assert.ErrorIs(t, err, utils.ErrLabNotRunning)
-	})
+	_, err := l.provider.InspectLab(ctx, l.topologyFile, l.name, nil)
+	require.ErrorIs(t, err, utils.ErrLabNotRunning)
 
 	labs, err := l.provider.InspectLabs(ctx, nil)
 	require.NoError(t, err)
