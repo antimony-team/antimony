@@ -1,7 +1,9 @@
-import React, {useMemo} from 'react';
+import React, {MouseEvent, useMemo} from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
+
+import {Button} from 'primereact/button';
 
 import LabEntryPreview from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry-preview/lab-entry-preview';
 import {
@@ -22,6 +24,8 @@ interface LabEntryProps {
   onOpenLab: () => void;
   onRescheduleLab: () => void;
   onDestroyLab: () => void;
+  onDeleteLab: () => void;
+  onContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
 const LabEntry = observer((props: LabEntryProps) => {
@@ -119,6 +123,7 @@ const LabEntry = observer((props: LabEntryProps) => {
       )}
       style={{'--progress': stateProgress} as React.CSSProperties}
       onClick={props.onOpenLab}
+      onContextMenu={props.onContextMenu}
     >
       <div className="sb-dashboard-lab-card-band" onClick={props.onOpenLab}>
         <div className="dot" />
@@ -162,6 +167,22 @@ const LabEntry = observer((props: LabEntryProps) => {
           </div>
         </div>
       </div>
+      <If
+        condition={props.lab.state === InstanceState.Inactive && isChangeable}
+      >
+        <div className="sb-dashboard-lab-card-delete">
+          <Button
+            rounded
+            icon="pi pi-trash"
+            severity="danger"
+            aria-label="Delete lab"
+            onClick={e => {
+              e.stopPropagation();
+              props.onDeleteLab();
+            }}
+          />
+        </div>
+      </If>
       <div className="lab-state">
         <If condition={showButtons}>
           {/*<div className="lab-state-buttons">*/}

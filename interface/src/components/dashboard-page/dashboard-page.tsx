@@ -12,6 +12,7 @@ import {
 import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
+import {SBConfirmDeletePreset} from '@sb/components/common/sb-confirm/sb-confirm';
 import LabExplorer from '@sb/components/dashboard-page/lab-explorer/lab-explorer';
 import LabGrid from '@sb/components/dashboard-page/lab-grid/lab-grid';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
@@ -88,6 +89,32 @@ const DashboardPage = observer(() => {
     });
   }
 
+  function onDeleteLab(lab: Lab) {
+    // Cleaning up inactive labs is part of the regular workflow
+    if (lab.state === InstanceState.Inactive) {
+      void onDeleteLabConfirm(lab);
+      return;
+    }
+
+    notificationStore.confirm({
+      ...SBConfirmDeletePreset('lab'),
+      message: `Are you sure you want to delete the lab "${lab.name}"?`,
+      onAccept: () => onDeleteLabConfirm(lab),
+    });
+  }
+
+  async function onDeleteLabConfirm(lab: Lab) {
+    const result = await labStore.delete(lab.id);
+
+    if (result.isErr()) {
+      notificationStore.error(result.error.message, 'Failed to delete lab');
+    } else {
+      notificationStore.success('Lab has been deleted.');
+
+      if (openLab?.id === lab.id) onCloseLabView();
+    }
+  }
+
   return (
     <div className="sb-dashboard">
       <Splitter
@@ -116,6 +143,7 @@ const DashboardPage = observer(() => {
             collectionLabCounts={collectionLabCounts}
             labEditDialogState={labEditDialogState}
             onDestroyLab={onDestroyLab}
+            onDeleteLab={onDeleteLab}
           />
         </SplitterPanel>
       </Splitter>

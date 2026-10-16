@@ -35,7 +35,6 @@ import {
   generateLayerItems,
 } from '@sb/lib/graph/cytoscape-utils';
 import {
-  useAuthUser,
   useCollectionStore,
   useDataBinder,
   useDeviceStore,
@@ -93,11 +92,9 @@ const LabView = observer((props: LabDialogProps) => {
   const dataBinder = useDataBinder();
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
-  const authUser = useAuthUser();
 
   // Deploying, destroying and starting or stopping nodes is only for the lab's creator and admins
-  const canControlLab =
-    !!props.lab && (authUser.isAdmin || props.lab.creator.id === authUser.id);
+  const canControlLab = !!props.lab && labStore.canControl(props.lab);
   const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
@@ -488,25 +485,15 @@ const LabView = observer((props: LabDialogProps) => {
   }
 
   function canDeployLab() {
-    return (
-      !props.lab?.instance &&
-      props.lab?.state !== InstanceState.Deploying &&
-      props.lab?.state !== InstanceState.Stopping
-    );
+    return !!props.lab && labStore.canDeploy(props.lab);
   }
 
   function canRedeployLab() {
-    return (
-      Boolean(props.lab?.instance) && props.lab?.state === InstanceState.Running
-    );
+    return !!props.lab && labStore.canRedeploy(props.lab);
   }
 
   function canDestroylab() {
-    return (
-      Boolean(props.lab?.instance) &&
-      (props.lab!.state === InstanceState.Running ||
-        props.lab!.state === InstanceState.Deploying)
-    );
+    return !!props.lab && labStore.canDestroy(props.lab);
   }
 
   return (

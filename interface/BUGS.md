@@ -255,12 +255,16 @@ Users see buttons that then fail.
 
 ## Interface: other bugs
 
-### 22. There's no way to delete a lab
+### 22. ~~There's no way to delete a lab~~ (fixed)
 
-- **Status:** verified — `labs.spec.ts` › "a scheduled lab can be deleted"
+- **Status:** fixed — `labs.spec.ts` › "the lab card menu", "the trash icon on inactive labs"
 - **Where:** `components/dashboard-page/lab-grid/lab-entry/lab-entry.tsx` (card buttons commented out),
   `lab-view-header.tsx` (the "Delete Lab" variant is never enabled)
-- **What happens:** labs pile up; only the API can delete them.
+- **What happened:** labs piled up; only the API could delete them.
+- **Fix:** Right-clicking a lab card opens a menu with Deploy, Redeploy, Destroy, Edit and Delete, as far as
+  the lab's state allows them, for the admin and the lab's creator. Inactive labs also show a trash icon
+  over the blurred card on hover. Deleting asks for confirmation, except for inactive labs. The checks are shared in `LabStore`
+  (`canControl`, `canDeploy`, `canRedeploy`, `canDestroy`, `canEdit`, `canDelete`) and follow the server.
 
 ### 23. ~~The dashboard search does nothing~~ (fixed)
 

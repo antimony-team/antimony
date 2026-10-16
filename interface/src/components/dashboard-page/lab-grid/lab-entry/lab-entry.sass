@@ -5,8 +5,30 @@
   overflow: hidden
   cursor: pointer
 
+  position: relative
+
   &:hover
     border-color: var(--border-strong)
+
+  .sb-dashboard-lab-card-delete
+    backdrop-filter: blur(4px)
+    position: absolute
+    top: 0
+    bottom: 0
+    left: 0
+    right: 0
+    display: flex
+    align-items: center
+    justify-content: center
+    opacity: 0
+    transition: opacity 0.15s ease-out
+
+    @media (prefers-reduced-motion: reduce)
+      transition: none
+
+  &:hover .sb-dashboard-lab-card-delete,
+  &:focus-within .sb-dashboard-lab-card-delete
+    opacity: 1
 
   --status-color: var(--text-muted)
   --status-shadow: none

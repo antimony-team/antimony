@@ -112,6 +112,42 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     this.dataBinder.unsubscribeNamespace(`stats/${containerId}`, onEvent);
   }
 
+  // The admin and the lab's creator can control and change a lab
+  public canControl(lab: Lab): boolean {
+    const authUser = this.rootStore._dataBinder.authUser;
+    return authUser.isAdmin || lab.creator.id === authUser.id;
+  }
+
+  public canDeploy(lab: Lab): boolean {
+    return (
+      !lab.instance &&
+      lab.state !== InstanceState.Deploying &&
+      lab.state !== InstanceState.Stopping
+    );
+  }
+
+  public canRedeploy(lab: Lab): boolean {
+    return Boolean(lab.instance) && lab.state === InstanceState.Running;
+  }
+
+  public canDestroy(lab: Lab): boolean {
+    return (
+      Boolean(lab.instance) &&
+      (lab.state === InstanceState.Running ||
+        lab.state === InstanceState.Deploying)
+    );
+  }
+
+  // Like the server, labs with an instance can't be changed
+  public canEdit(lab: Lab): boolean {
+    return !lab.instance && lab.state !== InstanceState.Deploying;
+  }
+
+  // Like the server, only labs without an instance or with a failed one can be deleted
+  public canDelete(lab: Lab): boolean {
+    return !lab.instance || lab.state === InstanceState.Failed;
+  }
+
   public async deployLab(lab: Lab): Promise<Result<null>> {
     const result = await this.sendRuntimeCommand({
       labId: lab.id,

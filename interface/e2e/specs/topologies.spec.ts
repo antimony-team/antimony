@@ -361,7 +361,7 @@ test('Download YAML in the topology menu downloads the topology', async ({
   expect((await download).suggestedFilename()).toBe(
     `${topology.collection.name}_${topology.name}.yaml`,
   );
-  expect(await readFile((await download).path(), 'utf-8')).toBe(
+  expect(await readFile(await (await download).path(), 'utf-8')).toBe(
     (await api.getTopology(topology.id)).definition,
   );
 });
@@ -384,7 +384,7 @@ test('Download YAML downloads the saved version of an open topology with edits',
   const download = page.waitForEvent('download', {timeout: 5000});
   await editor.explorer.menu(topology.name, 'Download YAML');
 
-  expect(await readFile((await download).path(), 'utf-8')).not.toContain(
+  expect(await readFile(await (await download).path(), 'utf-8')).not.toContain(
     'unsaved:',
   );
   await expect.poll(() => editor.editor.text()).toContain('unsaved:');

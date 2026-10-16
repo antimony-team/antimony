@@ -1,12 +1,16 @@
-import React, {useMemo, useRef, useState} from 'react';
+import React, {MouseEvent, useMemo, useRef, useState} from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 import {useNavigate, useSearchParams} from 'react-router';
 
 import {Button} from 'primereact/button';
+import {MenuItem} from 'primereact/menuitem';
 
 import {LabEditDialogState} from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
+import SBContextMenu, {
+  SBContextMenuRef,
+} from '@sb/components/common/sb-context-menu/sb-context-menu';
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
 import LabEntry from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry';
 import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
@@ -25,6 +29,7 @@ interface LabGridProps {
   labEditDialogState: DialogState<LabEditDialogState>;
 
   onDestroyLab: (lab: Lab) => void;
+  onDeleteLab: (lab: Lab) => void;
 }
 
 const LabGrid = (props: LabGridProps) => {
@@ -48,6 +53,10 @@ const LabGrid = (props: LabGridProps) => {
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const [contextMenuModel, setContextMenuModel] = useState<MenuItem[]>();
+  const contextMenuRef = useRef<SBContextMenuRef | null>(null);
+  const contextMenuTarget = useRef<string | null>(null);
 
   const filteredLabs = useMemo(() => {
     return labStore.data
@@ -92,6 +101,106 @@ const LabGrid = (props: LabGridProps) => {
 
   function onOpenLabView(lab: Lab) {
     setSearchParams({l: lab.id});
+  }
+
+  function onEditLab(lab: Lab) {
+    props.labEditDialogState.openWith({
+      editingLab: lab,
+      action: DialogAction.Edit,
+    });
+  }
+
+  function onContextMenu(e: MouseEvent<HTMLDivElement>, lab: Lab) {
+    e.preventDefault();
+
+    const contextMenuEntries = getLabContextMenu(lab);
+
+    if (contextMenuEntries.length > 0) {
+      setContextMenuModel(contextMenuEntries);
+      contextMenuTarget.current = lab.id;
+      contextMenuRef!.current!.show(e);
+    }
+  }
+
+  const onDeployLabContext = () => {
+    if (!contextMenuTarget.current) return;
+    void labStore.deployLab(labStore.lookup.get(contextMenuTarget.current)!);
+  };
+
+  const onDestroyLabContext = () => {
+    if (!contextMenuTarget.current) return;
+    props.onDestroyLab(labStore.lookup.get(contextMenuTarget.current)!);
+  };
+
+  const onEditLabContext = () => {
+    if (!contextMenuTarget.current) return;
+    onEditLab(labStore.lookup.get(contextMenuTarget.current)!);
+  };
+
+  const onDeleteLabContext = () => {
+    if (!contextMenuTarget.current) return;
+    props.onDeleteLab(labStore.lookup.get(contextMenuTarget.current)!);
+  };
+
+  function getLabContextMenu(lab: Lab) {
+    if (!labStore.canControl(lab)) return [];
+
+    const controlEntries: MenuItem[] = [];
+    const editEntries: MenuItem[] = [];
+
+    if (labStore.canDeploy(lab)) {
+      controlEntries.push({
+        id: 'deploy',
+        label: 'Deploy',
+        icon: 'pi pi-play',
+        className: 'sb-menuitem-success',
+        command: onDeployLabContext,
+      });
+    }
+
+    if (labStore.canRedeploy(lab)) {
+      controlEntries.push({
+        id: 'redeploy',
+        label: 'Redeploy',
+        icon: 'pi pi-sync',
+        command: onDeployLabContext,
+      });
+    }
+
+    if (labStore.canDestroy(lab)) {
+      controlEntries.push({
+        id: 'destroy',
+        label: 'Destroy',
+        icon: 'pi pi-power-off',
+        className: 'sb-menuitem-danger',
+        command: onDestroyLabContext,
+      });
+    }
+
+    if (labStore.canEdit(lab)) {
+      editEntries.push({
+        id: 'edit',
+        label: 'Edit',
+        icon: <span className="material-symbols-outlined">edit_square</span>,
+        command: onEditLabContext,
+      });
+    }
+
+    if (labStore.canDelete(lab)) {
+      editEntries.push({
+        id: 'delete',
+        label: 'Delete',
+        icon: 'pi pi-trash',
+        className: 'sb-menuitem-danger',
+        command: onDeleteLabContext,
+      });
+    }
+
+    if (controlEntries.length > 0 && editEntries.length > 0) {
+      return [...controlEntries, {separator: true}, ...editEntries];
+    }
+
+    return [...controlEntries, ...editEntries];
   }
 
   const EmptyStateNoCollections = () => (
@@ -244,13 +353,10 @@ const LabGrid = (props: LabGridProps) => {
                               key={lab.id}
                               lab={lab}
                               onOpenLab={() => onOpenLabView(lab)}
-                              onRescheduleLab={() =>
-                                props.labEditDialogState.openWith({
-                                  editingLab: lab,
-                                  action: DialogAction.Edit,
-                                })
-                              }
+                              onRescheduleLab={() => onEditLab(lab)}
                               onDestroyLab={() => props.onDestroyLab(lab)}
+                              onDeleteLab={() => props.onDeleteLab(lab)}
+                              onContextMenu={e => onContextMenu(e, lab)}
                             />
                           ))}
                         </div>
@@ -285,6 +391,7 @@ const LabGrid = (props: LabGridProps) => {
           </Otherwise>
         </Choose>
       </div>
+      <SBContextMenu model={contextMenuModel} ref={contextMenuRef} />
     </>
   );
 };
