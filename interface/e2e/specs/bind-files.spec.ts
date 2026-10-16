@@ -397,9 +397,6 @@ test.describe('archive upload', () => {
     api,
     createTopology,
   }) => {
-    knownBug(
-      'the upload looks up existing files in all topologies, so another topology with the same path gets overwritten',
-    );
     const other = await createTopology({files: {'startup.cfg': 'other'}});
     const target = await createTopology({
       collection: other.collection,

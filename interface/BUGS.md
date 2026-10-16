@@ -179,14 +179,16 @@ Users see buttons that then fail.
   Renaming replaces exactly the directory's prefix. The tests also cover a file next to the directory
   (`node1.cfg`).
 
-### 17. Archive upload overwrites another topology's file (data corruption)
+### 17. ~~Archive upload overwrites another topology's file~~ (fixed)
 
-- **Status:** verified — `bind-files.spec.ts` › "overwriting a file leaves other topologies' files alone"
+- **Status:** fixed — `bind-files.spec.ts` › "overwriting a file leaves other topologies' files alone"
 - **Where:** `lib/stores/topology-store.ts` (`uploadArchiveFiles` looks up existing files across all
   topologies)
 - **What happens:** if another topology has a file with the same path, that file is overwritten and the
   target topology's file stays unchanged. Server bug 9 (bind file updates) lets this happen.
-- **Fix idea:** search only the target topology's bind files.
+- **Fix:** `uploadArchiveFiles` looks the existing file up in the target topology only, and creates the
+  file if it isn't there any more. Server bug 9 remains, so the server would still accept such a
+  request.
 
 ### 18. Moving a topology overwrites the open topology in the editor
 

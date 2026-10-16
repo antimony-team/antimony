@@ -112,13 +112,16 @@ export class TopologyStore extends DataStore<
     for (const file of files) {
       let result: Result<DataResponse<string>>;
 
-      if (file.exists) {
-        const existing = this.bindFileLookup
-          .values()
-          .find(bindFile => bindFile.filePath === file.filePath);
+      // Only the target topology's own files may be overwritten
+      const existing = file.exists
+        ? this.lookup
+            .get(topologyId)
+            ?.bindFiles.find(bindFile => bindFile.filePath === file.filePath)
+        : undefined;
 
+      if (existing) {
         result = await this.dataBinder.patch<BindFileIn, string>(
-          `${this.resourcePath}/${topologyId}/files/${existing!.id}`,
+          `${this.resourcePath}/${topologyId}/files/${existing.id}`,
           {
             filePath: file.filePath,
             content: file.content,
