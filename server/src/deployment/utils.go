@@ -3,6 +3,7 @@ package deployment
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,14 +46,30 @@ func runCommandSync(cmd *exec.Cmd, onStderr func(string)) (*string, error) {
 	return &output, err
 }
 
+// maxLogLineLength bounds a line handed to a log function. Longer lines are passed on in parts of this length.
+const maxLogLineLength = 64 * 1024
+
+// streamOutput passes every line of pipe to onLog, without its line break, until the pipe ends. It reads lines of
+// any length, and drains the pipe if reading fails, so a process writing into it never blocks.
 func streamOutput(pipe io.Reader, onLog func(data string)) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		if onLog != nil {
-			onLog(scanner.Text())
+	reader := bufio.NewReaderSize(pipe, maxLogLineLength)
+
+	for {
+		// A line longer than the buffer comes in parts, each of them ending with bufio.ErrBufferFull
+		line, err := reader.ReadSlice('\n')
+
+		if len(line) > 0 && onLog != nil {
+			text := strings.TrimSuffix(string(line), "\n")
+			onLog(strings.TrimSuffix(text, "\r"))
 		}
-	}
-	if err := scanner.Err(); err != nil {
+
+		switch {
+		case err == nil, errors.Is(err, bufio.ErrBufferFull):
+			continue
+		case !errors.Is(err, io.EOF):
+			_, _ = io.Copy(io.Discard, pipe)
+		}
+
 		return
 	}
 }

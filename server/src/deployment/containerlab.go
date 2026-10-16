@@ -469,7 +469,10 @@ func (p *ContainerlabProvider) StreamContainerLogs(
 		return err
 	}
 
-	go streamOutput(out, onLog)
+	go func() {
+		defer out.Close()
+		streamOutput(out, onLog)
+	}()
 
 	return nil
 }

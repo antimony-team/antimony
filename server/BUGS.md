@@ -7,14 +7,6 @@ Each entry is either **suspected** (found by reading the code, not reproduced ye
 
 ## Suspected
 
-### 5. Containerlab log streams are never closed
-
-- `deployment/containerlab.go` `StreamContainerLogs`
-
-The log stream is read by `go streamOutput(out, onLog)`, but `out` is never closed, unlike the
-clabernetes provider, which closes it with `defer stream.Close()`. Every node start or restart opens
-another stream, so the connection to Docker is only released when the lab's context ends.
-
 ### 6. A failing interactive command is detected with a fixed 20 ms wait
 
 - `deployment/containerlab.go` `ExecInteractive`
@@ -38,6 +30,22 @@ A node attached to more than one network gets a random one of them on each call.
 None left, see "Fixed".
 
 ## Fixed
+
+### 5. Log streams stop at a line over 64 KiB
+
+- `deployment/utils.go` `streamOutput`, used by `runCommandSync` and both providers' `StreamContainerLogs`
+
+Originally suspected as "containerlab log streams are never closed". That turned out to be mostly harmless:
+Docker ends a following log stream when the container stops, and Go gives the connection back once the body is
+read to the end. The real problem was next to it: `streamOutput` read with a `bufio.Scanner`, which stops at a
+line over 64 KiB and returned silently. A node's log then stopped updating for the rest of the run, on both
+providers. For the containerlab CLI's stderr in `runCommandSync`, nobody read the pipe after that, so containerlab
+could block on a full pipe and the deploy would hang until its context ended.
+
+**Fixed:** `streamOutput` reads with a `bufio.Reader`, passes lines of any length on in parts of 64 KiB, and
+drains the pipe if reading fails. Containerlab's `StreamContainerLogs` closes the stream once reading ends, like
+clabernetes. New tests in `deployment/utils_test.go`: line breaks, a long line in parts followed by more lines,
+draining after a failed read, and `runCommandSync` finishing with a 200,000 character stderr line.
 
 ### 3. Container stats assume Docker's systemd cgroup driver
 
