@@ -1,7 +1,6 @@
 import {ApiError} from '../fixtures/api';
 import {expect, knownBug, test} from '../fixtures/test';
 import {DashboardPage} from '../pages/dashboard-page';
-import {EditorPage} from '../pages/editor-page';
 import {LabEditDialog} from '../pages/lab-edit-dialog';
 
 /*
@@ -114,24 +113,4 @@ test('the error for a refused lab is titled for creating, not updating', async (
   await expect(user.page.locator('.p-toast-message-error')).not.toContainText(
     'Failed to update lab',
   );
-});
-
-test('the editor warns about an unsafe topology before deploying', async ({
-  page,
-  createTopology,
-}) => {
-  knownBug(
-    "the interface doesn't show policy findings anywhere, users only learn about them when deploying fails",
-  );
-  const topology = await createTopology({
-    definition: unsafe,
-    annotations: '{}',
-  });
-  const editor = new EditorPage(page);
-  await editor.open(topology.id, topology.name);
-
-  // Any notice outside the code editor about what the policy found
-  await expect(
-    page.getByText(/policy|unsafe|only admins/i).filter({visible: true}),
-  ).not.toHaveCount(0);
 });

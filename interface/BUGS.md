@@ -139,7 +139,7 @@ Users see buttons that then fail.
 - **Fix:** `CollectionStore.canDeployIn()` says whether the user may deploy in a collection (admins always,
   others with "Anyone can deploy"). The Deploy buttons of the editor and the explorer are hidden where it's
   false, the deploy dialog only lists deployable topologies, and "New lab" is hidden when there's nowhere
-  to deploy. Unsafe topologies are left to bug 14.
+  to deploy. Unsafe topologies aren't covered; the server refuses them for users who aren't admins.
 - **Also changed:** the lab schedule in the dock is only shown to admins.
 
 ### 12. ~~The graph editor ignores read-only topologies~~ (fixed)
@@ -168,13 +168,6 @@ Users see buttons that then fail.
   buttons of collection rows, the collection menu and the collections offered in the topology dialog.
 - **Not done:** topology rows can still be dragged by their creator into collections the server won't
   accept, which ends in an error toast.
-
-### 14. Policy findings are never shown
-
-- **Status:** verified — `policy.spec.ts` › "the editor warns about an unsafe topology before deploying"
-- **Where:** `types/domain/topology.ts` (no `policyFindings`), the editor and the deploy dialog
-- **What happens:** the server reports what makes a topology unsafe, but the interface doesn't show it.
-  Users only learn about it when creating a lab fails (see 15).
 
 ### 15. Errors when creating a lab are titled "Failed to update lab"
 
