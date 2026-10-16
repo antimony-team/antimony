@@ -1116,8 +1116,8 @@ func (s *Service) createNodesFromTopology(
 // fetchNode re-inspects a single node and applies any state change to it.
 //
 // It reports whether the node's state actually changed. A node that is missing from the inspect
-// output is not an error: the provider may simply not have created its container yet, so it is
-// logged and treated as unchanged.
+// output while the lab deploys may simply not be created yet, so it is treated as unchanged. Once
+// the lab is deployed, a missing node has lost its container and is stopped.
 func (s *Service) fetchNode(
 	instance *Instance,
 	instanceName string,
@@ -1139,11 +1139,15 @@ func (s *Service) fetchNode(
 		node.Name,
 		onLog,
 	)
+	if errors.Is(err, utils.ErrNodeNotFound) || errors.Is(err, utils.ErrLabNotRunning) {
+		return s.stopMissingNode(instance, instanceName, node)
+	}
 	if err != nil {
 		log.Warn(
-			"Tried to update a node that was not found in inspect output",
+			"Failed to inspect a node",
 			"instance", instanceName,
 			"node", node.Name,
+			"err", err.Error(),
 		)
 
 		return false
@@ -1161,6 +1165,24 @@ func (s *Service) fetchNode(
 	s.updateNodeWithContainer(node, nodeContainer)
 
 	instance.DataMutex.Unlock()
+
+	return true
+}
+
+// stopMissingNode marks a node whose container is gone as stopped, unless the lab is still being deployed and the
+// container might just not exist yet. It reports whether the node's state changed.
+func (s *Service) stopMissingNode(instance *Instance, instanceName string, node *InstanceNode) bool {
+	instance.DataMutex.Lock()
+	defer instance.DataMutex.Unlock()
+
+	if instance.State == InstanceStates.Deploying || node.State == deployment.NodeStates.Stopped {
+		return false
+	}
+
+	log.Info("The container of a node is gone, marking it as stopped", "instance", instanceName, "node", node.Name)
+
+	node.Reset()
+	node.State = deployment.NodeStates.Stopped
 
 	return true
 }

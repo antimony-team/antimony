@@ -15,6 +15,22 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 17. A node whose container is removed stays "running"
+
+- `runtime/instance/service.go` `fetchNode`
+
+Found by the code review. `fetchNode` treated every inspect error as "unchanged". Since #9, a node whose container
+is gone is reported as `ErrNodeNotFound` (or `ErrLabNotRunning` when the whole lab is gone), but the node stayed
+"running" in Antimony after a `docker rm -f`, an external `containerlab destroy`, or a container lost on the host.
+
+**Fixed:** on `ErrNodeNotFound` or `ErrLabNotRunning`, `stopMissingNode` resets the node and marks it stopped, unless
+the lab is deploying, when its containers may just not exist yet. Other inspect errors are logged with their cause
+and still leave the node as it is. The dummy provider still reports a missing node with its own error, so the harness
+tests use `InspectNodeFn`. New harness tests: `TestProviderEvent_ANodeWhoseContainerIsGoneIsStopped` and
+`TestProviderEvent_AMissingNodeIsNotStoppedWhileTheLabDeploys`; both fail without their part of the fix. New e2e step
+`TestProviderE2E_NodeChangesOutsideAntimonyAreNoticed/a_node_whose_container_is_removed` (containerlab only), not run
+yet.
+
 ### 16. Stats of nodes whose init is systemd only cover the init process
 
 - `deployment/sampler_docker.go` `findCgroupDir`

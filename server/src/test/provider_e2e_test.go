@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"slices"
 	"strings"
 	"testing"
@@ -378,6 +379,23 @@ func TestProviderE2E_NodeChangesOutsideAntimonyAreNoticed(t *testing.T) {
 
 	require.NoError(t, e.Runtime.StartNode(t.Context(), instanceName, "host2"))
 	e.waitForNodeState(t, labId, "host2", deployment.NodeStates.Running)
+
+	t.Run("a node whose container is removed", func(t *testing.T) {
+		if e.providerName != "containerlab" {
+			t.Skip("only containerlab nodes can lose their container, clabernetes recreates a missing pod")
+		}
+
+		containerName := e.nodes(labId)["host2"].ContainerName
+		require.NotEmpty(t, containerName)
+
+		//nolint:gosec // the container name comes from the test's own lab
+		output, err := exec.CommandContext(t.Context(), "docker", "rm", "-f", containerName).CombinedOutput()
+		require.NoError(t, err, string(output))
+
+		e.waitForNodeState(t, labId, "host2", deployment.NodeStates.Stopped)
+		// The other node isn't affected
+		e.waitForNodeState(t, labId, "host1", deployment.NodeStates.Running)
+	})
 }
 
 // Node names repeat across labs, so the provider's events have to reach the lab the node belongs to. Several labs

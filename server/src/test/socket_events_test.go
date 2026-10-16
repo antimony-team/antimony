@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/antimony-team/antimony-server/deployment"
 	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/utils"
 )
 
 /*
@@ -153,6 +155,74 @@ func TestProviderEvent_EventOfALabAntimonyDoesNotRunIsIgnored(t *testing.T) {
 	updates.ExpectNoData()
 	assert.Equal(t, deployment.NodeStates.Running, nodeState(t, h, LabAdminID, NodeHost),
 		"the event must not refresh a node of another lab")
+}
+
+func TestProviderEvent_ANodeWhoseContainerIsGoneIsStopped(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	requireEventually(t, func() bool {
+		return h.Provider.CallCount("GetNetworkInterfaces") >= 2
+	}, "the startup listeners must settle first")
+
+	updates := h.Dial("/lab-updates", h.Seed.Admin.Token)
+
+	// The node's container was removed behind the server's back, e.g. with "docker rm -f"
+	h.Provider.InspectNodeFn = func(_, _, nodeName string) (deployment.InspectContainer, error) {
+		return deployment.InspectContainer{}, fmt.Errorf("%w: %s", utils.ErrNodeNotFound, nodeName)
+	}
+	require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, NodeHost))
+
+	var update instanceUpdatePayload
+	DecodePayload(t, updates.NextData(), &update)
+	require.NotNil(t, update.LabId)
+	assert.Equal(t, LabAdminID, *update.LabId)
+
+	var labOut labDTO
+	h.GET("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireOk(&labOut)
+	require.NotNil(t, labOut.Instance)
+	host := findNode(t, labOut.Instance.Nodes, NodeHost)
+	assert.Equal(t, int(deployment.NodeStates.Stopped), host.State)
+	assert.False(t, host.IsReady)
+	assert.Empty(t, host.ContainerId)
+	assert.Empty(t, host.Interfaces)
+
+	// Another event for the same node changes nothing
+	require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, NodeHost))
+	updates.ExpectNoData()
+}
+
+func TestProviderEvent_AMissingNodeIsNotStoppedWhileTheLabDeploys(t *testing.T) {
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
+		p.DeployDelay = time.Second
+	}))
+
+	h.DeployLab(LabAdminID)
+
+	instanceLab, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
+	require.NoError(t, err)
+
+	// Redeploying recreates the containers, which may not exist yet when their events arrive
+	redeployed := make(chan error, 1)
+	go func() { redeployed <- h.InstanceService.DeployLab(instanceLab) }()
+
+	labInstance := h.InstanceService.GetInstance(LabAdminID)
+	requireEventually(t, func() bool {
+		labInstance.DataMutex.Lock()
+		defer labInstance.DataMutex.Unlock()
+		return labInstance.State == instance.InstanceStates.Deploying
+	}, "the lab must be redeploying")
+
+	h.Provider.InspectNodeFn = func(_, _, nodeName string) (deployment.InspectContainer, error) {
+		return deployment.InspectContainer{}, fmt.Errorf("%w: %s", utils.ErrNodeNotFound, nodeName)
+	}
+	require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, NodeHost))
+
+	assert.NotEqual(t, deployment.NodeStates.Stopped, nodeState(t, h, LabAdminID, NodeHost),
+		"a node of a deploying lab isn't stopped because its container doesn't exist yet")
+
+	require.NoError(t, <-redeployed)
 }
 
 /*
