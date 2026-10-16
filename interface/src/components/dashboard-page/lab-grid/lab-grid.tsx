@@ -1,6 +1,7 @@
 import React, {useMemo, useRef, useState} from 'react';
 
 import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
 import {useNavigate, useSearchParams} from 'react-router';
 
 import {Button} from 'primereact/button';
@@ -11,6 +12,7 @@ import LabEntry from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry
 import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {oneOf, setOf, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {matchesSearch} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
 
@@ -53,7 +55,8 @@ const LabGrid = (props: LabGridProps) => {
         lab =>
           (props.collectionFilter === null ||
             lab.collectionId === props.collectionFilter) &&
-          !stateFilter.has(lab.state),
+          !stateFilter.has(lab.state) &&
+          matchesLabSearch(lab, labStore.searchQuery),
       )
       .sort(
         (a, b) =>
@@ -63,6 +66,7 @@ const LabGrid = (props: LabGridProps) => {
   }, [
     collectionStore.data,
     labStore.data,
+    labStore.searchQuery,
     props.collectionFilter,
     stateFilter,
   ]);
@@ -320,4 +324,17 @@ const labGroups = [
   },
 ];
 
-export default LabGrid;
+// The search finds labs by their name, their topology's name or their creator's name
+function matchesLabSearch(lab: Lab, search: string) {
+  return (
+    search === '' ||
+    [
+      lab.name,
+      lab.topologyDefinition.definition.name ?? '',
+      lab.creator.name,
+    ].some(value => matchesSearch(value, search))
+  );
+}
+
+// An observer, so it updates while the user types into the search
+export default observer(LabGrid);

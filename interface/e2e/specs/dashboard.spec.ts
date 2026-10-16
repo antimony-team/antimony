@@ -189,16 +189,29 @@ test('a collapsed Scheduled group stays collapsed after a reload', async ({
 });
 
 test('the search shows only matching labs', async ({page, createLab}) => {
-  knownBug('the dashboard search does nothing');
   const match = await createLab();
   const other = await createLab({collection: match.topology.collection});
   const dashboard = new DashboardPage(page);
   await dashboard.goto();
+  await expect(dashboard.card(other.name)).toBeVisible();
 
   await dashboard.search.fill(match.name);
-
   await expect(dashboard.card(match.name)).toBeVisible();
   await expect(dashboard.card(other.name)).toBeHidden();
+
+  // The topology's name finds the lab too
+  await dashboard.search.fill(other.topology.name);
+  await expect(dashboard.card(other.name)).toBeVisible();
+  await expect(dashboard.card(match.name)).toBeHidden();
+
+  await dashboard.search.fill('no-lab-has-this-name');
+  await expect(
+    page.getByText('No labs match "no-lab-has-this-name"'),
+  ).toBeVisible();
+  await page.getByRole('button', {name: 'Clear search'}).click();
+  await expect(dashboard.search).toHaveValue('');
+  await expect(dashboard.card(match.name)).toBeVisible();
+  await expect(dashboard.card(other.name)).toBeVisible();
 });
 
 test('a lab without an end time that starts later is shown as scheduled', async ({

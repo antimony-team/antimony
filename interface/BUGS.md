@@ -262,11 +262,16 @@ Users see buttons that then fail.
   `lab-view-header.tsx` (the "Delete Lab" variant is never enabled)
 - **What happens:** labs pile up; only the API can delete them.
 
-### 23. The dashboard search does nothing
+### 23. ~~The dashboard search does nothing~~ (fixed)
 
-- **Status:** verified — `dashboard.spec.ts` › "the search shows only matching labs"
+- **Status:** fixed — `dashboard.spec.ts` › "the search shows only matching labs"
 - **Where:** `components/dashboard-page/lab-explorer/lab-explorer.tsx` sets `labStore.searchQuery`, but
   `lab-grid.tsx` (`filteredLabs`) and `lib/stores/lab-store.ts` (`getParams`) ignore it.
+- **Fix:** the lab grid filters in the browser, since all labs are loaded: a lab matches when its name,
+  its topology's name or its creator's name contains the search text (`matchesLabSearch` in
+  `lab-grid.tsx`). The grid is an `observer` now, so it updates while typing. The "No labs match …" empty
+  state with "Clear search" works again; the lab explorer is an `observer` too, so "Clear search" also
+  empties the search field.
 
 ### 24. Labs that start later and run indefinitely are shown as Inactive
 

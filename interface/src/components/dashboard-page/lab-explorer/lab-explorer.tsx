@@ -1,6 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 
 import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
 
 import {IconField} from 'primereact/iconfield';
 import {InputIcon} from 'primereact/inputicon';
@@ -93,4 +94,5 @@ const LabExplorer = (props: LabExplorerProps) => {
   );
 };
 
-export default LabExplorer;
+// An observer, so the search field is emptied when the search is cleared elsewhere
+export default observer(LabExplorer);
