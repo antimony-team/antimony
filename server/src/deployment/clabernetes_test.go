@@ -32,6 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/remotecommand"
+	k8sexec "k8s.io/client-go/util/exec"
 
 	"github.com/antimony-team/antimony-server/utils"
 )
@@ -361,6 +363,118 @@ func TestSizeQueue_ReturnsNilOnceClosed(t *testing.T) {
 	queue.close()
 
 	assert.Nil(t, queue.Next(), "a nil size ends the remotecommand resize loop")
+}
+
+// readAll reads a session's output until it ends, failing the test if it doesn't end in time.
+func readAll(t *testing.T, session *kubernetesExecSession) (string, error) {
+	t.Helper()
+
+	type result struct {
+		output []byte
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		output, err := io.ReadAll(session)
+		done <- result{output, err}
+	}()
+
+	select {
+	case r := <-done:
+		return string(r.output), r.err
+	case <-time.After(2 * time.Second):
+		t.Fatal("the session's output didn't end")
+		return "", nil
+	}
+}
+
+func TestOpenInteractiveSession_FailsForACommandThatDoesNotStart(t *testing.T) {
+	failure := errors.New(`exec: "antimony-no-such-shell": executable file not found in $PATH`)
+
+	_, err := openInteractiveSession(context.Background(), func(context.Context, remotecommand.StreamOptions) error {
+		return failure
+	}, time.Second)
+
+	assert.ErrorIs(t, err, failure)
+}
+
+func TestOpenInteractiveSession_ReturnsOnceTheCommandPrintsAndKeepsTheOutput(t *testing.T) {
+	session, err := openInteractiveSession(
+		context.Background(),
+		func(ctx context.Context, o remotecommand.StreamOptions) error {
+			_, _ = io.WriteString(o.Stdout, "node:~$ ")
+
+			// Echo what the user types until the session is closed
+			_, _ = io.Copy(o.Stdout, o.Stdin)
+			return nil
+		},
+		time.Minute,
+	)
+	require.NoError(t, err, "a command that printed has started, the session is handed out without waiting")
+	defer session.Close()
+
+	buffer := make([]byte, 64)
+	n, err := session.Read(buffer)
+	require.NoError(t, err)
+	assert.Equal(t, "node:~$ ", string(buffer[:n]), "the first output isn't lost")
+
+	_, err = session.Write([]byte("ls\n"))
+	require.NoError(t, err)
+	n, err = session.Read(buffer)
+	require.NoError(t, err)
+	assert.Equal(t, "ls\n", string(buffer[:n]))
+}
+
+func TestOpenInteractiveSession_HandsOutACommandThatPrintsNothingAfterTheTimeout(t *testing.T) {
+	printed := make(chan struct{})
+	start := time.Now()
+
+	session, err := openInteractiveSession(
+		context.Background(),
+		func(ctx context.Context, o remotecommand.StreamOptions) error {
+			<-printed
+			_, _ = io.WriteString(o.Stdout, "late output")
+			return nil
+		},
+		50*time.Millisecond,
+	)
+	require.NoError(t, err)
+	defer session.Close()
+
+	assert.GreaterOrEqual(t, time.Since(start), 50*time.Millisecond)
+
+	close(printed)
+	output, err := readAll(t, session)
+	require.NoError(t, err)
+	assert.Equal(t, "late output", output)
+}
+
+func TestOpenInteractiveSession_ACommandThatExitsAtOnceEndsTheSession(t *testing.T) {
+	session, err := openInteractiveSession(
+		context.Background(),
+		func(context.Context, remotecommand.StreamOptions) error {
+			return k8sexec.CodeExitError{Err: errors.New("exit status 3"), Code: 3}
+		},
+		time.Second,
+	)
+	require.NoError(t, err, "a command that ran and exited did start")
+	defer session.Close()
+
+	output, err := readAll(t, session)
+	require.NoError(t, err)
+	assert.Empty(t, output)
+}
+
+func TestOpenInteractiveSession_StopsWaitingWhenTheContextEnds(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := openInteractiveSession(ctx, func(ctx context.Context, _ remotecommand.StreamOptions) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}, time.Minute)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestKubernetesExecSession_ResizingOrClosingAClosedSessionIsHarmless(t *testing.T) {

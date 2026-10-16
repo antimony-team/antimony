@@ -1,6 +1,7 @@
 package test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -894,4 +895,41 @@ func TestShellData_HasABacklogOfPreviousOutput(t *testing.T) {
 
 		return strings.Contains(replayed, "line one") && strings.Contains(replayed, "line two")
 	}, "a late subscriber must receive the shell backlog")
+}
+
+// failingSession is a node session whose output ends with an error, like a connection to the node that drops.
+type failingSession struct {
+	*deployment.DummyShellSession
+}
+
+func (failingSession) Read([]byte) (int, error) {
+	return 0, errors.New("the connection to the node was lost")
+}
+
+func TestShellData_AFailedShellIsReportedAndRemoved(t *testing.T) {
+	h := NewHarness(t, WithShellLimits(1, 1800))
+
+	h.DeployLab(LabAdminID)
+
+	failing := failingSession{deployment.CreateDummyShellSession()}
+	h.Provider.ExecInteractiveFn = func(string, string, []string) (deployment.ShellExecSession, error) {
+		return failing, nil
+	}
+
+	control := h.Dial("/shell-control", h.Seed.Admin.Token)
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	shellId := openShell(t, client, LabAdminID, NodeHost)
+
+	events := CollectPayloads[shellControlDTO](control, 2)
+	assert.Equal(t, shellControlError, events[0].Command)
+	assert.Equal(t, "the connection to the node was lost", events[0].Message)
+	assert.Equal(t, shellControlClose, events[1].Command)
+	assert.Equal(t, shellId, events[1].ShellId)
+
+	requireEventually(t, failing.IsClosed, "the failed session must be closed")
+
+	// The failed shell no longer counts against the limit of one shell
+	h.Provider.ExecInteractiveFn = nil
+	openShell(t, client, LabAdminID, NodeSRL)
 }

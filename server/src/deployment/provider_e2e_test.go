@@ -401,18 +401,11 @@ func (l *e2eLab) testExecInteractive(t *testing.T) {
 	})
 
 	t.Run("fails for a command that doesn't exist", func(t *testing.T) {
-		l.knownBug(t, "clabernetes", "BUGS.md #12", func(t assert.TestingT) {
-			session, err := l.provider.ExecInteractive(
-				context.Background(),
-				l.name,
-				"host1",
-				[]string{"antimony-no-such-shell"},
-			)
-			if session != nil {
-				_ = session.Close()
-			}
-			assert.Error(t, err)
-		})
+		session, err := l.provider.ExecInteractive(t.Context(), l.name, "host1", []string{"antimony-no-such-shell"})
+		if session != nil {
+			_ = session.Close()
+		}
+		assert.Error(t, err)
 	})
 
 	t.Run("fails for an unknown node", func(t *testing.T) {
@@ -681,37 +674,6 @@ func (l *e2eLab) testDestroy(t *testing.T) {
 /*
  * Helpers
  */
-
-// knownBug runs assertions that a bug in BUGS.md makes fail with the given provider. While the bug is there, the
-// failure is only logged. Once the assertions pass, the test fails, so the marker gets removed with the fix. With
-// other providers the assertions apply as usual.
-func (l *e2eLab) knownBug(t *testing.T, provider string, bug string, check func(t assert.TestingT)) {
-	t.Helper()
-
-	if l.providerName != provider {
-		check(t)
-		return
-	}
-
-	recorder := &failureRecorder{}
-	check(recorder)
-
-	if len(recorder.failures) == 0 {
-		t.Errorf("%s doesn't happen anymore, remove the knownBug marker and the entry", bug)
-		return
-	}
-
-	t.Logf("known bug, see %s:\n%s", bug, strings.Join(recorder.failures, "\n"))
-}
-
-// failureRecorder collects the failures of assertions instead of failing the test.
-type failureRecorder struct {
-	failures []string
-}
-
-func (r *failureRecorder) Errorf(format string, args ...any) {
-	r.failures = append(r.failures, fmt.Sprintf(format, args...))
-}
 
 func (l *e2eLab) mustExec(t *testing.T, node string, cmd ...string) string {
 	t.Helper()

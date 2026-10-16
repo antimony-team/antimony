@@ -253,11 +253,12 @@ func (s *Service) OpenShellCommand(
 		dataNamespace:    dataNamespace,
 	}
 
-	go s.runShell(ctx, labId, *nodeName, shellSession, shellId, shellConfig, dataNamespace)
-
+	// Registered before it runs, so a shell that ends right away is removed again instead of being added afterwards
 	s.openShellsMutex.Lock()
 	s.openShells[shellId] = shellConfig
 	s.openShellsMutex.Unlock()
+
+	go s.runShell(ctx, labId, *nodeName, shellSession, shellId, shellConfig, dataNamespace)
 
 	return shellId, nil
 }
@@ -512,7 +513,8 @@ func (s *Service) runShell(
 			break
 		}
 
-		// Only send an error if the connection hasn't been closed already
+		// Only report the error if the connection hasn't been closed already. Otherwise whoever closed it also removed
+		// it, so a failed shell is removed here, or it would count against the user's limit until it times out.
 		if ctx.Err() == nil {
 			s.controlNamespace.Send(shellControlData{
 				LabId:   labId,
@@ -521,6 +523,12 @@ func (s *Service) runShell(
 				Command: ShellCommands.Error,
 				Message: err.Error(),
 			})
+
+			s.openShellsMutex.Lock()
+			delete(s.openShells, shellId)
+			s.openShellsMutex.Unlock()
+
+			_ = s.closeShell(shellId, shellConfig, "The connection has been terminated")
 		}
 
 		break

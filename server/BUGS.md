@@ -46,6 +46,10 @@ A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
 
+None left, see "Fixed".
+
+## Fixed
+
 ### 12. A clabernetes shell for a command that doesn't exist opens anyway
 
 - `deployment/clabernetes.go` `ExecInteractive`
@@ -59,7 +63,26 @@ Confirmed on a c9s 0.9.0 kind cluster.
 Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, marked with `knownBug`
 for clabernetes.
 
-## Fixed
+**Fixed:** `ExecInteractive` now waits until the command has started before it hands out the session
+(`openInteractiveSession`): until the first output arrives, the stream fails, or one second passes for a command
+that prints nothing. A command that can't start returns "command [...] failed to start: ...", like containerlab,
+and the first output is kept for the first read. New unit tests `TestOpenInteractiveSession_*` run against fake
+streams. The `knownBug` marker in the e2e test is removed, and with it the last use of `knownBug`. Still to run
+at the end: `ExecInteractive` on clabernetes.
+
+### 13. A shell whose output ends with an error is never removed
+
+- `runtime/shell/service.go` `runShell`, `OpenShellCommand`
+
+Found while looking at #12. When a shell's output ended with an error other than EOF, for example a dropped
+connection to the node, `runShell` sent the error to the client and stopped, but only the EOF path removed and
+closed the shell. A failed shell kept counting against the user's shell limit and kept its namespace until the
+inactivity timeout (30 minutes by default). Also, `OpenShellCommand` started `runShell` before adding the shell to
+`openShells`, so a shell that ended right away could be added after it was removed.
+
+**Fixed:** after reporting the error, `runShell` removes and closes the shell, unless it was closed already, which
+is when the error comes from closing it. `OpenShellCommand` registers the shell before starting `runShell`.
+Test: `TestShellData_AFailedShellIsReportedAndRemoved`, which fails without the fix.
 
 ### 11. Clabernetes node operations don't report an unknown node like containerlab does
 

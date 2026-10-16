@@ -63,6 +63,9 @@ const (
 	captureRunDuration = time.Hour
 	// captureSnapLength matches the snap length of the pcap stream the SSH server writes to its clients.
 	captureSnapLength = 65536
+	// interactiveStartTimeout bounds how long opening an interactive session waits for the command to print its first
+	// output. A shell prints its prompt right away, a command that prints nothing is handed out after this.
+	interactiveStartTimeout = time.Second
 )
 
 type (
@@ -91,6 +94,22 @@ type (
 		// stdout is the current run's output, closed to end a read that is waiting for packets
 		stdout      *io.PipeReader
 		stdoutMutex sync.Mutex
+	}
+
+	// interactiveStreamFunc runs an exec stream until the command exits or ctx ends, like
+	// remotecommand.Executor.StreamWithContext.
+	interactiveStreamFunc func(ctx context.Context, options remotecommand.StreamOptions) error
+
+	// startedReader reads a session's output. Its first read runs before the session is handed out, to see whether the
+	// command started, and its result is delivered to the first Read.
+	startedReader struct {
+		reader io.Reader
+
+		// started is closed once the first read returned, first and firstErr hold its result
+		started  chan struct{}
+		first    []byte
+		firstErr error
+		consumed bool
 	}
 
 	kubernetesExecSession struct {
@@ -402,19 +421,37 @@ func (p *ClabernetesProvider) ExecInteractive(
 		return nil, err
 	}
 
+	session, err := openInteractiveSession(ctx, executor.StreamWithContext, interactiveStartTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("command %v failed to start: %w", cmd, err)
+	}
+
+	return session, nil
+}
+
+// openInteractiveSession starts an interactive exec stream and waits until the command has started, which is when
+// it prints its first output, or until it failed. The exec reports a command that can't start only once the stream
+// runs, so returning right away would hand out a session that is already dead. A command that starts without
+// printing anything is handed out once startTimeout passes.
+func openInteractiveSession(
+	ctx context.Context,
+	stream interactiveStreamFunc,
+	startTimeout time.Duration,
+) (*kubernetesExecSession, error) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
 	ctx, cancel := context.WithCancel(ctx)
+	output := &startedReader{reader: stdoutR, started: make(chan struct{})}
 	session := &kubernetesExecSession{
-		Reader: stdoutR,
+		Reader: output,
 		stdinW: stdinW,
 		sizes:  createSizeQueue(),
 		cancel: cancel,
 	}
 
 	go func() {
-		err := executor.StreamWithContext(ctx, remotecommand.StreamOptions{
+		err := stream(ctx, remotecommand.StreamOptions{
 			Stdin:             stdinR,
 			Stdout:            stdoutW,
 			Tty:               true,
@@ -428,6 +465,20 @@ func (p *ClabernetesProvider) ExecInteractive(
 
 		_ = stdoutW.CloseWithError(err)
 	}()
+
+	go output.readFirst()
+
+	select {
+	case <-output.started:
+		if err := output.firstErr; err != nil && !errors.Is(err, io.EOF) && len(output.first) == 0 {
+			_ = session.Close()
+			return nil, err
+		}
+	case <-time.After(startTimeout):
+	case <-ctx.Done():
+		_ = session.Close()
+		return nil, ctx.Err()
+	}
 
 	return session, nil
 }
@@ -1182,6 +1233,35 @@ func (c *sidecarCapture) Close() {
 		_ = c.stdout.Close()
 	}
 	c.stdoutMutex.Unlock()
+}
+
+// readFirst does the first read of the output and stores its result for the first Read.
+func (r *startedReader) readFirst() {
+	buffer := make([]byte, 4096)
+	n, err := r.reader.Read(buffer)
+
+	r.first = buffer[:n]
+	r.firstErr = err
+	close(r.started)
+}
+
+func (r *startedReader) Read(p []byte) (int, error) {
+	if !r.consumed {
+		<-r.started
+
+		if len(r.first) > 0 {
+			n := copy(p, r.first)
+			r.first = r.first[n:]
+			return n, nil
+		}
+
+		r.consumed = true
+		if r.firstErr != nil {
+			return 0, r.firstErr
+		}
+	}
+
+	return r.reader.Read(p)
 }
 
 func (s *kubernetesExecSession) Write(p []byte) (int, error) { return s.stdinW.Write(p) }
