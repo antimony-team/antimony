@@ -1,6 +1,6 @@
 # Bugs found while writing the provider e2e tests
 
-Nothing in here has been fixed. Production code is left as it is until we go through this list.
+Bugs are fixed one by one as we go through the list. Fixed ones move to the "Fixed" section.
 
 Each entry is either **suspected** (found by reading the code, not reproduced yet) or **confirmed**
 (reproduced by a test, which is named in the entry).
@@ -45,26 +45,6 @@ The provider takes the first network with an address from `NetworkSettings.Netwo
 A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
-
-### 1. Node events are matched to labs by node name only
-
-- `runtime/instance/service.go` `registerProviderEventListener`
-- `deployment/containerlab.go` `RegisterListener` (passes only the `clab-node-name` label)
-- `deployment/clabernetes.go` `RegisterListener` (passes only the node label or deployment name)
-
-The provider reports a changed node by its name, without the lab. The instance service then picks the
-first lab in its map that has a node with that name. If two running labs both have a node called
-`host1`, an event from one lab can be applied to the other. That lab sees no state change, and the
-lab the event came from never refreshes its node. Containers of labs that Antimony doesn't manage
-(for example the desktop app's labs on the same Docker host) also trigger lookups.
-
-Confirmed with containerlab: three labs with the same node names, `host2` of the last one stopped and started
-three times behind Antimony's back. The lab missed 3 of its 6 node changes in two runs out of two; its node
-stayed "running" while the container was stopped. Which lab gets an event depends on map order, so the
-number of misses varies from run to run.
-
-Test: `TestProviderE2E_EventsReachTheRightLabWhenNodeNamesRepeat` (in `src/test`). Because the bug is random,
-it only logs how many changes were missed instead of failing.
 
 ### 2. Resizing a clabernetes shell while it closes can crash the server
 
@@ -159,6 +139,35 @@ Confirmed on a c9s 0.9.0 kind cluster.
 
 Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, marked with `knownBug`
 for clabernetes.
+
+## Fixed
+
+### 1. Node events are matched to labs by node name only
+
+- `runtime/instance/service.go` `registerProviderEventListener`
+- `deployment/containerlab.go` `RegisterListener` (passes only the `clab-node-name` label)
+- `deployment/clabernetes.go` `RegisterListener` (passes only the node label or deployment name)
+
+The provider reports a changed node by its name, without the lab. The instance service then picks the
+first lab in its map that has a node with that name. If two running labs both have a node called
+`host1`, an event from one lab can be applied to the other. That lab sees no state change, and the
+lab the event came from never refreshes its node. Containers of labs that Antimony doesn't manage
+(for example the desktop app's labs on the same Docker host) also trigger lookups.
+
+Confirmed with containerlab: three labs with the same node names, `host2` of the last one stopped and started
+three times behind Antimony's back. The lab missed 3 of its 6 node changes in two runs out of two; its node
+stayed "running" while the container was stopped. Which lab gets an event depends on map order, so the
+number of misses varies from run to run.
+
+Test: `TestProviderE2E_EventsReachTheRightLabWhenNodeNamesRepeat` (in `src/test`). Because the bug is random,
+it only logs how many changes were missed instead of failing.
+
+**Fixed:** the listener callback is now `onUpdate(instanceName, nodeName)`. Containerlab takes the lab from the
+container's `containerlab` label, clabernetes from the `c9s.run/topologyOwner` label, and the instance service
+only looks the node up in that lab. Events of labs Antimony doesn't run are dropped. The e2e test now asserts
+that no change is missed. New harness tests: `TestProviderEvent_EventIsRoutedToTheOwningInstance` (rewritten,
+it fails with the old lookup) and `TestProviderEvent_EventOfALabAntimonyDoesNotRunIsIgnored`. Still to run at
+the end: the e2e tests on both providers.
 
 ## Not bugs
 

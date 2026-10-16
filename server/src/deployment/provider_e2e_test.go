@@ -561,7 +561,7 @@ func (l *e2eLab) testNodeLifecycle(t *testing.T) {
 		require.NoError(t, l.provider.StopNode(ctx, l.name, "host2"))
 
 		l.waitForNodeState(t, "host2", NodeStates.Stopped)
-		events.waitFor(t, "host2")
+		events.waitFor(t, l.name+"/host2")
 
 		_, _, err := l.provider.Exec(ctx, l.name, "host2", []string{"true"})
 		require.ErrorIs(t, err, utils.ErrNodeNotRunning)
@@ -583,7 +583,7 @@ func (l *e2eLab) testNodeLifecycle(t *testing.T) {
 		require.NoError(t, l.provider.StartNode(ctx, l.name, "host2"))
 
 		l.waitForNodeState(t, "host2", NodeStates.Running)
-		events.waitFor(t, "host2")
+		events.waitFor(t, l.name+"/host2")
 		l.waitForExec(t, "host2")
 	})
 
@@ -595,7 +595,7 @@ func (l *e2eLab) testNodeLifecycle(t *testing.T) {
 		events.reset()
 		require.NoError(t, l.provider.RestartNode(ctx, l.name, "host1"))
 
-		events.waitFor(t, "host1")
+		events.waitFor(t, l.name+"/host1")
 		l.waitForNodeState(t, "host1", NodeStates.Running)
 		l.waitForExec(t, "host1")
 
@@ -770,17 +770,17 @@ func isICMPBetween(data []byte, source, destination string) bool {
 	return ip.SrcIP.String() == source && ip.DstIP.String() == destination
 }
 
-// nodeEvents records the node names a provider's listener reports.
+// nodeEvents records the nodes a provider's listener reports as "<instance>/<node>".
 type nodeEvents struct {
 	mu    sync.Mutex
 	names []string
 }
 
-func (e *nodeEvents) add(name string) {
+func (e *nodeEvents) add(instanceName string, nodeName string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.names = append(e.names, name)
+	e.names = append(e.names, instanceName+"/"+nodeName)
 }
 
 func (e *nodeEvents) reset() {

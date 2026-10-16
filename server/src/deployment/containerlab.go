@@ -332,7 +332,10 @@ func (p *ContainerlabProvider) DialNode(
 	return d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", ip, port))
 }
 
-func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error {
+func (p *ContainerlabProvider) RegisterListener(
+	ctx context.Context,
+	onUpdate func(instanceName string, nodeName string),
+) error {
 	eventFilter := filters.NewArgs()
 	eventFilter.Add("type", "container")
 	eventFilter.Add("event", "start")
@@ -348,10 +351,12 @@ func (p *ContainerlabProvider) RegisterListener(ctx context.Context, onUpdate fu
 	for {
 		select {
 		case msg := <-channel:
+			// Docker events carry the container's labels, containerlab labels its containers with the lab and node
+			instanceName := msg.Actor.Attributes["containerlab"]
 			nodeName := msg.Actor.Attributes["clab-node-name"]
 			// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
 			if nodeName != "" {
-				onUpdate(nodeName)
+				onUpdate(instanceName, nodeName)
 			}
 		case err := <-errs:
 			if err != nil {

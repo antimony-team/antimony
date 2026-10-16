@@ -40,7 +40,7 @@ type DummyProvider struct {
 	instances map[string]map[string]*DummyNode
 
 	// listener is the callback captured from RegisterListener.
-	listener func(nodeName string)
+	listener func(instanceName string, nodeName string)
 
 	// containerLogs holds the callbacks captured from StreamContainerLogs, keyed by
 	// "<instanceName>/<nodeName>".
@@ -213,7 +213,7 @@ func (p *DummyProvider) HasInstance(instanceName string) bool {
 
 // FireNodeEvent invokes the callback captured from RegisterListener, simulating a container event
 // pushed by the deployment backend. It reports whether a listener was registered.
-func (p *DummyProvider) FireNodeEvent(nodeName string) bool {
+func (p *DummyProvider) FireNodeEvent(instanceName string, nodeName string) bool {
 	p.mu.Lock()
 	listener := p.listener
 	p.mu.Unlock()
@@ -222,7 +222,7 @@ func (p *DummyProvider) FireNodeEvent(nodeName string) bool {
 		return false
 	}
 
-	listener(nodeName)
+	listener(instanceName, nodeName)
 
 	return true
 }
@@ -485,7 +485,7 @@ func (p *DummyProvider) DialNode(
 	return nil, fmt.Errorf("%w: no SSH listener on %s/%s:%d", ErrDummyProvider, instanceName, nodeName, port)
 }
 
-func (p *DummyProvider) RegisterListener(_ context.Context, onUpdate func(nodeName string)) error {
+func (p *DummyProvider) RegisterListener(_ context.Context, onUpdate func(instanceName string, nodeName string)) error {
 	p.record("RegisterListener", map[string]any{})
 
 	p.mu.Lock()

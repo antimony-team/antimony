@@ -15,8 +15,8 @@ import (
  * Deployment backend events.
  *
  * instance.registerProviderEventListener hands the provider a callback that is invoked whenever a
- * container changes. The service finds the instance the node belongs to, re-inspects it and only
- * broadcasts a lab update when the node's state actually moved.
+ * container changes, with the instance name of its lab and the node's name. The service finds that
+ * instance, re-inspects the node and only broadcasts a lab update when the node's state actually moved.
  */
 
 func TestProviderEvent_ListenerIsRegisteredOnStartup(t *testing.T) {
@@ -38,7 +38,7 @@ func TestProviderEvent_StateChangeBroadcastsALabUpdate(t *testing.T) {
 	h.Provider.SetNodeState(InstanceAdminLab, NodeHost, deployment.NodeStates.Stopped)
 
 	requireEventually(t, func() bool {
-		require.True(t, h.Provider.FireNodeEvent(NodeHost), "a listener must be registered")
+		require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, NodeHost), "a listener must be registered")
 
 		_, ok := updates.NextDataWithin(200 * time.Millisecond)
 
@@ -63,7 +63,7 @@ func TestProviderEvent_UnchangedStateBroadcastsNothing(t *testing.T) {
 
 	// The node is running and the provider still reports it as running, so fetchNode short-circuits
 	// and nothing is broadcast.
-	require.True(t, h.Provider.FireNodeEvent(NodeHost))
+	require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, NodeHost))
 
 	updates.ExpectNoData()
 }
@@ -76,7 +76,7 @@ func TestProviderEvent_UnknownNodeIsIgnored(t *testing.T) {
 	updates := h.Dial("/lab-updates", h.Seed.Admin.Token)
 
 	// A container that belongs to no tracked instance must be dropped silently.
-	require.True(t, h.Provider.FireNodeEvent("a-node-nobody-knows"))
+	require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, "a-node-nobody-knows"))
 
 	updates.ExpectNoData()
 }
@@ -87,7 +87,7 @@ func TestProviderEvent_EventForANodeOfANonRunningLabIsIgnored(t *testing.T) {
 	// Nothing is deployed, so there is no instance holding this node.
 	updates := h.Dial("/lab-updates", h.Seed.Admin.Token)
 
-	require.True(t, h.Provider.FireNodeEvent(NodeHost))
+	require.True(t, h.Provider.FireNodeEvent(InstanceAdminLab, NodeHost))
 
 	updates.ExpectNoData()
 }
@@ -95,32 +95,64 @@ func TestProviderEvent_EventForANodeOfANonRunningLabIsIgnored(t *testing.T) {
 func TestProviderEvent_EventIsRoutedToTheOwningInstance(t *testing.T) {
 	h := NewHarness(t)
 
-	// Two labs are running. Both topologies declare a node called host1, so the lookup is by node
-	// name across every instance and the first match wins.
+	// Both topologies declare a node called host1, the event names the lab it belongs to.
 	h.DeployLab(LabAdminID)
 	h.DeployLab(LabMemberID)
 
+	// Wait for the startup listeners to finish so their calls do not confuse the assertion.
+	requireEventually(t, func() bool {
+		return h.Provider.CallCount("GetNetworkInterfaces") >= 4
+	}, "the startup listeners must settle first")
+
 	updates := h.Dial("/lab-updates", h.Seed.Admin.Token)
 
-	h.Provider.SetNodeState(InstanceAdminLab, NodeHost, deployment.NodeStates.Stopped)
+	// Only the member lab's host1 stopped. Picking a lab by node name alone would inspect the admin lab's
+	// host1 for about half of the events, so ten of them leave no room for luck.
 	h.Provider.SetNodeState(InstanceMemberLab, NodeHost, deployment.NodeStates.Stopped)
+	h.Provider.ResetCalls()
+
+	for range 10 {
+		require.True(t, h.Provider.FireNodeEvent(InstanceMemberLab, NodeHost))
+	}
+
+	var inspected []string
+	for _, call := range h.Provider.Calls() {
+		if call.Method == "InspectNode" {
+			inspected = append(inspected, call.Args["instanceName"].(string))
+		}
+	}
+	require.Len(t, inspected, 10)
+	for _, instanceName := range inspected {
+		assert.Equal(t, InstanceMemberLab, instanceName, "an event must only refresh the node of its own lab")
+	}
+
+	var update instanceUpdatePayload
+	DecodePayload(t, updates.NextData(), &update)
+	require.NotNil(t, update.LabId)
+	assert.Equal(t, LabMemberID, *update.LabId)
+
+	assert.Equal(t, deployment.NodeStates.Stopped, nodeState(t, h, LabMemberID, NodeHost))
+	assert.Equal(t, deployment.NodeStates.Running, nodeState(t, h, LabAdminID, NodeHost))
+}
+
+func TestProviderEvent_EventOfALabAntimonyDoesNotRunIsIgnored(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
 
 	requireEventually(t, func() bool {
-		require.True(t, h.Provider.FireNodeEvent(NodeHost))
+		return h.Provider.WasCalled("GetNetworkInterfaces")
+	}, "the startup listeners must settle first")
 
-		value, ok := updates.NextDataWithin(200 * time.Millisecond)
-		if !ok {
-			return false
-		}
+	updates := h.Dial("/lab-updates", h.Seed.Admin.Token)
 
-		var update instanceUpdatePayload
-		DecodePayload(t, value, &update)
+	// A lab on the same host that Antimony doesn't manage, with a node of the same name.
+	h.Provider.SetNodeState(InstanceAdminLab, NodeHost, deployment.NodeStates.Stopped)
+	require.True(t, h.Provider.FireNodeEvent("someone-elses-lab", NodeHost))
 
-		require.NotNil(t, update.LabId)
-
-		// Whichever instance was matched, the update must name one of the two running labs.
-		return *update.LabId == LabAdminID || *update.LabId == LabMemberID
-	}, "the update must be attributed to a running lab")
+	updates.ExpectNoData()
+	assert.Equal(t, deployment.NodeStates.Running, nodeState(t, h, LabAdminID, NodeHost),
+		"the event must not refresh a node of another lab")
 }
 
 /*

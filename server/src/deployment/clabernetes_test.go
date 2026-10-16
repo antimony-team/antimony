@@ -904,7 +904,7 @@ func TestDestroy_SucceedsForAnAlreadyRemovedLab(t *testing.T) {
  * RegisterListener
  */
 
-// startListener runs RegisterListener until the test ends and returns the node names it reported.
+// startListener runs RegisterListener until the test ends and returns the nodes it reported as "<instance>/<node>".
 func startListener(t *testing.T, cluster *fakeCluster) func() []string {
 	t.Helper()
 
@@ -912,7 +912,7 @@ func startListener(t *testing.T, cluster *fakeCluster) func() []string {
 	t.Cleanup(cancel)
 
 	updates := &logCollector{}
-	go func() { _ = cluster.provider.RegisterListener(ctx, updates.log) }()
+	go func() { _ = cluster.provider.RegisterListener(ctx, updates.node) }()
 
 	return updates.all
 }
@@ -929,7 +929,12 @@ func TestRegisterListener_ReportsNodePodsAppearing(t *testing.T) {
 		return err == nil
 	}, time.Second, 10*time.Millisecond)
 
-	assert.Eventually(t, func() bool { return slices.Contains(updates(), "a1") }, 2*time.Second, 10*time.Millisecond)
+	assert.Eventually(
+		t,
+		func() bool { return slices.Contains(updates(), "demo/a1") },
+		2*time.Second,
+		10*time.Millisecond,
+	)
 }
 
 func TestRegisterListener_ReportsPodUpdatesOnlyWhenTheNodeStateChanges(t *testing.T) {
@@ -952,7 +957,7 @@ func TestRegisterListener_ReportsPodUpdatesOnlyWhenTheNodeStateChanges(t *testin
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool { return len(updates()) >= 2 }, 2*time.Second, 10*time.Millisecond)
-	assert.Equal(t, []string{"a1", "a1"}, updates())
+	assert.Equal(t, []string{"demo/a1", "demo/a1"}, updates())
 }
 
 func TestRegisterListener_ReportsNodesBeingScaled(t *testing.T) {
@@ -963,7 +968,12 @@ func TestRegisterListener_ReportsNodesBeingScaled(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	require.NoError(t, cluster.provider.StopNode(context.Background(), "demo", "a1"))
 
-	assert.Eventually(t, func() bool { return slices.Contains(updates(), "a1") }, 2*time.Second, 10*time.Millisecond)
+	assert.Eventually(
+		t,
+		func() bool { return slices.Contains(updates(), "demo/a1") },
+		2*time.Second,
+		10*time.Millisecond,
+	)
 }
 
 /*

@@ -512,7 +512,7 @@ func (p *ClabernetesProvider) DialNode(
 
 func (p *ClabernetesProvider) RegisterListener(
 	ctx context.Context,
-	onUpdate func(nodeName string),
+	onUpdate func(instanceName string, nodeName string),
 ) error {
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		p.clientset,
@@ -538,7 +538,10 @@ func (p *ClabernetesProvider) RegisterListener(
 		if pod == nil {
 			return
 		}
-		onUpdate(pod.Labels[clabernetesconstants.LabelTopologyNode])
+		onUpdate(
+			pod.Labels[clabernetesconstants.LabelTopologyOwner],
+			pod.Labels[clabernetesconstants.LabelTopologyNode],
+		)
 	}
 
 	_, err := factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -575,7 +578,7 @@ func (p *ClabernetesProvider) RegisterListener(
 			}
 
 			if replicas(o) != replicas(n) {
-				onUpdate(n.Name)
+				onUpdate(n.Labels[clabernetesconstants.LabelTopologyOwner], n.Name)
 			}
 		},
 	})

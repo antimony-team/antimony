@@ -411,8 +411,8 @@ func TestProviderE2E_NodeChangesOutsideAntimonyAreNoticed(t *testing.T) {
 	e.waitForNodeState(t, labId, "host2", deployment.NodeStates.Running)
 }
 
-// Providers report a changed node by its name only, so the instance service has to tell labs with the same node
-// names apart. Which lab it picks depends on map order, so the bug only shows up in some rounds.
+// Node names repeat across labs, so the provider's events have to reach the lab the node belongs to. Several labs
+// and rounds make sure it doesn't depend on map order.
 func TestProviderE2E_EventsReachTheRightLabWhenNodeNamesRepeat(t *testing.T) {
 	const labCount = 3
 	const rounds = 3
@@ -453,16 +453,12 @@ func TestProviderE2E_EventsReachTheRightLabWhenNodeNamesRepeat(t *testing.T) {
 		}
 	}
 
-	// The others labs' nodes keep running whatever was attributed to them
+	// The other labs' nodes keep running
 	for _, labId := range labIds[:labCount-1] {
 		assert.Equal(t, deployment.NodeStates.Running, e.nodes(labId)["host2"].State)
 	}
 
-	if missed > 0 {
-		t.Logf("known bug, see BUGS.md #1: the lab missed %d of %d changes of its node", missed, 2*rounds)
-	} else {
-		t.Logf("BUGS.md #1 didn't show up in %d changes, it depends on map order", 2*rounds)
-	}
+	assert.Zero(t, missed, "the lab missed %d of %d changes of its node", missed, 2*rounds)
 }
 
 /*

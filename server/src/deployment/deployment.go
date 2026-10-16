@@ -72,7 +72,9 @@ type DeploymentProvider interface {
 	// DialNode opens a TCP connection to a port on the node's management interface.
 	DialNode(ctx context.Context, instanceName string, nodeName string, port int) (net.Conn, error)
 
-	RegisterListener(ctx context.Context, onUpdate func(nodeName string)) error
+	// RegisterListener reports every change of a node until ctx ends. A node is identified by its lab's instance name
+	// and its own name, since node names repeat across labs.
+	RegisterListener(ctx context.Context, onUpdate func(instanceName string, nodeName string)) error
 
 	ReadNodeStats(
 		ctx context.Context,

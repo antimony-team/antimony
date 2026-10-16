@@ -1008,15 +1008,15 @@ func TestContainerlabRegisterListener_ReportsContainerlabNodesOnly(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)
 
-	go func() { done <- (&ContainerlabProvider{client: docker}).RegisterListener(ctx, updates.log) }()
+	go func() { done <- (&ContainerlabProvider{client: docker}).RegisterListener(ctx, updates.node) }()
 
-	docker.events <- events.Message{Actor: events.Actor{Attributes: map[string]string{"clab-node-name": "srl1"}}}
+	docker.events <- nodeEvent("demo", "srl1")
 	docker.events <- events.Message{Actor: events.Actor{Attributes: map[string]string{"name": "unrelated"}}}
-	docker.events <- events.Message{Actor: events.Actor{Attributes: map[string]string{"clab-node-name": "host1"}}}
+	docker.events <- nodeEvent("other", "srl1")
 	cancel()
 
 	require.ErrorIs(t, <-done, context.Canceled)
-	assert.Equal(t, []string{"srl1", "host1"}, updates.all())
+	assert.Equal(t, []string{"demo/srl1", "other/srl1"}, updates.all(), "a node is reported with its lab")
 
 	docker.mu.Lock()
 	defer docker.mu.Unlock()
@@ -1031,9 +1031,17 @@ func TestContainerlabRegisterListener_StopsOnAnEventStreamError(t *testing.T) {
 	docker := newFakeDocker()
 	docker.eventErrs <- errors.New("daemon went away")
 
-	err := (&ContainerlabProvider{client: docker}).RegisterListener(context.Background(), func(string) {})
+	err := (&ContainerlabProvider{client: docker}).RegisterListener(context.Background(), func(string, string) {})
 
 	assert.EqualError(t, err, "daemon went away")
+}
+
+// nodeEvent is a Docker event of a containerlab node's container, which carries the container's labels.
+func nodeEvent(lab, node string) events.Message {
+	return events.Message{Actor: events.Actor{Attributes: map[string]string{
+		"containerlab":   lab,
+		"clab-node-name": node,
+	}}}
 }
 
 /*

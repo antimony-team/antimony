@@ -799,7 +799,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 }
 
 func (s *Service) registerProviderEventListener(ctx context.Context) {
-	_ = s.deploymentProvider.RegisterListener(ctx, func(nodeName string) {
+	_ = s.deploymentProvider.RegisterListener(ctx, func(instanceName string, nodeName string) {
 		var targetLabId string
 		var targetInstance *Instance
 		var targetNode *InstanceNode
@@ -809,18 +809,19 @@ func (s *Service) registerProviderEventListener(ctx context.Context) {
 		s.instancesMutex.Unlock()
 
 		for labId, instance := range instances {
-			instance.DataMutex.Lock()
+			if instance.Name != instanceName {
+				continue
+			}
 
+			instance.DataMutex.Lock()
 			if node, ok := instance.Nodes[nodeName]; ok {
 				targetLabId = labId
 				targetInstance = instance
 				targetNode = node
-
-				instance.DataMutex.Unlock()
-				break
 			}
-
 			instance.DataMutex.Unlock()
+
+			break
 		}
 
 		if targetLabId != "" {

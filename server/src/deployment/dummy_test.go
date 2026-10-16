@@ -19,6 +19,11 @@ func (c *logCollector) log(line string) {
 	c.lines = append(c.lines, line)
 }
 
+// node records a node a listener reports as "<instance>/<node>".
+func (c *logCollector) node(instanceName string, nodeName string) {
+	c.log(instanceName + "/" + nodeName)
+}
+
 func (c *logCollector) all() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
