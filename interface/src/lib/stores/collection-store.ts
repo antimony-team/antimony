@@ -15,6 +15,21 @@ export class CollectionStore extends DataStore<
     return this.data.length > 0;
   }
 
+  /**
+   * Whether the user may create labs from the topologies of a collection: admins
+   * always, everyone else if anyone can deploy in it.
+   */
+  public canDeployIn(collectionId: string): boolean {
+    if (this.rootStore._dataBinder.authUser.isAdmin) return true;
+
+    return this.lookup.get(collectionId)?.publicDeploy ?? false;
+  }
+
+  @computed
+  public get hasDeployableCollections(): boolean {
+    return this.data.some(collection => this.canDeployIn(collection.id));
+  }
+
   protected get resourcePath(): string {
     return '/collections';
   }

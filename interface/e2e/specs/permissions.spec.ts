@@ -261,14 +261,11 @@ test.describe('interface', () => {
     await editor.graph.waitForNodes(2);
   });
 
-  test('without "Anyone can deploy" members get no Deploy button', async ({
+  test('without "Anyone can deploy" members get no Deploy buttons', async ({
     createCollection,
     createTopology,
     loginAs,
   }) => {
-    knownBug(
-      "the editor's and the explorer's Deploy buttons ignore publicDeploy (only the context menu checks it)",
-    );
     const collection = await createCollection({publicWrite: true});
     const topology = await createTopology({collection});
     const user = await loginAs({collections: [collection]});
@@ -276,6 +273,28 @@ test.describe('interface', () => {
     await editor.open(topology.id, topology.name);
 
     await expect(editor.editor.deploy).toBeHidden();
+    await editor.explorer.expand(collection.name);
+    await editor.explorer.row(topology.name).hover();
+    await expect(
+      editor.explorer.rowButton(topology.name, 'Deploy Topology'),
+    ).toBeHidden();
+    await editor.explorer.row(topology.name).click({button: 'right'});
+    await expect(menuItem(user.page, 'Deploy')).toHaveCount(0);
+  });
+
+  test('with "Anyone can deploy" members get the Deploy buttons', async ({
+    createCollection,
+    createTopology,
+    loginAs,
+  }) => {
+    const collection = await createCollection({publicDeploy: true});
+    const topology = await createTopology({collection});
+    const user = await loginAs({collections: [collection]});
+    const editor = new EditorPage(user.page);
+
+    await editor.open(topology.id, topology.name);
+
+    await expect(editor.editor.deploy).toBeVisible();
   });
 
   test('a member can add a topology to a collection anyone can edit', async ({
@@ -360,25 +379,57 @@ test.describe('interface', () => {
     await api.deleteLab(lab!.id);
   });
 
-  test('creating a lab in a collection nobody may deploy shows an error', async ({
+  test('users who may not deploy anywhere get no New lab button', async ({
+    createCollection,
+    createLab,
+    loginAs,
+  }) => {
+    const collection = await createCollection({publicWrite: true});
+    await createLab({collection});
+    const user = await loginAs({collections: [collection]});
+    const dashboard = new DashboardPage(user.page);
+
+    await dashboard.goto();
+    await expect(dashboard.explorerItem(collection.name)).toBeVisible();
+
+    await expect(dashboard.newLab).toBeHidden();
+  });
+
+  test('the deploy dialog only offers topologies the user may deploy', async ({
     createCollection,
     createTopology,
     loginAs,
-    uniqueName,
   }) => {
-    const collection = await createCollection({publicWrite: true});
-    const topology = await createTopology({collection});
-    const user = await loginAs({collections: [collection]});
+    const deployable = await createCollection({publicDeploy: true});
+    const readOnly = await createCollection();
+    const offered = await createTopology({collection: deployable});
+    const hidden = await createTopology({collection: readOnly});
+    const user = await loginAs({collections: [deployable, readOnly]});
     await new DashboardPage(user.page).goto();
 
     await new DashboardPage(user.page).newLab.click();
     const dialog = new LabEditDialog(user.page);
-    await dialog.setName(uniqueName('lab'));
-    await dialog.selectTopology(topology.name);
-    await dialog.submit('Deploy');
+    await dialog.root.locator('.p-dropdown:has(#edit-lab-topology)').click();
 
-    await expect(user.page.locator('.p-toast-message-error')).toBeVisible();
-    await expect(dialog.root).toBeVisible();
+    const options = user.page.locator('.p-dropdown-panel').getByRole('option');
+    await expect(options.filter({hasText: offered.name})).toHaveCount(1);
+    await expect(options.filter({hasText: hidden.name})).toHaveCount(0);
+  });
+
+  test('only admins get the lab schedule', async ({
+    page,
+    createCollection,
+    loginAs,
+  }) => {
+    const collection = await createCollection({publicDeploy: true});
+    const user = await loginAs({collections: [collection]});
+
+    await user.page.goto('/');
+    await expect(new Dock(user.page).logout).toBeVisible();
+    await expect(new Dock(user.page).schedule).toBeHidden();
+
+    await page.goto('/');
+    await expect(new Dock(page).schedule).toBeVisible();
   });
 
   test("a member's own lab can be deployed and destroyed by them", async ({

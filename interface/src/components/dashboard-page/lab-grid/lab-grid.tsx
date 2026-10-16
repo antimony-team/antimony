@@ -11,7 +11,7 @@ import LabEntry from '@sb/components/dashboard-page/lab-grid/lab-entry/lab-entry
 import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {oneOf, setOf, usePersistentState} from '@sb/lib/utils/persistent-state';
-import {Choose, Otherwise, When} from '@sb/types/control';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {InstanceState, InstanceStates, Lab} from '@sb/types/domain/lab';
 
 import './lab-grid.sass';
@@ -28,6 +28,11 @@ interface LabGridProps {
 const LabGrid = (props: LabGridProps) => {
   const labStore = useLabStore();
   const collectionStore = useCollectionStore();
+
+  // In the selected collection, or in any collection when all labs are shown
+  const canCreateLab = props.collectionFilter
+    ? collectionStore.canDeployIn(props.collectionFilter)
+    : collectionStore.hasDeployableCollections;
 
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
@@ -106,17 +111,19 @@ const LabGrid = (props: LabGridProps) => {
       title={`No labs in ${collectionStore.lookup.get(props.collectionFilter!)?.name} yet`}
       text="Deploy one of this collection's topologies to start a lab."
     >
-      <Button
-        outlined
-        icon="pi pi-plus"
-        label="New lab"
-        onClick={() => {
-          props.labEditDialogState.openWith({
-            editingLab: null,
-            action: DialogAction.Add,
-          });
-        }}
-      />
+      <If condition={canCreateLab}>
+        <Button
+          outlined
+          icon="pi pi-plus"
+          label="New lab"
+          onClick={() => {
+            props.labEditDialogState.openWith({
+              editingLab: null,
+              action: DialogAction.Add,
+            });
+          }}
+        />
+      </If>
     </SBEmptyState>
   );
 
@@ -180,17 +187,19 @@ const LabGrid = (props: LabGridProps) => {
             </div>
           ))}
         </div>
-        <Button
-          className="sb-button-accent"
-          icon="pi pi-plus"
-          label="New lab"
-          onClick={() =>
-            props.labEditDialogState.openWith({
-              editingLab: null,
-              action: DialogAction.Add,
-            })
-          }
-        />
+        <If condition={canCreateLab}>
+          <Button
+            className="sb-button-accent"
+            icon="pi pi-plus"
+            label="New lab"
+            onClick={() =>
+              props.labEditDialogState.openWith({
+                editingLab: null,
+                action: DialogAction.Add,
+              })
+            }
+          />
+        </If>
       </div>
       <div className="sb-lab-grid-content" ref={containerRef}>
         <Choose>

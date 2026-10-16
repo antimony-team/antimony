@@ -302,6 +302,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   const topologyGroups = useMemo(
     () =>
       collectionStore.data
+        .filter(collection => collectionStore.canDeployIn(collection.id))
         .map(collection => ({
           label: collection.name,
           items: topologyStore.data

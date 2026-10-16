@@ -47,6 +47,11 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
   const topologyStore = useTopologyStore();
   const collectionStore = useCollectionStore();
 
+  const isDeployable = useMemo(() => {
+    const topology = topologyStore.lookup.get(props.node.key as string);
+    return !!topology && collectionStore.canDeployIn(topology.collectionId);
+  }, [authUser, collectionStore.data, topologyStore.data]);
+
   const isCollectionWritable = useMemo(() => {
     if (props.node.type !== ExplorerTreeNodeType.Topology) {
       return false;
@@ -130,16 +135,18 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
 
           {/* Topology */}
           <When condition={props.node.type === ExplorerTreeNodeType.Topology}>
-            <Button
-              text
-              icon="pi pi-play"
-              onClick={e => {
-                e.stopPropagation();
-                props.onDeployTopology(props.node.key as uuid4);
-              }}
-              aria-label="Deploy Topology"
-              className="sb-button-green"
-            />
+            <If condition={isDeployable}>
+              <Button
+                text
+                icon="pi pi-play"
+                onClick={e => {
+                  e.stopPropagation();
+                  props.onDeployTopology(props.node.key as uuid4);
+                }}
+                aria-label="Deploy Topology"
+                className="sb-button-green"
+              />
+            </If>
             <Button
               text
               icon={

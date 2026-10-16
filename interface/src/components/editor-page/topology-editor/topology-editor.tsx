@@ -608,7 +608,12 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               tooltipOptions={{position: 'bottom', showDelay: 500}}
               aria-label="Download"
             />
-            <If condition={openTopology}>
+            <If
+              condition={
+                openTopology &&
+                collectionStore.canDeployIn(openTopology.collectionId)
+              }
+            >
               <span className="sb-editor-toolbar-separator" />
               <Button
                 outlined

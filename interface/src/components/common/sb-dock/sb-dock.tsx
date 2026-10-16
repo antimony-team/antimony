@@ -146,15 +146,18 @@ const SBDock = observer(() => {
           tooltipOptions={dockButtonTooltipOptions}
           aria-label="Messages"
         />
-        <Button
-          text
-          icon="pi pi-calendar"
-          size="large"
-          tooltip="Lab Schedule"
-          tooltipOptions={dockButtonTooltipOptions}
-          onClick={() => setCalendarOpen(true)}
-          aria-label="Lab Schedule"
-        />
+        {/* Only admins schedule labs for others */}
+        <If condition={authUser.isAdmin}>
+          <Button
+            text
+            icon="pi pi-calendar"
+            size="large"
+            tooltip="Lab Schedule"
+            tooltipOptions={dockButtonTooltipOptions}
+            onClick={() => setCalendarOpen(true)}
+            aria-label="Lab Schedule"
+          />
+        </If>
         <Button
           text
           icon="pi pi-info-circle"

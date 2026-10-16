@@ -127,13 +127,20 @@ Users see buttons that then fail.
   deploy, redeploy and destroy buttons and menu entries, and the nodes' start, stop and restart buttons
   and menu entries, from everyone else. Logs and terminals stay available to members.
 
-### 11. The Deploy buttons ignore "Anyone can deploy"
+### 11. ~~The Deploy buttons ignore "Anyone can deploy"~~ (fixed)
 
-- **Status:** verified — `permissions.spec.ts` › "without "Anyone can deploy" members get no Deploy button"
+- **Status:** fixed — `permissions.spec.ts` › "without "Anyone can deploy" members get no Deploy buttons",
+  "users who may not deploy anywhere get no New lab button", "the deploy dialog only offers topologies the
+  user may deploy"
 - **Where:** `components/editor-page/topology-editor/topology-editor.tsx` (toolbar),
   `explorer-tree-node.tsx` (row button). Only the explorer's context menu checks it.
 - **What happens:** the editor's Deploy button and the topology row's Deploy button are shown in
   collections nobody may deploy. The dashboard's "New lab" lists all topologies, too.
+- **Fix:** `CollectionStore.canDeployIn()` says whether the user may deploy in a collection (admins always,
+  others with "Anyone can deploy"). The Deploy buttons of the editor and the explorer are hidden where it's
+  false, the deploy dialog only lists deployable topologies, and "New lab" is hidden when there's nowhere
+  to deploy. Unsafe topologies are left to bug 14.
+- **Also changed:** the lab schedule in the dock is only shown to admins.
 
 ### 12. The graph editor ignores read-only topologies
 

@@ -745,7 +745,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
       const entries = [];
 
-      if (authUser.isAdmin || collection.publicDeploy) {
+      if (collectionStore.canDeployIn(collection.id)) {
         entries.push({
           id: 'deploy',
           label: 'Deploy',
