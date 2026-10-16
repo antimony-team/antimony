@@ -104,6 +104,7 @@ const DashboardPage = observer(() => {
             setCollectionFilter={setCollectionFilter}
             collectionLabStateCounts={collectionLabStateCounts}
             collectionLabCounts={collectionLabCounts}
+            typeToSearch={openLab === null}
           />
         </SplitterPanel>
         <SplitterPanel

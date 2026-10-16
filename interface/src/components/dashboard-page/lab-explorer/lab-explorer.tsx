@@ -17,6 +17,9 @@ interface LabExplorerProps {
 
   collectionLabCounts: Record<string, number>;
   collectionLabStateCounts: Record<string, Record<string, number>>;
+
+  // Whether typing anywhere on the page goes into the search, e.g. while no lab is open
+  typeToSearch: boolean;
 }
 
 const LabExplorer = (props: LabExplorerProps) => {
@@ -31,6 +34,40 @@ const LabExplorer = (props: LabExplorerProps) => {
       searchQueryFieldRef.current.value = '';
     }
   }, [labStore.searchQuery]);
+
+  useEffect(() => {
+    if (!props.typeToSearch) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      const input = searchQueryFieldRef.current;
+      if (!input || document.activeElement === input) return;
+
+      // Only characters, no shortcuts
+      if (
+        event.key.length !== 1 ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      // Typing in other fields, dialogs and panels stays there
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
+      if (document.querySelector('.p-dialog-mask, .p-overlaypanel')) return;
+
+      // The character goes into the field that has the focus once the key is handled
+      input.focus();
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [props.typeToSearch]);
 
   function handleSearchChange(value: string) {
     if (typingTimeoutRef.current) {

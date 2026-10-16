@@ -214,6 +214,32 @@ test('the search shows only matching labs', async ({page, createLab}) => {
   await expect(dashboard.card(other.name)).toBeVisible();
 });
 
+test('typing anywhere on the dashboard searches', async ({page, createLab}) => {
+  const match = await createLab();
+  const other = await createLab({collection: match.topology.collection});
+  const dashboard = new DashboardPage(page);
+  await dashboard.goto();
+  await expect(dashboard.card(other.name)).toBeVisible();
+
+  // Nothing has the focus, the characters go into the search
+  await page.keyboard.type(match.name);
+
+  await expect(dashboard.search).toHaveValue(match.name);
+  await expect(dashboard.search).toBeFocused();
+  await expect(dashboard.card(other.name)).toBeHidden();
+});
+
+test('typing in an open lab does not search', async ({page, createLab}) => {
+  const lab = await createLab();
+  const labView = new LabView(page);
+  await labView.open(lab.id);
+  await expect(labView.title).toContainText(lab.name);
+
+  await page.keyboard.type('abc');
+
+  await expect(new DashboardPage(page).search).toHaveValue('');
+});
+
 test('a lab without an end time that starts later is shown as scheduled', async ({
   page,
   createLab,

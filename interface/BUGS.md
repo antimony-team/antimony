@@ -272,6 +272,8 @@ Users see buttons that then fail.
   `lab-grid.tsx`). The grid is an `observer` now, so it updates while typing. The "No labs match …" empty
   state with "Clear search" works again; the lab explorer is an `observer` too, so "Clear search" also
   empties the search field.
+- **Also added:** while no lab is open, typing anywhere on the dashboard goes into the search field
+  (`typeToSearch` in `lab-explorer.tsx`).
 
 ### 24. Labs that start later and run indefinitely are shown as Inactive
 
