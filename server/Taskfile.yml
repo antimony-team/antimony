@@ -70,7 +70,8 @@ tasks:
     dir: './build'
     cmds:
       - task: build
-      - ./antimony-server -config=./config-c9s.yml
+        # We have to run this in sudo as well, as files created by a previous run task won't be accessible otherwise
+      - sudo -E ./antimony-server -config=./config-c9s.yml -dev
     env:
       # Secret of the test OIDC provider that ships with the repo, not a real credential
       SB_OIDC_SECRET: MHRymVDdv9t21ko4FGNGpXTvuLsjRtJd
