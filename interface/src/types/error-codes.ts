@@ -22,6 +22,8 @@ export enum ErrorCodes {
 
   ErrorInvalidTopologyName = 3004,
 
+  ErrorUnsafeTopology = 3005,
+
   ErrorBindFileExists = 4001,
 
   /*

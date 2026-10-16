@@ -169,13 +169,16 @@ Users see buttons that then fail.
 - **Not done:** topology rows can still be dragged by their creator into collections the server won't
   accept, which ends in an error toast.
 
-### 15. Errors when creating a lab are titled "Failed to update lab"
+### 15. ~~Errors when creating a lab are titled "Failed to update lab"~~ (fixed)
 
-- **Status:** verified — `policy.spec.ts` › "the error for a refused lab is titled for creating, not
-  updating"
+- **Status:** fixed — `policy.spec.ts` › "the error for a refused lab is titled for creating, not
+  updating", "a user deploying an unsafe topology is told why it was refused"
 - **Where:** `components/common/lab-edit-dialog/lab-edit-dialog.tsx`
 - **What happens:** e.g. "Failed to update lab — the topology contains unsafe features that the server
   rejected" for a new lab. Code 3005 isn't in `types/error-codes.ts`.
+- **Fix:** the error is titled "Failed to create lab". Code 3005 is in `ErrorCodes` and shown as "This
+  topology uses features that only admins can deploy.", and when several labs fail, the message adds the
+  reason of the first failure.
 
 ---
 

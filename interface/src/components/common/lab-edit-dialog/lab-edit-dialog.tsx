@@ -205,8 +205,8 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             );
           } else {
             notificationStore.error(
-              result.error.message,
-              'Failed to update lab',
+              createErrorMessage(result.error),
+              'Failed to create lab',
             );
           }
         } else {
@@ -215,6 +215,13 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         }
       });
     }
+  }
+
+  function createErrorMessage(error: {code: number; message: string}) {
+    if (error.code === ErrorCodes.ErrorUnsafeTopology) {
+      return 'This topology uses features that only admins can deploy.';
+    }
+    return error.message;
   }
 
   async function deployBatch(newLab: LabIn) {
@@ -238,6 +245,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       instanceNames.map(name => labStore.add<string>({...newLab, name})),
     );
     const failed = instanceNames.filter((_, i) => results[i].isErr());
+    const firstError = results.find(result => result.isErr());
 
     if (failed.length === 0) {
       notificationStore.success(
@@ -247,8 +255,9 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       return;
     }
 
+    // Usually all fail for the same reason, so the first one explains it
     notificationStore.error(
-      `Couldn't create ${failed.join(', ')}.`,
+      `Couldn't create ${failed.join(', ')}: ${createErrorMessage(firstError!.error)}`,
       `Failed to deploy ${failed.length} of ${instanceNames.length} labs`,
     );
     if (failed.length < instanceNames.length) props.dialogState.close();

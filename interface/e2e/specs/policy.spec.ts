@@ -1,5 +1,5 @@
 import {ApiError} from '../fixtures/api';
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {DashboardPage} from '../pages/dashboard-page';
 import {LabEditDialog} from '../pages/lab-edit-dialog';
 
@@ -83,7 +83,9 @@ test('a user deploying an unsafe topology is told why it was refused', async ({
   await dialog.submit('Deploy');
 
   const error = user.page.locator('.p-toast-message-error');
-  await expect(error).toContainText('unsafe features');
+  await expect(error).toContainText(
+    'This topology uses features that only admins can deploy.',
+  );
 });
 
 test('the error for a refused lab is titled for creating, not updating', async ({
@@ -92,9 +94,6 @@ test('the error for a refused lab is titled for creating, not updating', async (
   loginAs,
   uniqueName,
 }) => {
-  knownBug(
-    'errors when creating a lab are shown with the title "Failed to update lab"',
-  );
   const collection = await createCollection({publicDeploy: true});
   const topology = await createTopology({
     collection,
