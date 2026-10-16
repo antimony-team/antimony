@@ -264,19 +264,18 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   function onSelectionChange(e: TreeSelectionEvent) {
     if (e.value === null) return;
 
+    const key = e.value as string;
     if (
-      collectionStore.lookup.get(e.value as string) ||
-      (e.value as string).split('-').length === 6
+      topologyStore.lookup.has(key) ||
+      topologyStore.bindFileLookup.has(key)
     ) {
-      // If the node is a collection or a bind file directory treat the click as expanded toggle
-      if (expandedNodes.has(e.value as string)) {
-        collapseNode(e.value as string);
-      } else {
-        expandNode(e.value as string);
-      }
-    } else {
       // If the node is a topology or a bind file, open the topology / bind file
-      executeEditDiscardingAction(() => props.onOpenFile(e.value as string));
+      executeEditDiscardingAction(() => props.onOpenFile(key));
+    } else if (expandedNodes.has(key)) {
+      // Collections and bind file directories toggle on click
+      collapseNode(key);
+    } else {
+      expandNode(key);
     }
   }
 

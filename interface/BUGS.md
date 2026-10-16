@@ -318,11 +318,13 @@ Users see buttons that then fail.
 - **Fix:** The menu downloads the topology as last saved (`TopologyManager.savedTopology`), also while it's
   open with unsaved edits. The toolbar and the menu share `downloadTopologyDefinition` in `lib/utils/utils.ts`.
 
-### 29. Directories with a dash in their name don't open
+### 29. ~~Directories with a dash in their name don't open~~ (fixed)
 
-- **Status:** verified — `bind-files.spec.ts` › "a directory with a dash in its name opens on click"
-- **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (directories are recognised by
-  `key.split('-').length === 6`, so `core-1/` counts as a file)
+- **Status:** fixed — `bind-files.spec.ts` › "a directory with a dash in its name opens on click"
+- **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (directories were recognised by
+  `key.split('-').length === 6`, so `core-1/` counted as a file)
+- **Fix:** A click opens the node if its key is a topology or bind file, and toggles it otherwise, so
+  directory keys are no longer parsed.
 
 ### 30. Bind files get no unsaved marker
 

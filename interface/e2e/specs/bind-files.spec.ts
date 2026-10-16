@@ -302,9 +302,6 @@ test.describe('directories', () => {
     page,
     createTopology,
   }) => {
-    knownBug(
-      'directories are recognised by the number of dashes in their key, so names with a dash are treated as files',
-    );
     const topology = await createTopology({files: {'core-1/startup.cfg': 'a'}});
     const editor = new EditorPage(page);
     await editor.goto();
