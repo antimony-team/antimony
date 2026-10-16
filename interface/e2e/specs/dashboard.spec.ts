@@ -244,7 +244,6 @@ test('a lab without an end time that starts later is shown as scheduled', async 
   page,
   createLab,
 }) => {
-  knownBug('labs that start later and run indefinitely are shown as Inactive');
   const lab = await createLab({endTime: null});
   const dashboard = new DashboardPage(page);
   await dashboard.goto();

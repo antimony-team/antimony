@@ -380,14 +380,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   ) {
     if (instance !== null) return instance.state;
 
-    if (endTime !== null) {
-      const isBeforeEndTime = endTime >= dayjs(new Date()).toDate();
-      const isBeforeStartTime =
-        startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate();
+    // Labs without an end time run indefinitely, the server still starts them at their start time
+    const isBeforeEndTime =
+      endTime === null || endTime >= dayjs(new Date()).toDate();
+    const isBeforeStartTime =
+      startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate();
 
-      if (isBeforeStartTime && isBeforeEndTime) {
-        return InstanceState.Scheduled;
-      }
+    if (isBeforeStartTime && isBeforeEndTime) {
+      return InstanceState.Scheduled;
     }
 
     return InstanceState.Inactive;

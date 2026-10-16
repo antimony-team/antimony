@@ -275,11 +275,13 @@ Users see buttons that then fail.
 - **Also added:** while no lab is open, typing anywhere on the dashboard goes into the search field
   (`typeToSearch` in `lab-explorer.tsx`).
 
-### 24. Labs that start later and run indefinitely are shown as Inactive
+### 24. ~~Labs that start later and run indefinitely are shown as Inactive~~ (fixed)
 
-- **Status:** verified — `dashboard.spec.ts` › "a lab without an end time that starts later is shown as
+- **Status:** fixed — `dashboard.spec.ts` › "a lab without an end time that starts later is shown as
   scheduled"
 - **Where:** `lib/stores/lab-store.ts` (a lab is only Scheduled if it has an end time)
+- **Fix:** a lab without an instance is Scheduled while it hasn't started, if it has no end time or the
+  end time hasn't passed (`getInstanceState`). The calendar still only shows labs with an end time.
 
 ### 25. Collapsing the Scheduled group isn't remembered
 
