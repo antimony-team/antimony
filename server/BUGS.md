@@ -46,23 +46,6 @@ A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
 
-### 2. Resizing a clabernetes shell while it closes can crash the server
-
-- `deployment/clabernetes.go` `kubernetesExecSession.Close` closes the size channel
-- `deployment/clabernetes.go` `sizeQueue.push` sends on it
-- `runtime/shell/service.go` `ResizeShellCommand` gets the shell, releases the lock, then calls `Resize`
-
-If the shell is closed between the lookup and the `Resize` call, `push` sends on a closed channel, which
-panics even inside a `select` with a `default`. A second `Close` also panics (closing a closed channel).
-
-Confirmed on a c9s 0.9.0 kind cluster and with a throwaway unit test on `kubernetesExecSession`: `Resize` after `Close` panics with "send on
-closed channel", and a second `Close` panics with "close of closed channel". The panic happens in the
-socket handler's goroutine, so it takes the whole server down.
-
-Test: `TestProviderE2E/ExecInteractive/resizing_or_closing_a_closed_session_is_harmless`, marked with
-`knownBug` for clabernetes (it passes for containerlab).
-
-
 ### 9. Containerlab reports a missing lab or node container as a generic failure
 
 - `deployment/containerlab.go` `InspectLab` (and `InspectNode`, which calls it)
@@ -141,6 +124,30 @@ Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, 
 for clabernetes.
 
 ## Fixed
+
+### 2. Resizing a clabernetes shell while it closes can crash the server
+
+- `deployment/clabernetes.go` `kubernetesExecSession.Close` closes the size channel
+- `deployment/clabernetes.go` `sizeQueue.push` sends on it
+- `runtime/shell/service.go` `ResizeShellCommand` gets the shell, releases the lock, then calls `Resize`
+
+If the shell is closed between the lookup and the `Resize` call, `push` sends on a closed channel, which
+panics even inside a `select` with a `default`. A second `Close` also panics (closing a closed channel).
+
+Confirmed on a c9s 0.9.0 kind cluster and with a throwaway unit test on `kubernetesExecSession`: `Resize` after `Close` panics with "send on
+closed channel", and a second `Close` panics with "close of closed channel". The panic happens in the
+socket handler's goroutine, so it takes the whole server down.
+
+Test: `TestProviderE2E/ExecInteractive/resizing_or_closing_a_closed_session_is_harmless`, marked with
+`knownBug` for clabernetes (it passes for containerlab).
+
+**Fixed:** `sizeQueue` never closes the channel it sends on anymore. A `done` channel, closed once, ends the queue.
+`kubernetesExecSession.Close` only acts on its first call, and `Resize` after `Close` returns `io.ErrClosedPipe`.
+The `ShellExecSession` interface now says that `Close` may be called more than once and must not panic. The
+shell service still closes a session from more than one goroutine; with the provider fixed, that's harmless.
+New unit tests: `TestKubernetesExecSession_ResizingOrClosingAClosedSessionIsHarmless` and
+`TestKubernetesExecSession_ResizingWhileItClosesIsHarmless`. The `knownBug` marker in the e2e test is removed.
+Still to run at the end: the e2e tests on clabernetes.
 
 ### 1. Node events are matched to labs by node name only
 

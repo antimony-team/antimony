@@ -95,13 +95,18 @@ type (
 
 	kubernetesExecSession struct {
 		io.Reader
-		stdinW *io.PipeWriter
-		sizes  *sizeQueue
-		cancel context.CancelFunc
+		stdinW    *io.PipeWriter
+		sizes     *sizeQueue
+		cancel    context.CancelFunc
+		closeOnce sync.Once
 	}
 
+	// sizeQueue hands terminal sizes to the exec stream. Its channel is never closed, since a resize can race with
+	// closing the session, closing done ends the queue instead.
 	sizeQueue struct {
-		ch chan remotecommand.TerminalSize
+		ch        chan remotecommand.TerminalSize
+		done      chan struct{}
+		closeOnce sync.Once
 	}
 
 	// containerRef locates an already-appended container in the inspect output, so a pod that is still
@@ -1168,30 +1173,49 @@ func (c *sidecarCapture) Close() {
 func (s *kubernetesExecSession) Write(p []byte) (int, error) { return s.stdinW.Write(p) }
 
 func (s *kubernetesExecSession) Resize(cols, rows uint) error {
-	s.sizes.push(cols, rows)
+	if !s.sizes.push(cols, rows) {
+		return io.ErrClosedPipe
+	}
 	return nil
 }
 
+// Close ends the session. Only the first call has an effect, later ones return nil.
 func (s *kubernetesExecSession) Close() error {
-	err := s.stdinW.Close()
-	s.cancel()
-	close(s.sizes.ch)
+	var err error
+	s.closeOnce.Do(func() {
+		err = s.stdinW.Close()
+		s.cancel()
+		s.sizes.close()
+	})
 	return err
 }
 
 func (q *sizeQueue) Next() *remotecommand.TerminalSize {
-	s, ok := <-q.ch
-	if !ok {
+	select {
+	case s := <-q.ch:
+		return &s
+	case <-q.done:
 		return nil
 	}
-	return &s
 }
 
-func (q *sizeQueue) push(cols, rows uint) {
+// push queues a size without blocking, dropping it if the queue is full. It reports false once the queue is closed.
+func (q *sizeQueue) push(cols, rows uint) bool {
+	select {
+	case <-q.done:
+		return false
+	default:
+	}
+
 	select {
 	case q.ch <- remotecommand.TerminalSize{Width: uint16(cols), Height: uint16(rows)}:
 	default:
 	}
+	return true
+}
+
+func (q *sizeQueue) close() {
+	q.closeOnce.Do(func() { close(q.done) })
 }
 
 func podToInspectContainer(pod *corev1.Pod, topologyFile string) InspectContainer {
@@ -1418,5 +1442,5 @@ func captureRunError(err error, stderr []byte) error {
 }
 
 func createSizeQueue() *sizeQueue {
-	return &sizeQueue{ch: make(chan remotecommand.TerminalSize, 8)}
+	return &sizeQueue{ch: make(chan remotecommand.TerminalSize, 8), done: make(chan struct{})}
 }

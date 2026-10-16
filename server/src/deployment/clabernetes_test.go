@@ -358,9 +358,43 @@ func TestSizeQueue_DropsResizesWhenFull(t *testing.T) {
 
 func TestSizeQueue_ReturnsNilOnceClosed(t *testing.T) {
 	queue := createSizeQueue()
-	close(queue.ch)
+	queue.close()
 
 	assert.Nil(t, queue.Next(), "a nil size ends the remotecommand resize loop")
+}
+
+func TestKubernetesExecSession_ResizingOrClosingAClosedSessionIsHarmless(t *testing.T) {
+	_, stdinW := io.Pipe()
+	session := &kubernetesExecSession{stdinW: stdinW, sizes: createSizeQueue(), cancel: func() {}}
+
+	require.NoError(t, session.Close())
+
+	assert.NotPanics(t, func() {
+		assert.ErrorIs(t, session.Resize(80, 24), io.ErrClosedPipe)
+	})
+	assert.NotPanics(t, func() {
+		assert.NoError(t, session.Close())
+	})
+	assert.Nil(t, session.sizes.Next(), "a closed session ends the resize loop")
+}
+
+func TestKubernetesExecSession_ResizingWhileItClosesIsHarmless(t *testing.T) {
+	_, stdinW := io.Pipe()
+	session := &kubernetesExecSession{stdinW: stdinW, sizes: createSizeQueue(), cancel: func() {}}
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for i := range 200 {
+				_ = session.Resize(uint(i), uint(i))
+			}
+		})
+	}
+	wg.Go(func() { _ = session.Close() })
+	wg.Go(func() { _ = session.Close() })
+
+	// A panic in any of the goroutines fails the test
+	wg.Wait()
 }
 
 /*

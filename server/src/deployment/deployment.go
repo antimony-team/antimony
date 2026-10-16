@@ -132,6 +132,8 @@ func (f LogFunc) Log(msg string) {
 	}
 }
 
+// ShellExecSession is an interactive session in a node. Close may be called more than once and from another goroutine
+// than Resize, so neither may panic once the session is closed.
 type ShellExecSession interface {
 	io.ReadWriteCloser
 	Resize(cols uint, rows uint) error

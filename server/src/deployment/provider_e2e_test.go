@@ -380,10 +380,8 @@ func (l *e2eLab) testExecInteractive(t *testing.T) {
 
 	// The shell service can resize or close a session while another goroutine closes it
 	t.Run("resizing or closing a closed session is harmless", func(t *testing.T) {
-		l.knownBug(t, "clabernetes", "BUGS.md #2", func(t assert.TestingT) {
-			assert.NotPanics(t, func() { _ = session.Resize(80, 24) })
-			assert.NotPanics(t, func() { _ = session.Close() })
-		})
+		assert.NotPanics(t, func() { _ = session.Resize(80, 24) })
+		assert.NotPanics(t, func() { _ = session.Close() })
 	})
 
 	t.Run("exiting the shell ends the session", func(t *testing.T) {
