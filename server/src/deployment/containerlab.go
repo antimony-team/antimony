@@ -71,6 +71,9 @@ type (
 		net.Conn
 		client client.APIClient
 		execId string
+
+		// output reads the exec's output, it is read in place of the connection
+		output *startedReader
 	}
 
 	// clabInspectContainer mirrors the JSON that "containerlab inspect --format json" produces.
@@ -272,24 +275,34 @@ func (p *ContainerlabProvider) ExecInteractive(
 		return nil, err
 	}
 
-	time.Sleep(20 * time.Millisecond)
+	// Docker's buffered reader, not the raw connection, so nothing read while attaching is lost
+	output := newStartedReader(hr.Reader)
 
-	inspect, err := p.client.ContainerExecInspect(ctx, execId)
+	ended, err := output.waitForStart(ctx, interactiveStartTimeout)
 	if err != nil {
 		hr.Close()
 		return nil, err
 	}
 
-	if !inspect.Running && inspect.ExitCode != 0 {
-		hr.Close()
-		return nil, fmt.Errorf(
-			"command %v failed to start (exit code %d): command not found or not executable",
-			cmd,
-			inspect.ExitCode,
-		)
+	// The output ended before anything was printed, so the command exited, and its exit code tells whether it ran
+	if ended {
+		inspect, err := p.client.ContainerExecInspect(ctx, execId)
+		if err != nil {
+			hr.Close()
+			return nil, err
+		}
+
+		if inspect.ExitCode != 0 {
+			hr.Close()
+			return nil, fmt.Errorf(
+				"command %v failed to start (exit code %d): command not found or not executable",
+				cmd,
+				inspect.ExitCode,
+			)
+		}
 	}
 
-	return &dockerExecSession{Conn: hr.Conn, client: p.client, execId: execId}, nil
+	return &dockerExecSession{Conn: hr.Conn, output: output, client: p.client, execId: execId}, nil
 }
 
 func (p *ContainerlabProvider) DialNode(
@@ -616,6 +629,8 @@ func (s *tpacketSource) Close() {
 		s.tp.Close()
 	}
 }
+
+func (s *dockerExecSession) Read(p []byte) (int, error) { return s.output.Read(p) }
 
 func (s *dockerExecSession) Resize(cols uint, rows uint) error {
 	return s.client.ContainerExecResize(context.Background(), s.execId, container.ResizeOptions{

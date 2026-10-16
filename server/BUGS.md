@@ -7,17 +7,6 @@ Each entry is either **suspected** (found by reading the code, not reproduced ye
 
 ## Suspected
 
-### 6. A failing interactive command is detected with a fixed 20 ms wait
-
-- `deployment/containerlab.go` `ExecInteractive`
-
-After attaching, the provider sleeps 20 ms and checks whether the exec has already exited with a
-non-zero code. A command that takes longer to fail (a slow node, a loaded host) is handed out as a
-working shell session.
-
-Not reproduced in phase 1: `ExecInteractive/fails_for_a_command_that_doesn't_exist` passes locally,
-where a missing command fails within the 20 ms. It stays suspected for slower hosts.
-
 ### 8. Dialing a containerlab node picks a random network
 
 - `deployment/containerlab.go` `DialNode`
@@ -30,6 +19,25 @@ A node attached to more than one network gets a random one of them on each call.
 None left, see "Fixed".
 
 ## Fixed
+
+### 6. A failing interactive command is detected with a fixed 20 ms wait
+
+- `deployment/containerlab.go` `ExecInteractive`
+
+After attaching, the provider sleeps 20 ms and checks whether the exec has already exited with a
+non-zero code. A command that takes longer to fail (a slow node, a loaded host) is handed out as a
+working shell session.
+
+Not reproduced in phase 1: `ExecInteractive/fails_for_a_command_that_doesn't_exist` passes locally,
+where a missing command fails within the 20 ms. It stays suspected for slower hosts.
+
+**Fixed:** like clabernetes since #12, `ExecInteractive` waits for a signal instead of 20 ms: the first output
+(started, handed out at once and the output kept), the output ending before anything was printed (the command
+exited, so Docker's exit code decides: non-zero is "failed to start"), or one second without either (handed out
+as before). The helper for that, `startedReader`, moved from `clabernetes.go` to `utils.go` and is shared by both
+providers. The session now reads from Docker's buffered reader instead of the raw connection. New unit tests for a
+command that fails after 200 ms, one that prints nothing, and one that exits cleanly at once; the prompt test checks
+that a shell is handed out without waiting. Still to run at the end: `ExecInteractive` on containerlab.
 
 ### 5. Log streams stop at a line over 64 KiB
 

@@ -63,9 +63,6 @@ const (
 	captureRunDuration = time.Hour
 	// captureSnapLength matches the snap length of the pcap stream the SSH server writes to its clients.
 	captureSnapLength = 65536
-	// interactiveStartTimeout bounds how long opening an interactive session waits for the command to print its first
-	// output. A shell prints its prompt right away, a command that prints nothing is handed out after this.
-	interactiveStartTimeout = time.Second
 )
 
 type (
@@ -99,18 +96,6 @@ type (
 	// interactiveStreamFunc runs an exec stream until the command exits or ctx ends, like
 	// remotecommand.Executor.StreamWithContext.
 	interactiveStreamFunc func(ctx context.Context, options remotecommand.StreamOptions) error
-
-	// startedReader reads a session's output. Its first read runs before the session is handed out, to see whether the
-	// command started, and its result is delivered to the first Read.
-	startedReader struct {
-		reader io.Reader
-
-		// started is closed once the first read returned, first and firstErr hold its result
-		started  chan struct{}
-		first    []byte
-		firstErr error
-		consumed bool
-	}
 
 	kubernetesExecSession struct {
 		io.Reader
@@ -442,7 +427,7 @@ func openInteractiveSession(
 	stdoutR, stdoutW := io.Pipe()
 
 	ctx, cancel := context.WithCancel(ctx)
-	output := &startedReader{reader: stdoutR, started: make(chan struct{})}
+	output := newStartedReader(stdoutR)
 	session := &kubernetesExecSession{
 		Reader: output,
 		stdinW: stdinW,
@@ -466,18 +451,10 @@ func openInteractiveSession(
 		_ = stdoutW.CloseWithError(err)
 	}()
 
-	go output.readFirst()
-
-	select {
-	case <-output.started:
-		if err := output.firstErr; err != nil && !errors.Is(err, io.EOF) && len(output.first) == 0 {
-			_ = session.Close()
-			return nil, err
-		}
-	case <-time.After(startTimeout):
-	case <-ctx.Done():
+	// The stream's error, such as a missing executable, ends the output before anything was printed
+	if _, err := output.waitForStart(ctx, startTimeout); err != nil {
 		_ = session.Close()
-		return nil, ctx.Err()
+		return nil, err
 	}
 
 	return session, nil
@@ -1233,35 +1210,6 @@ func (c *sidecarCapture) Close() {
 		_ = c.stdout.Close()
 	}
 	c.stdoutMutex.Unlock()
-}
-
-// readFirst does the first read of the output and stores its result for the first Read.
-func (r *startedReader) readFirst() {
-	buffer := make([]byte, 4096)
-	n, err := r.reader.Read(buffer)
-
-	r.first = buffer[:n]
-	r.firstErr = err
-	close(r.started)
-}
-
-func (r *startedReader) Read(p []byte) (int, error) {
-	if !r.consumed {
-		<-r.started
-
-		if len(r.first) > 0 {
-			n := copy(p, r.first)
-			r.first = r.first[n:]
-			return n, nil
-		}
-
-		r.consumed = true
-		if r.firstErr != nil {
-			return 0, r.firstErr
-		}
-	}
-
-	return r.reader.Read(p)
 }
 
 func (s *kubernetesExecSession) Write(p []byte) (int, error) { return s.stdinW.Write(p) }

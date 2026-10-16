@@ -3,12 +3,14 @@ package deployment
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 )
@@ -80,4 +82,77 @@ func readFileOrEmpty(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
+}
+
+// interactiveStartTimeout bounds how long opening an interactive session waits for the command to print its first
+// output. A shell prints its prompt right away, a command that prints nothing is handed out after this.
+const interactiveStartTimeout = time.Second
+
+// startedReader reads an interactive session's output. Its first read starts right away, to tell whether the command
+// started before the session is handed out, and its result is delivered to the first Read.
+type startedReader struct {
+	reader io.Reader
+
+	// started is closed once the first read returned, first and firstErr hold its result
+	started  chan struct{}
+	first    []byte
+	firstErr error
+	consumed bool
+}
+
+func newStartedReader(reader io.Reader) *startedReader {
+	output := &startedReader{reader: reader, started: make(chan struct{})}
+	go output.readFirst()
+
+	return output
+}
+
+// waitForStart waits until the command printed something, its output ended, timeout passed or ctx ended. It reports
+// whether the output ended without anything printed, and the error it ended with unless that was a clean EOF. It must
+// not run concurrently with Read.
+func (r *startedReader) waitForStart(ctx context.Context, timeout time.Duration) (bool, error) {
+	select {
+	case <-r.started:
+		if len(r.first) > 0 {
+			return false, nil
+		}
+		if r.firstErr == nil || errors.Is(r.firstErr, io.EOF) {
+			return true, nil
+		}
+		return true, r.firstErr
+	case <-time.After(timeout):
+		// The command started without printing anything, or it is still starting
+		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
+// readFirst does the first read of the output and stores its result for the first Read.
+func (r *startedReader) readFirst() {
+	buffer := make([]byte, 4096)
+	n, err := r.reader.Read(buffer)
+
+	r.first = buffer[:n]
+	r.firstErr = err
+	close(r.started)
+}
+
+func (r *startedReader) Read(p []byte) (int, error) {
+	if !r.consumed {
+		<-r.started
+
+		if len(r.first) > 0 {
+			n := copy(p, r.first)
+			r.first = r.first[n:]
+			return n, nil
+		}
+
+		r.consumed = true
+		if r.firstErr != nil {
+			return 0, r.firstErr
+		}
+	}
+
+	return r.reader.Read(p)
 }

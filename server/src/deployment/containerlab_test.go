@@ -901,16 +901,20 @@ func TestContainerlabExecInteractive_ConnectsToTheRunningShell(t *testing.T) {
 	docker.execConn = local
 	docker.execInspect = container.ExecInspect{Running: true}
 
+	// The shell prints its prompt right away
+	go func() { _, _ = remote.Write([]byte("prompt$ ")) }()
+
+	start := time.Now()
 	session, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
 		context.Background(), "demo", "srl1", []string{"bash"},
 	)
 	require.NoError(t, err)
 	defer session.Close()
 
+	assert.Less(t, time.Since(start), interactiveStartTimeout, "a shell that printed is handed out without waiting")
 	assert.True(t, docker.execOptions.Tty)
 	assert.True(t, docker.execOptions.AttachStdin)
 
-	go func() { _, _ = remote.Write([]byte("prompt$ ")) }()
 	buffer := make([]byte, 8)
 	_, err = io.ReadFull(session, buffer)
 	require.NoError(t, err)
@@ -931,6 +935,66 @@ func TestContainerlabExecInteractive_FailsForACommandThatDoesNotStart(t *testing
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exit code 127")
+}
+
+func TestContainerlabExecInteractive_FailsForACommandThatFailsSlowly(t *testing.T) {
+	docker := newFakeDocker()
+	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	local, remote := net.Pipe()
+	docker.execConn = local
+	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 127}
+
+	// On a loaded host, the exec only ends after a while
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		_ = remote.Close()
+	}()
+
+	_, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
+		context.Background(), "demo", "srl1", []string{"missing-shell"},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exit code 127")
+}
+
+func TestContainerlabExecInteractive_HandsOutACommandThatPrintsNothingAfterTheTimeout(t *testing.T) {
+	docker := newFakeDocker()
+	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	local, remote := net.Pipe()
+	docker.execConn = local
+	docker.execInspect = container.ExecInspect{Running: true}
+
+	start := time.Now()
+	session, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
+		context.Background(), "demo", "srl1", []string{"silent"},
+	)
+	require.NoError(t, err)
+	defer session.Close()
+
+	assert.GreaterOrEqual(t, time.Since(start), interactiveStartTimeout)
+
+	go func() { _, _ = remote.Write([]byte("late")) }()
+	buffer := make([]byte, 4)
+	_, err = io.ReadFull(session, buffer)
+	require.NoError(t, err)
+	assert.Equal(t, "late", string(buffer), "output that arrives later is still read")
+}
+
+func TestContainerlabExecInteractive_ACommandThatExitsCleanlyAtOnceEndsTheSession(t *testing.T) {
+	docker := newFakeDocker()
+	docker.addNode("demo", "srl1", "c-srl1", "", 4242)
+	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 0}
+
+	session, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
+		context.Background(), "demo", "srl1", []string{"true"},
+	)
+	require.NoError(t, err, "a command that ran and exited did start")
+	defer session.Close()
+
+	output, err := io.ReadAll(session)
+	require.NoError(t, err)
+	assert.Empty(t, output)
 }
 
 /*
