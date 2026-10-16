@@ -44,7 +44,7 @@ import {
   setOf,
   usePersistentState,
 } from '@sb/lib/utils/persistent-state';
-import {isInDirectory} from '@sb/lib/utils/utils';
+import {downloadTopologyDefinition, isInDirectory} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {BindFile, Topology} from '@sb/types/domain/topology';
 import {FetchState, uuid4} from '@sb/types/types';
@@ -639,7 +639,16 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   const onDownloadTopologyContext = () => {
     if (!contextMenuTarget.current) return;
-    // onDuplicateTopology(contextMenuTarget.current);
+
+    const topology = topologyStore.manager.savedTopology(
+      contextMenuTarget.current,
+    );
+    if (!topology) return;
+
+    downloadTopologyDefinition(
+      topology,
+      collectionStore.lookup.get(topology.collectionId)!.name,
+    );
   };
 
   const onDeployTopologyContext = () => {

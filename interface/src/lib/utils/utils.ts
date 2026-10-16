@@ -1,8 +1,10 @@
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
+import FileSaver from 'file-saver';
 
 import {TooltipOptions} from 'primereact/tooltip/tooltipoptions';
 
+import {Topology} from '@sb/types/domain/topology';
 import {FetchState, Position} from '@sb/types/types';
 dayjs.extend(duration);
 
@@ -118,6 +120,16 @@ export function formatBytes(v: number | null) {
   if (abs >= 1024 ** 2) return fmt(v / 1024 ** 2) + ' MB';
   if (abs >= 1024) return fmt(v / 1024) + ' KB';
   return v.toFixed(0) + ' B';
+}
+
+export function downloadTopologyDefinition(
+  topology: Topology,
+  collectionName: string,
+) {
+  const blob = new Blob([topology.definition.toString()], {
+    type: 'text/yaml;charset=utf-8',
+  });
+  FileSaver.saveAs(blob, `${collectionName}_${topology.definition.name}.yaml`);
 }
 
 export function formatDateTime(date: string | Date) {

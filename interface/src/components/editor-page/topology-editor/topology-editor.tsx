@@ -35,6 +35,7 @@ import {
 } from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {downloadTopologyDefinition} from '@sb/lib/utils/utils';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 import {BindFile, Topology, TopologyFileType} from '@sb/types/domain/topology';
 import {FetchState, Position, uuid4} from '@sb/types/types';
@@ -383,13 +384,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         `${topologyCollection!.name}_${openTopology.definition.name}.annotations.json`,
       );
     } else if (openTopology) {
-      const blob = new Blob([openTopology.definition.toString()], {
-        type: 'text/yaml;charset=utf-8',
-      });
-      FileSaver.saveAs(
-        blob,
-        `${topologyCollection!.name}_${openTopology.definition.name}.yaml`,
-      );
+      downloadTopologyDefinition(openTopology, topologyCollection!.name);
     } else if (openBindFile) {
       const topology = topologyStore.bindFileLookup.get(openBindFile.id);
       if (!topology) return;

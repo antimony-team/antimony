@@ -167,6 +167,12 @@ export class TopologyManager {
     return this.editingTopology;
   }
 
+  // The topology as it was last saved, also while it's open with edits
+  public savedTopology(topologyId: string): Topology | undefined {
+    if (this.originalTopology?.id === topologyId) return this.originalTopology;
+    return this.topologyStore.lookup.get(topologyId);
+  }
+
   /**
    * Whether the open topology is read-only for the user, so the graph editor
    * can't change it.

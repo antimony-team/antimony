@@ -309,11 +309,14 @@ Users see buttons that then fail.
   including its first day of the week) now also follow the locale through shared helpers.
   The schedule now uses dayjs instead of moment, which was imported without being a dependency.
 
-### 28. "Download YAML" in the topology menu does nothing
+### 28. ~~"Download YAML" in the topology menu does nothing~~ (fixed)
 
-- **Status:** verified — `topologies.spec.ts` › "Download YAML in the topology menu downloads the topology"
+- **Status:** fixed — `topologies.spec.ts` › "Download YAML in the topology menu downloads the topology",
+  "Download YAML downloads the saved version of an open topology with edits"
 - **Where:** `components/editor-page/topology-explorer/topology-explorer.tsx` (empty handler). The toolbar's
-  Download button works.
+  Download button worked.
+- **Fix:** The menu downloads the topology as last saved (`TopologyManager.savedTopology`), also while it's
+  open with unsaved edits. The toolbar and the menu share `downloadTopologyDefinition` in `lib/utils/utils.ts`.
 
 ### 29. Directories with a dash in their name don't open
 

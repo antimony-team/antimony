@@ -1,5 +1,7 @@
+import {readFile} from 'node:fs/promises';
+
 import {topologyDefinition} from '../fixtures/api';
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {ConfirmDialog, toast} from '../pages/dialogs';
 import {EditorPage} from '../pages/editor-page';
 
@@ -345,9 +347,9 @@ test('a deep link opens the topology and a click opens another', async ({
 
 test('Download YAML in the topology menu downloads the topology', async ({
   page,
+  api,
   createTopology,
 }) => {
-  knownBug('"Download YAML" in the topology menu does nothing');
   const topology = await createTopology();
   const editor = new EditorPage(page);
   await editor.goto();
@@ -356,5 +358,34 @@ test('Download YAML in the topology menu downloads the topology', async ({
   const download = page.waitForEvent('download', {timeout: 5000});
   await editor.explorer.menu(topology.name, 'Download YAML');
 
-  expect((await download).suggestedFilename()).toContain(topology.name);
+  expect((await download).suggestedFilename()).toBe(
+    `${topology.collection.name}_${topology.name}.yaml`,
+  );
+  expect(await readFile((await download).path(), 'utf-8')).toBe(
+    (await api.getTopology(topology.id)).definition,
+  );
+});
+
+test('Download YAML downloads the saved version of an open topology with edits', async ({
+  page,
+  createTopology,
+}) => {
+  const topology = await createTopology();
+  const editor = new EditorPage(page);
+  await editor.open(topology.id, topology.name);
+  await editor.editor.setText(
+    topologyDefinition(topology.name, ['host1', 'host2', 'unsaved']),
+  );
+  await expect(editor.editor.title).toHaveText(
+    new RegExp(`${topology.name}\\*$`),
+  );
+  await editor.explorer.expand(topology.collection.name);
+
+  const download = page.waitForEvent('download', {timeout: 5000});
+  await editor.explorer.menu(topology.name, 'Download YAML');
+
+  expect(await readFile((await download).path(), 'utf-8')).not.toContain(
+    'unsaved:',
+  );
+  await expect.poll(() => editor.editor.text()).toContain('unsaved:');
 });
