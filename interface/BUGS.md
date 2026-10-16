@@ -326,12 +326,13 @@ Users see buttons that then fail.
 - **Fix:** A click opens the node if its key is a topology or bind file, and toggles it otherwise, so
   directory keys are no longer parsed.
 
-### 30. Bind files get no unsaved marker
+### 30. ~~Bind files get no unsaved marker~~ (fixed)
 
-- **Status:** verified — `bind-files.spec.ts` › "an edited file is marked as unsaved"
+- **Status:** fixed — `bind-files.spec.ts` › "an edited file is marked as unsaved"
 - **Where:** `components/editor-page/topology-editor/topology-editor.tsx`
-- **What happens:** topologies show `name*` while they have unsaved changes; bind files don't, although Save
-  is enabled.
+- **What happened:** topologies showed `name*` while they had unsaved changes; bind files didn't, although
+  Save was enabled.
+- **Fix:** The toolbar appends `*` to the bind file's path while it has unsaved edits, like for topologies.
 
 ### 31. Smaller interface issues, from the code
 

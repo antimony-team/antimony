@@ -1,4 +1,4 @@
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {createZip} from '../helpers/zip';
 import {ConfirmDialog, Dialog, toast} from '../pages/dialogs';
 import {EditorPage} from '../pages/editor-page';
@@ -110,9 +110,6 @@ test('an edited file is marked as unsaved', async ({
   api,
   createTopology,
 }) => {
-  knownBug(
-    'bind files with unsaved edits get no "*" in the title, unlike topologies',
-  );
   const topology = await createTopology({files: {'startup.cfg': 'old'}});
   const file = await bindFile(api, topology.id, 'startup.cfg');
   const editor = new EditorPage(page);

@@ -532,7 +532,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                     <span className="material-symbols-outlined">
                       description
                     </span>
-                    {openBindFile!.filePath}
+                    {`${openBindFile!.filePath}${hasPendingEdits ? '*' : ''}`}
                   </span>
                 </li>
               </When>
