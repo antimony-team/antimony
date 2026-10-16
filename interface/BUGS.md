@@ -115,13 +115,17 @@ Paths of the interface are relative to `src/`, those of the server to `antimony-
 The interface checks permissions in few places; the server is the only enforcement for most actions.
 Users see buttons that then fail.
 
-### 10. The lab view offers deploy and destroy to everyone
+### 10. ~~The lab view offers deploy and destroy to everyone~~ (fixed)
 
-- **Status:** verified — `permissions.spec.ts` › "another member's lab offers no deploy or destroy"
+- **Status:** fixed — `permissions.spec.ts` › "another member's lab offers no deploy, destroy or node
+  controls"
 - **Where:** `components/dashboard-page/lab-view/lab-view-header/lab-view-header.tsx`, the node menu and
   the drawer in `lab-view/`
 - **What happens:** members see Deploy, Redeploy, Destroy and the node actions on labs they didn't
   create. The server refuses with "Failed to deploy lab".
+- **Fix:** the lab view works out whether the user is the lab's creator or an admin, and hides the lab's
+  deploy, redeploy and destroy buttons and menu entries, and the nodes' start, stop and restart buttons
+  and menu entries, from everyone else. Logs and terminals stay available to members.
 
 ### 11. The Deploy buttons ignore "Anyone can deploy"
 

@@ -35,6 +35,7 @@ import {
   generateLayerItems,
 } from '@sb/lib/graph/cytoscape-utils';
 import {
+  useAuthUser,
   useCollectionStore,
   useDataBinder,
   useDeviceStore,
@@ -92,6 +93,11 @@ const LabView = observer((props: LabDialogProps) => {
   const dataBinder = useDataBinder();
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
+  const authUser = useAuthUser();
+
+  // Deploying, destroying and starting or stopping nodes is only for the lab's creator and admins
+  const canControlLab =
+    !!props.lab && (authUser.isAdmin || props.lab.creator.id === authUser.id);
   const collectionStore = useCollectionStore();
   const statusMessageStore = useStatusMessages();
 
@@ -240,30 +246,7 @@ const LabView = observer((props: LabDialogProps) => {
   }
 
   const graphContextMenuModel = [
-    {
-      label: 'Deploy lab',
-      icon: 'pi pi-play',
-      disabled: !canDeployLab(),
-      command: () => labStore.deployLab(props.lab!),
-    },
-    {
-      label: 'Redeploy lab',
-      icon:
-        props.lab?.state === InstanceState.Deploying
-          ? 'pi pi-sync pi-spin'
-          : 'pi pi-sync',
-      disabled: !canRedeployLab(),
-      command: () => labStore.deployLab(props.lab!),
-    },
-    {
-      label: 'Destroy lab',
-      icon: 'pi pi-power-off',
-      disabled: !canDestroylab(),
-      command: () => props.onDestroyLabRequest(props.lab!),
-    },
-    {
-      separator: true,
-    },
+    ...(canControlLab ? labControlMenuItems() : []),
     {
       label: 'View logs',
       icon: (
@@ -282,6 +265,35 @@ const LabView = observer((props: LabDialogProps) => {
     },
   ];
 
+  function labControlMenuItems(): MenuItem[] {
+    return [
+      {
+        label: 'Deploy lab',
+        icon: 'pi pi-play',
+        disabled: !canDeployLab(),
+        command: () => labStore.deployLab(props.lab!),
+      },
+      {
+        label: 'Redeploy lab',
+        icon:
+          props.lab?.state === InstanceState.Deploying
+            ? 'pi pi-sync pi-spin'
+            : 'pi pi-sync',
+        disabled: !canRedeployLab(),
+        command: () => labStore.deployLab(props.lab!),
+      },
+      {
+        label: 'Destroy lab',
+        icon: 'pi pi-power-off',
+        disabled: !canDestroylab(),
+        command: () => props.onDestroyLabRequest(props.lab!),
+      },
+      {
+        separator: true,
+      },
+    ];
+  }
+
   const networkContextMenuItems: MenuItem[] | undefined = useMemo(() => {
     // If the selected node is null, the graph itself is selected
     if (contextTargetNode === null) {
@@ -297,7 +309,7 @@ const LabView = observer((props: LabDialogProps) => {
     const node = instance.nodeMap.get(contextTargetNode);
     const nodeActionChecker = new NodeActionChecker(instance, node);
 
-    const entries: MenuItem[] = [
+    const nodeControlEntries: MenuItem[] = [
       {
         label: 'Start node',
         icon: 'pi pi-power-off',
@@ -319,6 +331,10 @@ const LabView = observer((props: LabDialogProps) => {
       {
         separator: true,
       },
+    ];
+
+    const entries: MenuItem[] = [
+      ...(canControlLab ? nodeControlEntries : []),
       {
         label: 'Open terminal',
         icon: <span className="material-symbols-outlined">terminal</span>,
@@ -356,7 +372,7 @@ const LabView = observer((props: LabDialogProps) => {
     }
 
     return entries;
-  }, [contextTargetNode, props.lab]);
+  }, [contextTargetNode, props.lab, canControlLab]);
 
   function copyCaptureToClipboard(
     node?: InstanceNode,
@@ -510,6 +526,7 @@ const LabView = observer((props: LabDialogProps) => {
             canRedeployLab={canRedeployLab}
             canDestroyLab={canDestroylab}
             canOpenLabLogs={canOpenLabLogs}
+            canControlLab={canControlLab}
           />
         </If>
         <div className="sb-lab-view-content">
@@ -543,6 +560,7 @@ const LabView = observer((props: LabDialogProps) => {
                   onNodeStart={onNodeStart}
                   onNodeStop={onNodeStop}
                   onNodeRestart={onNodeRestart}
+                  canControlLab={canControlLab}
                 />
               </SplitterPanel>
             </Splitter>

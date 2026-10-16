@@ -40,6 +40,9 @@ interface LabViewDrawer {
   onNodeStart: (nodeId: string | null) => void;
   onNodeStop: (nodeId: string | null) => void;
   onNodeRestart: (nodeId: string | null) => void;
+
+  // Whether the user may start and stop nodes, otherwise those buttons are hidden
+  canControlLab: boolean;
 }
 
 const LabDialogDrawer = (props: LabViewDrawer) => {
@@ -554,44 +557,46 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
             </div>
           ))}
         </div>
-        <div className="lab-dialog-drawer-control-buttons">
-          <If condition={!node?.canRestart}>
-            <Message
-              severity="info"
-              text={`Nodes with kind '${node?.kind}' can't be manually started`}
-            />
-          </If>
-          <div className="flex gap-2">
-            <Button
-              icon="pi pi-sync"
-              label="Restart"
-              outlined
-              onClick={() => props.onNodeRestart(props.nodeName)}
-              disabled={!nodeActionChecker!.canRestart}
-            />
-            <Choose>
-              <When condition={nodeActionChecker!.canStart}>
-                <Button
-                  icon="pi pi-play"
-                  label="Start"
-                  outlined
-                  onClick={() => props.onNodeStart(props.nodeName)}
-                  disabled={!nodeActionChecker!.canStart}
-                />
-              </When>
-              <Otherwise>
-                <Button
-                  icon="pi pi-power-off"
-                  severity="danger"
-                  label="Shutdown"
-                  outlined
-                  onClick={() => props.onNodeStop(props.nodeName)}
-                  disabled={!nodeActionChecker!.canStop}
-                />
-              </Otherwise>
-            </Choose>
+        <If condition={props.canControlLab}>
+          <div className="lab-dialog-drawer-control-buttons">
+            <If condition={!node?.canRestart}>
+              <Message
+                severity="info"
+                text={`Nodes with kind '${node?.kind}' can't be manually started`}
+              />
+            </If>
+            <div className="flex gap-2">
+              <Button
+                icon="pi pi-sync"
+                label="Restart"
+                outlined
+                onClick={() => props.onNodeRestart(props.nodeName)}
+                disabled={!nodeActionChecker!.canRestart}
+              />
+              <Choose>
+                <When condition={nodeActionChecker!.canStart}>
+                  <Button
+                    icon="pi pi-play"
+                    label="Start"
+                    outlined
+                    onClick={() => props.onNodeStart(props.nodeName)}
+                    disabled={!nodeActionChecker!.canStart}
+                  />
+                </When>
+                <Otherwise>
+                  <Button
+                    icon="pi pi-power-off"
+                    severity="danger"
+                    label="Shutdown"
+                    outlined
+                    onClick={() => props.onNodeStop(props.nodeName)}
+                    disabled={!nodeActionChecker!.canStop}
+                  />
+                </Otherwise>
+              </Choose>
+            </div>
           </div>
-        </div>
+        </If>
       </If>
     </div>
   );

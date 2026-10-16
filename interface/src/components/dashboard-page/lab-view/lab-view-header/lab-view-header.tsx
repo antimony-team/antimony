@@ -28,6 +28,9 @@ export interface LabViewHeaderProps {
   canRedeployLab: () => boolean;
   canDestroyLab: () => boolean;
   canOpenLabLogs: () => boolean;
+
+  // Whether the user may deploy and destroy the lab, otherwise those buttons are hidden
+  canControlLab: boolean;
 }
 
 const LabViewHeader = observer((props: LabViewHeaderProps) => {
@@ -102,45 +105,47 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
           onClick={props.onOpenLabLogs}
           disabled={!props.canOpenLabLogs()}
         />
-        <Choose>
-          <When condition={props.canDeployLab()}>
-            <Button
-              outlined
-              icon="pi pi-play"
-              severity="success"
-              aria-label="Deploy lab"
-              onClick={() => labStore.deployLab(props.lab)}
-            />
-          </When>
-          <Otherwise>
-            <Button
-              outlined
-              icon={
-                props.lab.state === InstanceState.Deploying
-                  ? 'pi pi-sync pi-spin'
-                  : 'pi pi-sync'
-              }
-              aria-label="Redeploy Lab"
-              onClick={() => labStore.deployLab(props.lab)}
-              disabled={!props.canRedeployLab()}
-              tooltipOptions={{
-                showOnDisabled: true,
-              }}
-            />
-            <Button
-              outlined
-              icon="pi pi-power-off"
-              aria-label={
-                props.lab.state === InstanceState.Scheduled
-                  ? 'Delete Lab'
-                  : 'Destroy Lab'
-              }
-              severity="danger"
-              onClick={() => props.onDestroyLabRequest(props.lab)}
-              disabled={!props.canDestroyLab()}
-            />
-          </Otherwise>
-        </Choose>
+        <If condition={props.canControlLab}>
+          <Choose>
+            <When condition={props.canDeployLab()}>
+              <Button
+                outlined
+                icon="pi pi-play"
+                severity="success"
+                aria-label="Deploy lab"
+                onClick={() => labStore.deployLab(props.lab)}
+              />
+            </When>
+            <Otherwise>
+              <Button
+                outlined
+                icon={
+                  props.lab.state === InstanceState.Deploying
+                    ? 'pi pi-sync pi-spin'
+                    : 'pi pi-sync'
+                }
+                aria-label="Redeploy Lab"
+                onClick={() => labStore.deployLab(props.lab)}
+                disabled={!props.canRedeployLab()}
+                tooltipOptions={{
+                  showOnDisabled: true,
+                }}
+              />
+              <Button
+                outlined
+                icon="pi pi-power-off"
+                aria-label={
+                  props.lab.state === InstanceState.Scheduled
+                    ? 'Delete Lab'
+                    : 'Destroy Lab'
+                }
+                severity="danger"
+                onClick={() => props.onDestroyLabRequest(props.lab)}
+                disabled={!props.canDestroyLab()}
+              />
+            </Otherwise>
+          </Choose>
+        </If>
       </div>
     </div>
   );

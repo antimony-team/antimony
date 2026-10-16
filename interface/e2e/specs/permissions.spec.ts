@@ -1,5 +1,6 @@
 import {ApiError, topologyDefinition} from '../fixtures/api';
 import {expect, knownBug, test} from '../fixtures/test';
+import {clickGraphNode} from '../helpers/cytoscape';
 import {DashboardPage} from '../pages/dashboard-page';
 import {menuItem, toast} from '../pages/dialogs';
 import {Dock} from '../pages/dock';
@@ -397,45 +398,36 @@ test.describe('interface', () => {
     await expect(labView.deployButton).toBeVisible();
   });
 
-  test("another member's lab offers no deploy or destroy", async ({
+  test("another member's lab offers no deploy, destroy or node controls", async ({
     createCollection,
     createLab,
     createUser,
     loginAs,
   }) => {
-    knownBug(
-      'the lab view shows deploy, redeploy and destroy to everyone, the server then refuses',
-    );
     const collection = await createCollection({publicDeploy: true});
     const creator = await createUser({collections: [collection]});
-    const lab = await createLab({collection, by: creator});
+    const lab = await createLab({collection, by: creator, deployed: true});
     const member = await loginAs({collections: [collection]});
     const labView = new LabView(member.page);
 
     await labView.open(lab.id);
+    await expect(labView.state).toHaveText('running');
 
-    await expect(labView.title).toContainText(lab.name);
     await expect(labView.deployButton).toBeHidden();
-  });
+    await expect(labView.redeployButton).toBeHidden();
+    await expect(labView.destroyButton).toBeHidden();
+    // Logs and terminals stay available to members
+    await expect(labView.logsButton).toBeEnabled();
 
-  test("deploying another member's lab is refused with a message", async ({
-    api,
-    createCollection,
-    createLab,
-    createUser,
-    loginAs,
-  }) => {
-    const collection = await createCollection({publicDeploy: true});
-    const creator = await createUser({collections: [collection]});
-    const lab = await createLab({collection, by: creator});
-    const member = await loginAs({collections: [collection]});
-    const labView = new LabView(member.page);
-    await labView.open(lab.id);
+    await clickGraphNode(labView.graph, 'host1', {button: 'right'});
+    await expect(menuItem(member.page, 'Open terminal')).toBeVisible();
+    await expect(menuItem(member.page, 'Stop node')).toHaveCount(0);
+    await member.page.keyboard.press('Escape');
 
-    await labView.deploy();
-
-    await expect(toast(member.page, 'Failed to deploy lab')).toBeVisible();
-    expect((await api.getLab(lab.id)).instance).toBeNull();
+    await labView.clickNode('host1');
+    await expect(labView.drawer.button('Open Terminal')).toBeVisible();
+    await expect(labView.drawer.button('Shutdown')).toBeHidden();
+    await expect(labView.drawer.button('Restart')).toBeHidden();
   });
 
   test('users only see the labs of their collections on the dashboard', async ({
