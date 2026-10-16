@@ -230,6 +230,32 @@ func TestClabToInspectContainer_ClearsNotApplicableAddresses(t *testing.T) {
 	assert.Empty(t, converted[0].IPv6Address)
 }
 
+func TestClabToInspectContainer_ReportsBareAddresses(t *testing.T) {
+	converted := clabToInspectContainer("demo-lab", []clabInspectContainer{{
+		Name:        "clab-demo-lab-srl1",
+		State:       "running",
+		IPv4Address: "172.20.20.3/24",
+		IPv6Address: "3fff:172:20:20::3/64",
+	}})
+
+	require.Len(t, converted, 1)
+	assert.Equal(t, "172.20.20.3", converted[0].IPv4Address)
+	assert.Equal(t, "3fff:172:20:20::3", converted[0].IPv6Address)
+}
+
+func TestClabToInspectContainer_KeepsAddressesItCannotParse(t *testing.T) {
+	converted := clabToInspectContainer("demo-lab", []clabInspectContainer{{
+		Name:        "clab-demo-lab-srl1",
+		State:       "running",
+		IPv4Address: "172.20.20.3",
+		IPv6Address: "not an address",
+	}})
+
+	require.Len(t, converted, 1)
+	assert.Equal(t, "172.20.20.3", converted[0].IPv4Address, "an address without a prefix length stays")
+	assert.Equal(t, "not an address", converted[0].IPv6Address, "an unknown format is passed on unchanged")
+}
+
 func TestClabToInspectContainer_EmptyInputYieldsEmptyOutput(t *testing.T) {
 	assert.Empty(t, clabToInspectContainer("demo-lab", nil))
 	assert.Empty(t, clabToInspectContainer("demo-lab", []clabInspectContainer{}))
@@ -279,7 +305,8 @@ func TestClabInspectFixture_DecodesAndConverts(t *testing.T) {
 	assert.Equal(t, NodeStates.Running, srl.State)
 	assert.Equal(t, "9f2a1c4e5b6d", srl.ContainerId)
 	assert.Equal(t, "clab-demo-lab-srl1", srl.ContainerName)
-	assert.Equal(t, "172.20.20.3/24", srl.IPv4Address)
+	assert.Equal(t, "172.20.20.3", srl.IPv4Address, "the prefix length is dropped")
+	assert.Equal(t, "3fff:172:20:20::3", srl.IPv6Address)
 	assert.Equal(t, "demo-lab", srl.LabName)
 
 	host := byName["host1"]

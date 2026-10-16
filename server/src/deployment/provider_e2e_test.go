@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -196,9 +197,13 @@ func (l *e2eLab) testInspect(t *testing.T) {
 		assert.NotEmpty(t, node.ContainerId, "node %s", node.Name)
 		assert.NotEmpty(t, node.ContainerName, "node %s", node.Name)
 		assert.Contains(t, node.Image, "alpine", "node %s", node.Name)
-		assert.NotEmpty(t, node.IPv4Address, "node %s", node.Name)
-
-		t.Logf("%s: IPv4 %q, IPv6 %q", node.Name, node.IPv4Address, node.IPv6Address)
+		// Every provider reports bare addresses, without a prefix length
+		_, err := netip.ParseAddr(node.IPv4Address)
+		require.NoError(t, err, "node %s has no valid IPv4 address", node.Name)
+		if node.IPv6Address != "" {
+			_, err := netip.ParseAddr(node.IPv6Address)
+			require.NoError(t, err, "node %s has no valid IPv6 address", node.Name)
+		}
 	}
 
 	host1, err := l.provider.InspectNode(ctx, l.topologyFile, l.name, "host1", nil)

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -652,13 +653,22 @@ func parseInspectContainer(container *InspectContainer, containerNamePrefix stri
 	container.ContainerName = container.Name
 	container.Name = strings.TrimPrefix(container.Name, containerNamePrefix)
 
-	if container.IPv4Address == "N/A" {
-		container.IPv4Address = ""
+	container.IPv4Address = bareAddress(container.IPv4Address)
+	container.IPv6Address = bareAddress(container.IPv6Address)
+}
+
+// bareAddress turns containerlab's "<address>/<prefix length>" into the address alone, the way the other providers
+// report it. Containerlab's "N/A" becomes empty, anything else that isn't a prefix is kept as it is.
+func bareAddress(raw string) string {
+	if raw == "N/A" {
+		return ""
 	}
 
-	if container.IPv6Address == "N/A" {
-		container.IPv6Address = ""
+	if prefix, err := netip.ParsePrefix(raw); err == nil {
+		return prefix.Addr().String()
 	}
+
+	return raw
 }
 
 // parseDockerState maps a Docker container status, as relayed by containerlab, onto a NodeState.

@@ -46,18 +46,6 @@ A node attached to more than one network gets a random one of them on each call.
 
 ## Confirmed
 
-### 4. Containerlab and clabernetes report node addresses differently
-
-- `deployment/containerlab.go` `parseInspectContainer`
-- `deployment/clabernetes.go` `podToInspectContainer`
-
-Containerlab's inspect output carries the prefix length (`172.20.20.4/24`), which the provider passes
-through. Clabernetes reports the bare pod IP (`10.244.0.7`). The same field means different things
-depending on the provider.
-
-Confirmed by the e2e runs: containerlab reports `172.20.20.6/24` and `3fff:172:20:20::6/64`, clabernetes
-reports `10.244.0.12` and no IPv6 address. The `Inspect` e2e test logs both.
-
 ### 11. Clabernetes node operations don't report an unknown node like containerlab does
 
 - `deployment/clabernetes.go` `StopNode`, `StartNode` (through `setIgnoreReconcile`) and `RestartNode`
@@ -85,6 +73,24 @@ Test: `TestProviderE2E/ExecInteractive/fails_for_a_command_that_doesn't_exist`, 
 for clabernetes.
 
 ## Fixed
+
+### 4. Containerlab and clabernetes report node addresses differently
+
+- `deployment/containerlab.go` `parseInspectContainer`
+- `deployment/clabernetes.go` `podToInspectContainer`
+
+Containerlab's inspect output carries the prefix length (`172.20.20.4/24`), which the provider passes
+through. Clabernetes reports the bare pod IP (`10.244.0.7`). The same field means different things
+depending on the provider.
+
+Confirmed by the e2e runs: containerlab reports `172.20.20.6/24` and `3fff:172:20:20::6/64`, clabernetes
+reports `10.244.0.12` and no IPv6 address. The `Inspect` e2e test logs both.
+
+**Fixed:** the containerlab provider drops the prefix length (`netip.ParsePrefix` → `.Addr()`), so both providers
+and the dummy report bare addresses. A value that isn't a prefix is kept as it is, and `N/A` still becomes empty.
+New unit tests `TestClabToInspectContainer_ReportsBareAddresses` and `…_KeepsAddressesItCannotParse`. The provider
+e2e `Inspect` step now checks that every address is a valid bare address on both providers. Still to run at the
+end: that step on both providers.
 
 ### 10. Packet capture is never possible on clabernetes 0.9.0
 
