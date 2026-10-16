@@ -87,10 +87,8 @@ func TestDockerSampler_FindsTheCgroupOfEveryLayout(t *testing.T) {
 			"0::/user.slice/user-1000.slice/user@1000.service/docker.service/abc123\n",
 			"user.slice/user-1000.slice/user@1000.service/docker.service/abc123",
 		},
-		"podman": {
-			"0::/machine.slice/libpod-abc123.scope/container\n",
-			"machine.slice/libpod-abc123.scope/container",
-		},
+		// The scope accounts for its "container" child, and carries the limits
+		"podman": {"0::/machine.slice/libpod-abc123.scope/container\n", "machine.slice/libpod-abc123.scope"},
 		"hybrid hierarchy": {
 			"12:memory:/docker/abc123\n1:name=systemd:/docker/abc123\n0::/docker/abc123\n",
 			"docker/abc123",
@@ -112,6 +110,61 @@ func TestDockerSampler_FindsTheCgroupOfEveryLayout(t *testing.T) {
 			assert.Equal(t, 2, sample.onlineCPUs)
 		})
 	}
+}
+
+func TestDockerSampler_ReadsTheContainersCgroupWhenInitMovedItself(t *testing.T) {
+	cases := map[string]struct {
+		cgroupFile string
+		cgroupDir  string
+	}{
+		"systemd driver":  {"0::/system.slice/docker-abc123.scope/init.scope\n", "system.slice/docker-abc123.scope"},
+		"cgroupfs driver": {"0::/docker/abc123/init.scope\n", "docker/abc123"},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			tree := newSamplerTree(t)
+			tree.addContainer(t, c.cgroupFile, c.cgroupDir)
+
+			// systemd as the node's PID 1 only accounts for itself in init.scope, and has no limit of its own
+			initScope := filepath.Join(tree.cgroupRoot, c.cgroupDir, "init.scope")
+			tree.write(t, filepath.Join(initScope, "cpu.stat"), "usage_usec 10")
+			tree.write(t, filepath.Join(initScope, "memory.current"), "4096")
+			tree.write(t, filepath.Join(initScope, "memory.stat"), "inactive_file 0")
+			tree.write(t, filepath.Join(initScope, "memory.max"), "max")
+			tree.write(t, filepath.Join(tree.cgroupRoot, c.cgroupDir, "memory.max"), "2147483648")
+
+			sample, err := tree.sampler().Sample(t.Context(), dockerRef{"demo", "host1"})
+
+			require.NoError(t, err)
+			assert.Equal(t, uint64(2500*1000), sample.cpuNs, "the whole container is accounted, not only its init")
+			assert.Equal(t, uint64(104857600-4857600), sample.memUsage)
+			assert.Equal(t, uint64(2147483648), sample.memLimit, "the container's limit, not the host's memory")
+		})
+	}
+}
+
+func TestContainerCgroup_PicksTheDeepestDirectoryNamedAfterTheContainer(t *testing.T) {
+	cases := map[string]struct {
+		path     string
+		expected string
+	}{
+		"init moved itself": {
+			"/system.slice/docker-abc123.scope/init.scope",
+			"/system.slice/docker-abc123.scope",
+		},
+		"nested below the scope":  {"/docker/abc123/payload/child", "/docker/abc123"},
+		"the container's cgroup":  {"/system.slice/docker-abc123.scope", "/system.slice/docker-abc123.scope"},
+		"no directory carries it": {"/custom/cgroup", "/custom/cgroup"},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.expected, containerCgroup(c.path, "abc123"))
+		})
+	}
+
+	assert.Equal(t, "/a/init.scope", containerCgroup("/a/init.scope", ""), "without an id the process' cgroup is used")
 }
 
 func TestDockerSampler_ReportsACgroupOutsideItsNamespace(t *testing.T) {

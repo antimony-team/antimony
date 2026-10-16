@@ -15,6 +15,24 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 16. Stats of nodes whose init is systemd only cover the init process
+
+- `deployment/sampler_docker.go` `findCgroupDir`
+
+Found by the code review after the fix for #3, and a regression of that fix. The sampler took the cgroup of the
+node's PID 1 from `/proc/<pid>/cgroup`. systemd as PID 1 (cEOS and other systemd-based images) moves itself into a
+child cgroup, `.../docker-<id>.scope/init.scope`, which only accounts for systemd itself and has no limit. The stats
+then left out every other process of the node and showed the host's memory as the limit. The old fixed path was
+right on systemd-driver hosts, and the alpine nodes of the e2e tests don't run systemd, so nothing caught it.
+
+**Fixed:** `containerCgroup` walks up from the process' cgroup to the deepest directory whose name contains the
+container's id (`docker-<id>.scope`, `docker/<id>`, `libpod-<id>.scope`) and falls back to the process' cgroup.
+cgroup v2 accounts hierarchically, so that directory covers all of the node's processes and carries its limits.
+New tests: `TestDockerSampler_ReadsTheContainersCgroupWhenInitMovedItself` (systemd and cgroupfs drivers, with
+`init.scope` files that must not be read) and `TestContainerCgroup_PicksTheDeepestDirectoryNamedAfterTheContainer`.
+The Podman case of `TestDockerSampler_FindsTheCgroupOfEveryLayout` now expects the `libpod-<id>.scope` directory.
+Not covered by e2e: that needs a node image running systemd.
+
 ### 15. Clabernetes exec output is read while the stream may still write it
 
 - `deployment/clabernetes.go` `Exec`, and `sidecarCapture.startRun` (the capture's stderr buffer)

@@ -119,7 +119,7 @@ func (s *dockerSampler) getTarget(ctx context.Context, ref dockerRef) (dockerTar
 		return dockerTarget{}, err
 	}
 
-	t.cgroupDir, err = s.findCgroupDir(t.pid)
+	t.cgroupDir, err = s.findCgroupDir(t.pid, t.fullContainerId)
 	if errors.Is(err, os.ErrNotExist) {
 		// The process exited since the container was inspected
 		return dockerTarget{}, fmt.Errorf("%w: %s/%s", utils.ErrNodeNotRunning, ref.instanceName, ref.nodeName)
@@ -168,9 +168,9 @@ func (s *dockerSampler) readTarget(target dockerTarget) (statsSample, error) {
 	return sample, err
 }
 
-// findCgroupDir returns the cgroup v2 directory of a process. The kernel lists it in /proc/<pid>/cgroup, which works
-// for every cgroup driver and parent, rootless runtimes included.
-func (s *dockerSampler) findCgroupDir(pid int) (string, error) {
+// findCgroupDir returns the cgroup v2 directory of the container that runs a process. The kernel lists the process'
+// cgroup in /proc/<pid>/cgroup, which works for every cgroup driver and parent, rootless runtimes included.
+func (s *dockerSampler) findCgroupDir(pid int, containerId string) (string, error) {
 	lines, err := readLines(filepath.Join(s.procRoot, strconv.Itoa(pid), "cgroup"))
 	if err != nil {
 		return "", err
@@ -187,10 +187,28 @@ func (s *dockerSampler) findCgroupDir(pid int) (string, error) {
 			return "", errForeignCgroupNamespace
 		}
 
-		return filepath.Join(s.cgroupRoot, path), nil
+		return filepath.Join(s.cgroupRoot, containerCgroup(path, containerId)), nil
 	}
 
 	return "", fmt.Errorf("process %d has no cgroup v2 entry", pid)
+}
+
+// containerCgroup returns the container's own cgroup from the cgroup of a process in it. Init systems like systemd
+// move themselves into a child cgroup of the container (e.g. ".../docker-<id>.scope/init.scope"), which only accounts
+// for themselves. The runtime names the container's cgroup after the container's id, so that is the deepest
+// directory whose name contains it. Without such a directory, the process' own cgroup is used.
+func containerCgroup(path string, containerId string) string {
+	if containerId == "" {
+		return path
+	}
+
+	for dir := path; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+		if strings.Contains(filepath.Base(dir), containerId) {
+			return dir
+		}
+	}
+
+	return path
 }
 
 func (s *dockerSampler) forgetTarget(ref dockerRef) {
