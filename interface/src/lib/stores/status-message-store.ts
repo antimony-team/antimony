@@ -66,8 +66,11 @@ export class StatusMessageStore {
 
   @action
   public clear() {
-    this.data = [];
+    this.data = observable<StatusMessage>([]);
     this.lookup = new Map<string, StatusMessage>();
+    this.countBySeverity = new Map<Severity, number>();
+
+    this.updateFilteredMessages();
   }
 
   public success = (message: string, title: string = 'Success') => {
