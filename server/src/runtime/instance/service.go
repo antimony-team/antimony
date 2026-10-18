@@ -182,11 +182,11 @@ func (s *Service) DestroyLabCommand(ctx context.Context, labId *string, authUser
 		return err
 	}
 
-	s.labEventBus.Publish("lab.deleted", instanceLab)
-
 	if err := s.DestroyLab(instanceLab); err != nil {
 		return err
 	}
+
+	s.labEventBus.Publish("lab.deleted", instanceLab)
 
 	return nil
 }
