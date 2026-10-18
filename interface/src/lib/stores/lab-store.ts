@@ -315,7 +315,6 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
   @action
   private async fetchSingle(labId: string) {
-    console.log('FETCH SINGLE');
     const response = await this.rootStore._dataBinder.get<LabOut>(
       this.resourcePath + '/' + labId,
     );
@@ -382,9 +381,14 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
       void this.fetchSingle(data.payload.labId);
     } else {
-      console.log('FETCH FROM LAB UPDATE');
-      void this.fetch();
+      void this.fetchWithCollections();
     }
+  }
+
+  // A new lab can be in a collection that was created elsewhere, e.g. by another admin or in another tab
+  private async fetchWithCollections() {
+    await this.rootStore._collectionStore.fetch();
+    await this.fetch();
   }
 
   private parseLabs(input: LabOut[]): Lab[] {

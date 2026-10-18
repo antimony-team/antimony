@@ -341,10 +341,14 @@ still the only enforcement.
 
 ### 31. Smaller interface issues, from the code
 
-- **Labs can reference collections the interface doesn't know:** a lab update for an unknown lab only
-  refetches the labs (`onLabUpdate` in `lab-store.ts`), and nothing refetches the collections. When another
-  admin, or the same admin in another tab, creates a collection with a lab in it, the dashboard and the lab
-  view use `!` on the missing collection and crash.
+- **Refetching topologies overwrites unsaved edits:** the editor edits the store's topology object itself
+  (`openTopology` in `topology-manager.ts`), and refetches write the server's version into existing objects
+  (`updateTopologyValues` in `topology-store.ts`, `Object.assign` on bind files in `fetchSingle`). Adding
+  or deleting another topology, deleting a collection, or adding or uploading bind files while the open
+  topology or bind file has unsaved edits replaces them behind the editor's back: the editor still shows the
+  edits, but saving without further typing saves the server's version. Open topologies, bind files or
+  collections that are deleted elsewhere aren't noticed until saving fails. Planned as a separate change
+  (the editor gets its own working copy).
 - **`StatusMessageStore.clear()`** leaves `countBySeverity` and `filteredMessages` behind, and replaces the
   observable `data` with a plain array. Nothing calls it.
 - **Accessibility:** every "…" button in the explorer is labelled "Edit Collection", even on topologies and
@@ -364,6 +368,9 @@ still the only enforcement.
   - The toolbar table only lists Add node, Create group, Fit and Clear, not the select, hand, shape, line,
     text and group tools.
   - A note still says connecting nodes by dragging doesn't work reliably.
+- ~~**Labs can reference collections the interface doesn't know**~~ (fixed: a lab update for an unknown lab
+  fetches the collections before the labs, so a lab in a collection created by another admin or in another
+  tab no longer crashes the dashboard and the lab view)
 - ~~**Shortcuts only work with Ctrl**~~ (fixed: the editor's Ctrl+S, Ctrl+Z and Ctrl+Y also work with Cmd and
   with Caps Lock on; Ctrl+Shift+Z redoes)
 - ~~**The dashboard doesn't update lab states over time**~~ (fixed: the lab store recomputes the state of
