@@ -9,8 +9,6 @@ import React, {
 
 import type {EventObject} from 'cytoscape';
 import cytoscape, {EdgeSingular, NodeSingular} from 'cytoscape';
-// @ts-expect-error This library does not have a type declaration
-import coseBilkent from 'cytoscape-cose-bilkent';
 import {autorun} from 'mobx';
 import {observer} from 'mobx-react-lite';
 
@@ -177,8 +175,6 @@ import NodeToolbar from './toolbar/node-toolbar';
 import ZoomControl from './zoom-control/zoom-control';
 
 import './node-editor.sass';
-
-cytoscape.use(coseBilkent);
 
 interface NodeEditorProps {
   openTopology: Topology | null;

@@ -63,7 +63,7 @@ export const tours: Record<TourId, TourStep[]> = {
     {
       element: '.sb-node-editor-toolbar',
       title: 'Graph tools',
-      text: 'Add nodes, draw groups around nodes, fit the graph to the screen, or let the layout stabilize itself.',
+      text: 'Add nodes, draw groups, shapes, lines and text, or fit the graph to the screen.',
       side: 'left',
       align: 'start',
     },

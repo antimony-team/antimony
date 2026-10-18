@@ -27,7 +27,6 @@
     "ajv": "8.17.1",
     "classnames": "^2.5.1",
     "cytoscape": "^3.34.3",
-    "cytoscape-cose-bilkent": "^4.1.0",
     "cytoscape-fcose": "2.2.0",
     "dayjs": "^1.11.13",
     "driver.js": "1.8.0",
