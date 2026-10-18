@@ -1,6 +1,7 @@
 import React, {useMemo} from 'react';
 
 import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
 
 import {Button} from 'primereact/button';
 
@@ -43,24 +44,21 @@ const SetupStep = (props: SetupStepProps) => (
   </div>
 );
 
-const EditorSetup = (props: EditorSetupProps) => {
+const EditorSetup = observer((props: EditorSetupProps) => {
   const authUser = useAuthUser();
   const collectionStore = useCollectionStore();
 
   const targetCollection = useMemo(() => {
-    let userCollections = collectionStore.data;
-    if (!authUser.isAdmin) {
-      userCollections = userCollections.filter(
-        collection => collection.publicWrite,
-      );
-    }
+    const userCollections = collectionStore.data.filter(collection =>
+      collectionStore.canWriteIn(collection.id),
+    );
 
     if (userCollections.length === 0) {
       return null;
     }
 
     return userCollections[0];
-  }, [authUser]);
+  }, [authUser, collectionStore.data]);
 
   if (!targetCollection && !authUser.isAdmin) {
     return (
@@ -116,6 +114,6 @@ const EditorSetup = (props: EditorSetupProps) => {
       </div>
     </SBEmptyState>
   );
-};
+});
 
 export default EditorSetup;
