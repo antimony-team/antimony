@@ -149,6 +149,7 @@ const TextView = observer(({text, state, onEditEnd}: TextViewProps) => {
           <textarea
             id={textEditorId(text.id)}
             className="sb-graph-text-editor"
+            aria-label="Text"
             defaultValue={annotation.text}
             autoFocus
             ref={isSized ? undefined : fitTextarea}

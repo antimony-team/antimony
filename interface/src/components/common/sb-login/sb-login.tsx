@@ -79,8 +79,10 @@ const LoginForm = observer(() => {
   return (
     <form onSubmit={onFormSubmit} className="sb-login-content">
       <div className="sb-login-header">
-        <Image src="./antimony-logo.svg" width="55px" alt="Antimony Logo" />
-        <div className="sb-login-header-title">Antimony</div>
+        <Image src="./antimony-logo.svg" width="55px" alt="" />
+        <div className="sb-login-header-title" role="heading" aria-level={1}>
+          Antimony
+        </div>
         <div className="sb-login-header-subtitle">Sign in to continue</div>
       </div>
       <If condition={loginError}>
@@ -100,7 +102,7 @@ const LoginForm = observer(() => {
           label="Password"
           id="password"
           type="password"
-          autoComplete="password"
+          autoComplete="current-password"
           invalid={loginError !== null}
           onValueSubmit={onPasswordChange}
           placeholder="Password"

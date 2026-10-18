@@ -1,4 +1,4 @@
-import React, {useRef} from 'react';
+import React, {useRef, useState} from 'react';
 
 import {OverlayPanel} from 'primereact/overlaypanel';
 
@@ -15,6 +15,7 @@ interface TopologyFileSwitchProps {
 
 const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
   const overlayRef = useRef<OverlayPanel>(null);
+  const [isOpen, setOpen] = useState(false);
 
   const files: {
     value: TopologyFileType;
@@ -49,24 +50,45 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
         className="sb-topology-file-switch"
         onClick={e => overlayRef.current?.toggle(e)}
         aria-haspopup="listbox"
+        aria-expanded={isOpen}
         aria-label="Open file"
       >
-        <span className="material-symbols-outlined sb-topology-file-switch-icon">
+        <span
+          className="material-symbols-outlined sb-topology-file-switch-icon"
+          aria-hidden="true"
+        >
           {selectedFile.icon}
         </span>
         {selectedFile.label}
-        <span className="material-symbols-outlined">expand_more</span>
+        <span className="material-symbols-outlined" aria-hidden="true">
+          expand_more
+        </span>
       </button>
-      <OverlayPanel ref={overlayRef} className="sb-topology-file-switch-panel">
+      <OverlayPanel
+        ref={overlayRef}
+        className="sb-topology-file-switch-panel"
+        onShow={() => {
+          setOpen(true);
+          overlayRef.current
+            ?.getElement()
+            ?.querySelector<HTMLElement>('[aria-selected="true"]')
+            ?.focus();
+        }}
+        onHide={() => setOpen(false)}
+      >
         <div role="listbox" aria-label="Topology files">
           {files.map((file, i) => (
             <button
               key={i}
+              role="option"
               aria-selected={file.value === props.value}
               className="sb-topology-file-switch-option"
               onClick={() => onSelect(file.value)}
             >
-              <span className="material-symbols-outlined sb-topology-file-switch-icon">
+              <span
+                className="material-symbols-outlined sb-topology-file-switch-icon"
+                aria-hidden="true"
+              >
                 {file.icon}
               </span>
               <div className="sb-topology-file-switch-option-text">
@@ -78,7 +100,10 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
                 </span>
               </div>
               <If condition={file.value === props.value}>
-                <span className="material-symbols-outlined sb-topology-file-switch-check">
+                <span
+                  className="material-symbols-outlined sb-topology-file-switch-check"
+                  aria-hidden="true"
+                >
                   check
                 </span>
               </If>

@@ -123,7 +123,11 @@ const ColorPopover = forwardRef<SelectionPopoverRef, ColorPopoverProps>(
             </div>
           </When>
           <Otherwise>
-            <div className="sb-color-palette" role="listbox">
+            <div
+              className="sb-color-palette"
+              role="listbox"
+              aria-label="Preset colors"
+            >
               {PRESET_COLORS.map(color => (
                 <button
                   key={color}
@@ -142,6 +146,12 @@ const ColorPopover = forwardRef<SelectionPopoverRef, ColorPopoverProps>(
 
                     event.preventDefault();
                     props.onChange(color);
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      props.onChange(color);
+                    }
                   }}
                 />
               ))}
@@ -180,6 +190,7 @@ const ColorPopover = forwardRef<SelectionPopoverRef, ColorPopoverProps>(
                   ? `#${hexMatch[1]}${hexMatch[2] ?? ''}`.toUpperCase()
                   : ''
             }
+            ariaLabel="Hex color"
             onValueSubmit={onHexSubmit}
           />
           <If condition={!isCustom}>

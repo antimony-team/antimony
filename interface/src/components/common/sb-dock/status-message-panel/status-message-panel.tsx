@@ -39,13 +39,17 @@ const StatusMessagePanel = observer(
               SeverityMapping[message.severity],
             )}
           >
-            <i className={SeverityIconMap[message.severity]}></i>
+            <i
+              className={SeverityIconMap[message.severity]}
+              role="img"
+              aria-label={Severity[message.severity]}
+            ></i>
             <div className="sb-dock-status-messages-date">
               <span>{formatTime(message.timestamp, true)}</span>
               <span>{formatDate(message.timestamp)}</span>
             </div>
             <If condition={!message.isRead}>
-              <Badge severity="danger"></Badge>
+              <Badge severity="danger" role="img" aria-label="Unread"></Badge>
             </If>
             <div className="sb-dock-status-messages-text">
               <div className="sb-dock-status-messages-summary">
@@ -80,7 +84,17 @@ const StatusMessagePanel = observer(
           className={classNames(SeverityMapping[severity], {
             selected: statusMessageStore.severityFilter.has(severity),
           })}
+          role="button"
+          tabIndex={0}
+          aria-label={`${Severity[severity]} (${label})`}
+          aria-pressed={statusMessageStore.severityFilter.has(severity)}
           onClick={() => statusMessageStore.toggleSeverity(severity)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              statusMessageStore.toggleSeverity(severity);
+            }
+          }}
         />
       );
     });

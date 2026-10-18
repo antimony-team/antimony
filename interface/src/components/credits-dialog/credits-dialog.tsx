@@ -60,6 +60,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
         <Image
           src="./zoey.png"
           height="200px"
+          alt="Zoey, the Antimony girl"
           title="Zoey, the Antimony girl"
         />
       </div>

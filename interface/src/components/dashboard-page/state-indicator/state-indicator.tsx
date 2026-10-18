@@ -38,6 +38,8 @@ const StateIndicator = observer((props: StateIndicatorProps) => {
         'lab-state-label-icon',
         getLabStateIconClass(props.lab),
       )}
+      role={props.showText ? undefined : 'img'}
+      aria-label={props.showText ? undefined : InstanceState[props.lab.state]}
     >
       <i className={LabStateStatusIcons[props.lab.state]}></i>
       <If condition={props.showText}>

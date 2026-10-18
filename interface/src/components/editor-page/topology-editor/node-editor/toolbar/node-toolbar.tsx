@@ -92,6 +92,7 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
       className={classNames({toggled: graphSelection.tool === tool.tool})}
       onClick={() => graphSelection.setTool(tool.tool)}
       aria-label={tool.label}
+      aria-pressed={graphSelection.tool === tool.tool}
     />
   );
 

@@ -495,12 +495,18 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         }}
       >
         <div className="sb-topology-editor-toolbar">
-          <ol className="sb-topology-editor-toolbar-crumbs">
+          <ol
+            className="sb-topology-editor-toolbar-crumbs"
+            aria-label="Breadcrumb"
+          >
             <Choose>
               <When condition={openTopology}>
                 <li>
                   <span className="sb-topology-editor-toolbar-subtitle">
-                    <span className="material-symbols-outlined">
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                    >
                       inventory_2
                     </span>
                     {topologyCollection!.name}
@@ -508,7 +514,10 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 </li>
                 <li>
                   <div className="sb-topology-editor-toolbar-title">
-                    <span className="material-symbols-outlined">
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                    >
                       network_node
                     </span>
                     {`${openTopology?.definition.name}${hasPendingEdits ? '*' : ''}`}
@@ -525,7 +534,10 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               <When condition={openBindFile}>
                 <li>
                   <span className="sb-topology-editor-toolbar-title">
-                    <span className="material-symbols-outlined">
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                    >
                       description
                     </span>
                     {`${openBindFile!.filePath}${hasPendingEdits ? '*' : ''}`}

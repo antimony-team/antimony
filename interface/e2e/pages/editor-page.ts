@@ -57,7 +57,7 @@ export class Explorer {
     await this.row(label).locator('.tree-node').click();
   }
 
-  /** A hover button of a row: "Add Topology", "Deploy Topology" or the "…" menu ("Edit Collection"). */
+  /** A hover button of a row: "Add Topology", "Deploy Topology" or the "…" menu ("More options"). */
   rowButton(label: string, button: string): Locator {
     return this.row(label).getByRole('button', {name: button, exact: true});
   }

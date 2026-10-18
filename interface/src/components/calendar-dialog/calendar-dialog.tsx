@@ -188,8 +188,16 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
         })}
         messages={{
           today: 'Today',
-          previous: <i className="pi pi-chevron-left" />,
-          next: <i className="pi pi-chevron-right" />,
+          previous: (
+            <i
+              className="pi pi-chevron-left"
+              role="img"
+              aria-label="Previous"
+            />
+          ),
+          next: (
+            <i className="pi pi-chevron-right" role="img" aria-label="Next" />
+          ),
           month: 'Month',
           week: 'Week',
           agenda: 'Agenda',

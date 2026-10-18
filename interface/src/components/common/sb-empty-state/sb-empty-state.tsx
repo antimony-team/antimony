@@ -36,6 +36,7 @@ const SBEmptyState = (props: EmptyStateProps) => {
     <div className="sb-empty-state">
       <span
         className={classNames('sb-empty-state-icon', {accent: props.accent})}
+        aria-hidden="true"
       >
         {getIcon()}
       </span>

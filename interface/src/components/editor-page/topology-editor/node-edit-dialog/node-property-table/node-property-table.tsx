@@ -129,7 +129,15 @@ const NodePropertyTable = (props: NodePropertyTableProps) => {
     return (
       <div
         className="flex align-items-center gap-3"
+        role="button"
+        tabIndex={0}
         onClick={() => onAddProperty(option.optionGroup.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onAddProperty(option.optionGroup.value);
+          }
+        }}
       >
         <i className="pi pi-wrench"></i>
         <span>{option.optionGroup.value}</span>
@@ -195,6 +203,7 @@ const NodePropertyTable = (props: NodePropertyTableProps) => {
                   },
                 }}
                 placeholder="Search"
+                aria-label="Search properties"
                 value={propertyQuery}
                 onChange={e => setPropertyQuery(e.target.value)}
               />

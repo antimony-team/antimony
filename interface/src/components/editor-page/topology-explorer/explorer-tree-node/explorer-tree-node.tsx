@@ -119,7 +119,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                   <span className="material-symbols-outlined">more_horiz</span>
                 }
                 onClick={onOpenMenu}
-                aria-label="Edit Collection"
+                aria-label="More options"
               />
             </If>
           </When>
@@ -144,7 +144,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                 <span className="material-symbols-outlined">more_horiz</span>
               }
               onClick={onOpenMenu}
-              aria-label="Edit Collection"
+              aria-label="More options"
             />
           </When>
 
@@ -156,7 +156,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                 <span className="material-symbols-outlined">more_horiz</span>
               }
               onClick={onOpenMenu}
-              aria-label="Edit Collection"
+              aria-label="More options"
             />
           </When>
           <When
@@ -170,7 +170,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                 <span className="material-symbols-outlined">more_horiz</span>
               }
               onClick={onOpenMenu}
-              aria-label="Edit Collection"
+              aria-label="More options"
             />
           </When>
         </Choose>

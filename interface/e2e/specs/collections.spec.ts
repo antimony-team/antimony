@@ -119,7 +119,7 @@ test('the "…" button opens the collection menu', async ({
 
   await editor.explorer.row(topology.collection.name).hover();
   await editor.explorer
-    .rowButton(topology.collection.name, 'Edit Collection')
+    .rowButton(topology.collection.name, 'More options')
     .click();
 
   await expect(

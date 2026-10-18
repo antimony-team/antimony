@@ -25,6 +25,7 @@ import './sb-dropdown.sass';
 interface SBDropdownProps {
   id?: string;
   label?: string;
+  ariaLabel?: string;
   isHidden?: boolean;
   wasEdited?: boolean;
   hasFilter?: boolean;
@@ -145,6 +146,7 @@ const SBDropdown = forwardRef<SBDropdownRef, SBDropdownProps>((props, ref) => {
         inputRef={inputFieldRef}
         disabled={props.disabled}
         inputId={props.id}
+        ariaLabel={props.ariaLabel}
         showClear={false}
         value={props.value}
         data-tooltip-id={inputId}

@@ -87,6 +87,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
                       props.nodeEditor.getNodeIcon(end.endpoint.node),
                     )}
                     width="45px"
+                    alt=""
                   />
                   <span className="node-connection-table-entry-text">
                     {end.endpoint.node}:{end.endpoint.interface}
@@ -97,6 +98,7 @@ const NodeConnectionTable = (props: NodeConnectionTableProps) => {
                     max={99}
                     onChange={e => onInterfaceChange(link, end, e)}
                     showButtons
+                    aria-label={`Interface of ${end.endpoint.node}`}
                   />
                 </div>
               ))}

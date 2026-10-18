@@ -26,8 +26,9 @@
     @media (prefers-reduced-motion: reduce)
       transition: none
 
+  // Not on focus of the card itself, which can be focused to open it
   &:hover .sb-dashboard-lab-card-delete,
-  &:focus-within .sb-dashboard-lab-card-delete
+  .sb-dashboard-lab-card-delete:focus-within
     opacity: 1
 
   --status-color: var(--text-muted)

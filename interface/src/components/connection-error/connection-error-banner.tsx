@@ -10,7 +10,7 @@ import ConnectionErrorStatus from '@sb/components/connection-error/connection-er
 const ConnectionBanner = (props: {visible: boolean}) => {
   return (
     <SBOverlay visible={props.visible}>
-      <div className="sb-connection-banner">
+      <div className="sb-connection-banner" role="alert">
         <div className="sb-connection-banner-header">
           <i className="pi pi-globe" />
           <i className="pi pi-times-circle sb-connection-banner-icon-overlay" />

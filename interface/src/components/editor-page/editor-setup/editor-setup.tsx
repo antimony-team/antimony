@@ -31,7 +31,13 @@ const SetupStep = (props: SetupStepProps) => (
     <span className="sb-editor-setup-step-badge">
       <Choose>
         <When condition={props.state === 'done'}>
-          <span className="material-symbols-outlined">check</span>
+          <span
+            className="material-symbols-outlined"
+            role="img"
+            aria-label="Done"
+          >
+            check
+          </span>
         </When>
         <Otherwise>{props.number}</Otherwise>
       </Choose>

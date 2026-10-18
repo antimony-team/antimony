@@ -1,4 +1,4 @@
-import React, {MouseEvent, useMemo} from 'react';
+import React, {MouseEvent, useId, useMemo} from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
@@ -34,6 +34,7 @@ const LabEntry = observer((props: LabEntryProps) => {
   const collectionStore = useCollectionStore();
 
   const clock = useClock();
+  const bandId = useId();
 
   const isChangeable = useMemo(() => {
     return authUser.isAdmin || props.lab.creator.id === authUser.id;
@@ -122,10 +123,23 @@ const LabEntry = observer((props: LabEntryProps) => {
         InstanceState[props.lab.state].toLowerCase(),
       )}
       style={{'--progress': stateProgress} as React.CSSProperties}
+      role="link"
+      tabIndex={0}
+      aria-label={props.lab.name}
+      aria-describedby={bandId}
       onClick={props.onOpenLab}
+      onKeyDown={e => {
+        if (e.target === e.currentTarget && e.key === 'Enter') {
+          props.onOpenLab();
+        }
+      }}
       onContextMenu={props.onContextMenu}
     >
-      <div className="sb-dashboard-lab-card-band" onClick={props.onOpenLab}>
+      <div
+        id={bandId}
+        className="sb-dashboard-lab-card-band"
+        onClick={props.onOpenLab}
+      >
         <div className="dot" />
         <span className="sb-dashboard-lab-card-band-state">
           {InstanceState[props.lab.state]}

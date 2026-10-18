@@ -37,7 +37,7 @@ interface PermissionRowProps {
 // The whole row is a label, so clicking anywhere on it toggles the switch
 const PermissionRow = (props: PermissionRowProps) => (
   <label className="sb-collection-permission" htmlFor={props.id}>
-    <span className="sb-collection-permission-icon">
+    <span className="sb-collection-permission-icon" aria-hidden="true">
       <span className="material-symbols-outlined">{props.icon}</span>
     </span>
     <span className="sb-collection-permission-text">

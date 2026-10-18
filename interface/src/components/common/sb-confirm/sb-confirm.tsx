@@ -129,7 +129,10 @@ const SBConfirm = forwardRef<SBConfirmRef, object>((props, ref) => {
               </span>
               <span>to confirm</span>
             </div>
-            <SBInput ref={confirmInputRef} />
+            <SBInput
+              ref={confirmInputRef}
+              ariaLabel={`Type ${dialogState.current!.confirmText} to confirm`}
+            />
           </div>
         </If>
       </If>

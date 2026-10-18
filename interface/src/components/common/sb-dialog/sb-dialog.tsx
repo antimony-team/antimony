@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useId} from 'react';
 
 import {Button} from 'primereact/button';
 import {Dialog} from 'primereact/dialog';
@@ -40,9 +40,12 @@ interface SBDialogProps {
 }
 
 const SBDialog = (props: SBDialogProps) => {
+  const titleId = useId();
+
   return (
     <Dialog
       visible={props.isOpen}
+      aria-labelledby={titleId}
       dismissableMask={true}
       className={`sb-dialog ${props.className ?? ''}`}
       onHide={props.onClose}
@@ -57,11 +60,15 @@ const SBDialog = (props: SBDialogProps) => {
       style={{width: props.width}}
       header={
         <div className="sb-dialog-header">
-          <div className="sb-dialog-header-title">
+          <div className="sb-dialog-header-title" id={titleId}>
             <If condition={props.headerIcon}>
               <Choose>
                 <When condition={typeof props.headerIcon === 'string'}>
-                  <Image src={props.headerIcon as string} height="24px" />
+                  <Image
+                    src={props.headerIcon as string}
+                    height="24px"
+                    alt=""
+                  />
                 </When>
                 <Otherwise>{props.headerIcon}</Otherwise>
               </Choose>

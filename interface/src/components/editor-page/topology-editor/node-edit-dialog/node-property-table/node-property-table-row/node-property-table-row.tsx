@@ -69,6 +69,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
               onValueSubmit={props.property.onUpdateKey}
               defaultValue={props.property.key}
               placeholder="Empty"
+              ariaLabel="Key"
               isHidden={true}
               tooltip={props.property.description}
             />
@@ -93,6 +94,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
               placeholder={isInherited ? placeholder : undefined}
               options={dropdownOptions!}
               optionLabel="value"
+              ariaLabel={props.propertyKey}
               isHidden={true}
               hasFilter={true}
               icon="pi-cog"
@@ -106,6 +108,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
                 'sb-property-table-inherited': isInherited,
               })}
               onChange={e => props.property.onUpdateValue(e.checked!)}
+              aria-label={props.propertyKey}
               checked={
                 ((props.property.value ??
                   props.property.inheritedValue) as boolean) ?? false
@@ -133,6 +136,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
                 isInherited ? '' : String(props.property.value as string)
               }
               placeholder={placeholder}
+              ariaLabel={props.propertyKey}
               keyfilter={props.property.type === 'number' ? 'int' : undefined}
               isHidden={true}
             />

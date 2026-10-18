@@ -63,6 +63,7 @@ const NodePropertyArray = (props: NodePropertyArrayProps) => {
               onValueSubmit={value => onEntryEdited(value, entry.index)}
               defaultValue={entry.value}
               placeholder="Empty"
+              ariaLabel={`Entry ${entry.index + 1}`}
               isHidden={true}
             />
             <If condition={props.entries.length > props.minItems}>

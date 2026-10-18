@@ -283,14 +283,27 @@ const LabGrid = (props: LabGridProps) => {
               : labStore.data.length}
           </span>
         </div>
-        <div className="sb-lab-grid-filter-chips">
+        <div
+          className="sb-lab-grid-filter-chips"
+          role="group"
+          aria-label="Filter by state"
+        >
           {InstanceStates.map((state, i) => (
             <div
               key={i}
               className={classNames('sb-lab-grid-filter-chip', {
                 selected: !stateFilter.has(state),
               })}
+              role="checkbox"
+              tabIndex={0}
+              aria-checked={!stateFilter.has(state)}
               onClick={() => toggleStateFilter(state)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleStateFilter(state);
+                }
+              }}
             >
               <span
                 key={i}

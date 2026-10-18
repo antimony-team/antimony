@@ -71,6 +71,11 @@ const SBDock = observer(() => {
     };
   }, [pathname]);
 
+  // The page buttons switch on mouse down, so they are pressed with the keyboard here
+  function isActivationKey(event: React.KeyboardEvent) {
+    return event.key === 'Enter' || event.key === ' ';
+  }
+
   function openEditor() {
     let path = '/editor';
     const lastOpenFile = readPersistentValue('last-open-file');
@@ -81,17 +86,31 @@ const SBDock = observer(() => {
   }
 
   return (
-    <div className="flex align-items-stretch justify-content-between sb-island sb-dock">
+    <div
+      className="flex align-items-stretch justify-content-between sb-island sb-dock"
+      role="banner"
+    >
       <div className="flex align-items-center gap-3">
-        <div className="sb-dock-logo" onClick={() => navigate('/')}>
-          <Image src="./antimony-logo.svg" width="25px" alt="Antimony Logo" />
+        <div
+          className="sb-dock-logo"
+          role="link"
+          tabIndex={0}
+          onClick={() => navigate('/')}
+          onKeyDown={e => e.key === 'Enter' && navigate('/')}
+        >
+          <Image src="./antimony-logo.svg" width="25px" alt="" />
           <span>Antimony</span>
           <span className="sb-dock-separator" />
         </div>
         <Choose>
           {/* Only show buttons in online mode and if the user has access to the editor */}
           <When condition={hasEditorAccess}>
-            <div className="sb-dock-page-buttons" ref={pageButtonsRef}>
+            <div
+              className="sb-dock-page-buttons"
+              ref={pageButtonsRef}
+              role="navigation"
+              aria-label="Pages"
+            >
               <Button
                 text
                 icon={
@@ -102,7 +121,11 @@ const SBDock = observer(() => {
                 })}
                 label="Dashboard"
                 onMouseDown={() => navigate('/')}
+                onKeyDown={e => isActivationKey(e) && navigate('/')}
                 aria-label="Dashboard Page"
+                aria-current={
+                  pathname === '/' || pathname === '' ? 'page' : undefined
+                }
               />
               <Button
                 text
@@ -116,7 +139,9 @@ const SBDock = observer(() => {
                 })}
                 label="Topology Editor"
                 onMouseDown={openEditor}
+                onKeyDown={e => isActivationKey(e) && openEditor()}
                 aria-label="Topology Editor Page"
+                aria-current={pathname === '/editor' ? 'page' : undefined}
               />
             </div>
           </When>

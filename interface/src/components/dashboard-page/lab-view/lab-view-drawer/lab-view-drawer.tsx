@@ -477,6 +477,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                 <ProgressBar
                   value={Math.round(cpuRate)}
                   showValue={false}
+                  aria-label="CPU"
                   className="metric-bar"
                 />
                 <UplotReact
@@ -506,6 +507,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                   )}
                   showValue={false}
                   className="metric-bar"
+                  aria-label="Memory usage"
                 />
                 <UplotReact
                   options={memoryOptions}

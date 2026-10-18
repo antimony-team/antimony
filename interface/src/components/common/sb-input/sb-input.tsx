@@ -27,6 +27,7 @@ export interface SBInputRef {
 interface SBInputProps {
   id?: string;
   label?: string;
+  ariaLabel?: string;
   isHidden?: boolean;
   fullyTransparent?: boolean;
 
@@ -131,6 +132,7 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
       <InputText
         ref={inputFieldRef}
         id={props.id}
+        aria-label={props.ariaLabel}
         type={props.type}
         data-tooltip-id={inputId}
         onClick={onSingleClick}

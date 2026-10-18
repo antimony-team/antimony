@@ -70,7 +70,9 @@ const EditorViewSwitch = (props: EditorViewSwitchProps) => {
           disabled={props.disabledViews?.includes(view.value) || false}
           onClick={() => props.onChange(view.value)}
         >
-          <span className="material-symbols-outlined">{view.icon}</span>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {view.icon}
+          </span>
           <span className="sb-editor-view-switch-option-text">
             {view.label}
           </span>

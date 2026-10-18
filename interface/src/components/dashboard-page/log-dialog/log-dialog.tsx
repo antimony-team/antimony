@@ -173,7 +173,9 @@ const LogDialog = observer((props: LogDialogProps) => {
       resizeable={true}
       disableModal={true}
       headerIcon={
-        <span className="material-symbols-outlined">document_search</span>
+        <span className="material-symbols-outlined" aria-hidden="true">
+          document_search
+        </span>
       }
     >
       <Choose>
@@ -218,6 +220,7 @@ const LogDialog = observer((props: LogDialogProps) => {
                 <Image
                   src="./icons/antimony-outline.svg"
                   width="13px"
+                  alt=""
                   style={{
                     paddingLeft: '2.3px',
                     paddingRight: '1px',

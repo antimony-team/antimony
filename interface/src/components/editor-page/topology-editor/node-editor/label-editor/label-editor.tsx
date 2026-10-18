@@ -53,6 +53,7 @@ const LabelEditor = observer((props: LabelEditorProps) => {
         <SBInput
           ref={inputRef}
           defaultValue={labelEdit!.value}
+          ariaLabel="Label"
           autoFocus
           onValueSubmit={props.onSubmit}
         />

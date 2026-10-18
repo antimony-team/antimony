@@ -26,12 +26,10 @@ const LoadingScreen = (props: LoadingScreenProps) => {
     <SBOverlay hideDelay={500} fullscreen={true} visible={visible}>
       <div className="sb-loading-screen-panel">
         <span className="sb-loading-screen-title">Antimony Loading</span>
-        <span className="sb-loading-screen-text">{props.message}</span>
-        <Image
-          src="./antimony-loader.svg"
-          height="180px"
-          alt="Antimony loader"
-        />
+        <span className="sb-loading-screen-text" role="status">
+          {props.message}
+        </span>
+        <Image src="./antimony-loader.svg" height="180px" alt="" />
       </div>
     </SBOverlay>
   );

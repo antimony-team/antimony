@@ -234,6 +234,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
           <Checkbox
             onChange={e => toggleFileNode(props.node, e.target.checked!)}
             checked={isFileNodeChecked(props.node)}
+            aria-label={props.node.fullPath}
           />
           <i className={props.node.icon} />
           <Choose>

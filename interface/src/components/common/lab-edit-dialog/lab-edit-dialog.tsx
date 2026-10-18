@@ -351,6 +351,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
               options={DeployModes}
               onChange={e => setIsMultiple(e.value === 'multiple')}
               allowEmpty={false}
+              aria-label="Deploy mode"
             />
           </If>
           <div className="flex gap-3">
@@ -390,7 +391,9 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
               id="edit-lab-topology"
               label="Topology"
               icon={
-                <span className="material-symbols-outlined">network_node</span>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  network_node
+                </span>
               }
               options={topologyGroups}
               optionGroupLabel="label"
@@ -468,6 +471,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
                   <input
                     value={customNames[index] ?? ''}
                     placeholder={defaultName(index)}
+                    aria-label={`Name of lab ${index + 1}`}
                     onChange={e => onCustomNameChange(index, e.target.value)}
                     onPaste={e => onCustomNamePaste(index, e)}
                   />

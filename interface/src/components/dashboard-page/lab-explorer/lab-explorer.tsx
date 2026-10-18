@@ -42,9 +42,10 @@ const LabExplorer = (props: LabExplorerProps) => {
       const input = searchQueryFieldRef.current;
       if (!input || document.activeElement === input) return;
 
-      // Only characters, no shortcuts
+      // Only characters, no shortcuts, and no space, which presses the focused button
       if (
         event.key.length !== 1 ||
+        event.key === ' ' ||
         event.ctrlKey ||
         event.metaKey ||
         event.altKey
@@ -79,6 +80,13 @@ const LabExplorer = (props: LabExplorerProps) => {
     }, 100);
   }
 
+  function onItemKeyDown(event: React.KeyboardEvent, filter: string | null) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      props.setCollectionFilter(filter);
+    }
+  }
+
   return (
     <>
       <IconField iconPosition="left">
@@ -87,6 +95,7 @@ const LabExplorer = (props: LabExplorerProps) => {
           ref={searchQueryFieldRef}
           className="width-100"
           placeholder="Search labs"
+          aria-label="Search labs"
           onChange={e => handleSearchChange(e.target.value)}
         />
       </IconField>
@@ -94,9 +103,15 @@ const LabExplorer = (props: LabExplorerProps) => {
         className={classNames('sb-lab-explorer-item', {
           selected: props.collectionFilter === null,
         })}
+        role="button"
+        tabIndex={0}
+        aria-pressed={props.collectionFilter === null}
         onClick={() => props.setCollectionFilter(null)}
+        onKeyDown={e => onItemKeyDown(e, null)}
       >
-        <span className="material-symbols-outlined">stacks</span>
+        <span className="material-symbols-outlined" aria-hidden="true">
+          stacks
+        </span>
         <span className="sb-lab-explorer-item-label">All labs</span>
         <span className="sb-lab-explorer-item-count">
           {labStore.data.length}
@@ -109,9 +124,15 @@ const LabExplorer = (props: LabExplorerProps) => {
           className={classNames('sb-lab-explorer-item', {
             selected: props.collectionFilter === collection.id,
           })}
+          role="button"
+          tabIndex={0}
+          aria-pressed={props.collectionFilter === collection.id}
           onClick={() => props.setCollectionFilter(collection.id)}
+          onKeyDown={e => onItemKeyDown(e, collection.id)}
         >
-          <span className="material-symbols-outlined">inventory_2</span>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            inventory_2
+          </span>
           <span className="sb-lab-explorer-item-label">{collection.name}</span>
           <div className="sb-lab-explorer-item-count">
             <div className="sb-lab-explorer-item-dots">

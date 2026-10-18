@@ -219,7 +219,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     termRef.current?.focus();
   }
 
-  function onTabClick(event: React.MouseEvent<HTMLDivElement>, index: number) {
+  function onTabClick(event: React.SyntheticEvent, index: number) {
     if (!props.dialogState.state || !termRef.current) return;
 
     const currentShells = shellStore.getShellsForLab(
@@ -343,27 +343,44 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       disableModal={true}
       onShow={onOpen}
       onResizeEnd={onResizeEnd}
-      headerIcon={<span className="material-symbols-outlined">terminal_2</span>}
+      headerIcon={
+        <span className="material-symbols-outlined" aria-hidden="true">
+          terminal_2
+        </span>
+      }
     >
-      <div className="sb-terminal-tabs">
+      <div className="sb-terminal-tabs" role="tablist" aria-label="Terminals">
         {currentTabs.map((tab, i) => (
           <div
             key={i}
             className={classNames('sb-terminal-tab', {
               selected: i === tabIndex,
             })}
+            role="tab"
+            tabIndex={0}
+            aria-selected={i === tabIndex}
             onClick={e => onTabClick(e, i)}
+            onKeyDown={e => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onTabClick(e, i);
+              }
+            }}
           >
             <div
               className={classNames('sb-terminal-tab-indicator', {
                 expired: tab.expired,
               })}
+              role="img"
+              aria-label={tab.expired ? 'Expired' : 'Connected'}
             />
             <span className="sb-terminal-tab-label">{tab.label}</span>
             <Button
               className="sb-terminal-tab-close"
               icon="pi pi-times"
               onClick={e => onTabClose(e, tab.shellId, i)}
+              aria-label="Close tab"
             />
           </div>
         ))}
@@ -374,13 +391,33 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           onClick={onNewTab}
         />
       </div>
-      <OverlayPanel ref={newTabOverlay} className="sb-terminal-new-tab-overlay">
+      <OverlayPanel
+        ref={newTabOverlay}
+        className="sb-terminal-new-tab-overlay"
+        onShow={() =>
+          newTabOverlay.current
+            ?.getElement()
+            ?.querySelector<HTMLElement>('[tabindex="0"]')
+            ?.focus()
+        }
+      >
         {nodesInLab.map(node => (
           <div
+            key={node.value}
             className="sb-terminal-new-tab-overlay-entry"
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectNewTab(node.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectNewTab(node.value);
+              }
+            }}
           >
-            <span className="material-symbols-outlined">deployed_code</span>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              deployed_code
+            </span>
             <span>{node.label}</span>
           </div>
         ))}

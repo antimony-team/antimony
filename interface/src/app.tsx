@@ -66,7 +66,7 @@ const App = observer(() => {
           visible={phase === AppPhase.Ready}
         >
           <SBDock />
-          <div className="flex flex-grow-1 gap-2 min-h-0">
+          <div className="flex flex-grow-1 gap-2 min-h-0" role="main">
             <Outlet />
           </div>
         </SBOverlay>

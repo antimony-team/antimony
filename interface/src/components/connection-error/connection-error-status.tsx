@@ -15,13 +15,13 @@ const ConnectionStateIcon = (props: {state: ConnectionState}) => {
   return (
     <Choose>
       <When condition={props.state === ConnectionState.Retrying}>
-        <ProgressSpinner strokeWidth="5" />
+        <ProgressSpinner strokeWidth="5" aria-label="Retrying" />
       </When>
       <When condition={props.state === ConnectionState.Unknown}>
-        <i className="pi pi-question" />
+        <i className="pi pi-question" role="img" aria-label="Unknown" />
       </When>
       <Otherwise>
-        <i className="pi pi-check" />
+        <i className="pi pi-check" role="img" aria-label="Connected" />
       </Otherwise>
     </Choose>
   );

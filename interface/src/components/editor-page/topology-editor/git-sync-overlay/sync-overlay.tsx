@@ -68,7 +68,11 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
   }
 
   return (
-    <OverlayPanel ref={props.popOverRef} className="sync-overlay-panel">
+    <OverlayPanel
+      ref={props.popOverRef}
+      className="sync-overlay-panel"
+      onShow={() => urlFieldRef.current?.input.current?.focus()}
+    >
       <div className="flex flex-column gap-2">
         <SBInput
           id="sync-url"

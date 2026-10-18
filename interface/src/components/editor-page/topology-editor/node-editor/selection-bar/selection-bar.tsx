@@ -184,6 +184,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           onClick={event => togglePopover(BarPopover.Fill, event.currentTarget)}
           data-pr-tooltip="Fill"
           aria-label="Fill"
+          aria-expanded={openPopover === BarPopover.Fill}
         >
           <span
             className={classNames('sb-color-swatch', {
@@ -205,6 +206,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           }
           data-pr-tooltip={isLine ? 'Line color' : 'Border color'}
           aria-label={isLine ? 'Line color' : 'Border color'}
+          aria-expanded={openPopover === BarPopover.Border}
         >
           <span
             className={classNames('sb-color-swatch', {
@@ -223,6 +225,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           value={style?.borderStyle ?? 'solid'}
           options={BORDER_STYLES}
           allowEmpty={false}
+          aria-label={isLine ? 'Line style' : 'Border style'}
           disabled={!hasBorder}
           onChange={e => props.onStyle({borderStyle: e.value})}
           itemTemplate={(borderStyle: BorderStyle) => (
@@ -308,6 +311,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           }
           data-pr-tooltip="Text color"
           aria-label="Text color"
+          aria-expanded={openPopover === BarPopover.TextColor}
         >
           <span
             className="sb-color-swatch"
@@ -324,6 +328,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           }
           data-pr-tooltip="Background"
           aria-label="Background"
+          aria-expanded={openPopover === BarPopover.TextBackground}
         >
           <span
             className={classNames('sb-color-swatch', {
@@ -395,6 +400,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           icon={<span className="material-symbols-outlined">stacks</span>}
           onClick={event => arrangeMenuRef.current?.toggle(event)}
           aria-haspopup
+          aria-label="Arrange"
         />
         <Menu
           ref={arrangeMenuRef}

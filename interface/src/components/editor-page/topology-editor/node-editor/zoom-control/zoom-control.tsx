@@ -36,6 +36,7 @@ const ZoomControl = observer((props: ZoomControlProps) => {
         onClick={props.onReset}
         tooltip="Reset zoom"
         tooltipOptions={{position: 'top'}}
+        aria-label={`Reset zoom (${Math.round(graphSelection.zoom * 100)}%)`}
       />
       <Button
         icon="pi pi-plus"

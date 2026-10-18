@@ -187,7 +187,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     nameFieldRef.current?.input.current?.focus();
   }
 
-  function onOpenIconSelector(event: React.MouseEvent<HTMLDivElement>) {
+  function onOpenIconSelector(event: React.SyntheticEvent) {
     iconSelectorOverlay.current?.toggle(event, iconSelectorAnchor.current!);
   }
 
@@ -215,9 +215,18 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
           <div
             className="sb-node-edit-dialog-icon-container"
             ref={iconSelectorAnchor}
+            role="button"
+            tabIndex={0}
+            aria-label="Change icon"
             onClick={onOpenIconSelector}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpenIconSelector(e);
+              }
+            }}
           >
-            <Image src={nodeIcon} />
+            <Image src={nodeIcon} alt="" />
           </div>
 
           <div className="flex flex-column gap-2 flex-grow-1">
@@ -249,13 +258,25 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
             />
           </div>
         </div>
-        <div className="sb-node-edit-dialog-header">Node Properties</div>
+        <div
+          className="sb-node-edit-dialog-header"
+          role="heading"
+          aria-level={2}
+        >
+          Node Properties
+        </div>
         <NodePropertyTable
           nodeEditor={nodeEditor!}
           objectKey=""
           schemaKey="node-config"
         />
-        <div className="sb-node-edit-dialog-header">Connections</div>
+        <div
+          className="sb-node-edit-dialog-header"
+          role="heading"
+          aria-level={2}
+        >
+          Connections
+        </div>
         <NodeConnectionTable nodeEditor={nodeEditor!} />
         <Accordion multiple>
           <AccordionTab header="Environment Variables">
@@ -310,11 +331,28 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
       <OverlayPanel
         ref={iconSelectorOverlay}
         className="sb-icon-selector-panel"
+        onShow={() =>
+          iconSelectorOverlay.current
+            ?.getElement()
+            ?.querySelector<HTMLElement>('[tabindex="0"]')
+            ?.focus()
+        }
       >
         <div className="sb-icon-selector-container">
           {deviceStore.getAllIcons().map(([icon, path], index) => (
-            <div key={index} className="sb-icon-selector-entry">
-              <Image src={path} onClick={() => onSelectIcon(icon)} />
+            <div
+              key={index}
+              className="sb-icon-selector-entry"
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectIcon(icon);
+                }
+              }}
+            >
+              <Image src={path} alt="" onClick={() => onSelectIcon(icon)} />
               <span>{icon}</span>
             </div>
           ))}

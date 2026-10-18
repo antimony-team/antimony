@@ -1168,6 +1168,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         filter
         filterMode="lenient"
         filterPlaceholder="Search Topologies"
+        ariaLabel="Topologies"
         value={topologyTree}
         className="w-full"
         emptyMessage={

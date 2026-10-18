@@ -57,6 +57,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
           tooltip="Back"
           tooltipOptions={{position: 'bottom', showDelay: 500}}
           aria-label="Back"
+          autoFocus
         />
         <If condition={props.lab}>
           <StateIndicator lab={props.lab!} showText={false} />

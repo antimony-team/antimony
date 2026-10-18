@@ -650,6 +650,7 @@ const MonacoWrapper = observer(
         language: 'text',
         theme: 'antimonyTheme',
         fontFamily: 'JetBrains Mono Variable, monospace',
+        ariaLabel: 'Code editor',
       });
       editorRef.current = editor;
 

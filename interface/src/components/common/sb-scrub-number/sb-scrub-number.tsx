@@ -182,6 +182,13 @@ const SBScrubNumber = (props: SBScrubNumberProps) => {
         onValueChange={e => setDraftValue(e.value ?? null)}
         onBlur={() => stopEditing(true)}
         onKeyDown={event => {
+          // Enter on the focused field does what a click does
+          if (!isEditing && event.key === 'Enter') {
+            if (props.onClick) props.onClick(containerRef.current!);
+            else startEditing();
+            return;
+          }
+
           if (event.key === 'Enter') stopEditing(true);
           if (event.key === 'Escape') stopEditing(false);
         }}
