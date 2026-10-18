@@ -3,6 +3,7 @@ package test
 import (
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -925,4 +926,51 @@ func TestShellData_AFailedShellIsReportedAndRemoved(t *testing.T) {
 	// The failed shell no longer counts against the limit of one shell
 	h.Provider.ExecInteractiveFn = nil
 	openShell(t, client, LabAdminID, NodeSRL)
+}
+
+func TestOpenShellCommand_ConcurrentOpensStayWithinTheLimit(t *testing.T) {
+	h := NewHarness(t, WithShellLimits(1, 1800))
+
+	h.DeployLab(LabAdminID)
+
+	// Opening a shell takes a while, the first one stays in that phase until it is released
+	release := make(chan struct{})
+	var opening atomic.Int32
+	h.Provider.ExecInteractiveFn = func(string, string, []string) (deployment.ShellExecSession, error) {
+		opening.Add(1)
+		<-release
+		return deployment.CreateDummyShellSession(), nil
+	}
+
+	first := h.Dial("/cmd", h.Seed.Admin.Token)
+	second := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	firstAck := make(chan SocketAck, 1)
+	go func() {
+		ack, _ := first.TryEmit(openShellCommand(LabAdminID, NodeHost))
+		firstAck <- ack
+	}()
+	requireEventually(t, func() bool { return opening.Load() == 1 }, "the first shell must be opening")
+
+	second.Emit(openShellCommand(LabAdminID, NodeSRL)).RequireError(5032)
+	assert.Equal(t, int32(1), opening.Load(), "the second shell must not be opened")
+
+	close(release)
+	(<-firstAck).RequireOk(nil)
+}
+
+func TestOpenShellCommand_AFailedOpenFreesItsSlot(t *testing.T) {
+	h := NewHarness(t, WithShellLimits(1, 1800))
+
+	h.DeployLab(LabAdminID)
+
+	h.Provider.ExecInteractiveFn = func(string, string, []string) (deployment.ShellExecSession, error) {
+		return nil, deployment.ErrDummyProvider
+	}
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+	client.Emit(openShellCommand(LabAdminID, NodeHost)).RequireError(5000)
+
+	h.Provider.ExecInteractiveFn = nil
+	openShell(t, client, LabAdminID, NodeHost)
 }

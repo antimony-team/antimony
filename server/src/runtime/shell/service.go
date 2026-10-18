@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/samber/lo"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/antimony-team/antimony-server/auth"
@@ -30,6 +29,9 @@ type Service struct {
 
 	openShells      map[string]*shellConfig
 	openShellsMutex sync.Mutex
+
+	// userShellCounts counts each user's shells against the shell limit, the open ones and the ones being opened
+	userShellCounts map[string]int
 
 	defaultSshAuth []ssh.AuthMethod
 
@@ -83,6 +85,7 @@ func CreateService(
 		instanceService: instanceService,
 
 		openShells:         make(map[string]*shellConfig),
+		userShellCounts:    make(map[string]int),
 		openShellsMutex:    sync.Mutex{},
 		defaultSshAuth:     getSshKeyAuth(),
 		deploymentProvider: deploymentProvider,
@@ -136,6 +139,7 @@ func (s *Service) Close() {
 		s.openShellsMutex.Lock()
 		openShells := maps.Clone(s.openShells)
 		s.openShells = make(map[string]*shellConfig)
+		s.userShellCounts = make(map[string]int)
 		s.openShellsMutex.Unlock()
 
 		for shellId, shell := range openShells {
@@ -204,18 +208,21 @@ func (s *Service) OpenShellCommand(
 		return "", err
 	}
 
+	// Opening takes a while, so the user's slot is reserved before
 	s.openShellsMutex.Lock()
-	userShellCount := lo.CountBy(lo.Values(s.openShells), func(shell *shellConfig) bool {
-		return shell.owner.UserId == authUser.UserId
-	})
-	s.openShellsMutex.Unlock()
-
-	if userShellCount >= s.config.Shell.UserLimit {
+	if s.userShellCounts[authUser.UserId] >= s.config.Shell.UserLimit {
+		s.openShellsMutex.Unlock()
 		return "", utils.ErrShellLimitReached
 	}
+	s.userShellCounts[authUser.UserId]++
+	s.openShellsMutex.Unlock()
 
 	shellSession, err := s.OpenShell(ctx, targetInstanceName, &node)
 	if err != nil {
+		s.openShellsMutex.Lock()
+		s.releaseShellSlotLocked(authUser.UserId)
+		s.openShellsMutex.Unlock()
+
 		log.Error("Failed to open shell on node.", "node", node.ContainerId)
 		return "", err
 	}
@@ -295,10 +302,29 @@ func (s *Service) removeShell(shellId string) bool {
 	s.openShellsMutex.Lock()
 	defer s.openShellsMutex.Unlock()
 
-	_, ok := s.openShells[shellId]
-	delete(s.openShells, shellId)
+	return s.removeShellLocked(shellId)
+}
 
-	return ok
+// removeShellLocked removes a shell and gives its slot back, reporting whether it was still open. openShellsMutex
+// must be held.
+func (s *Service) removeShellLocked(shellId string) bool {
+	shell, ok := s.openShells[shellId]
+	if !ok {
+		return false
+	}
+
+	delete(s.openShells, shellId)
+	s.releaseShellSlotLocked(shell.owner.UserId)
+
+	return true
+}
+
+// releaseShellSlotLocked gives a slot of a user's shell limit back. openShellsMutex must be held.
+func (s *Service) releaseShellSlotLocked(userId string) {
+	s.userShellCounts[userId]--
+	if s.userShellCounts[userId] <= 0 {
+		delete(s.userShellCounts, userId)
+	}
 }
 
 func (s *Service) ResizeShellCommand(
@@ -338,7 +364,7 @@ func (s *Service) runManager(ctx context.Context) {
 					log.Errorf("Failed to close shell: %s", err.Error())
 				}
 
-				delete(s.openShells, shellId)
+				s.removeShellLocked(shellId)
 			}
 		}
 		s.openShellsMutex.Unlock()

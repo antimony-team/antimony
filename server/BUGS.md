@@ -15,6 +15,20 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 23. Two concurrent shell opens can exceed the user's shell limit
+
+- `runtime/shell/service.go` `OpenShellCommand`
+
+Found by the test review. The limit check counted the user's open shells, and the new shell was only added after it
+had opened, which takes a while (an SSH attempt, then an exec). Two open commands at the same time both passed the
+check, so a user could get more shells than `Shell.UserLimit`.
+
+**Fixed:** `userShellCounts` counts each user's shells, open and still opening, and the limit is checked against it.
+The check reserves the slot under the same lock, before the shell opens. The slot is given back if opening fails,
+and when the shell is removed, which all removals do through `removeShellLocked`. The shutdown resets the counts.
+Tests: `TestOpenShellCommand_ConcurrentOpensStayWithinTheLimit`, which fails without the
+reservation, and `TestOpenShellCommand_AFailedOpenFreesItsSlot`.
+
 ### 22. A closed shell is closed a second time when its output ends
 
 - `runtime/shell/service.go` `runShell`, `CloseShellCommand`
