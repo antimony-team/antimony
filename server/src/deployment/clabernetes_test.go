@@ -1033,6 +1033,17 @@ func deleteCollectionOf(t *testing.T, cluster *fakeCluster) k8stesting.DeleteCol
 	return k8stesting.DeleteCollectionActionImpl{}
 }
 
+func TestRestartNode_StartsAStoppedNode(t *testing.T) {
+	stopped := c9sNode("a1")
+	stopped.Labels = map[string]string{clabernetesconstants.LabelIgnoreReconcile: "true"}
+	cluster := newFakeCluster(t, []runtime.Object{nodeDeployment("a1", 0)}, []runtime.Object{stopped})
+
+	require.NoError(t, cluster.provider.RestartNode(context.Background(), "demo", "a1"))
+
+	assert.Equal(t, int32(1), getReplicas(t, cluster, "a1"))
+	assert.Empty(t, getNodeLabels(t, cluster, "a1"), "the manager reconciles the node again")
+}
+
 func TestRestartNode_DeletesOnlyTheNodesPodsGracefully(t *testing.T) {
 	cluster := newFakeCluster(t, []runtime.Object{nodeDeployment("a1", 1)}, nil)
 

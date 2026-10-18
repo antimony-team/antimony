@@ -15,6 +15,18 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 19. Restarting a stopped node does nothing on clabernetes
+
+- `deployment/clabernetes.go` `RestartNode`
+
+Found by the test review. The restart command allows stopped nodes. On containerlab, `docker restart` starts a
+stopped container, and the dummy does the same. On clabernetes, `RestartNode` deletes the node's pods, but a stopped
+node's Deployment is scaled to 0 and has none, so the command succeeded and the node stayed stopped. (The note in #11
+said the service only restarts running nodes; that was wrong.)
+
+**Fixed:** `RestartNode` starts a node whose Deployment is scaled to 0, through `StartNode`. Test:
+`TestRestartNode_StartsAStoppedNode`.
+
 ### 18. Containerlab stops reporting node changes after Docker's event stream ends
 
 - `deployment/containerlab.go` `RegisterListener`
@@ -218,8 +230,7 @@ Test: `TestProviderE2E/NodeLifecycle/an_unknown_node`, marked with `knownBug` fo
 **Fixed:** a new `nodeError` helper turns Kubernetes' "not found" into `utils.ErrNodeNotFound` for the `Node` patch
 and the Deployment scale, so stop and start report an unknown node like containerlab. `RestartNode` gets the node's
 Deployment first and returns `ErrNodeNotFound` without deleting anything if it doesn't exist. Restarting a stopped
-node still does nothing, since its Deployment has no pod to delete. The service only restarts running nodes, so
-that is left as it is. `TestStopNode_FailsForAnUnknownNode` expects `ErrNodeNotFound` now, and there are new unit
+node is #19. `TestStopNode_FailsForAnUnknownNode` expects `ErrNodeNotFound` now, and there are new unit
 tests for start and restart. The `knownBug` marker in the e2e test is removed. Still to run at the end:
 `NodeLifecycle/an_unknown_node` on clabernetes.
 

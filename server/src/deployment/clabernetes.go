@@ -706,9 +706,14 @@ func (p *ClabernetesProvider) RestartNode(
 	grace := int64(10)
 
 	// Deleting the pods of a node that doesn't exist would succeed without doing anything
-	_, err := p.clientset.AppsV1().Deployments(namespace).Get(ctx, nodeName, metav1.GetOptions{})
+	deployment, err := p.clientset.AppsV1().Deployments(namespace).Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nodeError(err, namespace, nodeName)
+	}
+
+	// A stopped node has no pod to delete, so restarting it starts it, like docker restart does
+	if replicas(deployment) == 0 {
+		return p.StartNode(ctx, instanceName, nodeName)
 	}
 
 	return p.clientset.CoreV1().Pods(namespace).DeleteCollection(ctx,
