@@ -132,11 +132,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
               <Button
                 outlined
                 icon="pi pi-power-off"
-                aria-label={
-                  props.lab.state === InstanceState.Scheduled
-                    ? 'Delete Lab'
-                    : 'Destroy Lab'
-                }
+                aria-label="Destroy lab"
                 severity="danger"
                 onClick={() => props.onDestroyLabRequest(props.lab)}
                 disabled={!props.canDestroyLab()}

@@ -110,7 +110,6 @@ export class RootStore {
   @computed
   public get fetchState() {
     return combinedFetchState(
-      this._serverConfigStore.fetchReport.state,
       this._topologyStore.fetchReport.state,
       this._serverConfigStore.fetchReport.state,
       this._labStore.fetchReport.state,

@@ -38,7 +38,7 @@ export class LabView {
   }
 
   get destroyButton(): Locator {
-    return this.button('Destroy Lab');
+    return this.button('Destroy lab');
   }
 
   get logsButton(): Locator {
