@@ -220,7 +220,13 @@ func (h *Handler) UpdateBindFile(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateBindFile(ctx.Request.Context(), payload, ctx.Param("fileId"), authUser); err != nil {
+	if err := h.service.UpdateBindFile(
+		ctx.Request.Context(),
+		payload,
+		ctx.Param("topologyId"),
+		ctx.Param("fileId"),
+		authUser,
+	); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}
@@ -246,7 +252,12 @@ func (h *Handler) DeleteBindFile(ctx *gin.Context) {
 		ctx.JSON(utils.CreateErrorResponse(utils.ErrAccessTokenInvalid))
 	}
 
-	if err := h.service.DeleteBindFile(ctx.Request.Context(), ctx.Param("fileId"), authUser); err != nil {
+	if err := h.service.DeleteBindFile(
+		ctx.Request.Context(),
+		ctx.Param("topologyId"),
+		ctx.Param("fileId"),
+		authUser,
+	); err != nil {
 		ctx.JSON(utils.CreateErrorResponse(err))
 		return
 	}

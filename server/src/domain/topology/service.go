@@ -323,12 +323,17 @@ func (s *Service) CreateBindFile(
 func (s *Service) UpdateBindFile(
 	ctx context.Context,
 	req BindFileInPartial,
-	bindFileUuid string,
+	topologyId string,
+	bindFileId string,
 	authUser auth.AuthenticatedUser,
 ) error {
-	bindFile, err := s.repo.GetBindFileByUuid(ctx, bindFileUuid)
+	bindFile, err := s.repo.GetBindFileByUuid(ctx, bindFileId)
 	if err != nil {
 		return err
+	}
+
+	if bindFile.Topology.UUID != topologyId {
+		return utils.ErrUuidNotFound
 	}
 
 	bindFileTopology, err := s.repo.GetByUuid(ctx, bindFile.Topology.UUID)
@@ -361,7 +366,7 @@ func (s *Service) UpdateBindFile(
 			ctx,
 			newPath,
 			bindFileTopology.UUID,
-			bindFileUuid,
+			bindFileId,
 		); err != nil {
 			return err
 		} else if nameExists {
@@ -399,10 +404,19 @@ func (s *Service) UpdateBindFile(
 	return s.repo.UpdateBindFile(ctx, bindFile)
 }
 
-func (s *Service) DeleteBindFile(ctx context.Context, bindFileId string, authUser auth.AuthenticatedUser) error {
+func (s *Service) DeleteBindFile(
+	ctx context.Context,
+	topologyId string,
+	bindFileId string,
+	authUser auth.AuthenticatedUser,
+) error {
 	bindFile, err := s.repo.GetBindFileByUuid(ctx, bindFileId)
 	if err != nil {
 		return err
+	}
+
+	if bindFile.Topology.UUID != topologyId {
+		return utils.ErrUuidNotFound
 	}
 
 	bindFileTopology, err := s.repo.GetByUuid(ctx, bindFile.Topology.UUID)
