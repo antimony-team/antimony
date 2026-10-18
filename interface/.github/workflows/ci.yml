@@ -79,8 +79,17 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
+      # The coverage summary is printed in the log, the full report is uploaded
       - name: Run unit tests
-        run: yarn run test
+        run: yarn run test:coverage
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
 
   desktop:
     needs: [ lint, typecheck, test ]

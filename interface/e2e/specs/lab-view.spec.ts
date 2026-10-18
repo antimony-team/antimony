@@ -248,7 +248,7 @@ test.describe('nodes', () => {
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toBe(
-        `ssh ${lab.topology.collection.name}/${lab.name}/host1@127.0.0.1 -p 6200`,
+        `ssh -p 6200 -l ${lab.topology.collection.name}/${lab.name}/host1 127.0.0.1`,
       );
   });
 

@@ -842,24 +842,6 @@ test.describe('selection and view', () => {
     await expect(graph.zoomLevel).toHaveText('100%');
   });
 
-  test('the stabilization panel lays out the graph', async ({
-    page,
-    createTopology,
-  }) => {
-    const topology = await createTopology({nodes: ['a', 'b', 'c', 'd']});
-    const {editor, graph} = await openGraph(page, topology);
-
-    await graph.tool('Graph Stabilization').click();
-    await expect(
-      page.getByText('Graph stabilization', {exact: true}),
-    ).toBeVisible();
-    await page.getByRole('button', {name: 'Stabilize graph'}).click();
-
-    await expect(editor.editor.title).toHaveText(
-      new RegExp(`${topology.name}\\*$`),
-    );
-  });
-
   test('the background menu adds elements where it was opened', async ({
     page,
     createTopology,

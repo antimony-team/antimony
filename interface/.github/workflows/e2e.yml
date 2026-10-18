@@ -1,12 +1,11 @@
 name: End-to-end tests
 
 on:
-  # Disabled for now, the tests only run when started by hand or called by another workflow
-  # push:
-  #   branches: [ development ]
-  #
-  # pull_request:
-  #   branches: [ development ]
+  push:
+    branches: [ development, main ]
+
+  pull_request:
+    branches: [ development, main ]
 
   workflow_dispatch:
     inputs:
@@ -33,10 +32,16 @@ env:
   # The tests run the web build; only the desktop packages need Electron
   ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
+# A newer push to the same branch or pull request replaces a run that is still going
+concurrency:
+  group: e2e-${{ github.workflow_ref }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The suite takes about 20 minutes on one worker locally; CI runners are slower and retry flaky tests
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: read

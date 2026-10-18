@@ -63,6 +63,7 @@
     "start": "vite",
     "build": "vite build",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "gts lint '**/*.{ts,tsx}'",
     "typecheck": "tsc --noEmit",
     "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts"
@@ -90,6 +91,7 @@
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "5.0.3",
     "babel-plugin-jsx-control-statements": "^4.1.2",
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",
