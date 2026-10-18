@@ -1,5 +1,12 @@
 import dayjs from 'dayjs';
-import {action, computed, observable, reaction, runInAction} from 'mobx';
+import {
+  action,
+  computed,
+  IReactionDisposer,
+  observable,
+  reaction,
+  runInAction,
+} from 'mobx';
 
 import {
   DataBinder,
@@ -45,6 +52,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   @observable accessor endDate: string | null = null;
 
   private commandsSubscription: Subscription | null = null;
+  private clockReaction: IReactionDisposer | null = null;
 
   private dataBinder: DataBinder;
   private topologyStore: TopologyStore;
@@ -89,6 +97,11 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
   public init(filterFromParams: boolean) {
     this.dataBinder.subscribeNamespace('lab-updates', this.onLabUpdate);
     this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
+
+    this.clockReaction = reaction(
+      () => this.rootStore._clockStore.now,
+      () => this.updateScheduledStates(),
+    );
 
     if (filterFromParams) {
       reaction(
@@ -285,6 +298,9 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
     this.dataBinder.unsubscribeNamespace('lab-updates', this.onLabUpdate);
     this.commandsSubscription = null;
+
+    this.clockReaction?.();
+    this.clockReaction = null;
   }
 
   @action
@@ -407,6 +423,26 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
         annotations: annotations ?? {},
       },
     };
+  }
+
+  // Labs without an instance change between Scheduled and Inactive as time passes
+  @action
+  private updateScheduledStates() {
+    let hasChanged = false;
+    const data = this.data.map(lab => {
+      if (lab.instance) return lab;
+
+      const state = this.getInstanceState(null, lab.startTime, lab.endTime);
+      if (state === lab.state) return lab;
+
+      hasChanged = true;
+      return {...lab, state};
+    });
+
+    if (!hasChanged) return;
+
+    this.data = data;
+    this.lookup = new Map(data.map(lab => [lab.id, lab]));
   }
 
   private getInstanceState(
