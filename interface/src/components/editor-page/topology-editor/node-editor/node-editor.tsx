@@ -2587,7 +2587,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       onSelectMembers: onSelectMembers,
       ...arrangeActions,
       onUngroup: onUngroup,
-      onDelete: onDeleteSelection,
+      onDelete: onDeleteSelectionWithContents,
     });
   }
 
@@ -3116,6 +3116,37 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       [],
       deletedGroups.map(group => group.id),
       annotationIds,
+    );
+    graphSelection.clear();
+  }
+
+  // Like onDeleteSelection, but the selected groups are deleted with everything inside them
+  function onDeleteSelectionWithContents() {
+    if (graphSelection.count === 0) return;
+
+    const contents = graphSelection.groupIds.map(id =>
+      groupContents(groupsRef.current, id),
+    );
+    const unique = (ids: string[]) => [...new Set(ids)];
+
+    topologyStore.manager.deleteElements(
+      unique([
+        ...graphSelection.nodeIds,
+        ...contents.flatMap(content => content.nodeIds),
+      ]),
+      [],
+      unique([
+        ...graphSelection.groupIds,
+        ...contents.flatMap(content => content.groupIds),
+      ]),
+      unique([
+        ...graphSelection.shapeIds,
+        ...graphSelection.textIds,
+        ...contents.flatMap(content => [
+          ...content.shapeIds,
+          ...content.textIds,
+        ]),
+      ]),
     );
     graphSelection.clear();
   }
@@ -3717,6 +3748,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onSendToBack: () => onReorder(false),
     onUngroup,
     onDeleteSelection,
+    onDeleteSelectionWithContents,
     onResize,
     getSelectionBox: () => selectionLayerRef.current?.frameBox() ?? null,
     getGroupMinSize: groupMinSize,
@@ -3798,6 +3830,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
               onSendToBack={callbacks.onSendToBack}
               onUngroup={callbacks.onUngroup}
               onDelete={callbacks.onDeleteSelection}
+              onDeleteWithContents={callbacks.onDeleteSelectionWithContents}
             />
           </>
         }

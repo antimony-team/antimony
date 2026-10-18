@@ -30,6 +30,7 @@ interface SelectionOverlayProps {
   onSendToBack: () => void;
   onUngroup: () => void;
   onDelete: () => void;
+  onDeleteWithContents: () => void;
 }
 
 /**
@@ -115,6 +116,7 @@ const SelectionOverlay = observer((props: SelectionOverlayProps) => {
           onSendToBack={props.onSendToBack}
           onUngroup={props.onUngroup}
           onDelete={props.onDelete}
+          onDeleteWithContents={props.onDeleteWithContents}
         />
       </div>
     </>

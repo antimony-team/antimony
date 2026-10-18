@@ -243,13 +243,18 @@ Users see buttons that then fail.
   in `onNodeClick` that compared the ref object was removed: clicking the source node again creates the
   self-link on purpose.
 
-### 21. "Delete group and nodes" keeps the nodes
+### 21. ~~"Delete group and nodes" keeps the nodes~~ (fixed)
 
-- **Status:** verified — `graph-editor.spec.ts` › ""Delete group and nodes" deletes the nodes of the group"
+- **Status:** fixed — `graph-editor.spec.ts` › ""Delete group and nodes" deletes the nodes of the group",
+  "the group bar's delete button deletes the group and its nodes", "the Delete key deletes only the group
+  and keeps its nodes"
 - **Where:** `components/editor-page/topology-editor/node-editor/graph-context-menus.tsx` (label),
   `node-editor.tsx` (`onDeleteSelection` keeps the members)
-- **What happens:** only the group box is deleted. Either the label or the behaviour is wrong; the
-  selection bar's Delete has the same tooltip.
+- **What happened:** only the group box was deleted, although the menu entry and the selection bar's Delete
+  said "Delete group and nodes".
+- **Fix:** The menu entry and the selection bar's Delete on a group now delete the group with everything
+  inside it, nested groups included (`onDeleteSelectionWithContents`). Delete and Backspace still delete only
+  the group and keep its contents.
 
 ---
 
@@ -367,8 +372,8 @@ Users see buttons that then fail.
   files; the terminal tab's close button and the selection bar's arrange button have no name; the file
   switch's options have no `role="option"`.
 - **The credits show a hard-coded version** "v1.0.0" (`credits-dialog.tsx`).
-- **Undeclared dependencies:** `moment` (`calendar-dialog.tsx`) and `lodash` (`lab-edit-dialog.tsx`) only
-  come in through other packages.
+- **Undeclared dependency:** `lodash` (`lab-edit-dialog.tsx`) only comes in through other packages. (`moment`
+  in `calendar-dialog.tsx` had the same problem; the schedule uses dayjs now.)
 
 ---
 

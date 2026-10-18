@@ -87,6 +87,8 @@ interface SelectionBarProps {
   onSendToBack: () => void;
   onUngroup: () => void;
   onDelete: () => void;
+  // Deletes a group with everything inside it
+  onDeleteWithContents: () => void;
 }
 
 /**
@@ -420,7 +422,7 @@ const SelectionBar = memo((props: SelectionBarProps) => {
           text
           icon="pi pi-trash"
           className="sb-selection-bar-delete"
-          onClick={props.onDelete}
+          onClick={isGroup ? props.onDeleteWithContents : props.onDelete}
           data-pr-tooltip={isGroup ? 'Delete group and nodes' : 'Delete'}
           aria-label="Delete"
         />

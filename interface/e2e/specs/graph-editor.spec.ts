@@ -1,5 +1,5 @@
 import {Annotations} from '../fixtures/api';
-import {expect, knownBug, test, Topology} from '../fixtures/test';
+import {expect, test, Topology} from '../fixtures/test';
 import {
   graphEdges,
   graphNodes,
@@ -389,23 +389,63 @@ test.describe('groups', () => {
     expect(annotations.nodeAnnotations!.every(n => !n.groupId)).toBe(true);
   });
 
+  async function groupNodes(graph: GraphEditor, names: string[]) {
+    await graph.clickNode(names[0]);
+    for (const name of names.slice(1)) {
+      await graph.clickNode(name, {modifiers: ['Shift']});
+    }
+    await graph.press('ControlOrMeta+G');
+    // Grouping starts renaming the new group; Escape ends that
+    await graph.press('Escape');
+    return (await graph.groups().first().getAttribute('data-layer-id'))!;
+  }
+
   test('"Delete group and nodes" deletes the nodes of the group', async ({
     page,
     createTopology,
   }) => {
-    knownBug(
-      '"Delete group and nodes" only deletes the group box and keeps its nodes',
-    );
+    const topology = await createTopology({nodes: ['a', 'b', 'c']});
+    const {editor, graph} = await openGraph(page, topology);
+    const id = await groupNodes(graph, ['a', 'b']);
+
+    await graph.layerMenu(id, 'Delete group and nodes');
+
+    await expect(graph.groups()).toHaveCount(0);
+    await expect.poll(() => graphNodes(graph.canvas)).toEqual(['c']);
+    // The nodes are gone from the definition too
+    expect(await editor.editor.text()).not.toMatch(/^\s+(a|b):/m);
+  });
+
+  test("the group bar's delete button deletes the group and its nodes", async ({
+    page,
+    createTopology,
+  }) => {
     const topology = await createTopology({nodes: ['a', 'b', 'c']});
     const {graph} = await openGraph(page, topology);
-    await graph.clickNode('a');
-    await graph.clickNode('b', {modifiers: ['Shift']});
-    await graph.press('ControlOrMeta+G');
-    const id = await graph.groups().first().getAttribute('data-layer-id');
+    const id = await groupNodes(graph, ['a', 'b']);
+    await graph.clickLayer(id);
 
-    await graph.layerMenu(id!, 'Delete group and nodes');
+    await graph.barButton('Delete').click();
 
+    await expect(graph.groups()).toHaveCount(0);
     await expect.poll(() => graphNodes(graph.canvas)).toEqual(['c']);
+  });
+
+  test('the Delete key deletes only the group and keeps its nodes', async ({
+    page,
+    createTopology,
+  }) => {
+    const topology = await createTopology({nodes: ['a', 'b', 'c']});
+    const {graph} = await openGraph(page, topology);
+    const id = await groupNodes(graph, ['a', 'b']);
+    await graph.clickLayer(id);
+
+    await graph.press('Delete');
+
+    await expect(graph.groups()).toHaveCount(0);
+    await expect
+      .poll(async () => (await graphNodes(graph.canvas)).sort())
+      .toEqual(['a', 'b', 'c']);
   });
 });
 
