@@ -267,25 +267,27 @@ export class DataBinder {
     const refreshResult = await this.refreshToken();
     if (refreshResult.isOk()) {
       runInAction(() => (this.isLoggedIn = true));
+      return true;
     }
 
-    return true;
+    return false;
   }
 
-  @action
-  public logout(reloadApp: boolean = false) {
+  public async logout(reloadApp: boolean = false) {
     // Make sure logout is only executed once
     if (!this.isLoggedIn) return;
 
-    void fetchResource(this.apiUrl + '/users/logout', 'POST');
+    await fetchResource(this.apiUrl + '/users/logout', 'POST');
 
     if (reloadApp) {
       window.location.reload();
     } else {
-      this.isLoggedIn = false;
-      this.hasSocketError = false;
-      this.hasAPIError = false;
-      this.authUser = EMPTY_AUTH_USER;
+      runInAction(() => {
+        this.isLoggedIn = false;
+        this.hasSocketError = false;
+        this.hasAPIError = false;
+        this.authUser = EMPTY_AUTH_USER;
+      });
     }
   }
 
@@ -366,14 +368,14 @@ export class DataBinder {
       if (this.isOpenIdAuthEnabled && this.isAuthenticatedWithOidc) {
         this.loginWithOpenId();
       } else {
-        this.logout();
+        void this.logout();
       }
       return refreshResponse;
     }
 
     // Auth token is expired or invalid
     if (response.status === 401) {
-      this.logout();
+      void this.logout();
       return Result.createErr({code: -1, message: 'Unauthorized request.'});
     }
 
@@ -585,7 +587,7 @@ export class DataBinder {
       };
     } catch {
       console.error('Failed to parse access token. Logging out.');
-      this.logout();
+      void this.logout();
     }
   }
 
