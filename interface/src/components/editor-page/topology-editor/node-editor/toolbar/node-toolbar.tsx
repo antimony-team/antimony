@@ -10,7 +10,6 @@ import {
   GraphTool,
   useGraphSelection,
 } from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
-import {useSimulationConfig} from '@sb/components/editor-page/topology-editor/node-editor/state/simulation-config';
 import {GraphAction, keybindLabel} from '@sb/lib/graph/graph-keybinds';
 import {useTopologyStore} from '@sb/lib/stores/root-store';
 
@@ -75,7 +74,6 @@ interface NodeToolbarProps {
   onAddNode: () => void;
   onFitGraph: () => void;
   onGroupSelection: () => void;
-  onToggleStabilization: () => void;
 
   // Only the tools for looking at the graph, without the ones that change it
   readOnly: boolean;
@@ -83,7 +81,6 @@ interface NodeToolbarProps {
 
 const NodeToolbar = observer((props: NodeToolbarProps) => {
   const topologyStore = useTopologyStore();
-  const simulationConfig = useSimulationConfig();
   const graphSelection = useGraphSelection();
 
   const toolButton = (tool: ToolButton) => (
@@ -150,15 +147,6 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
         onClick={topologyStore.manager.clear}
         tooltip="Clear graph"
         aria-label="Clear graph"
-      />
-      <Divider />
-      <Button
-        icon="pi pi-cog"
-        text
-        tooltip="Graph Stabilization"
-        className={classNames({toggled: simulationConfig.panelOpen})}
-        onClick={props.onToggleStabilization}
-        aria-label="Graph Stabilization"
       />
     </div>
   );

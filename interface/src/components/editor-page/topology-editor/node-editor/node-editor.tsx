@@ -173,8 +173,6 @@ import {
 } from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
-import SimulationPanel from './simulation-panel/simulation-panel';
-import {useSimulationConfig} from './state/simulation-config';
 import NodeToolbar from './toolbar/node-toolbar';
 import ZoomControl from './zoom-control/zoom-control';
 
@@ -346,7 +344,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   const topologyStore = useTopologyStore();
   const isReadOnly =
     !!props.openTopology && !topologyStore.canEdit(props.openTopology);
-  const simulationConfig = useSimulationConfig();
   const graphSelection = useGraphSelection();
 
   const graphRef = useRef<TopologyGraphRef>(null);
@@ -658,24 +655,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       cy.off('viewport', onViewport);
       cy.off('position', 'node', onPosition);
     };
-  }
-
-  function onStabilizeGraph() {
-    const cy = cyRef.current;
-    if (!cy) return;
-    if (cy.elements().empty()) return;
-
-    const layout = cy.layout({
-      ...simulationConfig.config,
-    });
-
-    simulationConfig.setIsStabilizing(true);
-    layout.run();
-    void layout.promiseOn('layoutstop')?.then(() => {
-      simulationConfig.setIsStabilizing(false);
-    });
-
-    onSaveGraph();
   }
 
   function onNodeConnectStart() {
@@ -3657,28 +3636,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     graphSelection.clear();
   }
 
-  /**
-   * Writes the layout of all nodes into the topology.
-   */
-  function onSaveGraph() {
-    const cy = cyRef.current;
-    if (!cy || !topologyStore.manager.topology) return;
-
-    const groupIds = currentGroupIds();
-    const nodeLayouts = new Map<string, NodeLayout>();
-
-    for (const node of cy.nodes('.topology-node')) {
-      nodeLayouts.set(node.id(), {
-        position: node.position(),
-        groupId: groupIds.get(node.id()) ?? null,
-      });
-    }
-
-    if (nodeLayouts.size === 0) return;
-
-    topologyStore.manager.updateLayout({nodes: nodeLayouts});
-  }
-
   function currentGroupIds(): Map<string, string> {
     return new Map(
       groupsRef.current.flatMap(group =>
@@ -3759,8 +3716,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     onZoomReset: () => zoomTo(1),
     onAddNode,
     onFitGraph,
-    onToggleStabilization: () => simulationConfig.togglePanel(),
-    onStabilizeGraph,
     onContextMenuHide: () => graphSelection.setContextMenuOpen(false),
   });
 
@@ -3853,7 +3808,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onAddNode={callbacks.onAddNode}
         onFitGraph={callbacks.onFitGraph}
         onGroupSelection={callbacks.onGroupSelection}
-        onToggleStabilization={callbacks.onToggleStabilization}
         readOnly={isReadOnly}
       />
       <If condition={isReadOnly}>
@@ -3861,7 +3815,6 @@ const NodeEditor = observer((props: NodeEditorProps) => {
           The current file is opened in read-only mode.
         </div>
       </If>
-      <SimulationPanel onStabilizeGraph={callbacks.onStabilizeGraph} />
       <SBContextMenu
         model={contextMenuModel ?? undefined}
         ref={contextMenuRef}

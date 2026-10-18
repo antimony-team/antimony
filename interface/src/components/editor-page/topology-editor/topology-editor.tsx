@@ -50,10 +50,6 @@ import {
   GraphSelection,
   GraphSelectionContext,
 } from './node-editor/state/graph-selection';
-import {
-  SimulationConfig,
-  SimulationConfigContext,
-} from './node-editor/state/simulation-config';
 import TopologyFileSwitch from './topology-file-switch/topology-file-switch';
 import TopologyFooterStats from './topology-footer-stats/topology-footer-stats';
 
@@ -656,15 +652,13 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
               className="sb-editor-graph"
               size={100 - splitterPosition}
             >
-              <SimulationConfigContext.Provider value={new SimulationConfig()}>
-                <GraphSelectionContext.Provider value={graphSelection}>
-                  <NodeEditor
-                    onAddNode={onAddNode}
-                    onEditNode={onEditNode}
-                    openTopology={openTopology!}
-                  />
-                </GraphSelectionContext.Provider>
-              </SimulationConfigContext.Provider>
+              <GraphSelectionContext.Provider value={graphSelection}>
+                <NodeEditor
+                  onAddNode={onAddNode}
+                  onEditNode={onEditNode}
+                  openTopology={openTopology!}
+                />
+              </GraphSelectionContext.Provider>
             </SplitterPanel>
           </Splitter>
         </div>
