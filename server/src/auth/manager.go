@@ -21,7 +21,7 @@ import (
 	"github.com/antimony-team/antimony-server/utils"
 )
 
-const NativeUserID = "00000000-0000-0000-0000-00000000000"
+const NativeUserID = "00000000-0000-0000-0000-000000000000"
 
 type (
 	Manager struct {
