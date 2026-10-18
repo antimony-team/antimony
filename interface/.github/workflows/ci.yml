@@ -184,6 +184,9 @@ jobs:
         with:
           file: ./docker/Dockerfile
           context: .
+          build-args: |
+            VERSION=${{ startsWith(github.ref, 'refs/tags/v') && steps.meta.outputs.version || '' }}
+            SB_COMMIT=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}

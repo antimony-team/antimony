@@ -20,6 +20,12 @@ COPY ./.babelrc ./.prettierrc.cjs ./eslint.config.js ./tsconfig.json ./vite.conf
 COPY ./src ./src/
 COPY ./public ./public/
 
+# CI passes the version of a release tag, other builds keep the development version. The commit is shown
+# with development versions, as the image is built without the repository.
+ARG VERSION
+ARG SB_COMMIT
+RUN if [ -n "$VERSION" ]; then yarn version --new-version "$VERSION" --no-git-tag-version; fi
+
 RUN yarn build
 
 # Production Stage

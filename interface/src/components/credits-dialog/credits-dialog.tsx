@@ -12,6 +12,16 @@ interface CreditsDialogProps {
   onClose: () => void;
 }
 
+// Development versions also name the commit they were built from
+function formatVersion() {
+  const {SB_VERSION, SB_COMMIT} = import.meta.env;
+  if (!SB_VERSION.endsWith('-dev')) return `v${SB_VERSION}`;
+
+  return SB_COMMIT
+    ? `v${SB_VERSION} (development version, ${SB_COMMIT})`
+    : `v${SB_VERSION} (development version)`;
+}
+
 const CreditsDialog = (props: CreditsDialogProps) => {
   const serverConfig = useServerConfig();
 
@@ -31,7 +41,7 @@ const CreditsDialog = (props: CreditsDialogProps) => {
           </div>
           <div className="flex flex-column gap-2">
             <div className="sb-credits-header">Version</div>
-            <div className="mb-2">v1.0.0</div>
+            <div className="mb-2">{formatVersion()}</div>
             <div className="sb-credits-header">Authors</div>
             <div className="mb-2">Kian Gribi, Tom Stromer</div>
             <div className="sb-credits-header">Deployment Provider</div>
