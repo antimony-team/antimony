@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -52,8 +53,9 @@ type shellConfig struct {
 	node             string
 	shellSession     deployment.ShellExecSession
 	connectionCancel context.CancelFunc
-	lastInteraction  int64
-	dataNamespace    *socket.IONamespace[string, byte]
+	// lastInteraction is written by the shell's data handler and read by the inactivity check
+	lastInteraction atomic.Int64
+	dataNamespace   *socket.IONamespace[string, byte]
 }
 
 type sshSession struct {
@@ -249,9 +251,9 @@ func (s *Service) OpenShellCommand(
 		labId:            labId,
 		shellSession:     shellSession,
 		connectionCancel: cancel,
-		lastInteraction:  time.Now().Unix(),
 		dataNamespace:    dataNamespace,
 	}
+	shellConfig.lastInteraction.Store(time.Now().Unix())
 
 	// Registered before it runs, so a shell that ends right away is removed again instead of being added afterwards
 	s.openShellsMutex.Lock()
@@ -322,7 +324,7 @@ func (s *Service) runManager(ctx context.Context) {
 	for {
 		s.openShellsMutex.Lock()
 		for shellId, shell := range s.openShells {
-			if time.Now().Unix()-shell.lastInteraction > s.config.Shell.Timeout {
+			if time.Now().Unix()-shell.lastInteraction.Load() > s.config.Shell.Timeout {
 				if err := s.closeShell(shellId, shell, "shell was inactive for too long"); err != nil {
 					log.Errorf("Failed to close shell: %s", err.Error())
 				}
@@ -472,7 +474,7 @@ func (s *Service) handleUserData(
 			return
 		}
 
-		shell.lastInteraction = time.Now().Unix()
+		shell.lastInteraction.Store(time.Now().Unix())
 
 		_, err := shell.shellSession.Write(([]byte)(*data))
 		if err != nil {

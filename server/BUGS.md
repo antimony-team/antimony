@@ -15,6 +15,16 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 21. The shell inactivity check races with the shell's input
+
+- `runtime/shell/service.go` `handleUserData`, `runManager`
+
+Found by the test review. `handleUserData` wrote a shell's `lastInteraction` without a lock, while `runManager` read
+it under `openShellsMutex` to close inactive shells. A data race on every keystroke during a manager tick.
+
+**Fixed:** `lastInteraction` is an `atomic.Int64`. No dedicated test: the manager checks every 5 s, so a test
+would have to type into a shell for that long; the shell tests pass under `-race`.
+
 ### 19. Restarting a stopped node does nothing on clabernetes
 
 - `deployment/clabernetes.go` `RestartNode`
