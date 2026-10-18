@@ -98,13 +98,18 @@ export function getSSHCommand(
   serverPort: number,
   captureInterface?: string,
 ) {
-  let command = `ssh ${collectionName}/${labName}/${nodeName}@${serverHost}`;
+  let command = 'ssh';
   if (serverPort !== 22) {
     command += ` -p ${serverPort}`;
   }
 
+  // With -l, a name starting with a dash stays the username instead of becoming an ssh option
+  const shellUser = shellQuote(`${collectionName}/${labName}/${nodeName}`);
+  command += ` -l ${shellUser} ${serverHost}`;
+
+  // After --, the interface is always the command and never an ssh option
   if (captureInterface) {
-    command += ` ${captureInterface} | wireshark -k -i -`;
+    command += ` -- ${shellQuote(captureInterface)} | wireshark -k -i -`;
   }
 
   return command;
@@ -265,4 +270,10 @@ export function createDuplicateName(
   while (taken.has(`${base}-${number}`)) number++;
 
   return `${base}-${number}`;
+}
+
+// Leaves plain names as they are, everything else is single-quoted so the shell takes it literally
+function shellQuote(value: string) {
+  if (/^[\w./-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
