@@ -15,6 +15,21 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 22. A closed shell is closed a second time when its output ends
+
+- `runtime/shell/service.go` `runShell`, `CloseShellCommand`
+
+Found by the code and test reviews. Closing a shell (by the user, the inactivity check or the server shutting down)
+removes and closes it, which ends its output. When that output ended with EOF, `runShell` removed and closed the
+shell again, without checking whether that had already happened: a second "close" message to the client and a second
+`Close` on the session. Two concurrent close commands for the same shell did the same. The harness test
+`TestCloseShellCommand_AnnouncesTheCloseOnTheControlNamespace` even expected the two messages.
+
+**Fixed:** a new `removeShell` removes a shell and reports whether it was still open, and only the caller that removed
+it closes it. `runShell` uses it for both EOF and errors, which also replaces the context that only existed to tell
+whether a shell had been closed. That context and its cancel function are gone. The test now expects exactly one
+close event.
+
 ### 21. The shell inactivity check races with the shell's input
 
 - `runtime/shell/service.go` `handleUserData`, `runManager`

@@ -404,24 +404,17 @@ func TestCloseShellCommand_AnnouncesTheCloseOnTheControlNamespace(t *testing.T) 
 	shellId := openShell(t, client, LabAdminID, NodeHost)
 	client.Emit(closeShellCommand(LabAdminID, shellId)).RequireOk(nil)
 
-	// Closing a shell announces it twice. CloseShellCommand sends "closed by the user" and then
-	// closes the session, whereupon runShell sees EOF and announces the close a second time with
-	// "The connection has been terminated". Both carry the same shell id, so a client that acts on
-	// the first gets a redundant second event. Collect both rather than assuming an order.
-	events := CollectPayloads[shellControlDTO](control, 2)
+	// Closing the session also ends its output, which must not announce the close a second time
+	var event shellControlDTO
+	control.NextPayload(&event)
 
-	messages := make([]string, 0, len(events))
-	for _, event := range events {
-		assert.Equal(t, shellControlClose, event.Command)
-		assert.Equal(t, shellId, event.ShellId)
-		assert.Equal(t, LabAdminID, event.LabId)
-		assert.Equal(t, NodeHost, event.Node)
+	assert.Equal(t, shellControlClose, event.Command)
+	assert.Equal(t, shellId, event.ShellId)
+	assert.Equal(t, LabAdminID, event.LabId)
+	assert.Equal(t, NodeHost, event.Node)
+	assert.Equal(t, "shell was closed by the user", event.Message)
 
-		messages = append(messages, event.Message)
-	}
-
-	assert.Contains(t, messages, "shell was closed by the user")
-	assert.Contains(t, messages, "The connection has been terminated")
+	control.ExpectNoData()
 }
 
 func TestCloseShellCommand_MissingShellIdIsRejected(t *testing.T) {

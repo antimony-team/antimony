@@ -48,11 +48,10 @@ type Service struct {
 }
 
 type shellConfig struct {
-	owner            *auth.AuthenticatedUser
-	labId            string
-	node             string
-	shellSession     deployment.ShellExecSession
-	connectionCancel context.CancelFunc
+	owner        *auth.AuthenticatedUser
+	labId        string
+	node         string
+	shellSession deployment.ShellExecSession
 	// lastInteraction is written by the shell's data handler and read by the inactivity check
 	lastInteraction atomic.Int64
 	dataNamespace   *socket.IONamespace[string, byte]
@@ -243,15 +242,12 @@ func (s *Service) OpenShellCommand(
 		"shell", shellId,
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	shellConfig := &shellConfig{
-		owner:            authUser,
-		node:             *nodeName,
-		labId:            labId,
-		shellSession:     shellSession,
-		connectionCancel: cancel,
-		dataNamespace:    dataNamespace,
+		owner:         authUser,
+		node:          *nodeName,
+		labId:         labId,
+		shellSession:  shellSession,
+		dataNamespace: dataNamespace,
 	}
 	shellConfig.lastInteraction.Store(time.Now().Unix())
 
@@ -260,7 +256,7 @@ func (s *Service) OpenShellCommand(
 	s.openShells[shellId] = shellConfig
 	s.openShellsMutex.Unlock()
 
-	go s.runShell(ctx, labId, *nodeName, shellSession, shellId, shellConfig, dataNamespace)
+	go s.runShell(labId, *nodeName, shellSession, shellId, shellConfig, dataNamespace)
 
 	return shellId, nil
 }
@@ -285,11 +281,24 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 		return utils.ErrNoAccessToShell
 	}
 
-	s.openShellsMutex.Lock()
-	delete(s.openShells, *shellId)
-	s.openShellsMutex.Unlock()
+	if !s.removeShell(*shellId) {
+		// Closed meanwhile
+		return utils.ErrShellNotFound
+	}
 
 	return s.closeShell(*shellId, shell, "shell was closed by the user")
+}
+
+// removeShell removes a shell from the open shells and reports whether it was still there. Only the caller that
+// removed a shell closes it, so it is closed once.
+func (s *Service) removeShell(shellId string) bool {
+	s.openShellsMutex.Lock()
+	defer s.openShellsMutex.Unlock()
+
+	_, ok := s.openShells[shellId]
+	delete(s.openShells, shellId)
+
+	return ok
 }
 
 func (s *Service) ResizeShellCommand(
@@ -487,7 +496,6 @@ func (s *Service) handleUserData(
 }
 
 func (s *Service) runShell(
-	ctx context.Context,
 	labId string,
 	nodeName string,
 	connection deployment.ShellExecSession,
@@ -506,18 +514,12 @@ func (s *Service) runShell(
 			continue
 		}
 
-		if errors.Is(err, io.EOF) {
-			s.openShellsMutex.Lock()
-			delete(s.openShells, shellId)
-			s.openShellsMutex.Unlock()
-
-			_ = s.closeShell(shellId, shellConfig, "The connection has been terminated")
+		// A shell that was closed elsewhere is already removed, its output ending is no news
+		if !s.removeShell(shellId) {
 			break
 		}
 
-		// Only report the error if the connection hasn't been closed already. Otherwise whoever closed it also removed
-		// it, so a failed shell is removed here, or it would count against the user's limit until it times out.
-		if ctx.Err() == nil {
+		if !errors.Is(err, io.EOF) {
 			s.controlNamespace.Send(shellControlData{
 				LabId:   labId,
 				Node:    nodeName,
@@ -525,14 +527,9 @@ func (s *Service) runShell(
 				Command: ShellCommands.Error,
 				Message: err.Error(),
 			})
-
-			s.openShellsMutex.Lock()
-			delete(s.openShells, shellId)
-			s.openShellsMutex.Unlock()
-
-			_ = s.closeShell(shellId, shellConfig, "The connection has been terminated")
 		}
 
+		_ = s.closeShell(shellId, shellConfig, "The connection has been terminated")
 		break
 	}
 }
@@ -564,7 +561,6 @@ func (s *sshSession) Close() error {
 }
 
 func (c *shellConfig) Close() error {
-	c.connectionCancel()
 	c.dataNamespace.Release()
 
 	return c.shellSession.Close()
