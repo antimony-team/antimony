@@ -218,7 +218,7 @@ func (p *ContainerlabProvider) InspectNode(
 	})
 
 	if !ok {
-		return InspectContainer{}, utils.ErrNodeNotFound
+		return InspectContainer{}, fmt.Errorf("%w: %s/%s", utils.ErrNodeNotFound, instanceName, nodeName)
 	}
 
 	return nodeInspect, nil

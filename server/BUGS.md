@@ -15,6 +15,18 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 25. Small inconsistencies in provider errors
+
+- `deployment/containerlab.go` and `deployment/clabernetes.go` `InspectNode`, `deployment/clabernetes.go` `ExecInteractive`
+
+Found by the code review. Both providers' `InspectNode` returned a bare `utils.ErrNodeNotFound`, while every other
+path adds the lab and node (`"%w: <lab>/<node>"`). And clabernetes reported an interactive open that was cancelled
+as "command [...] failed to start: context canceled", while containerlab returns the context's error as it is.
+
+**Fixed:** `InspectNode` adds the lab and node on both providers, and clabernetes returns a cancelled open's
+context error unwrapped. Nothing compares these errors other than with `errors.Is`. The unit test for an unknown node
+checks the context in the message.
+
 ### 24. Containerlab and clabernetes disagree on a command that exits at once
 
 - `deployment/containerlab.go` `ExecInteractive`

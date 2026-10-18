@@ -647,7 +647,8 @@ func TestContainerlabInspectNode_ReportsAnUnknownNode(t *testing.T) {
 		(&logCollector{}).log,
 	)
 
-	assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+	require.ErrorIs(t, err, utils.ErrNodeNotFound)
+	assert.Contains(t, err.Error(), "demo-lab/missing")
 }
 
 /*

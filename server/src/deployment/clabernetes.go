@@ -340,7 +340,7 @@ func (p *ClabernetesProvider) InspectNode(
 	})
 
 	if !ok {
-		return InspectContainer{}, utils.ErrNodeNotFound
+		return InspectContainer{}, fmt.Errorf("%w: %s/%s", utils.ErrNodeNotFound, instanceName, nodeName)
 	}
 
 	return nodeInspect, nil
@@ -407,6 +407,10 @@ func (p *ClabernetesProvider) ExecInteractive(
 
 	session, err := openInteractiveSession(ctx, executor.StreamWithContext, interactiveStartTimeout)
 	if err != nil {
+		// An open that was cancelled didn't fail to start, the caller gets the context's error like from containerlab
+		if ctx.Err() != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("command %v failed to start: %w", cmd, err)
 	}
 
