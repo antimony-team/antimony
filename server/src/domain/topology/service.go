@@ -235,6 +235,12 @@ func (s *Service) Delete(ctx context.Context, topologyId string, authUser auth.A
 		return utils.ErrNoWriteAccessToTopology
 	}
 
+	// Deny request if user does not have access to topology's collection
+	if !authUser.IsAdmin &&
+		(!topology.Collection.PublicWrite || !slices.Contains(authUser.Collections, topology.Collection.Name)) {
+		return utils.ErrNoWriteAccessToCollection
+	}
+
 	if err := s.repo.Delete(ctx, topology); err != nil {
 		return err
 	}
@@ -274,6 +280,12 @@ func (s *Service) CreateBindFile(
 	// Deny request if user does not have access to the owning topology
 	if !authUser.IsAdmin && bindFileTopology.Creator.UUID != authUser.UserId {
 		return "", utils.ErrNoWriteAccessToBindFile
+	}
+
+	// Deny request if user does not have access to topology's collection
+	if !authUser.IsAdmin &&
+		(!bindFileTopology.Collection.PublicWrite || !slices.Contains(authUser.Collections, bindFileTopology.Collection.Name)) {
+		return "", utils.ErrNoWriteAccessToCollection
 	}
 
 	// Validate and canonicalize the client-supplied path before anything else
@@ -327,6 +339,12 @@ func (s *Service) UpdateBindFile(
 	// Deny request if user does not have access to the owning topology
 	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
 		return utils.ErrNoWriteAccessToBindFile
+	}
+
+	// Deny request if user does not have access to topology's collection
+	if !authUser.IsAdmin &&
+		(!bindFileTopology.Collection.PublicWrite || !slices.Contains(authUser.Collections, bindFileTopology.Collection.Name)) {
+		return utils.ErrNoWriteAccessToCollection
 	}
 
 	bindFilePath := bindFile.FilePath
@@ -395,6 +413,12 @@ func (s *Service) DeleteBindFile(ctx context.Context, bindFileId string, authUse
 	// Deny request if user does not have access to the owning topology
 	if !authUser.IsAdmin && authUser.UserId != bindFileTopology.Creator.UUID {
 		return utils.ErrNoWriteAccessToBindFile
+	}
+
+	// Deny request if user does not have access to topology's collection
+	if !authUser.IsAdmin &&
+		(!bindFileTopology.Collection.PublicWrite || !slices.Contains(authUser.Collections, bindFileTopology.Collection.Name)) {
+		return utils.ErrNoWriteAccessToCollection
 	}
 
 	if err := s.removeBindFile(bindFileTopology.UUID, bindFile.FilePath); err != nil {
