@@ -38,6 +38,9 @@ import (
 // capturePollTimeout bounds how long a capture read waits for a packet, and with it how long closing a capture takes.
 const capturePollTimeout = 200 * time.Millisecond
 
+// eventStreamRetryDelay is how long the listener waits before it requests Docker's event stream again.
+var eventStreamRetryDelay = 2 * time.Second
+
 // dockerStates maps Docker's container statuses (as relayed by Containerlab's Inspect) onto NodeState.
 var dockerStates = map[string]NodeState{
 	"created":    NodeStates.Stopped,
@@ -341,27 +344,35 @@ func (p *ContainerlabProvider) RegisterListener(
 	eventFilter.Add("event", "destroy")
 	eventFilter.Add("event", "create")
 
-	channel, errs := p.client.Events(ctx, events.ListOptions{
-		Filters: eventFilter,
-	})
-
 	for {
+		// The stream ends for good when the Docker daemon restarts or the connection breaks, so it is requested again
+		channel, errs := p.client.Events(ctx, events.ListOptions{
+			Filters: eventFilter,
+		})
+
+	receive:
+		for {
+			select {
+			case msg := <-channel:
+				// Docker events carry the container's labels, containerlab labels its containers with the lab and node
+				instanceName := msg.Actor.Attributes["containerlab"]
+				nodeName := msg.Actor.Attributes["clab-node-name"]
+				// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
+				if nodeName != "" {
+					onUpdate(instanceName, nodeName)
+				}
+			case err := <-errs:
+				log.Warn("Docker event stream ended, requesting it again", "err", err)
+				break receive
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
 		select {
-		case msg := <-channel:
-			// Docker events carry the container's labels, containerlab labels its containers with the lab and node
-			instanceName := msg.Actor.Attributes["containerlab"]
-			nodeName := msg.Actor.Attributes["clab-node-name"]
-			// Ignore nodes that don't have the clab attribute as they are not part of any containerlab deployment
-			if nodeName != "" {
-				onUpdate(instanceName, nodeName)
-			}
-		case err := <-errs:
-			if err != nil {
-				log.Errorf("Failed to receive docker events: %s", err.Error())
-				return err
-			}
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-time.After(eventStreamRetryDelay):
 		}
 	}
 }

@@ -15,6 +15,19 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 18. Containerlab stops reporting node changes after Docker's event stream ends
+
+- `deployment/containerlab.go` `RegisterListener`
+
+Found by the code review. Docker's client reads the event stream from one request, and when it ends (the daemon
+restarts or the connection breaks), it reports the error once and never delivers events again. The listener
+returned, and the instance service ignored that, so no node changes arrived until Antimony was restarted.
+Clabernetes isn't affected: client-go's informers reconnect on their own.
+
+**Fixed:** when the stream ends, the listener waits 2 s and requests it again, until its context ends. Changes during
+the gap aren't caught until the node's next event. Test: `TestContainerlabRegisterListener_RequestsTheStreamAgainWhenItEnds`,
+which replaces `…_StopsOnAnEventStreamError`, a test that expected the old behaviour.
+
 ### 17. A node whose container is removed stays "running"
 
 - `runtime/instance/service.go` `fetchNode`

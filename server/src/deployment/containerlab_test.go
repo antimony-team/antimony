@@ -680,9 +680,10 @@ type fakeDocker struct {
 	logs        string
 	logsOptions container.LogsOptions
 
-	events       chan events.Message
-	eventErrs    chan error
-	eventOptions events.ListOptions
+	events             chan events.Message
+	eventErrs          chan error
+	eventOptions       events.ListOptions
+	eventSubscriptions int
 }
 
 func newFakeDocker() *fakeDocker {
@@ -792,6 +793,7 @@ func (d *fakeDocker) Events(_ context.Context, options events.ListOptions) (<-ch
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.eventOptions = options
+	d.eventSubscriptions++
 
 	return d.events, d.eventErrs
 }
@@ -1154,13 +1156,32 @@ func TestContainerlabRegisterListener_ReportsContainerlabNodesOnly(t *testing.T)
 	)
 }
 
-func TestContainerlabRegisterListener_StopsOnAnEventStreamError(t *testing.T) {
+func TestContainerlabRegisterListener_RequestsTheStreamAgainWhenItEnds(t *testing.T) {
+	retryDelay := eventStreamRetryDelay
+	eventStreamRetryDelay = 10 * time.Millisecond
+	t.Cleanup(func() { eventStreamRetryDelay = retryDelay })
+
 	docker := newFakeDocker()
+	updates := &logCollector{}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error)
+
+	go func() { done <- (&ContainerlabProvider{client: docker}).RegisterListener(ctx, updates.node) }()
+
+	// The daemon restarted, so the stream ends and is requested again
 	docker.eventErrs <- errors.New("daemon went away")
+	require.Eventually(t, func() bool {
+		docker.mu.Lock()
+		defer docker.mu.Unlock()
+		return docker.eventSubscriptions == 2
+	}, time.Second, 5*time.Millisecond, "the stream must be requested again")
 
-	err := (&ContainerlabProvider{client: docker}).RegisterListener(context.Background(), func(string, string) {})
+	// The new stream delivers events as before
+	docker.events <- nodeEvent("demo", "srl1")
+	cancel()
 
-	assert.EqualError(t, err, "daemon went away")
+	require.ErrorIs(t, <-done, context.Canceled)
+	assert.Equal(t, []string{"demo/srl1"}, updates.all())
 }
 
 // nodeEvent is a Docker event of a containerlab node's container, which carries the container's labels.
