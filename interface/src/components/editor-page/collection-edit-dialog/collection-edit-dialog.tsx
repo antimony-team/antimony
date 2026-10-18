@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 
-import {isEqual} from 'lodash';
+import {isEqual} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 

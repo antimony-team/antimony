@@ -1,4 +1,4 @@
-import _, {isEqual} from 'lodash';
+import {isEqual} from 'lodash-es';
 import objectPath from 'object-path';
 
 import {
@@ -447,9 +447,7 @@ export class NodeEditor {
       this.propertyPath(objectRootPath, propertyKey),
     );
 
-    return (
-      originalValue !== undefined && !_.isEqual(currentValue, originalValue)
-    );
+    return originalValue !== undefined && !isEqual(currentValue, originalValue);
   }
 
   // The keys of an object of the current node, the ones it sets itself and the inherited ones

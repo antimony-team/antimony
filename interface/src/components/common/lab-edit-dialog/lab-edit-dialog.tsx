@@ -2,7 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 
 import classNames from 'classnames';
 import dayjs from 'dayjs';
-import {isEqual} from 'lodash';
+import {isEqual} from 'lodash-es';
 import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 
