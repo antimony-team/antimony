@@ -542,6 +542,9 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                   outlined
                   icon="pi pi-copy"
                   label="Copy capture command"
+                  disabled={
+                    !serverConfig.capture.enabled || !serverConfig.ssh.enabled
+                  }
                   onClick={() => copyCaptureToClipboard(node, iface.name)}
                   aria-label={`Copy capture command for ${iface.name}`}
                 />

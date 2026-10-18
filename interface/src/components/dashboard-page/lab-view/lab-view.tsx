@@ -349,12 +349,15 @@ const LabView = observer((props: LabDialogProps) => {
       {
         label: 'Copy SSH command',
         icon: <span className="material-symbols-outlined">terminal</span>,
-        disabled: !nodeActionChecker.canShowLogs,
+        disabled: !serverConfig.ssh.enabled,
         command: () => copyCaptureToClipboard(node),
       },
     ];
 
-    if (serverConfig.capture.enabled && node) {
+    const captureEnabled =
+      serverConfig.capture.enabled && serverConfig.ssh.enabled;
+
+    if (captureEnabled && node) {
       if (node.interfaces.length > 0) {
         entries.push({separator: true});
       }
