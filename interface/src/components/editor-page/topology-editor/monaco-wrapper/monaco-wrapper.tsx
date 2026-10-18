@@ -465,9 +465,11 @@ const MonacoWrapper = observer(
 
     const onGlobalKeyPress = useCallback(
       (event: KeyboardEvent) => {
-        if (!event.ctrlKey) return;
+        // Ctrl also matches the command key on macOS, and the key is lowercased for Caps Lock
+        if (!event.ctrlKey && !event.metaKey) return;
+        const key = event.key.toLowerCase();
 
-        if (event.key === 's') {
+        if (key === 's') {
           props.onSaveFile();
           event.preventDefault();
           return;
@@ -483,10 +485,10 @@ const MonacoWrapper = observer(
         }
 
         // Browsers have their own shortcuts on these keys, e.g. reopening a closed tab
-        if (event.key === 'z') {
+        if (key === 'z' && !event.shiftKey) {
           event.preventDefault();
           onTriggerUndo();
-        } else if (event.key === 'y' || event.key === 'Z') {
+        } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
           event.preventDefault();
           onTriggerRedo();
         }

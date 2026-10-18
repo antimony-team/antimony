@@ -70,20 +70,26 @@ Paths of the interface are relative to `src/`, those of the server to `antimony-
 - **Where:** `domain/lab/service.go` (create and update)
 - **What happens:** `endTime` before `startTime` is accepted.
 
-### 8. Empty lab names and collection names with a slash are accepted
+### 8. Lab and collection names are barely checked
 
 - **Status:** verified — `server.spec.ts` › "collection and lab names are checked on the server"
 - **Where:** `domain/lab/entity.go`, `domain/collection/entity.go` (`required` accepts `""`), no name
   validation for collections
 - **What happens:** a lab can be called `""`. A collection can be called `a/b`, which breaks the SSH
-  syntax `<collection>/<lab>/<node>`.
+  syntax `<collection>/<lab>/<node>`. Names with `'`, `"`, `$`, `` ` ``, `;` or `|`, or starting with `-`,
+  are accepted too, but OpenSSH 10 refuses them as usernames ("remote username contains invalid
+  characters"), so their nodes can't be reached over SSH. The interface quotes them in the copied
+  commands, but the server should reject them when labs and collections are created.
 
 ### 9. Smaller server issues, from the code
 
 - **Bind file updates don't check the topology in the URL:** `PATCH /topologies/A/files/<file of B>`
   changes B's file (admins only). `transport/http/topology/handler.go` ignores `:topologyId`.
 - **Access and refresh tokens are interchangeable, and logout revokes nothing:** any valid token with an
-  `id` works as either (`auth/manager.go`). The 30-day refresh token works as a Bearer access token.
+  `id` works as either (`auth/manager.go`). The 30-day refresh token works as a Bearer access token, and
+  an access token works as a refresh token, so a leaked access token can be renewed forever. Logout only
+  deletes the cookies (`transport/http/user/handler.go`). Planned as a separate rework (typed tokens and
+  revocable sessions).
 - **Socket permissions are a snapshot:** they're cached per token when a socket connects and never
   updated (`socket/manager.go`), so removed access only applies after reconnecting.
 - **Admins can close other users' shells but can't attach to or list them**
@@ -102,8 +108,8 @@ Paths of the interface are relative to `src/`, those of the server to `antimony-
 
 ## Interface: permissions
 
-The interface checks permissions in few places; the server is the only enforcement for most actions.
-Users see buttons that then fail.
+The interface checked permissions in few places, so users saw buttons that then failed. The server is
+still the only enforcement.
 
 ### 10. ~~The lab view offers deploy and destroy to everyone~~ (fixed)
 
@@ -335,35 +341,50 @@ Users see buttons that then fail.
 
 ### 31. Smaller interface issues, from the code
 
-- **Shortcuts only work with Ctrl:** the editor's Ctrl+S, Ctrl+Z and Ctrl+Y check `event.ctrlKey` only
-  (`monaco-wrapper.tsx`), so Cmd doesn't work on macOS, unlike the graph shortcuts. They also check for a
-  lowercase key, so they don't work with Caps Lock on.
-- **The dashboard doesn't update lab states over time:** the state is worked out when the labs are
-  loaded, so a lab whose start has passed keeps showing "Scheduled" until something reloads the labs
-  (seen in the tests).
-- **Stabilizing saves the layout before the animation ends** (`node-editor.tsx`, `onSaveGraph()` right
-  after starting `cose-bilkent` with `animate: true`), so the saved positions may not be the shown ones.
-- **Upload errors are ignored:** the archive upload doesn't report failed files
-  (`editor-page.tsx`, `void uploadArchiveFiles`).
-- **"Copy SSH command" ignores `ssh.enabled`** and uses the logs' condition for being disabled; the
-  drawer's "Copy capture command" ignores `capture.enabled` (`lab-view.tsx`, `lab-view-drawer.tsx`).
-- **The setup screen's "New topology" uses the first collection**, even if the user can't write to it
-  (`editor-setup.tsx`).
-- **Crashes when a lab's collection is missing:** `lab-entry.tsx`, `lab-grid.tsx` and
-  `lab-view-panel-properties.tsx` use `!` on the collection lookup.
-- **Login can fail silently:** `loginNative` returns true even when the refresh after it fails
-  (`data-binder.ts`).
-- **Logout may not reach the server:** the page reloads right after sending the request
-  (`data-binder.ts`), which can cancel it.
-- **The loading screen** checks `Connecting` while it's only shown during `Loading`, and never shows again
-  once hidden (`app.tsx`).
-- **`StatusMessageStore.clear()`** leaves `lookup` and the counts behind.
+- **Labs can reference collections the interface doesn't know:** a lab update for an unknown lab only
+  refetches the labs (`onLabUpdate` in `lab-store.ts`), and nothing refetches the collections. When another
+  admin, or the same admin in another tab, creates a collection with a lab in it, the dashboard and the lab
+  view use `!` on the missing collection and crash.
+- **`StatusMessageStore.clear()`** leaves `countBySeverity` and `filteredMessages` behind, and replaces the
+  observable `data` with a plain array. Nothing calls it.
 - **Accessibility:** every "…" button in the explorer is labelled "Edit Collection", even on topologies and
   files; the terminal tab's close button and the selection bar's arrange button have no name; the file
-  switch's options have no `role="option"`.
-- **The credits show a hard-coded version** "v1.0.0" (`credits-dialog.tsx`).
-- **Undeclared dependency:** `lodash` (`lab-edit-dialog.tsx`) only comes in through other packages. (`moment`
-  in `calendar-dialog.tsx` had the same problem; the schedule uses dayjs now.)
+  switch's options have no `role="option"`. To be reviewed and fixed by an accessibility pass later.
+- **Smaller leftovers:**
+  - **Login:** when the credentials are right but the refresh after them fails, the login form still
+    says "Invalid username or password" (`sb-login.tsx`).
+  - **Logout:**
+    - When several requests get a 401 at once, each sends its own logout request, because the "only
+      once" check now happens after the `await` (`data-binder.ts`).
+    - It also waits without a timeout if the server hangs.
+  - **Dead code:** the lab view header's power button still has a "Delete Lab" label that can never show
+    (`lab-view-header.tsx`).
+  - **`RootStore.fetchState`** lists the server config store twice.
+- **The editor docs are outdated** (`site/…/manual/topology-editor.mdx`):
+  - The toolbar table only lists Add node, Create group, Fit and Clear, not the select, hand, shape, line,
+    text and group tools.
+  - A note still says connecting nodes by dragging doesn't work reliably.
+- ~~**Shortcuts only work with Ctrl**~~ (fixed: the editor's Ctrl+S, Ctrl+Z and Ctrl+Y also work with Cmd and
+  with Caps Lock on; Ctrl+Shift+Z redoes)
+- ~~**The dashboard doesn't update lab states over time**~~ (fixed: the lab store recomputes the state of
+  labs without an instance every second, so they move from Scheduled to Inactive without a reload)
+- ~~**Stabilizing saves the layout before the animation ends**~~ (fixed: the stabilization panel was
+  removed, along with `cytoscape-cose-bilkent`; its e2e test "the stabilization panel lays out the graph"
+  still has to be removed)
+- ~~**The copied SSH and capture commands could run commands on the user's machine**~~ (fixed:
+  `getSSHCommand` single-quotes names that need it, passes the node with `-l` so a name starting with `-`
+  isn't an ssh option, and puts the capture interface after `--`; before, an interface named
+  `-oProxyCommand=…` ran that command locally, and names with spaces broke the command)
+- ~~**"Copy SSH command" ignores `ssh.enabled`**, "Copy capture command" ignores `capture.enabled`~~ (fixed)
+- ~~**The setup screen's "New topology" uses the first collection**~~ (fixed: it uses the first collection
+  the user can write to)
+- ~~**Login can fail silently**~~ (fixed)
+- ~~**Logout may not reach the server**~~ (fixed: it waits for the request)
+- ~~**The loading screen** only shows during `Loading`~~ (fixed: also while connecting)
+- ~~**The credits show a hard-coded version**~~ (fixed: `SB_VERSION` comes from `package.json`, which CI
+  sets from the release tag for the desktop packages and the Docker image; development versions also show
+  the commit, `SB_COMMIT`)
+- ~~**Undeclared dependency `lodash`**~~ (fixed: `lodash-es` is used everywhere)
 
 ---
 
