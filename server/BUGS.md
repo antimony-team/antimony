@@ -15,6 +15,21 @@ None left, see "Fixed".
 
 ## Fixed
 
+### 24. Containerlab and clabernetes disagree on a command that exits at once
+
+- `deployment/containerlab.go` `ExecInteractive`
+
+Found by the code and test reviews, after the fix for #6. Containerlab reported any command that had ended with a
+non-zero exit code after the start check as "failed to start", including one that ran, printed something and
+exited with its own error. Clabernetes treats such a command as started, its session just ends after its output.
+
+**Fixed:** both providers only report a command as "failed to start" if it couldn't be run: exit code 127 (not
+found) or 126 (not executable) on containerlab, a stream error on clabernetes. Any other exit is a session that
+ends after its output. The exit codes are shared constants in `utils.go` now. New unit test
+`TestContainerlabExecInteractive_ACommandThatRanAndFailedStarted`, and a new e2e step
+`ExecInteractive/a_command_that_exits_at_once_ends_its_session` that pins the same behaviour on both providers, not
+run yet.
+
 ### 23. Two concurrent shell opens can exceed the user's shell limit
 
 - `runtime/shell/service.go` `OpenShellCommand`

@@ -48,8 +48,6 @@ import (
 )
 
 const (
-	// commandNotFoundExitCode is the exit code a shell returns for an unknown command.
-	commandNotFoundExitCode = 127
 
 	// defaultContainerAnnotation names the container kubectl targets by default. c9s sets it to the device container.
 	defaultContainerAnnotation = "kubectl.kubernetes.io/default-container"

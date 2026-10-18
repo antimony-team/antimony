@@ -400,6 +400,22 @@ func (l *e2eLab) testExecInteractive(t *testing.T) {
 		output.waitForEnd(t)
 	})
 
+	// Every provider treats a command that ran and exited on its own as started, only one that can't run fails
+	t.Run("a command that exits at once ends its session", func(t *testing.T) {
+		session, err := l.provider.ExecInteractive(
+			t.Context(),
+			l.name,
+			"host1",
+			[]string{"sh", "-c", "echo bye; exit 3"},
+		)
+		require.NoError(t, err)
+		defer session.Close()
+
+		output := newOutputReader(session)
+		output.waitForEnd(t)
+		output.waitFor(t, "bye")
+	})
+
 	t.Run("fails for a command that doesn't exist", func(t *testing.T) {
 		session, err := l.provider.ExecInteractive(t.Context(), l.name, "host1", []string{"antimony-no-such-shell"})
 		if session != nil {

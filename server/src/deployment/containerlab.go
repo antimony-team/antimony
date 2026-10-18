@@ -294,7 +294,9 @@ func (p *ContainerlabProvider) ExecInteractive(
 		return nil, err
 	}
 
-	if !inspect.Running && inspect.ExitCode != 0 {
+	// A command that ran and exited on its own did start, its session just ends after its output
+	if !inspect.Running &&
+		(inspect.ExitCode == commandNotFoundExitCode || inspect.ExitCode == commandNotExecutableExitCode) {
 		hr.Close()
 
 		reason := strings.TrimSpace(output.firstOutput())

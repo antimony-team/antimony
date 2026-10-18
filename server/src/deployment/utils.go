@@ -85,6 +85,13 @@ func readFileOrEmpty(path string) string {
 	return strings.TrimSpace(string(b))
 }
 
+const (
+	// commandNotFoundExitCode is the exit code a shell returns for an unknown command.
+	commandNotFoundExitCode = 127
+	// commandNotExecutableExitCode is the exit code a shell returns for a command it can't execute.
+	commandNotExecutableExitCode = 126
+)
+
 // interactiveStartTimeout bounds how long opening an interactive session waits for the command to print its first
 // output. A shell prints its prompt right away, a command that prints nothing is handed out after this.
 const interactiveStartTimeout = time.Second

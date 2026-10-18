@@ -948,6 +948,24 @@ func TestContainerlabExecInteractive_FailsWhenDockerPrintsWhyTheCommandDidNotSta
 	assert.Contains(t, err.Error(), "executable file not found", "the error carries Docker's reason")
 }
 
+func TestContainerlabExecInteractive_ACommandThatRanAndFailedStarted(t *testing.T) {
+	docker := newFakeDocker()
+	docker.addNode("demo", "srl1", "c-srl1", 4242)
+	// The command printed something and exited with its own error, like the clabernetes provider sees it
+	docker.execOutput = []byte("bye\r\n")
+	docker.execInspect = container.ExecInspect{Running: false, ExitCode: 3}
+
+	session, err := (&ContainerlabProvider{client: docker}).ExecInteractive(
+		context.Background(), "demo", "srl1", []string{"sh", "-c", "echo bye; exit 3"},
+	)
+	require.NoError(t, err, "only a command that can't be run failed to start")
+	defer session.Close()
+
+	output, err := io.ReadAll(session)
+	require.NoError(t, err)
+	assert.Equal(t, "bye\r\n", string(output))
+}
+
 func TestContainerlabExecInteractive_FailsForACommandThatFailsSlowly(t *testing.T) {
 	docker := newFakeDocker()
 	docker.addNode("demo", "srl1", "c-srl1", 4242)
