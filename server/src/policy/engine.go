@@ -112,6 +112,10 @@ func (e *Engine) check(
 		c.checkLinks("topology.links", topology.Links)
 	}
 
+	if c.findings == nil {
+		return make([]Finding, 0)
+	}
+
 	return c.findings
 }
 
