@@ -167,8 +167,11 @@ func TestScheduler_MovingALabBackPostponesIt(t *testing.T) {
 	end := time.Now().Add(2 * time.Hour)
 	labId := createLabViaApi(t, h, "Moved Back", time.Now().Add(time.Hour), &end)
 
+	// The end moves along, a lab can't end before it starts
 	newStart := time.Now().Add(3 * time.Hour)
-	h.PATCH("/labs/"+labId, lab.LabInPartial{StartTime: &newStart}, h.Seed.Admin.Token).RequireOk(nil)
+	newEnd := newStart.Add(time.Hour)
+	h.PATCH("/labs/"+labId, lab.LabInPartial{StartTime: &newStart, EndTime: &newEnd}, h.Seed.Admin.Token).
+		RequireOk(nil)
 
 	assert.Equal(t, []string{labId}, events.LabIdsFor("lab.moved"))
 }
@@ -222,8 +225,9 @@ func TestScheduler_ManualDeploymentStillSchedulesDestruction(t *testing.T) {
 func TestScheduler_MakingALabIndefiniteIsAccepted(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 
-	end := time.Now().Add(time.Hour)
-	labId := createLabViaApi(t, h, "Indefinite", time.Now().Add(time.Hour), &end)
+	start := time.Now().Add(time.Hour)
+	end := start.Add(time.Hour)
+	labId := createLabViaApi(t, h, "Indefinite", start, &end)
 
 	h.PATCH("/labs/"+labId, lab.LabInPartial{Indefinite: ptr(true)}, h.Seed.Admin.Token).RequireOk(nil)
 

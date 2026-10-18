@@ -350,7 +350,7 @@ func (s *Service) deleteLab(ctx context.Context, lab *Lab) error {
 	}
 
 	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {
-		s.statusMessageNamespace.Send(*statusmessage.Warning(
+		s.statusMessageNamespace.SendToAdmins(*statusmessage.Warning(
 			"Lab Manager", fmt.Sprintf("Failed to remove run environment for %s: %s", lab.Name, err.Error()),
 			"Failed to remove run environment", "lab", lab.UUID, "instance", lab.InstanceName, "topo", lab.Topology.Name,
 		))

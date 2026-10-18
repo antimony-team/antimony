@@ -229,6 +229,14 @@ func (s *Service) StartNodeCommand(
 		return fmt.Errorf("%w: node is currently stopping", utils.ErrInvalidNodeOperation)
 	}
 
+	s.sendLabUpdate(
+		instanceLab, statusmessage.Info(
+			"Runtime", fmt.Sprintf("Starting node '%s' of lab '%s'", node.Name, instanceLab.Name),
+			"Starting node", "name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name,
+		),
+		nil,
+	)
+
 	deploymentContext := instance.deploymentContext()
 
 	err = s.deploymentProvider.StartNode(
@@ -237,16 +245,25 @@ func (s *Service) StartNodeCommand(
 		node.Name,
 	)
 	if err != nil {
+		s.sendLabUpdate(
+			instanceLab, statusmessage.Error(
+				"Runtime", fmt.Sprintf("Failed to start node '%s' of lab '%s'", node.Name, instanceLab.Name),
+				"Failed to start node. Please check Antimony logs for more details.",
+				"name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name, "err", err.Error(),
+			),
+			nil,
+		)
+
 		return err
 	}
 
 	s.fetchNode(instance, instanceLab.InstanceName, node, true)
 
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &labId,
-	})
+	// Here, we want to send the update to the client but don't tell the user that the node has started yet, as this
+	// will be the job of the startup listener.
+	s.sendLabUpdate(instanceLab, nil, nil)
 
-	go s.startNodeStartupListener(labId, instance, node, true)
+	go s.startNodeStartupListener(instanceLab, instance, node, true)
 
 	return nil
 }
@@ -287,14 +304,18 @@ func (s *Service) StopNodeCommand(
 		return fmt.Errorf("%w: node is already stopped", utils.ErrInvalidNodeOperation)
 	}
 
+	s.sendLabUpdate(
+		instanceLab, statusmessage.Info(
+			"Runtime", fmt.Sprintf("Stopping node '%s' of lab '%s'", node.Name, instanceLab.Name),
+			"Stopping node", "name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name,
+		),
+		nil,
+	)
+
 	instance.DataMutex.Lock()
 	deploymentContext := instance.DeploymentCtx
 	node.Reset()
 	instance.DataMutex.Unlock()
-
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &labId,
-	})
 
 	err = s.deploymentProvider.StopNode(
 		deploymentContext,
@@ -302,14 +323,27 @@ func (s *Service) StopNodeCommand(
 		node.Name,
 	)
 	if err != nil {
+		s.sendLabUpdate(
+			instanceLab, statusmessage.Error(
+				"Runtime", fmt.Sprintf("Failed to stop node '%s' of lab '%s'", node.Name, instanceLab.Name),
+				"Failed to stop node. Please check Antimony logs for more details.",
+				"name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name, "err", err.Error(),
+			),
+			nil,
+		)
+
 		return err
 	}
 
 	s.fetchNode(instance, instanceLab.InstanceName, node, true)
 
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &labId,
-	})
+	s.sendLabUpdate(
+		instanceLab, statusmessage.Success(
+			"Runtime", fmt.Sprintf("Successfully stopped node '%s' of lab '%s'", node.Name, instanceLab.Name),
+			"Stop of node was successful", "name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name,
+		),
+		nil,
+	)
 
 	return nil
 }
@@ -350,14 +384,18 @@ func (s *Service) RestartNodeCommand(
 		return fmt.Errorf("%w: node is currently starting", utils.ErrInvalidNodeOperation)
 	}
 
+	s.sendLabUpdate(
+		instanceLab, statusmessage.Info(
+			"Runtime", fmt.Sprintf("Restarting node '%s' of lab '%s'", node.Name, instanceLab.Name),
+			"Restarting node", "name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name,
+		),
+		nil,
+	)
+
 	instance.DataMutex.Lock()
 	deploymentContext := instance.DeploymentCtx
 	node.Reset()
 	instance.DataMutex.Unlock()
-
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &labId,
-	})
 
 	err = s.deploymentProvider.RestartNode(
 		deploymentContext,
@@ -365,16 +403,25 @@ func (s *Service) RestartNodeCommand(
 		node.Name,
 	)
 	if err != nil {
+		s.sendLabUpdate(
+			instanceLab, statusmessage.Error(
+				"Runtime", fmt.Sprintf("Failed to restart node '%s' of lab '%s'", node.Name, instanceLab.Name),
+				"Failed to restart node. Please check Antimony logs for more details.",
+				"name", instanceLab.Name, "id", instanceLab.UUID, "node", node.Name, "err", err.Error(),
+			),
+			nil,
+		)
+
 		return err
 	}
 
 	s.fetchNode(instance, instanceLab.InstanceName, node, true)
 
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &labId,
-	})
+	// Here, we want to send the update to the client but don't tell the user that the node has started yet, as this
+	// will be the job of the startup listener.
+	s.sendLabUpdate(instanceLab, nil, nil)
 
-	go s.startNodeStartupListener(labId, instance, node, true)
+	go s.startNodeStartupListener(instanceLab, instance, node, true)
 
 	return nil
 }
@@ -529,10 +576,6 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 	delete(s.instances, lab.UUID)
 	s.instancesMutex.Unlock()
 
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &lab.UUID,
-	})
-
 	log.Info(
 		"[Runtime] Destruction of lab was successful",
 		"name", lab.Name,
@@ -540,10 +583,13 @@ func (s *Service) DestroyLab(lab *lab.Lab) error {
 		"instance", lab.InstanceName,
 	)
 
-	s.statusMessageNamespace.Send(*statusmessage.Success(
-		"Runtime", fmt.Sprintf("Successfully destroyed lab '%s'", lab.Name),
-		"Destruction of lab was successful", "name", lab.Name, "id", lab.UUID,
-	))
+	s.sendLabUpdate(
+		lab, statusmessage.Success(
+			"Runtime", fmt.Sprintf("Successfully destroyed lab '%s'", lab.Name),
+			"Destruction of lab was successful", "name", lab.Name, "id", lab.UUID,
+		),
+		nil,
+	)
 
 	return nil
 }
@@ -775,7 +821,7 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			)
 		}
 
-		go s.startNodeStartupListener(lab.UUID, instance, instance.Nodes[k], false)
+		go s.startNodeStartupListener(lab, instance, instance.Nodes[k], false)
 	}
 
 	log.Info(
@@ -824,18 +870,16 @@ func (s *Service) registerProviderEventListener(ctx context.Context) {
 			break
 		}
 
-		if targetLabId != "" {
-			if s.fetchNode(targetInstance, targetInstance.Name, targetNode, false) {
-				s.updatesNamespace.Send(instanceUpdate{
-					LabId: &targetLabId,
-				})
+		if targetLabId != "" && s.fetchNode(targetInstance, targetInstance.Name, targetNode, false) {
+			if targetLab, err := s.labRepo.GetByUuid(ctx, targetLabId); err == nil {
+				s.sendLabUpdate(targetLab, nil, nil)
 			}
 		}
 	})
 }
 
 func (s *Service) startNodeStartupListener(
-	labId string,
+	lab *lab.Lab,
 	instance *Instance,
 	node *InstanceNode,
 	startStreamingLogs bool,
@@ -846,7 +890,7 @@ func (s *Service) startNodeStartupListener(
 
 	log.Debug(
 		"[Startup] Starting startup launcher for node",
-		"lab", labId,
+		"lab", lab.ID,
 		"node", node.Name,
 	)
 
@@ -868,7 +912,7 @@ func (s *Service) startNodeStartupListener(
 			log.Warn(
 				"[Runtime] Starting of node log streaming has failed",
 				"name", instance.Name,
-				"id", labId,
+				"id", lab.UUID,
 				"instance", instance.Name,
 				"nodeName", node.Name,
 				"err", err.Error(),
@@ -889,20 +933,25 @@ func (s *Service) startNodeStartupListener(
 		log.Error(
 			"Node did not start.",
 			"err", err.Error(),
-			"lab", labId,
+			"lab", lab.UUID,
 			"node", node.Name,
 		)
 
-		s.updatesNamespace.Send(instanceUpdate{
-			LabId: &labId,
-		})
+		s.sendLabUpdate(
+			lab, statusmessage.Error(
+				"Runtime", fmt.Sprintf("Node '%s' of lab '%s' failed to start", node.Name, lab.Name),
+				"Node failed to start. Please check Antimony logs for more details.",
+				"name", lab.Name, "id", lab.UUID, "node", node.Name, "err", err.Error(),
+			),
+			instance.LogNamespace,
+		)
 
 		return
 	}
 
-	log.Debug("[Startup] Node has started", "lab", labId, "node", node.Name)
+	log.Debug("[Startup] Node has started", "lab", lab.ID, "node", node.Name)
 
-	s.onNodeStarted(labId, instance, node)
+	s.onNodeStarted(lab, instance, node)
 }
 
 // sshProbe asks the node's own SSH server for a connection. BatchMode makes a
@@ -971,7 +1020,7 @@ func sshServerResponded(out string) bool {
 }
 
 func (s *Service) onNodeStarted(
-	labId string,
+	lab *lab.Lab,
 	instance *Instance,
 	node *InstanceNode,
 ) {
@@ -999,7 +1048,7 @@ func (s *Service) onNodeStarted(
 	if err != nil {
 		log.Warn(
 			"Failed to get interfaces for node",
-			"lab", labId,
+			"lab", lab.UUID,
 			"container", node.ContainerId,
 			"err", err.Error(),
 		)
@@ -1013,11 +1062,15 @@ func (s *Service) onNodeStarted(
 
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(deploymentContext, s.canAccessLab(labId), instance.Name, node.Name, containerId)
+	s.monitor.AddNode(deploymentContext, s.canAccessLab(lab.UUID), instance.Name, node.Name, containerId)
 
-	s.updatesNamespace.Send(instanceUpdate{
-		LabId: &labId,
-	})
+	s.sendLabUpdate(
+		lab, statusmessage.Success(
+			"Runtime", fmt.Sprintf("Node '%s' of lab '%s' has started", node.Name, lab.Name),
+			"Node has started", "name", lab.Name, "id", lab.UUID, "node", node.Name,
+		),
+		nil,
+	)
 }
 
 func (s *Service) createInstance(
@@ -1271,12 +1324,16 @@ func (s *Service) sendLabUpdate(
 	statusMessage *statusmessage.Message,
 	logNamespace *socket.OutputNamespace[string],
 ) {
-	s.updatesNamespace.Send(instanceUpdate{
+	update := instanceUpdate{
 		LabId: &lab.UUID,
-	})
+	}
+
+	// Send the update to all connected users that have access to the lab
+	s.updatesNamespace.SendToMatches(update, canAccessLab(lab))
 
 	if statusMessage != nil {
-		s.statusMessageNamespace.Send(*statusMessage)
+		s.statusMessageNamespace.SendToMatches(*statusMessage, canAccessLab(lab))
+
 		if logNamespace != nil {
 			logNamespace.Send(statusMessage.LogContent)
 		}
@@ -1414,7 +1471,7 @@ func (s *Service) reviveInstances() {
 		for i := range nodes {
 			if nodes[i].State == deployment.NodeStates.Running ||
 				nodes[i].State == deployment.NodeStates.Starting {
-				go s.startNodeStartupListener(savedLab.UUID, instance, nodes[i], false)
+				go s.startNodeStartupListener(&savedLab, instance, nodes[i], false)
 			}
 		}
 
@@ -1612,4 +1669,10 @@ func getInstanceNode(instance *Instance, nodeName string) *InstanceNode {
 	}
 
 	return nil
+}
+
+func canAccessLab(lab *lab.Lab) func(user *auth.AuthenticatedUser) bool {
+	return func(user *auth.AuthenticatedUser) bool {
+		return user.IsAdmin || slices.Contains(user.Collections, lab.Collection.Name)
+	}
 }

@@ -200,6 +200,15 @@ func (m *namespace[I, O]) SendTo(msg O, receivers []string) {
 	m.sendTo(msg, m.getClientsFor(receivers))
 }
 
+// SendToMatches Sends a message to a set of users that match the predicate. This only works in authenticated namespaces.
+func (m *namespace[I, O]) SendToMatches(msg O, prediate func(user *auth.AuthenticatedUser) bool) {
+	if m.isAnonymous {
+		return
+	}
+
+	m.sendTo(msg, m.getClientsThatMatch(prediate))
+}
+
 func (m *namespace[I, O]) SendBulkTo(msgs []O, receivers []string) {
 	if m.isAnonymous {
 		return
@@ -445,6 +454,16 @@ func (m *namespace[I, O]) getAllClients() []*ConnectedUser {
 	defer m.connectedClientsMutex.Unlock()
 
 	return slices.Clone(m.connectedClients)
+}
+
+func (m *namespace[I, O]) getClientsThatMatch(predicate func(user *auth.AuthenticatedUser) bool) []*ConnectedUser {
+	m.connectedClientsMutex.Lock()
+	connectedUsers := slices.Clone(m.connectedClients)
+	m.connectedClientsMutex.Unlock()
+
+	return lo.Filter(connectedUsers, func(user *ConnectedUser, _ int) bool {
+		return predicate(user.AuthenticatedUser)
+	})
 }
 
 func (m *namespace[I, O]) getClientsFor(userIds []string) []*ConnectedUser {

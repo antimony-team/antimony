@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -402,19 +403,31 @@ func TestCreateLab_NameCanBeReusedInAnotherCollection(t *testing.T) {
 	assert.NotEmpty(t, createdID)
 }
 
-func TestCreateLab_NameCannotContainSlashes(t *testing.T) {
+func TestCreateLab_NameMustBeValid(t *testing.T) {
 	h := NewHarness(t)
 
 	start := time.Now().Add(time.Hour)
 
-	// Slashes separate the parts of the SSH address of a node, "<collection>/<lab>/<node>".
-	errorResponse := h.POST("/labs", lab.LabIn{
-		Name:       ptr("core/edge"),
-		StartTime:  &start,
-		TopologyId: ptr(TopologyAdminID),
-	}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 5002)
+	// Names end up in the SSH address of a node, "<collection>/<lab>/<node>", and in shell commands
+	for _, name := range []string{"", "core/edge", "-flag", "a;b", "it's", strings.Repeat("a", 65)} {
+		t.Run(name, func(t *testing.T) {
+			errorResponse := h.POST("/labs", lab.LabIn{
+				Name:       ptr(name),
+				StartTime:  &start,
+				TopologyId: ptr(TopologyAdminID),
+			}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 5002)
 
-	assert.Contains(t, errorResponse.Message, "can't contain slashes")
+			assert.Contains(t, errorResponse.Message, "the name of the lab is invalid")
+		})
+	}
+
+	t.Run("letters, digits, spaces and . _ - are fine", func(t *testing.T) {
+		h.POST("/labs", lab.LabIn{
+			Name:       ptr("Core Lab 1.0_a-b"),
+			StartTime:  &start,
+			TopologyId: ptr(TopologyAdminID),
+		}, h.Seed.Admin.Token).RequireOk(nil)
+	})
 }
 
 func TestCreateLab_MemberCanCreateOnAPublicDeployCollection(t *testing.T) {

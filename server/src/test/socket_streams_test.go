@@ -24,24 +24,42 @@ type streamMessage struct {
  * Production output namespaces.
  */
 
-func TestSocketStreams_LabUpdatesReachEverySubscriber(t *testing.T) {
+func TestSocketStreams_LabUpdatesOnlyReachUsersWithAccessToTheLab(t *testing.T) {
 	h := NewHarness(t)
 
 	admin := h.Dial("/lab-updates", h.Seed.Admin.Token)
+	adminBare := h.Dial("/lab-updates", h.Seed.AdminBare.Token)
 	member := h.Dial("/lab-updates", h.Seed.Member.Token)
 	outsider := h.Dial("/lab-updates", h.Seed.Outsider.Token)
 
 	h.DeployLab(LabAdminID)
 
-	// /lab-updates is a broadcast namespace with no per-user filtering, so everyone connected sees
-	// every lab's updates regardless of their collection access.
-	for _, client := range []*SocketClient{admin, member, outsider} {
+	// Admins see every lab, other users only the labs of their collections
+	for _, client := range []*SocketClient{admin, adminBare, member} {
 		var update instanceUpdatePayload
 		client.NextPayload(&update)
 
 		require.NotNil(t, update.LabId)
 		assert.Equal(t, LabAdminID, *update.LabId)
 	}
+
+	outsider.ExpectNoData()
+}
+
+func TestSocketStreams_LabStatusMessagesOnlyReachUsersWithAccessToTheLab(t *testing.T) {
+	h := NewHarness(t)
+
+	adminBare := h.Dial("/status-messages", h.Seed.AdminBare.Token)
+	member := h.Dial("/status-messages", h.Seed.Member.Token)
+	outsider := h.Dial("/status-messages", h.Seed.Outsider.Token)
+
+	h.DeployLab(LabAdminID)
+
+	for _, client := range []*SocketClient{adminBare, member} {
+		assert.Len(t, CollectPayloads[statusmessage.Message](client, 2), 2)
+	}
+
+	outsider.ExpectNoData()
 }
 
 func TestSocketStreams_StatusMessagesReachEverySubscriber(t *testing.T) {
