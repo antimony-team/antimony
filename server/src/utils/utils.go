@@ -44,4 +44,6 @@ func IsValidName(name string) error {
 	if !namePattern.MatchString(name) {
 		return fmt.Errorf("the name must match %s", namePattern)
 	}
+
+	return nil
 }

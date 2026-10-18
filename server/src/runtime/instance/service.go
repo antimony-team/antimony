@@ -1013,7 +1013,7 @@ func (s *Service) onNodeStarted(
 
 	instance.DataMutex.Unlock()
 
-	s.monitor.AddNode(deploymentContext, instance.Name, node.Name, containerId)
+	s.monitor.AddNode(deploymentContext, s.canAccessLab(labId), instance.Name, node.Name, containerId)
 
 	s.updatesNamespace.Send(instanceUpdate{
 		LabId: &labId,

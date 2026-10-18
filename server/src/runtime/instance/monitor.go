@@ -119,7 +119,13 @@ func (m *Monitor) Close() {
 	m.monitoredNodesMutex.Unlock()
 }
 
-func (m *Monitor) AddNode(ctx context.Context, instanceName string, nodeName string, containerId string) {
+func (m *Monitor) AddNode(
+	ctx context.Context,
+	namespaceAccessCheck socket.AccessCheck,
+	instanceName string,
+	nodeName string,
+	containerId string,
+) {
 	m.monitoredNodesMutex.Lock()
 	if node, ok := m.monitoredNodes[containerId]; ok {
 		node.namespace.ClearBacklog()
@@ -132,7 +138,7 @@ func (m *Monitor) AddNode(ctx context.Context, instanceName string, nodeName str
 				Kind:     utils.RingKindValue,
 			},
 			true,
-			nil,
+			namespaceAccessCheck,
 			"stats",
 			containerId,
 		)
