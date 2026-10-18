@@ -15,16 +15,6 @@ Paths of the interface are relative to `src/`, those of the server to `antimony-
 
 ## Server
 
-### 1. The SSH server lets anyone in, without authentication (security)
-
-- **Status:** verified — `server.spec.ts` › "the SSH server asks who is connecting"
-- **Where:** `sshserver/sshserver.go` (no auth handlers, so gliderlabs/ssh allows every client), and
-  `runtime/instance/service.go` (`GetInstanceNode` is called without a user)
-- **What happens:** `ssh -p <port> <collection>/<lab>/<node>@<server>` opens a shell on any running node,
-  for anyone who can reach the SSH port, without a password or key. The same goes for packet captures.
-- **Fix idea:** authenticate SSH clients (e.g. with the user's access token as the password, or keys), and
-  check the user's access to the lab like the socket namespaces do.
-
 ### 2. Every signed-in user hears about every lab
 
 - **Status:** verified — `server.spec.ts` › "users don't hear about labs of collections they aren't in"

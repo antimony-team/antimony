@@ -16,7 +16,6 @@ Prerequisites:
     or a local one built with `docker build -t antimony-server:dev .`. CI uses the published `:dev`
     image.
 - The Playwright browser, once: `npx playwright install chromium`
-- `ssh`, for the test of the SSH server (skipped without it)
 
 Commands:
 

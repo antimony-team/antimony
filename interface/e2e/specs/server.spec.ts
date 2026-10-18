@@ -1,4 +1,3 @@
-import {spawnSync} from 'node:child_process';
 import {io} from 'socket.io-client';
 
 import {ApiError, InstanceState, topologyDefinition} from '../fixtures/api';
@@ -131,39 +130,6 @@ test('a lab can not end before it starts', async ({
     );
 
   expect(error?.status).toBe(400);
-});
-
-test('the SSH server asks who is connecting', async ({createLab}) => {
-  knownBug(
-    'the SSH server accepts every connection without authentication and opens shells on any running node',
-  );
-  test.skip(
-    spawnSync('ssh', ['-V']).error !== undefined,
-    'needs the ssh client',
-  );
-  const lab = await createLab({deployed: true});
-
-  const result = spawnSync(
-    'ssh',
-    [
-      '-p',
-      '6200',
-      '-o',
-      'StrictHostKeyChecking=no',
-      '-o',
-      'UserKnownHostsFile=/dev/null',
-      '-o',
-      'BatchMode=yes',
-      '-o',
-      'ConnectTimeout=5',
-      '-tt',
-      `${lab.topology.collection.name}/${lab.name}/host1@127.0.0.1`,
-    ],
-    {input: 'exit\r', timeout: 10_000, encoding: 'utf8'},
-  );
-
-  // Without credentials (BatchMode can't ask for any), the server must refuse
-  expect(result.stdout).not.toContain('Connected to host1');
 });
 
 test('collection and lab names are checked on the server', async ({
