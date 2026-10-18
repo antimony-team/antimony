@@ -1,21 +1,18 @@
-import React from 'react';
+import React, {useMemo} from 'react';
 
 import classNames from 'classnames';
 
 import {Button} from 'primereact/button';
 
 import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
-import {useAuthUser} from '@sb/lib/stores/root-store';
+import {useAuthUser, useCollectionStore} from '@sb/lib/stores/root-store';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 
 import './editor-setup.sass';
 
 interface EditorSetupProps {
-  // Name of the first collection, null if there is none yet
-  collectionName: string | null;
-
   onCreateCollection: () => void;
-  onCreateTopology: () => void;
+  onCreateTopology: (collectionId: string) => void;
 }
 
 type StepState = 'todo' | 'active' | 'done';
@@ -48,9 +45,24 @@ const SetupStep = (props: SetupStepProps) => (
 
 const EditorSetup = (props: EditorSetupProps) => {
   const authUser = useAuthUser();
-  const hasCollection = props.collectionName !== null;
+  const collectionStore = useCollectionStore();
 
-  if (!hasCollection && !authUser.isAdmin) {
+  const targetCollection = useMemo(() => {
+    let userCollections = collectionStore.data;
+    if (!authUser.isAdmin) {
+      userCollections = userCollections.filter(
+        collection => collection.publicWrite,
+      );
+    }
+
+    if (userCollections.length === 0) {
+      return null;
+    }
+
+    return userCollections[0];
+  }, [authUser]);
+
+  if (!targetCollection && !authUser.isAdmin) {
     return (
       <SBEmptyState
         icon={<span className="material-symbols-outlined">lock</span>}
@@ -72,9 +84,9 @@ const EditorSetup = (props: EditorSetupProps) => {
           number={1}
           title="Create a collection"
           text="A shared folder for related topologies, e.g. a course or a project."
-          state={hasCollection ? 'done' : 'active'}
+          state={targetCollection ? 'done' : 'active'}
         >
-          <If condition={!hasCollection}>
+          <If condition={!targetCollection}>
             <Button
               outlined
               icon="pi pi-plus"
@@ -87,14 +99,18 @@ const EditorSetup = (props: EditorSetupProps) => {
           number={2}
           title="Add a topology"
           text="Describe nodes and links, then deploy it as a lab."
-          state={hasCollection ? 'active' : 'todo'}
+          state={targetCollection ? 'active' : 'todo'}
         >
           <Button
             outlined
             icon="pi pi-plus"
             label="New topology"
-            disabled={!hasCollection}
-            onClick={props.onCreateTopology}
+            disabled={!targetCollection}
+            onClick={() => {
+              if (!targetCollection) return;
+
+              props.onCreateTopology(targetCollection.id);
+            }}
           />
         </SetupStep>
       </div>

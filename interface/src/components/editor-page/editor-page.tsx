@@ -12,7 +12,7 @@ import {
 import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
-import {useCollectionStore, useTopologyStore} from '@sb/lib/stores/root-store';
+import {useTopologyStore} from '@sb/lib/stores/root-store';
 import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {
   isNumber,
@@ -52,7 +52,6 @@ const EditorPage = observer(() => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const topologyStore = useTopologyStore();
-  const collectionStore = useCollectionStore();
 
   const editCollectionState = useDialogState<CollectionEditDialogState>(null);
   const editTopologyState = useDialogState<TopologyEditDialogState>(null);
@@ -150,21 +149,16 @@ const EditorPage = observer(() => {
         <When condition={isSetup}>
           <div className="sb-editor-setup-container sb-island">
             <EditorSetup
-              collectionName={
-                collectionStore.data.length > 0
-                  ? collectionStore.data[0].name
-                  : null
-              }
               onCreateCollection={() =>
                 editCollectionState.openWith({
                   editingCollection: null,
                   action: DialogAction.Add,
                 })
               }
-              onCreateTopology={() =>
+              onCreateTopology={collectionId =>
                 editTopologyState.openWith({
                   topology: null,
-                  collectionId: collectionStore.data[0].id,
+                  collectionId: collectionId,
                   action: DialogAction.Add,
                 })
               }
