@@ -135,6 +135,10 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		return "", fmt.Errorf("%w: the lab name can't contain slashes", utils.ErrInvalidLabName)
 	}
 
+	if req.EndTime != nil && !req.EndTime.After(*req.StartTime) {
+		return "", utils.ErrInvalidLabTime
+	}
+
 	// Lab names have to be unique per collection
 	if _, err := s.repo.GetByCollectionAndName(ctx, labTopology.Collection.Name, *req.Name); err == nil {
 		return "", utils.ErrLabNameExists
@@ -279,6 +283,10 @@ func (s *Service) Update(ctx context.Context, req LabInPartial, labId string, au
 	if req.StartTime != nil {
 		lab.StartTime = *req.StartTime
 		timeChanged = true
+	}
+
+	if timeChanged && lab.EndTime != nil && !lab.EndTime.After(lab.StartTime) {
+		return utils.ErrInvalidLabTime
 	}
 
 	if err := s.repo.Update(ctx, lab); err != nil {

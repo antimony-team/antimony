@@ -44,6 +44,8 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusBadRequest, ErrorResponse{Code: 5001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidLabName):
 		return http.StatusBadRequest, ErrorResponse{Code: 5002, Message: err.Error()}
+	case errors.Is(err, ErrInvalidLabTime):
+		return http.StatusBadRequest, ErrorResponse{Code: 5003, Message: err.Error()}
 	case errors.Is(err, ErrDatabaseError):
 		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
 	// Permission / Access errors
