@@ -67,6 +67,7 @@ export class StatusMessageStore {
   @action
   public clear() {
     this.data = [];
+    this.lookup = new Map<string, StatusMessage>();
   }
 
   public success = (message: string, title: string = 'Success') => {
