@@ -379,7 +379,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     );
 
     notificationStore.confirm({
-      header: `Delete Collection "${collectionStore.lookup.get(collectionId)!.name}"?`,
+      header: `Delete collection "${collectionStore.lookup.get(collectionId)!.name}"?`,
       content: (
         <If condition={childTopologies.length > 0}>
           <div className="sb-confirm-list">
@@ -973,7 +973,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     ) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
+        header: 'Unsaved changes',
         icon: 'pi pi-info-circle',
         severity: 'warning',
         onAccept: () => moveBindFileToTopologyConfirm(bindFile, targetTopology),
@@ -1091,7 +1091,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     ) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
+        header: 'Unsaved changes',
         icon: 'pi pi-info-circle',
         severity: 'warning',
         onAccept: () => {
@@ -1167,7 +1167,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       <Tree
         filter
         filterMode="lenient"
-        filterPlaceholder="Search Topologies"
+        filterPlaceholder="Search topologies"
         ariaLabel="Topologies"
         value={topologyTree}
         className="w-full"
@@ -1179,7 +1179,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         }
         pt={{
           toggler: {
-            'aria-label': 'Expand Node',
+            'aria-label': 'Expand node',
           },
         }}
         dragdropScope="test"

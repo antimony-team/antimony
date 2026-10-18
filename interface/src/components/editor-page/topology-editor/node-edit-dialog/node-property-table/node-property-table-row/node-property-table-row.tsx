@@ -160,7 +160,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
               onClick={props.property.onReset}
               tooltip="Reset to the inherited value"
               tooltipOptions={{showDelay: 500}}
-              aria-label="Reset Property"
+              aria-label="Reset property"
             />
           </When>
           <Otherwise>
@@ -172,7 +172,7 @@ const NodePropertyTableRow = (props: NodePropertyTableRowProps) => {
               tooltip="Remove property"
               tooltipOptions={{showDelay: 500}}
               onClick={props.property.onReset}
-              aria-label="Remove Property"
+              aria-label="Remove property"
             />
           </Otherwise>
         </Choose>

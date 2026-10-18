@@ -17,6 +17,7 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import {SelectItem} from 'primereact/selectitem';
 
 import {NodeEditor} from '@sb/lib/node-editor';
+import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {matchesSearch} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 
@@ -54,6 +55,7 @@ const NodePropertyTable = (props: NodePropertyTableProps) => {
 
   const newPropertyOverlayRef = useRef<OverlayPanel>(null);
   const newPropertyInputRef = useRef<HTMLInputElement>(null);
+  const newPropertyReturnFocus = useReturnFocus();
 
   const availablePropertiesFiltered: SelectItem[] | null = useMemo(() => {
     if (!availableProperties) return null;
@@ -151,14 +153,16 @@ const NodePropertyTable = (props: NodePropertyTableProps) => {
         <table className="sb-table sb-property-table">
           <thead>
             <tr>
-              <td className="sb-property-table-key">
+              <th scope="col" className="sb-property-table-key">
                 {props.keyHeader ?? 'Property'}
-              </td>
-              <td className="sb-property-table-value">
+              </th>
+              <th scope="col" className="sb-property-table-value">
                 {props.valueHeader ?? 'Value'}
-              </td>
+              </th>
               <If condition={props.hideType}>
-                <td className="sb-property-table-type">Type</td>
+                <th scope="col" className="sb-property-table-type">
+                  Type
+                </th>
               </If>
               <td className="sb-property-table-actions"></td>
             </tr>
@@ -174,25 +178,27 @@ const NodePropertyTable = (props: NodePropertyTableProps) => {
           }
         >
           <Button
-            label={props.addText ?? 'Add Property'}
+            label={props.addText ?? 'Add property'}
             icon="pi pi-plus"
             className="sb-property-table-add-button"
             onClick={onAddPropertyClicked}
             outlined
-            aria-label={props.addText ?? 'Add Property'}
+            aria-label={props.addText ?? 'Add property'}
           />
         </If>
         <If condition={availableProperties}>
           <OverlayPanel
             ref={newPropertyOverlayRef}
             className="sb-node-new-property-overlay"
-            pt={{
-              hooks: {
-                useMountEffect() {
-                  newPropertyInputRef.current?.focus();
-                },
-              },
+            onShow={() => {
+              newPropertyReturnFocus.onShow();
+              newPropertyInputRef.current?.focus();
             }}
+            onHide={() =>
+              newPropertyReturnFocus.onHide(
+                newPropertyOverlayRef.current?.getElement(),
+              )
+            }
           >
             <IconField iconPosition="left">
               <InputIcon className="pi pi-search"></InputIcon>

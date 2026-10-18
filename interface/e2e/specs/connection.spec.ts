@@ -12,7 +12,7 @@ test('an unreachable server shows the network error screen', async ({page}) => {
 
   await page.goto('/');
 
-  await expect(page.getByText('Network Error')).toBeVisible();
+  await expect(page.getByText('Network error')).toBeVisible();
   await expect(
     page.getByText('Unable to connect to the Antimony server.'),
   ).toBeVisible();
@@ -21,7 +21,7 @@ test('an unreachable server shows the network error screen', async ({page}) => {
 test('the app recovers once the server is reachable again', async ({page}) => {
   await page.route('**/api/**', route => route.abort());
   await page.goto('/');
-  await expect(page.getByText('Network Error')).toBeVisible();
+  await expect(page.getByText('Network error')).toBeVisible();
 
   await page.unrouteAll();
 

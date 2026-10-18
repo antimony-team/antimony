@@ -355,7 +355,7 @@ export class DataBinder {
     }
 
     if (response.status >= 500) {
-      return Result.createErr({code: -1, message: 'Server Error'});
+      return Result.createErr({code: -1, message: 'Server error'});
     }
 
     // Acecss token is expired, attempt to refresh before retrying

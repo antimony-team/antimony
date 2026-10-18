@@ -71,7 +71,7 @@ const CalendarDialog = observer((props: CalendarDialogProps) => {
   return (
     <SBDialog
       className="calender-dialog"
-      headerTitle="Lab Schedule"
+      headerTitle="Lab schedule"
       headerIcon={<i className="pi pi-calendar" />}
       isOpen={props.isOpen}
       onClose={props.onClose}
@@ -101,7 +101,7 @@ const CalendarDialogContent = observer((props: CalendarDialogContentProps) => {
           <i
             className="pi pi-pen-to-square"
             style={{marginLeft: '8px', color: 'white', cursor: 'pointer'}}
-            title="Edit Event"
+            title="Edit event"
           />
         )}
       </div>

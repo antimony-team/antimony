@@ -293,7 +293,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
     <SBDialog
       onClose={props.dialogState.close}
       isOpen={props.dialogState.isOpen}
-      headerTitle="Upload Bind Files"
+      headerTitle="Upload bind files"
       className="sb-archive-upload-dialog"
       submitLabel="Upload"
       onSubmit={onSubmit}
@@ -301,7 +301,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
     >
       <If condition={props.dialogState.state}>
         <div className="sb-archive-upload-dialog-title">
-          <span>Archive Name:</span>
+          <span>Archive name:</span>
           <span>{archiveName}</span>
         </div>
         <Choose>
@@ -319,7 +319,7 @@ const ArchiveUploadDialog = observer((props: ArchiveUploadDialogProps) => {
           </When>
           <When condition={!isDoneLoading}>
             <div className="sb-archive-upload-loader">
-              <span>Reading Archive...</span>
+              <span>Reading archive...</span>
               <ProgressSpinner />
             </div>
           </When>

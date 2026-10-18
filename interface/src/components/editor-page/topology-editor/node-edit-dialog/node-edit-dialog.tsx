@@ -20,6 +20,7 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {TopologyEditSource} from '@sb/lib/topology-manager';
+import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {TopologyAnnotations} from '@sb/types/domain/topology';
 import {TopologyDefinition} from '@sb/types/domain/topology-definition';
@@ -50,6 +51,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
   const nameFieldRef = useRef<SBInputRef>(null);
   const kindDropdownRef = useRef<SBDropdownRef>(null);
   const iconSelectorOverlay = useRef<OverlayPanel>(null);
+  const iconSelectorReturnFocus = useReturnFocus();
   const iconSelectorAnchor = useRef<HTMLDivElement>(null);
 
   const [nodeIcon, setNodeIcon] = useState<string>('');
@@ -127,7 +129,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
     if (nodeEditor.hasEdits()) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
-        header: 'Unsaved Changes',
+        header: 'Unsaved changes',
         icon: 'pi pi-info-circle',
         severity: 'warning',
         onAccept: onClose,
@@ -202,7 +204,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
   return (
     <SBDialog
       isOpen={props.isOpen}
-      headerTitle={!props.editingNode ? 'Add Node' : 'Edit Node'}
+      headerTitle={!props.editingNode ? 'Add node' : 'Edit node'}
       className="sb-node-edit-dialog"
       submitLabel="Save"
       onSubmit={onSave}
@@ -250,7 +252,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
               useSelectTemplate={true}
               optionLabel="value"
               placeholder={
-                inheritedKind ? `${inheritedKind} (inherited)` : 'Select a Kind'
+                inheritedKind ? `${inheritedKind} (inherited)` : 'Select a kind'
               }
               onValueSubmit={value =>
                 nodeEditor!.updatePropertyValue('kind', '', value)
@@ -263,7 +265,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
           role="heading"
           aria-level={2}
         >
-          Node Properties
+          Node properties
         </div>
         <NodePropertyTable
           nodeEditor={nodeEditor!}
@@ -279,12 +281,12 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
         </div>
         <NodeConnectionTable nodeEditor={nodeEditor!} />
         <Accordion multiple>
-          <AccordionTab header="Environment Variables">
+          <AccordionTab header="Environment variables">
             <NodePropertyTable
               keyHeader="Key"
               hideType={true}
               isKeyEditable={true}
-              addText="Add Variable"
+              addText="Add variable"
               nodeEditor={nodeEditor!}
               objectKey="env"
               schemaKey="node-config.env"
@@ -318,7 +320,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
             <NodePropertyTable
               keyHeader="Label"
               valueHeader="Value"
-              addText="Add Label"
+              addText="Add label"
               hideType={true}
               isKeyEditable={true}
               nodeEditor={nodeEditor!}
@@ -331,11 +333,17 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
       <OverlayPanel
         ref={iconSelectorOverlay}
         className="sb-icon-selector-panel"
-        onShow={() =>
+        onShow={() => {
+          iconSelectorReturnFocus.onShow();
           iconSelectorOverlay.current
             ?.getElement()
             ?.querySelector<HTMLElement>('[tabindex="0"]')
-            ?.focus()
+            ?.focus();
+        }}
+        onHide={() =>
+          iconSelectorReturnFocus.onHide(
+            iconSelectorOverlay.current?.getElement(),
+          )
         }
       >
         <div className="sb-icon-selector-container">

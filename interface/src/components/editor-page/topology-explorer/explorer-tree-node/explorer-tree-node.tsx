@@ -111,7 +111,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                   e.stopPropagation();
                   props.onAddTopology(props.node.key as uuid4);
                 }}
-                aria-label="Add Topology"
+                aria-label="Add topology"
               />
               <Button
                 text
@@ -134,7 +134,7 @@ const ExplorerTreeNode = (props: ExplorerTreeNodeProps) => {
                   e.stopPropagation();
                   props.onDeployTopology(props.node.key as uuid4);
                 }}
-                aria-label="Deploy Topology"
+                aria-label="Deploy topology"
                 className="sb-button-green"
               />
             </If>

@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 
 import {observer} from 'mobx-react-lite';
 import {useSearchParams} from 'react-router';
@@ -51,6 +51,27 @@ const DashboardPage = observer(() => {
     }
   }, [labStore.lookup, searchParams]);
 
+  // Once a lab is closed, its card gets the focus back if the focus was in the lab view
+  const lastOpenLab = useRef<Lab | null>(null);
+  useEffect(() => {
+    const closedLab = lastOpenLab.current;
+    lastOpenLab.current = openLab;
+    if (openLab || !closedLab) return;
+
+    const focused = document.activeElement;
+    if (
+      focused &&
+      focused !== document.body &&
+      !focused.closest('.sb-lab-view')
+    ) {
+      return;
+    }
+
+    document
+      .querySelector<HTMLElement>(`[data-lab-id="${closedLab.id}"]`)
+      ?.focus();
+  }, [openLab]);
+
   function onCloseLabView() {
     setSearchParams('');
   }
@@ -82,7 +103,7 @@ const DashboardPage = observer(() => {
 
   function onDestroyLab(lab: Lab) {
     notificationStore.confirm({
-      header: `Destroy Lab '${lab.name}'?`,
+      header: `Destroy lab '${lab.name}'?`,
       icon: 'pi pi-power-off',
       severity: 'danger',
       onAccept: () => labStore.destroyLab(lab),
@@ -121,6 +142,8 @@ const DashboardPage = observer(() => {
         onResizeEnd={(e: SplitterResizeEndEvent) =>
           setSplitterPosition(e.sizes[0])
         }
+        // An open lab covers the grid, which can't be reached with the keyboard then
+        inert={openLab !== null}
       >
         <SplitterPanel
           className="sb-lab-explorer sb-island"

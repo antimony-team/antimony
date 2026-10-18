@@ -29,6 +29,14 @@
   &.sb-explorer-bindfile-directory-node, &.sb-explorer-bindfile-node, &.sb-explorer-topology-node
     padding-right: 0
 
+  // The tree item also contains its children, so its own row shows the focus
+  &:focus-visible
+    outline: none !important
+
+    > .p-treenode-content
+      outline: 2px solid color-mix(in oklab, var(--accent) 45%, transparent)
+      outline-offset: -1px
+
 .p-treenode-content
   border: 1px transparent solid
 
@@ -45,7 +53,7 @@
       &:hover
         border: unset
 
-    &:hover
+    &:hover, &:has(:focus-visible), .p-treenode:focus-visible > &
       background-color: var(--surface-hover)
 
       .p-button-icon-only

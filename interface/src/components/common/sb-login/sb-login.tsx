@@ -109,7 +109,7 @@ const LoginForm = observer(() => {
         />
         <Button
           className="sb-button-accent sb-login-button"
-          label="Sign In"
+          label="Sign in"
           type="submit"
         />
       </If>

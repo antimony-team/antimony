@@ -139,7 +139,7 @@ test('deleting a collection deletes its topologies', async ({
   await editor.explorer.menu(topology.collection.name, 'Delete');
   const confirm = new ConfirmDialog(page);
   await expect(confirm.header).toHaveText(
-    `Delete Collection "${topology.collection.name}"?`,
+    `Delete collection "${topology.collection.name}"?`,
   );
   // The confirmation lists what gets deleted with it
   await expect(confirm.root).toContainText(topology.name);

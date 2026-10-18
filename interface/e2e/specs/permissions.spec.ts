@@ -300,7 +300,7 @@ test.describe('interface', () => {
     await editor.explorer.expand(collection.name);
     await editor.explorer.row(topology.name).hover();
     await expect(
-      editor.explorer.rowButton(topology.name, 'Deploy Topology'),
+      editor.explorer.rowButton(topology.name, 'Deploy topology'),
     ).toBeHidden();
     await editor.explorer.row(topology.name).click({button: 'right'});
     await expect(menuItem(user.page, 'Deploy')).toHaveCount(0);
@@ -353,7 +353,7 @@ test.describe('interface', () => {
     await api.deleteTopology(created!.id);
   });
 
-  test('a collection anyone can edit has the Add Topology button for members', async ({
+  test('a collection anyone can edit has the Add topology button for members', async ({
     createCollection,
     createTopology,
     loginAs,
@@ -366,11 +366,11 @@ test.describe('interface', () => {
 
     await editor.explorer.row(collection.name).hover();
     await expect(
-      editor.explorer.rowButton(collection.name, 'Add Topology'),
+      editor.explorer.rowButton(collection.name, 'Add topology'),
     ).toBeVisible();
   });
 
-  test('a read-only collection has no Add Topology button for members', async ({
+  test('a read-only collection has no Add topology button for members', async ({
     createCollection,
     createTopology,
     loginAs,
@@ -383,7 +383,7 @@ test.describe('interface', () => {
 
     await editor.explorer.row(collection.name).hover();
     await expect(
-      editor.explorer.rowButton(collection.name, 'Add Topology'),
+      editor.explorer.rowButton(collection.name, 'Add topology'),
     ).toBeHidden();
   });
 
@@ -514,7 +514,7 @@ test.describe('interface', () => {
     await member.page.keyboard.press('Escape');
 
     await labView.clickNode('host1');
-    await expect(labView.drawer.button('Open Terminal')).toBeVisible();
+    await expect(labView.drawer.button('Open terminal')).toBeVisible();
     await expect(labView.drawer.button('Shutdown')).toBeHidden();
     await expect(labView.drawer.button('Restart')).toBeHidden();
   });

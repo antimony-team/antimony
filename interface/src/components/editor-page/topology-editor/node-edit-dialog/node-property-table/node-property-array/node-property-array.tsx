@@ -73,10 +73,10 @@ const NodePropertyArray = (props: NodePropertyArrayProps) => {
                 size="small"
                 rounded
                 text
-                tooltip="Remove Entry"
+                tooltip="Remove entry"
                 tooltipOptions={{showDelay: 500}}
                 onClick={() => onEntryRemoved(entry.index)}
-                aria-label="Remove Entry"
+                aria-label="Remove entry"
               />
             </If>
           </div>
@@ -90,7 +90,7 @@ const NodePropertyArray = (props: NodePropertyArrayProps) => {
         disabled={addButtonDisabled}
         tooltip="List requires unique values but contains empty values. Please remove empty values before adding more elements."
         tooltipOptions={{showOnDisabled: true, disabled: !addButtonDisabled}}
-        aria-label="Add Property"
+        aria-label="Add property"
       />
     </>
   );

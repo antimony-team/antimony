@@ -327,7 +327,7 @@ test.describe('archive upload', () => {
       mimeType: 'application/zip',
       buffer: createZip(files),
     });
-    return new Dialog(page, 'Upload Bind Files');
+    return new Dialog(page, 'Upload bind files');
   }
 
   test('the files of an archive are added to a topology', async ({

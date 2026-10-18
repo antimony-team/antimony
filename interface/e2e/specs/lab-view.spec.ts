@@ -31,7 +31,7 @@ test.describe('deploying', () => {
 
     await labView.destroyButton.click();
     const confirm = new ConfirmDialog(page);
-    await expect(confirm.header).toHaveText(`Destroy Lab '${lab.name}'?`);
+    await expect(confirm.header).toHaveText(`Destroy lab '${lab.name}'?`);
     await confirm.accept();
 
     await expect(labView.deployButton).toBeVisible();
@@ -112,7 +112,7 @@ test.describe('properties', () => {
     await expect(labView.property('Topology')).toContainText('1 link');
   });
 
-  test('Open Topology opens the lab topology in the editor', async ({
+  test('Open topology opens the lab topology in the editor', async ({
     page,
     createLab,
   }) => {
@@ -121,18 +121,18 @@ test.describe('properties', () => {
     await labView.open(lab.id);
 
     await labView.properties
-      .getByRole('button', {name: 'Open Topology'})
+      .getByRole('button', {name: 'Open topology'})
       .click();
 
     await expect(page).toHaveURL(new RegExp(`#/editor\\?f=${lab.topology.id}`));
   });
 
-  test('Copy Link copies the link of the lab', async ({page, createLab}) => {
+  test('Copy link copies the link of the lab', async ({page, createLab}) => {
     const lab = await createLab();
     const labView = new LabView(page);
     await labView.open(lab.id);
 
-    await labView.properties.getByRole('button', {name: 'Copy Link'}).click();
+    await labView.properties.getByRole('button', {name: 'Copy link'}).click();
 
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
@@ -168,7 +168,7 @@ test.describe('nodes', () => {
     await expect(drawer.property('Container ID')).toHaveText('container-host1');
     await expect(drawer.property('Mgmt IPv4')).toContainText('172.20.20.2');
     await expect(drawer.plot('CPU')).toBeVisible();
-    await expect(drawer.plot('Memory Usage')).toBeVisible();
+    await expect(drawer.plot('Memory usage')).toBeVisible();
   });
 
   test('a node can be shut down, started and restarted', async ({
@@ -303,7 +303,7 @@ test.describe('logs', () => {
     await labView.open(lab.id);
     await labView.clickNode('host1');
 
-    await labView.drawer.button('Node Logs').click();
+    await labView.drawer.button('Node logs').click();
 
     await expect(new LogDialog(page).content).toContainText(
       '[dummy] host1: container is ready',
@@ -332,7 +332,7 @@ test.describe('terminals', () => {
     await labView.open(lab.id);
     await labView.clickNode('host1');
 
-    await labView.drawer.button('Open Terminal').click();
+    await labView.drawer.button('Open terminal').click();
 
     const terminal = new TerminalDialog(page);
     await expect(terminal.tab('host1')).toBeVisible();

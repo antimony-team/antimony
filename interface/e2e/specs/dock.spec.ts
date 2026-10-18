@@ -55,7 +55,7 @@ test('the credits show the deployment provider', async ({page}) => {
   await page.goto('/');
 
   const credits = await new Dock(page).openCredits();
-  await expect(credits).toContainText('Deployment Provider');
+  await expect(credits).toContainText('Deployment provider');
   await expect(credits).toContainText('dummy');
 
   await credits.getByRole('button', {name: 'Close'}).click();

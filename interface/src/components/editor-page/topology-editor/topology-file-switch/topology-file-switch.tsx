@@ -2,6 +2,7 @@ import React, {useRef, useState} from 'react';
 
 import {OverlayPanel} from 'primereact/overlaypanel';
 
+import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {TopologyFileType} from '@sb/types/domain/topology';
 
@@ -15,6 +16,7 @@ interface TopologyFileSwitchProps {
 
 const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
   const overlayRef = useRef<OverlayPanel>(null);
+  const returnFocus = useReturnFocus();
   const [isOpen, setOpen] = useState(false);
 
   const files: {
@@ -51,7 +53,7 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
         onClick={e => overlayRef.current?.toggle(e)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-label="Open file"
+        aria-label={`${selectedFile.label} file`}
       >
         <span
           className="material-symbols-outlined sb-topology-file-switch-icon"
@@ -69,12 +71,16 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
         className="sb-topology-file-switch-panel"
         onShow={() => {
           setOpen(true);
+          returnFocus.onShow();
           overlayRef.current
             ?.getElement()
             ?.querySelector<HTMLElement>('[aria-selected="true"]')
             ?.focus();
         }}
-        onHide={() => setOpen(false)}
+        onHide={() => {
+          setOpen(false);
+          returnFocus.onHide(overlayRef.current?.getElement());
+        }}
       >
         <div role="listbox" aria-label="Topology files">
           {files.map((file, i) => (

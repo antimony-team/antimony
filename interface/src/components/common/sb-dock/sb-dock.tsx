@@ -122,7 +122,7 @@ const SBDock = observer(() => {
                 label="Dashboard"
                 onMouseDown={() => navigate('/')}
                 onKeyDown={e => isActivationKey(e) && navigate('/')}
-                aria-label="Dashboard Page"
+                aria-label="Dashboard page"
                 aria-current={
                   pathname === '/' || pathname === '' ? 'page' : undefined
                 }
@@ -137,10 +137,10 @@ const SBDock = observer(() => {
                 className={classNames('sb-dock-page-button', {
                   selected: pathname === '/editor',
                 })}
-                label="Topology Editor"
+                label="Topology editor"
                 onMouseDown={openEditor}
                 onKeyDown={e => isActivationKey(e) && openEditor()}
-                aria-label="Topology Editor Page"
+                aria-label="Topology editor page"
                 aria-current={pathname === '/editor' ? 'page' : undefined}
               />
             </div>
@@ -169,7 +169,11 @@ const SBDock = observer(() => {
           }}
           tooltip="Messages"
           tooltipOptions={dockButtonTooltipOptions}
-          aria-label="Messages"
+          aria-label={
+            notificationStore.hasUnreadMessages
+              ? 'Messages, unread messages'
+              : 'Messages'
+          }
         />
         {/* Only admins schedule labs for others */}
         <If condition={authUser.isAdmin}>
@@ -177,10 +181,10 @@ const SBDock = observer(() => {
             text
             icon="pi pi-calendar"
             size="large"
-            tooltip="Lab Schedule"
+            tooltip="Lab schedule"
             tooltipOptions={dockButtonTooltipOptions}
             onClick={() => setCalendarOpen(true)}
-            aria-label="Lab Schedule"
+            aria-label="Lab schedule"
           />
         </If>
         <Button
@@ -199,9 +203,9 @@ const SBDock = observer(() => {
             size="large"
             icon="pi pi-sign-out"
             onClick={() => dataBinder.logout(true)}
-            tooltip="Log Out"
+            tooltip="Log out"
             tooltipOptions={dockButtonTooltipOptions}
-            aria-label="Log Out"
+            aria-label="Log out"
             className="ml-2"
           />
         </If>

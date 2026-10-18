@@ -13,7 +13,7 @@ const ConnectionErrorOverlay = (props: {visible: boolean}) => {
   return (
     <SBOverlay visible={props.visible} fullscreen={true}>
       <ErrorScreen
-        code="Network Error"
+        code="Network error"
         message="Unable to connect to the Antimony server."
       >
         <ConnectionErrorStatus className="sb-connection-status-large" />

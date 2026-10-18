@@ -125,6 +125,7 @@ const LabEntry = observer((props: LabEntryProps) => {
       style={{'--progress': stateProgress} as React.CSSProperties}
       role="link"
       tabIndex={0}
+      data-lab-id={props.lab.id}
       aria-label={props.lab.name}
       aria-describedby={bandId}
       onClick={props.onOpenLab}
@@ -135,11 +136,7 @@ const LabEntry = observer((props: LabEntryProps) => {
       }}
       onContextMenu={props.onContextMenu}
     >
-      <div
-        id={bandId}
-        className="sb-dashboard-lab-card-band"
-        onClick={props.onOpenLab}
-      >
+      <div id={bandId} className="sb-dashboard-lab-card-band">
         <div className="dot" />
         <span className="sb-dashboard-lab-card-band-state">
           {InstanceState[props.lab.state]}

@@ -407,7 +407,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       if (topologyStore.manager.hasEdits()) {
         notificationStore.confirm({
           message: 'Discard unsaved changes?',
-          header: 'Unsaved Changes',
+          header: 'Unsaved changes',
           icon: 'pi pi-info-circle',
           severity: 'warning',
           onAccept: () => {
@@ -573,9 +573,9 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 text
                 icon="pi pi-sync"
                 onClick={e => syncOverlayRef.current?.toggle(e)}
-                tooltip="Sync Options"
+                tooltip="Sync options"
                 tooltipOptions={{position: 'bottom', showDelay: 500}}
-                aria-label="Sync Options"
+                aria-label="Sync options"
               />
             )}
             <Button
@@ -624,7 +624,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
                 icon="pi pi-play"
                 label="Deploy"
                 onClick={onDeployTopoplogy}
-                aria-label="Deploy Topology"
+                aria-label="Deploy topology"
               />
             </If>
           </div>
@@ -680,8 +680,18 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
             data-validation-state={ValidationState[
               validationState
             ]?.toLowerCase()}
-            data-pr-tooltip={validationError ?? 'Schema Valid'}
+            data-pr-tooltip={validationError ?? 'Schema valid'}
             data-pr-position="right"
+            // Keyboard users get the tooltip on focus, screen readers the error in the name
+            role="note"
+            tabIndex={0}
+            aria-label={
+              validationState === ValidationState.Error
+                ? `Error: ${validationError ?? 'invalid'}`
+                : validationState === ValidationState.Working
+                  ? 'Pending'
+                  : 'Valid'
+            }
           >
             <Choose>
               <When condition={validationState === ValidationState.Error}>
@@ -721,6 +731,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       <Tooltip
         className="sb-monaco-wrapper-error-tooltip"
         target=".sb-monaco-wrapper-error"
+        event="both"
       />
       <SyncOverlay
         popOverRef={syncOverlayRef}

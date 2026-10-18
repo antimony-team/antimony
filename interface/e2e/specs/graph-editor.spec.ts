@@ -80,7 +80,7 @@ test.describe('nodes and links', () => {
     const {editor, graph} = await openGraph(page, topology);
 
     await graph.tool('Add node').click();
-    const dialog = new Dialog(page, 'Add Node');
+    const dialog = new Dialog(page, 'Add node');
     await dialog.fill('Name', 'router9');
     await dialog.select('Kind', 'linux');
     await dialog.submit('Save');
@@ -99,7 +99,7 @@ test.describe('nodes and links', () => {
     const {graph} = await openGraph(page, topology);
 
     await graph.tool('Add node').click();
-    const dialog = new Dialog(page, 'Add Node');
+    const dialog = new Dialog(page, 'Add node');
     await dialog.submit('Save');
 
     await expect(dialog.validationError()).toBeVisible();
@@ -112,7 +112,7 @@ test.describe('nodes and links', () => {
 
     await graph.clickNode('host1', {clickCount: 2});
 
-    const dialog = new Dialog(page, 'Edit Node');
+    const dialog = new Dialog(page, 'Edit node');
     await expect(dialog.field('Name')).toHaveValue('host1');
   });
 
@@ -886,7 +886,7 @@ test('closing a node dialog with changes asks first', async ({
   const topology = await createTopology();
   const {graph} = await openGraph(page, topology);
   await graph.clickNode('host1', {clickCount: 2});
-  const dialog = new Dialog(page, 'Edit Node');
+  const dialog = new Dialog(page, 'Edit node');
   await dialog.fill('Name', 'changed');
 
   await dialog.close();

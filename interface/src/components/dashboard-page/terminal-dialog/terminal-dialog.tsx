@@ -11,7 +11,7 @@ import {SelectItem} from 'primereact/selectitem';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import {useLabStore, useShellStore} from '@sb/lib/stores/root-store';
-import {DialogState} from '@sb/lib/utils/hooks';
+import {DialogState, useReturnFocus} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 import {uuid4} from '@sb/types/types';
@@ -48,6 +48,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const newTabOverlay = useRef<OverlayPanel>(null);
+  const newTabReturnFocus = useReturnFocus();
   const resetBeforeNextUpdate = useRef(false);
 
   const onData = useCallback((dataRaw: ArrayBuffer) => {
@@ -387,18 +388,22 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
         <Button
           icon="pi pi-plus"
           className="sb-terminal-tab-add"
-          aria-label="Open New Terminal"
+          aria-label="Open new terminal"
           onClick={onNewTab}
         />
       </div>
       <OverlayPanel
         ref={newTabOverlay}
         className="sb-terminal-new-tab-overlay"
-        onShow={() =>
+        onShow={() => {
+          newTabReturnFocus.onShow();
           newTabOverlay.current
             ?.getElement()
             ?.querySelector<HTMLElement>('[tabindex="0"]')
-            ?.focus()
+            ?.focus();
+        }}
+        onHide={() =>
+          newTabReturnFocus.onHide(newTabOverlay.current?.getElement())
         }
       >
         {nodesInLab.map(node => (
@@ -427,7 +432,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
         <div className="sb-terminal-host" ref={terminalContainerRef} />
         <If condition={isExpired}>
           <div className="sb-terminal-expired">
-            <span className="sb-terminal-expired-title">Terminal Expired</span>
+            <span className="sb-terminal-expired-title">Terminal expired</span>
             <span className="sb-terminal-expired-text">
               This terminal session is expired and can no longer be used
             </span>

@@ -13,12 +13,12 @@ export class Dock {
   readonly unreadBadge: Locator;
 
   constructor(private readonly page: Page) {
-    this.dashboard = page.getByRole('button', {name: 'Dashboard Page'});
-    this.editor = page.getByRole('button', {name: 'Topology Editor Page'});
-    this.messages = page.getByRole('button', {name: 'Messages'});
-    this.schedule = page.getByRole('button', {name: 'Lab Schedule'});
+    this.dashboard = page.getByRole('button', {name: 'Dashboard page'});
+    this.editor = page.getByRole('button', {name: 'Topology editor page'});
+    this.messages = page.getByRole('button', {name: /^Messages/});
+    this.schedule = page.getByRole('button', {name: 'Lab schedule'});
     this.credits = page.getByRole('button', {name: 'Credits'});
-    this.logout = page.getByRole('button', {name: 'Log Out'});
+    this.logout = page.getByRole('button', {name: 'Log out'});
     this.unreadBadge = this.messages.locator('.p-badge');
   }
 
@@ -28,7 +28,7 @@ export class Dock {
 
     return this.page
       .getByRole('dialog')
-      .filter({hasText: 'Deployment Provider'});
+      .filter({hasText: 'Deployment provider'});
   }
 
   /** Opens the status message panel and returns it. */

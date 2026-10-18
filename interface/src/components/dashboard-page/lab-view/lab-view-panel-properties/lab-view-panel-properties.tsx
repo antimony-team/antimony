@@ -91,7 +91,7 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             </If>
           </dd>
 
-          <dt>Running Until</dt>
+          <dt>Running until</dt>
           <dd>
             <Choose>
               <When condition={props.lab.endTime === null}>Indefinitely</When>
@@ -129,9 +129,9 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             <Button
               outlined
               icon="pi pi-copy"
-              label="Copy Link"
+              label="Copy link"
               onClick={copyLabLink}
-              aria-label="Copy Link"
+              aria-label="Copy link"
               disabled={!props.lab.topologyId}
             />
           </If>
@@ -140,9 +140,9 @@ const LabViewPanelProperties = (props: LabDialogPanelProps) => {
             icon={
               <span className="material-symbols-outlined">network_node</span>
             }
-            label="Open Topology"
+            label="Open topology"
             onClick={onGotoTopology}
-            aria-label="Open Topology"
+            aria-label="Open topology"
             disabled={!props.lab.topologyId}
           />
         </div>

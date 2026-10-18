@@ -34,7 +34,7 @@ export class Explorer {
 
   constructor(private readonly page: Page) {
     this.root = page.locator('.sb-topology-explorer');
-    this.filter = this.root.getByPlaceholder('Search Topologies');
+    this.filter = this.root.getByPlaceholder('Search topologies');
   }
 
   /** The row of a tree node, found by its label (collection, topology, file or directory name). */
@@ -48,7 +48,7 @@ export class Explorer {
   async expand(label: string) {
     const node = this.row(label).locator('xpath=ancestor::li[1]');
     if ((await node.getAttribute('aria-expanded')) !== 'true') {
-      await this.row(label).getByRole('button', {name: 'Expand Node'}).click();
+      await this.row(label).getByRole('button', {name: 'Expand node'}).click();
     }
   }
 
@@ -57,7 +57,7 @@ export class Explorer {
     await this.row(label).locator('.tree-node').click();
   }
 
-  /** A hover button of a row: "Add Topology", "Deploy Topology" or the "…" menu ("More options"). */
+  /** A hover button of a row: "Add topology", "Deploy topology" or the "…" menu ("More options"). */
   rowButton(label: string, button: string): Locator {
     return this.row(label).getByRole('button', {name: button, exact: true});
   }
@@ -146,9 +146,11 @@ export class TopologyEditor {
     this.undo = this.toolbar.getByRole('button', {name: 'Undo', exact: true});
     this.redo = this.toolbar.getByRole('button', {name: 'Redo', exact: true});
     this.download = this.toolbar.getByRole('button', {name: 'Download'});
-    this.deploy = this.toolbar.getByRole('button', {name: 'Deploy Topology'});
-    this.syncOptions = this.toolbar.getByRole('button', {name: 'Sync Options'});
-    this.fileSwitch = this.toolbar.getByRole('button', {name: 'Open file'});
+    this.deploy = this.toolbar.getByRole('button', {name: 'Deploy topology'});
+    this.syncOptions = this.toolbar.getByRole('button', {name: 'Sync options'});
+    this.fileSwitch = this.toolbar.getByRole('button', {
+      name: /^(Topology|Annotations) file$/,
+    });
     this.readOnlyBanner = page.locator('.sb-monaco-wrapper-readonly');
   }
 

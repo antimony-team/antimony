@@ -10,6 +10,7 @@ import {ListBox} from 'primereact/listbox';
 import {OverlayPanel} from 'primereact/overlaypanel';
 
 import {useStatusMessages} from '@sb/lib/stores/root-store';
+import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {formatDate, formatTime} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {
@@ -24,6 +25,7 @@ import './status-message-panel.sass';
 const StatusMessagePanel = observer(
   forwardRef<OverlayPanel>((_, overlayRef) => {
     const statusMessageStore = useStatusMessages();
+    const returnFocus = useReturnFocus();
 
     const messageTemplate = (message: StatusMessage) => {
       return (
@@ -100,7 +102,18 @@ const StatusMessagePanel = observer(
     });
 
     return (
-      <OverlayPanel ref={overlayRef} className="sb-dock-status-messages">
+      <OverlayPanel
+        ref={overlayRef}
+        className="sb-dock-status-messages"
+        onShow={returnFocus.onShow}
+        onHide={() =>
+          returnFocus.onHide(
+            typeof overlayRef === 'object'
+              ? overlayRef?.current?.getElement()
+              : undefined,
+          )
+        }
+      >
         <div className="sb-dock-status-messages-header">
           <div className="sb-dock-status-messages-left">
             <span>Filter by</span>

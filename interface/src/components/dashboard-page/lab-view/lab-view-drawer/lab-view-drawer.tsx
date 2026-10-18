@@ -409,7 +409,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               <dt>Container ID</dt>
               <dd>{runtimeValue(node!.containerId)}</dd>
 
-              <dt>Container Name</dt>
+              <dt>Container name</dt>
               <dd>{runtimeValue(node!.containerName)}</dd>
 
               <dt>Mgmt IPv4</dt>
@@ -448,16 +448,16 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
                   quick_reference_all
                 </span>
               }
-              label="Node Logs"
-              aria-label="Node Logs"
+              label="Node logs"
+              aria-label="Node logs"
               outlined
               onClick={() => props.onOpenLogs(props.nodeName)}
               disabled={!nodeActionChecker!.canShowLogs}
             />
             <Button
               icon={<span className="material-symbols-outlined">terminal</span>}
-              label="Open Terminal"
-              aria-label="Open Terminal"
+              label="Open terminal"
+              aria-label="Open terminal"
               outlined
               onClick={() => props.onOpenTerminal(props.nodeName)}
               disabled={!nodeActionChecker!.canOpenTerminal}
@@ -495,7 +495,7 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               <div className="lab-details-plot">
                 <div className="lab-details-plot-header">
                   <div>
-                    <div className="lab-details-plot-title">Memory Usage</div>
+                    <div className="lab-details-plot-title">Memory usage</div>
                     <div className="lab-details-plot-rates">
                       {formatBytes(memoryRate)}
                     </div>

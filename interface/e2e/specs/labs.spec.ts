@@ -48,7 +48,7 @@ test('the editor deploys the open topology', async ({
   const name = uniqueName('lab');
   await page.goto(`/#/editor?f=${topology.id}`);
 
-  await page.getByRole('button', {name: 'Deploy Topology'}).click();
+  await page.getByRole('button', {name: 'Deploy topology'}).click();
   const dialog = new LabEditDialog(page);
   // The open topology is selected already
   await expect(dialog.root.locator('#edit-lab-topology')).toHaveValue(
@@ -161,7 +161,7 @@ test.describe('schedule', () => {
     await page.goto('/');
 
     await new Dock(page).schedule.click();
-    const schedule = page.getByRole('dialog', {name: 'Lab Schedule'});
+    const schedule = page.getByRole('dialog', {name: 'Lab schedule'});
     await schedule.getByRole('button', {name: 'Agenda'}).click();
 
     await expect(schedule.getByText(lab.name)).toBeVisible();
@@ -178,7 +178,7 @@ test.describe('schedule', () => {
     await page.goto('/');
 
     await new Dock(page).schedule.click();
-    const schedule = page.getByRole('dialog', {name: 'Lab Schedule'});
+    const schedule = page.getByRole('dialog', {name: 'Lab schedule'});
     await schedule.getByRole('button', {name: 'Agenda'}).click();
     await schedule.getByText(lab.name).click();
 
@@ -206,7 +206,7 @@ test.describe('schedule', () => {
     await page.goto('/');
 
     await new Dock(page).schedule.click();
-    const schedule = page.getByRole('dialog', {name: 'Lab Schedule'});
+    const schedule = page.getByRole('dialog', {name: 'Lab schedule'});
     await schedule.getByRole('button', {name: 'Agenda'}).click();
     await schedule.getByText(lab.name).click();
 

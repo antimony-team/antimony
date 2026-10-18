@@ -34,7 +34,7 @@ export class LabView {
   }
 
   get redeployButton(): Locator {
-    return this.button('Redeploy Lab');
+    return this.button('Redeploy lab');
   }
 
   get destroyButton(): Locator {
@@ -126,7 +126,7 @@ export class NodeDrawer {
       .locator('xpath=following-sibling::dd[1]');
   }
 
-  /** The title of a statistics plot, e.g. "CPU" or "Memory Usage". */
+  /** The title of a statistics plot, e.g. "CPU" or "Memory usage". */
   plot(title: string): Locator {
     return this.page
       .locator('.lab-details-plot-title')
@@ -177,7 +177,7 @@ export class TerminalDialog {
 
   /** Opens another terminal through the "+" picker. */
   async openNew(node: string) {
-    await this.root.getByRole('button', {name: 'Open New Terminal'}).click();
+    await this.root.getByRole('button', {name: 'Open new terminal'}).click();
     await this.page
       .locator('.sb-terminal-new-tab-overlay-entry')
       .filter({hasText: `${node} (`})

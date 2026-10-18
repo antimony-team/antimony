@@ -123,7 +123,7 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
                     ? 'pi pi-sync pi-spin'
                     : 'pi pi-sync'
                 }
-                aria-label="Redeploy Lab"
+                aria-label="Redeploy lab"
                 onClick={() => labStore.deployLab(props.lab)}
                 disabled={!props.canRedeployLab()}
                 tooltipOptions={{

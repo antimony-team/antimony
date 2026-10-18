@@ -296,7 +296,7 @@ test.describe('sync URL', () => {
     // Fetching needs a saved URL
     await expect(overlay.getByRole('button', {name: 'Fetch'})).toBeDisabled();
     await overlay.locator('#sync-url').fill(SYNC_URL);
-    await overlay.getByRole('button', {name: 'Save Sync URL'}).click();
+    await overlay.getByRole('button', {name: 'Save sync URL'}).click();
     await expect(
       toast(page, 'Sync URL has been updated successfully.'),
     ).toBeVisible();
@@ -324,7 +324,7 @@ test.describe('sync URL', () => {
     await editor.editor.syncOptions.click();
     const overlay = page.locator('.sync-overlay-panel');
     await overlay.locator('#sync-url').fill(SYNC_URL);
-    await overlay.getByRole('button', {name: 'Save Sync URL'}).click();
+    await overlay.getByRole('button', {name: 'Save sync URL'}).click();
 
     await expect(
       page.getByRole('tooltip').filter({visible: true}),

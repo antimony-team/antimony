@@ -22,7 +22,7 @@ test('a topology can be added to a collection', async ({
 
   await editor.explorer.row(existing.collection.name).hover();
   await editor.explorer
-    .rowButton(existing.collection.name, 'Add Topology')
+    .rowButton(existing.collection.name, 'Add topology')
     .click();
   const dialog = editor.explorer.topologyDialog('Add topology');
   await editor.explorer.waitForDialogCollection(

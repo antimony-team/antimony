@@ -87,6 +87,16 @@ const LabExplorer = (props: LabExplorerProps) => {
     }
   }
 
+  // The dots only show the states by color, e.g. "2 running, 1 failed"
+  function stateCountsLabel(collectionId: string) {
+    const counts = Object.entries(
+      props.collectionLabStateCounts[collectionId] ?? {},
+    );
+    if (counts.length === 0) return undefined;
+
+    return counts.map(([state, count]) => `${count} ${state}`).join(', ');
+  }
+
   return (
     <>
       <IconField iconPosition="left">
@@ -135,7 +145,11 @@ const LabExplorer = (props: LabExplorerProps) => {
           </span>
           <span className="sb-lab-explorer-item-label">{collection.name}</span>
           <div className="sb-lab-explorer-item-count">
-            <div className="sb-lab-explorer-item-dots">
+            <div
+              className="sb-lab-explorer-item-dots"
+              role={stateCountsLabel(collection.id) ? 'img' : undefined}
+              aria-label={stateCountsLabel(collection.id)}
+            >
               {Object.keys(
                 props.collectionLabStateCounts[collection.id] ?? {},
               ).map((state, i) => (

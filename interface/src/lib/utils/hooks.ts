@@ -78,6 +78,36 @@ export function useStableCallbacks<
   );
 }
 
+/**
+ * Moves the focus back to where it was when a panel opened, once the panel
+ * closes. Only focus that is still in the panel, or that was lost with it, is
+ * moved, so a click somewhere else keeps its focus.
+ */
+export function useReturnFocus() {
+  const origin = useRef<HTMLElement | null>(null);
+
+  return useMemo(
+    () => ({
+      onShow: () => {
+        const focused = document.activeElement;
+        origin.current =
+          focused instanceof HTMLElement && focused !== document.body
+            ? focused
+            : null;
+      },
+      onHide: (panel: HTMLElement | null | undefined) => {
+        const focused = document.activeElement;
+        const isLost =
+          !focused || focused === document.body || !!panel?.contains(focused);
+
+        if (isLost && origin.current?.isConnected) origin.current.focus();
+        origin.current = null;
+      },
+    }),
+    [],
+  );
+}
+
 export function usePromiseWithResolvers() {
   const ref = useRef<PromiseWithResolvers<void> | null>(null);
   if (ref.current === null) {

@@ -10,11 +10,19 @@ $material-symbols-font-path: '~material-symbols/'
   --rt-opacity: 1 !important
   font-family: var(--font-family), sans-serif
 
-// Disable keyboard focus ring for everything
-*:focus,
-*:focus-visible
-  outline: none !important
+// Only keyboard focus is shown, with the outline of the buttons, which replaces the Prime theme's focus
+// shadows. Text fields show their focus with their border. Components with their own focus style mark it
+// !important to keep it.
+*:focus
   box-shadow: none !important
+
+*:focus:not(:focus-visible),
+:where(input, textarea, [contenteditable="true"]):focus-visible
+  outline: none !important
+
+:where(*:focus-visible:not(input, textarea, [contenteditable="true"]))
+  outline: 2px solid color-mix(in oklab, var(--accent) 45%, transparent) !important
+  outline-offset: 1px !important
 
 html
   height: 100%
@@ -50,8 +58,10 @@ body
     font-weight: 700
     background-color: var(--surface-sunken)
 
-    td
+    td, th
       padding: 16px
+      font-size: 16px
+      text-align: left
 
   tbody
     tr

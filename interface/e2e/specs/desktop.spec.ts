@@ -42,7 +42,7 @@ test('the app signs in by itself and has no logout', async ({browser}) => {
 
   const dock = new Dock(page);
   await expect(dock.dashboard).toBeVisible();
-  await expect(page.getByRole('button', {name: 'Sign In'})).toBeHidden();
+  await expect(page.getByRole('button', {name: 'Sign in'})).toBeHidden();
   // There's nobody else to sign in as
   await expect(dock.logout).toBeHidden();
   // It signs in as the admin
@@ -69,11 +69,11 @@ test('a wrong token shows the login form', async ({browser}) => {
   const page = await openDesktop(browser, 'wrong-token');
   await page.goto('/');
 
-  await expect(page.getByRole('button', {name: 'Sign In'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Sign in'})).toBeVisible();
   await page.context().close();
 });
 
-test('labs have no Copy Link and live updates work', async ({
+test('labs have no Copy link and live updates work', async ({
   browser,
   api,
   createLab,
@@ -86,10 +86,10 @@ test('labs have no Copy Link and live updates work', async ({
 
   // A link to the app's own window is no use to anyone
   await expect(
-    labView.properties.getByRole('button', {name: 'Open Topology'}),
+    labView.properties.getByRole('button', {name: 'Open topology'}),
   ).toBeVisible();
   await expect(
-    labView.properties.getByRole('button', {name: 'Copy Link'}),
+    labView.properties.getByRole('button', {name: 'Copy link'}),
   ).toBeHidden();
 
   // State changes arrive over Socket.IO, which also uses the token

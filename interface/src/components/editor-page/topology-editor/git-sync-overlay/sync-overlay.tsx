@@ -7,6 +7,7 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useStatusMessages, useTopologyStore} from '@sb/lib/stores/root-store';
+import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {fetchSyncUrl} from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 
@@ -21,6 +22,7 @@ interface SyncOverlayProps {
 
 const SyncOverlay = observer((props: SyncOverlayProps) => {
   const urlFieldRef = useRef<SBInputRef>(null);
+  const returnFocus = useReturnFocus();
 
   const topologyStore = useTopologyStore();
   const notificationStore = useStatusMessages();
@@ -71,7 +73,11 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
     <OverlayPanel
       ref={props.popOverRef}
       className="sync-overlay-panel"
-      onShow={() => urlFieldRef.current?.input.current?.focus()}
+      onShow={() => {
+        returnFocus.onShow();
+        urlFieldRef.current?.input.current?.focus();
+      }}
+      onHide={() => returnFocus.onHide(props.popOverRef.current?.getElement())}
     >
       <div className="flex flex-column gap-2">
         <SBInput
@@ -102,7 +108,7 @@ const SyncOverlay = observer((props: SyncOverlayProps) => {
             label="Save"
             outlined
             onClick={onSave}
-            aria-label="Save Sync URL"
+            aria-label="Save sync URL"
           />
         </div>
       </div>
