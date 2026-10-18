@@ -74,7 +74,7 @@ const App = observer(() => {
         <SBLogin visible={phase === AppPhase.Unauthenticated} />
 
         <LoadingScreen
-          visible={phase === AppPhase.Loading}
+          visible={phase === AppPhase.Loading || phase === AppPhase.Connecting}
           message={
             phase === AppPhase.Connecting
               ? 'Connecting to the server...'
