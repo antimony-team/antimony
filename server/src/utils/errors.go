@@ -44,7 +44,8 @@ var ErrTopologyNameExists = errors.New("a topology with that name already exists
 var ErrInvalidTopologyName = errors.New("the name for the topology is invalid")
 var ErrUnsafeTopology = errors.New("the topology contains unsafe features that the server rejected")
 var ErrBindFileExists = errors.New("a file with that path already exists for that topology")
-var ErrCollectionExists = errors.New("a collection with that name already exists")
+var ErrCollectionNameExists = errors.New("a collection with that name already exists")
+var ErrInvalidCollectionName = errors.New("the name of the collection is invalid")
 var ErrInvalidTopology = errors.New("the topology provided was invalid")
 var ErrInvalidBindFilePath = errors.New("the provided bind file path was invalid")
 

@@ -24,8 +24,10 @@ func CreateErrorResponse(err error) (int, ErrorResponse) {
 		return http.StatusNotFound, ErrorResponse{Code: -1, Message: err.Error()}
 	case errors.Is(err, ErrInvalidCredentials):
 		return http.StatusBadRequest, ErrorResponse{Code: 1001, Message: err.Error()}
-	case errors.Is(err, ErrCollectionExists):
+	case errors.Is(err, ErrCollectionNameExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 2001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidCollectionName):
+		return http.StatusBadRequest, ErrorResponse{Code: 2002, Message: err.Error()}
 	case errors.Is(err, ErrTopologyNameExists):
 		return http.StatusBadRequest, ErrorResponse{Code: 3001, Message: err.Error()}
 	case errors.Is(err, ErrInvalidTopology):

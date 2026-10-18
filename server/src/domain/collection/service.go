@@ -2,6 +2,7 @@ package collection
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/antimony-team/antimony-server/auth"
 	"github.com/antimony-team/antimony-server/domain/user"
@@ -62,11 +63,15 @@ func (s *Service) Create(
 		return "", utils.ErrNoPermissionToCreateCollections
 	}
 
+	if err := utils.IsValidName(*req.Name); err != nil {
+		return "", fmt.Errorf("%w: %s", utils.ErrInvalidCollectionName, err.Error())
+	}
+
 	// Don't allow duplicate collection names
 	if nameExists, err := s.repo.DoesNameExist(ctx, *req.Name); err != nil {
 		return "", err
 	} else if nameExists {
-		return "", utils.ErrCollectionExists
+		return "", utils.ErrCollectionNameExists
 	}
 
 	newUuid := utils.GenerateUuid()
@@ -102,12 +107,16 @@ func (s *Service) Update(
 	}
 
 	if req.Name != nil {
+		if err := utils.IsValidName(*req.Name); err != nil {
+			return fmt.Errorf("%w: %s", utils.ErrInvalidCollectionName, err.Error())
+		}
+
 		// Don't allow duplicate collection names
 		if collection.Name != *req.Name {
 			if nameExists, err := s.repo.DoesNameExist(ctx, *req.Name); err != nil {
 				return err
 			} else if nameExists {
-				return utils.ErrCollectionExists
+				return utils.ErrCollectionNameExists
 			}
 		}
 

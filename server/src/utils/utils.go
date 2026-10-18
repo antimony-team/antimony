@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 
 	"github.com/google/uuid"
@@ -28,4 +30,18 @@ func ParseEnum[T ~string](what string, s string, allowed ...T) (T, error) {
 		return T(s), nil
 	}
 	return "", fmt.Errorf("unknown %s %q (expected one of %v)", what, s, allowed)
+}
+
+// namePattern allows letters, digits, spaces and . _ -, starting with a letter or digit. That keeps a name usable in
+// the SSH address <collection>/<lab>/<node> and in shell commands.
+var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]*$`)
+
+func IsValidName(name string) error {
+	if len(name) > 64 {
+		return errors.New("the name can't be longer than 64 characters")
+	}
+
+	if !namePattern.MatchString(name) {
+		return fmt.Errorf("the name must match %s", namePattern)
+	}
 }

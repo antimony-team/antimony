@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -130,9 +131,8 @@ func (s *Service) Create(ctx context.Context, req LabIn, authUser auth.Authentic
 		return "", utils.ErrUnauthorized
 	}
 
-	// Lab name can't contain slash characters
-	if strings.Contains(*req.Name, "/") {
-		return "", fmt.Errorf("%w: the lab name can't contain slashes", utils.ErrInvalidLabName)
+	if err := utils.IsValidName(*req.Name); err != nil {
+		return "", fmt.Errorf("%w: %s", utils.ErrInvalidLabName, err.Error())
 	}
 
 	if req.EndTime != nil && !req.EndTime.After(*req.StartTime) {
@@ -253,9 +253,8 @@ func (s *Service) Update(ctx context.Context, req LabInPartial, labId string, au
 	}
 
 	if req.Name != nil {
-		// Lab name can't contain slash characters
-		if strings.Contains(*req.Name, "/") {
-			return fmt.Errorf("%w: the lab name can't contain slashes", utils.ErrInvalidLabName)
+		if err := utils.IsValidName(*req.Name); err != nil {
+			return fmt.Errorf("%w: %s", utils.ErrInvalidLabName, err.Error())
 		}
 
 		// Lab names have to be unique per collection
@@ -366,30 +365,24 @@ func (s *Service) deleteLab(ctx context.Context, lab *Lab) error {
 }
 
 func (s *Service) createLabEnvironment(lab *Lab) (string, error) {
-	var (
-		runTopologyName       string
-		runTopologyDefinition string
-		runTopologyFile       string
-	)
+	instanceName := createInstanceName(lab.Topology.Name)
 
-	runTopologyName = strings.ReplaceAll(lab.Topology.Name, " ", "-")
-	runTopologyName = strings.ReplaceAll(runTopologyName, "_", "-")
-	runTopologyName = fmt.Sprintf("%s-%s", runTopologyName, instanceNameSuffix())
-
-	if err := s.renameTopology(lab.Topology.UUID, runTopologyName, &runTopologyDefinition); err != nil {
+	var topologyDefinitionString string
+	if err := s.renameTopology(lab.Topology.UUID, instanceName, &topologyDefinitionString); err != nil {
 		return "", err
 	}
 
+	var topologyFile string
 	if err := s.storageManager.CreateRunEnvironment(
 		lab.Topology.UUID,
 		lab.UUID,
-		runTopologyDefinition,
-		&runTopologyFile,
+		topologyDefinitionString,
+		&topologyFile,
 	); err != nil {
 		return "", err
 	}
 
-	return runTopologyName, nil
+	return instanceName, nil
 }
 
 // renameTopology reads a topology and returns its definition with the given name.
@@ -432,7 +425,15 @@ func renameDefinition(definition string, name string) (string, error) {
 	return utils.EncodeYaml(&document)
 }
 
-// instanceNameSuffix returns a short, unique, containerlab-safe suffix for an instance name.
-func instanceNameSuffix() string {
-	return strings.ReplaceAll(utils.GenerateUuid(), "-", "")[:12]
+// maxInstanceNamePrefix keeps the clabernetes namespace "c9s-<prefix>-<suffix>" within the 63 characters Kubernetes
+// allows, with the 12 characters of instanceNameSuffix.
+const maxInstanceNamePrefix = 46
+
+var instanceNameInvalidChars = regexp.MustCompile(`[^a-z0-9-]+`)
+
+func createInstanceName(topologyName string) string {
+	prefix := instanceNameInvalidChars.ReplaceAllString(strings.ToLower(topologyName), "-")
+	suffix := strings.ReplaceAll(utils.GenerateUuid(), "-", "")[:12]
+
+	return fmt.Sprintf("%s-%s", prefix[:min(len(prefix), maxInstanceNamePrefix)], suffix)
 }
