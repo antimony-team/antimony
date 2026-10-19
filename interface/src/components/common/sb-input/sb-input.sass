@@ -1,0 +1,20 @@
+.sb-input
+  &:placeholder-shown
+    font-weight: 200
+    font-style: italic
+
+  &.sb-input-hidden
+    padding: 8px 12px
+
+  &.sb-input-disabled
+    background-color: transparent
+    border: 1px solid transparent
+    cursor: pointer
+
+  &.sb-input-error, &.p-invalid
+    border: 1px solid var(--danger-color-text)
+
+.sb-input-label
+  font-size: 15px
+  font-weight: 500
+  color: var(--text-muted)

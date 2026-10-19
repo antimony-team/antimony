@@ -1,0 +1,70 @@
+.sb-login-content
+  display: flex
+  position: relative
+  flex-direction: column
+  gap: 14px
+  border-radius: 16px
+  color: var(--text)
+  background-color: var(--surface-raised)
+  width: 460px
+  align-items: center
+  padding: 42px
+  margin-right: auto
+  margin-left: auto
+  border: 2px solid var(--border)
+
+  @media (min-width: 1800px)
+    margin-right: 280px
+
+  .p-button
+    width: 100%
+    padding: 12px 0
+
+    &.sb-login-button
+      margin-top: 16px
+
+  .sb-login-divider
+    display: flex
+    align-items: center
+    gap: 12px
+    width: 100%
+    font-size: 12px
+    color: rgba(255, 255, 255, .38)
+
+    &::before, &::after
+      content: ''
+      flex: 1
+      height: 1px
+      background: var(--border)
+
+.sb-login-header
+  display: flex
+  flex-direction: column
+  align-items: center
+  justify-content: center
+  margin-bottom: 16px
+
+  img
+    margin-bottom: 12px
+
+  .sb-login-header-title
+    font-size: 24px
+    font-weight: 600
+
+  .sb-login-header-subtitle
+    color: var(--text-muted)
+
+.sb-login-header-icon
+  filter: brightness(1.8)
+  border-radius: 120px
+  padding: 8px
+  height: 130px
+  width: 130px
+  display: flex
+  align-items: center
+  justify-content: center
+
+  i
+    font-size: 45pt
+    color: var(--text)
+    filter: brightness(0.6)

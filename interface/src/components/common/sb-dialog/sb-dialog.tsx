@@ -1,0 +1,121 @@
+import React, {useId} from 'react';
+
+import {Button} from 'primereact/button';
+import {Dialog} from 'primereact/dialog';
+import {Image} from 'primereact/image';
+
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+
+import './sb-dialog.sass';
+
+interface SBDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+
+  headerTitle: string | React.ReactNode;
+  headerIcon?: string | React.ReactNode;
+
+  width?: string;
+
+  draggable?: boolean;
+  resizeable?: boolean;
+  disableModal?: boolean;
+
+  children: React.ReactNode;
+  className?: string;
+
+  hideButtons?: boolean;
+  onCancel?: () => void;
+  onSubmit?: () => void;
+
+  canSubmit?: boolean;
+
+  cancelLabel?: string;
+  submitLabel?: string;
+
+  onShow?: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  onResizeEnd?: () => void;
+}
+
+const SBDialog = (props: SBDialogProps) => {
+  const titleId = useId();
+
+  return (
+    <Dialog
+      visible={props.isOpen}
+      aria-labelledby={titleId}
+      dismissableMask={true}
+      className={`sb-dialog ${props.className ?? ''}`}
+      onHide={props.onClose}
+      onShow={props.onShow}
+      draggable={props.draggable}
+      resizable={props.resizeable}
+      modal={!props.disableModal}
+      onDragStart={props.onDragStart}
+      onDragEnd={props.onDragEnd}
+      keepInViewport={false}
+      onResizeEnd={props.onResizeEnd}
+      style={{width: props.width}}
+      header={
+        <div className="sb-dialog-header">
+          <div className="sb-dialog-header-title" id={titleId}>
+            <If condition={props.headerIcon}>
+              <Choose>
+                <When condition={typeof props.headerIcon === 'string'}>
+                  <Image
+                    src={props.headerIcon as string}
+                    height="24px"
+                    alt=""
+                  />
+                </When>
+                <Otherwise>{props.headerIcon}</Otherwise>
+              </Choose>
+            </If>
+            <Choose>
+              <When condition={typeof props.headerTitle === 'string'}>
+                <span>{props.headerTitle}</span>
+              </When>
+              <Otherwise>{props.headerTitle}</Otherwise>
+            </Choose>
+          </div>
+          <div className="sb-dialog-header-close">
+            <Button
+              outlined
+              icon="pi pi-times"
+              size="large"
+              onClick={props.onClose}
+              aria-label="Close"
+            />
+          </div>
+        </div>
+      }
+    >
+      <div className="sb-dialog-content">{props.children}</div>
+      <If condition={!props.hideButtons}>
+        <div className="sb-dialog-footer w-full">
+          <Button
+            outlined
+            label={props.cancelLabel ?? 'Cancel'}
+            onClick={() =>
+              props.onCancel?.call(null) ?? props.onClose?.call(null)
+            }
+            aria-label={props.cancelLabel ?? 'Cancel'}
+          />
+          <Button
+            className="sb-button-accent"
+            label={props.submitLabel ?? 'Submit'}
+            onClick={() => {
+              props.onSubmit?.call(null);
+            }}
+            aria-label={props.submitLabel ?? 'Submit'}
+            disabled={props.canSubmit === false}
+          />
+        </div>
+      </If>
+    </Dialog>
+  );
+};
+
+export default SBDialog;

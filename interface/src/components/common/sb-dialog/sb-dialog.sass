@@ -1,0 +1,64 @@
+.sb-dialog-header
+  border-radius: 12px 12px 0 0
+  display: flex
+  align-items: center
+  justify-content: space-between
+  background-color: var(--surface-overlay)
+  border-bottom: 1px solid var(--border)
+  padding: 18px 0 18px 18px
+
+  .sb-dialog-title
+    font-size: 20px
+
+  .sb-dialog-subtitle
+    font-size: 16px
+    color: var(--text-muted)
+
+    &::before
+      content: ""
+      border-radius: 50%
+      width: 0.3ch
+      height: 0.3ch
+      display: inline-block
+      margin-right: 0.7ch
+      background: var(--text-muted)
+      vertical-align: middle
+
+.sb-dialog-heading
+  font-weight: 500
+  font-size: 24px
+  margin-bottom: 12px
+
+.sb-dialog-header-title
+  font-weight: 400
+  user-select: none
+  display: flex
+  align-items: center
+  gap: 8px
+
+.sb-dialog-header-close
+  button
+    border: none
+    padding: 0 !important
+
+    span
+      font-size: 16px
+
+    &:hover
+      background-color: unset !important
+
+.sb-dialog-content
+  padding: 20px
+  //margin-top: 1px
+  flex-grow: 1
+  overflow-y: auto
+  background-color: var(--surface-overlay)
+
+.sb-dialog-footer
+  display: flex
+  justify-content: end
+  gap: 16px
+  padding: 16px
+  background-color: var(--surface-overlay)
+  border-top: 1px solid var(--border)
+  border-radius: 0 0 12px 12px

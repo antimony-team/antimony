@@ -1,0 +1,33 @@
+.sb-zoom-control
+  position: absolute
+  right: 12px
+  bottom: 12px
+  z-index: 10
+  display: flex
+  align-items: center
+  gap: 2px
+  padding: 4px
+  background-color: var(--surface-raised)
+  border: 1px solid var(--border)
+  border-radius: 8px
+
+  .p-button
+    height: 32px
+    padding: 0 8px
+    color: var(--text-muted)
+
+    &:hover
+      color: var(--text)
+      backdrop-filter: brightness(1.2)
+
+    .pi
+      font-size: 12px
+
+  .sb-zoom-control-level
+    min-width: 56px
+    padding: 0 4px
+
+    .p-button-label
+      font-size: 13px
+      font-weight: 400
+      font-variant-numeric: tabular-nums

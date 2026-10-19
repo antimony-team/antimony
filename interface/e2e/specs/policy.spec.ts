@@ -1,0 +1,115 @@
+import {ApiError} from '../fixtures/api';
+import {expect, test} from '../fixtures/test';
+import {DashboardPage} from '../pages/dashboard-page';
+import {LabEditDialog} from '../pages/lab-edit-dialog';
+
+/*
+ * The topology policy: topologies that use features reaching beyond their own lab (privileged
+ * containers, host ports, host mounts, …) may only be deployed by admins. The e2e server runs with the
+ * policy on, as is the default.
+ */
+
+const unsafe = (name: string) =>
+  `name: ${name}\ntopology:\n  nodes:\n    host1:\n      kind: linux\n      image: alpine:latest\n      privileged: true\n`;
+
+test('the server reports the findings of an unsafe topology', async ({
+  api,
+  createTopology,
+}) => {
+  const topology = await createTopology({
+    definition: unsafe,
+    annotations: '{}',
+  });
+  const safe = await createTopology({collection: topology.collection});
+
+  const findings = (await api.getTopology(topology.id)).policyFindings;
+  expect(findings).toEqual(
+    expect.arrayContaining([expect.objectContaining({ruleId: 'privileged'})]),
+  );
+  expect((await api.getTopology(safe.id)).policyFindings ?? []).toEqual([]);
+});
+
+test('admins may deploy an unsafe topology', async ({api, createLab}) => {
+  const lab = await createLab({
+    definition: unsafe,
+    annotations: '{}',
+    deployed: true,
+  });
+
+  expect((await api.getLab(lab.id)).instance).not.toBeNull();
+});
+
+test('other users may not create labs from an unsafe topology', async ({
+  createCollection,
+  createTopology,
+  createUser,
+  uniqueName,
+}) => {
+  const collection = await createCollection({publicDeploy: true});
+  const topology = await createTopology({
+    collection,
+    definition: unsafe,
+    annotations: '{}',
+  });
+  const user = await createUser({collections: [collection]});
+
+  const error = await user.api
+    .createLab(topology.id, uniqueName('lab'))
+    .catch(e => e as ApiError);
+
+  expect(error).toBeInstanceOf(ApiError);
+  expect((error as ApiError).code).toBe(3005);
+});
+
+test('a user deploying an unsafe topology is told why it was refused', async ({
+  createCollection,
+  createTopology,
+  loginAs,
+  uniqueName,
+}) => {
+  const collection = await createCollection({publicDeploy: true});
+  const topology = await createTopology({
+    collection,
+    definition: unsafe,
+    annotations: '{}',
+  });
+  const user = await loginAs({collections: [collection]});
+  await new DashboardPage(user.page).goto();
+
+  await new DashboardPage(user.page).newLab.click();
+  const dialog = new LabEditDialog(user.page);
+  await dialog.setName(uniqueName('lab'));
+  await dialog.selectTopology(topology.name);
+  await dialog.submit('Deploy');
+
+  const error = user.page.locator('.p-toast-message-error');
+  await expect(error).toContainText(
+    'This topology uses features that only admins can deploy.',
+  );
+});
+
+test('the error for a refused lab is titled for creating, not updating', async ({
+  createCollection,
+  createTopology,
+  loginAs,
+  uniqueName,
+}) => {
+  const collection = await createCollection({publicDeploy: true});
+  const topology = await createTopology({
+    collection,
+    definition: unsafe,
+    annotations: '{}',
+  });
+  const user = await loginAs({collections: [collection]});
+  await new DashboardPage(user.page).goto();
+
+  await new DashboardPage(user.page).newLab.click();
+  const dialog = new LabEditDialog(user.page);
+  await dialog.setName(uniqueName('lab'));
+  await dialog.selectTopology(topology.name);
+  await dialog.submit('Deploy');
+
+  await expect(user.page.locator('.p-toast-message-error')).not.toContainText(
+    'Failed to update lab',
+  );
+});

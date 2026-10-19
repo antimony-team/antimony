@@ -1,0 +1,28 @@
+// A compact field in the font of the label it replaces, as wide as its text
+.sb-label-editor
+  position: absolute
+  pointer-events: auto
+
+  &.centered
+    transform: translate(-50%, -50%)
+
+    .sb-input
+      text-align: center
+
+  .sb-input
+    field-sizing: content
+    min-width: 4ch
+    height: 22px
+    padding: 0 6px
+    border-width: 1.5px
+    border-radius: 6px
+    background-color: var(--surface-overlay)
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .45)
+    font-size: 12px
+
+    &:not(.sb-input-error), &:not(.sb-input-error):focus
+      border-color: var(--accent)
+
+  &.mono .sb-input
+    font-family: 'JetBrains Mono Variable', monospace
+    font-size: 10px

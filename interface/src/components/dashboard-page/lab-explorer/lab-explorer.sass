@@ -1,0 +1,74 @@
+.sb-lab-explorer-item
+  display: flex
+  align-items: center
+  gap: 8px
+  padding: 12px 16px
+  border-radius: 8px
+  color: var(--text)
+  user-select: none
+  cursor: pointer
+
+  .sb-lab-explorer-item-label
+    margin-left: 8px
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+  .sb-lab-explorer-item-count
+    display: flex
+    align-items: center
+    color: var(--text-muted)
+    margin-left: auto
+    justify-self: flex-end
+    font-variant-numeric: tabular-nums
+
+  &:hover
+    background-color: var(--hover)
+
+  &:active
+    background-color: var(--active)
+
+  .material-symbols-outlined
+    flex: 0 0 18px
+    width: 18px
+    font-size: 19px
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20
+
+  &.selected
+    background-color: var(--surface-selected)
+
+  .sb-lab-explorer-item-dots
+    display: inline-flex
+    gap: 6px
+    margin: 0 12px
+
+    .sb-lab-explorer-item-dot
+      width: 8px
+      height: 8px
+      border-radius: 50%
+      background-color: var(--text)
+
+      &.running
+        background-color: var(--success-color-text)
+
+      &.deploying
+        background-color: var(--warning-color-text)
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning-color-text) 25%, transparent)
+
+      &.stopping
+        background-color: var(--subtle-color-text)
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--subtle-color-text) 25%, transparent)
+
+      &.scheduled
+        background-color: var(--info-color-text)
+
+      &.failed
+        background-color: var(--danger-color-text)
+
+  .sb-lab-explorer-title
+    font-size: 14px
+    color: var(--text-muted)
+    font-weight: 500
+    text-transform: uppercase
+    margin-top: 8px
+    padding-left: 14px

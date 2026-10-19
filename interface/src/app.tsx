@@ -1,0 +1,95 @@
+import React, {useEffect, useRef} from 'react';
+
+import {observer} from 'mobx-react-lite';
+import {Outlet} from 'react-router';
+
+import {PrimeReactProvider} from 'primereact/api';
+import {Toast} from 'primereact/toast';
+
+import SBConfirm, {
+  SBConfirmRef,
+} from '@sb/components/common/sb-confirm/sb-confirm';
+import {SBContextMenuHost} from '@sb/components/common/sb-context-menu/sb-context-menu';
+import SBDock from '@sb/components/common/sb-dock/sb-dock';
+import SBLogin from '@sb/components/common/sb-login/sb-login';
+import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
+import ConnectionErrorBanner from '@sb/components/connection-error/connection-error-banner';
+import ConnectionErrorOverlay from '@sb/components/connection-error/connection-error-overlay';
+import LoadingScreen from '@sb/components/loading-screen/loading-screen';
+import {
+  RootStoreContext,
+  useDataBinder,
+  useRootStore,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
+import {AppPhase} from '@sb/types/types';
+
+import 'primeflex/primeflex.css';
+import 'primeicons/primeicons.css';
+import 'material-symbols/outlined.css';
+import './app.sass';
+import 'primereact/resources/themes/lara-dark-blue/theme.css';
+
+import '@fontsource-variable/figtree/wght-italic';
+import '@fontsource-variable/figtree';
+import '@fontsource-variable/jetbrains-mono';
+import '@fontsource/iosevka';
+
+/**
+ * Root layout of the app.
+ *
+ * Renders the dock and the active page next to the top-level screens. Which
+ * screen is shown is decided exclusively by `RootStore.phase`; the screens
+ * themselves are dumb consumers of that value. They all stay mounted so the
+ * transitions between them can cross-fade.
+ */
+const App = observer(() => {
+  const toastRef = useRef<Toast>(null);
+  const confirmationRef = useRef<SBConfirmRef>(null);
+
+  const rootStore = useRootStore();
+  const dataBinder = useDataBinder();
+  const statusMessageStore = useStatusMessages();
+
+  const phase = rootStore.phase;
+
+  useEffect(() => {
+    statusMessageStore.setToast(toastRef);
+    statusMessageStore.setConfirm(confirmationRef);
+  }, [statusMessageStore]);
+
+  return (
+    <PrimeReactProvider>
+      <RootStoreContext.Provider value={rootStore}>
+        <SBOverlay
+          className="sb-app-container"
+          visible={phase === AppPhase.Ready}
+        >
+          <SBDock />
+          <div className="flex flex-grow-1 gap-2 min-h-0" role="main">
+            <Outlet />
+          </div>
+        </SBOverlay>
+
+        <SBLogin visible={phase === AppPhase.Unauthenticated} />
+
+        <LoadingScreen
+          visible={phase === AppPhase.Loading || phase === AppPhase.Connecting}
+          message={
+            phase === AppPhase.Connecting
+              ? 'Connecting to the server...'
+              : 'Loading app...'
+          }
+        />
+
+        <ConnectionErrorOverlay visible={phase === AppPhase.Offline} />
+        <ConnectionErrorBanner visible={dataBinder.connectionWasInterrupted} />
+      </RootStoreContext.Provider>
+      <SBConfirm ref={confirmationRef} />
+      <SBContextMenuHost />
+      <Toast ref={toastRef} position="bottom-right" />
+    </PrimeReactProvider>
+  );
+});
+
+export default App;

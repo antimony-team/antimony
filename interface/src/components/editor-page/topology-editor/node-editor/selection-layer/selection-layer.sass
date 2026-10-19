@@ -1,0 +1,60 @@
+$center-guide-color: #e5559a
+$gap-guide-color: #f59a3c
+
+// The geometry is in graph coordinates, so the SVG only marks the origin
+.sb-selection-layer
+  position: absolute
+  width: 1px
+  height: 1px
+  overflow: visible
+  pointer-events: none
+
+  // Dashed lines that keep their size on screen, the graph is scaled with the zoom
+  .sb-selection-layer-outline, .sb-selection-layer-box
+    fill: none
+    stroke: var(--accent)
+    stroke-width: calc(1.5px / var(--sb-graph-zoom, 1))
+    stroke-dasharray: calc(4px / var(--sb-graph-zoom, 1)) calc(3px / var(--sb-graph-zoom, 1))
+
+  .sb-selection-layer-box
+    fill: color-mix(in oklab, var(--accent) 6%, transparent)
+
+  // The link that is drawn from a node to the pointer
+  .sb-selection-layer-connection
+    stroke: var(--text)
+    stroke-opacity: .3
+    stroke-width: calc(2px / var(--sb-graph-zoom, 1))
+    stroke-dasharray: calc(6px / var(--sb-graph-zoom, 1)) calc(4px / var(--sb-graph-zoom, 1))
+
+  // The lines that moved elements are aligned to, solid for edges, dashed for centers and with ticks for equal gaps
+  .sb-selection-layer-guide
+    fill: none
+    stroke: var(--accent)
+    stroke-width: calc(1px / var(--sb-graph-zoom, 1))
+
+    &.center
+      stroke: $center-guide-color
+      stroke-dasharray: calc(4px / var(--sb-graph-zoom, 1)) calc(3px / var(--sb-graph-zoom, 1))
+
+    &.gap
+      stroke: $gap-guide-color
+
+  // The points that line ends connect to, in the colors of their element
+  .sb-selection-layer-connection-point
+    stroke-width: calc(1.5px / var(--sb-graph-zoom, 1))
+
+  .sb-selection-layer-connection-gap
+    fill: var(--surface-page)
+
+  // The arrows around a hovered element that draw a line from it
+  .sb-selection-layer-connection-arrow
+    fill: var(--accent)
+    fill-opacity: .3
+
+    &.active
+      fill-opacity: .8
+
+// The box around a selection of several elements, only its handles are shown
+.sb-selection-layer-frame
+  position: absolute
+  pointer-events: none

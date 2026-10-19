@@ -1,0 +1,765 @@
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+
+import FileSaver from 'file-saver';
+import {observer} from 'mobx-react-lite';
+import {useBeforeUnload, useSearchParams} from 'react-router';
+
+import {Badge} from 'primereact/badge';
+import {Button} from 'primereact/button';
+import {OverlayPanel} from 'primereact/overlaypanel';
+import {
+  Splitter,
+  SplitterPanel,
+  SplitterResizeEndEvent,
+} from 'primereact/splitter';
+import {Tooltip} from 'primereact/tooltip';
+
+import SBEmptyState from '@sb/components/common/sb-empty-state/sb-empty-state';
+import {TopologyEditDialogState} from '@sb/components/editor-page/topology-edit-dialog/topology-edit-dialog';
+import SyncOverlay from '@sb/components/editor-page/topology-editor/git-sync-overlay/sync-overlay';
+import NodeEditor from '@sb/components/editor-page/topology-editor/node-editor/node-editor';
+import {
+  useCollectionStore,
+  useSchemaStore,
+  useStatusMessages,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {TopologyHistory} from '@sb/lib/topology-history';
+import {
+  BindFileEditReport,
+  BindFileEditSource,
+  OpenFileType,
+  TopologyEditReport,
+  TopologyEditSource,
+  TopologyManager,
+} from '@sb/lib/topology-manager';
+import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
+import {downloadTopologyDefinition} from '@sb/lib/utils/utils';
+import {Choose, If, Otherwise, When} from '@sb/types/control';
+import {BindFile, Topology, TopologyFileType} from '@sb/types/domain/topology';
+import {FetchState, Position, uuid4} from '@sb/types/types';
+
+import EditorViewSwitch, {
+  EditorView,
+  isValidEditorView,
+} from './editor-view-switch/editor-view-switch';
+import MonacoWrapper, {MonacoWrapperRef} from './monaco-wrapper/monaco-wrapper';
+import NodeEditDialog from './node-edit-dialog/node-edit-dialog';
+import {
+  GraphSelection,
+  GraphSelectionContext,
+} from './node-editor/state/graph-selection';
+import TopologyFileSwitch from './topology-file-switch/topology-file-switch';
+import TopologyFooterStats from './topology-footer-stats/topology-footer-stats';
+
+import './topology-editor.sass';
+
+// Delay after the last change before a file is validated
+const VALIDATION_DELAY = 100;
+
+// Validating large files takes a while, so they are only validated once the user stops typing
+const LARGE_FILE_LENGTH = 100_000;
+const LARGE_FILE_VALIDATION_DELAY = 500;
+
+export enum ValidationState {
+  Working,
+  Done,
+  Error,
+}
+
+interface TopologyEditorProps {
+  isMaximized: boolean;
+  setMaximized: (isMinimized: boolean) => void;
+
+  onTopologyDeploy: (id: uuid4) => void;
+
+  editTopologyState: DialogState<TopologyEditDialogState>;
+}
+
+const TopologyEditor = observer((props: TopologyEditorProps) => {
+  // const [, setValidationError] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string>();
+  const [currentCursorPosition, setCurrentCursorPosition] = useState<{
+    x: number;
+    y: number;
+  }>({x: 0, y: 0});
+
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationState, setValidationState] = useState<ValidationState>(
+    ValidationState.Done,
+  );
+
+  const [searchParams] = useSearchParams();
+
+  // Set to true if topology has pending changes and validation succeeded
+  const [hasPendingEdits, setPendingEdits] = useState(false);
+
+  const [validationEnabled, setValidationEnabled] = useState(true);
+
+  const [isNodeEditDialogOpen, setNodeEditDialogOpen] = useState(false);
+  const [openTopology, setOpenTopology] = useState<Topology | null>(null);
+  const [openTopologyFile, setOpenTopologyFile] = useState<TopologyFileType>(
+    TopologyFileType.Definition,
+  );
+  const [openBindFile, setOpenBindFile] = useState<BindFile | null>(null);
+  const [currentlyEditedNode, setCurrentlyEditedNode] = useState<string | null>(
+    null,
+  );
+  const [newNodePosition, setNewNodePosition] = useState<Position | null>(null);
+
+  const collectionStore = useCollectionStore();
+  const schemaStore = useSchemaStore();
+  const topologyStore = useTopologyStore();
+  const notificationStore = useStatusMessages();
+
+  const [view, setView] = usePersistentState<EditorView>(
+    'editor-view',
+    'split',
+    isValidEditorView,
+  );
+
+  const [splitterPosition, setSplitterPosition] = usePersistentState<number>(
+    'editor-splitter',
+    30,
+    isNumber,
+  );
+
+  // const amogusAudio = useMemo(() => new Audio('/amogus.wav'), []);
+  const monacoWrapperRef = useRef<MonacoWrapperRef>(null);
+  const [history] = useState(() => new TopologyHistory());
+  const [graphSelection] = useState(() => new GraphSelection());
+
+  const syncOverlayRef = useRef<OverlayPanel>(null);
+
+  const onTopologyOpen = useCallback((topology: Topology) => {
+    setOpenTopology(topology);
+    setOpenTopologyFile(TopologyFileType.Definition);
+    setOpenBindFile(null);
+    setPendingEdits(false);
+    setValidationEnabled(true);
+  }, []);
+
+  const onTopologyEdit = useCallback((editReport: TopologyEditReport) => {
+    setPendingEdits(editReport.isEdited);
+    setOpenTopology(editReport.updatedTopology);
+  }, []);
+
+  const onBindFileOpen = useCallback((bindFile: BindFile) => {
+    setOpenBindFile(bindFile);
+    setOpenTopology(null);
+    setOpenTopologyFile(TopologyFileType.Definition);
+    setPendingEdits(false);
+    setValidationEnabled(false);
+  }, []);
+
+  const onBindFileEdit = useCallback((editReport: BindFileEditReport) => {
+    setPendingEdits(editReport.isEdited);
+    setOpenBindFile(editReport.updatedBindFile);
+  }, []);
+
+  const onFileClose = useCallback(() => {
+    setOpenTopology(null);
+    setOpenBindFile(null);
+    setPendingEdits(false);
+  }, []);
+
+  useEffect(() => {
+    if (!openTopology) return;
+
+    if (!topologyStore.lookup.has(openTopology.id)) {
+      topologyStore.manager.close();
+    }
+  }, [topologyStore.lookup]);
+
+  const pageTitle = useMemo(() => {
+    if (!openTopology && !openBindFile) {
+      return 'Antimony | Editor';
+    }
+
+    let tabTitle = 'Antimony';
+    if (openTopology?.definition.name) {
+      tabTitle += ` | ${openTopology.definition.name}`;
+    } else if (openBindFile?.filePath) {
+      tabTitle += ` | ${openBindFile.filePath}`;
+    }
+
+    if (hasPendingEdits) {
+      tabTitle += '*';
+    }
+
+    return tabTitle;
+  }, [hasPendingEdits, openTopology, openBindFile]);
+
+  useBeforeUnload(ev => {
+    if (hasPendingEdits || validationState !== ValidationState.Done) {
+      ev.preventDefault();
+    }
+  });
+
+  useEffect(() => {
+    topologyStore.manager.onTopologyEdit.register(onTopologyEdit);
+    topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
+
+    topologyStore.manager.onBindFileEdit.register(onBindFileEdit);
+    topologyStore.manager.onBindFileOpen.register(onBindFileOpen);
+
+    topologyStore.manager.onClose.register(onFileClose);
+
+    return () => {
+      topologyStore.manager.onTopologyEdit.unregister(onTopologyEdit);
+      topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
+
+      topologyStore.manager.onBindFileEdit.unregister(onBindFileEdit);
+      topologyStore.manager.onBindFileOpen.unregister(onBindFileOpen);
+
+      topologyStore.manager.onClose.unregister(onFileClose);
+    };
+  }, [
+    onTopologyOpen,
+    onTopologyEdit,
+    onFileClose,
+    onBindFileOpen,
+    onBindFileEdit,
+  ]);
+
+  const effectiveView: EditorView = openBindFile ? 'code' : view;
+
+  const topologyCollection = useMemo(() => {
+    if (!openTopology) return null;
+
+    return collectionStore.lookup.get(openTopology.collectionId)!;
+  }, [collectionStore.data, openTopology]);
+
+  // Each file is validated separately, so an undo that changes both files applies both
+  const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const validateAnnotationsTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
+  function onContentChange(content: string, file: TopologyFileType) {
+    if (topologyStore.manager.currentFileType === OpenFileType.Topology) {
+      if (file === TopologyFileType.Annotations) {
+        updateAnnotationsContent(content);
+      } else {
+        updateTopologyContent(content);
+      }
+    } else if (
+      topologyStore.manager.currentFileType === OpenFileType.BindFile
+    ) {
+      topologyStore.manager.editBindFile(
+        content,
+        BindFileEditSource.TextEditor,
+      );
+    }
+  }
+
+  function updateTopologyContent(content: string) {
+    if (!schemaStore.clabSchema) return;
+
+    try {
+      /*
+       * If the topology is empty, instantly return an error as it's not allowed to be empty.
+       * We need to have this special case because the monaco YAML validator won't classify
+       * an empty file as invalid.
+       */
+      if (!content) {
+        setValidationState(ValidationState.Error);
+        return;
+      }
+
+      setValidationState(ValidationState.Working);
+
+      if (validateTimeoutRef.current) {
+        clearTimeout(validateTimeoutRef.current);
+      }
+
+      validateTimeoutRef.current = setTimeout(() => {
+        const definition = topologyStore.readTopology(content);
+
+        if (definition !== null) {
+          setValidationState(ValidationState.Done);
+          topologyStore.manager.editTopology(
+            definition,
+            TopologyEditSource.TextEditor,
+          );
+        }
+
+        // We don't explicitly set the validation state to error here,
+        // but let the monaco-yaml validator find the error and handle it.
+      }, getValidationDelay(content));
+    } catch {
+      setValidationState(ValidationState.Working);
+    }
+  }
+
+  function updateAnnotationsContent(content: string) {
+    // The monaco JSON validator doesn't classify an empty file as invalid
+    if (!content) {
+      setValidationState(ValidationState.Error);
+      return;
+    }
+
+    setValidationState(ValidationState.Working);
+
+    if (validateAnnotationsTimeoutRef.current) {
+      clearTimeout(validateAnnotationsTimeoutRef.current);
+    }
+
+    validateAnnotationsTimeoutRef.current = setTimeout(() => {
+      const annotations = topologyStore.parseTopologyAnnotations(content);
+
+      if (annotations !== null) {
+        setValidationState(ValidationState.Done);
+        topologyStore.manager.editAnnotations(
+          annotations,
+          TopologyEditSource.TextEditor,
+        );
+      }
+
+      // The error state is set by the monaco JSON validator
+    }, getValidationDelay(content));
+  }
+
+  function onSetValidationError(error: string | null) {
+    if (!error) {
+      setValidationState(ValidationState.Done);
+      return;
+    }
+
+    setValidationState(ValidationState.Error);
+    setValidationError(error);
+  }
+
+  function onEditNode(nodeName: string) {
+    setCurrentlyEditedNode(nodeName);
+    setNodeEditDialogOpen(true);
+  }
+
+  function onAddNode(position: Position) {
+    setCurrentlyEditedNode(null);
+    setNewNodePosition(position);
+    setNodeEditDialogOpen(true);
+  }
+
+  async function onSaveFile() {
+    if (!hasPendingEdits) return;
+
+    if (validationEnabled && validationState !== ValidationState.Done) {
+      notificationStore.error(
+        'Your topology is not valid.',
+        'Failed to save topology.',
+      );
+      return;
+    }
+
+    const result = await topologyStore.manager.save();
+    if (result === null) {
+      return;
+    } else if (result.isErr()) {
+      notificationStore.error(result.error.message, 'Failed to save file.');
+    }
+  }
+
+  function onDeployTopoplogy() {
+    if (!openTopology) return;
+
+    props.onTopologyDeploy(openTopology.id);
+  }
+
+  function onDownload() {
+    if (openTopology && openTopologyFile === TopologyFileType.Annotations) {
+      const blob = new Blob(
+        [TopologyManager.serializeAnnotations(openTopology.annotations)],
+        {
+          type: 'application/json;charset=utf-8',
+        },
+      );
+      FileSaver.saveAs(
+        blob,
+        `${topologyCollection!.name}_${openTopology.definition.name}.annotations.json`,
+      );
+    } else if (openTopology) {
+      downloadTopologyDefinition(openTopology, topologyCollection!.name);
+    } else if (openBindFile) {
+      const topology = topologyStore.bindFileLookup.get(openBindFile.id);
+      if (!topology) return;
+
+      const blob = new Blob([openBindFile.content], {
+        type: 'text/plain;charset=utf-8',
+      });
+
+      const bindFileNameParts = openBindFile.filePath.split('/');
+      const bindFileName = bindFileNameParts[bindFileNameParts.length - 1];
+
+      FileSaver.saveAs(blob, bindFileName);
+    }
+  }
+
+  const onBindFileLinkClick = useCallback(
+    (bindFilePath: string) => {
+      if (!openTopology) return;
+
+      const bindFile = openTopology.bindFiles.find(
+        file => file.filePath === bindFilePath,
+      );
+
+      if (topologyStore.manager.hasEdits()) {
+        notificationStore.confirm({
+          message: 'Discard unsaved changes?',
+          header: 'Unsaved changes',
+          icon: 'pi pi-info-circle',
+          severity: 'warning',
+          onAccept: () => {
+            if (bindFile) {
+              topologyStore.manager.openBindFile(bindFile);
+            } else {
+              askToCreateBindFile(openTopology.id, bindFilePath);
+            }
+          },
+        });
+      } else {
+        if (bindFile) {
+          topologyStore.manager.openBindFile(bindFile);
+        } else {
+          askToCreateBindFile(openTopology.id, bindFilePath);
+        }
+      }
+    },
+    [openTopology],
+  );
+
+  function askToCreateBindFile(topologyId: string, bindFilePath: string) {
+    notificationStore.confirm({
+      message: 'Do you want to create this file?',
+      header: 'File does not exist',
+      icon: 'pi pi-info-circle',
+      severity: 'info',
+      onAccept: () => createBindFile(topologyId, bindFilePath),
+    });
+  }
+
+  async function createBindFile(topologyId: string, bindFilePath: string) {
+    const result = await topologyStore.addBindFile(topologyId, {
+      filePath: bindFilePath,
+      content: '',
+    });
+
+    if (result.isErr()) {
+      notificationStore.error(
+        result.error.message,
+        'Failed to create bind file',
+      );
+    } else {
+      notificationStore.success('Bind file has been created successfully.');
+      const bindFile = topologyStore.bindFileLookup.get(result.data.payload);
+      topologyStore.manager.openBindFile(bindFile!);
+    }
+  }
+
+  function onAddTopology() {
+    props.editTopologyState.openWith({
+      topology: null,
+      collectionId: null,
+      action: DialogAction.Add,
+    });
+  }
+
+  if (!searchParams.has('f')) {
+    return (
+      <div className="sb-topology-editor-empty">
+        <SBEmptyState
+          title="No topology open"
+          text="Pick a topology from the left sidebar."
+          icon={<span className="material-symbols-outlined">network_node</span>}
+          children={
+            <Button
+              icon="pi pi-plus"
+              label="New topology"
+              className="sb-button-accent"
+              onClick={onAddTopology}
+            />
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <title>{pageTitle}</title>
+      <div
+        className="sb-topology-editor-container"
+        style={{
+          opacity: openTopology || openBindFile ? '1' : '0',
+        }}
+      >
+        <div className="sb-topology-editor-toolbar">
+          <ol
+            className="sb-topology-editor-toolbar-crumbs"
+            aria-label="Breadcrumb"
+          >
+            <Choose>
+              <When condition={openTopology}>
+                <li>
+                  <span className="sb-topology-editor-toolbar-subtitle">
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                    >
+                      inventory_2
+                    </span>
+                    {topologyCollection!.name}
+                  </span>
+                </li>
+                <li>
+                  <div className="sb-topology-editor-toolbar-title">
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                    >
+                      network_node
+                    </span>
+                    {`${openTopology?.definition.name}${hasPendingEdits ? '*' : ''}`}
+                  </div>
+                </li>
+                <li>
+                  <TopologyFileSwitch
+                    value={openTopologyFile}
+                    topologyName={openTopology?.definition.name ?? ''}
+                    onChange={setOpenTopologyFile}
+                  />
+                </li>
+              </When>
+              <When condition={openBindFile}>
+                <li>
+                  <span className="sb-topology-editor-toolbar-title">
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                    >
+                      description
+                    </span>
+                    {`${openBindFile!.filePath}${hasPendingEdits ? '*' : ''}`}
+                  </span>
+                </li>
+              </When>
+              <Otherwise></Otherwise>
+            </Choose>
+          </ol>
+          <EditorViewSwitch
+            value={effectiveView}
+            onChange={setView}
+            disabledViews={openBindFile ? ['split', 'graph'] : []}
+          />
+          <div className="sb-topology-editor-toolbar-right">
+            <Button
+              text
+              icon={<span className="material-symbols-outlined">undo</span>}
+              onClick={() => monacoWrapperRef.current?.undo()}
+              disabled={!!openTopology && !history.canUndo}
+              aria-label="Undo"
+            />
+            <Button
+              text
+              icon={<span className="material-symbols-outlined">redo</span>}
+              onClick={() => monacoWrapperRef.current?.redo()}
+              disabled={!!openTopology && !history.canRedo}
+              aria-label="Redo"
+            />
+            <span className="sb-editor-toolbar-separator" />
+            {openTopology && (
+              <Button
+                text
+                icon="pi pi-sync"
+                onClick={e => syncOverlayRef.current?.toggle(e)}
+                tooltip="Sync options"
+                tooltipOptions={{position: 'bottom', showDelay: 500}}
+                aria-label="Sync options"
+              />
+            )}
+            <Button
+              text
+              size="large"
+              icon="pi pi-save"
+              disabled={
+                (validationEnabled &&
+                  validationState !== ValidationState.Done) ||
+                !hasPendingEdits
+              }
+              tooltip="Save"
+              onClick={onSaveFile}
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              pt={{
+                icon: {
+                  className: 'p-overlay-badge',
+                  children: (
+                    <If condition={hasPendingEdits}>
+                      <Badge severity="danger" />
+                    </If>
+                  ),
+                },
+              }}
+              aria-label="Save"
+            />
+            <Button
+              text
+              icon="pi pi-download"
+              size="large"
+              onClick={onDownload}
+              tooltip="Download"
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              aria-label="Download"
+            />
+            <If
+              condition={
+                openTopology &&
+                collectionStore.canDeployIn(openTopology.collectionId)
+              }
+            >
+              <span className="sb-editor-toolbar-separator" />
+              <Button
+                outlined
+                className="sb-topology-editor-deploy-button"
+                icon="pi pi-play"
+                label="Deploy"
+                onClick={onDeployTopoplogy}
+                aria-label="Deploy topology"
+              />
+            </If>
+          </div>
+        </div>
+
+        <div className={`sb-topology-editor-content view-${effectiveView}`}>
+          <Splitter
+            onResizeEnd={(e: SplitterResizeEndEvent) =>
+              setSplitterPosition(e.sizes[0])
+            }
+          >
+            <SplitterPanel className="sb-editor-monaco" size={splitterPosition}>
+              <If condition={schemaStore.fetchReport.state === FetchState.Done}>
+                <MonacoWrapper
+                  ref={monacoWrapperRef}
+                  showValidation={validationEnabled}
+                  validationError={''}
+                  validationState={validationState}
+                  setContent={onContentChange}
+                  onSaveFile={onSaveFile}
+                  openTopology={openTopology}
+                  openTopologyFile={openTopologyFile}
+                  openBindFile={openBindFile}
+                  onOpenTopologyFile={setOpenTopologyFile}
+                  history={history}
+                  graphSelection={graphSelection}
+                  setValidationError={onSetValidationError}
+                  onBindFileLinkClick={onBindFileLinkClick}
+                  onLanguageChange={setCurrentLanguage}
+                  onCursorChange={(row, col) =>
+                    setCurrentCursorPosition({x: row, y: col})
+                  }
+                />
+              </If>
+            </SplitterPanel>
+            <SplitterPanel
+              className="sb-editor-graph"
+              size={100 - splitterPosition}
+            >
+              <GraphSelectionContext.Provider value={graphSelection}>
+                <NodeEditor
+                  onAddNode={onAddNode}
+                  onEditNode={onEditNode}
+                  openTopology={openTopology!}
+                />
+              </GraphSelectionContext.Provider>
+            </SplitterPanel>
+          </Splitter>
+        </div>
+        <div className="sb-topology-editor-footer">
+          <div
+            className="sb-monaco-wrapper-error"
+            data-validation-state={ValidationState[
+              validationState
+            ]?.toLowerCase()}
+            data-pr-tooltip={validationError ?? 'Schema valid'}
+            data-pr-position="right"
+            // Keyboard users get the tooltip on focus, screen readers the error in the name
+            role="note"
+            tabIndex={0}
+            aria-label={
+              validationState === ValidationState.Error
+                ? `Error: ${validationError ?? 'invalid'}`
+                : validationState === ValidationState.Working
+                  ? 'Pending'
+                  : 'Valid'
+            }
+          >
+            <Choose>
+              <When condition={validationState === ValidationState.Error}>
+                <i
+                  className="pi pi-times"
+                  style={{color: 'var(--danger-color-text)'}}
+                />
+                <span>Error</span>
+              </When>
+              <When condition={validationState === ValidationState.Working}>
+                <i
+                  className="pi pi-spinner pi-spin"
+                  style={{color: 'var(--warning-color-text)'}}
+                />
+                <span>Pending</span>
+              </When>
+              <Otherwise>
+                <i
+                  className="pi pi-check"
+                  style={{color: 'var(--success-color-text)'}}
+                />
+                <span>Valid</span>
+              </Otherwise>
+            </Choose>
+          </div>
+          <span>{currentLanguage}</span>
+          <div className="sb-topology-editor-footer-position">
+            {`Ln ${currentCursorPosition.x}, Col ${currentCursorPosition.y}`}
+          </div>
+          <TopologyFooterStats
+            topology={openTopology}
+            graphSelection={graphSelection}
+          />
+        </div>
+      </div>
+
+      <Tooltip
+        className="sb-monaco-wrapper-error-tooltip"
+        target=".sb-monaco-wrapper-error"
+        event="both"
+      />
+      <SyncOverlay
+        popOverRef={syncOverlayRef}
+        topology={openTopology}
+        onSetContent={content => monacoWrapperRef.current?.setContent(content)}
+      />
+      <NodeEditDialog
+        key={currentlyEditedNode}
+        isOpen={isNodeEditDialogOpen}
+        // Only read while the dialog is open, otherwise every edit renders the whole editor again
+        editingTopology={
+          isNodeEditDialogOpen ? (openTopology?.definition ?? null) : null
+        }
+        editingAnnotations={
+          isNodeEditDialogOpen ? (openTopology?.annotations ?? null) : null
+        }
+        editingNode={currentlyEditedNode}
+        newNodePosition={newNodePosition}
+        onClose={() => setNodeEditDialogOpen(false)}
+      />
+    </>
+  );
+});
+
+export default TopologyEditor;
+
+function getValidationDelay(content: string) {
+  return content.length > LARGE_FILE_LENGTH
+    ? LARGE_FILE_VALIDATION_DELAY
+    : VALIDATION_DELAY;
+}

@@ -1,0 +1,481 @@
+import dayjs from 'dayjs';
+import {
+  action,
+  computed,
+  IReactionDisposer,
+  observable,
+  reaction,
+  runInAction,
+} from 'mobx';
+
+import {
+  DataBinder,
+  DataResponse,
+  Subscription,
+} from '@sb/lib/stores/data-binder/data-binder';
+import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
+import {RootStore} from '@sb/lib/stores/root-store';
+import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+import {TopologyStore} from '@sb/lib/stores/topology-store';
+import {
+  Instance,
+  InstanceOut,
+  InstanceState,
+  Lab,
+  LabIn,
+  LabOut,
+  LabUpdateOut,
+  NodeStats,
+  RuntimeCommand,
+  RuntimeCommandPayload,
+} from '@sb/types/domain/lab';
+import {ErrorCodes} from '@sb/types/error-codes';
+import {ErrorResult, Result} from '@sb/types/result';
+
+export class LabStore extends DataStore<Lab, LabIn, LabOut> {
+  @observable accessor offset: number = 0;
+  @observable accessor totalEntries: number | null = 0;
+
+  @observable accessor limit: number = 1000;
+  @observable accessor stateFilter: InstanceState[] = [
+    InstanceState.Scheduled,
+    InstanceState.Deploying,
+    InstanceState.Running,
+    InstanceState.Failed,
+    InstanceState.Inactive,
+    InstanceState.Stopping,
+  ];
+  @observable accessor collectionFilter: string[] = [];
+  @observable accessor searchQuery: string = '';
+
+  @observable accessor startDate: string | null = null;
+  @observable accessor endDate: string | null = null;
+
+  private commandsSubscription: Subscription | null = null;
+  private clockReaction: IReactionDisposer | null = null;
+
+  private dataBinder: DataBinder;
+  private topologyStore: TopologyStore;
+  private statusMessageStore: StatusMessageStore;
+
+  constructor(
+    rootStore: RootStore,
+    dataBinder: DataBinder,
+    topologyStore: TopologyStore,
+    statusMessageStore: StatusMessageStore,
+    dependencies: DataStoreDependency[] = [],
+  ) {
+    super(rootStore, dependencies);
+
+    this.dataBinder = dataBinder;
+    this.topologyStore = topologyStore;
+    this.statusMessageStore = statusMessageStore;
+
+    this.onLabUpdate = this.onLabUpdate.bind(this);
+  }
+
+  protected get resourcePath(): string {
+    return '/labs';
+  }
+
+  @computed
+  protected get getParams() {
+    return '';
+
+    // TODO(kian): For now, we fetch all collections
+    // return new QueryBuilder()
+    //   .add('limit', this.limit)
+    //   .add('offset', this.offset)
+    //   .add('searchQuery', this.searchQuery)
+    //   .addList('stateFilter', this.stateFilter)
+    //   .addList('collectionFilter', this.collectionFilter)
+    //   .add('startDate', this.startDate)
+    //   .add('endDate', this.endDate)
+    //   .toString();
+  }
+
+  public init(filterFromParams: boolean) {
+    this.dataBinder.subscribeNamespace('lab-updates', this.onLabUpdate);
+    this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
+
+    this.clockReaction = reaction(
+      () => this.rootStore._clockStore.now,
+      () => this.updateScheduledStates(),
+    );
+
+    if (filterFromParams) {
+      reaction(
+        () => this.getParams,
+        () => this.fetch(),
+      );
+    }
+  }
+
+  public subscribeNodeStats(
+    containerId: string,
+    onEvent: (data: NodeStats) => void,
+  ) {
+    this.dataBinder.subscribeNamespace(`stats/${containerId}`, onEvent);
+  }
+
+  public unsubscribeNodeStats(
+    containerId: string,
+    onEvent: (data: NodeStats) => void,
+  ) {
+    this.dataBinder.unsubscribeNamespace(`stats/${containerId}`, onEvent);
+  }
+
+  // The admin and the lab's creator can control and change a lab
+  public canControl(lab: Lab): boolean {
+    const authUser = this.rootStore._dataBinder.authUser;
+    return authUser.isAdmin || lab.creator.id === authUser.id;
+  }
+
+  public canDeploy(lab: Lab): boolean {
+    return (
+      !lab.instance &&
+      lab.state !== InstanceState.Deploying &&
+      lab.state !== InstanceState.Stopping
+    );
+  }
+
+  public canRedeploy(lab: Lab): boolean {
+    return Boolean(lab.instance) && lab.state === InstanceState.Running;
+  }
+
+  public canDestroy(lab: Lab): boolean {
+    return (
+      Boolean(lab.instance) &&
+      (lab.state === InstanceState.Running ||
+        lab.state === InstanceState.Deploying)
+    );
+  }
+
+  // Like the server, labs with an instance can't be changed
+  public canEdit(lab: Lab): boolean {
+    return !lab.instance && lab.state !== InstanceState.Deploying;
+  }
+
+  // Like the server, only labs without an instance or with a failed one can be deleted
+  public canDelete(lab: Lab): boolean {
+    return !lab.instance || lab.state === InstanceState.Failed;
+  }
+
+  public async deployLab(lab: Lab): Promise<Result<null>> {
+    const result = await this.sendRuntimeCommand({
+      labId: lab.id,
+      command: RuntimeCommand.DeployLab,
+    });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to deploy lab',
+      );
+    }
+
+    return result;
+  }
+
+  public async destroyLab(lab: Lab): Promise<Result<null>> {
+    const result = await this.sendRuntimeCommand({
+      labId: lab.id,
+      command: RuntimeCommand.DestroyLab,
+    });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to destroy lab',
+      );
+    }
+
+    return result;
+  }
+
+  public async stopNode(lab: Lab, nodeName: string): Promise<Result<null>> {
+    const result = await this.sendRuntimeCommand({
+      labId: lab.id,
+      command: RuntimeCommand.StopNode,
+      node: nodeName,
+    });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to stop node',
+      );
+    }
+
+    return result;
+  }
+
+  public async startNode(lab: Lab, nodeName: string): Promise<Result<null>> {
+    const result = await this.sendRuntimeCommand({
+      labId: lab.id,
+      command: RuntimeCommand.StartNode,
+      node: nodeName,
+    });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to start node',
+      );
+    }
+
+    return result;
+  }
+
+  public async restartNode(lab: Lab, nodeName: string): Promise<Result<null>> {
+    const result = await this.sendRuntimeCommand({
+      labId: lab.id,
+      command: RuntimeCommand.RestartNode,
+      node: nodeName,
+    });
+
+    if (result.isErr()) {
+      this.statusMessageStore.error(
+        result.error.message,
+        'Failed to restart node',
+      );
+    }
+
+    return result;
+  }
+
+  @action
+  public setLimit(limit: number) {
+    this.limit = limit;
+  }
+
+  @action
+  public setOffset(offset: number) {
+    this.offset = offset;
+  }
+
+  @action
+  public setStateFilter(filter: InstanceState[]) {
+    this.stateFilter = filter;
+  }
+
+  @action
+  public setCollectionFilter(filter: string[]) {
+    this.collectionFilter = filter;
+  }
+
+  public toggleState(state: InstanceState) {
+    if (this.stateFilter.includes(state)) {
+      this.setStateFilter(this.stateFilter.filter(s => s !== state));
+    } else {
+      this.setStateFilter([...this.stateFilter, state]);
+    }
+  }
+
+  public toggleCollection(collectionId: string) {
+    if (this.collectionFilter.includes(collectionId)) {
+      this.setCollectionFilter(
+        this.collectionFilter.filter(c => c !== collectionId),
+      );
+    } else {
+      this.setCollectionFilter([...this.collectionFilter, collectionId]);
+    }
+  }
+
+  @action
+  public setSearchQuery(searchQuery: string) {
+    this.searchQuery = searchQuery;
+  }
+
+  @action
+  public setDates(startDate: string, endDate: string) {
+    this.startDate = startDate;
+    this.endDate = endDate;
+  }
+
+  public override dispose() {
+    super.dispose();
+
+    this.dataBinder.unsubscribeNamespace('lab-updates', this.onLabUpdate);
+    this.commandsSubscription = null;
+
+    this.clockReaction?.();
+    this.clockReaction = null;
+  }
+
+  @action
+  protected handleUpdate(response: DataResponse<LabOut[]>): void {
+    this.data = this.parseLabs(response.payload);
+    this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
+
+    if (response.headers && response.headers.has('X-Total-Count')) {
+      this.totalEntries = Number(response.headers!.get('X-Total-Count'));
+    }
+  }
+
+  @action
+  private async fetchSingle(labId: string) {
+    const response = await this.rootStore._dataBinder.get<LabOut>(
+      this.resourcePath + '/' + labId,
+    );
+
+    if (response.isOk()) {
+      const updatedLab = this.parseLab(response.data.payload);
+
+      runInAction(() => {
+        this.data = [
+          ...this.data
+            .map(lab => {
+              if (lab.id !== labId) return lab;
+
+              return updatedLab;
+            })
+            .filter(lab => lab !== null),
+        ];
+
+        this.lookup = new Map(this.data.map(lab => [lab.id, lab]));
+      });
+    }
+  }
+
+  private async sendRuntimeCommand(
+    command: RuntimeCommandPayload,
+  ): Promise<Result<null>> {
+    if (!this.commandsSubscription) {
+      return Result.createErr(
+        'Lab store has not initialized its commands subscription.',
+      );
+    }
+
+    const response = await this.commandsSubscription.socket!.emitWithAck(
+      'data',
+      JSON.stringify(command),
+    );
+
+    if (!('payload' in response)) {
+      // Ignore operation in progress as they are caused by the user spamming action buttons.
+      if (
+        (response as ErrorResult).code ===
+        ErrorCodes.ErrorLabOperationInProgress
+      ) {
+        return Result.createOk(null);
+      }
+
+      console.error('Failed to execute runtime command: ', response);
+      return Result.createErr(response);
+    }
+
+    return Result.createOk(response);
+  }
+
+  private onLabUpdate(data: DataResponse<LabUpdateOut>) {
+    if (data.payload.labId && this.lookup.has(data.payload.labId)) {
+      // if (data.payload.newState !== null) {
+      //   const lab = this.lookup.get(data.payload.labId);
+      //   runInAction(() => {
+      //     lab!.state = data.payload.newState!;
+      //   });
+      // } else {
+      //   void this.fetchSingle(data.payload.labId);
+      // }
+
+      void this.fetchSingle(data.payload.labId);
+    } else {
+      void this.fetchWithCollections();
+    }
+  }
+
+  // A new lab can be in a collection that was created elsewhere, e.g. by another admin or in another tab
+  private async fetchWithCollections() {
+    await this.rootStore._collectionStore.fetch();
+    await this.fetch();
+  }
+
+  private parseLabs(input: LabOut[]): Lab[] {
+    return input.map(lab => this.parseLab(lab)).filter(lab => lab !== null);
+  }
+
+  private parseLab(input: LabOut): Lab | null {
+    const startTime = new Date(input.startTime);
+    const endTime = input.endTime ? new Date(input.endTime) : null;
+
+    const definition = this.topologyStore.readTopology(
+      input.topologyDefinition,
+    );
+
+    if (!definition) {
+      console.error('[NET] Failed to parse incoming run topology: ', input);
+      return null;
+    }
+
+    const annotations = this.topologyStore.parseTopologyAnnotations(
+      input.topologyAnnotations,
+    );
+
+    if (!annotations) {
+      console.error('[NET] Failed to parse incoming run annotations: ', input);
+    }
+
+    return {
+      ...input,
+      startTime: startTime,
+      endTime: endTime,
+      state: this.getInstanceState(input.instance, startTime, endTime),
+      instance: this.parseInstance(input.instance),
+      topologyDefinition: {
+        definition: definition,
+        annotations: annotations ?? {},
+      },
+    };
+  }
+
+  // Labs without an instance change between Scheduled and Inactive as time passes
+  @action
+  private updateScheduledStates() {
+    let hasChanged = false;
+    const data = this.data.map(lab => {
+      if (lab.instance) return lab;
+
+      const state = this.getInstanceState(null, lab.startTime, lab.endTime);
+      if (state === lab.state) return lab;
+
+      hasChanged = true;
+      return {...lab, state};
+    });
+
+    if (!hasChanged) return;
+
+    this.data = data;
+    this.lookup = new Map(data.map(lab => [lab.id, lab]));
+  }
+
+  private getInstanceState(
+    instance: InstanceOut | null,
+    startTime: Date,
+    endTime: Date | null,
+  ) {
+    if (instance !== null) return instance.state;
+
+    // Labs without an end time run indefinitely, the server still starts them at their start time
+    const isBeforeEndTime =
+      endTime === null || endTime >= dayjs(new Date()).toDate();
+    const isBeforeStartTime =
+      startTime >= dayjs(new Date()).subtract(5, 'seconds').toDate();
+
+    if (isBeforeStartTime && isBeforeEndTime) {
+      return InstanceState.Scheduled;
+    }
+
+    return InstanceState.Inactive;
+  }
+
+  private parseInstance(input: InstanceOut | null): Instance | null {
+    if (input === null) return null;
+
+    return {
+      ...input,
+      deployed: new Date(input.deployed),
+      nodeMap: new Map(input.nodes?.map(node => [node.name, node])),
+    };
+  }
+}

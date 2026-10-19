@@ -1,0 +1,45 @@
+.sb-dashboard
+  width: 100%
+  display: flex
+  position: relative
+  contain: size
+
+  > .p-splitter > .p-splitter-panel:first-child
+    min-width: 350px
+
+  .p-splitter-gutter
+    background-color: transparent !important
+    width: 8px !important
+
+  .p-splitter-gutter-handle
+    background-color: var(--surface-page)
+
+.sb-lab-explorer
+  display: flex
+  flex-direction: column
+  padding: 16px
+  gap: 6px
+
+  .p-icon-field
+    margin-bottom: 6px
+
+.sb-dashboard-container
+  display: flex
+  flex-direction: column
+  flex: 1
+
+.sb-dashboard-search-bar-input
+  flex-grow: 1
+
+.sb-dashboard-empty
+  width: 100%
+  height: 100%
+  display: flex
+  align-items: center
+  justify-content: center
+  flex-direction: column
+  color: var(--text)
+
+  img
+    filter: invert(1)
+    opacity: 0.3
