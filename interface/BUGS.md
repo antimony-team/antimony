@@ -8,36 +8,18 @@ Found while writing the end-to-end tests (October 2026). Each entry says how it 
   runs these tests as normal tests, to see them fail.
 - **from the code**: found by reading the code, not covered by a test.
 
-Paths are relative to `antimony-server/src/`. The SSH server's missing authentication is planned as a
-separate rework and not listed here.
+Paths are relative to `src/`. Server bugs are tracked in the server repository's `BUGS.md`.
 
 ---
 
-## Server
+## Interface
 
-### 1. Shell control messages reach every signed-in user
-
-- **Status:** from the code. The other namespaces (status messages, lab updates, stats) only reach admins and
-  members of the lab's collection now; `/shell-control` will be rewritten later.
-- **Where:** `runtime/shell/service.go` (`/shell-control`)
-- **What happens:** every signed-in user receives the shell IDs, labs and nodes of all users' shells.
-
-### 2. Access and refresh tokens are interchangeable, and logout revokes nothing
-
-- **Status:** from the code. Planned as a separate rework (typed tokens and revocable sessions).
-- **Where:** `auth/manager.go`, `transport/http/user/handler.go`
-- **What happens:** any valid token with an `id` works as either. The 30-day refresh token works as a Bearer
-  access token, and an access token works as a refresh token, so a leaked access token can be renewed
-  forever. Logout only deletes the cookies.
+No open bugs.
 
 ---
 
 ## Not bugs, but worth knowing
 
-- A lab deploys the copy of its topology made when it was created, and keeps the approval of the topology
-  policy it got then, also when the topology or the policy settings change later (see the docs on the
-  topology policy). `server.spec.ts` › "a lab deploys the topology it was created with, even once the
-  topology is unsafe".
 - Members may open terminals on other members' labs, but only the lab's creator (and admins) may deploy,
   destroy or start and stop its nodes.
 - Saving a change made in the graph writes the whole YAML back, in block style.

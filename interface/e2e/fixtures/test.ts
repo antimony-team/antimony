@@ -118,12 +118,25 @@ const INITIAL_UI_STATE: Record<string, string> = {
   'sb:lab-grid-collapsed-groups': JSON.stringify({__type: 'Set', values: []}),
 };
 
+/*
+ * Toasts stack up in the bottom right, over the lab view's drawer, and stay while the mouse rests on
+ * them. Clicks go through them, so a test never waits for them to disappear. They can still be checked.
+ */
+const TOAST_STYLE = '.p-toast, .p-toast * { pointer-events: none !important; }';
+
 export async function prepareContext(context: BrowserContext) {
   await context.addInitScript(state => {
     for (const [key, value] of Object.entries(state)) {
       if (localStorage.getItem(key) === null) localStorage.setItem(key, value);
     }
   }, INITIAL_UI_STATE);
+  await context.addInitScript(css => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = css;
+      document.head.append(style);
+    });
+  }, TOAST_STYLE);
 }
 
 export const test = base.extend<Fixtures>({

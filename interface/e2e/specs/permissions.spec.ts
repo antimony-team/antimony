@@ -49,7 +49,8 @@ test.describe('server rules', () => {
     expect(topologies).not.toContain(theirLab.topology.id);
     expect((await user.api.getLabs()).map(l => l.id)).toEqual([myLab.id]);
 
-    expect(await status(user.api.getTopology(theirLab.topology.id))).toBe(403);
+    // Topologies of other collections don't exist for the user, their labs are refused
+    expect(await status(user.api.getTopology(theirLab.topology.id))).toBe(404);
     expect(await status(user.api.getLab(theirLab.id))).toBe(403);
   });
 
