@@ -158,7 +158,7 @@ Settings of the [SSH server](/docs/manual/ssh-server/) for node shells and packe
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `enabled` | `true` | Whether the interface shows capture commands. Capturing over SSH itself is always possible while the SSH server runs. |
+| `enabled` | `true` | Whether packet capture over the [SSH server](/docs/manual/ssh-server/#capturing-traffic) is allowed. With `false`, the SSH server rejects capture commands and the lab view's right-click menu leaves out the capture entries. Shells keep working. |
 | `excludedInterfaces` | `["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]` | Glob patterns of interfaces hidden from node interface lists and statistics. This doesn't prevent capturing them by name. |
 
 ### streaming

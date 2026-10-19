@@ -36,7 +36,7 @@ When you open the editor for the first time and no collection exists, it guides 
 
 ## The explorer
 
-The left panel shows collections, their topologies and each topology's bind files as a tree. Type in **Search Topologies** to filter it.
+The left panel shows collections, their topologies and each topology's bind files as a tree. Type in **Search topologies** to filter it.
 
 | Item | Buttons and menu |
 | --- | --- |
@@ -64,9 +64,9 @@ The toolbar shows the topology's collection and name. An asterisk marks unsaved 
 
 | Control | What it does |
 | --- | --- |
-| **Undo** / **Redo** | Step through your changes. Also <kbd>Ctrl</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+<kbd>Y</kbd>. |
+| **Undo** / **Redo** | Step through your changes. Also <kbd>Ctrl</kbd>+<kbd>Z</kbd>, and <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>. |
 | **Code** / **Split** / **Graph** | Show the YAML, both, or only the graph. Your choice is remembered. |
-| **Sync Options** | Set the URL to sync the topology from. |
+| **Sync options** | Set the URL to sync the topology from. |
 | **Save** | Save the topology. Also <kbd>Ctrl</kbd>+<kbd>S</kbd>. Disabled while the topology is invalid. A red dot means there are unsaved changes. |
 | **Download** | Download the YAML as `<collection>_<topology>.yaml`. |
 | **Deploy** | Open the [deploy dialog](/docs/manual/deploying-labs/) for this topology. |
@@ -87,36 +87,35 @@ The toolbar on the left of the graph:
 
 | Button | What it does |
 | --- | --- |
-| **Add node** | Opens the node dialog to add a node. |
-| **Create group** | Draw a rectangle around nodes to put them in a named group, shown as a box. |
+| **Select** (<kbd>V</kbd>) | Select, move and resize nodes, groups, shapes and text. Shift-click adds to the selection. |
+| **Hand** (<kbd>H</kbd>) | Pan the graph by dragging. |
+| **Add node** | Opens the [node dialog](#the-node-dialog) to add a node. |
+| **Rectangle** (<kbd>R</kbd>), **Ellipse** (<kbd>O</kbd>), **Line** (<kbd>L</kbd>), **Text** (<kbd>T</kbd>) | Draw shapes, lines and text on the canvas. |
+| **Group** (<kbd>G</kbd>) | Draw a named group box. Nodes and shapes whose center it covers are put in the group. |
+| **Group selection** (<kbd>Ctrl</kbd>+<kbd>G</kbd>) | Puts the selected elements in a new group. |
 | **Fit graph** | Zooms to show the whole topology. |
 | **Clear graph** | Removes all nodes. Can be undone. |
-| **Graph Stabilization** | Opens the [stabilization panel](#graph-stabilization). |
 
-Click a node for a quick menu with **Edit** and **Delete**, or double-click it to edit it. Right-click nodes, links, groups and the background for more options. Double-click a group to rename it.
+Topologies you can't edit only show **Select**, **Hand** and **Fit graph**. On macOS, use <kbd>Cmd</kbd> wherever these docs say <kbd>Ctrl</kbd>.
 
-<Aside type="note">
-	For now, add links between nodes in the YAML under `topology.links`. Connecting nodes by dragging in the graph doesn't work reliably yet.
-</Aside>
+Click an element to select it. The bar above the selection has its style options and **Delete**. Double-click a node's icon to open the node dialog, or its name to rename it. Double-click a link to rename the interface at the nearer end, and a group's name to rename the group. Right-click nodes, links, groups, shapes and the background for more options.
+
+To connect two nodes, right-click the first one, choose **Connect** and click the second one. Clicking the first node again connects it to itself. Antimony uses the next free interface on both ends. Press <kbd>Esc</kbd> or click anywhere else to cancel.
 
 ### The node dialog
 
 The node dialog edits everything about a node:
 
 - the **icon** (click it to choose one), **Name** and **Kind**
-- **Node Properties**: every containerlab node property, with search and validation from the schema
+- **Node properties**: every containerlab node property, with search and validation from the schema
 - **Connections**: the node's links and the interfaces they use
 - environment variables, certificates, health checks, DNS settings, labels and more
-
-### Graph stabilization
-
-The stabilization panel arranges the graph automatically with a force-directed layout. Adjust **Edge elasticity**, **Edge length** and **Node repulsion**, then click **Stabilize**. The new positions are saved in the topology. **Reset** restores the default settings.
 
 ## How the graph is stored
 
 The topology file only describes the lab. Everything about how it looks in the graph lives in a separate **annotations file** next to it, `<topology>.clab.yml.annotations.json`. It uses [containerlab's annotations format](https://containerlab.dev/manual/topo-def-file/), the same one the containerlab VS Code extension and TopoViewer read, so the layout carries over to those tools and the topology stays a plain containerlab file. The server validates the annotations against containerlab's annotations schema when you save.
 
-Use the **Topology** / **Annotations** file switch in the editor to view and edit the annotations as JSON. Antimony writes them whenever you move a node, change a group or stabilize the graph.
+Use the **Topology** / **Annotations** file switch in the editor to view and edit the annotations as JSON. Antimony writes them whenever you change the layout, such as moving nodes, changing groups or drawing shapes and text.
 
 | Section | Contents |
 | --- | --- |
@@ -150,7 +149,7 @@ Use the **Topology** / **Annotations** file switch in the editor to view and edi
 
 Available icons: `router`, `switch`, `spine`, `dcgw`, `server`, `client`, `controller`, `pon` and `rgw`. `pe` is an alias for `router` and `leaf` for `switch`. Nodes without an icon, or with an unknown one, are shown as `client`.
 
-Nodes without a position are all placed at the same spot. Use **Graph Stabilization** to lay them out.
+Nodes without a position, e.g. in a topology that was pasted, synced or only edited as text, are placed automatically. If no node has a position, the whole graph is laid out by its links. Otherwise, the other nodes keep their positions and the new ones are placed next to the nodes they are linked to. The same topology is always placed the same way, and the positions are only saved once you change the layout.
 
 ### Layout in labels (older topologies)
 
@@ -191,7 +190,7 @@ Some names are reserved because Antimony, containerlab or netlab create files wi
 
 A topology can be kept in sync with a file on the web, for example a raw file in a Git repository.
 
-1. Open **Sync Options** in the toolbar, enter the **Sync URL** and click **Save**.
+1. Open **Sync options** in the toolbar, enter the **Sync URL** and click **Save**.
 2. Click **Fetch** to load the file into the editor.
 3. Review the changes and **Save** the topology.
 

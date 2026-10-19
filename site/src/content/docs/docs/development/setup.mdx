@@ -112,7 +112,8 @@ The everyday commands are Yarn scripts:
 | --- | --- |
 | `yarn start` | Development server with hot reload. |
 | `yarn build` | Production build into `dist/`. |
-| `yarn test` | Runs the unit tests. |
+| `yarn test` | Runs the unit tests in `tests/`, which mirrors `src/` (e.g. `tests/lib/graph/placement.test.ts` tests `src/lib/graph/placement.ts`). |
+| `yarn test:coverage` | Runs the unit tests and reports the coverage of `src/lib` into `coverage/`. |
 | `yarn lint` | Lints with [gts](https://github.com/google/gts). |
 | `yarn typecheck` | Type-checks without building. |
 | `yarn e2e` | Runs the end-to-end tests. |
@@ -144,18 +145,19 @@ To build an interface that talks to a server elsewhere, set these variables when
 
 ### End-to-end tests
 
-The [Playwright](https://playwright.dev/) tests build the server in `server/` and start it with the dummy provider, together with a test build of the interface, on ports that don't collide with development (API 3200, SSH 6200, interface 4180). They need Go besides Node.js, but no Docker image. CI runs them on every push and pull request.
+The [Playwright](https://playwright.dev/) tests build the server in `server/` and start it with the dummy provider and a fresh database, together with a test build of the interface, on ports that don't collide with development (API 3200, SSH 6200, interface 4180). They need Go besides Node.js, but no Docker image. CI runs them on every push and pull request.
 
 ```bash
 # Once: install the browser
 npx playwright install chromium
 
-yarn e2e          # headless, like CI
-task e2e-ui       # interactive
-task e2e-report   # open the last report
+yarn e2e                    # headless, like CI
+E2E_KNOWN_BUGS=1 yarn e2e   # also run the tests of known bugs as normal tests
+task e2e-ui                 # interactive
+task e2e-report             # open the last report
 ```
 
-To test against a server image instead, set `SB_E2E_BACKEND_IMAGE=<image>`, for example `antimony-server:dev` after `task build-docker` in `server/`.
+Tests of bugs that aren't fixed yet are marked with `knownBug()` and expected to fail. The interface's `e2e/README.md` explains how to write tests. To test against a server image instead, set `SB_E2E_BACKEND_IMAGE=<image>`, for example `antimony-server:dev` after `task build-docker` in `server/`.
 
 ## Documentation
 
@@ -188,7 +190,7 @@ npm run sync-api -- <path or URL>   # from somewhere else
 
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
-| `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | The server's lint, Swagger check, build with a startup smoke test and tests with the race detector, and the interface's lint, type check and unit tests, all in parallel. Then the Docker images, and Antimony Desktop (AppImage, .deb and .rpm for x86_64 and ARM64), which is kept as the artifact `antimony-desktop`. For a `v*` tag, `e2e.yml` runs as well, and the release follows once it passes. |
+| `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | The server's lint, Swagger check, build with a startup smoke test and tests with the race detector, and the interface's lint, type check and unit tests with coverage (uploaded as the artifact `coverage-report`), all in parallel. Then the Docker images, and Antimony Desktop (AppImage, .deb and .rpm for x86_64 and ARM64), which is kept as the artifact `antimony-desktop`. For a `v*` tag, `e2e.yml` runs as well, and the release follows once it passes. |
 | `fuzz.yml` | Nightly, manually | Fuzz tests of the server |
 | `e2e.yml` | Pushes to `development` and `main`, PRs, tags `v*` (through `ci.yml`), manually | The server's provider tests against containerlab and against clabernetes in a kind cluster, and the interface's end-to-end tests against the server of the same commit |
 | `release.yml` | Called by `ci.yml` for tags `v*` | Packs the deployment files with that version, writes their checksums and those of Antimony Desktop to `SHA256SUMS`, attests them, and creates the GitHub release with them |

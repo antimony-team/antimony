@@ -1,0 +1,51 @@
+---
+// How the containerlab provider captures a node interface: a raw socket inside the container's network namespace.
+---
+
+<figure class="diagram">
+	<svg viewBox="0 0 720 210" role="img" aria-labelledby="cap-clab-title cap-clab-desc">
+		<title id="cap-clab-title">Packet capture with containerlab</title>
+		<desc id="cap-clab-desc">
+			The Antimony server runs on the same Docker host as the lab. It looks up the process of the node container,
+			enters the container's network namespace, opens a raw packet socket on the interface there, and reads the
+			packets from it as a pcap stream.
+		</desc>
+		<defs>
+			<marker id="cap-clab-aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-accent" />
+			</marker>
+			<marker id="cap-clab-aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M0 0 L10 5 L0 10 z" class="arrow-warm" />
+			</marker>
+		</defs>
+
+		<rect x="20" y="20" width="680" height="170" rx="14" class="zone" />
+		<text x="36" y="44" class="t-zone">Docker host</text>
+
+		<!-- Antimony server -->
+		<rect x="40" y="62" width="200" height="114" rx="10" class="box-accent" />
+		<text x="56" y="88" class="t">Antimony server</text>
+		<text x="56" y="108" class="t-sub">privileged, pid: host</text>
+		<text x="56" y="138" class="t-mono">AF_PACKET socket</text>
+		<text x="56" y="154" class="t-mono">→ pcap to SSH clients</text>
+
+		<!-- Node container -->
+		<rect x="340" y="52" width="340" height="124" rx="10" class="box" />
+		<text x="360" y="78" class="t">Node container</text>
+		<text x="360" y="96" class="t-sub">network namespace of the container's process</text>
+		<rect x="360" y="116" width="92" height="40" rx="8" class="box" />
+		<text x="376" y="141" class="t-mono">eth0</text>
+		<rect x="462" y="116" width="92" height="40" rx="8" class="box-warm" />
+		<text x="478" y="141" class="t-mono">eth1</text>
+		<rect x="564" y="116" width="92" height="40" rx="8" class="box" />
+		<text x="580" y="141" class="t-mono">eth2</text>
+
+		<path d="M240 90 H336" class="edge-accent" marker-end="url(#cap-clab-aa)" />
+		<text x="254" y="82" class="t-mono">enter netns</text>
+		<path d="M508 156 Q 508 166, 498 166 H244" class="edge-warm" marker-end="url(#cap-clab-aw)" />
+		<text x="262" y="158" class="t-mono">packets</text>
+	</svg>
+	<figcaption>
+		Antimony opens the socket inside the container, so it sees the interface exactly as the node does.
+	</figcaption>
+</figure>

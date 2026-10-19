@@ -15,6 +15,7 @@ The **topology policy** looks for these features in every topology. Each one it 
 - **Only administrators can deploy it.** Other users get the error *the topology contains unsafe features that the server rejected* (code `3005`).
 - **Nothing is executed to find out.** The policy only reads the topology file, so checking an untrusted topology is safe.
 - **Unknown means unsafe.** A field the policy doesn't know, for example one added in a newer containerlab version, is reported too, rather than slipping through.
+- **A lab is checked once, when it's created.** From then on, it deploys its own copy of the topology. Editing the topology afterwards doesn't change the lab, and neither does changing the policy settings, such as `security.allowedImagePrefixes`, or updating Antimony to a version with stricter rules: labs that already exist keep deploying as they were approved. To apply the new rules to such a lab, delete it and create it again.
 
 ## Turning it on or off
 

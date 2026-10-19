@@ -38,12 +38,12 @@ The panel in the top left lists the lab's details:
 - **ID**: the lab's unique ID. Click it to copy it.
 - **Instance**: the instance name the provider uses for the lab.
 - **Collection**, **Owner** and **Provider**.
-- **Deployed** and **Running Until**. "(Recovered)" means the server was restarted while the lab was running and has reattached to it.
+- **Deployed** and **Running until**. "(Recovered)" means the server was restarted while the lab was running and has reattached to it.
 - **Topology**: the topology the lab was created from, with its number of nodes and links.
 
-**Copy Link** copies a direct link to this lab. **Open Topology** opens the topology in the editor.
+**Copy link** copies a direct link to this lab. **Open topology** opens the topology in the editor.
 
-The ID and instance name identify the lab when you connect to it through the [SSH server](/docs/manual/ssh-server/#choosing-a-node).
+To connect to a node through the [SSH server](/docs/manual/ssh-server/#choosing-a-node), you normally use `<collection-name>/<lab-name>/<node-name>` as username. The ID and instance name are alternatives for the first part.
 
 ## The graph
 
@@ -59,13 +59,13 @@ The node panel shows the node's name, kind, container ID and name, management IP
 
 | Button | What it does |
 | --- | --- |
-| **Node Logs** | Opens the logs window with this node's container log. |
-| **Open Terminal** | Opens a [terminal](#terminals) on the node. Available once the node is ready. |
+| **Node logs** | Opens the logs window with this node's container log. |
+| **Open terminal** | Opens a [terminal](#terminals) on the node. Available once the node is ready. |
 | **Restart** / **Start** / **Shutdown** | Restarts, starts or stops the node. Only available for kinds marked `canRestart` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml); for other kinds the panel says so. |
 
 ### Statistics
 
-Once the node is ready, the panel shows live **CPU** and **Memory Usage** charts of the last 20 seconds.
+Once the node is ready, the panel shows live **CPU** and **Memory usage** charts of the last 20 seconds.
 
 ### Interfaces and capture
 
@@ -74,7 +74,7 @@ Below the statistics, each interface has a chart of its transmitted (TX) and rec
 **Copy capture command** copies a command that streams the interface's traffic into Wireshark on your machine:
 
 ```bash
-ssh testing/dsfsfdf/alpine1@antimony.example.com -p 6969 eth1 | wireshark -k -i -
+ssh <collection-name>/<lab-name>/<node-name>@antimony -p 6969 eth1 | wireshark -k -i -
 ```
 
 Run it in a terminal on a machine with Wireshark installed. See [SSH server and packet capture](/docs/manual/ssh-server/) for how it works and what else you can do with it.
@@ -83,7 +83,7 @@ Some interfaces, such as `lo` and management interfaces, are hidden. The list is
 
 ## Terminals
 
-**Open Terminal** opens a terminal window on the node. Antimony logs in to the node over SSH with the credentials from `kinds.conf.yml`, or opens a shell inside the container if that isn't possible.
+**Open terminal** opens a terminal window on the node. Antimony logs in to the node over SSH with the credentials from `kinds.conf.yml`, or opens a shell inside the container if that isn't possible.
 
 <figure class="shot">
 	<Image src={terminal} alt="A terminal window with tabs for alpine1, alpine1 and alpine2, showing the output of ip a s" width={700} densities={[1, 2]} />

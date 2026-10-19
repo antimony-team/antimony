@@ -7,6 +7,8 @@ sidebar:
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 import SshDiagram from '../../../../components/diagrams/SshServer.astro';
+import CaptureClabDiagram from '../../../../components/diagrams/CaptureContainerlab.astro';
+import CaptureC9sDiagram from '../../../../components/diagrams/CaptureClabernetes.astro';
 import { Image } from 'astro:assets';
 import zoey from '../../../../assets/zoey/traffic.png';
 
@@ -29,33 +31,52 @@ You don't connect to the node itself. You connect to Antimony and tell it which 
 
 ## Connecting
 
-The server listens on `ssh.sshHost` and `ssh.sshPort` from the [configuration](/docs/deployment/configuration/#ssh). If your config doesn't set a port, the server uses **6969**. The examples on this page use `antimony.example.com` and port 6969.
+The server listens on `ssh.sshHost` and `ssh.sshPort` from the [configuration](/docs/deployment/configuration/#ssh). If your config doesn't set a port, the server uses **6969**. In the examples on this page, `antimony` stands for the host name of your Antimony server.
+
+<Aside type="tip" title="Leave out the port">
+	With a host entry in `~/.ssh/config`, `antimony` works as the host name as it is, and you don't need `-p 6969`:
+
+	```ssh-config title="~/.ssh/config"
+	Host antimony
+	  HostName antimony.example.com
+	  Port 6969
+	```
+</Aside>
 
 ### Choosing a node
 
-The username tells Antimony which node to use. Pick whichever form is most convenient:
+The SSH **username** tells Antimony which node to use. It isn't an account: there is no password, and your local user name plays no role. Antimony splits the username at `/` and accepts these forms:
 
-| Username | Example | Notes |
-| --- | --- | --- |
-| `<container ID>` | `94bc21e92ee9…` | The node's full container ID, as shown in the node panel. On clabernetes, this is the pod UID. |
-| `<lab ID>/<node>` | `76b18526-e72f-4f46-837c-f7767ede8645/alpine1` | The lab's UUID, shown in the lab info panel. |
-| `<instance name>/<node>` | `linux-b3b368e042c3/alpine1` | The lab's instance name, also shown in the lab info panel. This isn't the lab's display name. |
-| `<collection>/<lab name>/<node>` | `testing/OSPF Lab 1/r1` | The most readable form. Lab names may contain spaces, so pass this one with `-l`. |
+| Username | Where to find the parts |
+| --- | --- |
+| `<collection-name>/<lab-name>/<node-name>` | **The default.** The collection and lab names as shown in the dashboard, and the node name from the topology. The copy buttons in the interface use this form. |
+| `<lab-id>/<node-name>` | The lab's UUID, shown in the lab info panel. |
+| `<instance-name>/<node-name>` | The lab's instance name, shown in the lab info panel. It's the topology name, with spaces and underscores replaced by `-`, plus a 12-character suffix. It isn't the lab's display name. |
+| `<container-id>` | The node's container ID, shown in the node panel. On containerlab, this is Docker's 12-character short ID; the full 64-character ID doesn't match. On clabernetes, it's the pod UID. |
+
+- **With two parts**, a UUID as first part is read as a lab ID, anything else as an instance name.
+- **Names must match exactly**, including upper and lower case.
+- **Names with `/`** can't be used, since `/` separates the parts. If a collection or lab name contains one, use the lab ID instead.
+- **Spaces** are fine, but the username then has to be quoted. Pass it with `-l "…"`.
+- **Without a username** (`ssh antimony`), your SSH client sends your local user name, which Antimony reads as a container ID and doesn't find.
+- **Four or more parts** are rejected with `invalid node`.
 
 The lab must be running.
 
 ### Opening a shell
 
-Connect **without a command** to get an interactive shell on the node. A terminal is required, so pass `-t`:
+Connect **without a command** to get an interactive shell on the node:
 
 ```bash
-ssh -t -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com
+ssh -p 6969 <collection-name>/<lab-name>/<node-name>@antimony
 
-# Usernames with spaces
-ssh -t -p 6969 -l "testing/OSPF Lab 1/r1" antimony.example.com
+# Names with spaces
+ssh -p 6969 -l "<collection-name>/<lab-name>/<node-name>" antimony
 ```
 
 Antimony opens the shell the same way as the [browser terminal](/docs/manual/lab-view/#terminals): it first logs in to the node over SSH on port 22, using the username and password from [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml). If that fails, for example on a plain Linux container without an SSH daemon, it falls back to `bash` or `sh` inside the container.
+
+The shell needs a terminal. OpenSSH requests one by itself when you run it from a terminal; only when its standard input isn't one, for example in a script, force it with `-tt`.
 
 Terminal resizes are passed through. When you exit the node's shell, the SSH session ends.
 
@@ -69,30 +90,20 @@ Connect **with a command** to capture traffic. The command names the interface:
 
 ```bash
 # Watch live in Wireshark
-ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 | wireshark -k -i -
-
-# Save to a file
-ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 > alpine1-eth1.pcap
+ssh -p 6969 <collection-name>/<lab-name>/<node-name>@antimony eth1 | wireshark -k -i -
 
 # Read with tcpdump
-ssh -p 6969 76b18526-e72f-4f46-837c-f7767ede8645/alpine1@antimony.example.com eth1 | tcpdump -n -r -
+ssh -p 6969 <collection-name>/<lab-name>/<node-name>@antimony eth1 | tcpdump -n -r -
+
+# Save to a file
+ssh -p 6969 <collection-name>/<lab-name>/<node-name>@antimony eth1 > capture.pcap
 ```
 
-You don't have to type these. In the [lab view](/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands in the `<collection>/<lab name>/<node>` form, for example:
-
-```bash
-ssh testing/dsfsfdf/alpine1@antimony.example.com -p 6969 eth1 | wireshark -k -i -
-```
-
-The host is the one you opened Antimony with, and `-p` is left out when the server uses port 22.
-
-<Aside type="caution">
-	The copied command doesn't quote the username. If the lab name contains spaces, wrap the username in quotes or use `-l "…"` before running it.
-</Aside>
+You don't have to type these. In the [lab view](/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands with the default username, like the first example above. The host is the one you opened Antimony with, and `-p` is left out when the server uses port 22.
 
 #### Accepted commands
 
-The command is either just the interface name, or a `tcpdump` command line. This means tools that run `tcpdump` remotely also work, such as Wireshark's built-in **SSH remote capture** (sshdump), whose default command is `sudo tcpdump -U -i <interface> -w -`.
+The command is either just the interface name, or a `tcpdump` command line. This means tools that run `tcpdump` remotely also work, such as Wireshark's built-in **SSH remote capture** (sshdump), whose default command is `sudo tcpdump -U -i <interface> -w -`. In its settings, enter your Antimony server and SSH port, put `<collection-name>/<lab-name>/<node-name>` in the username field and leave the password empty.
 
 | Command | Result |
 | --- | --- |
@@ -117,9 +128,13 @@ Only the interface option is read; every other `tcpdump` option and any filter e
 <Tabs>
 	<TabItem label="containerlab">
 		Antimony opens a raw packet socket (`AF_PACKET`) inside the node container's network namespace. This is why the Antimony server needs to run on the same host as the containers, with host PID visibility and elevated privileges (the `privileged` and `pid: host` settings in the [Docker deployment](/docs/deployment/docker/)).
+
+		<CaptureClabDiagram />
 	</TabItem>
 	<TabItem label="clabernetes">
 		Antimony runs the packet capture tool of the pod's `clabwire` sidecar through the Kubernetes API. Only the node's lab link interfaces can be captured. The sidecar limits single captures to one hour; Antimony chains them so your stream keeps going. See [traffic capture on clabernetes](/docs/deployment/clabernetes/#traffic-capture-on-clabernetes).
+
+		<CaptureC9sDiagram />
 	</TabItem>
 </Tabs>
 
@@ -153,7 +168,8 @@ services:
 
 ## Enabling and disabling
 
-`ssh.enabled` and `capture.enabled` control whether the interface shows terminal and capture features that rely on the SSH server. In the current version, the SSH server **always starts**, regardless of these settings. To make sure it can't be reached, block the port in your firewall.
+- `ssh.enabled: false` stops the SSH server from starting. Shells from your own client and packet capture are then unavailable. Browser terminals don't need the SSH server and keep working.
+- `capture.enabled: false` keeps the SSH server running for shells, but rejects every capture command with `traffic capture is not enabled`. The node's right-click menu then leaves out its **Copy capture for &lt;interface&gt;** entries.
 
 ## Errors
 
@@ -161,10 +177,11 @@ The server writes errors to standard error and exits with code `2` for usage err
 
 | Message | Meaning |
 | --- | --- |
-| `invalid node "…", expected …` | The username has an unknown format. Use one of the [node identifiers](#choosing-a-node). |
-| `unable to connect to node: the specified node was not found` | No running node matches the username. Check the lab ID or names and the node name. |
+| `traffic capture is not enabled` | You sent a command, but `capture.enabled` is `false`. |
+| `invalid node "…", expected …` | The username has four or more parts. Use one of the [usernames](#choosing-a-node). |
+| `unable to connect to node: the specified node was not found` | No node matches the username. Check the spelling and case of the collection, lab and node names, or the ID. |
 | `unable to connect to node: the specified lab is not running` | The lab exists but isn't deployed. |
-| `a terminal is required for a shell, connect with ssh -t` | You asked for a shell without a terminal. Add `-t`. |
+| `a terminal is required for a shell, connect with ssh -t` | You asked for a shell without a terminal, for example from a script. Add `-tt`. |
 | `missing interface to capture` | The command was empty. |
 | `unexpected arguments [...], expected an interface name or a tcpdump command` | The command has several words but isn't a `tcpdump` command. |
 | `the tcpdump command has no interface (-i)` | Add `-i <interface>`. |

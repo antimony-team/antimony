@@ -70,9 +70,10 @@ const extras = [
 						<a class="btn" href={quickStart}>Get started</a>
 						<a class="btn btn-ghost" href={github}>Star on GitHub</a>
 					</div>
-					<button class="cmd" data-copy={installCommand} aria-label="Copy install command">
-						<span class="prompt">$</span> {installCommand} <span class="cmd-hint">copy</span>
-					</button>
+					<div class="cmd" data-copy={installCommand}>
+						<span class="prompt">$</span> <code class="cmd-text">{installCommand}</code>
+						<button type="button" class="cmd-hint" aria-label="Copy install command">copy</button>
+					</div>
 				</div>
 				<Topology />
 			</section>
@@ -205,7 +206,7 @@ ethernet-1/1 is <span class="t-ok">up</span>, speed 25G, type None
 					</div>
 					<div class="panel capture">
 						<span class="muted">Capture e1-1 on leaf1</span>
-						<code>ssh 3f9c…@antimony.lab -p 22 e1-1 <b>| wireshark -k -i -</b></code>
+						<code>ssh training/dc-fabric/leaf1@antimony -p 6969 e1-1 <b>| wireshark -k -i -</b></code>
 					</div>
 					<Image class="zoey zoey-right" src={zoeyTraffic} alt="" width={220} densities={[1, 2]} />
 				</div>
@@ -278,13 +279,53 @@ ethernet-1/1 is <span class="t-ok">up</span>, speed 25G, type None
 		</footer>
 
 		<script>
-			for (const el of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
-				el.addEventListener('click', async () => {
+			// The Clipboard API only exists in secure contexts (HTTPS and localhost). Elsewhere, such as a dev server opened
+			// by its IP, the text is copied through a temporary text field instead.
+			async function copyText(text: string): Promise<boolean> {
+				if (navigator.clipboard && window.isSecureContext) {
 					try {
-						await navigator.clipboard.writeText(el.dataset.copy ?? '');
-						el.classList.add('copied');
-						setTimeout(() => el.classList.remove('copied'), 1400);
+						await navigator.clipboard.writeText(text);
+						return true;
 					} catch {}
+				}
+
+				const field = document.createElement('textarea');
+				field.value = text;
+				field.setAttribute('readonly', '');
+				field.style.position = 'fixed';
+				field.style.opacity = '0';
+				document.body.append(field);
+				field.select();
+				let copied = false;
+				try {
+					copied = document.execCommand('copy');
+				} catch {}
+				field.remove();
+				return copied;
+			}
+
+			for (const el of document.querySelectorAll<HTMLElement>('[data-copy]')) {
+				const hint = el.querySelector<HTMLElement>('.cmd-hint');
+				const text = el.querySelector<HTMLElement>('.cmd-text');
+				let reset: ReturnType<typeof setTimeout> | undefined;
+
+				el.addEventListener('click', async () => {
+					// Don't override a selection the user made by hand
+					if (window.getSelection()?.toString()) return;
+
+					const copied = await copyText(el.dataset.copy ?? '');
+					if (!copied && text) {
+						// Leave the command selected, so it can be copied with the keyboard
+						window.getSelection()?.selectAllChildren(text);
+					}
+
+					el.classList.toggle('copied', copied);
+					if (hint) hint.textContent = copied ? 'copied!' : 'press ctrl+c';
+					clearTimeout(reset);
+					reset = setTimeout(() => {
+						el.classList.remove('copied');
+						if (hint) hint.textContent = 'copy';
+					}, 1600);
 				});
 			}
 		</script>

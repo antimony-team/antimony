@@ -48,28 +48,28 @@
 		<text x="240" y="150" class="t-sub" text-anchor="middle">or Deploy</text>
 
 		<!-- deploying -> running / failed -->
-		<path d="M410 120 C 450 120, 460 66, 496 66" class="edge-accent" marker-end="url(#ls-aa)" />
+		<path d="M410 120 H443 Q 453 120, 453 110 V76 Q 453 66, 463 66 H496" class="edge-accent" marker-end="url(#ls-aa)" />
 		<text x="404" y="98" class="t-sub" text-anchor="end">success</text>
-		<path d="M410 142 C 450 142, 460 196, 496 196" class="edge" marker-end="url(#ls-a)" />
-		<text x="440" y="190" class="t-sub">error</text>
+		<path d="M410 142 H443 Q 453 142, 453 152 V186 Q 453 196, 463 196 H496" class="edge" marker-end="url(#ls-a)" />
+		<text x="445" y="174" class="t-sub" text-anchor="end">error</text>
 
 		<!-- redeploy -->
-		<path d="M520 40 C 520 24, 345 24, 345 100" class="edge edge-dashed" marker-end="url(#ls-a)" />
+		<path d="M520 40 V36 Q 520 26, 510 26 H355 Q 345 26, 345 36 V100" class="edge edge-dashed" marker-end="url(#ls-a)" />
 		<text x="432" y="18" class="t-sub" text-anchor="middle">Redeploy</text>
-		<path d="M520 222 C 520 260, 345 260, 345 160" class="edge edge-dashed" marker-end="url(#ls-a)" />
+		<path d="M520 222 V242 Q 520 252, 510 252 H355 Q 345 252, 345 242 V160" class="edge edge-dashed" marker-end="url(#ls-a)" />
 		<text x="432" y="268" class="t-sub" text-anchor="middle">Redeploy</text>
 
 		<!-- -> stopping -->
-		<path d="M630 66 C 670 66, 680 118, 696 120" class="edge" marker-end="url(#ls-a)" />
-		<text x="650" y="70" class="t-sub">end time</text>
-		<text x="650" y="56" class="t-sub">Destroy /</text>
-		<path d="M630 196 C 670 196, 680 145, 696 142" class="edge" marker-end="url(#ls-a)" />
+		<path d="M630 66 H653 Q 663 66, 663 76 V110 Q 663 120, 673 120 H696" class="edge" marker-end="url(#ls-a)" />
+		<text x="671" y="94" class="t-sub">end time</text>
+		<text x="671" y="80" class="t-sub">Destroy /</text>
+		<path d="M630 196 H653 Q 663 196, 663 186 V152 Q 663 142, 673 142 H696" class="edge" marker-end="url(#ls-a)" />
 		<text x="644" y="214" class="t-sub">Destroy</text>
 		<path d="M765 156 V226" class="edge" marker-end="url(#ls-a)" />
 		<text x="773" y="196" class="t-sub">done</text>
 
 		<!-- inactive -> deploying -->
-		<path d="M700 262 C 420 312, 300 300, 318 160" class="edge edge-dashed" marker-end="url(#ls-a)" />
+		<path d="M765 282 V290 Q 765 300, 755 300 H328 Q 318 300, 318 290 V160" class="edge edge-dashed" marker-end="url(#ls-a)" />
 		<text x="470" y="314" class="t-sub" text-anchor="middle">Deploy</text>
 	</svg>
 	<figcaption>
