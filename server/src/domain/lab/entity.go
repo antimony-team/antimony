@@ -70,4 +70,8 @@ type LabFilter struct {
 	EndDate          *time.Time `form:"endDate"`
 	StateFilter      []int      `form:"stateFilter[]"`
 	CollectionFilter []string   `form:"collectionFilter[]"`
+
+	// MemberOf limits the labs to these collections when it isn't nil. It isn't read from the query, the service sets
+	// it to the collections of a user who isn't an admin.
+	MemberOf []string `form:"-"`
 }

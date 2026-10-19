@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -453,4 +454,27 @@ func TestLabFilter_StateFilterAppliesAfterPaging(t *testing.T) {
 		h.Seed.Admin.Token).RequireOk(&labs)
 
 	assert.Empty(t, labs, "state filtering is applied to the page, not to the whole table")
+}
+
+func TestLabFilter_PagesAreFullForUsersWhoAreNotAdmins(t *testing.T) {
+	h := NewHarness(t)
+
+	// The member can't see the hidden lab, which starts between the labs it can see
+	visible := labIDs(listLabs(t, h, h.Seed.Member.Token, ""))
+	require.NotContains(t, visible, LabHiddenID)
+
+	// Paging one lab at a time returns every visible lab, in order, without gaps where the hidden lab is
+	for offset, expected := range visible {
+		var page []labDTO
+		h.GET(fmt.Sprintf("/labs?limit=1&offset=%d", offset), h.Seed.Member.Token).RequireOk(&page)
+
+		require.Len(t, page, 1, "page %d", offset)
+		assert.Equal(t, expected, page[0].ID, "page %d", offset)
+	}
+}
+
+func TestLabFilter_AUserWithoutCollectionsSeesNoLabs(t *testing.T) {
+	h := NewHarness(t)
+
+	assert.Empty(t, listLabs(t, h, h.Seed.Outsider.Token, ""))
 }

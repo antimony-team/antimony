@@ -88,13 +88,18 @@ func (s *Service) Get(ctx context.Context, labFilter LabFilter, authUser auth.Au
 		err  error
 	)
 
+	if !authUser.IsAdmin {
+		if len(authUser.Collections) == 0 {
+			return []Lab{}, nil
+		}
+		labFilter.MemberOf = authUser.Collections
+	}
+
 	if labs, err = s.repo.GetAll(ctx, &labFilter); err != nil {
 		return nil, err
 	}
 
-	return lo.Filter(labs, func(lab Lab, _ int) bool {
-		return authUser.IsAdmin || slices.Contains(authUser.Collections, lab.Collection.Name)
-	}), nil
+	return labs, nil
 }
 
 func (s *Service) GetByUuid(ctx context.Context, labId string, authUser auth.AuthenticatedUser) (*Lab, error) {

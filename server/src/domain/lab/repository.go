@@ -30,8 +30,9 @@ func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 	if labFilter != nil {
 		hasCollectionFilter := len(labFilter.CollectionFilter) > 0
 		hasSearchQuery := labFilter.SearchQuery != nil && len(*labFilter.SearchQuery) > 0
+		hasMembershipFilter := labFilter.MemberOf != nil
 
-		if hasCollectionFilter || hasSearchQuery {
+		if hasCollectionFilter || hasSearchQuery || hasMembershipFilter {
 			query = query.Joins(
 				"JOIN collections ON collections.id = labs.collection_id AND collections.deleted_at IS NULL",
 			)
@@ -47,6 +48,11 @@ func (r *Repository) GetAll(ctx context.Context, labFilter *LabFilter) ([]Lab, e
 
 		if hasCollectionFilter {
 			query = query.Where("collections.uuid IN ?", labFilter.CollectionFilter)
+		}
+
+		// Filtered in the query rather than afterwards, so limit and offset only count labs the user can see
+		if hasMembershipFilter {
+			query = query.Where("collections.name IN ?", labFilter.MemberOf)
 		}
 
 		if hasSearchQuery {
