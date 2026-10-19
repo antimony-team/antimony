@@ -1605,8 +1605,11 @@ func (s *Service) GetInstanceNode(
 		return InstanceNode{}, "", utils.ErrInvalidSocketRequest
 	}
 
+	if errors.Is(labError, utils.ErrUuidNotFound) || errors.Is(labError, utils.ErrLabNotFound) {
+		return InstanceNode{}, "", utils.ErrLabNotFound
+	}
 	if labError != nil {
-		return InstanceNode{}, "", fmt.Errorf("%w: %s", utils.ErrNodeNotFound, labError.Error())
+		return InstanceNode{}, "", labError
 	}
 
 	// Deny action if the user doesn't have access to the node's lab

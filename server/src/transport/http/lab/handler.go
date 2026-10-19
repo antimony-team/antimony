@@ -42,7 +42,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 
 	var labFilter lab.LabFilter
 	if err := ctx.BindQuery(&labFilter); err != nil {
-		ctx.JSON(utils.CreateErrorResponse(err))
+		ctx.JSON(utils.CreateValidationError(err))
 		return
 	}
 

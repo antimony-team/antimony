@@ -284,7 +284,7 @@ func (s *Service) CloseShellCommand(shellId *string, authUser *auth.Authenticate
 	// Compare by user ID rather than by pointer: the socket manager hands out a fresh
 	// *AuthenticatedUser per connection, so the owner of a shell opened on an earlier
 	// connection never matches by identity.
-	if !authUser.IsAdmin && shell.owner.UserId != authUser.UserId {
+	if shell.owner.UserId != authUser.UserId {
 		return utils.ErrNoAccessToShell
 	}
 
@@ -348,7 +348,7 @@ func (s *Service) ResizeShellCommand(
 	// Compare by user ID rather than by pointer: the socket manager hands out a fresh
 	// *AuthenticatedUser per connection, so the owner of a shell opened on an earlier
 	// connection never matches by identity.
-	if !authUser.IsAdmin && shell.owner.UserId != authUser.UserId {
+	if shell.owner.UserId != authUser.UserId {
 		return utils.ErrNoAccessToShell
 	}
 

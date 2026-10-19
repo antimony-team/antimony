@@ -712,29 +712,34 @@ func TestGetInstanceNode_ReportsUnknownNodesAndLabs(t *testing.T) {
 	h := NewHarness(t)
 	h.DeployLab(LabAdminID)
 
-	cases := map[string]nodeAddress{
-		"unknown container id": {containerId: ptr("no-such-container")},
+	cases := map[string]struct {
+		address  nodeAddress
+		expected error
+	}{
+		"unknown container id": {nodeAddress{containerId: ptr("no-such-container")}, utils.ErrNodeNotFound},
 		// Stopped nodes have no container ID, so an empty one must not match them.
-		"empty container id": {containerId: ptr("")},
-		"unknown node":       {labId: ptr(LabAdminID), nodeName: ptr("missing")},
-		"unknown lab id":     {labId: ptr("no-such-lab"), nodeName: ptr(NodeHost)},
+		"empty container id": {nodeAddress{containerId: ptr("")}, utils.ErrNodeNotFound},
+		"unknown node":       {nodeAddress{labId: ptr(LabAdminID), nodeName: ptr("missing")}, utils.ErrNodeNotFound},
+		"unknown lab id":     {nodeAddress{labId: ptr("no-such-lab"), nodeName: ptr(NodeHost)}, utils.ErrLabNotFound},
 		"unknown lab name": {
-			collectionName: ptr(CollectionPublicBoth),
-			labName:        ptr("Missing Lab"),
-			nodeName:       ptr(NodeHost),
+			nodeAddress{
+				collectionName: ptr(CollectionPublicBoth),
+				labName:        ptr("Missing Lab"),
+				nodeName:       ptr(NodeHost),
+			},
+			utils.ErrLabNotFound,
 		},
 		"lab in another collection": {
-			collectionName: ptr(CollectionHidden),
-			labName:        ptr("Admin Lab"),
-			nodeName:       ptr(NodeHost),
+			nodeAddress{collectionName: ptr(CollectionHidden), labName: ptr("Admin Lab"), nodeName: ptr(NodeHost)},
+			utils.ErrLabNotFound,
 		},
 	}
 
-	for name, address := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := getInstanceNode(h, address, nil)
+			_, _, err := getInstanceNode(h, c.address, nil)
 
-			assert.ErrorIs(t, err, utils.ErrNodeNotFound)
+			assert.ErrorIs(t, err, c.expected)
 		})
 	}
 }

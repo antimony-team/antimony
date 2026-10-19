@@ -254,11 +254,9 @@ func TestLabFilter_DateRangeAppliesBothBounds(t *testing.T) {
 func TestLabFilter_MalformedDateIsRejected(t *testing.T) {
 	h := NewHarness(t)
 
-	// ctx.BindQuery flushes a 400, and the handler then writes the error through
-	// CreateErrorResponse (which has no case for a time parse failure), so the body carries -1
-	// rather than the 422 the other endpoints use for a bad request body.
+	// A query that can't be read is a validation error, like a bad request body on the other endpoints
 	errorResponse := h.GET("/labs?limit=100&startDate=not-a-date", h.Seed.Admin.Token).
-		RequireError(http.StatusBadRequest, -1)
+		RequireValidationError()
 
 	assert.Contains(t, errorResponse.Message, "parsing time")
 }

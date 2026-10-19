@@ -243,9 +243,7 @@ func TestOpenShellCommand_UnknownLabIsRejected(t *testing.T) {
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
-	// An unknown lab is reported the same way as an unknown node, 5021, whichever part of the address is wrong.
-	errorResponse := client.Emit(openShellCommand("no-such-lab", NodeHost)).RequireError(5021)
-	assert.Contains(t, errorResponse.Message, "uuid was not found")
+	client.Emit(openShellCommand("no-such-lab", NodeHost)).RequireError(5011)
 }
 
 func TestOpenShellCommand_CollectionMemberCanOpenAShellOnSomeoneElsesLab(t *testing.T) {
@@ -475,7 +473,7 @@ func TestCloseShellCommand_AnotherUserCannotCloseSomeoneElsesShell(t *testing.T)
 	assert.False(t, session.IsClosed(), "the shell must survive the refused close")
 }
 
-func TestCloseShellCommand_AdminCanCloseAnyShell(t *testing.T) {
+func TestCloseShellCommand_AdminCannotCloseSomeoneElsesShell(t *testing.T) {
 	h := NewHarness(t)
 
 	h.DeployLab(LabMemberID)
@@ -483,12 +481,13 @@ func TestCloseShellCommand_AdminCanCloseAnyShell(t *testing.T) {
 	memberClient := h.Dial("/cmd", h.Seed.Member.Token)
 	shellId := openShell(t, memberClient, LabMemberID, NodeHost)
 
+	// Shells are private to the user who opened them, administrators included
 	adminClient := h.Dial("/cmd", h.Seed.Admin.Token)
-	adminClient.Emit(closeShellCommand(LabMemberID, shellId)).RequireOk(nil)
+	adminClient.Emit(closeShellCommand(LabMemberID, shellId)).RequireError(5403)
 
 	session := h.Provider.Shell(InstanceMemberLab, NodeHost)
 	require.NotNil(t, session)
-	assert.True(t, session.IsClosed())
+	assert.False(t, session.IsClosed())
 }
 
 // TestCloseShellCommand_OwnerCanCloseFromASecondConnection guards the fix for an ownership check
@@ -629,7 +628,7 @@ func TestResizeShellCommand_OwnerCanResizeFromASecondConnection(t *testing.T) {
 	requireSize(t, h.Provider.Shell(InstanceMemberLab, NodeHost), 100, 30)
 }
 
-func TestResizeShellCommand_AdminCanResizeAnyShell(t *testing.T) {
+func TestResizeShellCommand_AdminCannotResizeSomeoneElsesShell(t *testing.T) {
 	h := NewHarness(t)
 
 	h.DeployLab(LabMemberID)
@@ -637,10 +636,11 @@ func TestResizeShellCommand_AdminCanResizeAnyShell(t *testing.T) {
 	memberClient := h.Dial("/cmd", h.Seed.Member.Token)
 	shellId := openShell(t, memberClient, LabMemberID, NodeHost)
 
+	// Shells are private to the user who opened them, administrators included
 	adminClient := h.Dial("/cmd", h.Seed.Admin.Token)
-	adminClient.Emit(resizeShellCommand(shellId, 100, 30)).RequireOk(nil)
+	adminClient.Emit(resizeShellCommand(shellId, 100, 30)).RequireError(5403)
 
-	requireSize(t, h.Provider.Shell(InstanceMemberLab, NodeHost), 100, 30)
+	assert.Empty(t, h.Provider.Shell(InstanceMemberLab, NodeHost).Resizes()[1:], "only the size from opening the shell")
 }
 
 func TestResizeShellCommand_AnotherUserCannotResizeSomeoneElsesShell(t *testing.T) {

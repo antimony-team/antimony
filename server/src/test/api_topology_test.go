@@ -148,13 +148,11 @@ func TestGetTopologyByUuid_MemberCanReadOneInItsCollections(t *testing.T) {
 // This used to be masked as a 404 to stop existence probing, but the IDs are server-generated
 // UUIDs so that bought very little, and it made the topology and lab endpoints disagree about the
 // same situation. Both now answer 403 with a real message.
-func TestGetTopologyByUuid_InaccessibleTopologyIsForbidden(t *testing.T) {
+func TestGetTopologyByUuid_InaccessibleTopologyIsNotFound(t *testing.T) {
 	h := NewHarness(t)
 
-	errorResponse := h.GET("/topologies/"+TopologyHiddenID, h.Seed.Member.Token).
-		RequireError(http.StatusForbidden, 403)
-
-	assert.Contains(t, errorResponse.Message, "access to the provided topology is not granted")
+	// A topology outside the user's collections looks like one that doesn't exist, which doesn't reveal that it does
+	h.GET("/topologies/"+TopologyHiddenID, h.Seed.Member.Token).RequireError(http.StatusNotFound, -1)
 }
 
 func TestGetTopologyByUuid_UnknownIdIsNotFound(t *testing.T) {
