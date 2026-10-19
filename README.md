@@ -11,8 +11,8 @@
 
 Design, deploy and operate [containerlab](https://containerlab.dev) networks from your browser.
 
-[![Server CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-server/ci.yml?branch=development&label=server)](https://github.com/antimony-team/antimony-server/actions/workflows/ci.yml)
-[![Interface CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-interface/ci.yml?branch=development&label=interface)](https://github.com/antimony-team/antimony-interface/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony/ci.yml?branch=development&label=CI)](https://github.com/antimony-team/antimony/actions/workflows/ci.yml)
+[![E2E](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony/e2e.yml?branch=development&label=e2e)](https://github.com/antimony-team/antimony/actions/workflows/e2e.yml)
 [![Release](https://img.shields.io/github/v/release/antimony-team/antimony?include_prereleases&label=release&color=3fcfad)](https://github.com/antimony-team/antimony/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Powered by containerlab](https://img.shields.io/badge/powered%20by-containerlab-3fcfad)](https://containerlab.dev)
@@ -67,15 +67,18 @@ More in the [Antimony Desktop guide](https://antimony.run/docs/deployment/deskto
 
 Everything else is on [antimony.run](https://antimony.run/docs/): the [concepts](https://antimony.run/docs/getting-started/concepts/), the [user manual](https://antimony.run/docs/manual/dashboard/), the [configuration](https://antimony.run/docs/deployment/configuration/) and the [REST and Socket.IO APIs](https://antimony.run/docs/api/rest/).
 
-## 🧩 Repositories
+## 🧩 Repository structure
 
-| Repository | Contents |
-| --- | --- |
-| [antimony](https://github.com/antimony-team/antimony) | Deployment files, releases and the website with the documentation |
-| [antimony-server](https://github.com/antimony-team/antimony-server) | The Antimony server, written in Go |
-| [antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and Antimony Desktop, written in React and Electron |
+```
+antimony/
+├── server/       The Antimony server, written in Go
+├── interface/    The web interface and Antimony Desktop, written in React and Electron
+├── site/         The website with the documentation
+├── .github/      CI, end-to-end tests and releases
+└── docker-compose.yml, config.yml, …   The deployment files that come with every release
+```
 
-Found a bug or have an idea? Open an issue in the repository it belongs to. To work on Antimony, start with the [development setup](https://antimony.run/docs/development/setup/).
+Found a bug or have an idea? [Open an issue](https://github.com/antimony-team/antimony/issues). To work on Antimony, start with the [development setup](https://antimony.run/docs/development/setup/).
 
 ## 📄 License
 

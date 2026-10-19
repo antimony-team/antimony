@@ -17,7 +17,7 @@ export {expect} from '@playwright/test';
  * Marks a test of a bug that isn't fixed yet. The test asserts the correct behaviour and is expected to
  * fail, so the suite stays green; once the bug is fixed, Playwright reports the test as unexpectedly
  * passing. With E2E_KNOWN_BUGS=1 these tests run as normal tests, to check that they fail for the
- * reason they describe. Every known bug is listed in BUGS.md.
+ * reason they describe.
  */
 export function knownBug(description: string) {
   base.fail(!process.env.E2E_KNOWN_BUGS, `Known bug: ${description}`);

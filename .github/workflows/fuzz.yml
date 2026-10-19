@@ -1,4 +1,4 @@
-name: Fuzz backend
+name: Fuzz server
 
 on:
   schedule:
@@ -6,9 +6,15 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   fuzz:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/src
 
     strategy:
       fail-fast: false
@@ -30,11 +36,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: src/go.mod
-          cache-dependency-path: src/go.sum
+          go-version-file: server/src/go.mod
+          cache-dependency-path: server/src/go.sum
 
       - name: Fuzz ${{ matrix.target.name }}
-        working-directory: ./src
         run: go test ${{ matrix.target.package }} -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 10m
 
       # A failing input is written to the package's testdata directory, which git ignores. Add it to the fuzz test's
@@ -44,4 +49,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fuzz-${{ matrix.target.name }}
-          path: src/**/testdata/fuzz/${{ matrix.target.name }}/
+          path: server/src/**/testdata/fuzz/${{ matrix.target.name }}/

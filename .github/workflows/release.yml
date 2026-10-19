@@ -1,87 +1,12 @@
 name: Release
 
-# Pushing a tag like v1.4.2 creates the GitHub release of Antimony with the desktop app and the deployment
-# files. The backend and the interface are tagged with the same version first: their pipelines publish the
-# Docker images, and the desktop app is built from the interface at that tag. The release fails if the images
-# of its version don't exist yet, since both the desktop app and the deployment start them.
+# Creates the GitHub release of Antimony with the desktop app and the deployment files. CI runs it for a tag like
+# v1.4.2, once the images of that version are published and Antimony Desktop is built.
 on:
-  push:
-    tags: [ 'v*' ]
-
-permissions:
-  contents: read
+  workflow_call:
 
 jobs:
-  desktop:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check that the images of this version exist
-        run: |
-          for repository in antimony-server antimony-interface; do
-            image="ghcr.io/antimony-team/$repository:${GITHUB_REF_NAME#v}"
-            if ! docker buildx imagetools inspect "$image" >/dev/null; then
-              echo "::error::$image doesn't exist. Tag $repository with $GITHUB_REF_NAME and wait for its pipeline first."
-              exit 1
-            fi
-          done
-
-      - name: Check out the interface
-        uses: actions/checkout@v5
-        with:
-          repository: antimony-team/antimony-interface
-          ref: ${{ github.ref_name }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: yarn
-
-      # Electron and electron-builder download large binaries outside the yarn cache
-      - name: Cache Electron binaries
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cache/electron
-            ~/.cache/electron-builder
-          key: electron-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: electron-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Install system dependencies
-        # electron-builder needs libarchive-tools and rpm for AppImage assembly, rsvg-convert renders the icons
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libarchive-tools rpm librsvg2-bin
-
-      - name: Set up Task
-        uses: go-task/setup-task@v2
-
-      # The app starts the backend image of its own version
-      - name: Set the version from the tag
-        run: yarn version --new-version "${GITHUB_REF_NAME#v}" --no-git-tag-version
-
-      - name: Build the packages (AppImage, .deb and .rpm for x64 and arm64)
-        run: task package-electron-linux -- --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-
-      - name: Upload the packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: antimony-desktop
-          path: |
-            release/*.AppImage
-            release/*.deb
-            release/*.rpm
-          retention-days: 7
-          if-no-files-found: error
-
   release:
-    needs: desktop
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -95,6 +20,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v5
 
+      # Built by the interface-desktop job of the same CI run
       - name: Download the packages
         uses: actions/download-artifact@v4
         with:

@@ -29,12 +29,17 @@ Antimony was started as a bachelor's thesis at the [OST Eastern Switzerland Univ
 	<LinkCard title="User manual" href="/docs/manual/dashboard/" description="Everything the interface can do." />
 </CardGrid>
 
-## Repositories
+## Source code
 
-| Repository | Contents |
-| --- | --- |
-| [antimony-team/antimony](https://github.com/antimony-team/antimony) | This documentation and example deployment files |
-| [antimony-team/antimony-server](https://github.com/antimony-team/antimony-server) | The Antimony server, written in Go |
-| [antimony-team/antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and Antimony Desktop, written in React and TypeScript |
+Everything is in one repository, [antimony-team/antimony](https://github.com/antimony-team/antimony):
 
-Found a bug or have an idea? Open an issue in the repository it belongs to. Antimony is released under the MIT license.
+```
+antimony/
+├── server/       The Antimony server, written in Go
+├── interface/    The web interface and Antimony Desktop, written in React and Electron
+├── site/         The website with the documentation
+├── .github/      CI, end-to-end tests and releases
+└── docker-compose.yml, config.yml, …   The deployment files that come with every release
+```
+
+Found a bug or have an idea? [Open an issue](https://github.com/antimony-team/antimony/issues). Antimony is released under the MIT license.

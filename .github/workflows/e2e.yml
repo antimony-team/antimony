@@ -1,0 +1,195 @@
+name: End-to-end tests
+
+# The provider tests run the server against a real containerlab and clabernetes, the interface tests drive the
+# interface in a browser against the server of the same commit. Pull requests only run the tests of the parts they
+# change. CI calls this workflow for v* tags, which are only released when it passes.
+on:
+  push:
+    branches: [ development, main ]
+
+  pull_request:
+    branches: [ development, main ]
+
+  workflow_dispatch:
+
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces a run that is still going
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      server: ${{ github.event_name != 'pull_request' || steps.filter.outputs.server == 'true' }}
+      interface: ${{ github.event_name != 'pull_request' || steps.filter.outputs.interface == 'true' }}
+
+    steps:
+      - name: Find the changed parts
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - '.github/workflows/e2e.yml'
+            interface:
+              - 'interface/**'
+              - '.github/workflows/e2e.yml'
+
+  # Runs the provider e2e tests against a real containerlab on the runner's Docker
+  server-containerlab:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: server/src/go.mod
+          cache-dependency-path: server/src/go.sum
+
+      - name: Install Go Task
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Install containerlab
+        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.78.2
+
+      - name: Run the provider e2e tests
+        run: task test-e2e-containerlab
+
+  # Runs the provider e2e tests against clabernetes in a kind cluster
+  server-clabernetes:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: server/src/go.mod
+          cache-dependency-path: server/src/go.sum
+
+      - name: Install Go Task
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Create the kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: c9s
+
+      - name: Install clabernetes
+        run: task install-c9s
+
+      - name: Run the provider e2e tests
+        run: task test-e2e-clabernetes
+        env:
+          ANTIMONY_E2E_KEEP_FAILED: '1'
+
+      - name: Show the cluster state
+        if: failure()
+        run: |
+          kubectl get all,topologies.c9s.run,nodes.c9s.run -A -o wide || true
+          for namespace in $(kubectl get namespaces -o name | sed -n 's|namespace/\(c9s-e2e-.*\)|\1|p'); do
+            kubectl -n "$namespace" describe pods || true
+            kubectl -n "$namespace" get events --sort-by=.lastTimestamp || true
+          done
+          kubectl -n c9s logs deployment/clabernetes-manager --tail=300 || true
+
+  # e2e/scripts/start-backend.sh builds the server in server/ and runs it, so changes to either side run these tests
+  interface:
+    needs: changes
+    if: needs.changes.outputs.server == 'true' || needs.changes.outputs.interface == 'true'
+    runs-on: ubuntu-latest
+    # The suite takes about 20 minutes on one worker locally; CI runners are slower and retry flaky tests
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: interface
+    env:
+      # The tests run the web build; only the desktop packages need Electron
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: server/src/go.mod
+          cache-dependency-path: server/src/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: yarn
+          cache-dependency-path: interface/yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('interface/yarn.lock') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Built up front so compiling doesn't count against the server start timeout
+      - name: Build the server
+        working-directory: server/src
+        run: go build -o /dev/null .
+
+      - name: Run end-to-end tests
+        run: yarn e2e
+
+      - name: Upload test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            interface/e2e/.tmp/report/
+            interface/e2e/.tmp/test-results/
+            interface/e2e/.tmp/backend/server.log
+          retention-days: 14

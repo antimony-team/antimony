@@ -84,7 +84,7 @@ The API on 3000, the interface on 8100 and PostgreSQL on 5432 only listen on `lo
 
 ## Versions
 
-The deployment of a release starts the images of that release, `ghcr.io/antimony-team/antimony-server:<version>` and `ghcr.io/antimony-team/antimony-interface:<version>`. To run another version, set it in `.env`:
+The deployment of a release starts the images of that release, `ghcr.io/antimony-team/antimony/server:<version>` and `ghcr.io/antimony-team/antimony/interface:<version>`. To run another version, set it in `.env`:
 
 ```bash title=".env"
 ANTIMONY_VERSION=%VERSION%   # a release
@@ -100,18 +100,18 @@ curl -fLO https://github.com/antimony-team/antimony/releases/download/v%VERSION%
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
-The release files and the images also carry signed build provenance: a record, signed by GitHub, that they were built by the workflows of the Antimony repositories from the code of that version. Check it with the [GitHub CLI](https://cli.github.com/):
+The release files and the images also carry signed build provenance: a record, signed by GitHub, that they were built by the workflows of the Antimony repository from the code of that version. Check it with the [GitHub CLI](https://cli.github.com/):
 
 ```bash
 gh attestation verify antimony-deployment.tar.gz --repo antimony-team/antimony
-gh attestation verify oci://ghcr.io/antimony-team/antimony-server:%VERSION% --repo antimony-team/antimony-server
-gh attestation verify oci://ghcr.io/antimony-team/antimony-interface:%VERSION% --repo antimony-team/antimony-interface
+gh attestation verify oci://ghcr.io/antimony-team/antimony/server:%VERSION% --owner antimony-team
+gh attestation verify oci://ghcr.io/antimony-team/antimony/interface:%VERSION% --owner antimony-team
 ```
 
 The images also contain a software bill of materials (SBOM), the list of every package inside them, for your vulnerability scanner:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/antimony-team/antimony-server:%VERSION% --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/antimony-team/antimony/server:%VERSION% --format '{{ json .SBOM }}'
 ```
 
 ## Updating

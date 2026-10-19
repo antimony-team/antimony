@@ -109,7 +109,7 @@ At every start, the app:
 
 The server runs like the one of the [Docker deployment](/docs/deployment/docker/): privileged, with access to Docker and the host's network, so that it can run containerlab. It only listens on `127.0.0.1` and uses SQLite instead of PostgreSQL. When you quit the app, its container is removed.
 
-The app uses the server of its own version, `ghcr.io/antimony-team/antimony-server:<version>`. Development builds use `:dev` and check for a newer one at every start.
+The app uses the server of its own version, `ghcr.io/antimony-team/antimony/server:<version>`. Development builds use `:dev` and check for a newer one at every start.
 
 ### Files
 
@@ -130,7 +130,7 @@ The server runs as root in its container, so the files it creates belong to root
 
 | Environment variable | Description |
 | --- | --- |
-| `SB_SERVER_IMAGE` | Server image to start instead of the app's own version, for example `SB_SERVER_IMAGE=ghcr.io/antimony-team/antimony-server:dev`. |
+| `SB_SERVER_IMAGE` | Server image to start instead of the app's own version, for example `SB_SERVER_IMAGE=ghcr.io/antimony-team/antimony/server:dev`. |
 
 The app always uses Docker Engine at `/var/run/docker.sock`. `DOCKER_HOST` doesn't change it.
 
@@ -168,15 +168,15 @@ sudo apt install librsvg2-bin libarchive-tools rpm
 ```
 
 ```bash
-git clone https://github.com/antimony-team/antimony-interface
-cd antimony-interface
+git clone https://github.com/antimony-team/antimony
+cd antimony/interface
 task package-electron-linux
 ```
 
-The AppImages, .deb and .rpm packages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in the backend and start the app with `SB_SERVER_IMAGE=antimony-server:dev`.
+The AppImages, .deb and .rpm packages for x86_64 and ARM64 are in `release/`. Their version comes from `package.json`, which is `0.0.0-dev` outside of releases, so it uses the `:dev` server image. To use your own server image, build it with `task build-docker` in `server/` and start the app with `SB_SERVER_IMAGE=antimony-server:dev`.
 
 Without packaging, `task build-electron` followed by `yarn electron .` starts the app from the repository. It then always uses the local image `antimony-server:dev`, and shows the server's output in your terminal.
 
 ### Releases
 
-The interface's CI builds all packages on every push and pull request and keeps them as the workflow artifact `antimony-desktop`, to catch build failures early. Released packages come from the [Antimony repository](https://github.com/antimony-team/antimony): a `v*` tag there builds them from the interface at the same tag and attaches them to the release. Tag the server first, since the release checks that the server image of that version exists.
+CI builds all packages on every push and pull request and keeps them as the workflow artifact `antimony-desktop`, to catch build failures early. For a `v*` tag, the packages of that run are attached to the release, once the server image of that version is published.

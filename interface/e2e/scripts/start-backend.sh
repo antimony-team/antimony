@@ -7,14 +7,13 @@
 # development mode, which enables the endpoint the fixtures use to create test users. The configuration
 # comes from e2e/backend/.
 #
-# Without SB_E2E_BACKEND_IMAGE, the server is built from a local checkout of antimony-server and run
-# directly, so no image has to be built or downloaded. With it, the image is run in Docker, like in CI.
+# Without SB_E2E_BACKEND_IMAGE, the server is built from server/ in this repository and run directly, like in
+# CI, so no image has to be built or downloaded. With it, the image is run in Docker.
 #
 # Environment:
-#   SB_E2E_BACKEND_IMAGE  Image to run, e.g. ghcr.io/antimony-team/antimony-server:dev or a local
+#   SB_E2E_BACKEND_IMAGE  Image to run, e.g. ghcr.io/antimony-team/antimony/server:dev or a local
 #                         antimony-server:dev. Not set: build and run the local checkout.
-#   SB_E2E_SERVER_DIR     The local antimony-server checkout (default: next to this repository, as
-#                         antimony-server or antimony-backend)
+#   SB_E2E_SERVER_DIR     The server to build (default: server/ in this repository)
 
 set -euo pipefail
 
@@ -38,18 +37,10 @@ rm -rf "$work_dir"
 mkdir -p "$work_dir"
 
 if [[ -z "${SB_E2E_BACKEND_IMAGE:-}" ]]; then
-  server_dir="${SB_E2E_SERVER_DIR:-}"
-  if [[ -z "$server_dir" ]]; then
-    for candidate in "$e2e_dir/../../antimony-server" "$e2e_dir/../../antimony-backend"; do
-      if [[ -f "$candidate/src/go.mod" ]]; then
-        server_dir="$candidate"
-        break
-      fi
-    done
-  fi
-  if [[ -z "$server_dir" || ! -f "$server_dir/src/go.mod" ]]; then
-    echo "No antimony-server checkout found next to this repository. Set SB_E2E_SERVER_DIR to it, or" >&2
-    echo "SB_E2E_BACKEND_IMAGE to an image to run instead." >&2
+  server_dir="${SB_E2E_SERVER_DIR:-$e2e_dir/../../server}"
+  if [[ ! -f "$server_dir/src/go.mod" ]]; then
+    echo "No server found in $server_dir. Set SB_E2E_SERVER_DIR to it, or SB_E2E_BACKEND_IMAGE to an image" >&2
+    echo "to run instead." >&2
     exit 1
   fi
   server_dir="$(cd "$server_dir" && pwd)"
@@ -79,7 +70,7 @@ pull="always"
 if [[ "$image" != */* ]]; then
   pull="never"
   if ! docker image inspect "$image" >/dev/null 2>&1; then
-    echo "The image '$image' does not exist. Build it in the antimony-server repository:" >&2
+    echo "The image '$image' does not exist. Build it in server/:" >&2
     echo "  docker build -t $image ." >&2
     exit 1
   fi

@@ -16,8 +16,8 @@ import zoey from '../../../../assets/zoey/plan.png';
 
 Antimony is made of two applications:
 
-- **The interface** ([antimony-interface](https://github.com/antimony-team/antimony-interface)): a React single-page app. It runs in the browser, or packaged with Electron as [Antimony Desktop](/docs/deployment/desktop-app/). It has no state of its own; everything comes from the server.
-- **The server** ([antimony-server](https://github.com/antimony-team/antimony-server)): a Go application that stores topologies and labs, schedules and deploys labs, streams logs and statistics, and controls who can do what.
+- **The interface** ([`interface/`](https://github.com/antimony-team/antimony/tree/main/interface)): a React single-page app. It runs in the browser, or packaged with Electron as [Antimony Desktop](/docs/deployment/desktop-app/). It has no state of its own; everything comes from the server.
+- **The server** ([`server/`](https://github.com/antimony-team/antimony/tree/main/server)): a Go application that stores topologies and labs, schedules and deploys labs, streams logs and statistics, and controls who can do what.
 
 The server doesn't run network nodes itself. It hands every deployment to a **deployment provider**: containerlab on the local Docker host, or clabernetes on a Kubernetes cluster.
 

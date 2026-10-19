@@ -40,7 +40,7 @@ services:
   interface:
     # ANTIMONY_VERSION picks the version of Antimony, e.g. 1.4.2, or dev for the development branch.
     # The deployment archive of a release has its own version as the default.
-    image: ghcr.io/antimony-team/antimony-interface:${ANTIMONY_VERSION:-latest}
+    image: ghcr.io/antimony-team/antimony/interface:${ANTIMONY_VERSION:-latest}
     restart: unless-stopped
     # Only reachable through Traefik on the same host
     command: ["serve", "-s", "-l", "tcp://127.0.0.1:8100", "."]
@@ -54,7 +54,7 @@ services:
       - traefik.http.services.interface.loadbalancer.server.port=8100
 
   server:
-    image: ghcr.io/antimony-team/antimony-server:${ANTIMONY_VERSION:-latest}
+    image: ghcr.io/antimony-team/antimony/server:${ANTIMONY_VERSION:-latest}
     restart: unless-stopped
     command: -config=./config.yml
     network_mode: host

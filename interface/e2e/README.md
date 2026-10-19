@@ -9,12 +9,10 @@ interface sees the same API calls, socket events, logs and shells as with a real
 Prerequisites:
 
 - The server, one of:
-  - **A checkout of antimony-server** next to this repository (as `antimony-server` or
-    `antimony-backend`), and Go. The tests build and run it directly, no Docker image needed. Set
-    `SB_E2E_SERVER_DIR` if the checkout is somewhere else.
-  - **A server image**, e.g. `SB_E2E_BACKEND_IMAGE=ghcr.io/antimony-team/antimony-server:dev yarn e2e`,
-    or a local one built with `docker build -t antimony-server:dev .`. CI uses the published `:dev`
-    image.
+  - **The server in `server/`**, and Go. The tests build and run it directly, no Docker image needed,
+    like CI. Set `SB_E2E_SERVER_DIR` to test another checkout.
+  - **A server image**, e.g. `SB_E2E_BACKEND_IMAGE=ghcr.io/antimony-team/antimony/server:dev yarn e2e`,
+    or a local one built with `docker build -t antimony-server:dev .` in `server/`.
 - The Playwright browser, once: `npx playwright install chromium`
 
 Commands:
@@ -90,5 +88,4 @@ e2e/
 Tests of bugs that aren't fixed yet assert the correct behaviour and start with `knownBug('…')`, which
 marks them as expected to fail, so the suite stays green. When a bug gets fixed, Playwright reports the
 test as unexpectedly passing; then remove the `knownBug()` line. Run `E2E_KNOWN_BUGS=1 yarn e2e` to see
-these tests fail, and check that they fail for the reason they describe. All known bugs are listed in
-`BUGS.md` in the repository root.
+these tests fail, and check that they fail for the reason they describe.
