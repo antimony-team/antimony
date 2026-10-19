@@ -1,0 +1,18 @@
+package lab
+
+import (
+	"github.com/gin-gonic/gin"
+
+	"github.com/antimony-team/antimony-server/auth"
+)
+
+func RegisterRoutes(route *gin.Engine, handler *Handler, authManager *auth.Manager) {
+	routes := route.Group("/labs", authManager.AuthenticatorMiddleware())
+	{
+		routes.GET("", handler.Get)
+		routes.GET("/:labId", handler.GetByUuid)
+		routes.POST("", handler.Create)
+		routes.PATCH("/:labId", handler.Update)
+		routes.DELETE("/:labId", handler.Delete)
+	}
+}

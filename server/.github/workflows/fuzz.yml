@@ -1,0 +1,47 @@
+name: Fuzz backend
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Go fuzzes one target at a time, so every target gets a job of its own
+        target:
+          - { package: ./policy, name: FuzzCheck }
+          - { package: ./policy, name: FuzzIsOwnFile }
+          - { package: ./policy, name: FuzzCheckFileReference }
+          - { package: ./policy, name: FuzzHashInput }
+          - { package: ./deployment, name: FuzzParseRemoteStats }
+          - { package: ./sshserver, name: FuzzParseCaptureCommand }
+          - { package: ./domain/lab, name: FuzzRenameDefinition }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Fuzz ${{ matrix.target.name }}
+        working-directory: ./src
+        run: go test ${{ matrix.target.package }} -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 10m
+
+      # A failing input is written to the package's testdata directory, which git ignores. Add it to the fuzz test's
+      # seeds with f.Add to keep it as a regular test case
+      - name: Upload the failing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target.name }}
+          path: src/**/testdata/fuzz/${{ matrix.target.name }}/

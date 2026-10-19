@@ -1,0 +1,454 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"slices"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/joho/godotenv"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	socketio "github.com/zishang520/socket.io/servers/socket/v3"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony-server/deployment"
+	_ "github.com/antimony-team/antimony-server/docs"
+	"github.com/antimony-team/antimony-server/domain/collection"
+	"github.com/antimony-team/antimony-server/domain/device"
+	"github.com/antimony-team/antimony-server/domain/lab"
+	"github.com/antimony-team/antimony-server/domain/schema"
+	"github.com/antimony-team/antimony-server/domain/serverconfig"
+	"github.com/antimony-team/antimony-server/domain/statusmessage"
+	"github.com/antimony-team/antimony-server/domain/topology"
+	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony-server/policy"
+	"github.com/antimony-team/antimony-server/runtime/commands"
+	"github.com/antimony-team/antimony-server/runtime/instance"
+	"github.com/antimony-team/antimony-server/runtime/scheduler"
+	"github.com/antimony-team/antimony-server/runtime/shell"
+	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony-server/sshserver"
+	"github.com/antimony-team/antimony-server/storage"
+	collectiontransport "github.com/antimony-team/antimony-server/transport/http/collection"
+	"github.com/antimony-team/antimony-server/transport/http/cors"
+	devicetransport "github.com/antimony-team/antimony-server/transport/http/device"
+	labtransport "github.com/antimony-team/antimony-server/transport/http/lab"
+	schematransport "github.com/antimony-team/antimony-server/transport/http/schema"
+	serverconfigtransport "github.com/antimony-team/antimony-server/transport/http/serverconfig"
+	topologytransport "github.com/antimony-team/antimony-server/transport/http/topology"
+	usertransport "github.com/antimony-team/antimony-server/transport/http/user"
+	"github.com/antimony-team/antimony-server/utils"
+)
+
+//	@Title		Antimony API
+//	@Version	1.0
+//	@Desciption	The Antimony API that connects to containerlab.
+
+//	@Contact.name	Institute for Networking at OST
+//	@Contact.url	https://www.ost.ch/en/research-and-consulting-services/computer-science/ins-institute-for-network-and-security
+//	@Contact.email	antimony@network.garden
+
+//	@BasePath	/
+
+// shutdownTimeout is how long running HTTP requests get to finish when the server shuts down.
+const shutdownTimeout = 10 * time.Second
+
+// @securityDefinitions.basic	BasicAuth
+func main() {
+	// Load environment variables from .env file if present
+	_ = godotenv.Load()
+
+	log.SetTimeFormat("[2006-01-02 15:04:05]")
+
+	cmdArgs := utils.ParseArguments()
+	isDevMode := *cmdArgs.DevelopmentMode
+
+	if isDevMode {
+		log.Warn("Antimony is starting Development mode. Do not use in production.")
+
+		// Set the umask to 0 so that lab and topology files are created with loose permissions
+		syscall.Umask(0)
+	}
+
+	if lvl, err := log.ParseLevel(os.Getenv("SB_LOG_LEVEL")); err == nil {
+		log.Info("Starting with custom log level", "level", lvl.String())
+		log.SetLevel(lvl)
+	} else if isDevMode {
+		log.Info("Starting in development mode with custopm log level", "level", "debug")
+		log.SetLevel(log.DebugLevel)
+		log.SetReportCaller(true)
+	}
+
+	antimonyConfig, err := config.Load(*cmdArgs.ConfigFile)
+	if err != nil {
+		log.Error("Failed to load configuration file.", "error", err.Error())
+		return
+	}
+
+	// Infrastructure components
+	var (
+		db                 = connectToDatabase(*cmdArgs.UseLocalDatabase, antimonyConfig)
+		authManager        = auth.CreateManager(antimonyConfig)
+		socketManager      = socket.CreateManager(authManager)
+		storageManager     = storage.CreateManager(antimonyConfig, isDevMode)
+		deploymentProvider = deployment.CreateProvider(antimonyConfig)
+	)
+
+	// The lab event bus allows communication of runtime and domain components with the scheduler.
+	//
+	// Supported Events:
+	//  - lab.created           -> A new lab is created and put into the deployment and destruction queues.
+	//  - lab.moved             -> A lab's start or end time has been changed, and it will be rescheduled accordingly.
+	//  - lab.deleted           -> A lab is deleted and will be removed from the deployment and destruction queues.
+	//  - lab.manually-deployed -> A lab has been manually deployed and will be moved from the deployment into the destruction queue.
+	//  - lab.restored          -> A running lab has been restored and will be added to the destruction queue.
+	labEventBus := utils.CreateEventBus[*lab.Lab]()
+
+	// Global socket namespaces
+	var (
+		statusMessageNamespace = socket.CreateOutputNamespace[statusmessage.Message](
+			socketManager, false, nil, false, nil, "status-messages",
+		)
+	)
+
+	// Domain repository layer components
+	var (
+		labRepository        = lab.CreateRepository(db)
+		userRepository       = user.CreateRepository(db)
+		topologyRepository   = topology.CreateRepository(db)
+		collectionRepository = collection.CreateRepository(db)
+	)
+
+	topologyPolicyEngine := policy.CreateEngine(policy.Options{
+		AllowedImagePrefixes: antimonyConfig.Security.AllowedImagePrefixes,
+	})
+
+	// Domain service layer components
+	var (
+		devicesService      = device.CreateService(antimonyConfig)
+		schemaService       = schema.CreateService(antimonyConfig)
+		serverConfigService = serverconfig.CreateService(antimonyConfig)
+		userService         = user.CreateService(userRepository, authManager, antimonyConfig)
+		collectionService   = collection.CreateService(collectionRepository, userRepository)
+
+		topologyService = topology.CreateService(
+			topologyRepository,
+			userRepository,
+			collectionRepository,
+			schemaService,
+			storageManager,
+			topologyPolicyEngine,
+		)
+
+		labService = lab.CreateService(
+			labRepository,
+			userRepository,
+			topologyRepository,
+			schemaService,
+			topologyService,
+			storageManager,
+			antimonyConfig,
+			labEventBus,
+			topologyPolicyEngine,
+			statusMessageNamespace,
+		)
+	)
+
+	collectionService.SetLabRemover(labService)
+	collectionService.SetTopologyRemover(topologyService)
+
+	// Runtime services and components
+	instanceService, shellService := createRuntime(
+		antimonyConfig,
+		socketManager,
+		storageManager,
+		labRepository,
+		labService,
+		schemaService,
+		topologyService,
+		labEventBus,
+		deploymentProvider,
+		statusMessageNamespace,
+	)
+
+	labScheduler := scheduler.CreateScheduler(antimonyConfig, instanceService, labEventBus)
+	go labScheduler.Run()
+
+	// After the scheduler is subscribed is it safe to restore the labs that survived the last shutdown. The revive
+	// function publishes 'lab.restored' and 'lab.created', and the event bus has no replay, so anything published
+	// before this point would be dropped.
+	instanceService.Revive()
+
+	commands.CreateHandler(shellService, instanceService, socketManager)
+
+	sshServer := sshserver.Create(antimonyConfig, shellService, instanceService, deploymentProvider)
+	webServer := createWebServer(
+		authManager,
+		socketManager,
+		labService,
+		userService,
+		schemaService,
+		devicesService,
+		instanceService,
+		topologyService,
+		collectionService,
+		serverConfigService,
+		slices.Contains(antimonyConfig.Auth.Methods, config.AuthMethods.Desktop),
+		isDevMode,
+	)
+
+	webConnection := fmt.Sprintf("%s:%d", antimonyConfig.Server.Host, antimonyConfig.Server.Port)
+	sshConnection := fmt.Sprintf("%s:%d", antimonyConfig.SSH.SSHHost, antimonyConfig.SSH.SSHPort)
+	httpServer := &http.Server{Addr: webConnection, Handler: webServer}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var serverWaitGroup sync.WaitGroup
+
+	serverWaitGroup.Add(1)
+	go startWebServer(httpServer, webConnection, &serverWaitGroup)
+
+	if antimonyConfig.SSH.Enabled {
+		serverWaitGroup.Add(1)
+		go startSshServer(sshServer, sshConnection, &serverWaitGroup)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if antimonyConfig.SSH.Enabled {
+		log.Info("Antimony API is running and ready to serve calls!", "api", webConnection, "ssh", sshConnection)
+	} else {
+		log.Info("Antimony API is running and ready to serve calls!", "api", webConnection)
+	}
+
+	serversDone := make(chan struct{})
+	go func() {
+		serverWaitGroup.Wait()
+		close(serversDone)
+	}()
+
+	select {
+	case <-ctx.Done():
+		// From now on, another signal ends the process right away
+		stop()
+		log.Info("Shutting down, press Ctrl+C again to force it")
+	case <-serversDone:
+		// The servers failed to start
+	}
+
+	shutdown(httpServer, socketManager, sshServer, labScheduler, shellService, instanceService)
+	serverWaitGroup.Wait()
+
+	log.Info("Antimony has shut down")
+}
+
+// shutdown stops taking new requests, sessions, and deployments, then closes everything that is still running. The
+// labs keep running, Revive picks them up again on the next start.
+func shutdown(
+	httpServer *http.Server,
+	socketManager *socket.Manager,
+	sshServer *sshserver.Server,
+	labScheduler *scheduler.Scheduler,
+	shellService *shell.Service,
+	instanceService *instance.Service,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	// The HTTP server doesn't wait for or close hijacked connections, i.e., websockets. Closing socket.io first also
+	// ends its long-polling requests, which the HTTP server would otherwise wait for.
+	socketManager.Server().Close(nil)
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Warn("Failed to shut down the web server gracefully", "err", err.Error())
+	}
+	sshServer.Close()
+
+	labScheduler.Close()
+	shellService.Close()
+	instanceService.Close()
+}
+
+func createWebServer(
+	authManager *auth.Manager,
+	socketManager *socket.Manager,
+	labService *lab.Service,
+	userService *user.Service,
+	schemaService *schema.Service,
+	devicesService *device.Service,
+	instanceService *instance.Service,
+	topologyService *topology.Service,
+	collectionService *collection.Service,
+	serverConfigService *serverconfig.Service,
+	isDesktopEnabled bool,
+	isDevMode bool,
+) *gin.Engine {
+	var (
+		labHandler          = labtransport.CreateHandler(labService, instanceService)
+		userHandler         = usertransport.CreateHandler(userService)
+		devicesHandler      = devicetransport.CreateHandler(devicesService)
+		schemaHandler       = schematransport.CreateHandler(schemaService)
+		topologyHandler     = topologytransport.CreateHandler(topologyService)
+		collectionHandler   = collectiontransport.CreateHandler(collectionService)
+		serverConfigHandler = serverconfigtransport.CreateHandler(serverConfigService)
+	)
+
+	gin.SetMode(gin.ReleaseMode)
+	webServer := gin.Default()
+
+	// Registered before the routes, so it also answers preflight requests, which have no route
+	webServer.Use(cors.Middleware(isDesktopEnabled))
+
+	// Register public HTTP endpoints
+	usertransport.RegisterRoutes(webServer, userHandler)
+
+	if isDevMode {
+		usertransport.RegisterDevRoutes(webServer, userHandler, authManager)
+	}
+	schematransport.RegisterRoutes(webServer, schemaHandler)
+
+	// Register authenticated HTTP endpoints
+	labtransport.RegisterRoutes(webServer, labHandler, authManager)
+	devicetransport.RegisterRoutes(webServer, devicesHandler, authManager)
+	topologytransport.RegisterRoutes(webServer, topologyHandler, authManager)
+	collectiontransport.RegisterRoutes(webServer, collectionHandler, authManager)
+	serverconfigtransport.RegisterRoutes(webServer, serverConfigHandler, authManager)
+
+	// Register Socket.IO endpoints in web server
+	c := socketio.DefaultServerOptions()
+	webServer.GET("/socket.io/*any", gin.WrapH(socketManager.Server().ServeHandler(c)))
+	webServer.POST("/socket.io/*any", gin.WrapH(socketManager.Server().ServeHandler(c)))
+
+	webServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	return webServer
+}
+
+func createRuntime(
+	config *config.AntimonyConfig,
+	socketManager *socket.Manager,
+	storageManager *storage.Manager,
+	labRepo *lab.Repository,
+	labService *lab.Service,
+	schemaService *schema.Service,
+	topologyService *topology.Service,
+	labEventBus *utils.EventBus[*lab.Lab],
+	deploymentProvider deployment.DeploymentProvider,
+	statusMessageNamespace *socket.OutputNamespace[statusmessage.Message],
+) (*instance.Service, *shell.Service) {
+	instanceService := instance.CreateService(
+		config,
+		schemaService,
+		labRepo,
+		topologyService,
+		storageManager,
+		socketManager,
+		labEventBus,
+		statusMessageNamespace,
+		deploymentProvider,
+	)
+
+	shellService := shell.CreateService(config, labRepo, instanceService, socketManager, deploymentProvider)
+
+	// Wire instance service back to lab service through shared interface
+	labService.SetRuntimeService(instanceService)
+
+	return instanceService, shellService
+}
+
+func connectToDatabase(useLocalDatabase bool, config *config.AntimonyConfig) *gorm.DB {
+	var (
+		db  *gorm.DB
+		err error
+	)
+
+	if useLocalDatabase {
+		log.Info("Connecting to local SQLite database", "path", config.Database.LocalFile)
+		if err := os.MkdirAll(filepath.Dir(config.Database.LocalFile), 0750); err != nil {
+			log.Fatal("Failed to create database file", "path", config.Database.Database)
+		}
+		db, err = gorm.Open(sqlite.Open(config.Database.LocalFile), &gorm.Config{})
+	} else {
+		connection := fmt.Sprintf(
+			"%s@%s:%d/%s",
+			config.Database.User,
+			config.Database.Host,
+			config.Database.Port,
+			config.Database.Database,
+		)
+		log.Info("Connecting to remote PostgreSQL database", "conn", connection)
+
+		dsn := fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%d",
+			config.Database.Host,
+			config.Database.User,
+			os.Getenv("SB_DATABASE_PASSWORD"),
+			config.Database.Database,
+			config.Database.Port,
+		)
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	}
+
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %s", err.Error())
+		os.Exit(1)
+	}
+
+	err = db.AutoMigrate(&lab.Lab{})
+	if err != nil {
+		log.Fatalf("Failed to migrate labs to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&user.User{})
+	if err != nil {
+		log.Fatalf("Failed to migrate users to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&topology.BindFile{})
+	if err != nil {
+		log.Fatalf("Failed to migrate bind files to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&topology.Topology{})
+	if err != nil {
+		log.Fatalf("Failed to migrate topologies to database: %s", err.Error())
+	}
+
+	err = db.AutoMigrate(&collection.Collection{})
+	if err != nil {
+		log.Fatalf("Failed to migrate collections to database: %s", err.Error())
+	}
+
+	return db
+}
+
+func startWebServer(server *http.Server, connection string, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Errorf("Failed to start web server on %s: %s", connection, err.Error())
+	}
+}
+
+func startSshServer(server *sshserver.Server, connection string, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	if err := server.Start(); err != nil {
+		log.Errorf("Failed to start SSH server on %s: %s", connection, err.Error())
+	}
+}
