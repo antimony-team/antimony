@@ -1,5 +1,5 @@
 import {ApiError, topologyDefinition} from '../fixtures/api';
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {clickGraphNode} from '../helpers/cytoscape';
 import {DashboardPage} from '../pages/dashboard-page';
 import {menuItem, toast} from '../pages/dialogs';
@@ -138,9 +138,6 @@ test.describe('server rules', () => {
     createTopology,
     createUser,
   }) => {
-    knownBug(
-      "bind files and deleting a topology only check the creator, not the collection's publicWrite",
-    );
     const collection = await createCollection({publicWrite: true});
     const creator = await createUser({collections: [collection]});
     const topology = await createTopology({collection, by: creator});

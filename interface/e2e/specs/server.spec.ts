@@ -1,27 +1,25 @@
 import {io} from 'socket.io-client';
 
 import {ApiError, InstanceState, topologyDefinition} from '../fixtures/api';
-import {expect, knownBug, test} from '../fixtures/test';
+import {expect, test} from '../fixtures/test';
 import {BACKEND_URL} from '../settings';
 
 /*
  * Server behaviour that the interface relies on but can't show directly: what is enforced when, and who
- * hears about what. Most of these are known bugs found while reading the server's code.
+ * hears about what.
  */
 
 const unsafe = (name: string) =>
   `name: ${name}\ntopology:\n  nodes:\n    host1:\n      kind: linux\n      image: alpine:latest\n      privileged: true\n`;
 
-test('a lab created from a safe topology can not be deployed once it is unsafe', async ({
+// A lab keeps the approval it got when it was created, see the docs on the topology policy
+test('a lab deploys the topology it was created with, even once the topology is unsafe', async ({
   api,
   createCollection,
   createTopology,
   createUser,
   uniqueName,
 }) => {
-  knownBug(
-    'the topology policy is only checked when a lab is created, not when it is deployed later',
-  );
   const collection = await createCollection({publicDeploy: true});
   const topology = await createTopology({collection, nodes: ['host1']});
   const user = await createUser({collections: [collection]});
@@ -31,8 +29,16 @@ test('a lab created from a safe topology can not be deployed once it is unsafe',
   await api.updateTopology(topology.id, {definition: unsafe(topology.name)});
 
   const answer = await user.api.command(0, labId);
-  if (!answer.code) await api.destroyLab(labId).catch(() => {});
-  expect(answer.code).toBe(5403);
+  expect(answer.code).toBeUndefined();
+  await api.waitForLab(
+    labId,
+    lab => lab.instance?.state === InstanceState.Running,
+  );
+
+  expect((await api.getLab(labId)).topologyDefinition).not.toContain(
+    'privileged',
+  );
+  await api.destroyLab(labId);
 });
 
 test("users don't hear about labs of collections they aren't in", async ({
@@ -40,9 +46,6 @@ test("users don't hear about labs of collections they aren't in", async ({
   createLab,
   createUser,
 }) => {
-  knownBug(
-    'status messages and lab updates about every lab are sent to every signed-in user',
-  );
   const lab = await createLab();
   const outsider = await createUser();
   const received: string[] = [];
@@ -74,9 +77,6 @@ test('destroying a lab that is not running leaves its schedule alone', async ({
   api,
   createLab,
 }) => {
-  knownBug(
-    'destroying a lab that is not running removes it from the schedule before failing, so it never starts',
-  );
   const lab = await createLab({startTime: new Date(Date.now() + 3000)});
 
   const answer = await api.command(1, lab.id);
@@ -94,9 +94,6 @@ test('a page of labs is full for users who are not admins', async ({
   createLab,
   createUser,
 }) => {
-  knownBug(
-    "GET /labs applies limit and offset before leaving out other collections' labs, so pages come back short",
-  );
   const theirs = await createCollection();
   const mine = await createCollection();
   // Other labs first, so they fill the first page before the filter runs
@@ -115,7 +112,6 @@ test('a lab can not end before it starts', async ({
   createTopology,
   uniqueName,
 }) => {
-  knownBug('the server accepts labs whose end time is before their start time');
   const topology = await createTopology();
   const start = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
@@ -136,9 +132,6 @@ test('collection and lab names are checked on the server', async ({
   api,
   createTopology,
 }) => {
-  knownBug(
-    'the server accepts empty collection and lab names, and slashes in collection names',
-  );
   const topology = await createTopology();
 
   const emptyLab = await api.raw('POST', '/labs', {

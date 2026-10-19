@@ -73,6 +73,8 @@ export type LabOut = {
   topologyId: string | null;
   collectionId: string;
   creator: {id: string; name: string};
+  // The copy of the topology the lab was created with, which it deploys
+  topologyDefinition: string;
   instance: {
     name: string;
     state: InstanceState;
