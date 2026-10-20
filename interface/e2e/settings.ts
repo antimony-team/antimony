@@ -19,6 +19,16 @@ export const INTERFACE_PORT = 4180;
 export const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 export const BASE_URL = `http://127.0.0.1:${INTERFACE_PORT}`;
 
+// The deployment provider of the server: dummy, or containerlab for the tests in e2e/provider/
+export function provider() {
+  return process.env.SB_E2E_PROVIDER ?? 'dummy';
+}
+
+// How long deploying and destroying a lab may take. A real provider starts containers.
+export function labTimeout() {
+  return provider() === 'dummy' ? 15_000 : 180_000;
+}
+
 // The admin the backend is started with
 export const ADMIN = {username: 'admin', password: 'admin'};
 

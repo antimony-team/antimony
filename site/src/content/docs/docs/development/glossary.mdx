@@ -5,8 +5,10 @@ description: Terms used in Antimony and its documentation.
 
 | Term | Meaning |
 | --- | --- |
+| **Admin login** | Signing in with the single admin account configured through `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`. |
 | **Administrator** | A user who can do everything in Antimony: the admin account, or an OpenID user in one of `auth.openIdAdminGroups`. |
 | **Antimony** | This platform. Also a chemical element with the symbol Sb, which is why configuration variables start with `SB_`. |
+| **Antimony Desktop** | The [desktop app](/docs/deployment/desktop-app/) for Linux. It starts its own Antimony server in Docker and signs you in. |
 | **Bind file** | A file that belongs to a topology and is mounted into a node when the lab starts, for example a startup configuration. |
 | **c9s** | Short for clabernetes. |
 | **clabernetes** | A Kubernetes controller that runs containerlab topologies on a cluster. One of Antimony's deployment providers. |
@@ -18,7 +20,6 @@ description: Terms used in Antimony and its documentation.
 | **Instance name** | The unique name a lab is deployed under: the topology name plus a random suffix. |
 | **Kind** | The containerlab node type, such as `nokia_srlinux` or `linux`. |
 | **Lab** | A deployment of a topology with a start and end time. |
-| **Admin login** | Signing in with the single admin account configured through `SB_ADMIN_USERNAME` and `SB_ADMIN_PASSWORD`. |
 | **Node** | One device in a running lab: a container or a pod. |
 | **Recovered** | A lab the server found still running after a restart and reattached to. |
 | **Run directory** | The directory with a lab's own copy of its topology and bind files. |

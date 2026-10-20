@@ -95,7 +95,7 @@ gh attestation verify antimony-desktop-%VERSION%-amd64.deb --repo antimony-team/
 - **Quit Antimony** in the tray menu stops the server. Running labs keep running, and the server picks them up again at the next start.
 - **Only one instance runs at a time.** Starting the app again opens the existing window.
 
-Terminals, packet capture and everything else work as in the web version. **Copy SSH command** and **Copy capture command** use the server the app started, on `127.0.0.1`.
+Terminals, packet capture and everything else work as in the web version. **Copy SSH command** and **Copy capture command** use the server the app started, on `127.0.0.1`. There is no **Log out** button, and the lab details have no **Copy link**, since a link to the app's own server can't be shared.
 
 <Aside type="note" title="Tray icons on GNOME">
 	GNOME only shows tray icons with an extension such as [AppIndicator Support](https://extensions.gnome.org/extension/615/appindicator-support/). Without one, a closed window can only be opened again by starting the app again.
@@ -144,6 +144,7 @@ The app always uses Docker Engine at `/var/run/docker.sock`. `DOCKER_HOST` doesn
 | --- | --- |
 | "Antimony needs Docker Engine, but only Docker Desktop was found." | Install Docker Engine. Both can be installed side by side. |
 | "You aren't allowed to use Docker." | Add your user to the `docker` group, then log out and in again. |
+| "Docker Engine isn't running." | Start it, for example with `sudo systemctl start docker`. |
 | "The Antimony server … couldn't be downloaded: manifest unknown" | There is no server image for this version. Use a released version of Antimony Desktop, or start the app with `SB_SERVER_IMAGE`. |
 | "The Antimony server stopped unexpectedly." | See `server.log` in `~/.config/Antimony`. |
 
@@ -183,4 +184,4 @@ Without packaging, `task build-electron` followed by `yarn electron .` starts th
 
 ### Releases
 
-CI builds all packages on every push and pull request and keeps them as the workflow artifact `antimony-desktop`, to catch build failures early. For a `v*` tag, the packages of that run are attached to the release, once the server image of that version is published.
+CI builds all packages on every push to `development` and `main` and on pull requests that change the interface, and keeps them as the workflow artifact `antimony-desktop`, to catch build failures early. For a `v*` tag, the packages of that run are attached to the release, once the images of that version are published and the end-to-end tests have passed.

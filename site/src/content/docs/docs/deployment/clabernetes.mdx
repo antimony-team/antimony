@@ -92,7 +92,7 @@ Start from the [Docker deployment](/docs/deployment/docker/). Then:
 
 1. Antimony **compiles the topology locally** with the clabernetes compiler. Topologies that use features clabernetes doesn't support, such as `macvlan` endpoints or custom management networks, fail right away with `topology is not supported by clabernetes: …`. See the [containerlab differences](https://containerlab.dev/manual/clabernetes/) in the clabernetes docs.
 2. It **removes all containerlab `labels`** from the definition. Older topologies store their [graph layout in labels](/docs/manual/topology-editor/#layout-in-labels-older-topologies), and clabernetes rejects some of those values.
-3. It creates a **namespace** named `c9s-<instance name>` and a **`Topology`** resource (`topologies.c9s.run`) with the same name. Nodes are not exposed outside the cluster (`exposeType: None`); you reach them through Antimony.
+3. It creates a **namespace** named `c9s-<instance name>` and a **`Topology`** resource (`topologies.c9s.run`) named after the instance. The [instance name](/docs/architecture/overview/#files-on-disk) is derived from the topology name and kept short enough for a valid namespace name. Nodes are not exposed outside the cluster (`exposeType: None`); you reach them through Antimony.
 4. It **waits up to 10 minutes** for the topology to become ready. Progress (`Deployment status: 3/5 nodes ready`), pod events and image pulls appear in the lab's deployment log.
 
 You can follow along with `kubectl`:
@@ -110,7 +110,7 @@ When you **stop the lab**, Antimony force-deletes the node pods and the namespac
 | --- | --- |
 | **Stop node** | Labels the clabernetes `Node` resource with `c9s.run/ignoreReconcile: "true"` and scales the node's Deployment to 0. |
 | **Start node** | Removes the label and scales the Deployment back to 1. |
-| **Restart node** | Deletes the node's pod; clabernetes recreates it. |
+| **Restart node** | Deletes the node's pod; clabernetes recreates it. A stopped node is started instead. |
 
 ### How nodes are reached
 
@@ -161,7 +161,7 @@ rules:
     verbs: [list]
   - apiGroups: [apps]
     resources: [deployments]
-    verbs: [list, watch, patch]
+    verbs: [get, list, watch, patch]
   - apiGroups: [c9s.run]
     resources: [topologies]
     verbs: [create, get, update]
@@ -178,7 +178,6 @@ rules:
 
 - **Fixed timeouts.** Deploying times out after 10 minutes, which large images on a cold cluster can hit. Pre-pull big network OS images on the workers.
 - **No external node access.** Nodes are only reachable through Antimony's terminals and capture.
-- **Lab names.** Each lab's namespace name is derived from its topology name. Keep topology names short and lowercase so the namespace name stays valid in Kubernetes.
 
 ## Troubleshooting
 

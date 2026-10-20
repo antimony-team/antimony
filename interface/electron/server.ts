@@ -215,7 +215,7 @@ export async function startServer(
   const token = secret();
   const configPath = writeConfig(dataDir, port, sshPort);
 
-  // Like the server of the Docker deployment, see docker-compose.yml in the antimony repository
+  // Like the server of the Docker deployment, see docker-compose.yml at the root of this repository
   const id = await runContainer(CONTAINER_NAME, {
     Image: image,
     Cmd: [`-config=${configPath}`, '-sqlite'],

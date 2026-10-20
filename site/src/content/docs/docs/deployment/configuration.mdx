@@ -22,7 +22,7 @@ Every key is optional. Antimony starts from built-in defaults and overrides what
 </Aside>
 
 <Aside type="note" title="The Docker image has no config file">
-	The backend repository's `config.default.yml` lists every setting with its default, but the Docker image doesn't contain a config file. Mount your own, as the [Docker deployment](/docs/deployment/docker/) does.
+	[`server/config.default.yml`](https://github.com/antimony-team/antimony/blob/main/server/config.default.yml) in the Antimony repository lists every setting with its default, but the Docker image doesn't contain a config file. Mount your own, as the [Docker deployment](/docs/deployment/docker/) does.
 </Aside>
 
 A complete example with the defaults:
@@ -97,7 +97,7 @@ Relative paths resolve against the server's working directory. In the Docker ima
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `provider` | `containerlab` | How labs are deployed: `containerlab` (Docker on the same host), `clabernetes` ([Kubernetes](/docs/deployment/clabernetes/)) or `dummy`. The value isn't case-sensitive. An unknown value stops the server. |
+| `provider` | `containerlab` | How labs are deployed: `containerlab` (Docker on the same host), `clabernetes` ([Kubernetes](/docs/deployment/clabernetes/)) or `dummy`. The value is case-sensitive. An unknown value stops the server. |
 
 The `dummy` provider deploys nothing. It simulates labs with fake nodes, logs and statistics, which is useful for trying out the interface or running the end-to-end tests. Packet capture isn't available with it.
 

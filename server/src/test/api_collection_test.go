@@ -2,6 +2,7 @@ package test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -127,6 +128,34 @@ func TestCreateCollection_DuplicateNameIsRejected(t *testing.T) {
 	response.RequireError(http.StatusBadRequest, 2001)
 }
 
+// Collection names are part of the SSH address of a node, "<collection>/<lab>/<node>", and must match the group
+// names of the OpenID provider
+var invalidCollectionNames = []string{"", "core/edge", "-flag", "a;b", "it's", strings.Repeat("a", 65)}
+
+func TestCreateCollection_NameMustBeValid(t *testing.T) {
+	h := NewHarness(t)
+
+	for _, name := range invalidCollectionNames {
+		t.Run(name, func(t *testing.T) {
+			errorResponse := h.POST("/collections", collection.CollectionIn{
+				Name:         ptr(name),
+				PublicWrite:  ptr(true),
+				PublicDeploy: ptr(true),
+			}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 2002)
+
+			assert.Contains(t, errorResponse.Message, "the name of the collection is invalid")
+		})
+	}
+
+	t.Run("letters, digits, spaces and . _ - are fine", func(t *testing.T) {
+		h.POST("/collections", collection.CollectionIn{
+			Name:         ptr("Networks 101_a-b.c"),
+			PublicWrite:  ptr(true),
+			PublicDeploy: ptr(true),
+		}, h.Seed.Admin.Token).RequireOk(nil)
+	})
+}
+
 func TestCreateCollection_MissingRequiredFieldsAreRejected(t *testing.T) {
 	h := NewHarness(t)
 
@@ -173,6 +202,22 @@ func TestUpdateCollection_OwnerCanRename(t *testing.T) {
 	stored, err := h.CollectionRepo.GetByUuid(t.Context(), h.Seed.Private.UUID)
 	require.NoError(t, err)
 	assert.Equal(t, "renamed-private", stored.Name)
+}
+
+func TestUpdateCollection_NameMustBeValid(t *testing.T) {
+	h := NewHarness(t)
+
+	for _, name := range invalidCollectionNames {
+		t.Run(name, func(t *testing.T) {
+			h.PATCH("/collections/"+h.Seed.Private.UUID, collection.CollectionInPartial{
+				Name: ptr(name),
+			}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 2002)
+
+			stored, err := h.CollectionRepo.GetByUuid(t.Context(), h.Seed.Private.UUID)
+			require.NoError(t, err)
+			assert.Equal(t, CollectionPrivate, stored.Name)
+		})
+	}
 }
 
 func TestUpdateCollection_CanTogglePermissionFlagsIndependently(t *testing.T) {

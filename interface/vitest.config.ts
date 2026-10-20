@@ -10,6 +10,7 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
+    unstubGlobals: true,
     coverage: {
       provider: 'v8',
       include: ['src/lib/**/*.ts'],

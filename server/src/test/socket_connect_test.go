@@ -363,3 +363,40 @@ func TestSocketConnect_LabLogsAreLimitedToTheLabsCollection(t *testing.T) {
 		})
 	}
 }
+
+/*
+ * Node stats namespace access.
+ */
+
+func TestSocketConnect_NodeStatsAreLimitedToTheLabsCollection(t *testing.T) {
+	h := NewHarness(t)
+
+	h.DeployLab(LabAdminID)
+
+	// The monitor creates a node's stats namespace once it starts watching the node
+	requireEventually(t, func() bool {
+		return h.Provider.WasCalled("ReadNodeStats")
+	}, "the monitor must begin polling node stats")
+
+	node := h.Provider.Node(InstanceAdminLab, NodeHost)
+	require.NotNil(t, node)
+
+	namespace := "/stats/" + node.ContainerId
+
+	cases := []struct {
+		name   string
+		token  string
+		reason string
+	}{
+		{"an admin", h.Seed.Admin.Token, ""},
+		{"an admin without memberships", h.Seed.AdminBare.Token, ""},
+		{"a member of the lab's collection", h.Seed.Member.Token, ""},
+		{"a non-member", h.Seed.Outsider.Token, "No Access"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.reason, h.RawConnectError(namespace, map[string]any{"token": c.token}))
+		})
+	}
+}

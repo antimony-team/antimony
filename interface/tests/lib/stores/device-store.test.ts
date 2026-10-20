@@ -42,7 +42,6 @@ describe('DeviceStore', () => {
 
   afterEach(() => {
     store.dispose();
-    vi.unstubAllGlobals();
   });
 
   it('returns the interfaces of a device by its kind and its aliases', () => {

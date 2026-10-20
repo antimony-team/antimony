@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/domain/collection"
 	"github.com/antimony-team/antimony/server/src/domain/topology"
 	"github.com/antimony-team/antimony/server/src/transport"
 )
@@ -747,6 +749,90 @@ func topologyIDs(topologies []transport.TopologyOut) []string {
 	}
 
 	return ids
+}
+
+/*
+ * Changes by a topology's creator. Like creating a topology, every later change to it and its bind files needs
+ * "Anyone can edit" on its collection and membership of that collection.
+ */
+
+const memberBindFileID = "bindfile-member"
+
+var creatorWrites = map[string]func(h *Harness, token string) *Response{
+	"update the topology": func(h *Harness, token string) *Response {
+		return h.PATCH("/topologies/"+TopologyMemberID, topology.TopologyInPartial{
+			SyncUrl: ptr("https://example.com/member.yml"),
+		}, token)
+	},
+	"delete the topology": func(h *Harness, token string) *Response {
+		return h.DELETE("/topologies/"+TopologyMemberID, token)
+	},
+	"create a bind file": func(h *Harness, token string) *Response {
+		return h.POST(bindFileURL(TopologyMemberID), topology.BindFileIn{
+			FilePath: ptr("host1/new.txt"),
+			Content:  ptr("new"),
+		}, token)
+	},
+	"update a bind file": func(h *Harness, token string) *Response {
+		return h.PATCH(bindFileItemURL(TopologyMemberID, memberBindFileID), topology.BindFileInPartial{
+			Content: ptr("changed"),
+		}, token)
+	},
+	"delete a bind file": func(h *Harness, token string) *Response {
+		return h.DELETE(bindFileItemURL(TopologyMemberID, memberBindFileID), token)
+	},
+}
+
+// newCreatorWritesHarness seeds a bind file on the member's topology, which is in a collection anyone can edit.
+func newCreatorWritesHarness(t *testing.T) *Harness {
+	h := NewHarness(t)
+	h.createBindFile(memberBindFileID, "host1/member.txt", "member", h.Seed.MemberTopology)
+
+	return h
+}
+
+func TestCreatorWrites_AreAllowedInACollectionAnyoneCanEdit(t *testing.T) {
+	for name, write := range creatorWrites {
+		t.Run(name, func(t *testing.T) {
+			h := newCreatorWritesHarness(t)
+
+			write(h, h.Seed.Member.Token).RequireOk(nil)
+		})
+	}
+}
+
+func TestCreatorWrites_AreRefusedOnceTheCollectionIsReadOnly(t *testing.T) {
+	for name, write := range creatorWrites {
+		t.Run(name, func(t *testing.T) {
+			h := newCreatorWritesHarness(t)
+
+			h.PATCH("/collections/"+h.Seed.PublicBoth.UUID, collection.CollectionInPartial{
+				PublicWrite: ptr(false),
+			}, h.Seed.Admin.Token).RequireOk(nil)
+
+			errorResponse := write(h, h.Seed.Member.Token).RequireError(http.StatusForbidden, 403)
+			assert.Contains(t, errorResponse.Message, "write access to the provided collection is not granted")
+
+			_, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyMemberID)
+			require.NoError(t, err, "the topology must survive a refused change")
+		})
+	}
+}
+
+func TestCreatorWrites_AreRefusedOnceTheCreatorLeavesTheCollection(t *testing.T) {
+	for name, write := range creatorWrites {
+		t.Run(name, func(t *testing.T) {
+			h := newCreatorWritesHarness(t)
+
+			formerMember := h.Token(auth.AuthenticatedUser{
+				UserId:      UserMemberID,
+				Collections: []string{CollectionPublicRW, CollectionPublicDeploy, CollectionPrivate},
+			})
+
+			errorResponse := write(h, formerMember).RequireError(http.StatusForbidden, 403)
+			assert.Contains(t, errorResponse.Message, "write access to the provided collection is not granted")
+		})
+	}
 }
 
 func findTopology(t *testing.T, topologies []transport.TopologyOut, id string) transport.TopologyOut {

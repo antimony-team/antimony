@@ -62,7 +62,8 @@ export default defineConfig({
       timeout: 120_000,
       reuseExistingServer: false,
       stdout: 'pipe',
-      // Stops the container. The default SIGKILL would only kill `docker run` and leave it running.
+      // Lets the server shut down. With SB_E2E_BACKEND_IMAGE, the default SIGKILL would only kill
+      // `docker run` and leave the container running.
       gracefulShutdown: {signal: 'SIGTERM', timeout: 10_000},
     },
     {

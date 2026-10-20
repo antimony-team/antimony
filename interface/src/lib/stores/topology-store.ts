@@ -318,7 +318,7 @@ export class TopologyStore extends DataStore<
       target.bindFiles = (source as TopologyOut).bindFiles;
     }
 
-    if ((source as TopologyOut).lastDeployFailed) {
+    if ((source as TopologyOut).lastDeployFailed !== undefined) {
       target.lastDeployFailed = (source as TopologyOut).lastDeployFailed;
     }
   }

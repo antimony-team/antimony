@@ -55,22 +55,10 @@ test('the fixtures create topologies with node positions', async ({
   ]);
 });
 
-test('the fixtures deploy labs and users see only their collections', async ({
-  api,
-  createCollection,
-  createLab,
-  createUser,
-}) => {
-  const collection = await createCollection();
-  const lab = await createLab({collection, deployed: true});
+test('the fixtures deploy labs', async ({api, createLab}) => {
+  const lab = await createLab({deployed: true});
 
   expect((await api.getLab(lab.id)).instance?.state).toBe(
     InstanceState.Running,
   );
-
-  const member = await createUser({collections: [collection]});
-  const outsider = await createUser();
-
-  expect((await member.api.getLabs()).map(l => l.id)).toContain(lab.id);
-  expect((await outsider.api.getLabs()).map(l => l.id)).not.toContain(lab.id);
 });

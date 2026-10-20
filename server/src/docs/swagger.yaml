@@ -173,6 +173,20 @@ definitions:
     - startTime
     - topologyId
     type: object
+  lab.LabInPartial:
+    properties:
+      endTime:
+        type: string
+      indefinite:
+        description: |-
+          Indefinite is used to explicitly mark a lab as running indefinitely. As all fields in this struct are optional,
+          we can't rely on [LabInPartial.EndTime] being nil as marking the lab as running indefinitely.
+        type: boolean
+      name:
+        type: string
+      startTime:
+        type: string
+    type: object
   policy.Finding:
     properties:
       impact:
@@ -282,6 +296,13 @@ definitions:
     - content
     - filePath
     type: object
+  topology.BindFileInPartial:
+    properties:
+      content:
+        type: string
+      filePath:
+        type: string
+    type: object
   topology.TopologyIn:
     properties:
       annotations:
@@ -297,6 +318,17 @@ definitions:
     - collectionId
     - definition
     - syncUrl
+    type: object
+  topology.TopologyInPartial:
+    properties:
+      annotations:
+        type: string
+      collectionId:
+        type: string
+      definition:
+        type: string
+      syncUrl:
+        type: string
     type: object
   transport.BindFileOut:
     properties:
@@ -791,16 +823,16 @@ paths:
       summary: Delete an existing lab
       tags:
       - labs
-    put:
+    patch:
       consumes:
       - application/json
       parameters:
-      - description: The lab with updated values
+      - description: A partial lab with updated values
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/lab.LabIn'
+          $ref: '#/definitions/lab.LabInPartial'
       - description: The ID of the lab to edit
         in: path
         name: id
@@ -952,12 +984,12 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: The topology with updated values
+      - description: A partial topology with updated values
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/topology.TopologyIn'
+          $ref: '#/definitions/topology.TopologyInPartial'
       - description: The ID of the topology to edit
         in: path
         name: id
@@ -1058,6 +1090,12 @@ paths:
       - bindFiles
     patch:
       parameters:
+      - description: A partial bind file with updated values
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/topology.BindFileInPartial'
       - description: The ID of the topology the bind file belongs to
         in: path
         name: topologyId

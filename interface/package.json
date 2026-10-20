@@ -66,7 +66,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "gts lint '**/*.{ts,tsx}'",
     "typecheck": "tsc --noEmit",
-    "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts"
+    "e2e": "bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.config.ts",
+    "e2e:provider": "SB_E2E_PROVIDER=containerlab bash e2e/scripts/cleanup.sh && playwright test -c e2e/playwright.provider.config.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",

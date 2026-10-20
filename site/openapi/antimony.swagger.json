@@ -419,14 +419,11 @@
 			}
 		},
 		"/labs/{id}": {
-			"put": {
+			"delete": {
 				"security": [
 					{
 						"BasicAuth": []
 					}
-				],
-				"consumes": [
-					"application/json"
 				],
 				"produces": [
 					"application/json"
@@ -434,20 +431,11 @@
 				"tags": [
 					"labs"
 				],
-				"summary": "Update an existing lab",
+				"summary": "Delete an existing lab",
 				"parameters": [
 					{
-						"description": "The lab with updated values",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/lab.LabIn"
-						}
-					},
-					{
 						"type": "string",
-						"description": "The ID of the lab to edit",
+						"description": "The ID of the lab to delete",
 						"name": "id",
 						"in": "path",
 						"required": true
@@ -477,11 +465,14 @@
 					}
 				}
 			},
-			"delete": {
+			"patch": {
 				"security": [
 					{
 						"BasicAuth": []
 					}
+				],
+				"consumes": [
+					"application/json"
 				],
 				"produces": [
 					"application/json"
@@ -489,11 +480,20 @@
 				"tags": [
 					"labs"
 				],
-				"summary": "Delete an existing lab",
+				"summary": "Update an existing lab",
 				"parameters": [
 					{
+						"description": "A partial lab with updated values",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/lab.LabInPartial"
+						}
+					},
+					{
 						"type": "string",
-						"description": "The ID of the lab to delete",
+						"description": "The ID of the lab to edit",
 						"name": "id",
 						"in": "path",
 						"required": true
@@ -734,12 +734,12 @@
 				"summary": "Update an existing topology",
 				"parameters": [
 					{
-						"description": "The topology with updated values",
+						"description": "A partial topology with updated values",
 						"name": "request",
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/topology.TopologyIn"
+							"$ref": "#/definitions/topology.TopologyInPartial"
 						}
 					},
 					{
@@ -900,6 +900,15 @@
 				],
 				"summary": "Update an existing bind file of a topology",
 				"parameters": [
+					{
+						"description": "A partial bind file with updated values",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/topology.BindFileInPartial"
+						}
+					},
 					{
 						"type": "string",
 						"description": "The ID of the topology the bind file belongs to",
@@ -1359,6 +1368,24 @@
 				}
 			}
 		},
+		"lab.LabInPartial": {
+			"type": "object",
+			"properties": {
+				"endTime": {
+					"type": "string"
+				},
+				"indefinite": {
+					"description": "Indefinite is used to explicitly mark a lab as running indefinitely. As all fields in this struct are optional,\nwe can't rely on [LabInPartial.EndTime] being nil as marking the lab as running indefinitely.",
+					"type": "boolean"
+				},
+				"name": {
+					"type": "string"
+				},
+				"startTime": {
+					"type": "string"
+				}
+			}
+		},
 		"policy.Finding": {
 			"type": "object",
 			"properties": {
@@ -1502,6 +1529,17 @@
 				}
 			}
 		},
+		"topology.BindFileInPartial": {
+			"type": "object",
+			"properties": {
+				"content": {
+					"type": "string"
+				},
+				"filePath": {
+					"type": "string"
+				}
+			}
+		},
 		"topology.TopologyIn": {
 			"type": "object",
 			"required": [
@@ -1510,6 +1548,23 @@
 				"definition",
 				"syncUrl"
 			],
+			"properties": {
+				"annotations": {
+					"type": "string"
+				},
+				"collectionId": {
+					"type": "string"
+				},
+				"definition": {
+					"type": "string"
+				},
+				"syncUrl": {
+					"type": "string"
+				}
+			}
+		},
+		"topology.TopologyInPartial": {
+			"type": "object",
 			"properties": {
 				"annotations": {
 					"type": "string"

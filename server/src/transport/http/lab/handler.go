@@ -148,9 +148,9 @@ func (h *Handler) Create(ctx *gin.Context) {
 // @Failure	498		{object}	nil					"The provided access token is not valid"
 // @Failure	403		{object}	utils.ErrorResponse	"Access to the resource was denied. Details in the request body."
 // @Failure	422		{object}	utils.ErrorResponse	"The request was invalid. Details in the response body."
-// @Param		request	body		lab.LabIn			true	"The lab with updated values"
+// @Param		request	body		lab.LabInPartial	true	"A partial lab with updated values"
 // @Param		id		path		string				true	"The ID of the lab to edit"
-// @Router		/labs/{id} [put]
+// @Router		/labs/{id} [patch]
 func (h *Handler) Update(ctx *gin.Context) {
 	authUser, ok := ctx.MustGet("authUser").(auth.AuthenticatedUser)
 	if !ok {

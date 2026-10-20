@@ -21,10 +21,11 @@ The top bar is the same on every page.
 | Element | What it does |
 | --- | --- |
 | **Dashboard** / **Topology editor** | Switch between the two main pages. They're shown to administrators and to users with access to at least one collection. |
+| **Tour** (question mark) | Only in the topology editor. Takes you through the editor; the tour also starts by itself the first time you open a topology. |
 | **Messages** (bell) | Opens the messages panel with server messages such as finished or failed deployments. A dot shows unread messages. |
-| **Lab schedule** (calendar) | Opens the [lab calendar](/docs/manual/deploying-labs/#the-lab-schedule). |
+| **Lab schedule** (calendar) | Opens the [lab calendar](/docs/manual/deploying-labs/#the-lab-schedule). Only shown to administrators. |
 | **Credits** (info) | Shows the version, the authors and which deployment provider the server uses. |
-| **Log out** | Signs you out. Hidden when the server doesn't require a login. |
+| **Log out** | Signs you out. Not shown in [Antimony Desktop](/docs/deployment/desktop-app/), which signs you in by itself. |
 
 ### Messages
 
@@ -35,6 +36,8 @@ Confirmations of your own actions, such as "Lab has been created successfully.",
 ## Collections
 
 The left panel lists **All labs** and every collection you can access, with the number of labs in each. Coloured dots show which states the labs in a collection are in. Click a collection to show only its labs.
+
+**Search labs** above the list finds labs by their name, their topology's name or their creator's name. You don't have to click the field first: typing anywhere on the dashboard starts a search.
 
 ## The lab grid
 
@@ -48,16 +51,18 @@ Use the state chips above the grid (**Deploying**, **Running**, **Stopping**, **
 
 Each card shows:
 
-- the state, with how long the lab has been up, how many nodes are ready ("3 of 5 ready"), when it starts or when it failed
+- the state, with how long the lab has been up or how much time it has left, how many nodes are ready ("3 of 5 ready"), when it starts or when it failed
 - a small preview of the topology, using the node positions from the editor
 - the lab name, the number of nodes, the collection and topology, and who created the lab
 
 Click a card to open the [lab view](/docs/manual/lab-view/).
 
-**New lab** opens the [deploy dialog](/docs/manual/deploying-labs/).
+The creator of a lab and administrators can right-click its card for **Deploy**, **Redeploy**, **Destroy**, **Edit** and **Delete**, depending on the lab's state. **Edit** renames or [reschedules](/docs/manual/deploying-labs/#changing-or-rescheduling-a-lab) a lab that isn't deployed. **Delete** removes a lab that isn't deployed or has failed; inactive labs also have a delete button on their card. Deleting asks for confirmation, except for inactive labs.
+
+**New lab** opens the [deploy dialog](/docs/manual/deploying-labs/). It's shown if you may deploy from at least one collection, or from the selected one.
 
 <Aside type="tip">
-	Collapsed sections and hidden states are remembered in your browser.
+	Collapsed sections are remembered in your browser.
 </Aside>
 
 ## Connection problems

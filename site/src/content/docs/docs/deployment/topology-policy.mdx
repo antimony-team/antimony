@@ -12,7 +12,7 @@ The **topology policy** looks for these features in every topology. Each one it 
 ## What happens to an unsafe topology
 
 - **Everyone sees the findings.** Every topology carries its list of findings, so you know what it does before you deploy it.
-- **Only administrators can deploy it.** Other users get the error *the topology contains unsafe features that the server rejected* (code `3005`).
+- **Only administrators can create labs from it.** Other users get the error *the topology contains unsafe features that the server rejected* (code `3005`).
 - **Nothing is executed to find out.** The policy only reads the topology file, so checking an untrusted topology is safe.
 - **Unknown means unsafe.** A field the policy doesn't know, for example one added in a newer containerlab version, is reported too, rather than slipping through.
 - **A lab is checked once, when it's created.** From then on, it deploys its own copy of the topology. Editing the topology afterwards doesn't change the lab, and neither does changing the policy settings, such as `security.allowedImagePrefixes`, or updating Antimony to a version with stricter rules: labs that already exist keep deploying as they were approved. To apply the new rules to such a lab, delete it and create it again.
@@ -44,7 +44,6 @@ Anything here runs code with the permissions of the Antimony server, just by dep
 | In the topology | Why it's blocked |
 | --- | --- |
 | A stage command with `target: host` | [Stage commands](https://containerlab.dev/manual/nodes/#stages) normally run inside the node. With a host target they run on the server. Plain `exec` commands are fine; they always run inside the node. |
-| A netlab topology | netlab builds the lab by running Python, plugins and Ansible on the server. |
 | `{{ … }}` anywhere in the file | containerlab renders the topology as a Go template on the server first. What comes out can't be checked in advance. |
 | `$NAME` or `${NAME}` anywhere in the file | containerlab fills in the server's environment variables. That includes Antimony's secrets: with `SB_JWT_SECRET`, anyone can sign themselves an administrator login. |
 
@@ -94,7 +93,7 @@ Antimony keeps labs apart by choosing names and addresses itself. These features
 
 | In the topology | Why it's blocked |
 | --- | --- |
-| `mgmt` (top-level) or `mgmt-net` | Chooses the management network, which can be another lab's or one of the server's Docker networks. |
+| `mgmt` (top-level) | Chooses the management network, which can be another lab's or one of the server's Docker networks. |
 | `mgmt-ipv4`, `mgmt-ipv6` | A fixed address can be another lab's node. Terminals Antimony opens to that node, credentials included, can then land on the wrong one. |
 | `prefix` | Container names can collide with other labs, and Antimony may act on the wrong containers. |
 | `volumes` | Volumes with the same name are shared, so labs can read each other's data. |
@@ -105,7 +104,7 @@ If the server has an image allowlist, every `image` must start with one of its p
 
 ### Fields the policy doesn't know
 
-Any field the policy hasn't reviewed is reported, so new containerlab features are blocked until someone checks what they do. This covers unknown keys anywhere in the file, the node field `components`, and links that containerlab itself can't make sense of.
+Any field the policy hasn't reviewed is reported, so new containerlab features are blocked until someone checks what they do. This covers unknown keys anywhere in the file and the node field `components`.
 
 ## Getting a blocked topology to deploy
 
@@ -133,14 +132,14 @@ Each topology returned by the REST API has its findings in `policyFindings`:
 
 | Section | Rule IDs |
 | --- | --- |
-| [Running commands on the server](#running-commands-on-the-server) | `host-exec`, `netlab`, `go-template`, `env-expansion` |
+| [Running commands on the server](#running-commands-on-the-server) | `host-exec`, `go-template`, `env-expansion` |
 | [Reading files from the server](#reading-files-from-the-server) | `foreign-file`, `remote-file`, `env-files`, `settings` |
 | [Breaking out of the container](#breaking-out-of-the-container) | `privileged`, `privileges`, `host-namespace`, `kernel-settings`, `runtime` |
 | [Connecting to networks outside the lab](#connecting-to-networks-outside-the-lab) | `host-kind`, `host-link`, `host-namespace`, `host-ports` |
 | [Interfering with other labs](#interfering-with-other-labs) | `mgmt`, `static-mgmt-address`, `prefix`, `volumes` |
 | [Images not on the allowlist](#images-not-on-the-allowlist) | `image-not-allowed` |
-| [Fields the policy doesn't know](#fields-the-policy-doesnt-know) | `unreviewed-field`, `invalid-structure` |
+| [Fields the policy doesn't know](#fields-the-policy-doesnt-know) | `unreviewed-field` |
 
 <Aside type="note">
-	`extras` and `components` are reported as `unreviewed-field`. `network-mode` and `pid-mode` both use `host-namespace`.
+	`extras` and `components` are reported as `unreviewed-field`. `network-mode`, `pid-mode`, `cgroupns-mode` and `cgroup-parent` all use `host-namespace`.
 </Aside>

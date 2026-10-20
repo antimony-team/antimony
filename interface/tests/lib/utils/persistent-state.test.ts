@@ -1,4 +1,4 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {
   arrayOf,
@@ -23,10 +23,6 @@ function createStorage(values: Record<string, string> = {}) {
     setItem: (key: string, value: string) => items.set(key, value),
   };
 }
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 describe('primitive validators', () => {
   it('accepts strings only as strings', () => {

@@ -17,8 +17,6 @@ beforeEach(() => {
   vi.stubGlobal('window', {
     localStorage: {getItem: (key: string) => items.get(key) ?? null},
   });
-
-  return () => vi.unstubAllGlobals();
 });
 
 describe('readBool', () => {

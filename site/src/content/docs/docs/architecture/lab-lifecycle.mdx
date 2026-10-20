@@ -21,15 +21,15 @@ A **lab** is a deployment of a topology between a start and an end time. While i
 | **Failed** | `3` | The deployment failed. You can redeploy or destroy the lab. |
 | **Inactive** | `-1` | The lab has no instance and its start time has passed: it has ended or was destroyed. Deploying it again starts a new instance. |
 
-The values are what the API returns in `instance.state`. Scheduled and Inactive are **pseudo-states**: an instance never has them. Antimony reports them for labs without an instance, so the interface can filter by them.
+The values are what the API returns in `instance.state`. Scheduled and Inactive are **pseudo-states**: an instance never has them. A lab without an instance has `instance` set to `null`, and the interface shows it as Scheduled or Inactive depending on its start time.
 
 ## From creation to the end
 
-1. **Create.** When you create a lab, Antimony checks that you may deploy from the topology's collection, gives the lab a unique instance name, copies the topology and its bind files into the lab's run directory and stores the lab.
-2. **Schedule.** The scheduler queues the lab twice: for deployment at the start time and for destruction at the end time. A lab without an end time runs until someone destroys it. Moving a lab to another time updates both queues.
+1. **Create.** When you create a lab, Antimony checks that you may deploy from the topology's collection, that the name is valid and unique in the collection, that the end time, if there is one, is after the start time and, for users who aren't administrators, that the topology passes the [topology policy](/docs/deployment/topology-policy/). It then gives the lab a unique instance name, copies the topology and its bind files into the lab's run directory and stores the lab.
+2. **Schedule.** The scheduler queues the lab twice: for deployment at the start time and for destruction at the end time. A lab without an end time runs until someone destroys it. Moving a lab to another time updates both queues. A lab can only be edited or moved while it isn't deployed.
 3. **Deploy.** At the start time, or when someone clicks **Deploy**, the lab enters *Deploying* and Antimony calls the provider. Afterwards it inspects the result to learn the nodes and their addresses, and the lab becomes *Running*. If something fails, the lab becomes *Failed* and the topology is marked with `lastDeployFailed`.
 4. **Wait for nodes.** A container that is up isn't necessarily ready to use. Antimony checks every node every 2 seconds, for up to 10 minutes, by running `ssh admin@localhost true` inside it. The node counts as ready as soon as its SSH daemon answers, even with a login error, or immediately if the node has no SSH client. Once a node is ready, Antimony reads its interfaces and starts collecting statistics, and the interface enables its terminal.
-5. **Destroy.** At the end time, or when someone clicks **Destroy**, the lab enters *Stopping*. The provider removes the nodes, the instance is removed, and the lab becomes *Inactive*.
+5. **Destroy.** At the end time, or when someone clicks **Destroy**, the lab enters *Stopping*. The provider removes the nodes, the instance is removed, and the lab becomes *Inactive*. If the provider fails to remove the lab, it becomes *Failed*. Destroying a lab that isn't deployed fails.
 
 <Aside type="tip">
 	Deploying a lab manually after its end time has passed removes the end time, so the lab keeps running until you destroy it.

@@ -51,12 +51,11 @@ The SSH **username** tells Antimony which node to use. It isn't an account: ther
 | --- | --- |
 | `<collection-name>/<lab-name>/<node-name>` | **The default.** The collection and lab names as shown in the dashboard, and the node name from the topology. The copy buttons in the interface use this form. |
 | `<lab-id>/<node-name>` | The lab's UUID, shown in the lab info panel. |
-| `<instance-name>/<node-name>` | The lab's instance name, shown in the lab info panel. It's the topology name, with spaces and underscores replaced by `-`, plus a 12-character suffix. It isn't the lab's display name. |
+| `<instance-name>/<node-name>` | The lab's instance name, shown in the lab info panel. It's the topology name in lower case, with every run of characters other than letters, digits and `-` replaced by a single `-`, plus a 12-character suffix. It isn't the lab's display name. |
 | `<container-id>` | The node's container ID, shown in the node panel. On containerlab, this is Docker's 12-character short ID; the full 64-character ID doesn't match. On clabernetes, it's the pod UID. |
 
 - **With two parts**, a UUID as first part is read as a lab ID, anything else as an instance name.
 - **Names must match exactly**, including upper and lower case.
-- **Names with `/`** can't be used, since `/` separates the parts. If a collection or lab name contains one, use the lab ID instead.
 - **Spaces** are fine, but the username then has to be quoted. Pass it with `-l "…"`.
 - **Without a username** (`ssh antimony`), your SSH client sends your local user name, which Antimony reads as a container ID and doesn't find.
 - **Four or more parts** are rejected with `invalid node`.
@@ -99,7 +98,13 @@ ssh -p 6969 <collection-name>/<lab-name>/<node-name>@antimony eth1 | tcpdump -n 
 ssh -p 6969 <collection-name>/<lab-name>/<node-name>@antimony eth1 > capture.pcap
 ```
 
-You don't have to type these. In the [lab view](/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands with the default username, like the first example above. The host is the one you opened Antimony with, and `-p` is left out when the server uses port 22.
+You don't have to type these. In the [lab view](/docs/manual/lab-view/#interfaces-and-capture), every interface of a node has a **Copy capture command** button, and the node's right-click menu has **Copy SSH command** and **Copy capture for &lt;interface&gt;**. They copy commands with the default username, passed with `-l` and quoted if a name contains spaces:
+
+```bash
+ssh -p 6969 -l <collection-name>/<lab-name>/<node-name> antimony -- eth1 | wireshark -k -i -
+```
+
+The host is the one you opened Antimony with, and `-p` is left out when the server uses port 22.
 
 #### Accepted commands
 
@@ -168,8 +173,8 @@ services:
 
 ## Enabling and disabling
 
-- `ssh.enabled: false` stops the SSH server from starting. Shells from your own client and packet capture are then unavailable. Browser terminals don't need the SSH server and keep working.
-- `capture.enabled: false` keeps the SSH server running for shells, but rejects every capture command with `traffic capture is not enabled`. The node's right-click menu then leaves out its **Copy capture for &lt;interface&gt;** entries.
+- `ssh.enabled: false` stops the SSH server from starting. Shells from your own client and packet capture are then unavailable, and the copy buttons for SSH and capture commands are turned off or left out. Browser terminals don't need the SSH server and keep working.
+- `capture.enabled: false` keeps the SSH server running for shells, but rejects every capture command with `traffic capture is not enabled`. The node's right-click menu then leaves out its **Copy capture for &lt;interface&gt;** entries, and the **Copy capture command** buttons are turned off.
 
 ## Errors
 
@@ -179,8 +184,9 @@ The server writes errors to standard error and exits with code `2` for usage err
 | --- | --- |
 | `traffic capture is not enabled` | You sent a command, but `capture.enabled` is `false`. |
 | `invalid node "…", expected …` | The username has four or more parts. Use one of the [usernames](#choosing-a-node). |
-| `unable to connect to node: the specified node was not found` | No node matches the username. Check the spelling and case of the collection, lab and node names, or the ID. |
-| `unable to connect to node: the specified lab is not running` | The lab exists but isn't deployed. |
+| `unable to connect to node: the specified lab has not been found` | No lab matches the collection and lab names or the lab ID. Check the spelling and case. |
+| `unable to connect to node: the specified node was not found` | The lab has no node with that name, or no running node has that container ID. |
+| `unable to connect to node: the specified lab is not running` | The lab exists but isn't deployed, or no running lab has that instance name. |
 | `a terminal is required for a shell, connect with ssh -t` | You asked for a shell without a terminal, for example from a script. Add `-tt`. |
 | `missing interface to capture` | The command was empty. |
 | `unexpected arguments [...], expected an interface name or a tcpdump command` | The command has several words but isn't a `tcpdump` command. |

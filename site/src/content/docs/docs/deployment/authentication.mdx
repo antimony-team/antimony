@@ -94,6 +94,8 @@ A user has access to a collection when **one of their OpenID groups has exactly 
 
 For example, a student in the groups `hs25-cn1` and `students` sees the collection `hs25-cn1`, but not `hs25-cn2`.
 
+Collection names can contain letters, digits, spaces, `.`, `_` and `-`, must start with a letter or digit and can be at most 64 characters long. Only groups whose names follow these rules can give access to a collection.
+
 To give a class its own space:
 
 1. Create a group in your identity provider, for example `hs25-cn1`, and add the students.
@@ -109,18 +111,18 @@ Members of a collection can always see its topologies and labs. Two switches on 
 | Collection setting | Members can |
 | --- | --- |
 | **Anyone can deploy** | Create labs from the collection's topologies. |
-| **Anyone can edit** | Add new topologies to the collection, and change it. |
+| **Anyone can edit** | Add new topologies to the collection, and change or delete the ones they created. |
 
-Independent of these settings, a user can always manage what they created themselves:
+Most changes are limited to what a user created themselves:
 
 | Action | Who |
 | --- | --- |
 | Create, rename or delete a collection | Administrators. The creator of a collection can also edit or delete it. |
-| Edit or delete a topology, manage its bind files | The topology's creator, or an administrator |
+| Edit or delete a topology, manage its bind files | The topology's creator, while the collection has **Anyone can edit** and they're a member of it, or an administrator |
 | Edit, reschedule or delete a lab | The lab's creator, or an administrator |
 | Deploy, destroy or redeploy a lab; start, stop or restart its nodes | The lab's creator, or an administrator |
 | Open a terminal on a node | Anyone with access to the lab's collection |
-| Close a terminal | The user who opened it, or an administrator |
+| Use, resize or close a terminal | Only the user who opened it, not even an administrator |
 
 <Aside type="caution">
 	These permissions apply to the web interface and API. The [SSH server](/docs/manual/ssh-server/) doesn't check them.

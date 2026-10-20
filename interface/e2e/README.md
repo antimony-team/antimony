@@ -43,6 +43,7 @@ e2e/
   pages/                 page objects: how to find and operate parts of the UI
   helpers/               Monaco editor, Cytoscape graphs, ZIP archives
   specs/                 the tests, one file per area
+  provider/              the tests against a real provider, see below
 ```
 
 | Spec                  | Covers                                                                      |
@@ -59,10 +60,31 @@ e2e/
 | `bind-files`          | Files and directories of a topology, archive upload                         |
 | `code-editor`         | YAML and annotation files, validation, saving, undo, views, downloads, sync |
 | `graph-editor`        | Nodes, links, groups, shapes, lines, texts, selection, zoom                 |
-| `permissions`         | What users who aren't admins may do, on the server and in the interface    |
-| `policy`              | The topology policy for unsafe topologies                                   |
+| `permissions`         | What the interface offers users who aren't admins                           |
+| `policy`              | How the interface reports unsafe topologies                                 |
 | `desktop`             | The interface as Antimony Desktop runs it, with the desktop login          |
-| `server`              | Server rules the interface relies on but can't show                         |
+
+The server's own rules (permissions, validation, the policy) are tested in `server/src/test`; these specs
+only check what the interface shows and offers.
+
+## Tests against a real provider
+
+The specs in `provider/` deploy labs with containerlab instead of the dummy provider: the nodes run as
+containers, and the tests check what the interface shows of them (container details, logs, node
+commands, shells and statistics). They have their own config, `playwright.provider.config.ts`, so the
+other specs, which expect the dummy provider, never run against containerlab, and the other way round.
+
+Prerequisites: Go, Docker, containerlab and the `alpine:latest` image. Containerlab needs root, so the
+server runs with sudo; run `sudo -v` before, so sudo doesn't ask for a password.
+
+| Command                   | What it does                                                            |
+|---------------------------|-------------------------------------------------------------------------|
+| `task e2e-provider`       | Runs `sudo -v` and all provider tests                                   |
+| `yarn e2e:provider`       | Runs all provider tests, once `sudo -v` is done                         |
+
+The report is in `e2e/.tmp/provider-report`. A run that was killed leaves its labs running;
+`yarn e2e:provider` destroys them before it starts. Only labs of the tests' topologies
+(`topology-<8 hex digits>-…`) are touched.
 
 ## Writing tests
 

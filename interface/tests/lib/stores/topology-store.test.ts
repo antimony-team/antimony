@@ -225,8 +225,7 @@ describe('TopologyStore', () => {
       expect(topology.annotations).toEqual({nodeAnnotations: []});
     });
 
-    it.skip('clears the failed deployment once the server reports a successful one', async () => {
-      // Bug: updateTopologyValues only copies lastDeployFailed when it is true
+    it('clears the failed deployment once the server reports a successful one', async () => {
       const [topology] = await fetchTopologies(
         topologyOut('a', {lastDeployFailed: true}),
       );
@@ -284,10 +283,30 @@ describe('TopologyStore', () => {
       expect(store.canEdit(topology)).toBe(false);
     });
 
+    it('does not let the creator edit a topology once they lost access to its collection', () => {
+      collections.clear();
+
+      expect(store.canEdit(topology)).toBe(false);
+    });
+
     it('does not let other users edit a topology', () => {
       dataBinder.authUser = {id: 'other', name: 'other', isAdmin: false};
 
       expect(store.canEdit(topology)).toBe(false);
+    });
+
+    it('does not let other users edit a topology in a protected collection', () => {
+      collections.set('collection', {publicWrite: false});
+      dataBinder.authUser = {id: 'other', name: 'other', isAdmin: false};
+
+      expect(store.canEdit(topology)).toBe(false);
+    });
+
+    it('lets admins edit topologies of other users in protected collections', () => {
+      collections.set('collection', {publicWrite: false});
+      dataBinder.authUser = {id: 'admin', name: 'admin', isAdmin: true};
+
+      expect(store.canEdit(topology)).toBe(true);
     });
 
     it('lets admins edit every topology', () => {

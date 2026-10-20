@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,4 +147,25 @@ func nameOf(definition any) any {
 		return mapping["name"]
 	}
 	return nil
+}
+
+func TestCreateInstanceName_IsTheTopologyNameWithAUniqueSuffix(t *testing.T) {
+	name := createInstanceName("R1")
+
+	assert.Regexp(t, `^r1-[0-9a-f]{12}$`, name)
+	assert.NotEqual(t, name, createInstanceName("R1"), "every lab of a topology needs its own instance")
+}
+
+func TestCreateInstanceName_KeepsTheClabernetesNamespaceValid(t *testing.T) {
+	name := createInstanceName("Core_Lab (v2) " + strings.Repeat("X", 60))
+
+	prefix, suffix := name[:len(name)-13], name[len(name)-12:]
+
+	assert.Regexp(t, `^[a-z0-9-]+$`, prefix)
+	assert.True(t, strings.HasPrefix(prefix, "core-lab-v2-xxx"), prefix)
+	assert.Len(t, prefix, maxInstanceNamePrefix)
+	assert.Regexp(t, `^[0-9a-f]{12}$`, suffix)
+
+	// Clabernetes runs the instance in the namespace "c9s-<instance name>", a DNS label of at most 63 characters
+	assert.LessOrEqual(t, len("c9s-"+name), 63)
 }

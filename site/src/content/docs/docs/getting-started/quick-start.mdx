@@ -21,7 +21,7 @@ You need a Linux machine with Docker Engine and the Compose plugin. Labs run on 
     curl -fsSL https://antimony.run/deploy.sh | bash
     ```
 
-    Before it changes anything, the script checks that the ports it needs are free and shows what it will do. Antimony needs full access to the machine to run labs: its server is a privileged root container with access to Docker, it stores data in `/srv/antimony`, and it listens on ports 8080 (the web interface) and 6969 (SSH for terminals). Ports 3000, 5432 and 8100 must be free as well, but are only used on `localhost`. Confirm with <kbd>y</kbd>, or set `ANTIMONY_YES=1` to skip the question.
+    Before it changes anything, the script checks that the ports it needs are free and shows what it will do. Antimony needs full access to the machine to run labs: its server is a privileged root container with access to Docker, it stores data in `/srv/antimony`, and it listens on ports 8080 (the web interface) and 6969 (SSH for node shells and packet capture). Ports 3000, 5432 and 8100 must be free as well, but are only used on `localhost`. Confirm with <kbd>y</kbd>, or set `ANTIMONY_YES=1` to skip the question.
 
     The script doesn't use `sudo` itself, but it needs access to Docker. If `docker ps` only works with `sudo` on your machine, run the script with `sudo` too. The install folder then belongs to root, so use `sudo` for later `docker compose` commands in it as well.
 
@@ -83,7 +83,7 @@ docker compose up -d
         - endpoints: ["srl1:ethernet-1/1", "srl2:ethernet-1/1"]
     ```
 
-3. Click **Deploy** in the toolbar, then **Deploy** in the dialog.
+3. Click **Deploy** in the toolbar, enter a **Lab name** such as `srl-lab-1` and click **Deploy** in the dialog.
 
 4. On the **Dashboard**, open the lab, click `srl1` and choose **Open terminal**.
 

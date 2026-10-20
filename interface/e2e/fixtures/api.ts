@@ -6,7 +6,7 @@ import {
 } from '@playwright/test';
 import {io} from 'socket.io-client';
 
-import {ADMIN, BACKEND_URL, BASE_URL} from '../settings';
+import {ADMIN, BACKEND_URL, BASE_URL, labTimeout} from '../settings';
 
 /*
  * A client for the Antimony REST API, used to set up test data directly instead of clicking through
@@ -352,7 +352,7 @@ export class AntimonyApi {
     await expect
       .poll(async () => condition(await this.getLab(labId)), {
         message: `waiting for lab ${labId}`,
-        timeout: 15_000,
+        timeout: labTimeout(),
       })
       .toBe(true);
   }
@@ -411,7 +411,7 @@ export class AntimonyApi {
     });
     try {
       return (await socket
-        .timeout(15_000)
+        .timeout(labTimeout())
         .emitWithAck('data', JSON.stringify({command, labId, ...extra}))) as {
         payload?: unknown;
         code?: number;

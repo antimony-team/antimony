@@ -155,14 +155,26 @@ tasks:
       - yarn electron-builder --linux --config electron/electron-builder.yml {{.CLI_ARGS}}
 
   e2e:
-    desc: End-to-end tests against a backend container
+    desc: End-to-end tests against the server in server/
     deps:
       - install
     preconditions:
-      - sh: docker info >/dev/null 2>&1
-        msg: The end-to-end tests start the backend in Docker, but Docker isn't reachable.
+      - sh: '[ -n "$SB_E2E_BACKEND_IMAGE" ] || command -v go >/dev/null'
+        msg: The end-to-end tests build the server in server/, but Go isn't installed. Set SB_E2E_BACKEND_IMAGE to run an image instead.
     cmds:
       - yarn e2e {{.CLI_ARGS}}
+
+  e2e-provider:
+    desc: End-to-end tests in e2e/provider/ against the server in server/, deploying with containerlab
+    deps:
+      - install
+    preconditions:
+      - sh: command -v go >/dev/null && command -v containerlab >/dev/null
+        msg: The provider tests build the server in server/ and deploy with containerlab, install both.
+    cmds:
+      # The server runs as root for containerlab
+      - sudo -v
+      - yarn e2e:provider {{.CLI_ARGS}}
 
   e2e-ui:
     desc: End-to-end tests in the Playwright UI

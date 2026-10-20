@@ -199,7 +199,8 @@ export function localeFirstDayOfWeek() {
 export function formatUptime(deployed: string | Date, now = dayjs()) {
   const d = dayjs.duration(now.diff(dayjs(deployed)));
   const days = Math.floor(d.asDays());
-  if (days >= 1) return `${days} d ${d.hours()} h`;
+  // From the total, since dayjs counts months of about 30.4 days into hours()
+  if (days >= 1) return `${days} d ${Math.floor(d.asHours()) % 24} h`;
   if (d.asHours() >= 1) return `${d.hours()} h ${d.minutes()} min`;
   if (d.asMinutes() >= 1) return `${d.minutes()} min ${d.seconds()} s`;
   return `${d.seconds()} s`;

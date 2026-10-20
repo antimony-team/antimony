@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -255,4 +256,26 @@ func TestCreateLab_MemberCanDeployOnceTheReferencedFileIsTheTopologysOwn(t *test
 
 	createLabOf(h, topologyId, "After", h.Seed.Member.Token).RequireOk(nil)
 	assert.Equal(t, 1, labsOfTopology(t, h, topologyId))
+}
+
+// A lab keeps the copy of its topology made when it was created, and with it the approval of the policy. Making
+// the topology unsafe afterwards doesn't stop the lab from deploying, and doesn't change what it deploys.
+func TestDeployCommand_ALabKeepsTheApprovalOfItsTopologyCopy(t *testing.T) {
+	h := NewHarness(t)
+	const safeDefinition = "name: approved-topo\ntopology:\n  nodes:\n    r1:\n      kind: linux\n"
+	topologyId := createTopology(t, h, safeDefinition)
+
+	var labId string
+	createLabOf(h, topologyId, "Approved", h.Seed.Member.Token).RequireOk(&labId)
+
+	h.PATCH("/topologies/"+topologyId, topology.TopologyInPartial{
+		Definition: ptr(safeDefinition + "      privileged: true\n"),
+	}, h.Seed.Admin.Token).RequireOk(nil)
+	require.NotEmpty(t, findingsOf(t, h, topologyId), "the topology must be unsafe now")
+
+	h.Dial("/cmd", h.Seed.Member.Token).Emit(deployCommand(labId)).RequireOk(nil)
+
+	runDefinition, err := os.ReadFile(h.Storage.GetRunTopologyDefinitionFile(labId))
+	require.NoError(t, err)
+	assert.NotContains(t, string(runDefinition), "privileged", "the lab must deploy the definition it was created with")
 }

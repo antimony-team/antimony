@@ -70,11 +70,14 @@ The admin login is `admin` / `admin`. After an OpenID login, Keycloak redirects 
 | `task build` | Builds the server into `build/` without running it. |
 | `task run-c9s` | Runs with `test/config-c9s.test.yml`, using the clabernetes provider. |
 | `task setup-kind` | Creates a local [kind](https://kind.sigs.k8s.io/) cluster named `c9s` and installs clabernetes 0.9.0. |
+| `task install-c9s` | Installs clabernetes 0.9.0 into the cluster of the current kubeconfig. |
 | `task build-docker` | Builds the Docker image `antimony-server:dev`. |
 | `task run-docker` | Builds the image and runs it with SQLite and the Docker test configuration. |
 | `task test` | Runs the tests. |
 | `task test-race` | Runs the tests with the race detector, in random order. CI uses this. |
 | `task test-coverage` | Runs the tests with a coverage report. |
+| `task test-e2e-containerlab` | Runs the provider and server end-to-end tests against containerlab on this Docker host, with `sudo`. CI uses containerlab 0.78.2. |
+| `task test-e2e-clabernetes` | Runs the provider and server end-to-end tests against clabernetes in the cluster of the current kubeconfig, see `task setup-kind`. |
 | `task lint` / `task lint-fmt` | Lints or formats the code with golangci-lint. |
 | `task swag` | Regenerates the Swagger documentation in `src/docs/`. |
 | `task swag-check` | Fails if the committed Swagger documentation is outdated. CI uses this. |
@@ -145,7 +148,7 @@ To build an interface that talks to a server elsewhere, set these variables when
 
 ### End-to-end tests
 
-The [Playwright](https://playwright.dev/) tests build the server in `server/` and start it with the dummy provider and a fresh database, together with a test build of the interface, on ports that don't collide with development (API 3200, SSH 6200, interface 4180). They need Go besides Node.js, but no Docker image. CI runs them on every push and pull request.
+The [Playwright](https://playwright.dev/) tests build the server in `server/` and start it with the dummy provider and a fresh database, together with a test build of the interface, on ports that don't collide with development (API 3200, SSH 6200, interface 4180). They need Go besides Node.js, but no Docker image. CI runs them on every push and on pull requests that change the server or the interface.
 
 ```bash
 # Once: install the browser
@@ -192,9 +195,9 @@ npm run sync-api -- <path or URL>   # from somewhere else
 | --- | --- | --- |
 | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | The server's lint, Swagger check, build with a startup smoke test and tests with the race detector, and the interface's lint, type check and unit tests with coverage (uploaded as the artifact `coverage-report`), all in parallel. Then the Docker images, and Antimony Desktop (AppImage, .deb and .rpm for x86_64 and ARM64), which is kept as the artifact `antimony-desktop`. For a `v*` tag, `e2e.yml` runs as well, and the release follows once it passes. |
 | `fuzz.yml` | Nightly, manually | Fuzz tests of the server |
-| `e2e.yml` | Pushes to `development` and `main`, PRs, tags `v*` (through `ci.yml`), manually | The server's provider tests against containerlab and against clabernetes in a kind cluster, and the interface's end-to-end tests against the server of the same commit |
-| `release.yml` | Called by `ci.yml` for tags `v*` | Packs the deployment files with that version, writes their checksums and those of Antimony Desktop to `SHA256SUMS`, attests them, and creates the GitHub release with them |
-| `docs.yml` | Pushes to `main`, PRs that change `site/`, manually | Builds this website and publishes it to GitHub Pages from `main` |
+| `e2e.yml` | Pushes to `development` and `main`, PRs, tags `v*` (through `ci.yml`), manually | The server's provider and server end-to-end tests against containerlab and against clabernetes in a kind cluster, and the interface's end-to-end tests against the server of the same commit |
+| `release.yml` | Called by `ci.yml` for tags `v*` | Packs the deployment files with that version, writes their checksums and those of Antimony Desktop to `SHA256SUMS`, attests them, creates the GitHub release with them and starts `docs.yml` |
+| `docs.yml` | Pushes to `main` and PRs that change `site/`, `release.yml`, manually | Builds this website and publishes it to GitHub Pages from `main` |
 
 Pull requests only run the jobs of the parts they change: a change in `interface/` skips the server's jobs and the provider tests, and a change in `server/` skips the interface's jobs. The interface's end-to-end tests run for changes on either side, since they test both. Pushes and tags always run everything.
 

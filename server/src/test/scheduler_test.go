@@ -102,6 +102,20 @@ func TestScheduler_LeavesAFutureLabAlone(t *testing.T) {
 	assert.False(t, h.Provider.WasCalled("Deploy"))
 }
 
+// Destroying a lab that isn't deployed is refused, and must leave the lab in the schedule.
+func TestScheduler_ARefusedDestroyKeepsTheLabScheduled(t *testing.T) {
+	h := NewHarness(t, WithScheduler())
+
+	end := time.Now().Add(2 * time.Hour)
+	labId := createLabViaApi(t, h, "Still Scheduled", time.Now().Add(time.Hour), &end)
+
+	h.Dial("/cmd", h.Seed.Admin.Token).Emit(destroyCommand(labId)).RequireError(5012)
+
+	h.Clock.Advance(61 * time.Minute)
+
+	requireLabDeployed(t, h, labId)
+}
+
 func TestScheduler_DestroysALabWhoseEndTimeHasPassed(t *testing.T) {
 	h := NewHarness(t, WithScheduler())
 

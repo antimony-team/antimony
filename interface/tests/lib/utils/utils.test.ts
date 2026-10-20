@@ -86,7 +86,6 @@ function useLocale(locale: string) {
 const normalize = (text: string) => text.replace(/\s/g, ' ');
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -118,8 +117,7 @@ describe('formatUptime', () => {
     expect(formatUptime('2024-06-01T11:59:00', now)).toBe('1 min 0 s');
   });
 
-  it.skip('shows the right hours for more than a month', () => {
-    // Bug: dayjs splits the duration into months, so 31 d 4 h shows as 31 d 18 h
+  it('shows the right hours for more than a month', () => {
     const deployed = now.subtract(31, 'day').subtract(4, 'hour');
     expect(formatUptime(deployed.toDate(), now)).toBe('31 d 4 h');
   });

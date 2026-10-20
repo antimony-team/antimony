@@ -3,7 +3,8 @@
 # Starts the Antimony server for the e2e tests. Playwright runs this via `webServer` in playwright.config.ts
 # and stops it with SIGTERM when the run is over.
 #
-# The server runs with the dummy deployment provider (nothing is deployed), a fresh SQLite database and
+# The server runs with the dummy deployment provider (nothing is deployed) unless SB_E2E_PROVIDER says
+# otherwise, a fresh SQLite database and
 # development mode, which enables the endpoint the fixtures use to create test users. The configuration
 # comes from e2e/backend/.
 #
@@ -14,6 +15,9 @@
 #   SB_E2E_BACKEND_IMAGE  Image to run, e.g. ghcr.io/antimony-team/antimony/server:dev or a local
 #                         antimony-server:dev. Not set: build and run the local checkout.
 #   SB_E2E_SERVER_DIR     The server to build (default: server/ in this repository)
+#   SB_E2E_PROVIDER       dummy (default) or containerlab, for the tests in e2e/provider/. Containerlab needs
+#                         root, so the server runs with sudo, which must not ask for a password: run `sudo -v`
+#                         first. Only works with the built server, not with an image.
 
 set -euo pipefail
 
@@ -32,8 +36,23 @@ server_env=(
 )
 server_args=(-config=./config.yml -sqlite=true -dev)
 
-# A fresh working directory every run, so every run starts with an empty database
-rm -rf "$work_dir"
+provider="${SB_E2E_PROVIDER:-dummy}"
+if [[ "$provider" != dummy && "$provider" != containerlab ]]; then
+  echo "SB_E2E_PROVIDER must be dummy or containerlab, not '$provider'" >&2
+  exit 1
+fi
+if [[ "$provider" != dummy && -n "${SB_E2E_BACKEND_IMAGE:-}" ]]; then
+  echo "SB_E2E_PROVIDER=$provider only works with the built server, unset SB_E2E_BACKEND_IMAGE" >&2
+  exit 1
+fi
+if [[ "$provider" != dummy ]] && ! sudo -n true 2>/dev/null; then
+  echo "The server needs root for $provider. Run 'sudo -v' first, so sudo doesn't ask for a password." >&2
+  exit 1
+fi
+
+# A fresh working directory every run, so every run starts with an empty database. A server that ran as
+# root leaves files only root can remove.
+rm -rf "$work_dir" 2>/dev/null || sudo -n rm -rf "$work_dir"
 mkdir -p "$work_dir"
 
 if [[ -z "${SB_E2E_BACKEND_IMAGE:-}" ]]; then
@@ -51,12 +70,19 @@ if [[ -z "${SB_E2E_BACKEND_IMAGE:-}" ]]; then
   # The config is written for the container, where the server has to listen on all interfaces. Run
   # directly, it only listens on this machine.
   sed -e 's/host: 0\.0\.0\.0/host: 127.0.0.1/' -e 's/sshHost: 0\.0\.0\.0/sshHost: 127.0.0.1/' \
+    -e "s/provider: dummy/provider: $provider/" \
     "$e2e_dir/backend/config.yml" >"$work_dir/config.yml"
   cp "$e2e_dir/backend/kinds.conf.yml" "$work_dir/"
   ln -s "$server_dir/data" "$work_dir/data"
 
   cd "$work_dir"
-  exec env "${server_env[@]}" ./antimony-server "${server_args[@]}" >"$log_file" 2>&1
+  if [[ "$provider" == dummy ]]; then
+    exec env "${server_env[@]}" ./antimony-server "${server_args[@]}" >"$log_file" 2>&1
+  fi
+
+  # sudo passes SIGTERM on to the server
+  echo "Running the server as root for $provider"
+  exec sudo -n -E env "${server_env[@]}" ./antimony-server "${server_args[@]}" >"$log_file" 2>&1
 fi
 
 image="$SB_E2E_BACKEND_IMAGE"

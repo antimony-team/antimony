@@ -226,7 +226,14 @@ export class ContainerlabNode implements TopologyNode {
       levels.flatMap(level => Object.keys(level.definition ?? {})),
     );
     for (const key of keys) {
-      if (properties.has(key) || key === 'kind' || key === 'group') continue;
+      if (
+        properties.has(key) ||
+        NODE_PROPERTIES.has(key) ||
+        key === 'kind' ||
+        key === 'group'
+      ) {
+        continue;
+      }
 
       const values: LevelValue[] = levels
         .map(level => ({source: level.source, value: level.definition?.[key]}))

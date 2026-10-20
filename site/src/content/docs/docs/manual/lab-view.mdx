@@ -25,11 +25,11 @@ The header shows the collection and lab name, the state, how long the lab has be
 | Button | What it does |
 | --- | --- |
 | **View logs** | Opens the [logs window](#logs). |
-| **Deploy** | Deploys a scheduled or inactive lab now. |
-| **Redeploy** | Deploys a running or failed lab again. |
-| **Destroy** | Removes the lab's nodes. Asks for confirmation. |
+| **Deploy** (play) | Deploys a scheduled or inactive lab now. |
+| **Redeploy** (arrows) | Deploys a running lab again. |
+| **Destroy** (power) | Removes the nodes of a running or deploying lab. Asks for confirmation. |
 
-Only the lab's creator and administrators can deploy, redeploy and destroy.
+Only the lab's creator and administrators can deploy, redeploy and destroy the lab, and start, stop and restart its nodes. The other buttons and menu entries are available to everyone with access to the lab.
 
 ## Lab details
 
@@ -41,7 +41,7 @@ The panel in the top left lists the lab's details:
 - **Deployed** and **Running until**. "(Recovered)" means the server was restarted while the lab was running and has reattached to it.
 - **Topology**: the topology the lab was created from, with its number of nodes and links.
 
-**Copy link** copies a direct link to this lab. **Open topology** opens the topology in the editor.
+**Copy link** copies a direct link to this lab; it isn't shown in [Antimony Desktop](/docs/deployment/desktop-app/). **Open topology** opens the topology in the editor.
 
 To connect to a node through the [SSH server](/docs/manual/ssh-server/#choosing-a-node), you normally use `<collection-name>/<lab-name>/<node-name>` as username. The ID and instance name are alternatives for the first part.
 
@@ -50,7 +50,7 @@ To connect to a node through the [SSH server](/docs/manual/ssh-server/#choosing-
 The graph shows the lab's nodes and links. A dot on each node shows its state; nodes that are starting or stopping pulse, and stopped nodes are greyed out.
 
 - Click a node to open the [node panel](#the-node-panel).
-- Right-click a node for **Start node**, **Stop node**, **Restart node**, **Open terminal**, **Show logs**, **Copy SSH command** and **Copy capture for &lt;interface&gt;**.
+- Right-click a node for **Start node**, **Stop node**, **Restart node**, **Open terminal**, **Show logs**, **Copy SSH command** and **Copy capture for &lt;interface&gt;**. The capture entries are left out when the server has [traffic capture or the SSH server](/docs/manual/ssh-server/#enabling-and-disabling) turned off.
 - Right-click the background to deploy, redeploy or destroy the lab, view logs or fit the graph to the window.
 
 ## The node panel
@@ -74,8 +74,10 @@ Below the statistics, each interface has a chart of its transmitted (TX) and rec
 **Copy capture command** copies a command that streams the interface's traffic into Wireshark on your machine:
 
 ```bash
-ssh <collection-name>/<lab-name>/<node-name>@antimony -p 6969 eth1 | wireshark -k -i -
+ssh -p 6969 -l <collection-name>/<lab-name>/<node-name> antimony -- eth1 | wireshark -k -i -
 ```
+
+The username is put in quotes if a name contains spaces.
 
 Run it in a terminal on a machine with Wireshark installed. See [SSH server and packet capture](/docs/manual/ssh-server/) for how it works and what else you can do with it.
 
@@ -96,6 +98,7 @@ Some interfaces, such as `lo` and management interfaces, are hidden. The list is
 - Terminals keep running when you close the window. Reopening it shows them again with their recent output.
 - A terminal that has been idle for 30 minutes is closed and marked as expired.
 - You can have up to 20 terminals open at the same time.
+- Terminals are private. Only you see the terminals you opened; other users, administrators too, can't join them.
 
 The idle timeout and the limit are set by `shell.timeout` and `shell.userLimit` in the [configuration](/docs/deployment/configuration/#shell).
 

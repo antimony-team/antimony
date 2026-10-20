@@ -56,6 +56,7 @@ The server is organised by domain. Each domain object has its own package with a
 | `deployment` | The providers: containerlab, clabernetes and dummy. |
 | `storage` | Topology files and bind files on disk, and the run directories of labs. |
 | `auth` | Login tokens, the admin login, OpenID Connect and Antimony Desktop's login. |
+| `policy` | The [topology policy](/docs/deployment/topology-policy/), which finds unsafe features in topologies. |
 | `config` | Loading the [configuration](/docs/deployment/configuration/). |
 
 Services publish lab events (`lab.created`, `lab.moved`, `lab.deleted`, `lab.manually-deployed`, `lab.restored`) on an internal event bus. The scheduler listens to them to keep its queues up to date.
@@ -66,7 +67,7 @@ Services publish lab events (`lab.created`, `lab.moved`, `lab.deleted`, `lab.man
 
 - A **collection** groups topologies. Access to a collection comes from the user's OpenID groups. See [permissions](/docs/deployment/authentication/#permissions).
 - A **topology** is a [containerlab topology definition](https://containerlab.dev/manual/topo-def-file/) plus its **bind files**, such as startup configurations.
-- A **lab** is a deployment of a topology with a start and end time. Several labs can be created from the same topology.
+- A **lab** is a deployment of a topology with a start and end time. Several labs can be created from the same topology. A lab belongs to the collection its topology was in when the lab was created.
 - While a lab is deployed, it has an **instance** with a state and a list of **nodes**. Instances aren't stored in the database. When the server starts, it asks the provider which labs are still running and rebuilds their instances (see [lab lifecycle](/docs/architecture/lab-lifecycle/)).
 
 ## Files on disk
@@ -75,6 +76,8 @@ Services publish lab events (`lab.created`, `lab.moved`, `lab.deleted`, `lab.man
 storage/
   <topology id>/
     topology.clab.yaml        the topology definition
+    topology.clab.yaml.annotations.json
+                              the graph layout
     configs/r1.conf           bind files, by relative path
 run/
   <lab id>/
@@ -83,11 +86,11 @@ run/
     clab-<instance name>/     created by containerlab
 ```
 
-When you create a lab, Antimony copies the topology's directory into a new run directory and sets the topology `name` to the lab's **instance name**. containerlab requires unique lab names, so every lab gets one of its own: the topology name followed by 12 random hex characters, for example `ospf-multiarea-3f9c2a1b7d4e`.
+When you create a lab, Antimony copies the topology's directory into a new run directory and sets the topology `name` to the lab's **instance name**. containerlab requires unique lab names, so every lab gets one of its own: the topology name in lowercase, with every character other than letters, digits and `-` replaced by `-` and cut to 46 characters, followed by `-` and 12 random hex characters, for example `ospf-multiarea-3f9c2a1b7d4e`. That keeps the name valid for containerlab and, as `c9s-<instance name>`, as a Kubernetes namespace.
 
 Because each lab has its own copy, editing a topology never changes labs that already exist.
 
-Bind file paths must be relative and stay inside the topology directory. Absolute paths and `..` are rejected.
+Bind file paths must be relative and stay inside the topology directory. Absolute paths and `..` are rejected, and so are [reserved names](/docs/manual/topology-editor/#bind-files) that Antimony, containerlab or netlab use in the directory, such as `clab-*`.
 
 ## Data storage
 

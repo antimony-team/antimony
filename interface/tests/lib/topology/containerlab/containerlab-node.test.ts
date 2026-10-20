@@ -152,8 +152,7 @@ describe('inheritance', () => {
     expect(node.get('image')).toBe('linux-image');
   });
 
-  // Bug: properties of other levels fall through to the default rule and are inherited
-  it.skip('only reads the management addresses and aliases from the node', () => {
+  it('only reads the management addresses and aliases from the node', () => {
     const node = nodeOf(
       `topology:
   defaults:

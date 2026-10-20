@@ -1,13 +1,13 @@
-# Configuration of the Antimony server for the e2e tests. Mounted into the container as /app/config.yml,
-# so relative paths are relative to /app (data/ comes with the image). Run without Docker, it's copied into
-# e2e/.tmp/backend/, next to a link to the checkout's data/. Only settings that differ from the server's
-# defaults are listed.
+# Configuration of the Antimony server for the e2e tests. It's copied into e2e/.tmp/backend/, next to the
+# server built from server/ and a link to server/data/. With SB_E2E_BACKEND_IMAGE, it's mounted into the
+# container as /app/config.yml instead. Only settings that differ from the server's defaults are listed.
 #
 # The ports 3200 (API) and 6200 (SSH) must match e2e/settings.ts and e2e/scripts/start-backend.sh. They
 # differ from the development backend (3100 and 6767), so a test run never talks to a backend that deploys
 # real labs.
 server:
-  # Published by Docker, so it has to listen on all interfaces of the container
+  # For the container, which publishes the port. The built server listens on 127.0.0.1 instead, see
+  # e2e/scripts/start-backend.sh.
   host: 0.0.0.0
   port: 3200
 deployment:

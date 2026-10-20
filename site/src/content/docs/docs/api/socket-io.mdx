@@ -28,11 +28,13 @@ If the handshake fails, the connection error's message is one of:
 | --- | --- |
 | `Unauthorized` | No token in `auth.token`. |
 | `Invalid Token` | The token is invalid or expired. Refresh it and reconnect. |
-| `No Access` | The namespace is restricted to other users, for example someone else's terminal, or the logs of a lab in a collection you aren't a member of. |
+| `No Access` | The namespace is restricted to other users, for example someone else's terminal, or the logs or statistics of a lab in a collection you aren't a member of. |
 
 ### Access is checked when connecting
 
-The server checks a client's access once, when it connects to a namespace. A client that loses access while it's connected keeps receiving messages until it disconnects, for example when a lab moves to a collection the user isn't a member of. Reconnecting checks access again.
+The server checks a client's access once, when it connects to a namespace. A client that loses access while it's connected keeps receiving messages until it disconnects, for example when the lab's collection is renamed to a name that isn't one of the user's groups. Reconnecting checks access again.
+
+`/lab-updates` and `/status-messages` are open to all signed-in users, but each message about a lab only goes to administrators and members of the lab's collection.
 
 A user's collections are updated when they sign in, so a change of their OpenID groups only applies from their next login.
 
@@ -74,8 +76,8 @@ Notifies clients that a lab's deployment changed, so they can reload the lab wit
 | --- | --- |
 | Direction | Server → client |
 | Created | When the server starts |
-| Access | All signed-in users |
-| Sent | When a lab is deploying, running, stopping or failed, and when one of its nodes changes state. Once more after the server starts, with `labId` set to `null`. |
+| Access | All signed-in users. Messages about a lab only go to administrators and members of its collection. |
+| Sent | When a lab is deploying, running, stopping or failed, and when one of its nodes changes state. Once more after the server starts, with `labId` set to `null`, to everyone. |
 | Format | Wrapped |
 | Backlog | None |
 
@@ -93,8 +95,8 @@ Notifications shown in the interface's Messages panel, such as finished or faile
 | --- | --- |
 | Direction | Server → client |
 | Created | When the server starts |
-| Access | All signed-in users |
-| Sent | When a lab starts or finishes deploying or destroying, when that fails, and when the files of a deleted lab can't be removed |
+| Access | All signed-in users. Messages about a lab only go to administrators and members of its collection. |
+| Sent | When a lab starts or finishes deploying or destroying, when that fails, when a node is started, stopped or restarted, when a node has started or failed to start, and, to administrators only, when the files of a deleted lab can't be removed |
 | Format | Wrapped |
 | Backlog | None |
 
@@ -159,7 +161,7 @@ Resource usage of one node. `containerId` is the node's container ID (the pod UI
 | --- | --- |
 | Direction | Server → client |
 | Created | When the node has started |
-| Access | All signed-in users |
+| Access | Administrators and members of the lab's collection |
 | Sent | Once per second while the node is running |
 | Format | Raw |
 | Backlog | The last 20 samples |
@@ -206,10 +208,10 @@ Lab, node and terminal commands.
 | Restart node | `4` | `labId`, `node` | `null` | Lab creator, administrators |
 | List my terminals | `5` | `labId` | `[{ "id", "node" }]` | Users with access to the lab |
 | Open terminal | `6` | `labId`, `node`, `cols`, `rows` | The new terminal's ID as a string | Users with access to the lab |
-| Close terminal | `7` | `shellId` | `null` | The terminal's owner, administrators |
-| Resize terminal | `8` | `shellId`, `cols`, `rows` | `null` | The terminal's owner, administrators |
+| Close terminal | `7` | `shellId` | `null` | The terminal's owner |
+| Resize terminal | `8` | `shellId`, `cols`, `rows` | `null` | The terminal's owner |
 
-`cols` and `rows` are the terminal's size in characters. Users have access to a lab if they're a member of its collection.
+`cols` and `rows` are the terminal's size in characters. Users have access to a lab if they're an administrator or a member of its collection. Terminals are private: *List my terminals* only returns your own, and nobody else can use, close or resize them, administrators included.
 
 ```ts
 const cmd = io('http://localhost:8080/cmd', { transports: ['websocket'], auth: { token } });
@@ -219,7 +221,7 @@ cmd.emit('data', JSON.stringify({ command: 4, labId, node: 'leaf1' }), (response
 });
 ```
 
-Deploying and destroying can take a while, and the response only comes when they're done. Follow the progress on `/lab-updates` and `/logs/<labId>`.
+Deploying and destroying can take a while, and the response only comes when they're done. Follow the progress on `/lab-updates` and `/logs/<labId>`. Destroying a lab that isn't deployed fails with `5012`.
 
 Node commands only work on running labs, and only on nodes of kinds with `canRestart: true` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml).
 

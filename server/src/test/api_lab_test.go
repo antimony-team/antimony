@@ -430,6 +430,28 @@ func TestCreateLab_NameMustBeValid(t *testing.T) {
 	})
 }
 
+func TestCreateLab_CannotEndBeforeItStarts(t *testing.T) {
+	h := NewHarness(t)
+
+	start := time.Now().Add(time.Hour)
+
+	for name, end := range map[string]time.Time{
+		"end before start": start.Add(-time.Minute),
+		"end at the start": start,
+	} {
+		t.Run(name, func(t *testing.T) {
+			errorResponse := h.POST("/labs", lab.LabIn{
+				Name:       ptr("Backwards"),
+				StartTime:  &start,
+				EndTime:    &end,
+				TopologyId: ptr(TopologyAdminID),
+			}, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 5003)
+
+			assert.Contains(t, errorResponse.Message, "the lab can't end before it starts")
+		})
+	}
+}
+
 func TestCreateLab_MemberCanCreateOnAPublicDeployCollection(t *testing.T) {
 	h := NewHarness(t)
 
@@ -713,6 +735,30 @@ func TestUpdateLab_NameCannotContainSlashes(t *testing.T) {
 
 	h.PATCH("/labs/"+LabAdminID, lab.LabInPartial{Name: ptr("core/edge")}, h.Seed.Admin.Token).
 		RequireError(http.StatusBadRequest, 5002)
+}
+
+func TestUpdateLab_CannotEndBeforeItStarts(t *testing.T) {
+	h := NewHarness(t)
+
+	before, err := h.LabRepo.GetByUuid(t.Context(), LabFutureID)
+	require.NoError(t, err)
+
+	cases := map[string]lab.LabInPartial{
+		"an end before the current start": {EndTime: ptr(before.StartTime.Add(-time.Minute))},
+		"a start after the current end":   {StartTime: ptr(before.EndTime.Add(time.Minute))},
+		"both at once":                    {StartTime: ptr(before.StartTime), EndTime: ptr(before.StartTime)},
+	}
+
+	for name, patch := range cases {
+		t.Run(name, func(t *testing.T) {
+			h.PATCH("/labs/"+LabFutureID, patch, h.Seed.Admin.Token).RequireError(http.StatusBadRequest, 5003)
+
+			stored, err := h.LabRepo.GetByUuid(t.Context(), LabFutureID)
+			require.NoError(t, err)
+			assert.True(t, stored.StartTime.Equal(before.StartTime), "a refused update must keep the start time")
+			assert.True(t, stored.EndTime.Equal(*before.EndTime), "a refused update must keep the end time")
+		})
+	}
 }
 
 func TestUpdateLab_MovingTheScheduleRepublishesIt(t *testing.T) {

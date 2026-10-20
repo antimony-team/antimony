@@ -26,13 +26,15 @@ Administrators manage collections:
 Each collection has two switches:
 
 - **Anyone can deploy**: everyone with access can start labs from this collection's topologies.
-- **Anyone can edit**: everyone with access can add, change and delete topologies here.
+- **Anyone can edit**: everyone with access can add topologies here, and change and delete the ones they created.
+
+Collection names must be unique, at most 64 characters long, start with a letter or digit and contain only letters, digits, spaces, `.`, `_` and `-`.
 
 <Aside type="caution">
-	Deleting a collection asks for confirmation and lists the topologies it contains.
+	Deleting a collection asks for confirmation and lists the topologies it contains. It also deletes the collection's labs, and fails while one of them is still deployed.
 </Aside>
 
-When you open the editor for the first time and no collection exists, it guides you through creating a collection and a first topology.
+As long as there is no topology yet, the editor guides you through creating a collection and a first topology.
 
 ## The explorer
 
@@ -40,8 +42,8 @@ The left panel shows collections, their topologies and each topology's bind file
 
 | Item | Buttons and menu |
 | --- | --- |
-| Collection | **+** adds a topology. The menu has **New topology**, and for administrators **Edit** and **Delete**. |
-| Topology | **▶** opens the deploy dialog for it. The menu has **Deploy**, and for its creator and administrators **New file**, **Upload files**, **Edit** and **Delete**. |
+| Collection | **+** adds a topology. The menu has **New topology**, and for administrators **Edit** and **Delete**. Both are only shown if you may add topologies to the collection. |
+| Topology | **▶** opens the deploy dialog for it. The menu has **Deploy**, and for its creator and administrators **New file**, **Upload files**, **Edit**, **Duplicate**, **Download YAML** and **Delete**. |
 | File or directory | The menu has **Edit** and **Delete**. |
 
 Right-clicking an item opens the same menu.
@@ -60,6 +62,8 @@ topology:
 
 ## The editor
 
+You can edit a topology if you're an administrator, or if you created it and its collection has **Anyone can edit** turned on. Other topologies open read-only.
+
 The toolbar shows the topology's collection and name. An asterisk marks unsaved changes.
 
 | Control | What it does |
@@ -68,10 +72,12 @@ The toolbar shows the topology's collection and name. An asterisk marks unsaved 
 | **Code** / **Split** / **Graph** | Show the YAML, both, or only the graph. Your choice is remembered. |
 | **Sync options** | Set the URL to sync the topology from. |
 | **Save** | Save the topology. Also <kbd>Ctrl</kbd>+<kbd>S</kbd>. Disabled while the topology is invalid. A red dot means there are unsaved changes. |
-| **Download** | Download the YAML as `<collection>_<topology>.yaml`. |
-| **Deploy** | Open the [deploy dialog](/docs/manual/deploying-labs/) for this topology. |
+| **Download** | Download the open file: the YAML as `<collection>_<topology>.yaml`, or the annotations as `<collection>_<topology>.annotations.json`. |
+| **Deploy** | Open the [deploy dialog](/docs/manual/deploying-labs/) for this topology. Only shown if you may deploy from its collection. |
 
 If you try to leave with unsaved changes, Antimony asks whether to **Discard changes** or **Keep editing**.
+
+**Tour** (the question mark in the top bar) takes you through the editor. It starts by itself the first time you open a topology.
 
 ### YAML
 
@@ -90,7 +96,7 @@ The toolbar on the left of the graph:
 | **Select** (<kbd>V</kbd>) | Select, move and resize nodes, groups, shapes and text. Shift-click adds to the selection. |
 | **Hand** (<kbd>H</kbd>) | Pan the graph by dragging. |
 | **Add node** | Opens the [node dialog](#the-node-dialog) to add a node. |
-| **Rectangle** (<kbd>R</kbd>), **Ellipse** (<kbd>O</kbd>), **Line** (<kbd>L</kbd>), **Text** (<kbd>T</kbd>) | Draw shapes, lines and text on the canvas. |
+| **Rectangle** (<kbd>R</kbd>), **Ellipse** (<kbd>O</kbd>), **Line** (<kbd>L</kbd>), **Text** (<kbd>T</kbd>) | Draw shapes, lines and text on the canvas. Text is written in Markdown and can contain links and images. |
 | **Group** (<kbd>G</kbd>) | Draw a named group box. Nodes and shapes whose center it covers are put in the group. |
 | **Group selection** (<kbd>Ctrl</kbd>+<kbd>G</kbd>) | Puts the selected elements in a new group. |
 | **Fit graph** | Zooms to show the whole topology. |
@@ -98,9 +104,27 @@ The toolbar on the left of the graph:
 
 Topologies you can't edit only show **Select**, **Hand** and **Fit graph**. On macOS, use <kbd>Cmd</kbd> wherever these docs say <kbd>Ctrl</kbd>.
 
+While you drag, elements snap to the grid and to the edges and centers of other elements. Hold <kbd>Alt</kbd> to turn snapping off. Dropping elements onto a group adds them to it, and the group grows to fit them. Hold <kbd>Ctrl</kbd> while dropping to keep them out of groups, or to move them out of their group.
+
+Hovering over a group, shape or text shows arrows on its sides. Drag from an arrow to draw a line that is attached to it. The ends of attached lines follow the element when it moves or is resized.
+
 Click an element to select it. The bar above the selection has its style options and **Delete**. Double-click a node's icon to open the node dialog, or its name to rename it. Double-click a link to rename the interface at the nearer end, and a group's name to rename the group. Right-click nodes, links, groups, shapes and the background for more options.
 
 To connect two nodes, right-click the first one, choose **Connect** and click the second one. Clicking the first node again connects it to itself. Antimony uses the next free interface on both ends. Press <kbd>Esc</kbd> or click anywhere else to cancel.
+
+| Shortcut | What it does |
+| --- | --- |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd>, <kbd>Ctrl</kbd>+<kbd>X</kbd>, <kbd>Ctrl</kbd>+<kbd>V</kbd> | Copy, cut and paste the selection |
+| <kbd>Ctrl</kbd>+<kbd>D</kbd> | Duplicate the selection |
+| <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select everything |
+| <kbd>Delete</kbd> or <kbd>Backspace</kbd> | Delete the selection |
+| Arrow keys | Move the selection, by a grid step with <kbd>Shift</kbd> |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> | Ungroup |
+| <kbd>Ctrl</kbd>+<kbd>]</kbd> / <kbd>Ctrl</kbd>+<kbd>[</kbd> | Bring forward / backward, to the front or back with <kbd>Shift</kbd>. <kbd>Ctrl</kbd>+<kbd>↑</kbd> and <kbd>Ctrl</kbd>+<kbd>↓</kbd> do the same. |
+| <kbd>F2</kbd> | Rename the selected node or group |
+| <kbd>Enter</kbd> | Edit the selected text |
+| <kbd>Space</kbd> (hold) | Pan with the hand tool |
+| <kbd>Esc</kbd> | Clear the selection |
 
 ### The node dialog
 

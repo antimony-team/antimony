@@ -271,8 +271,9 @@ export class TopologyManager {
     if (this.openFileType === OpenFileType.Topology) {
       if (!this.editingTopology || !this.originalTopology) return;
 
+      // A copy, since edits change the editing topology in place
       this.onTopologyEdit.update({
-        updatedTopology: this.originalTopology,
+        updatedTopology: TopologyManager.cloneTopology(this.originalTopology),
         isEdited: false,
         source: TopologyEditSource.System,
       });

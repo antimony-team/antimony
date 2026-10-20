@@ -256,8 +256,7 @@ describe('TopologyManager', () => {
       expect(manager.hasEdits()).toBe(false);
     });
 
-    it.skip('counts edits after discarding as edits', () => {
-      // Bug: after discarding, the edits change the backup of the original topology
+    it('counts edits after discarding as edits', () => {
       open();
       manager.renameNode('pc', 'client');
       manager.discardEdits();
