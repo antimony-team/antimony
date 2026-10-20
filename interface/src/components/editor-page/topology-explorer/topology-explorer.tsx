@@ -763,7 +763,9 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         });
       }
 
-      if (authUser.isAdmin || topology.creator.id === authUser.id) {
+      const canEdit = topologyStore.canEdit(topology);
+
+      if (canEdit) {
         entries.push(
           {
             id: 'new-file',
@@ -794,12 +796,18 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
             icon: 'pi pi-clone',
             command: onDuplicateTopologyContext,
           },
-          {
-            id: 'download',
-            label: 'Download YAML',
-            icon: 'pi pi-download',
-            command: onDownloadTopologyContext,
-          },
+        );
+      }
+
+      entries.push({
+        id: 'download',
+        label: 'Download YAML',
+        icon: 'pi pi-download',
+        command: onDownloadTopologyContext,
+      });
+
+      if (canEdit) {
+        entries.push(
           {
             separator: true,
           },
@@ -825,7 +833,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
       const entries = [];
 
-      if (authUser.isAdmin || topology.creator.id === authUser.id) {
+      if (topologyStore.canEdit(topology)) {
         entries.push(
           {
             id: 'edit',
@@ -860,7 +868,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
       const entries = [];
 
-      if (authUser.isAdmin || topology.creator.id === authUser.id) {
+      if (topologyStore.canEdit(topology)) {
         entries.push(
           {
             id: 'edit',
@@ -893,7 +901,10 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     collectionId: string,
   ) {
     const topology = topologyStore.lookup.get(topologyId)!;
-    if (!authUser.isAdmin && topology?.creator.id !== authUser.id) {
+    if (
+      !topologyStore.canEdit(topology) ||
+      !collectionStore.canWriteIn(collectionId)
+    ) {
       notificationStore.error(
         'You do not have permissions to move this topology',
         'Failed to move topology',
@@ -948,7 +959,12 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
-    if (!authUser.isAdmin && targetTopology.creator.id !== authUser.id) {
+    // Moving to another topology deletes the file from its current one, so both have to be editable
+    const sourceTopology = topologyStore.lookup.get(bindFile.topologyId);
+    if (
+      !topologyStore.canEdit(targetTopology) ||
+      (sourceTopology && !topologyStore.canEdit(sourceTopology))
+    ) {
       notificationStore.error(
         `You do not have permissions to move a file to '${targetTopology.definition.name}'`,
         'Unable to move file',
