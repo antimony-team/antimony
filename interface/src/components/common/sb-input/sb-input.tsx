@@ -119,7 +119,10 @@ const SBInput = forwardRef<SBInputRef, SBInputProps>((props, ref) => {
           {props.label}
         </label>
       </If>
+      {/* A new tooltip for every error. Otherwise, an error set while the last one is still fading out
+          stays hidden, since the fade out ends after it. */}
       <Tooltip
+        key={validationError}
         id={inputId}
         ref={tooltipRef}
         isOpen={!!validationError}
