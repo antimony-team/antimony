@@ -82,17 +82,15 @@ function labOut(id: string, overrides: Partial<LabOut> = {}): LabOut {
 function instance(state: InstanceState): InstanceOut {
   return {
     name: 'instance',
-    deployed: '2026-01-01T11:00:00Z' as unknown as Date,
+    deployed: '2026-01-01T11:00:00Z',
     state,
-    latestStateChange: NOW,
+    latestStateChange: NOW.toISOString(),
     nodes: [
       {
         name: 'r1',
         kind: 'linux',
         ipv4: '',
         ipv6: '',
-        port: 22,
-        user: '',
         containerId: 'container',
         containerName: 'r1',
         interfaces: [],

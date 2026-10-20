@@ -39,6 +39,7 @@ function topologyOut(
     syncUrl: '',
     bindFiles: [],
     lastDeployFailed: false,
+    policyFindings: [],
     ...overrides,
   };
 }

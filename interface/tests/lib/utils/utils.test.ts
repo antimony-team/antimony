@@ -28,6 +28,7 @@ import {
   pluralize,
   pushOrCreateList,
   uses12HourClock,
+  validateName,
 } from '@sb/lib/utils/utils';
 import {Topology} from '@sb/types/domain/topology';
 import {FetchState} from '@sb/types/types';
@@ -195,6 +196,31 @@ describe('isInDirectory', () => {
 
   it('only matches the directory at the start of the path', () => {
     expect(isInDirectory('other/node1/startup.cfg', 'node1')).toBe(false);
+  });
+});
+
+describe('validateName', () => {
+  it('accepts the names the server accepts', () => {
+    for (const name of ['lab', 'Lab 1', 'r1.core_a-b', '9', 'a'.repeat(64)]) {
+      expect(validateName(name), name).toBeNull();
+    }
+  });
+
+  it('rejects empty and too long names', () => {
+    expect(validateName('')).toBe("Name can't be empty");
+    expect(validateName('a'.repeat(65))).toMatch(/longer than 64/);
+  });
+
+  it('rejects names that do not start with a letter or a digit', () => {
+    for (const name of [' lab', '-lab', '.lab', '_lab']) {
+      expect(validateName(name), name).toMatch(/start with/);
+    }
+  });
+
+  it('rejects other characters', () => {
+    for (const name of ['a/b', 'a;b', "it's", 'aä', 'a\tb', 'a$b']) {
+      expect(validateName(name), name).toMatch(/can only contain/);
+    }
   });
 });
 

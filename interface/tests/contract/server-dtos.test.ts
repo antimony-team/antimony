@@ -25,8 +25,7 @@ import {ErrorCodes} from '@sb/types/error-codes';
  * types against the server's swagger, and the error codes against the codes the server sends.
  *
  * The key lists are typed with all keys of the interface's types, so the compiler keeps them in line
- * with the types, and the test keeps them in line with the server. Differences that are known, but not
- * fixed yet, are listed in KNOWN_DIFFERENCES. Once one is fixed, the test fails until it's removed.
+ * with the types, and the test keeps them in line with the server.
  */
 
 const SERVER_DIR = path.resolve(import.meta.dirname, '../../../server/src');
@@ -71,8 +70,6 @@ const TYPES: Record<string, string[]> = {
     kind: true,
     ipv4: true,
     ipv6: true,
-    port: true,
-    user: true,
     containerId: true,
     containerName: true,
     interfaces: true,
@@ -95,6 +92,7 @@ const TYPES: Record<string, string[]> = {
     creator: true,
     bindFiles: true,
     lastDeployFailed: true,
+    policyFindings: true,
   }),
   'transport.BindFileOut': keys<BindFile>({
     id: true,
@@ -105,6 +103,7 @@ const TYPES: Record<string, string[]> = {
   'topology.BindFileIn': keys<BindFileIn>({filePath: true, content: true}),
   'transport.CollectionOut': keys<Collection>({
     id: true,
+    creator: true,
     name: true,
     publicWrite: true,
     publicDeploy: true,
@@ -129,19 +128,6 @@ const TYPES: Record<string, string[]> = {
   'serverconfig.DeploymentConfig': keys<DeploymentConfig>({provider: true}),
 };
 
-// Fields the interface's types have, but the server doesn't (extra) or the other way round (missing)
-const KNOWN_DIFFERENCES: Record<
-  string,
-  {extra?: string[]; missing?: string[]}
-> = {
-  'instance.InstanceNode': {extra: ['port', 'user']},
-  'transport.TopologyOut': {missing: ['policyFindings']},
-  'transport.CollectionOut': {missing: ['creator']},
-};
-
-// Error codes the server sends that ErrorCodes doesn't have yet
-const KNOWN_MISSING_CODES = [422, 500, 2002, 4002, 4003, 5003];
-
 // HTTP statuses the server also sends as codes, which the data binder handles by status
 const HTTP_AUTH_CODES = [401, 403, 498];
 
@@ -153,13 +139,11 @@ describe('the API types', () => {
       );
       expect(properties, `${name} is not in the swagger`).not.toEqual([]);
 
+      // Fields the interface has, but the server doesn't (extra), and the other way round (missing)
       expect({
         extra: fields.filter(field => !properties.includes(field)).sort(),
         missing: properties.filter(field => !fields.includes(field)).sort(),
-      }).toEqual({
-        extra: KNOWN_DIFFERENCES[name]?.extra ?? [],
-        missing: KNOWN_DIFFERENCES[name]?.missing ?? [],
-      });
+      }).toEqual({extra: [], missing: []});
     });
   }
 });
@@ -179,6 +163,6 @@ describe('the error codes', () => {
       .filter(code => !codes.has(code) && !HTTP_AUTH_CODES.includes(code))
       .sort((a, b) => a - b);
 
-    expect(missing).toEqual(KNOWN_MISSING_CODES);
+    expect(missing).toEqual([]);
   });
 });

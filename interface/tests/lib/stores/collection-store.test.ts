@@ -56,7 +56,13 @@ function collection(
   publicWrite = false,
   publicDeploy = false,
 ): Collection {
-  return {id, name, publicWrite, publicDeploy};
+  return {
+    id,
+    name,
+    publicWrite,
+    publicDeploy,
+    creator: {id: 'admin', name: 'admin'},
+  };
 }
 
 describe('CollectionStore', () => {

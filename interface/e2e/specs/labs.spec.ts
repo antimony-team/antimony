@@ -118,7 +118,10 @@ test.describe('validation', () => {
     );
   });
 
-  test('lab names can not contain slashes', async ({page, createTopology}) => {
+  test('lab names only have the characters the server allows', async ({
+    page,
+    createTopology,
+  }) => {
     const topology = await createTopology();
     await page.goto('/');
     await new DashboardPage(page).newLab.click();
@@ -129,7 +132,7 @@ test.describe('validation', () => {
     await dialog.submit('Deploy');
 
     await expect(dialog.validationError()).toContainText(
-      "Lab names can't contain slashes",
+      'Names can only contain letters, digits, spaces, dots, underscores and dashes',
     );
   });
 
