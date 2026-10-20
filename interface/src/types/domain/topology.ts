@@ -27,12 +27,21 @@ export type TopologyIn = {
   syncUrl?: string;
 };
 
+// What the topology policy found in a topology, see the server's policy package
+export type PolicyFinding = {
+  ruleId: string;
+  impact: 'deploy' | 'shell' | 'unreviewed';
+  path: string;
+  message: string;
+};
+
 // The server always sends all fields, only the input of an update can leave some out
 export type TopologyOut = Required<TopologyIn> & {
   id: uuid4;
   creator: User;
   bindFiles: BindFile[];
   lastDeployFailed: boolean;
+  policyFindings: PolicyFinding[];
 };
 
 // A topology of a collection, as the server stores it

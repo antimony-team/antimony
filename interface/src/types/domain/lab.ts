@@ -37,14 +37,16 @@ export type Lab = {
 
 export type InstanceOut = {
   name: string;
-  deployed: Date;
+  deployed: string;
   state: InstanceState;
-  latestStateChange: Date;
+  latestStateChange: string;
   nodes: InstanceNode[];
   isRecovered: boolean;
 };
 
-export type Instance = InstanceOut & {
+export type Instance = Omit<InstanceOut, 'deployed' | 'latestStateChange'> & {
+  deployed: Date;
+  latestStateChange: Date;
   nodeMap: Map<string, InstanceNode>;
 };
 
@@ -53,8 +55,6 @@ export type InstanceNode = {
   kind: string;
   ipv4: string;
   ipv6: string;
-  port: number;
-  user: string;
   containerId: string;
   containerName: string;
   interfaces: NodeInterface[];
@@ -137,6 +137,8 @@ export type RuntimeCommandPayload = {
   command: RuntimeCommand;
   node?: string;
   shellId?: string;
+  cols?: number;
+  rows?: number;
 };
 
 export enum RuntimeCommand {

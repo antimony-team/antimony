@@ -8,6 +8,10 @@ export enum ErrorCodes {
    */
   ErrorGeneric = -1,
 
+  // The request body is malformed or misses fields
+  ErrorValidation = 422,
+  ErrorDatabase = 500,
+
   /*
    * The following errors can occur through invalid user input and have to be
    * handled separately to properly highlight invalid input fields.
@@ -15,6 +19,7 @@ export enum ErrorCodes {
   ErrorInvalidCredentials = 1001,
 
   ErrorCollectionExists = 2001,
+  ErrorInvalidCollectionName = 2002,
 
   ErrorTopologyExists = 3001,
 
@@ -25,6 +30,8 @@ export enum ErrorCodes {
   ErrorUnsafeTopology = 3005,
 
   ErrorBindFileExists = 4001,
+  ErrorInvalidBindFilePath = 4002,
+  ErrorLabRunning = 4003,
 
   /*
    * Errors that the server returns from socket requests.
@@ -40,6 +47,7 @@ export enum ErrorCodes {
   // Lab errors
   ErrorLabNameExists = 5001,
   ErrorInvalidLabName = 5002,
+  ErrorInvalidLabTime = 5003,
   ErrorLabNotFound = 5011,
   ErrorLabNotRunning = 5012,
   ErrorLabOperationInProgress = 5013,
