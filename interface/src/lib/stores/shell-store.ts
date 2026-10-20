@@ -236,22 +236,29 @@ export class ShellStore {
 
     // We wait 50 ms before actually closing the shell so that the tab can properly
     // close before getting flagged as inactive. This is purely a UX thing.
-    setTimeout(() => {
-      void this.commandsSubscription.socket!.emitWithAck(
+    setTimeout(async () => {
+      const result = (await this.commandsSubscription.socket!.emitWithAck(
         'data',
         JSON.stringify({
           labId: lab.id,
           shellId: shellId,
           command: RuntimeCommand.CloseShell,
         }),
-      );
+      )) as DataResponse<void>;
+
+      if (!('payload' in result)) {
+        this.statusMessageStore.error(
+          Result.createErr(result).error.message,
+          'Failed to close shell',
+        );
+      }
     }, 20);
   }
 
   public async resizeShell(shell: ShellData | null) {
     if (!shell || shell.expired) return;
 
-    await this.commandsSubscription.socket!.emitWithAck(
+    const result = (await this.commandsSubscription.socket!.emitWithAck(
       'data',
       JSON.stringify({
         shellId: shell.id,
@@ -259,7 +266,14 @@ export class ShellStore {
         cols: this.terminalSize.cols,
         rows: this.terminalSize.rows,
       }),
-    );
+    )) as DataResponse<void>;
+
+    if (!('payload' in result)) {
+      this.statusMessageStore.error(
+        Result.createErr(result).error.message,
+        'Failed to resize shell',
+      );
+    }
   }
 
   private handleData(data: ArrayBuffer) {

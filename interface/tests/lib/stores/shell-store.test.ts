@@ -176,8 +176,7 @@ describe('ShellStore', () => {
       expect(store.getShellsForLab('a')).toEqual([shell('s2')]);
     });
 
-    // Bug: closeShell ignores the answer of the server
-    it.fails('reports if the server forbids closing a shell', async () => {
+    it('reports if the server forbids closing a shell', async () => {
       await openShell('a', 's1');
       dataBinder.ack = FORBIDDEN;
 
@@ -220,8 +219,7 @@ describe('ShellStore', () => {
       expect(store.currentShell).toEqual(shell('s1'));
     });
 
-    // Bug: resizeShell ignores the answer of the server
-    it.fails('reports if the server forbids resizing a shell', async () => {
+    it('reports if the server forbids resizing a shell', async () => {
       dataBinder.ack = FORBIDDEN;
 
       await store.resizeShell(shell('s1'));
