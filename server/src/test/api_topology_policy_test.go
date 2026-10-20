@@ -70,6 +70,12 @@ func TestTopologyPolicy_SafeTopologiesHaveNoFindings(t *testing.T) {
 	for _, topologyId := range []string{TopologyAdminID, TopologyMemberID, TopologyPrivateID, TopologyHiddenID} {
 		assert.Emptyf(t, findingsOf(t, h, topologyId), "the seeded topology %s only uses safe features", topologyId)
 	}
+
+	// The client reads the findings as a list, so a topology without findings has an empty one and not null
+	t.Run("as an empty list", func(t *testing.T) {
+		assert.Contains(t, h.GET("/topologies/"+TopologyAdminID, h.Seed.Admin.Token).Body(), `"policyFindings":[]`)
+		assert.NotContains(t, h.GET("/topologies", h.Seed.Admin.Token).Body(), `"policyFindings":null`)
+	})
 }
 
 func TestTopologyPolicy_FindingsAreReturnedWithTheTopology(t *testing.T) {

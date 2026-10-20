@@ -120,6 +120,7 @@ The everyday commands are Yarn scripts:
 | `yarn lint` | Lints with [gts](https://github.com/google/gts). |
 | `yarn typecheck` | Type-checks without building. |
 | `yarn e2e` | Runs the end-to-end tests. |
+| `yarn e2e:provider` | Runs the end-to-end tests that deploy with containerlab. |
 
 Everything that takes more than one step is a task in `Taskfile.yml`. Tasks install the dependencies when needed and skip builds whose inputs haven't changed. `task --list` shows them all.
 
@@ -131,6 +132,7 @@ Everything that takes more than one step is a task in `Taskfile.yml`. Tasks inst
 | `task build-docker` | Builds the Docker image `antimony-interface:dev`. |
 | `task build-electron` | Builds [Antimony Desktop](/docs/deployment/desktop-app/) without packaging it. Start it with `yarn electron .`. |
 | `task package-electron-linux` | Builds Antimony Desktop as AppImage, .deb and .rpm for x86_64 and ARM64 into `release/`. |
+| `task e2e-provider` | Runs the end-to-end tests that deploy with containerlab, asking for the sudo password first. |
 | `task e2e-ui` | Opens the end-to-end tests in Playwright's UI. |
 | `task e2e-report` | Opens the report of the last end-to-end run. |
 | `task clean` | Removes the build output. |
@@ -161,6 +163,8 @@ task e2e-report             # open the last report
 ```
 
 Tests of bugs that aren't fixed yet are marked with `knownBug()` and expected to fail. The interface's `e2e/README.md` explains how to write tests. To test against a server image instead, set `SB_E2E_BACKEND_IMAGE=<image>`, for example `antimony-server:dev` after `task build-docker` in `server/`.
+
+The tests in `e2e/provider/` deploy labs with a real containerlab instead and check the nodes, shells and stats in the interface. The server runs as root for containerlab, so they need containerlab, the `alpine:latest` image and sudo without a password prompt. `task e2e-provider` runs `sudo -v` first and then `yarn e2e:provider`. They only clean up labs they created themselves.
 
 ## Documentation
 
@@ -195,7 +199,7 @@ npm run sync-api -- <path or URL>   # from somewhere else
 | --- | --- | --- |
 | `ci.yml` | Pushes to `development` and `main`, PRs, tags `v*`, manually | The server's lint, Swagger check, build with a startup smoke test and tests with the race detector, and the interface's lint, type check and unit tests with coverage (uploaded as the artifact `coverage-report`), all in parallel. Then the Docker images, and Antimony Desktop (AppImage, .deb and .rpm for x86_64 and ARM64), which is kept as the artifact `antimony-desktop`. For a `v*` tag, `e2e.yml` runs as well, and the release follows once it passes. |
 | `fuzz.yml` | Nightly, manually | Fuzz tests of the server |
-| `e2e.yml` | Pushes to `development` and `main`, PRs, tags `v*` (through `ci.yml`), manually | The server's provider and server end-to-end tests against containerlab and against clabernetes in a kind cluster, and the interface's end-to-end tests against the server of the same commit |
+| `e2e.yml` | Pushes to `development` and `main`, PRs, tags `v*` (through `ci.yml`), manually | The server's provider and server end-to-end tests against containerlab and against clabernetes in a kind cluster, and the interface's end-to-end tests against the server of the same commit, once with the dummy provider and once deploying with containerlab |
 | `release.yml` | Called by `ci.yml` for tags `v*` | Packs the deployment files with that version, writes their checksums and those of Antimony Desktop to `SHA256SUMS`, attests them, creates the GitHub release with them and starts `docs.yml` |
 | `docs.yml` | Pushes to `main` and PRs that change `site/`, `release.yml`, manually | Builds this website and publishes it to GitHub Pages from `main` |
 

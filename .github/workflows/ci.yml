@@ -45,6 +45,9 @@ jobs:
             interface:
               - 'interface/**'
               - '.github/workflows/ci.yml'
+              # The contract test compares the interface types with these
+              - 'server/src/docs/**'
+              - 'server/src/utils/response.go'
 
   server-lint:
     needs: changes

@@ -193,3 +193,74 @@ jobs:
             interface/e2e/.tmp/test-results/
             interface/e2e/.tmp/backend/server.log
           retention-days: 14
+
+  # Drives the interface against the server deploying with a real containerlab on the runner's Docker
+  interface-containerlab:
+    needs: changes
+    if: needs.changes.outputs.server == 'true' || needs.changes.outputs.interface == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: interface
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: server/src/go.mod
+          cache-dependency-path: server/src/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: yarn
+          cache-dependency-path: interface/yarn.lock
+
+      - name: Install containerlab
+        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.78.2
+
+      - name: Pull the node image
+        run: docker pull alpine:latest
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('interface/yarn.lock') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build the server
+        working-directory: server/src
+        run: go build -o /dev/null .
+
+      - name: Run end-to-end tests
+        run: yarn e2e:provider
+
+      - name: Upload test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-provider-report
+          path: |
+            interface/e2e/.tmp/provider-report/
+            interface/e2e/.tmp/provider-test-results/
+            interface/e2e/.tmp/backend/server.log
+          retention-days: 14
