@@ -23,7 +23,11 @@ import {
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
-import {localeDatePattern, uses12HourClock} from '@sb/lib/utils/utils';
+import {
+  localeDatePattern,
+  uses12HourClock,
+  validateName,
+} from '@sb/lib/utils/utils';
 import {If} from '@sb/types/control';
 import {Lab, LabIn} from '@sb/types/domain/lab';
 import {ErrorCodes} from '@sb/types/error-codes';
@@ -143,15 +147,17 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   async function onSubmit() {
     if (!props.dialogState.state) return;
 
-    if (editingLab.name.includes('/')) {
-      labNameRef.current?.setValidationError(
-        "Lab names can't contain slashes. ",
-      );
+    const nameError = validateName(editingLab.name);
+    if (nameError) {
+      labNameRef.current?.setValidationError(nameError);
       return;
     }
 
-    if (editingLab.name === '') {
-      labNameRef.current?.setValidationError("Name can't be empty");
+    if (editingLab.endTime <= editingLab.startTime) {
+      notificationStore.error(
+        "A lab can't end before it starts.",
+        'Invalid end time',
+      );
       return;
     }
 
@@ -174,6 +180,8 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
           labNameRef.current?.setValidationError(
             'A lab with that name already exists.',
           );
+        } else if (result.error.code === ErrorCodes.ErrorInvalidLabName) {
+          labNameRef.current?.setValidationError(result.error.message);
         } else {
           notificationStore.error(result.error.message, 'Failed to edit lab');
         }
@@ -207,6 +215,8 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             labNameRef.current?.setValidationError(
               'A lab with that name already exists',
             );
+          } else if (result.error.code === ErrorCodes.ErrorInvalidLabName) {
+            labNameRef.current?.setValidationError(result.error.message);
           } else {
             notificationStore.error(
               createErrorMessage(result.error),
@@ -229,9 +239,10 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   }
 
   async function deployBatch(newLab: LabIn) {
-    if (instanceNames.some(name => name.includes('/'))) {
+    const invalidName = instanceNames.find(name => validateName(name));
+    if (invalidName !== undefined) {
       notificationStore.error(
-        "Lab names can't contain slashes.",
+        `'${invalidName}': ${validateName(invalidName)}.`,
         'Invalid lab name',
       );
       return;

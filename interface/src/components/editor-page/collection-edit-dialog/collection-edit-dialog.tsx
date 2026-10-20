@@ -10,6 +10,7 @@ import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
 import {useCollectionStore, useStatusMessages} from '@sb/lib/stores/root-store';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
+import {validateName} from '@sb/lib/utils/utils';
 import {Collection, CollectionIn} from '@sb/types/domain/collection';
 import {ErrorCodes} from '@sb/types/error-codes';
 
@@ -102,8 +103,9 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
   async function onSubmit() {
     if (!props.dialogState.state) return;
 
-    if (editingCollection.name === '') {
-      collectionNameRef.current?.setValidationError("Name can't be empty");
+    const nameError = validateName(editingCollection.name);
+    if (nameError) {
+      collectionNameRef.current?.setValidationError(nameError);
       return;
     }
 
@@ -122,6 +124,10 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
           collectionNameRef.current?.setValidationError(
             'A collection with that name already exists.',
           );
+        } else if (
+          result.error.code === ErrorCodes.ErrorInvalidCollectionName
+        ) {
+          collectionNameRef.current?.setValidationError(result.error.message);
         } else {
           notificationStore.error(
             result.error.message,
@@ -139,6 +145,10 @@ const CollectionEditDialog = observer((props: CollectionEditDialogProps) => {
           collectionNameRef.current?.setValidationError(
             'A collection with that name already exists.',
           );
+        } else if (
+          result.error.code === ErrorCodes.ErrorInvalidCollectionName
+        ) {
+          collectionNameRef.current?.setValidationError(result.error.message);
         } else {
           notificationStore.error(
             result.error.message,

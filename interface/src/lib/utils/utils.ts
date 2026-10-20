@@ -90,6 +90,23 @@ export function isValidURL(url: string) {
   }
 }
 
+/**
+ * Why a lab or collection name is invalid, or null if it's valid. The server only accepts letters,
+ * digits, spaces, dots, underscores and dashes, starting with a letter or a digit, since the names are
+ * part of SSH addresses and shell commands.
+ */
+export function validateName(name: string): string | null {
+  if (name === '') return "Name can't be empty";
+  if (name.length > 64) return "Names can't be longer than 64 characters";
+  if (!/^[A-Za-z0-9]/.test(name)) {
+    return 'Names have to start with a letter or a digit';
+  }
+  if (!/^[A-Za-z0-9 ._-]*$/.test(name)) {
+    return 'Names can only contain letters, digits, spaces, dots, underscores and dashes';
+  }
+  return null;
+}
+
 export function getSSHCommand(
   collectionName: string,
   labName: string,
