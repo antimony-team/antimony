@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Repository struct {

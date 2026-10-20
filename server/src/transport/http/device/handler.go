@@ -3,8 +3,8 @@ package device
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/antimony-team/antimony-server/domain/device"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/domain/device"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Handler struct {

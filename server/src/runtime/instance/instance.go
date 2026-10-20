@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antimony-team/antimony-server/deployment"
-	"github.com/antimony-team/antimony-server/socket"
+	"github.com/antimony-team/antimony/server/src/deployment"
+	"github.com/antimony-team/antimony/server/src/socket"
 )
 
 type Instance struct {

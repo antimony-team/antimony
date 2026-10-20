@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/domain/topology"
-	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony/server/src/domain/topology"
+	"github.com/antimony-team/antimony/server/src/transport"
 )
 
 func bindFileURL(topologyId string) string {

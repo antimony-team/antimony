@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 /*

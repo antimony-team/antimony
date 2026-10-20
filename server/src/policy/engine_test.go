@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/antimony-team/antimony-server/clabtypes"
+	"github.com/antimony-team/antimony/server/src/clabtypes"
 )
 
 // parseTopology decodes a definition the way schema.Service.Parse does before the engine checks it:

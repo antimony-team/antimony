@@ -3,8 +3,8 @@ package serverconfig
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/antimony-team/antimony-server/domain/serverconfig"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/domain/serverconfig"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type (

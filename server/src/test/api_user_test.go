@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/domain/user"
 )
 
 /*

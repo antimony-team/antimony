@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/clause"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/domain/collection"
-	"github.com/antimony-team/antimony-server/domain/lab"
-	"github.com/antimony-team/antimony-server/domain/topology"
-	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/domain/collection"
+	"github.com/antimony-team/antimony/server/src/domain/lab"
+	"github.com/antimony-team/antimony/server/src/domain/topology"
+	"github.com/antimony-team/antimony/server/src/domain/user"
 )
 
 // Collection names. Access for non-admin users is granted by collection *name*, which is what the

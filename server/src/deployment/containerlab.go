@@ -31,8 +31,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/vishvananda/netns"
 
-	"github.com/antimony-team/antimony-server/utils"
-	"github.com/antimony-team/antimony-server/utils/serverlog"
+	"github.com/antimony-team/antimony/server/src/utils"
+	"github.com/antimony-team/antimony/server/src/utils/serverlog"
 )
 
 // capturePollTimeout bounds how long a capture read waits for a packet, and with it how long closing a capture takes.

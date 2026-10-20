@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/domain/device"
-	"github.com/antimony-team/antimony-server/domain/serverconfig"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/domain/device"
+	"github.com/antimony-team/antimony/server/src/domain/serverconfig"
 )
 
 /*

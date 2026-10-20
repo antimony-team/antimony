@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/domain/collection"
-	"github.com/antimony-team/antimony-server/domain/lab"
-	"github.com/antimony-team/antimony-server/transport"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/domain/collection"
+	"github.com/antimony-team/antimony/server/src/domain/lab"
+	"github.com/antimony-team/antimony/server/src/transport"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 /*

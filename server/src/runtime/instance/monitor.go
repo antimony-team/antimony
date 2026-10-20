@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 
-	"github.com/antimony-team/antimony-server/deployment"
-	"github.com/antimony-team/antimony-server/socket"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/deployment"
+	"github.com/antimony-team/antimony/server/src/socket"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Monitor struct {

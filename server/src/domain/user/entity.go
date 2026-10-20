@@ -3,7 +3,7 @@ package user
 import (
 	"gorm.io/gorm"
 
-	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony/server/src/config"
 )
 
 type User struct {

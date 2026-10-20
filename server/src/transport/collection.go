@@ -1,6 +1,6 @@
 package transport
 
-import "github.com/antimony-team/antimony-server/domain/collection"
+import "github.com/antimony-team/antimony/server/src/domain/collection"
 
 type CollectionOut struct {
 	ID           string  `json:"id"`

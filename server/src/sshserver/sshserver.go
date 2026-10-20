@@ -15,11 +15,11 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gliderlabs/ssh"
 
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/deployment"
-	"github.com/antimony-team/antimony-server/runtime/instance"
-	"github.com/antimony-team/antimony-server/runtime/shell"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/deployment"
+	"github.com/antimony-team/antimony/server/src/runtime/instance"
+	"github.com/antimony-team/antimony/server/src/runtime/shell"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // Server is the SSH proxy that gives clients a shell on a node or streams the traffic of one of its interfaces.

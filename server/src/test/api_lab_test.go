@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/antimony-team/antimony-server/deployment"
-	"github.com/antimony-team/antimony-server/domain/lab"
-	"github.com/antimony-team/antimony-server/domain/topology"
-	"github.com/antimony-team/antimony-server/runtime/instance"
-	"github.com/antimony-team/antimony-server/transport"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/deployment"
+	"github.com/antimony-team/antimony/server/src/domain/lab"
+	"github.com/antimony-team/antimony/server/src/domain/topology"
+	"github.com/antimony-team/antimony/server/src/runtime/instance"
+	"github.com/antimony-team/antimony/server/src/transport"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // allLabs makes the listing limit explicit. It is no longer required — an unparameterised request

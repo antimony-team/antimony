@@ -13,7 +13,7 @@ import (
 
 	"github.com/charmbracelet/log"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // dockerRef holds information to identify a nodeName's docker container.

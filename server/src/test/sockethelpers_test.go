@@ -17,7 +17,7 @@ import (
 	clientsocket "github.com/zishang520/socket.io/clients/socket/v3"
 	siotypes "github.com/zishang520/socket.io/v3/pkg/types"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 const (

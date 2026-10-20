@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/transport"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/transport"
 )
 
 // testJWTSecret matches the SB_JWT_SECRET the harness exports.

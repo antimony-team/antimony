@@ -3,8 +3,8 @@ package transport
 import (
 	"github.com/samber/lo"
 
-	"github.com/antimony-team/antimony-server/domain/topology"
-	"github.com/antimony-team/antimony-server/policy"
+	"github.com/antimony-team/antimony/server/src/domain/topology"
+	"github.com/antimony-team/antimony/server/src/policy"
 )
 
 type TopologyOut struct {

@@ -6,9 +6,9 @@ import (
 
 	"github.com/charmbracelet/log"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Service struct {

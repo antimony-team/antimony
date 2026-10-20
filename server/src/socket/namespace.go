@@ -12,8 +12,8 @@ import (
 	"github.com/samber/lo"
 	socketio "github.com/zishang520/socket.io/servers/socket/v3"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // IONamespace is a bidirectional namespace where the server and the client both can send data.

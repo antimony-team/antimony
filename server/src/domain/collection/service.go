@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/domain/user"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/domain/user"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type (

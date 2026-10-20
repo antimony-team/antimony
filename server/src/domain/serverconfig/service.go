@@ -1,7 +1,7 @@
 package serverconfig
 
 import (
-	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony/server/src/config"
 )
 
 type Service struct {

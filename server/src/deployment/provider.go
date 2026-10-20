@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/log"
 
-	"github.com/antimony-team/antimony-server/config"
+	"github.com/antimony-team/antimony/server/src/config"
 )
 
 func CreateProvider(antimonyConfig *config.AntimonyConfig) DeploymentProvider {

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // remoteSampleScript runs inside the node and emits one sample per second.

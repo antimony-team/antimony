@@ -12,7 +12,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
 
-	"github.com/antimony-team/antimony-server/deployment"
+	"github.com/antimony-team/antimony/server/src/deployment"
 )
 
 // errCaptureServiceClosed is returned for captures requested after the service was closed.

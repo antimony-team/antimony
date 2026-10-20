@@ -3,7 +3,7 @@ package collection
 import (
 	"gorm.io/gorm"
 
-	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony/server/src/domain/user"
 )
 
 type Collection struct {

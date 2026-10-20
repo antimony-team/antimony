@@ -5,9 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/antimony-team/antimony-server/domain/collection"
-	"github.com/antimony-team/antimony-server/domain/topology"
-	"github.com/antimony-team/antimony-server/domain/user"
+	"github.com/antimony-team/antimony/server/src/domain/collection"
+	"github.com/antimony-team/antimony/server/src/domain/topology"
+	"github.com/antimony-team/antimony/server/src/domain/user"
 )
 
 type Lab struct {

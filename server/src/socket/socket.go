@@ -3,7 +3,7 @@ package socket
 import (
 	"github.com/zishang520/socket.io/servers/socket/v3"
 
-	"github.com/antimony-team/antimony-server/auth"
+	"github.com/antimony-team/antimony/server/src/auth"
 )
 
 type ConnectedUser struct {

@@ -35,7 +35,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	k8sexec "k8s.io/client-go/util/exec"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 /*

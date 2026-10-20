@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/domain/lab"
-	"github.com/antimony-team/antimony-server/runtime/instance"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/domain/lab"
+	"github.com/antimony-team/antimony/server/src/runtime/instance"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // tickInterval is how often the scheduler checks its queues.

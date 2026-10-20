@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Repository struct {

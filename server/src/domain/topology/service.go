@@ -7,14 +7,14 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/clabtypes"
-	"github.com/antimony-team/antimony-server/domain/collection"
-	"github.com/antimony-team/antimony-server/domain/schema"
-	"github.com/antimony-team/antimony-server/domain/user"
-	"github.com/antimony-team/antimony-server/policy"
-	"github.com/antimony-team/antimony-server/storage"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/clabtypes"
+	"github.com/antimony-team/antimony/server/src/domain/collection"
+	"github.com/antimony-team/antimony/server/src/domain/schema"
+	"github.com/antimony-team/antimony/server/src/domain/user"
+	"github.com/antimony-team/antimony/server/src/policy"
+	"github.com/antimony-team/antimony/server/src/storage"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Service struct {

@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
-	"github.com/antimony-team/antimony-server/deployment"
-	"github.com/antimony-team/antimony-server/domain/lab"
-	"github.com/antimony-team/antimony-server/sshserver"
+	"github.com/antimony-team/antimony/server/src/deployment"
+	"github.com/antimony-team/antimony/server/src/domain/lab"
+	"github.com/antimony-team/antimony/server/src/sshserver"
 )
 
 /*

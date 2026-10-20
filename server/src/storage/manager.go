@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/log"
 	cp "github.com/otiai10/copy"
 
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type Manager struct {

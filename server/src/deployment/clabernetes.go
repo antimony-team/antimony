@@ -43,8 +43,8 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	k8sexec "k8s.io/client-go/util/exec"
 
-	"github.com/antimony-team/antimony-server/utils"
-	"github.com/antimony-team/antimony-server/utils/serverlog"
+	"github.com/antimony-team/antimony/server/src/utils"
+	"github.com/antimony-team/antimony/server/src/utils/serverlog"
 )
 
 const (

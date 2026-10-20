@@ -3,11 +3,11 @@ package commands
 import (
 	"context"
 
-	"github.com/antimony-team/antimony-server/auth"
-	"github.com/antimony-team/antimony-server/runtime/instance"
-	"github.com/antimony-team/antimony-server/runtime/shell"
-	"github.com/antimony-team/antimony-server/socket"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/auth"
+	"github.com/antimony-team/antimony/server/src/runtime/instance"
+	"github.com/antimony-team/antimony/server/src/runtime/shell"
+	"github.com/antimony-team/antimony/server/src/socket"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type handler struct {

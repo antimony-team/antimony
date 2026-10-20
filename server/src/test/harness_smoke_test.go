@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/antimony-team/antimony-server/clabtypes"
+	"github.com/antimony-team/antimony/server/src/clabtypes"
 )
 
 // TestFixtures_TopologyDefinitionsAreSchemaValid checks the fixture definitions against the clab schema, so a schema

@@ -3,8 +3,8 @@ package statusmessage
 import (
 	"time"
 
-	"github.com/antimony-team/antimony-server/utils"
-	"github.com/antimony-team/antimony-server/utils/serverlog"
+	"github.com/antimony-team/antimony/server/src/utils"
+	"github.com/antimony-team/antimony/server/src/utils/serverlog"
 )
 
 type Message struct {

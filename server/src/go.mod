@@ -1,4 +1,4 @@
-module github.com/antimony-team/antimony-server
+module github.com/antimony-team/antimony/server/src
 
 go 1.26.0
 

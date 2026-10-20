@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/deployment"
-	"github.com/antimony-team/antimony-server/domain/statusmessage"
-	"github.com/antimony-team/antimony-server/runtime/instance"
-	"github.com/antimony-team/antimony-server/socket"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/deployment"
+	"github.com/antimony-team/antimony/server/src/domain/statusmessage"
+	"github.com/antimony-team/antimony/server/src/runtime/instance"
+	"github.com/antimony-team/antimony/server/src/socket"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 // streamMessage is the payload type for the namespaces these tests create directly.

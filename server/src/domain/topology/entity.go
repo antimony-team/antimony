@@ -3,9 +3,9 @@ package topology
 import (
 	"gorm.io/gorm"
 
-	"github.com/antimony-team/antimony-server/domain/collection"
-	"github.com/antimony-team/antimony-server/domain/user"
-	"github.com/antimony-team/antimony-server/policy"
+	"github.com/antimony-team/antimony/server/src/domain/collection"
+	"github.com/antimony-team/antimony/server/src/domain/user"
+	"github.com/antimony-team/antimony/server/src/policy"
 )
 
 type Topology struct {

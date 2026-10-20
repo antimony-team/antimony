@@ -14,9 +14,9 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
 
-	"github.com/antimony-team/antimony-server/clabtypes"
-	"github.com/antimony-team/antimony-server/config"
-	"github.com/antimony-team/antimony-server/utils"
+	"github.com/antimony-team/antimony/server/src/clabtypes"
+	"github.com/antimony-team/antimony/server/src/config"
+	"github.com/antimony-team/antimony/server/src/utils"
 )
 
 type (

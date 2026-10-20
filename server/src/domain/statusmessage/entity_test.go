@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/antimony-team/antimony-server/utils/serverlog"
+	"github.com/antimony-team/antimony/server/src/utils/serverlog"
 )
 
 func TestConstructors_SetTheMatchingSeverity(t *testing.T) {
