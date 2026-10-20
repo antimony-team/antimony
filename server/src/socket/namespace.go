@@ -209,14 +209,6 @@ func (m *namespace[I, O]) SendToMatches(msg O, prediate func(user *auth.Authenti
 	m.sendTo(msg, m.getClientsThatMatch(prediate))
 }
 
-func (m *namespace[I, O]) SendBulkTo(msgs []O, receivers []string) {
-	if m.isAnonymous {
-		return
-	}
-
-	m.sendBulkTo(msgs, m.getClientsFor(receivers))
-}
-
 // SendToAdmins Sends a message to all connected admins. This only works in authenticated namespaces.
 func (m *namespace[I, O]) SendToAdmins(msg O) {
 	if m.isAnonymous {
@@ -224,15 +216,6 @@ func (m *namespace[I, O]) SendToAdmins(msg O) {
 	}
 
 	m.sendTo(msg, m.getAdminClients())
-}
-
-// SendToAdmins Sends multiple messages to all connected admins. This only works in authenticated namespaces.
-func (m *namespace[I, O]) SendBulkToAdmins(msgs []O) {
-	if m.isAnonymous {
-		return
-	}
-
-	m.sendBulkTo(msgs, m.getAdminClients())
 }
 
 func (m *namespace[I, O]) sendTo(msg O, receivers []*ConnectedUser) {

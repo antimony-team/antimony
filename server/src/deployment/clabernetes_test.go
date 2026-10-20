@@ -1150,16 +1150,23 @@ func TestRegisterListener_ReportsNodesBeingScaled(t *testing.T) {
 	cluster := newFakeCluster(t, []runtime.Object{nodeDeployment("a1", 1)}, []runtime.Object{c9sNode("a1")})
 	updates := startListener(t, cluster)
 
-	// Give the informers time to sync, scaling before that would be part of the initial list.
-	time.Sleep(200 * time.Millisecond)
-	require.NoError(t, cluster.provider.StopNode(context.Background(), "demo", "a1"))
+	// Scaling before the informers have synced is part of their initial list and not reported, so the node is
+	// stopped and started again until the listener reports one of the changes.
+	stopped := false
+	assert.Eventually(t, func() bool {
+		if slices.Contains(updates(), "demo/a1") {
+			return true
+		}
 
-	assert.Eventually(
-		t,
-		func() bool { return slices.Contains(updates(), "demo/a1") },
-		2*time.Second,
-		10*time.Millisecond,
-	)
+		if stopped {
+			assert.NoError(t, cluster.provider.StartNode(context.Background(), "demo", "a1"))
+		} else {
+			assert.NoError(t, cluster.provider.StopNode(context.Background(), "demo", "a1"))
+		}
+		stopped = !stopped
+
+		return false
+	}, 2*time.Second, 50*time.Millisecond)
 }
 
 /*

@@ -201,16 +201,6 @@ func (p *DummyProvider) Node(instanceName, nodeName string) *DummyNode {
 	return nil
 }
 
-// HasInstance reports whether the dummy currently considers an instance deployed.
-func (p *DummyProvider) HasInstance(instanceName string) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	_, ok := p.instances[instanceName]
-
-	return ok
-}
-
 // FireNodeEvent invokes the callback captured from RegisterListener, simulating a container event
 // pushed by the deployment backend. It reports whether a listener was registered.
 func (p *DummyProvider) FireNodeEvent(instanceName string, nodeName string) bool {
@@ -249,13 +239,6 @@ func (p *DummyProvider) Shell(instanceName, nodeName string) *DummyShellSession 
 	defer p.mu.Unlock()
 
 	return p.shells[instanceName+"/"+nodeName]
-}
-
-// SetExecFn replaces the Exec behaviour. Safe to call while the dummy is in use.
-func (p *DummyProvider) SetExecFn(fn func(instanceName, nodeName string, cmd []string) (string, int, error)) {
-	p.mu.Lock()
-	p.ExecFn = fn
-	p.mu.Unlock()
 }
 
 // SetStatsFn replaces the ReadNodeStats behaviour. Safe to call while the monitor is polling.

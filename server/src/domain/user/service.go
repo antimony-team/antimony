@@ -43,17 +43,8 @@ func CreateService(
 	return userService
 }
 
-func (s *Service) IsTokenValid(accessToken string) bool {
-	_, err := s.authManager.AuthenticateUser(accessToken)
-	return err == nil
-}
-
 func (s *Service) RefreshAccessToken(authToken string) (string, error) {
 	return s.authManager.RefreshAccessToken(authToken)
-}
-
-func (s *Service) GetByUuid(ctx context.Context, userId string) (*User, error) {
-	return s.repo.GetByUuid(ctx, userId)
 }
 
 func (s *Service) LoginNative(req CredentialsIn) (string, string, error) {
