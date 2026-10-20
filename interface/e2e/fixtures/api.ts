@@ -54,8 +54,7 @@ export type TopologyOut = {
   creator: {id: string; name: string};
   bindFiles: BindFileOut[];
   lastDeployFailed: boolean;
-  // null when there are no findings
-  policyFindings: PolicyFinding[] | null;
+  policyFindings: PolicyFinding[];
 };
 
 export enum InstanceState {
