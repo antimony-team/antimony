@@ -475,6 +475,7 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return {
       ...input,
       deployed: new Date(input.deployed),
+      latestStateChange: new Date(input.latestStateChange),
       nodeMap: new Map(input.nodes?.map(node => [node.name, node])),
     };
   }
