@@ -354,6 +354,12 @@ func NewHarness(t *testing.T, options ...HarnessOption) *Harness {
 	})
 	require.NoError(t, err)
 
+	// Every connection to ":memory:" opens a database of its own, so the pool keeps a single connection. Otherwise a
+	// query that runs alongside another one gets an empty database without tables.
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+
 	require.NoError(t, db.AutoMigrate(
 		&user.User{},
 		&collection.Collection{},

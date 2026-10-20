@@ -6,6 +6,10 @@ sidebar:
 ---
 
 import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import zoey from '../../../../assets/zoey/electron.png';
+
+<Image class="zoey-aside" src={zoey} alt="Zoey leaning on a large Electron logo" width={190} densities={[1, 2]} />
 
 Antimony Desktop runs Antimony on your own machine, for one person. It starts the Antimony server itself, in a Docker container next to your labs, and signs you in automatically. There is nothing to configure and no login.
 
