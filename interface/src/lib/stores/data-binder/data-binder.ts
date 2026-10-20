@@ -576,18 +576,20 @@ export class DataBinder {
    * Sets the auth user based on the access token.
    */
   @action
-  private processAccessToken(accessToken: string) {
+  // Returns false if the token can't be read, the callers then fail like a refused login
+  private processAccessToken(accessToken: string | undefined): boolean {
     try {
-      const tokenData = JSON.parse(atob(accessToken.split('.')[1]));
-      this.accessToken = accessToken;
+      const tokenData = JSON.parse(atob(accessToken!.split('.')[1]));
+      this.accessToken = accessToken!;
       this.authUser = {
         id: tokenData.id,
         name: tokenData.id,
         isAdmin: tokenData.isAdmin,
       };
+      return true;
     } catch {
-      console.error('Failed to parse access token. Logging out.');
-      void this.logout();
+      console.error('Failed to parse access token.');
+      return false;
     }
   }
 
@@ -617,7 +619,9 @@ export class DataBinder {
       return Result.createErr({code: -1, message: 'Unauthorized'});
     }
 
-    this.processAccessToken(Cookies.get('accessToken')!);
+    if (!this.processAccessToken(Cookies.get('accessToken'))) {
+      return Result.createErr({code: -1, message: 'Invalid access token'});
+    }
     return Result.createOk(null);
   }
 
@@ -634,7 +638,9 @@ export class DataBinder {
     }
 
     const {payload} = (await response.json()) as {payload: string};
-    this.processAccessToken(payload);
+    if (!this.processAccessToken(payload)) {
+      return Result.createErr({code: -1, message: 'Invalid access token'});
+    }
     return Result.createOk(null);
   }
 }

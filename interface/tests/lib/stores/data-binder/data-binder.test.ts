@@ -205,17 +205,13 @@ describe('DataBinder', () => {
       expect(binder.isReady).toBe(false);
     });
 
-    // Bug: processAccessToken only logs out, so refreshFromCookie still reports success
-    it.fails(
-      'does not log in with an access token it cannot read',
-      async () => {
-        cookies.accessToken = 'broken';
-        const binder = new DataBinder();
-        await waitUntilReady(binder);
+    it('does not log in with an access token it cannot read', async () => {
+      cookies.accessToken = 'broken';
+      const binder = new DataBinder();
+      await waitUntilReady(binder);
 
-        expect(binder.isLoggedIn).toBe(false);
-      },
-    );
+      expect(binder.isLoggedIn).toBe(false);
+    });
 
     it('retries reading the auth config until the server answers', async () => {
       vi.useFakeTimers();
