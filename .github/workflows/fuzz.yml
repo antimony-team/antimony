@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -46,7 +46,7 @@ jobs:
       # seeds with f.Add to keep it as a regular test case
       - name: Upload the failing input
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-${{ matrix.target.name }}
           path: server/src/**/testdata/fuzz/${{ matrix.target.name }}/
