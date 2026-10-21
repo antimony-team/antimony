@@ -41,12 +41,13 @@ body
 
 .sb-corner-tab
   background-color: transparent
-  backdrop-filter: brightness(1.4)
+  backdrop-filter: brightness(calc(1 + 0.4 * var(--lighten)))
 
 .sb-island
   background-color: var(--surface-raised)
   border-radius: 12px
   border: 1px solid var(--border)
+  box-shadow: var(--island-shadow)
 
 .sb-table
   border-collapse: collapse

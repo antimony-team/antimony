@@ -1,4 +1,4 @@
-import React, {FormEvent, useEffect, useState} from 'react';
+import React, {FormEvent, useEffect, useMemo, useState} from 'react';
 
 import {loadLinksPreset} from '@tsparticles/preset-links';
 import Particles, {initParticlesEngine} from '@tsparticles/react';
@@ -9,9 +9,9 @@ import {Image} from 'primereact/image';
 import {Message} from 'primereact/message';
 
 import SBInput from '@sb/components/common/sb-input/sb-input';
-import {ParticlesOptions} from '@sb/components/common/sb-login/particles.conf';
+import {particlesOptions} from '@sb/components/common/sb-login/particles.conf';
 import SBOverlay from '@sb/components/common/sb-overlay/sb-overlay';
-import {useDataBinder} from '@sb/lib/stores/root-store';
+import {useDataBinder, useTheme} from '@sb/lib/stores/root-store';
 import {If} from '@sb/types/control';
 
 import './sb-login.sass';
@@ -25,8 +25,15 @@ interface SBLoginProps {
  * prevent restarting the simulation every time.
  * https://github.com/Wufe/react-particles-js/issues/43
  */
-const SBLogin = (props: SBLoginProps) => {
+const SBLogin = observer((props: SBLoginProps) => {
   const [particlesReady, setParticlesReady] = useState(false);
+  const themeStore = useTheme();
+
+  // A new object makes the particles start over, so only when the scheme changes
+  const options = useMemo(
+    () => particlesOptions(themeStore.scheme),
+    [themeStore.scheme],
+  );
 
   useEffect(() => {
     void initParticlesEngine(async engine => {
@@ -37,12 +44,12 @@ const SBLogin = (props: SBLoginProps) => {
   return (
     <SBOverlay visible={props.visible} fullscreen={true}>
       <If condition={particlesReady}>
-        <Particles options={ParticlesOptions} />
+        <Particles options={options} />
       </If>
       <LoginForm />
     </SBOverlay>
   );
-};
+});
 
 const LoginForm = observer(() => {
   const dataBinder = useDataBinder();

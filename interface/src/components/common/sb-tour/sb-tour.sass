@@ -8,11 +8,11 @@
   min-width: 280px
   max-width: 360px
   padding: 18px 20px 16px
-  border: 1px solid rgba(255, 255, 255, 0.1)
+  border: 1px solid var(--border)
   border-radius: 16px
   background-color: color-mix(in oklab, var(--surface-overlay) 72%, transparent)
   backdrop-filter: blur(18px) saturate(140%)
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06)
+  box-shadow: 0 24px 60px var(--shadow), 0 2px 8px var(--shadow-near), inset 0 1px 0 var(--hover)
   color: var(--text)
   font-family: var(--font-family), system-ui, sans-serif
   animation: sb-tour-float-in 0.3s ease-out
@@ -49,9 +49,9 @@
 
   .driver-popover-footer-btn
     padding: 6px 14px
-    border: 1px solid rgba(255, 255, 255, 0.1)
+    border: 1px solid var(--border)
     border-radius: 8px
-    background-color: rgba(255, 255, 255, 0.06)
+    background-color: var(--hover)
     font-family: inherit
     font-size: 14px
     color: var(--text)
@@ -60,7 +60,7 @@
 
     &:hover, &:focus-visible
       border-color: var(--border-strong)
-      background-color: rgba(255, 255, 255, 0.1)
+      background-color: var(--active)
 
   .driver-popover-next-btn
     border-color: transparent

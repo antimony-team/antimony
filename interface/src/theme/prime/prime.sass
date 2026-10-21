@@ -21,7 +21,7 @@
 .p-dialog
   border: 1px solid var(--border) !important
   border-radius: 12px !important
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .3)
+  box-shadow: 0 16px 40px var(--shadow), 0 2px 8px var(--shadow-near)
 
   .p-dialog-header
     border-radius: 12px 12px 0 0
@@ -238,3 +238,77 @@
 
 .p-badge.p-badge-secondary
   background-color: var(--accent)
+
+/*
+ * Colors that Lara sets for a dark background only, in the colors of the current scheme
+ */
+
+.p-inputtext, .p-dropdown-label, .p-tree, .p-accordion-header-link, .p-accordion-content,
+.p-datepicker, .p-datepicker .p-datepicker-header, .p-datepicker table td > span.p-highlight,
+.p-dialog .p-dialog-header, .p-dialog .p-dialog-content, .p-dialog .p-dialog-footer, .p-overlaypanel,
+.p-tooltip .p-tooltip-text, .p-listbox, .p-listbox .p-listbox-list .p-listbox-item, .p-splitter,
+.p-tree .p-tree-container .p-treenode .p-treenode-content.p-highlight
+  color: var(--text)
+
+.p-tree .p-tree-container .p-treenode .p-treenode-content .p-tree-toggler,
+.p-tree .p-tree-container .p-treenode .p-treenode-content .p-treenode-icon,
+.p-datepicker .p-datepicker-header .p-datepicker-prev, .p-datepicker .p-datepicker-header .p-datepicker-next,
+.p-datepicker .p-timepicker button, .p-icon-field > .p-input-icon, .p-inputgroup-addon
+  color: var(--text-muted)
+
+.p-dialog .p-dialog-header, .p-dialog .p-dialog-content, .p-dialog .p-dialog-footer
+  background: var(--surface-overlay)
+
+.p-listbox
+  background: var(--surface-inset)
+  border-color: var(--border)
+
+.p-listbox:not(.p-disabled) .p-listbox-item:not(.p-highlight):not(.p-disabled):hover,
+.p-tree .p-tree-container .p-treenode .p-treenode-content.p-treenode-selectable:not(.p-highlight):hover,
+.p-datepicker:not(.p-disabled) table td span:not(.p-highlight):not(.p-disabled):hover
+  background: var(--hover)
+  color: var(--text)
+
+.p-tooltip.p-tooltip-right .p-tooltip-arrow
+  border-right-color: var(--surface-overlay)
+.p-tooltip.p-tooltip-left .p-tooltip-arrow
+  border-left-color: var(--surface-overlay)
+.p-tooltip.p-tooltip-top .p-tooltip-arrow
+  border-top-color: var(--surface-overlay)
+.p-tooltip.p-tooltip-bottom .p-tooltip-arrow
+  border-bottom-color: var(--surface-overlay)
+
+.p-checkbox.p-highlight .p-checkbox-box
+  background: var(--accent)
+  border-color: var(--accent)
+
+  svg
+    color: var(--text-on-accent)
+
+.p-divider.p-divider-horizontal::before
+  border-top-color: var(--border)
+.p-divider.p-divider-vertical::before
+  border-left-color: var(--border)
+.p-divider .p-divider-content
+  background-color: var(--surface-raised)
+
+.p-skeleton
+  background-color: var(--hover)
+
+.p-progressbar
+  background: var(--active)
+
+.p-colorpicker-panel
+  background: var(--surface-overlay)
+  border-color: var(--border)
+
+// Toasts and messages in the status colors
+@each $severity, $color in (info: info, success: success, warn: warning, error: danger)
+  .p-toast .p-toast-message.p-toast-message-#{$severity}, .p-message.p-message-#{$severity},
+  .p-inline-message.p-inline-message-#{$severity}
+    background: var(--#{$color}-color)
+    border-color: var(--#{$color}-color-text)
+    color: var(--#{$color}-color-text)
+
+    .p-toast-message-icon, .p-toast-icon-close, .p-message-icon, .p-message-close, .p-inline-message-icon
+      color: var(--#{$color}-color-text)

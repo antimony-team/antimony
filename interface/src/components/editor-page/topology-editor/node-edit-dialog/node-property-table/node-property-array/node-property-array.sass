@@ -21,7 +21,7 @@
       width: 100%
 
     &:nth-child(odd)
-      backdrop-filter: brightness(0.85)
+      backdrop-filter: brightness(calc(1 - 0.15 * var(--lighten)))
 
   .p-listbox-list-wrapper
     background-color: transparent
@@ -32,7 +32,7 @@
 .sb-property-array-add-button
   vertical-align: baseline
   padding: 4px 12px !important
-  color: rgba(255, 255, 255, 0.87)
+  color: var(--text)
   background: transparent
   border: 1px dashed var(--border)
   border-radius: 4px

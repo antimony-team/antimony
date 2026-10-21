@@ -8,15 +8,17 @@ import React, {
 } from 'react';
 
 import cytoscape, {ElementDefinition, EventObject} from 'cytoscape';
+import {reaction} from 'mobx';
 import CytoscapeComponent from 'react-cytoscapejs';
 
 import {Box} from '@sb/lib/graph/annotation-geometry';
-import {topologyStyle} from '@sb/lib/graph/cytoscape-styles';
+import {topologyStyles} from '@sb/lib/graph/cytoscape-styles';
 import {
   fitGraph,
   updateGrid,
   updateLayerTransform,
 } from '@sb/lib/graph/cytoscape-utils';
+import {useTheme} from '@sb/lib/stores/root-store';
 
 import './topology-graph.sass';
 
@@ -186,6 +188,7 @@ export function bindEdgeLabelUpdates(cy: cytoscape.Core) {
 const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
   (props, ref) => {
     const cyRef = useRef<cytoscape.Core | null>(null);
+    const themeStore = useTheme();
 
     // Only a dependency for effects that have to run again for a new instance. Read the instance through cyRef.
     const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
@@ -222,6 +225,16 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
 
       return onInstanceRef.current?.(cyInstance) ?? undefined;
     }, [cyInstance]);
+
+    // The graph doesn't render again when the color scheme changes, the instance gets the new style instead
+    useEffect(() => {
+      if (!cyInstance) return;
+
+      return reaction(
+        () => themeStore.scheme,
+        scheme => cyInstance.style().fromJson(topologyStyles[scheme]).update(),
+      );
+    }, [cyInstance, themeStore]);
 
     useEffect(() => {
       if (!cyInstance) return;
@@ -298,7 +311,7 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
         </div>
         <CytoscapeComponent
           className="cytoscape-container"
-          stylesheet={topologyStyle}
+          stylesheet={topologyStyles[themeStore.scheme]}
           elements={NO_ELEMENTS}
           minZoom={0.1}
           maxZoom={10}

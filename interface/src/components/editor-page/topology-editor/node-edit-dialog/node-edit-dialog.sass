@@ -10,10 +10,10 @@
     justify-content: center
 
     &:hover
-      backdrop-filter: brightness(140%)
+      backdrop-filter: brightness(calc(1 + 0.4 * var(--lighten)))
 
     &:active
-      backdrop-filter: brightness(125%)
+      backdrop-filter: brightness(calc(1 + 0.25 * var(--lighten)))
 
     img
       width: 122px
@@ -38,10 +38,10 @@
       text-align: center
 
       &:hover
-        backdrop-filter: brightness(140%)
+        backdrop-filter: brightness(calc(1 + 0.4 * var(--lighten)))
 
       &:active
-        backdrop-filter: brightness(125%)
+        backdrop-filter: brightness(calc(1 + 0.25 * var(--lighten)))
 
       img
         width: 80px

@@ -11,7 +11,7 @@
     padding: 0
     border: 0
     border-radius: 10px
-    background-color: rgba(255, 255, 255, 0.16)
+    background-color: color-mix(in oklab, var(--text) 20%, transparent)
     transition: background-color 0.15s ease-out
 
     &::before
@@ -28,7 +28,7 @@
       transition: left 0.15s ease-out, background-color 0.15s ease-out
 
   &:not(.p-disabled):hover .p-inputswitch-slider
-    background-color: rgba(255, 255, 255, 0.22)
+    background-color: color-mix(in oklab, var(--text) 28%, transparent)
 
   // On, whatever class this PrimeReact version uses for it
   &.p-inputswitch-checked,
@@ -40,7 +40,7 @@
       &::before
         left: 18px
         margin: 0
-        background-color: #0f1a17
+        background-color: var(--text-on-accent)
         transform: none
 
     &:not(.p-disabled):hover .p-inputswitch-slider

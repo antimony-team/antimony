@@ -12,6 +12,7 @@ import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
 import {ShellStore} from '@sb/lib/stores/shell-store';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
+import {ThemeStore} from '@sb/lib/stores/theme-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {combinedFetchState} from '@sb/lib/utils/utils';
@@ -20,6 +21,7 @@ import {AppPhase, FetchState} from '@sb/types/types';
 export class RootStore {
   _dataBinder: DataBinder;
   _clockStore: ClockStore;
+  _themeStore: ThemeStore;
   _contextMenuStore: ContextMenuStore;
   _serverConfigStore: ServerConfigStore;
   _topologyStore: TopologyStore;
@@ -46,6 +48,7 @@ export class RootStore {
     this._dataBinder = new DataBinder();
 
     this._clockStore = new ClockStore();
+    this._themeStore = new ThemeStore();
     this._contextMenuStore = new ContextMenuStore();
 
     this._statusMessagesStore = new StatusMessageStore(this);
@@ -142,6 +145,10 @@ export const useDataBinder = () => {
 
 export const useClock = () => {
   return useContext(RootStoreContext)._clockStore;
+};
+
+export const useTheme = () => {
+  return useContext(RootStoreContext)._themeStore;
 };
 
 export const useAuthUser = () => {

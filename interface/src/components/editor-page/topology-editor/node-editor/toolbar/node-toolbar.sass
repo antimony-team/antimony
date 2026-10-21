@@ -16,15 +16,9 @@
     &:not(.sb-iconoir-button)
       padding: 8px !important
 
-    &:hover
-      backdrop-filter: brightness(1.2)
-
-      &:active
-        backdrop-filter: brightness(1.4)
-
     &.toggled
       border-color: var(--border)
-      backdrop-filter: brightness(1.4)
+      backdrop-filter: brightness(calc(1 + 0.4 * var(--lighten)))
 
   .p-divider
     padding: 0

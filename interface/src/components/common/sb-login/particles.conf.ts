@@ -1,6 +1,9 @@
 import type {ISourceOptions} from '@tsparticles/engine';
 
-export const ParticlesOptions: ISourceOptions = {
+import {ColorScheme} from '@sb/lib/stores/theme-store';
+
+// The particles and their links are drawn in white, or in black on a light background
+export const particlesOptions = (scheme: ColorScheme): ISourceOptions => ({
   fpsLimit: 120,
   interactivity: {
     events: {
@@ -25,10 +28,10 @@ export const ParticlesOptions: ISourceOptions = {
   },
   particles: {
     color: {
-      value: '#ffffff',
+      value: scheme === 'light' ? '#000000' : '#ffffff',
     },
     links: {
-      color: '#ffffff',
+      color: scheme === 'light' ? '#000000' : '#ffffff',
       distance: 200,
       enable: true,
       opacity: 0.2,
@@ -57,4 +60,4 @@ export const ParticlesOptions: ISourceOptions = {
     },
   },
   detectRetina: true,
-};
+});

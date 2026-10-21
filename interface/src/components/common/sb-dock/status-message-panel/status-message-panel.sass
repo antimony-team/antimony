@@ -38,7 +38,7 @@
 
       &.selected, &:active
         background-color: transparent
-        backdrop-filter: brightness(1.4)
+        backdrop-filter: brightness(calc(1 + 0.4 * var(--lighten)))
 
       &.error > .p-chip-icon
         color: var(--danger-color-text)
@@ -81,7 +81,7 @@
         padding: 0
 
         li:nth-child(even)
-          backdrop-filter: brightness(1.15)
+          backdrop-filter: brightness(calc(1 + 0.15 * var(--lighten)))
 
     .p-listbox-item
       padding: 0
@@ -149,7 +149,7 @@
 
     .sb-dock-status-messages-detail
       font-size: 9pt
-      filter: brightness(0.65)
+      filter: brightness(calc(1 - 0.35 * var(--lighten)))
       font-style: italic
 
   i

@@ -43,17 +43,17 @@
         padding: 12px
 
       &:hover
-        backdrop-filter: brightness(1.2)
+        backdrop-filter: brightness(calc(1 + 0.2 * var(--lighten)))
 
       &:active
-        backdrop-filter: brightness(1.3)
+        backdrop-filter: brightness(calc(1 + 0.3 * var(--lighten)))
 
     .p-listbox-list
       padding: 0
 
 .sb-property-table-add-button
   padding: 8px 12px
-  color: rgba(255, 255, 255, 0.87)
+  color: var(--text)
   border: 1px dashed var(--border)
   border-radius: 2px
   width: 100%

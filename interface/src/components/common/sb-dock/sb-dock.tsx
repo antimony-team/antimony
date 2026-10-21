@@ -19,6 +19,7 @@ import {
   useCollectionStore,
   useDataBinder,
   useStatusMessages,
+  useTheme,
 } from '@sb/lib/stores/root-store';
 import {readPersistentValue} from '@sb/lib/utils/persistent-state';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
@@ -34,6 +35,7 @@ const SBDock = observer(() => {
   const collectionStore = useCollectionStore();
   const navigate = useNavigate();
   const notificationStore = useStatusMessages();
+  const themeStore = useTheme();
 
   const {pathname} = useLocation();
 
@@ -152,6 +154,19 @@ const SBDock = observer(() => {
       </div>
       <div className="flex align-items-center gap-2 justify-content-end">
         <SBTour />
+        <Button
+          text
+          icon={themeStore.scheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'}
+          size="large"
+          tooltip={themeStore.scheme === 'dark' ? 'Light mode' : 'Dark mode'}
+          tooltipOptions={dockButtonTooltipOptions}
+          onClick={() => themeStore.toggle()}
+          aria-label={
+            themeStore.scheme === 'dark'
+              ? 'Switch to light mode'
+              : 'Switch to dark mode'
+          }
+        />
         <Button
           text
           icon="pi pi-bell"

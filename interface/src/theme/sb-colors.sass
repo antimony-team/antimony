@@ -1,4 +1,4 @@
-:root
+@mixin dark
   --surface-page: #101114
 
   // Islands, raised content
@@ -27,6 +27,19 @@
   --text-muted: rgba(255, 255, 255, 0.5)
   --text-faint: rgba(255, 255, 255, 0.46)
 
+  // Text on the accent color
+  --text-on-accent: #0f1a17
+
+  --shadow: rgba(0, 0, 0, .4)
+  --shadow-near: rgba(0, 0, 0, .3)
+
+  // Islands only cast a shadow on a light background, where the border alone is too faint
+  --island-shadow: none
+
+  // The direction of brightness(calc(1 + x * var(--lighten))) highlights: lighter on dark backgrounds,
+  // darker (and less) on light ones
+  --lighten: 1
+
   --accent: #3fcfad
 
   --danger-color: #882f31
@@ -41,3 +54,64 @@
   --info-color-text: #748ff8
   --neutral-color: #4f5357
   --neutral-color-text: var(--text)
+
+// The same palette for light backgrounds: the status colors become light tints with dark text, and the
+// accent is darker, so it stays readable as text on white
+@mixin light
+  --surface-page: #babfc7
+  --surface-raised: #d2d6dc
+  --surface-overlay: #dcdfe4
+  --surface-sunken: #c7cbd2
+  --surface-inset: #cbcfd5
+  --surface-selected: #b3b9c2
+
+  --hover: rgba(0, 0, 0, .08)
+  --active: rgba(0, 0, 0, .13)
+
+  --border: rgba(0, 0, 0, .2)
+  --border-strong: rgba(0, 0, 0, .4)
+
+  --text: rgba(0, 0, 0, .92)
+  --text-muted: rgba(0, 0, 0, .74)
+  --text-faint: rgba(0, 0, 0, .7)
+
+  --text-on-accent: #ffffff
+
+  --shadow: rgba(0, 0, 0, .12)
+  --shadow-near: rgba(0, 0, 0, .08)
+  --island-shadow: 0 1px 3px rgba(0, 0, 0, .1)
+  --lighten: -.35
+
+  --accent: #0b5f4b
+
+  --danger-color: color-mix(in oklab, #f84653 22%, #dcdfe4)
+  --danger-color-text: #a81f2c
+  --subtle-color: color-mix(in oklab, #b859cd 22%, #dcdfe4)
+  --subtle-color-text: #772b8e
+  --warning-color: color-mix(in oklab, #faa34b 30%, #dcdfe4)
+  --warning-color-text: #8f4b0c
+  --success-color: color-mix(in oklab, #80e163 30%, #dcdfe4)
+  --success-color-text: #2c6a1b
+  --info-color: color-mix(in oklab, #748ff8 24%, #dcdfe4)
+  --info-color-text: #3044a8
+  --neutral-color: #c0c5cd
+  --neutral-color-text: var(--text)
+
+// Dark by default, light when the system asks for it, unless the user picked a scheme (data-theme)
+:root
+  +dark
+  color-scheme: dark
+
+@media (prefers-color-scheme: light)
+  :root:not([data-theme="dark"])
+    +light
+    color-scheme: light
+
+:root[data-theme="light"]
+  +light
+  color-scheme: light
+
+// Terminals draw their text in light colors, they stay dark in both schemes
+.sb-dark-scheme
+  +dark
+  color-scheme: dark

@@ -428,7 +428,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
         ))}
       </OverlayPanel>
 
-      <div className="sb-terminal-container">
+      <div className="sb-terminal-container sb-dark-scheme">
         <div className="sb-terminal-host" ref={terminalContainerRef} />
         <If condition={isExpired}>
           <div className="sb-terminal-expired">

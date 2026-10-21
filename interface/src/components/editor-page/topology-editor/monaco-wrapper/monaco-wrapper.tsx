@@ -20,7 +20,11 @@ import YamlWorker from 'monaco-yaml/yaml.worker?worker';
 
 import {GraphSelection} from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {ValidationState} from '@sb/components/editor-page/topology-editor/topology-editor';
-import {useSchemaStore, useTopologyStore} from '@sb/lib/stores/root-store';
+import {
+  useSchemaStore,
+  useTheme,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
 import {TopologyHistory, TopologyHistoryEntry} from '@sb/lib/topology-history';
 import {
   BindFileEditReport,
@@ -40,7 +44,12 @@ import {
 } from '@sb/types/domain/topology';
 import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 
-import {AntimonyTheme, MonacoOptions} from './monaco.conf';
+import {
+  AntimonyLightTheme,
+  AntimonyTheme,
+  MonacoOptions,
+  monacoTheme,
+} from './monaco.conf';
 
 import './monaco-wrapper.sass';
 import ICodeEditor = monaco.editor.ICodeEditor;
@@ -113,6 +122,7 @@ const MonacoWrapper = observer(
   forwardRef<MonacoWrapperRef, MonacoWrapperProps>((props, ref) => {
     const [isReadOnly, setReadOnly] = useState(false);
     const [hasLastDeployFailed, setLastDeployFailed] = useState(false);
+    const themeStore = useTheme();
 
     // Holds the topology definition or the open bind file
     const textModelRef = useRef<ITextModel | null>(null);
@@ -166,6 +176,13 @@ const MonacoWrapper = observer(
     useEffect(() => {
       void onTopologyOpen();
     }, [props.openTopology]);
+
+    // The themes are defined once the editor is created, which also picks the scheme's theme
+    useEffect(() => {
+      if (editorRef.current) {
+        monaco.editor.setTheme(monacoTheme(themeStore.scheme));
+      }
+    }, [themeStore.scheme]);
 
     useEffect(() => {
       void onBindFileOpen();
@@ -631,7 +648,8 @@ const MonacoWrapper = observer(
         }
       });
 
-      monaco.editor.defineTheme('antimonyTheme', AntimonyTheme);
+      monaco.editor.defineTheme(monacoTheme('dark'), AntimonyTheme);
+      monaco.editor.defineTheme(monacoTheme('light'), AntimonyLightTheme);
 
       textModelRef.current = monaco.editor.createModel(
         '',
@@ -648,7 +666,7 @@ const MonacoWrapper = observer(
       const editor = monaco.editor.create(editorContainerRef.current, {
         model: textModelRef.current,
         language: 'text',
-        theme: 'antimonyTheme',
+        theme: monacoTheme(themeStore.scheme),
         fontFamily: 'JetBrains Mono Variable, monospace',
         ariaLabel: 'Code editor',
       });

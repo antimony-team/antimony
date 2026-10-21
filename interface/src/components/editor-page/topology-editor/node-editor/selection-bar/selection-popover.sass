@@ -2,7 +2,7 @@
   margin-top: 8px
   padding: 10px
   border-radius: 10px
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .3)
+  box-shadow: 0 8px 24px var(--shadow), 0 1px 4px var(--shadow-near)
 
   // No arrow, like the menus
   &::after
@@ -93,7 +93,7 @@
   height: 22px
   padding: 0
   box-sizing: border-box
-  border: 1px solid rgba(255, 255, 255, .08)
+  border: 1px solid var(--border)
   border-radius: 5px
   overflow: hidden
   cursor: pointer
@@ -103,7 +103,7 @@
 
   &.none
     background: transparent
-    border-color: rgba(255, 255, 255, .3)
+    border-color: var(--border-strong)
 
     &::after
       content: ""
@@ -138,14 +138,14 @@
 
   .p-colorpicker-color-handle
     border: 2px solid #ffffff
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .5)
+    box-shadow: 0 1px 4px var(--shadow)
     opacity: 1
 
   .p-colorpicker-hue-handle
     border: 2px solid #ffffff
     border-radius: 3px
     background: transparent
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .5)
+    box-shadow: 0 1px 3px var(--shadow)
     opacity: 1
 
 .sb-width-list

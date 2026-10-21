@@ -29,7 +29,7 @@
     gap: 12px
     width: 100%
     font-size: 12px
-    color: rgba(255, 255, 255, .38)
+    color: var(--text-faint)
 
     &::before, &::after
       content: ''
@@ -67,4 +67,4 @@
   i
     font-size: 45pt
     color: var(--text)
-    filter: brightness(0.6)
+    filter: brightness(calc(1 - 0.4 * var(--lighten)))
