@@ -179,7 +179,11 @@ const LabEntry = observer((props: LabEntryProps) => {
         </div>
       </div>
       <If
-        condition={props.lab.state === InstanceState.Inactive && isChangeable}
+        condition={
+          (props.lab.state === InstanceState.Inactive ||
+            props.lab.state === InstanceState.Failed) &&
+          isChangeable
+        }
       >
         <div className="sb-dashboard-lab-card-delete">
           <Button

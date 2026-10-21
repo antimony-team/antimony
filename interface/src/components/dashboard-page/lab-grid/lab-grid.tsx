@@ -427,7 +427,6 @@ const labGroups = [
       InstanceState.Deploying,
       InstanceState.Running,
       InstanceState.Stopping,
-      InstanceState.Failed,
     ],
   },
   {
@@ -440,7 +439,7 @@ const labGroups = [
     label: 'Inactive',
     icon: 'pi pi-moon',
     color: 'var(--text-faint)',
-    states: [InstanceState.Inactive],
+    states: [InstanceState.Inactive, InstanceState.Failed],
   },
 ];
 
