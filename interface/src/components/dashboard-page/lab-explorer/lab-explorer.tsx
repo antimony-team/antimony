@@ -8,15 +8,29 @@ import {InputIcon} from 'primereact/inputicon';
 import {InputText} from 'primereact/inputtext';
 
 import {useCollectionStore, useLabStore} from '@sb/lib/stores/root-store';
+import {If} from '@sb/types/control';
 
 import './lab-explorer.sass';
+
+export interface LabExplorerTopology {
+  id: string;
+  name: string;
+  collectionId: string;
+}
 
 interface LabExplorerProps {
   collectionFilter: string | null;
   setCollectionFilter: (filter: string | null) => void;
 
-  collectionLabCounts: Record<string, number>;
-  collectionLabStateCounts: Record<string, Record<string, number>>;
+  topologyFilter: string | null;
+  setTopologyFilter: (filter: string | null) => void;
+
+  // The topologies that have labs
+  topologies: LabExplorerTopology[];
+
+  // By collection ID and by topology ID
+  labCounts: Record<string, number>;
+  labStateCounts: Record<string, Record<string, number>>;
 
   // Whether typing anywhere on the page goes into the search, e.g. while no lab is open
   typeToSearch: boolean;
@@ -80,22 +94,49 @@ const LabExplorer = (props: LabExplorerProps) => {
     }, 100);
   }
 
-  function onItemKeyDown(event: React.KeyboardEvent, filter: string | null) {
+  function onItemKeyDown(event: React.KeyboardEvent, onSelect: () => void) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      props.setCollectionFilter(filter);
+      onSelect();
     }
   }
 
-  // The dots only show the states by color, e.g. "2 running, 1 failed"
-  function stateCountsLabel(collectionId: string) {
-    const counts = Object.entries(
-      props.collectionLabStateCounts[collectionId] ?? {},
+  // A second click on the selected topology shows all labs again
+  function toggleTopologyFilter(topologyId: string) {
+    props.setTopologyFilter(
+      props.topologyFilter === topologyId ? null : topologyId,
     );
+  }
+
+  // The dots only show the states by color, e.g. "2 running, 1 failed"
+  function stateCountsLabel(id: string) {
+    const counts = Object.entries(props.labStateCounts[id] ?? {});
     if (counts.length === 0) return undefined;
 
     return counts.map(([state, count]) => `${count} ${state}`).join(', ');
   }
+
+  function itemCount(id: string) {
+    return (
+      <div className="sb-lab-explorer-item-count">
+        <div
+          className="sb-lab-explorer-item-dots"
+          role={stateCountsLabel(id) ? 'img' : undefined}
+          aria-label={stateCountsLabel(id)}
+        >
+          {Object.keys(props.labStateCounts[id] ?? {}).map((state, i) => (
+            <span key={i} className={`sb-lab-explorer-item-dot ${state}`} />
+          ))}
+        </div>
+        <span className="sb-lab-explorer-item-count">
+          {props.labCounts[id] ?? 0}
+        </span>
+      </div>
+    );
+  }
+
+  const showsAllLabs =
+    props.collectionFilter === null && props.topologyFilter === null;
 
   return (
     <>
@@ -111,13 +152,13 @@ const LabExplorer = (props: LabExplorerProps) => {
       </IconField>
       <a
         className={classNames('sb-lab-explorer-item', {
-          selected: props.collectionFilter === null,
+          selected: showsAllLabs,
         })}
         role="button"
         tabIndex={0}
-        aria-pressed={props.collectionFilter === null}
+        aria-pressed={showsAllLabs}
         onClick={() => props.setCollectionFilter(null)}
-        onKeyDown={e => onItemKeyDown(e, null)}
+        onKeyDown={e => onItemKeyDown(e, () => props.setCollectionFilter(null))}
       >
         <span className="material-symbols-outlined" aria-hidden="true">
           stacks
@@ -138,30 +179,41 @@ const LabExplorer = (props: LabExplorerProps) => {
           tabIndex={0}
           aria-pressed={props.collectionFilter === collection.id}
           onClick={() => props.setCollectionFilter(collection.id)}
-          onKeyDown={e => onItemKeyDown(e, collection.id)}
+          onKeyDown={e =>
+            onItemKeyDown(e, () => props.setCollectionFilter(collection.id))
+          }
         >
           <span className="material-symbols-outlined" aria-hidden="true">
             inventory_2
           </span>
           <span className="sb-lab-explorer-item-label">{collection.name}</span>
-          <div className="sb-lab-explorer-item-count">
-            <div
-              className="sb-lab-explorer-item-dots"
-              role={stateCountsLabel(collection.id) ? 'img' : undefined}
-              aria-label={stateCountsLabel(collection.id)}
-            >
-              {Object.keys(
-                props.collectionLabStateCounts[collection.id] ?? {},
-              ).map((state, i) => (
-                <span key={i} className={`sb-lab-explorer-item-dot ${state}`} />
-              ))}
-            </div>
-            <span className="sb-lab-explorer-item-count">
-              {props.collectionLabCounts[collection.id] ?? 0}
-            </span>
-          </div>
+          {itemCount(collection.id)}
         </a>
       ))}
+      <If condition={props.topologies.length > 0}>
+        <span className="sb-lab-explorer-title">Topologies</span>
+        {props.topologies.map(topology => (
+          <a
+            key={topology.id}
+            className={classNames('sb-lab-explorer-item', {
+              selected: props.topologyFilter === topology.id,
+            })}
+            role="button"
+            tabIndex={0}
+            aria-pressed={props.topologyFilter === topology.id}
+            onClick={() => toggleTopologyFilter(topology.id)}
+            onKeyDown={e =>
+              onItemKeyDown(e, () => toggleTopologyFilter(topology.id))
+            }
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              network_node
+            </span>
+            <span className="sb-lab-explorer-item-label">{topology.name}</span>
+            {itemCount(topology.id)}
+          </a>
+        ))}
+      </If>
     </>
   );
 };

@@ -13,7 +13,9 @@ import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
 import {SBConfirmDeletePreset} from '@sb/components/common/sb-confirm/sb-confirm';
-import LabExplorer from '@sb/components/dashboard-page/lab-explorer/lab-explorer';
+import LabExplorer, {
+  LabExplorerTopology,
+} from '@sb/components/dashboard-page/lab-explorer/lab-explorer';
 import LabGrid from '@sb/components/dashboard-page/lab-grid/lab-grid';
 import LabView from '@sb/components/dashboard-page/lab-view/lab-view';
 import {useLabStore, useStatusMessages} from '@sb/lib/stores/root-store';
@@ -25,6 +27,7 @@ import './dashboard-page.sass';
 
 const DashboardPage = observer(() => {
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
+  const [selectedTopology, setSelectedTopology] = useState<string | null>(null);
 
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
 
@@ -76,30 +79,54 @@ const DashboardPage = observer(() => {
     setSearchParams('');
   }
 
-  const [collectionLabCounts, collectionLabStateCounts] = useMemo(() => {
-    const labCounts: {[collectionId: string]: number} = {};
-    const stateCounts: {[collectionId: string]: {[state: string]: number}} = {};
+  // The lab counts and the state counts by collection ID and by topology ID
+  const [labCounts, labStateCounts, topologies] = useMemo(() => {
+    const labCounts: {[id: string]: number} = {};
+    const stateCounts: {[id: string]: {[state: string]: number}} = {};
+    const topologies = new Map<string, LabExplorerTopology>();
 
     labStore.data.forEach(lab => {
-      if (lab.collectionId in labCounts) {
-        labCounts[lab.collectionId]++;
-      } else {
-        labCounts[lab.collectionId] = 1;
-      }
-
-      if (!(lab.collectionId in stateCounts)) {
-        stateCounts[lab.collectionId] = {};
-      }
-
       const state = InstanceState[lab.state].toLowerCase();
-      if (state in stateCounts[lab.collectionId]) {
-        stateCounts[lab.collectionId][state]++;
-      } else {
-        stateCounts[lab.collectionId][state] = 1;
+
+      // Labs of deleted topologies have no topology ID
+      const ids = lab.topologyId
+        ? [lab.collectionId, lab.topologyId]
+        : [lab.collectionId];
+
+      for (const id of ids) {
+        labCounts[id] = (labCounts[id] ?? 0) + 1;
+        stateCounts[id] ??= {};
+        stateCounts[id][state] = (stateCounts[id][state] ?? 0) + 1;
       }
+
+      if (!lab.topologyId) return;
+      topologies.set(lab.topologyId, {
+        id: lab.topologyId,
+        name: lab.topologyDefinition.definition.name ?? '',
+        collectionId: lab.collectionId,
+      });
     });
-    return [labCounts, stateCounts];
+
+    const sortedTopologies = [...topologies.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, {numeric: true}),
+    );
+    return [labCounts, stateCounts, sortedTopologies];
   }, [labStore.data]);
+
+  // A topology without labs isn't listed, so it isn't a filter anymore either
+  const topologyFilter =
+    selectedTopology && labCounts[selectedTopology] ? selectedTopology : null;
+
+  // Only one filter at a time: all labs, a collection or a topology
+  function onSetCollectionFilter(collectionId: string | null) {
+    setCollectionFilter(collectionId);
+    setSelectedTopology(null);
+  }
+
+  function onSetTopologyFilter(topologyId: string | null) {
+    setSelectedTopology(topologyId);
+    setCollectionFilter(null);
+  }
 
   function onDestroyLab(lab: Lab) {
     notificationStore.confirm({
@@ -151,9 +178,12 @@ const DashboardPage = observer(() => {
         >
           <LabExplorer
             collectionFilter={collectionFilter}
-            setCollectionFilter={setCollectionFilter}
-            collectionLabStateCounts={collectionLabStateCounts}
-            collectionLabCounts={collectionLabCounts}
+            setCollectionFilter={onSetCollectionFilter}
+            topologyFilter={topologyFilter}
+            setTopologyFilter={onSetTopologyFilter}
+            topologies={topologies}
+            labStateCounts={labStateCounts}
+            labCounts={labCounts}
             typeToSearch={openLab === null}
           />
         </SplitterPanel>
@@ -163,7 +193,9 @@ const DashboardPage = observer(() => {
         >
           <LabGrid
             collectionFilter={collectionFilter}
-            collectionLabCounts={collectionLabCounts}
+            topologyFilter={topologyFilter}
+            topologyName={topologies.find(t => t.id === topologyFilter)?.name}
+            labCounts={labCounts}
             labEditDialogState={labEditDialogState}
             onDestroyLab={onDestroyLab}
             onDeleteLab={onDeleteLab}

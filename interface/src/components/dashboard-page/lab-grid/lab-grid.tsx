@@ -24,7 +24,11 @@ import './lab-grid.sass';
 
 interface LabGridProps {
   collectionFilter: string | null;
-  collectionLabCounts: Record<string, number>;
+  topologyFilter: string | null;
+  topologyName?: string;
+
+  // By collection ID and by topology ID
+  labCounts: Record<string, number>;
 
   labEditDialogState: DialogState<LabEditDialogState>;
 
@@ -64,6 +68,8 @@ const LabGrid = (props: LabGridProps) => {
         lab =>
           (props.collectionFilter === null ||
             lab.collectionId === props.collectionFilter) &&
+          (props.topologyFilter === null ||
+            lab.topologyId === props.topologyFilter) &&
           !stateFilter.has(lab.state) &&
           matchesLabSearch(lab, labStore.searchQuery),
       )
@@ -77,6 +83,7 @@ const LabGrid = (props: LabGridProps) => {
     labStore.data,
     labStore.searchQuery,
     props.collectionFilter,
+    props.topologyFilter,
     stateFilter,
   ]);
 
@@ -271,16 +278,25 @@ const LabGrid = (props: LabGridProps) => {
   return (
     <>
       <div className="sb-lab-grid-header">
-        <div className="flex-grow-1 flex-shrink-0">
+        <div className="sb-lab-grid-header-label flex-grow-1 flex-shrink-0">
+          <If condition={props.topologyFilter || props.collectionFilter}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              {props.topologyFilter ? 'network_node' : 'inventory_2'}
+            </span>
+          </If>
           <span className="sb-lab-grid-header-title">
-            {props.collectionFilter
-              ? collectionStore.lookup.get(props.collectionFilter)!.name
-              : 'All labs'}
+            {props.topologyFilter
+              ? props.topologyName
+              : props.collectionFilter
+                ? collectionStore.lookup.get(props.collectionFilter)!.name
+                : 'All labs'}
           </span>
           <span className="sb-lab-grid-header-subtitle">
-            {props.collectionFilter
-              ? props.collectionLabCounts[props.collectionFilter]
-              : labStore.data.length}
+            {props.topologyFilter
+              ? props.labCounts[props.topologyFilter]
+              : props.collectionFilter
+                ? props.labCounts[props.collectionFilter]
+                : labStore.data.length}
           </span>
         </div>
         <div
@@ -388,7 +404,7 @@ const LabGrid = (props: LabGridProps) => {
               <When
                 condition={
                   props.collectionFilter !== null &&
-                  !props.collectionLabCounts[props.collectionFilter] &&
+                  !props.labCounts[props.collectionFilter] &&
                   labStore.searchQuery === ''
                 }
               >
