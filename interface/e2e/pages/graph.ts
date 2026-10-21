@@ -7,6 +7,7 @@ import {
   Position,
   settledNodePosition,
   toRendered,
+  waitForMeasuredGraph,
 } from '../helpers/cytoscape';
 import {menuItem} from './dialogs';
 
@@ -69,10 +70,12 @@ export class GraphEditor {
     return this.page.locator(`[data-layer-id="${id}"]`).first();
   }
 
+  /** Waits until the graph has its nodes and can be clicked where they're drawn. */
   async waitForNodes(count: number) {
     await expect
       .poll(async () => (await graphNodes(this.canvas)).length)
       .toBe(count);
+    await waitForMeasuredGraph(this.canvas);
   }
 
   /** The size of the canvas, for picking positions relative to it. */

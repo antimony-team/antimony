@@ -38,6 +38,13 @@ type CytoscapeCore = {
   $id: (id: string) => CytoscapeEle & {length: number};
   zoom: () => number;
   pan: () => Position;
+  renderer: () => CytoscapeRenderer;
+};
+
+// Where Cytoscape last measured its container on the page, [left, top, width, height, scale], or null
+type CytoscapeRenderer = {
+  containerBB: number[] | null;
+  findContainerClientCoords: () => number[];
 };
 
 /** Returns the names of all topology nodes in the graph. */
@@ -123,6 +130,38 @@ export async function graphZoom(container: Locator): Promise<number> {
   );
 }
 
+/**
+ * Waits until Cytoscape knows where its container is on the page. It maps mouse events to the graph with the
+ * place it last measured, and only measures again a while after the container moves or resizes, e.g. when the
+ * editor switches to the graph-only view. A click before that lands where the container was.
+ */
+export async function waitForMeasuredGraph(container: Locator) {
+  await expect
+    .poll(
+      () =>
+        container.evaluate((element: CytoscapeElement) => {
+          const renderer = element._cyreg?.cy?.renderer();
+          if (!renderer) return false;
+
+          const measured = renderer.containerBB;
+          if (!measured) return true;
+
+          renderer.containerBB = null;
+          const current = renderer.findContainerClientCoords();
+          renderer.containerBB = measured;
+
+          return measured.every(
+            (value, i) => Math.abs(value - current[i]) < 0.5,
+          );
+        }),
+      {
+        message: 'Cytoscape must know where its container is',
+        intervals: [50],
+      },
+    )
+    .toBe(true);
+}
+
 /** Waits until a node is in the graph and stopped moving, then returns its position. */
 export async function settledNodePosition(
   container: Locator,
@@ -146,6 +185,7 @@ export async function settledNodePosition(
       },
     )
     .toBe(true);
+  await waitForMeasuredGraph(container);
 
   return position!;
 }
