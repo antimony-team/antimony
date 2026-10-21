@@ -22,6 +22,7 @@ import (
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sclientset "github.com/clabernetes/clabernetes/generated/clientset"
 	claberneteslogging "github.com/clabernetes/clabernetes/logging"
+	clabernetesutilkubernetes "github.com/clabernetes/clabernetes/util/kubernetes"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcapgo"
 	"github.com/samber/lo"
@@ -570,19 +571,31 @@ func (p *ClabernetesProvider) RegisterListener(
 		return nil
 	}
 
-	notify := func(pod *corev1.Pod) {
-		if pod == nil {
-			return
+	notify := func(namespace string, labels map[string]string) {
+		instanceName := labels[clabernetesconstants.LabelTopologyOwner]
+		nodeName := labels[clabernetesconstants.LabelTopologyNode]
+
+		// The topology is gone when its lab is destroyed, then the node keeps the name c9s ran it under
+		sources, err := p.nodeNameSources(ctx, namespace)
+		if err != nil {
+			log.Warn("Failed to map node name back to the topology", "node", nodeName, "err", err.Error())
 		}
-		onUpdate(
-			pod.Labels[clabernetesconstants.LabelTopologyOwner],
-			pod.Labels[clabernetesconstants.LabelTopologyNode],
-		)
+		if sourceName, ok := sources[instanceName+"/"+nodeName]; ok {
+			nodeName = sourceName
+		}
+
+		onUpdate(instanceName, nodeName)
+	}
+
+	notifyPod := func(pod *corev1.Pod) {
+		if pod != nil {
+			notify(pod.Namespace, pod.Labels)
+		}
 	}
 
 	_, err := factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj any) { notify(podFromEvent(obj)) },
-		DeleteFunc: func(obj any) { notify(podFromEvent(obj)) },
+		AddFunc:    func(obj any) { notifyPod(podFromEvent(obj)) },
+		DeleteFunc: func(obj any) { notifyPod(podFromEvent(obj)) },
 		// Readiness changes arrive as updates, e.g. a restarted node's new pod becoming ready.
 		UpdateFunc: func(oldObj, newObj any) {
 			o, n := podFromEvent(oldObj), podFromEvent(newObj)
@@ -592,7 +605,7 @@ func (p *ClabernetesProvider) RegisterListener(
 
 			terminationChanged := (o.DeletionTimestamp == nil) != (n.DeletionTimestamp == nil)
 			if terminationChanged || podStateToNodeState(o) != podStateToNodeState(n) {
-				notify(n)
+				notifyPod(n)
 			}
 		},
 	})
@@ -614,7 +627,7 @@ func (p *ClabernetesProvider) RegisterListener(
 			}
 
 			if replicas(o) != replicas(n) {
-				onUpdate(n.Labels[clabernetesconstants.LabelTopologyOwner], n.Name)
+				notify(n.Namespace, n.Labels)
 			}
 		},
 	})
@@ -708,7 +721,7 @@ func (p *ClabernetesProvider) RestartNode(
 	grace := int64(10)
 
 	// Deleting the pods of a node that doesn't exist would succeed without doing anything
-	deployment, err := p.clientset.AppsV1().Deployments(namespace).Get(ctx, nodeName, metav1.GetOptions{})
+	deployment, err := p.clientset.AppsV1().Deployments(namespace).Get(ctx, kubeNodeName(nodeName), metav1.GetOptions{})
 	if err != nil {
 		return nodeError(err, namespace, nodeName)
 	}
@@ -720,7 +733,7 @@ func (p *ClabernetesProvider) RestartNode(
 
 	return p.clientset.CoreV1().Pods(namespace).DeleteCollection(ctx,
 		metav1.DeleteOptions{GracePeriodSeconds: &grace},
-		metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + nodeName},
+		metav1.ListOptions{LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + kubeNodeName(nodeName)},
 	)
 }
 
@@ -863,6 +876,19 @@ func (p *ClabernetesProvider) inspect(
 		}
 		c := podToInspectContainer(pod, topologyFile)
 		output[c.LabName] = append(output[c.LabName], c)
+	}
+
+	sources, err := p.nodeNameSources(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	for labName, containers := range output {
+		for i := range containers {
+			if sourceName, ok := sources[labName+"/"+containers[i].Name]; ok {
+				containers[i].Name = sourceName
+			}
+		}
 	}
 
 	return output, nil
@@ -1067,7 +1093,7 @@ func (p *ClabernetesProvider) createContainerExec(
 // pod with a running device container: stopped, started but not created yet, or the device is restarting.
 func (p *ClabernetesProvider) podForNode(ctx context.Context, namespace, nodeName string) (*corev1.Pod, error) {
 	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + nodeName,
+		LabelSelector: clabernetesconstants.LabelTopologyNode + "=" + kubeNodeName(nodeName),
 	})
 	if err != nil {
 		return nil, err
@@ -1145,7 +1171,9 @@ func (p *ClabernetesProvider) setIgnoreReconcile(ctx context.Context, ns, node s
 		value = `"true"`
 	}
 	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%s}}}`, clabernetesconstants.LabelIgnoreReconcile, value)
-	_, err := p.c9s.C9sV1alpha1().Nodes(ns).Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
+	_, err := p.c9s.C9sV1alpha1().
+		Nodes(ns).
+		Patch(ctx, kubeNodeName(node), types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return nodeError(err, ns, node)
 }
 
@@ -1153,7 +1181,7 @@ func (p *ClabernetesProvider) scaleNode(ctx context.Context, ns, node string, re
 	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicas)
 	_, err := p.clientset.AppsV1().
 		Deployments(ns).
-		Patch(ctx, node, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
+		Patch(ctx, kubeNodeName(node), types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return nodeError(err, ns, node)
 }
 
@@ -1411,6 +1439,43 @@ func loadKubeConfig(path string) (*rest.Config, error) {
 
 func namespaceFor(topologyName string) string {
 	return "c9s-" + topologyName
+}
+
+// kubeNodeName returns the name c9s runs a topology node under, which names its Node and Deployment and labels its
+// pods. c9s renames the nodes Kubernetes can't carry as written (XR-5 runs as xr-5) and rejects topologies where two
+// nodes would get the same name. Names Kubernetes accepts map onto themselves.
+func kubeNodeName(nodeName string) string {
+	return clabernetesutilkubernetes.SanitizeName(nodeName)
+}
+
+// nodeNameSources maps the names c9s runs the nodes of the topologies in namespace (all namespaces when empty)
+// under back to the names the topologies use, keyed by "<topology>/<c9s node name>". Only the topology definition
+// still holds the original name of a node c9s renamed.
+func (p *ClabernetesProvider) nodeNameSources(ctx context.Context, namespace string) (map[string]string, error) {
+	topologies, err := p.c9s.C9sV1alpha1().Topologies(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list topologies: %w", err)
+	}
+
+	sources := make(map[string]string)
+	for _, topology := range topologies.Items {
+		var definition struct {
+			Topology struct {
+				Nodes map[string]any `yaml:"nodes"`
+			} `yaml:"topology"`
+		}
+
+		// applyTopology only creates topologies that compile, so this only skips ones Antimony didn't create
+		if err := yaml.Unmarshal([]byte(topology.Spec.Definition.Containerlab), &definition); err != nil {
+			continue
+		}
+
+		for nodeName := range definition.Topology.Nodes {
+			sources[topology.Name+"/"+kubeNodeName(nodeName)] = nodeName
+		}
+	}
+
+	return sources, nil
 }
 
 // stripTopologyLabels removes all containerlab labels from a topology definition. Clabernetes turns them into

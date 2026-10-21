@@ -874,6 +874,65 @@ func TestInspect_ReportsRunningStoppedAndStoppingNodes(t *testing.T) {
 	}, states)
 }
 
+// renamingTopology is the demo lab with node names c9s renames for Kubernetes, XR-1 runs as xr-1.
+func renamingTopology() *c9sv1alpha1.Topology {
+	return &c9sv1alpha1.Topology{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: fakeNamespace},
+		Spec: c9sv1alpha1.TopologySpec{Definition: c9sv1alpha1.Definition{Containerlab: `name: demo
+topology:
+  nodes:
+    XR-1: {kind: cisco_xrd}
+    PE_2: {kind: cisco_xrd}
+    srl3: {kind: nokia_srlinux}
+`}},
+	}
+}
+
+func TestKubeNodeName_RenamesOnlyNamesKubernetesCannotCarry(t *testing.T) {
+	assert.Equal(t, "xr-1", kubeNodeName("XR-1"))
+	assert.Equal(t, "pe-2", kubeNodeName("PE_2"))
+	assert.Equal(t, "srl3", kubeNodeName("srl3"))
+	assert.Equal(t, "xr-1", kubeNodeName(kubeNodeName("XR-1")), "the mapping is idempotent")
+}
+
+func TestInspect_ReportsRenamedNodesUnderTheirTopologyNames(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{
+		nodePod("xr-1-pod", "xr-1", corev1.PodRunning, true),
+		nodeDeployment("xr-1", 1),
+		nodeDeployment("pe-2", 0),
+		nodePod("srl3-pod", "srl3", corev1.PodRunning, true),
+		nodeDeployment("srl3", 1),
+	}, []runtime.Object{renamingTopology()})
+
+	labInspect, err := cluster.provider.InspectLab(context.Background(), "", "demo", (&logCollector{}).log)
+	require.NoError(t, err)
+
+	states := map[string]NodeState{}
+	for _, container := range labInspect {
+		states[container.Name] = container.State
+	}
+
+	assert.Equal(t, map[string]NodeState{
+		"XR-1": NodeStates.Running,
+		"PE_2": NodeStates.Stopped,
+		"srl3": NodeStates.Running,
+	}, states)
+
+	node, err := cluster.provider.InspectNode(context.Background(), "", "demo", "XR-1", (&logCollector{}).log)
+	require.NoError(t, err)
+	assert.Equal(t, "xr-1-pod", node.ContainerName)
+}
+
+func TestInspect_KeepsTheC9sNameOfANodeWithoutTopology(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{nodePod("xr-1-pod", "xr-1", corev1.PodRunning, true)}, nil)
+
+	labInspect, err := cluster.provider.InspectLab(context.Background(), "", "demo", (&logCollector{}).log)
+
+	require.NoError(t, err)
+	require.Len(t, labInspect, 1)
+	assert.Equal(t, "xr-1", labInspect[0].Name)
+}
+
 func TestInspectLab_ReportsALabWithoutPodsAsNotRunning(t *testing.T) {
 	cluster := newFakeCluster(t, nil, nil)
 
@@ -931,6 +990,15 @@ func TestPodForNode_ReportsANodeWithoutARunningDeviceAsNotRunning(t *testing.T) 
 	}
 }
 
+func TestPodForNode_FindsThePodOfARenamedNode(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{nodePod("xr-1-pod", "xr-1", corev1.PodRunning, true)}, nil)
+
+	pod, err := cluster.provider.podForNode(context.Background(), fakeNamespace, "XR-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, "xr-1-pod", pod.Name)
+}
+
 func TestPodForNode_ReportsAStoppedNodeAsNotRunning(t *testing.T) {
 	cluster := newFakeCluster(t, nil, nil)
 
@@ -981,6 +1049,26 @@ func TestStartNode_HandsTheNodeBackToTheManagerAndScalesItUp(t *testing.T) {
 
 	assert.Equal(t, int32(1), getReplicas(t, cluster, "a1"))
 	assert.Equal(t, map[string]string{"keep": "me"}, getNodeLabels(t, cluster, "a1"))
+}
+
+func TestStopAndStartNode_TargetTheObjectsOfARenamedNode(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{nodeDeployment("xr-1", 1)}, []runtime.Object{c9sNode("xr-1")})
+
+	require.NoError(t, cluster.provider.StopNode(context.Background(), "demo", "XR-1"))
+	assert.Equal(t, int32(0), getReplicas(t, cluster, "xr-1"))
+	assert.Equal(t, "true", getNodeLabels(t, cluster, "xr-1")[clabernetesconstants.LabelIgnoreReconcile])
+
+	require.NoError(t, cluster.provider.StartNode(context.Background(), "demo", "XR-1"))
+	assert.Equal(t, int32(1), getReplicas(t, cluster, "xr-1"))
+}
+
+func TestRestartNode_DeletesThePodsOfARenamedNode(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{nodeDeployment("xr-1", 1)}, nil)
+
+	require.NoError(t, cluster.provider.RestartNode(context.Background(), "demo", "XR-1"))
+
+	deletion := deleteCollectionOf(t, cluster)
+	assert.Equal(t, clabernetesconstants.LabelTopologyNode+"=xr-1", deletion.GetListRestrictions().Labels.String())
 }
 
 func TestStopNode_FailsForAnUnknownNode(t *testing.T) {
