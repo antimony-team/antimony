@@ -73,6 +73,14 @@ export class LabView {
     await clickGraphNode(this.graph, node);
   }
 
+  /** Clicks the empty graph background, which closes the drawer. The open drawer covers the nodes on the right. */
+  async closeDrawer() {
+    const box = await this.graph.boundingBox();
+    if (!box) throw new Error('the graph is not visible');
+    // The bottom centre: the properties panel covers the top left, the drawer the right
+    await this.graph.click({position: {x: box.width / 2, y: box.height - 30}});
+  }
+
   /** Right-clicks the empty graph background and picks an entry of its menu. */
   async backgroundMenu(item: string) {
     const box = await this.graph.boundingBox();

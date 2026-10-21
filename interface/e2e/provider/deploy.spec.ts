@@ -34,6 +34,9 @@ test('a deployed lab runs its nodes and destroying it removes them', async ({
     // The link's interface is listed, the excluded ones aren't
     await expect(drawer.property('Interfaces')).toHaveText(/\beth1\b/);
     await expect(drawer.property('Interfaces')).not.toHaveText(/\blo\b/);
+
+    await labView.closeDrawer();
+    await expect(drawer.title).toBeHidden();
   }
 
   await labView.logsButton.click();

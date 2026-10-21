@@ -24,12 +24,13 @@ test('a node can be stopped, started and restarted', async ({
 
   await drawer.button('Start').click();
   await expect(drawer.state).toHaveText(/running/i);
-  // The interfaces are known once the node is ready
-  await expect(drawer.property('Interfaces')).toHaveText(/\beth1\b/);
+  // The interfaces are known once the node is ready. Stopping a container removes its links on both ends, so
+  // only eth0 is left.
+  await expect(drawer.property('Interfaces')).toHaveText(/\beth0\b/);
 
   await labView.clickNode('host1');
   await expect(drawer.title).toHaveText('host1');
   await drawer.button('Restart').click();
   await expect(drawer.state).toHaveText(/running/i);
-  await expect(drawer.property('Interfaces')).toHaveText(/\beth1\b/);
+  await expect(drawer.property('Interfaces')).toHaveText(/\beth0\b/);
 });
