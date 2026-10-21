@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +30,8 @@ import (
  * The provider e2e tests in the deployment package check the providers on their own. These run the whole
  * server on one: the harness' services with containerlab or clabernetes instead of the dummy, driven through
  * the API, the socket commands and the SSH server like the interface does. They cover what the provider tests
- * can't: how the instance service, the shell service and the SSH server use a provider.
+ * can't: how the instance service and the SSH server use a provider. Deploying, node commands, shells and stats
+ * are tested through the interface in interface/e2e/provider/.
  *
  * Run them with "task test-e2e-containerlab" or "task test-e2e-clabernetes". ANTIMONY_E2E_PROVIDER selects the
  * provider, containerlab needs root.
@@ -209,77 +209,8 @@ func (e *e2eEnv) mustExec(t *testing.T, labId string, node string, cmd ...string
 }
 
 /*
- * Deploying and destroying
+ * Restoring
  */
-
-func TestProviderE2E_DeployingALabRunsItsNodes(t *testing.T) {
-	e := newE2EEnv(t)
-	labId := e.createLab(t, "E2E Deploy")
-
-	client := e.Dial("/cmd", e.Seed.Admin.Token)
-	client.EmitWithin(e.timeout, deployCommand(labId)).RequireOk(nil)
-
-	e.waitForLab(t, labId, func(c *assert.CollectT, nodes map[string]instance.InstanceNode) {
-		for _, node := range nodes {
-			assert.Truef(c, node.IsReady, "%s isn't ready", node.Name)
-		}
-	})
-
-	var labOut labDTO
-	e.GET("/labs/"+labId, e.Seed.Admin.Token).RequireOk(&labOut)
-	require.NotNil(t, labOut.Instance)
-	assert.Equal(t, int(instance.InstanceStates.Running), labOut.Instance.State)
-	assert.ElementsMatch(t, []string{"host1", "host2"}, nodeNames(labOut.Instance.Nodes))
-
-	for _, node := range labOut.Instance.Nodes {
-		assert.Equal(t, int(deployment.NodeStates.Running), node.State, "node %s", node.Name)
-		assert.NotEmpty(t, node.ContainerId, "node %s", node.Name)
-		assert.NotEmpty(t, node.ContainerName, "node %s", node.Name)
-		assert.NotEmpty(t, node.IPv4, "node %s", node.Name)
-
-		// The link's interface is listed, the excluded ones aren't
-		names := interfaceNames(node.Interfaces)
-		assert.Contains(t, names, "eth1", "node %s", node.Name)
-		assert.NotContains(t, names, "lo", "node %s", node.Name)
-	}
-
-	t.Run("the lab log has the deployment's output", func(t *testing.T) {
-		// The log namespace only exists once the lab has been deployed, so the deployment is in the backlog
-		labLog := e.Dial("/logs/"+labId, e.Seed.Admin.Token)
-
-		var lines []string
-		decodeInto(t, labLog.NextBacklog(), &lines)
-
-		assert.True(t, slices.ContainsFunc(lines, func(line string) bool {
-			return strings.Contains(line, "Deployment of lab was successful")
-		}), "the log has no success message: %v", lines)
-		assert.Greater(t, len(lines), 2, "the log should carry the provider's output too")
-	})
-
-	t.Run("the node log has the node's output", func(t *testing.T) {
-		nodeLog := e.Dial("/logs/"+labId+"/host1", e.Seed.Admin.Token)
-
-		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			value, ok := nodeLog.NextBacklogWithin(time.Second)
-			require.True(c, ok, "the node log has no backlog")
-			assert.Contains(c, fmt.Sprint(value), e2eLogMarker)
-		}, 15*time.Second, 100*time.Millisecond)
-	})
-
-	t.Run("destroying the lab removes it", func(t *testing.T) {
-		client.EmitWithin(e.timeout, destroyCommand(labId)).RequireOk(nil)
-
-		labs, err := e.Runtime.InspectLabs(t.Context(), nil)
-		require.NoError(t, err)
-		assert.NotContains(t, labs, e.instanceName(t, labId))
-
-		var labOut labDTO
-		e.GET("/labs/"+labId, e.Seed.Admin.Token).RequireOk(&labOut)
-		if labOut.Instance != nil {
-			assert.NotEqual(t, int(instance.InstanceStates.Running), labOut.Instance.State)
-		}
-	})
-}
 
 func TestProviderE2E_RunningLabsAreRestoredOnStartup(t *testing.T) {
 	e := newE2EEnv(t)
@@ -325,46 +256,6 @@ func TestProviderE2E_RunningLabsAreRestoredOnStartup(t *testing.T) {
 /*
  * Nodes
  */
-
-func TestProviderE2E_NodeCommandsChangeTheNodes(t *testing.T) {
-	e := newE2EEnv(t)
-	labId := e.createLab(t, "E2E Nodes")
-	e.deployLab(t, labId)
-
-	client := e.Dial("/cmd", e.Seed.Admin.Token)
-
-	t.Run("stopping a node", func(t *testing.T) {
-		client.EmitWithin(e.timeout, nodeCommand(cmdStopNode, labId, "host2")).RequireOk(nil)
-		e.waitForNodeState(t, labId, "host2", deployment.NodeStates.Stopped)
-
-		host2 := e.nodes(labId)["host2"]
-		assert.Empty(t, host2.ContainerId)
-		assert.Empty(t, host2.IPv4)
-	})
-
-	t.Run("starting a node", func(t *testing.T) {
-		client.EmitWithin(e.timeout, nodeCommand(cmdStartNode, labId, "host2")).RequireOk(nil)
-		e.waitForLab(t, labId, func(c *assert.CollectT, nodes map[string]instance.InstanceNode) {
-			assert.Equal(c, deployment.NodeStates.Running, nodes["host2"].State)
-			assert.True(c, nodes["host2"].IsReady)
-		})
-	})
-
-	t.Run("restarting a node", func(t *testing.T) {
-		before := e.nodes(labId)["host1"].ContainerId
-
-		client.EmitWithin(e.timeout, nodeCommand(cmdRestartNode, labId, "host1")).RequireOk(nil)
-		e.waitForLab(t, labId, func(c *assert.CollectT, nodes map[string]instance.InstanceNode) {
-			assert.Equal(c, deployment.NodeStates.Running, nodes["host1"].State)
-			assert.True(c, nodes["host1"].IsReady)
-		})
-
-		// Clabernetes replaces the pod, containerlab keeps the container
-		if e.providerName == "clabernetes" {
-			assert.NotEqual(t, before, e.nodes(labId)["host1"].ContainerId)
-		}
-	})
-}
 
 // A node that changes behind Antimony's back, like a "docker stop" on the host, shows up through the provider's
 // events.
@@ -450,51 +341,8 @@ func TestProviderE2E_EventsReachTheRightLabWhenNodeNamesRepeat(t *testing.T) {
 }
 
 /*
- * Shells, captures and stats
+ * Captures
  */
-
-func TestProviderE2E_ShellsRunInTheNode(t *testing.T) {
-	e := newE2EEnv(t)
-	labId := e.createLab(t, "E2E Shell")
-	e.deployLab(t, labId)
-
-	client := e.Dial("/cmd", e.Seed.Admin.Token)
-	shellId := openShell(t, client, labId, "host1")
-	shell := e.Dial("/shell/"+shellId, e.Seed.Admin.Token)
-
-	var output strings.Builder
-	waitForOutput := func(text string) {
-		t.Helper()
-
-		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			for {
-				value, ok := shell.NextDataWithin(100 * time.Millisecond)
-				if !ok {
-					break
-				}
-				output.Write(SocketBytes(t, value))
-			}
-			assert.Contains(c, output.String(), text)
-		}, 30*time.Second, 100*time.Millisecond)
-	}
-
-	// The marker is computed by the shell, so the echoed input doesn't match it
-	shell.EmitRawWithoutAck("echo e2e-$((6*7))\n")
-	waitForOutput("e2e-42")
-
-	shell.EmitRawWithoutAck("hostname\n")
-	waitForOutput("host1")
-
-	shell.EmitRawWithoutAck("stty size\n")
-	waitForOutput(fmt.Sprintf("%d %d", defaultShellRows, defaultShellCols))
-
-	client.Emit(resizeShellCommand(shellId, 120, 50)).RequireOk(nil)
-	shell.EmitRawWithoutAck("stty size\n")
-	waitForOutput("50 120")
-
-	client.Emit(closeShellCommand(labId, shellId)).RequireOk(nil)
-	assert.True(t, shell.WaitForDisconnect(), "closing the shell must disconnect its subscribers")
-}
 
 func TestProviderE2E_CapturesStreamTheNodesTraffic(t *testing.T) {
 	e := newE2EEnv(t)
@@ -548,25 +396,6 @@ func TestProviderE2E_CapturesStreamTheNodesTraffic(t *testing.T) {
 			t.Fatal("the capture didn't see the ping from host2")
 		}
 	}
-}
-
-func TestProviderE2E_TheMonitorPublishesNodeStats(t *testing.T) {
-	e := newE2EEnv(t)
-	labId := e.createLab(t, "E2E Stats")
-	e.deployLab(t, labId)
-
-	stats := e.Dial("/stats/"+e.nodes(labId)["host1"].ContainerId, e.Seed.Admin.Token)
-
-	value, ok := stats.NextDataWithin(15 * time.Second)
-	require.True(t, ok, "the monitor didn't publish stats for the node")
-
-	var sample instance.NodeStats
-	decodeInto(t, value, &sample)
-
-	assert.Positive(t, sample.MemoryUsage)
-	assert.Positive(t, sample.MemoryLimit)
-	assert.False(t, sample.Timestamp.IsZero())
-	assert.Contains(t, sample.Interfaces, "eth1")
 }
 
 func isICMPBetween(data []byte, source, destination string) bool {

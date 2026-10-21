@@ -24,6 +24,8 @@ export default [
   {
     ignores: [
       '**/build/',
+      // Test output, partly written by a server running as root
+      'e2e/.tmp/',
       'vite.config.ts',
       'vitest.config.ts',
       'eslint.config.js',

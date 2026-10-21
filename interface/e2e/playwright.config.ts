@@ -39,6 +39,9 @@ export default defineConfig({
     {
       // Logs in as the admin once and stores the session for all other tests
       name: 'setup',
+      // Its own folder, so Playwright never searches .tmp/, where a server running as root (see
+      // playwright.provider.config.ts) leaves folders it can't read
+      testDir: path.join(E2E_DIR, 'setup'),
       testMatch: /auth\.setup\.ts$/,
     },
     {

@@ -32,7 +32,7 @@ export function labTimeout() {
 // The admin the backend is started with
 export const ADMIN = {username: 'admin', password: 'admin'};
 
-// Browser state of the logged-in admin, written by auth.setup.ts
+// Browser state of the logged-in admin, written by setup/auth.setup.ts
 export const ADMIN_STORAGE_STATE = path.join(E2E_DIR, '.auth', 'admin.json');
 
 // Applied to every browser context, including the ones the fixtures create for students

@@ -38,7 +38,7 @@ e2e/
   settings.ts            ports, URLs and browser options shared by everything
   backend/               config and node kinds of the test server
   scripts/               start / clean up the server
-  auth.setup.ts          logs in as the admin once, all tests reuse the session
+  setup/                 logs in as the admin once, all tests reuse the session
   fixtures/              the API client and the test fixtures
   pages/                 page objects: how to find and operate parts of the UI
   helpers/               Monaco editor, Cytoscape graphs, ZIP archives
