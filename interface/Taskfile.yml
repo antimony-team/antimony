@@ -24,7 +24,7 @@ tasks:
       - rm -rf ./release/
       - rm -rf ./.task/
 
-  dev:
+  run:
     desc: Start the Vite development server
     deps:
       - install
