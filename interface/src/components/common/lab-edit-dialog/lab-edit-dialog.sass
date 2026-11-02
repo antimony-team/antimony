@@ -106,8 +106,7 @@
   background: var(--surface-inset)
 
 .sb-lab-edit-names-row
-  display: grid
-  grid-template-columns: 40px 1fr
+  display: flex
   align-items: center
   height: 40px
 
@@ -117,14 +116,29 @@
   &:focus-within
     background: var(--hover)
 
-  > span
+  > span:first-child
+    flex: 0 0 40px
+    box-sizing: border-box
     padding-right: 12px
     text-align: right
     font-size: 13px
     font-variant-numeric: tabular-nums
     color: var(--text-faint)
 
+  > .sb-lab-edit-names-prefix
+    flex: 0 1 auto
+    min-width: 0
+    max-width: 70%
+    overflow: hidden
+    // A space at the end of the base name is part of the lab names
+    white-space: pre
+    text-overflow: ellipsis
+    font-size: 14px
+    color: var(--text-muted)
+
   input
+    flex: 1 1 0
+    min-width: 0
     height: 100%
     padding: 0 12px 0 0
     border: 0

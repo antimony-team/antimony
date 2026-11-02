@@ -7,6 +7,7 @@ import {runInAction} from 'mobx';
 import {observer, useLocalObservable} from 'mobx-react-lite';
 
 import {Calendar} from 'primereact/calendar';
+import {Checkbox} from 'primereact/checkbox';
 import {InputNumber} from 'primereact/inputnumber';
 import {SelectButton} from 'primereact/selectbutton';
 import {Nullable} from 'primereact/ts-helpers';
@@ -78,6 +79,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   const [isMultiple, setIsMultiple] = useState(false);
   const [instanceCount, setInstanceCount] = useState(MinInstances);
   const [customNames, setCustomNames] = useState<string[]>([]);
+  const [useTopologyPrefix, setUseTopologyPrefix] = useState(true);
 
   const labNameRef = useRef<SBInputRef>(null);
   const topologyDropdownRef = useRef<SBDropdownRef>(null);
@@ -99,15 +101,31 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   const isAdd = props.dialogState.state?.action === DialogAction.Add;
   const isBatch = isAdd && isMultiple;
 
-  const defaultName = (index: number) =>
-    `${editingLab.name || 'Lab'} ${index + 1}`;
+  const topologyName = topologyStore.data.find(
+    topology => topology.id === editingLab.topologyId,
+  )?.definition.name;
+
+  const namePrefix =
+    isAdd && useTopologyPrefix && topologyName ? `${topologyName}-` : '';
+
+  // All labs of a batch share the prefix and the base name, the list only sets what comes after them
+  const batchPrefix = namePrefix + editingLab.name;
+
+  const defaultSuffix = (index: number) =>
+    batchPrefix.endsWith('-') ? `${index + 1}` : `-${index + 1}`;
   const instanceNames = Array.from(
     {length: instanceCount},
-    (_, i) => customNames[i]?.trim() || defaultName(i),
+    (_, i) => batchPrefix + (customNames[i]?.trim() || defaultSuffix(i)),
   );
+
   const renamedCount = customNames
     .slice(0, instanceCount)
     .filter(name => name?.trim()).length;
+
+  // Reset the validation when the tab is changed
+  useEffect(() => {
+    labNameRef.current?.setValidationError(null);
+  }, [isMultiple]);
 
   function onNameChange(name: string, isImplicit: boolean) {
     runInAction(() => (editingLab.name = name));
@@ -147,7 +165,9 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
   async function onSubmit() {
     if (!props.dialogState.state) return;
 
-    const nameError = validateName(editingLab.name);
+    // With the prefix, the labs of a batch are told apart by the names in the list alone
+    const canSkipName = isBatch && useTopologyPrefix && editingLab.name === '';
+    const nameError = canSkipName ? null : validateName(editingLab.name);
     if (nameError) {
       labNameRef.current?.setValidationError(nameError);
       return;
@@ -197,8 +217,16 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
         return;
       }
 
+      const fullNameError = isBatch
+        ? null
+        : validateName(namePrefix + editingLab.name);
+      if (fullNameError) {
+        labNameRef.current?.setValidationError(fullNameError);
+        return;
+      }
+
       const newLab: LabIn = {
-        name: editingLab.name,
+        name: namePrefix + editingLab.name,
         topologyId: editingLab.topologyId,
         startTime: editingLab.startTime.toISOString(),
         endTime: editingLab.endTime.toISOString(),
@@ -301,6 +329,7 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
       setIsMultiple(false);
       setInstanceCount(MinInstances);
       setCustomNames([]);
+      setUseTopologyPrefix(true);
     }
   }, [props.dialogState.isOpen]);
 
@@ -366,15 +395,33 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
             />
           </If>
           <div className="flex gap-3">
-            <div className="flex-grow-1">
+            <div className="flex flex-column flex-grow-1 gap-2 min-w-0">
               <SBInput
                 ref={labNameRef}
                 onValueSubmit={onNameChange}
+                onValueChange={name =>
+                  runInAction(() => (editingLab.name = name))
+                }
                 defaultValue={editingLab.name}
-                placeholder="e.g. OSPF Lab"
+                placeholder={
+                  isBatch && useTopologyPrefix ? 'Optional' : 'e.g. OSPF Lab'
+                }
+                prefix={namePrefix}
                 id="lab-edit-name"
                 label={isBatch ? 'Base name' : 'Lab name'}
               />
+              <If condition={isAdd}>
+                <div className="flex align-items-center gap-2">
+                  <Checkbox
+                    inputId="lab-edit-topology-prefix"
+                    checked={useTopologyPrefix}
+                    onChange={e => setUseTopologyPrefix(e.checked!)}
+                  />
+                  <label htmlFor="lab-edit-topology-prefix">
+                    Use topology prefix
+                  </label>
+                </div>
+              </If>
             </div>
             <If condition={isBatch}>
               <div className="flex flex-column gap-2">
@@ -479,9 +526,17 @@ const LabEditDialog = observer((props: LabEditDialogProps) => {
               {instanceNames.map((_, index) => (
                 <label key={index} className="sb-lab-edit-names-row">
                   <span>{index + 1}</span>
+                  <If condition={batchPrefix}>
+                    <span
+                      className="sb-lab-edit-names-prefix"
+                      title={batchPrefix}
+                    >
+                      {batchPrefix}
+                    </span>
+                  </If>
                   <input
                     value={customNames[index] ?? ''}
-                    placeholder={defaultName(index)}
+                    placeholder={defaultSuffix(index)}
                     aria-label={`Name of lab ${index + 1}`}
                     onChange={e => onCustomNameChange(index, e.target.value)}
                     onPaste={e => onCustomNamePaste(index, e)}

@@ -18,3 +18,21 @@
   font-size: 15px
   font-weight: 500
   color: var(--text-muted)
+
+.sb-input-prefixed
+  display: flex
+  align-items: center
+  gap: 2px
+
+  .sb-input
+    flex: 1 1 0
+    min-width: 0
+
+.sb-input-prefix
+  flex: 0 1 auto
+  min-width: 0
+  max-width: 50%
+  overflow: hidden
+  white-space: nowrap
+  text-overflow: ellipsis
+  color: var(--text-muted)

@@ -18,6 +18,10 @@ export class LabEditDialog extends Dialog {
     return this.root.locator('#lab-edit-name');
   }
 
+  get topologyPrefix(): Locator {
+    return this.root.getByLabel('Use topology prefix');
+  }
+
   get start(): Locator {
     return this.root.locator('#deploy-date-start');
   }
@@ -48,6 +52,11 @@ export class LabEditDialog extends Dialog {
   /** The name inputs of the single labs in "Multiple labs" mode. */
   get batchNames(): Locator {
     return this.root.locator('.sb-lab-edit-names-row input');
+  }
+
+  /** The rows of the name list in "Multiple labs" mode, with the prefix of the names. */
+  get batchRows(): Locator {
+    return this.root.locator('.sb-lab-edit-names-row');
   }
 
   async selectTopology(name: string) {

@@ -19,13 +19,14 @@ test('a lab can be created from the dashboard and starts right away', async ({
   uniqueName,
 }) => {
   const topology = await createTopology();
-  const name = uniqueName('lab');
+  const suffix = uniqueName('lab');
+  const name = `${topology.name}-${suffix}`;
   const dashboard = new DashboardPage(page);
   await dashboard.goto();
 
   await dashboard.newLab.click();
   const dialog = new LabEditDialog(page);
-  await dialog.setName(name);
+  await dialog.setName(suffix);
   await dialog.selectTopology(topology.name);
   await dialog.submit('Deploy');
 
@@ -58,7 +59,9 @@ test('the editor deploys the open topology', async ({
   await dialog.submit('Deploy');
 
   await expect(toast(page, 'Lab has been created successfully.')).toBeVisible();
-  expect((await api.findLab(name))?.topologyId).toBe(topology.id);
+  expect((await api.findLab(`${topology.name}-${name}`))?.topologyId).toBe(
+    topology.id,
+  );
 });
 
 test('several labs can be created at once', async ({
@@ -79,8 +82,11 @@ test('several labs can be created at once', async ({
   await dialog.selectTopology(topology.name);
 
   await expect(dialog.batchNames).toHaveCount(3);
-  // One name can be changed, the others follow the base name
-  await dialog.batchNames.nth(1).fill(`${base}-special`);
+  // The base name is fixed, only what comes after it can be changed
+  await expect(dialog.batchRows.nth(1)).toContainText(
+    `${topology.name}-${base}`,
+  );
+  await dialog.batchNames.nth(1).fill('special');
   await dialog.submit('Deploy 3 labs');
 
   await expect(
@@ -90,7 +96,77 @@ test('several labs can be created at once', async ({
     .filter(lab => lab.topologyId === topology.id)
     .map(lab => lab.name)
     .sort();
-  expect(names).toEqual([`${base} 1`, `${base} 3`, `${base}-special`].sort());
+  expect(names).toEqual(
+    [`${base}-1`, `${base}-3`, `${base}special`]
+      .map(name => `${topology.name}-${name}`)
+      .sort(),
+  );
+});
+
+test('the name list follows the base name while typing', async ({
+  page,
+  createTopology,
+}) => {
+  const topology = await createTopology();
+  await page.goto('/');
+
+  await new DashboardPage(page).newLab.click();
+  const dialog = new LabEditDialog(page);
+  await dialog.mode('Multiple labs');
+  await dialog.selectTopology(topology.name);
+  await dialog.name.pressSequentially('class');
+
+  await expect(dialog.name).toBeFocused();
+  await expect(dialog.batchRows.nth(0)).toContainText(`${topology.name}-class`);
+});
+
+test('several labs need no base name with the topology prefix', async ({
+  page,
+  api,
+  createTopology,
+}) => {
+  const topology = await createTopology();
+  await page.goto('/');
+
+  await new DashboardPage(page).newLab.click();
+  const dialog = new LabEditDialog(page);
+  await dialog.mode('Multiple labs');
+  await dialog.selectTopology(topology.name);
+  await expect(dialog.batchRows.nth(0)).toContainText(`${topology.name}-`);
+  await dialog.batchNames.nth(0).fill('blue');
+  await dialog.batchNames.nth(1).fill('red');
+  await dialog.submit('Deploy 2 labs');
+
+  await expect(
+    toast(page, '2 labs have been created successfully.'),
+  ).toBeVisible();
+  const names = (await api.getLabs())
+    .filter(lab => lab.topologyId === topology.id)
+    .map(lab => lab.name)
+    .sort();
+  expect(names).toEqual([`${topology.name}-blue`, `${topology.name}-red`]);
+});
+
+test('the topology prefix can be turned off', async ({
+  page,
+  api,
+  createTopology,
+  uniqueName,
+}) => {
+  const topology = await createTopology();
+  const name = uniqueName('lab');
+  await page.goto('/');
+
+  await new DashboardPage(page).newLab.click();
+  const dialog = new LabEditDialog(page);
+  await expect(dialog.topologyPrefix).toBeChecked();
+  await dialog.topologyPrefix.uncheck();
+  await dialog.setName(name);
+  await dialog.selectTopology(topology.name);
+  await dialog.submit('Deploy');
+
+  await expect(toast(page, 'Lab has been created successfully.')).toBeVisible();
+  expect((await api.findLab(name))?.topologyId).toBe(topology.id);
 });
 
 test.describe('validation', () => {
@@ -145,6 +221,7 @@ test.describe('validation', () => {
     await new DashboardPage(page).newLab.click();
     const dialog = new LabEditDialog(page);
 
+    await dialog.topologyPrefix.uncheck();
     await dialog.setName(existing.name);
     await dialog.selectTopology(existing.topology.name);
     await dialog.submit('Deploy');

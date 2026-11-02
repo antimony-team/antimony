@@ -205,13 +205,14 @@ test.describe('interface', () => {
     const collection = await createCollection({publicDeploy: true});
     const topology = await createTopology({collection});
     const user = await loginAs({collections: [collection]});
-    const name = uniqueName('lab');
+    const suffix = uniqueName('lab');
+    const name = `${topology.name}-${suffix}`;
     const dashboard = new DashboardPage(user.page);
     await dashboard.goto();
 
     await dashboard.newLab.click();
     const dialog = new LabEditDialog(user.page);
-    await dialog.setName(name);
+    await dialog.setName(suffix);
     await dialog.selectTopology(topology.name);
     await dialog.submit('Deploy');
 
