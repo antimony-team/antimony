@@ -302,13 +302,70 @@
   background: var(--surface-overlay)
   border-color: var(--border)
 
-// Toasts and messages in the status colors
 @each $severity, $color in (info: info, success: success, warn: warning, error: danger)
-  .p-toast .p-toast-message.p-toast-message-#{$severity}, .p-message.p-message-#{$severity},
-  .p-inline-message.p-inline-message-#{$severity}
-    background: var(--#{$color}-color)
-    border-color: var(--#{$color}-color-text)
-    color: var(--#{$color}-color-text)
+  // Like the toasts, only the icon and the top edge are in the status color. They sit in the page and
+  // not above it, so they are neither translucent nor do they cast a shadow.
+  .p-message.p-message-#{$severity}, .p-inline-message.p-inline-message-#{$severity}
+    --severity-color: var(--#{$color}-color-text)
+    background: var(--surface-overlay)
+    border: 1px solid var(--border)
+    border-top: 2px solid var(--severity-color)
+    border-radius: 8px
+    color: var(--text)
 
-    .p-toast-message-icon, .p-toast-icon-close, .p-message-icon, .p-message-close, .p-inline-message-icon
-      color: var(--#{$color}-color-text)
+    .p-message-icon, .p-message-close, .p-inline-message-icon
+      color: var(--severity-color)
+
+  // The mini messages have no icon and are too small for an edge, so their text has the color
+  .p-inline-message.p-inline-message-#{$severity}.sb-mini-message
+    border-top: 1px solid var(--border)
+    border-radius: 6px
+    color: var(--severity-color)
+
+  .p-toast .p-toast-message.p-toast-message-#{$severity}
+    --severity-color: var(--#{$color}-color-text)
+
+// Toasts look like the dialogs, only the icon and the top edge are in the status color
+.p-toast .p-toast-message
+  margin-bottom: 8px
+  border: 1px solid var(--border)
+  border-top: 2px solid var(--severity-color)
+  border-radius: 12px
+  background: color-mix(in oklab, var(--surface-overlay) 82%, transparent)
+  backdrop-filter: blur(14px) saturate(1.2)
+  box-shadow: 0 16px 40px var(--shadow), 0 2px 8px var(--shadow-near)
+  color: var(--text)
+
+  &.p-toast-message-exit-active
+    margin-bottom: 0
+
+  .p-toast-message-content
+    gap: 12px
+    padding: 11px 8px 12px 12px
+
+    .p-toast-message-icon
+      margin-top: 2px
+      font-size: 20px
+      color: var(--severity-color)
+
+    .p-toast-message-text
+      margin: 0
+
+    .p-toast-summary
+      font-size: 12px
+      font-weight: 500
+      line-height: 16px
+      color: var(--text-muted)
+
+    .p-toast-detail
+      margin: 2px 0 0
+      font-size: 14px
+      line-height: 20px
+
+  .p-toast-icon-close
+    border-radius: 8px
+    color: var(--text-muted)
+
+    &:hover
+      background: var(--hover)
+      color: var(--text)

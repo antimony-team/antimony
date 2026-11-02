@@ -62,6 +62,7 @@ describe('StatusMessageStore', () => {
       summary: 'Lab',
       detail: 'Message 1',
       severity: 'warn',
+      icon: 'pi pi-exclamation-circle',
     });
     expect(store.hasUnreadMessages).toBe(true);
     expect(store.countBySeverity.get(Severity.Warning)).toBe(1);

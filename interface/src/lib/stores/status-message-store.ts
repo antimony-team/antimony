@@ -12,6 +12,7 @@ import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {
   Severity,
+  SeverityIconMap,
   SeverityMapping,
   StatusMessage,
   StatusMessageOut,
@@ -154,6 +155,7 @@ export class StatusMessageStore {
       summary: title,
       detail: message,
       severity: SeverityMapping[severity],
+      icon: SeverityIconMap[severity],
     };
     this.toastRef.current.show(msg);
   }

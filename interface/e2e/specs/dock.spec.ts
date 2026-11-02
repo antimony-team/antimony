@@ -1,4 +1,5 @@
 import {expect, test} from '../fixtures/test';
+import {toast} from '../pages/dialogs';
 import {Dock} from '../pages/dock';
 
 /*
@@ -78,9 +79,7 @@ test.describe('status messages', () => {
 
     // Server messages are also shown as a toast
     await expect(
-      page
-        .locator('.p-toast-message')
-        .filter({hasText: `Successfully deployed lab '${lab.name}'`}),
+      toast(page, `Successfully deployed lab '${lab.name}'`),
     ).toBeVisible();
     await expect(dock.unreadBadge).toBeVisible();
 
