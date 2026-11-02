@@ -476,8 +476,9 @@ test.describe('shapes and lines', () => {
     const shape = annotations.freeShapeAnnotations![0];
     expect(shape.shapeType).toBe('rectangle');
     const zoom = await graphZoom(graph.canvas);
-    expect(shape.width).toBeCloseTo(160 / zoom, -1);
-    expect(shape.height).toBeCloseTo(100 / zoom, -1);
+    // Both corners snap to the grid of 7 units
+    expect(Math.abs(shape.width - 160 / zoom)).toBeLessThanOrEqual(7);
+    expect(Math.abs(shape.height - 100 / zoom)).toBeLessThanOrEqual(7);
 
     // It's still there after a reload
     await page.reload();

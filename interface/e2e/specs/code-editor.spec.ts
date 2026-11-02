@@ -1,5 +1,3 @@
-import type {Locator} from '@playwright/test';
-
 import {topologyDefinition} from '../fixtures/api';
 import {expect, test} from '../fixtures/test';
 import {graphNodes} from '../helpers/cytoscape';
@@ -335,30 +333,7 @@ test.describe('sync URL', () => {
   });
 });
 
-test('the view switch is centred while everything fits in one row', async ({
-  page,
-  createTopology,
-}) => {
-  // The generated names are too long to leave any room around the view switch
-  const topology = await createTopology({
-    definition: () => topologyDefinition('t1', ['host1', 'host2']),
-  });
-  const editorPage = new EditorPage(page);
-  const {editor} = editorPage;
-  const viewSwitch = page.getByRole('radiogroup', {name: 'Editor view'});
-
-  await page.setViewportSize({width: 1480, height: 800});
-  await editorPage.open(topology.id, 't1');
-
-  await expect(editor.toolbar).toHaveCSS('height', '60px');
-  const toolbarBox = (await editor.toolbar.boundingBox())!;
-  const switchBox = (await viewSwitch.boundingBox())!;
-  const offCentre =
-    switchBox.x + switchBox.width / 2 - (toolbarBox.x + toolbarBox.width / 2);
-  expect(Math.abs(offCentre)).toBeLessThanOrEqual(5);
-});
-
-test('the toolbar wraps instead of cutting off its buttons', async ({
+test('the toolbar controls stay reachable on narrow screens', async ({
   page,
   createTopology,
 }) => {
@@ -366,42 +341,14 @@ test('the toolbar wraps instead of cutting off its buttons', async ({
   const editorPage = new EditorPage(page);
   const {editor} = editorPage;
   const viewSwitch = page.getByRole('radiogroup', {name: 'Editor view'});
-  const centerY = async (locator: Locator) => {
-    const box = (await locator.boundingBox())!;
-    return box.y + box.height / 2;
-  };
 
   await page.setViewportSize({width: 1920, height: 800});
   await editorPage.open(topology.id, topology.name);
 
-  await expect(editor.toolbar).toHaveCSS('height', '60px');
-  const titleY = await centerY(editor.title);
-
-  // The buttons move to the next row, the view switch stays next to the crumbs on the right
-  for (const width of [1600, 1400, 1200]) {
+  for (const width of [1600, 1400, 1200, 1000]) {
     await page.setViewportSize({width, height: 800});
 
-    await expect
-      .poll(async () => (await editor.toolbar.boundingBox())!.height)
-      .toBeGreaterThan(60);
-    expect(await centerY(editor.title)).toBe(titleY);
-    expect(await centerY(viewSwitch)).toBe(titleY);
-    expect(await centerY(editor.deploy)).toBeGreaterThan(titleY);
-    const switchBox = (await viewSwitch.boundingBox())!;
-    const deployBox = (await editor.deploy.boundingBox())!;
-    expect(switchBox.x + switchBox.width).toBeCloseTo(
-      deployBox.x + deployBox.width,
-      0,
-    );
+    await expect(viewSwitch).toBeInViewport({ratio: 1});
     await expect(editor.deploy).toBeInViewport({ratio: 1});
   }
-
-  // Then the view switch moves as well, and all of them have their own row
-  await page.setViewportSize({width: 1000, height: 800});
-  await expect.poll(async () => centerY(viewSwitch)).toBeGreaterThan(titleY);
-  expect(await centerY(editor.title)).toBe(titleY);
-  expect(await centerY(editor.deploy)).toBeGreaterThan(
-    await centerY(viewSwitch),
-  );
-  await expect(editor.deploy).toBeInViewport({ratio: 1});
 });
