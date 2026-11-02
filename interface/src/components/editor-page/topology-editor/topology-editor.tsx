@@ -495,63 +495,65 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
         }}
       >
         <div className="sb-topology-editor-toolbar">
-          <ol
-            className="sb-topology-editor-toolbar-crumbs"
-            aria-label="Breadcrumb"
-          >
-            <Choose>
-              <When condition={openTopology}>
-                <li>
-                  <span className="sb-topology-editor-toolbar-subtitle">
-                    <span
-                      className="material-symbols-outlined"
-                      aria-hidden="true"
-                    >
-                      inventory_2
+          <div className="sb-topology-editor-toolbar-left">
+            <ol
+              className="sb-topology-editor-toolbar-crumbs"
+              aria-label="Breadcrumb"
+            >
+              <Choose>
+                <When condition={openTopology}>
+                  <li>
+                    <span className="sb-topology-editor-toolbar-subtitle">
+                      <span
+                        className="material-symbols-outlined"
+                        aria-hidden="true"
+                      >
+                        inventory_2
+                      </span>
+                      {topologyCollection!.name}
                     </span>
-                    {topologyCollection!.name}
-                  </span>
-                </li>
-                <li>
-                  <div className="sb-topology-editor-toolbar-title">
-                    <span
-                      className="material-symbols-outlined"
-                      aria-hidden="true"
-                    >
-                      network_node
+                  </li>
+                  <li>
+                    <div className="sb-topology-editor-toolbar-title">
+                      <span
+                        className="material-symbols-outlined"
+                        aria-hidden="true"
+                      >
+                        network_node
+                      </span>
+                      {`${openTopology?.definition.name}${hasPendingEdits ? '*' : ''}`}
+                    </div>
+                  </li>
+                  <li>
+                    <TopologyFileSwitch
+                      value={openTopologyFile}
+                      topologyName={openTopology?.definition.name ?? ''}
+                      onChange={setOpenTopologyFile}
+                    />
+                  </li>
+                </When>
+                <When condition={openBindFile}>
+                  <li>
+                    <span className="sb-topology-editor-toolbar-title">
+                      <span
+                        className="material-symbols-outlined"
+                        aria-hidden="true"
+                      >
+                        description
+                      </span>
+                      {`${openBindFile!.filePath}${hasPendingEdits ? '*' : ''}`}
                     </span>
-                    {`${openTopology?.definition.name}${hasPendingEdits ? '*' : ''}`}
-                  </div>
-                </li>
-                <li>
-                  <TopologyFileSwitch
-                    value={openTopologyFile}
-                    topologyName={openTopology?.definition.name ?? ''}
-                    onChange={setOpenTopologyFile}
-                  />
-                </li>
-              </When>
-              <When condition={openBindFile}>
-                <li>
-                  <span className="sb-topology-editor-toolbar-title">
-                    <span
-                      className="material-symbols-outlined"
-                      aria-hidden="true"
-                    >
-                      description
-                    </span>
-                    {`${openBindFile!.filePath}${hasPendingEdits ? '*' : ''}`}
-                  </span>
-                </li>
-              </When>
-              <Otherwise></Otherwise>
-            </Choose>
-          </ol>
-          <EditorViewSwitch
-            value={effectiveView}
-            onChange={setView}
-            disabledViews={openBindFile ? ['split', 'graph'] : []}
-          />
+                  </li>
+                </When>
+                <Otherwise></Otherwise>
+              </Choose>
+            </ol>
+            <EditorViewSwitch
+              value={effectiveView}
+              onChange={setView}
+              disabledViews={openBindFile ? ['split', 'graph'] : []}
+            />
+          </div>
           <div className="sb-topology-editor-toolbar-right">
             <Button
               text

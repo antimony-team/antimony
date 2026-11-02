@@ -21,24 +21,29 @@
 .sb-topology-editor-toolbar
   // Lets the view switch hide its labels when the toolbar gets narrow
   container-type: inline-size
-  display: grid
-  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr)
-  flex-direction: row
+  display: flex
+  // What doesn't fit moves to the next row: first the buttons, then the view switch
+  flex-wrap: wrap
   align-items: center
-  padding: 0 8px
+  padding: 8px 8px 9px
   gap: 8px
-  height: 60px
+  min-height: 60px
   border-bottom: 1px solid var(--border)
 
-  overflow-x: auto
-  scrollbar-width: none
-
-  &::-webkit-scrollbar
-    display: none
+  .sb-topology-editor-toolbar-left
+    display: flex
+    flex: 1 1 auto
+    flex-wrap: wrap
+    align-items: center
+    gap: 8px
+    min-width: 0
 
   .sb-topology-editor-toolbar-crumbs
     display: flex
+    flex-wrap: wrap
     align-items: center
+    min-width: 0
+    min-height: 42px
     list-style: none
     margin: 0
     padding: 0
@@ -47,6 +52,8 @@
     li
       display: flex
       align-items: center
+      min-width: 0
+      overflow-wrap: anywhere
 
     li + li::before
       content: "/"
@@ -60,6 +67,7 @@
     display: flex
     align-items: center
     justify-content: flex-end
+    margin-left: auto
     gap: 8px
 
   .sb-topology-editor-toolbar-subtitle
@@ -90,7 +98,7 @@
     margin: 0 12px
 
   .sb-editor-view-switch
-    margin: auto
+    margin-left: auto
 
   .sb-topology-editor-deploy-button
     height: 40px
@@ -107,7 +115,7 @@
   z-index: 2
 
   // Only the icon is left when the toolbar gets narrow
-  @container (max-width: 850px)
+  @container (max-width: 950px)
     .sb-topology-editor-deploy-button
       width: 40px
       padding: 0
@@ -117,6 +125,15 @@
 
       .p-button-icon
         margin: 0
+
+  // With enough space, both sides take the same width, which keeps the view switch in the middle
+  @container (min-width: 800px)
+    .sb-topology-editor-toolbar-left
+      display: contents
+
+    .sb-topology-editor-toolbar-crumbs, .sb-topology-editor-toolbar-right
+      flex: 1 1 0
+      min-width: max-content
 
 .sb-topology-editor-content
   flex-grow: 1
