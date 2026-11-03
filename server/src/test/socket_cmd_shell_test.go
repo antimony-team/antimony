@@ -228,6 +228,23 @@ func TestOpenShellCommand_NonRunningLabIsRejected(t *testing.T) {
 	assert.Contains(t, errorResponse.Message, "lab is not running")
 }
 
+func TestOpenShellCommand_NodeThatIsNotReadyIsRejected(t *testing.T) {
+	// Nothing listens on the node, so its startup probe keeps waiting and the node doesn't become ready
+	h := NewHarness(t, WithProvider(func(p *deployment.DummyProvider) {
+		p.ExecFn = func(string, string, []string) (string, int, error) {
+			return "ssh: connect to host localhost port 22: Connection refused", 255, nil
+		}
+	}))
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	client.Emit(openShellCommand(LabAdminID, NodeHost)).RequireError(5022)
+	assert.False(t, h.Provider.WasCalled("DialNode"), "the node must not be connected to")
+	assert.False(t, h.Provider.WasCalled("ExecInteractive"), "no shell must be started on the node")
+}
+
 func TestOpenShellCommand_UnknownNodeIsRejected(t *testing.T) {
 	h := NewHarness(t)
 

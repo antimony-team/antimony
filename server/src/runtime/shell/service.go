@@ -24,6 +24,10 @@ import (
 	"github.com/antimony-team/antimony/server/src/utils"
 )
 
+// sshConnectTimeout is how long opening an SSH session on a node may take before the shell falls back to an exec
+// session in the node
+const sshConnectTimeout = 10 * time.Second
+
 type Service struct {
 	config *config.AntimonyConfig
 
@@ -109,6 +113,11 @@ func (s *Service) OpenShell(
 	instanceName string,
 	node *instance.InstanceNode,
 ) (deployment.ShellExecSession, error) {
+	// The node's SSH server and software aren't usable before the node is ready
+	if !node.IsReady {
+		return nil, utils.ErrNodeNotRunning
+	}
+
 	if connection, err := s.openSshSession(instanceName, node); err == nil {
 		return connection, nil
 	}
@@ -400,15 +409,29 @@ func (s *Service) openSshSession(
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	ctx := context.Background()
+	// Some providers keep the connection open only as long as its context, so the context is only cancelled if the
+	// session couldn't be opened in time
+	ctx, cancel := context.WithCancel(context.Background())
+	connectTimer := time.AfterFunc(sshConnectTimeout, cancel)
+	isOpened := false
+	defer func() {
+		if !isOpened {
+			cancel()
+		}
+	}()
+
 	conn, err := s.deploymentProvider.DialNode(ctx, instanceName, node.Name, 22)
 	if err != nil {
 		return nil, err
 	}
 
+	// An unresponsive SSH server would otherwise keep the shell from opening until the connection times out
+	_ = conn.SetDeadline(time.Now().Add(sshConnectTimeout))
+
 	// The host here doesn't matter, we already have the connection
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, node.Name+":22", sshConfig)
 	if err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
 	client := ssh.NewClient(sshConn, chans, reqs)
@@ -450,6 +473,15 @@ func (s *Service) openSshSession(
 		_ = client.Close()
 		return nil, err
 	}
+
+	// The session was opened in time, so the connection now stays open for as long as the shell runs
+	if !connectTimer.Stop() {
+		_ = session.Close()
+		_ = client.Close()
+		return nil, context.DeadlineExceeded
+	}
+	_ = conn.SetDeadline(time.Time{})
+	isOpened = true
 
 	return &sshSession{
 		Writer:  stdin,
