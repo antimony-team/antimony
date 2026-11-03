@@ -316,8 +316,11 @@ describe('LabStore', () => {
       expect(store.canControl(lab('running'))).toBe(true);
     });
 
-    it('deploys only labs without an instance', () => {
-      expect(allowed(lab => store.canDeploy(lab))).toEqual(['inactive']);
+    it('deploys labs without an instance or with a failed one', () => {
+      expect(allowed(lab => store.canDeploy(lab))).toEqual([
+        'inactive',
+        'failed',
+      ]);
     });
 
     it('redeploys only running labs', () => {

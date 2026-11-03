@@ -61,7 +61,7 @@ export class LabView {
 
   async destroy() {
     await this.destroyButton.click();
-    await new ConfirmDialog(this.page).accept();
+    await new ConfirmDialog(this.page).accept('Destroy lab');
   }
 
   async close() {
