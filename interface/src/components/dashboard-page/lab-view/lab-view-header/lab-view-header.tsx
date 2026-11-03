@@ -72,12 +72,17 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
               <span>
                 {InstanceState[props.lab.instance!.state].toLocaleLowerCase()}
               </span>
-              <span>
-                up{' '}
-                <span className="highlight">
-                  {formatUptime(props.lab.instance!.deployed, dayjs(clock.now))}
+              <If condition={props.lab.state !== InstanceState.Failed}>
+                <span>
+                  up{' '}
+                  <span className="highlight">
+                    {formatUptime(
+                      props.lab.instance!.deployed,
+                      dayjs(clock.now),
+                    )}
+                  </span>
                 </span>
-              </span>
+              </If>
               <span>
                 <Choose>
                   <When condition={props.lab.endTime === null}>
