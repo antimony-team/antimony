@@ -31,8 +31,8 @@ test.describe('deploying', () => {
 
     await labView.destroyButton.click();
     const confirm = new ConfirmDialog(page);
-    await expect(confirm.header).toHaveText(`Destroy lab '${lab.name}'?`);
-    await confirm.accept();
+    await expect(confirm.root).toContainText(lab.name);
+    await confirm.accept('Destroy lab');
 
     await expect(labView.deployButton).toBeVisible();
     expect((await api.getLab(lab.id)).instance).toBeNull();

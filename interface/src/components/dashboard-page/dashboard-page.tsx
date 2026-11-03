@@ -130,9 +130,11 @@ const DashboardPage = observer(() => {
 
   function onDestroyLab(lab: Lab) {
     notificationStore.confirm({
-      header: `Destroy lab '${lab.name}'?`,
+      header: 'Destroy lab',
+      message: `Are you sure you want to destroy the lab "${lab.name}"?`,
       icon: 'pi pi-power-off',
       severity: 'danger',
+      acceptText: 'Destroy lab',
       onAccept: () => labStore.destroyLab(lab),
     });
   }
