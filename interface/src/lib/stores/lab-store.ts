@@ -131,9 +131,10 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
     return authUser.isAdmin || lab.creator.id === authUser.id;
   }
 
+  // A failed lab keeps its instance, deploying it again redeploys the instance on the server
   public canDeploy(lab: Lab): boolean {
     return (
-      !lab.instance &&
+      (!lab.instance || lab.state === InstanceState.Failed) &&
       lab.state !== InstanceState.Deploying &&
       lab.state !== InstanceState.Stopping
     );
