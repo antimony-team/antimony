@@ -12,6 +12,7 @@ import {SelectItem} from 'primereact/selectitem';
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
 import {useLabStore, useShellStore} from '@sb/lib/stores/root-store';
 import {DialogState, useReturnFocus} from '@sb/lib/utils/hooks';
+import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {If} from '@sb/types/control';
 import {Lab} from '@sb/types/domain/lab';
 import {uuid4} from '@sb/types/types';
@@ -41,6 +42,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   const shellStore = useShellStore();
 
   const [isExpired, setExpired] = useState(false);
+  const [isOpeningShell, setOpeningShell] = useState(false);
   const [currentTabs, setCurrentTabs] = useState<TerminalTab[]>([]);
 
   const termRef = useRef<Terminal | null>(null);
@@ -68,15 +70,21 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   }, []);
 
   const nodesInLab: SelectItem[] = useMemo(() => {
-    if (!props.dialogState.state?.lab?.instance) return [];
+    if (!props.dialogState.state) return [];
 
-    const nodes = props.dialogState.state.lab.instance.nodes;
+    // The lab of the dialog state doesn't get updated, so the nodes' current state is taken from the store
+    const instance = labStore.lookup.get(
+      props.dialogState.state.lab.id,
+    )?.instance;
+    if (!instance) return [];
 
-    return nodes.map(node => ({
-      label: `${node.name} (${node.containerName})`,
-      value: node.name,
-    }));
-  }, [props.dialogState.state, labStore.data]);
+    return instance.nodes
+      .filter(node => new NodeActionChecker(instance, node).canOpenTerminal)
+      .map(node => ({
+        label: `${node.name} (${node.containerName})`,
+        value: node.name,
+      }));
+  }, [props.dialogState.state, labStore.lookup]);
 
   const tabIndex = useMemo(() => {
     if (!shellStore.currentShell || !props.dialogState.state) return 0;
@@ -196,10 +204,13 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
   async function switchToNewTab(nodeName: string) {
     if (!props.dialogState.state?.lab) return;
 
+    // Opening a shell can take a few seconds, so the new tab button shows that it's still in progress
+    setOpeningShell(true);
     const shell = await shellStore.openShell(
       props.dialogState.state.lab,
       nodeName,
     );
+    setOpeningShell(false);
     if (!shell) return;
 
     setCurrentTabs(
@@ -390,6 +401,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
           className="sb-terminal-tab-add"
           aria-label="Open new terminal"
           onClick={onNewTab}
+          loading={isOpeningShell}
         />
       </div>
       <OverlayPanel
