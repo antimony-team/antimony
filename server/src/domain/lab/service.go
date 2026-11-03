@@ -31,6 +31,7 @@ type (
 	RuntimeService interface {
 		IsRunning(labId string) bool
 		CanDelete(labId string) bool
+		DestroyLab(lab *Lab) error
 	}
 
 	Service struct {
@@ -352,6 +353,13 @@ func (s *Service) deleteLab(ctx context.Context, lab *Lab) error {
 	// Don't allow the deletion of running labs
 	if s.runtimeService == nil || !s.runtimeService.CanDelete(lab.UUID) {
 		return utils.ErrLabRunning
+	}
+
+	// A failed lab can still have containers, which can't be destroyed anymore once its run environment is removed
+	if s.runtimeService.IsRunning(lab.UUID) {
+		if err := s.runtimeService.DestroyLab(lab); err != nil {
+			return err
+		}
 	}
 
 	if err := s.storageManager.DeleteRunEnvironment(lab.UUID); err != nil {

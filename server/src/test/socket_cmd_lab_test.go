@@ -159,6 +159,9 @@ func TestDeployCommand_ProviderFailureIsReported(t *testing.T) {
 	assert.Equal(t, instance.InstanceStates.Failed, labInstance.State)
 	assert.True(t, h.InstanceService.CanDelete(LabAdminID))
 
+	// The nodes that were deployed before the failure are destroyed so they don't keep running.
+	assert.True(t, h.Provider.WasCalled("Destroy"))
+
 	// And the topology is flagged so the UI can surface it.
 	stored, err := h.TopologyRepo.GetByUuid(t.Context(), TopologyAdminID)
 	require.NoError(t, err)

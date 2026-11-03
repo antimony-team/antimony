@@ -730,13 +730,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			return nil
 		}
 
-		// If the deployment failed, set all the node states to stopped as they are not actually starting now
-		instance.DataMutex.Lock()
-		for k := range instance.Nodes {
-			instance.Nodes[k].State = deployment.NodeStates.Stopped
-		}
-		instance.DataMutex.Unlock()
-
 		log.Warn(
 			"[Runtime] Deployment of lab failed",
 			"name", lab.Name,
@@ -744,6 +737,29 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			"instance", lab.InstanceName,
 			"err", err.Error(),
 		)
+
+		// The providers might not clean up after a failed deployment, so we have to destroy the nodes that were
+		// already deployed and currently starting or running.
+		destroyErr := s.deploymentProvider.Destroy(s.ctx, instance.TopologyFile, lab.InstanceName, func(data string) {
+			instance.LogNamespace.Send(data)
+		})
+
+		if destroyErr != nil {
+			log.Warn(
+				"[Runtime] Destruction of failed lab failed",
+				"name", lab.Name,
+				"id", lab.UUID,
+				"instance", lab.InstanceName,
+				"err", destroyErr.Error(),
+			)
+		}
+
+		// If the deployment failed, set all the node states to stopped as they are not actually starting now
+		instance.DataMutex.Lock()
+		for k := range instance.Nodes {
+			instance.Nodes[k].State = deployment.NodeStates.Stopped
+		}
+		instance.DataMutex.Unlock()
 
 		s.updateLabAndSendUpdate(
 			lab, instance, InstanceStates.Failed,

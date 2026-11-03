@@ -972,10 +972,34 @@ func TestDeleteLab_FailedLabCanBeDeleted(t *testing.T) {
 	require.True(t, h.InstanceService.IsRunning(LabAdminID), "the failed instance is still tracked")
 	require.True(t, h.InstanceService.CanDelete(LabAdminID), "a failed lab must be deletable")
 
+	h.Provider.ResetCalls()
 	h.DELETE("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireOk(nil)
 
 	_, err = h.LabRepo.GetByUuid(t.Context(), LabAdminID)
 	require.Error(t, err)
+
+	// The lab is destroyed before its run environment is removed, so none of its containers are left behind.
+	assert.True(t, h.Provider.WasCalled("Destroy"))
+	assert.False(t, h.InstanceService.IsRunning(LabAdminID))
+}
+
+func TestDeleteLab_FailedLabIsKeptWhenItCannotBeDestroyed(t *testing.T) {
+	h := NewHarness(t)
+
+	h.Provider.DeployFn = func(string, string, deployment.LogFunc) error { return deployment.ErrDummyProvider }
+
+	instanceLab, err := h.LabRepo.GetByUuid(t.Context(), LabAdminID)
+	require.NoError(t, err)
+	require.Error(t, h.InstanceService.DeployLab(instanceLab))
+
+	h.Provider.DestroyFn = func(string, string, deployment.LogFunc) error { return deployment.ErrDummyProvider }
+
+	h.DELETE("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireError(http.StatusInternalServerError, -1)
+
+	// Deleting the lab anyway would leave its containers behind without a topology to destroy them with.
+	_, err = h.LabRepo.GetByUuid(t.Context(), LabAdminID)
+	require.NoError(t, err)
+	assert.True(t, h.InstanceService.IsRunning(LabAdminID))
 }
 
 func TestDeleteLab_UnknownIdIsNotFound(t *testing.T) {
