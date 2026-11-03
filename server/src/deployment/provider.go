@@ -27,5 +27,5 @@ func CreateProvider(antimonyConfig *config.AntimonyConfig) DeploymentProvider {
 	}
 
 	log.Info("Using the Containerlab deployment provider.")
-	return CreateContainerlabProvider()
+	return CreateContainerlabProvider(antimonyConfig.Deployment.Mgmt)
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/vishvananda/netns"
 
+	"github.com/antimony-team/antimony/server/src/config"
 	"github.com/antimony-team/antimony/server/src/utils"
 	"github.com/antimony-team/antimony/server/src/utils/serverlog"
 )
@@ -57,6 +58,9 @@ type (
 		client client.APIClient
 
 		statsReader *StatsReader[dockerRef]
+
+		// mgmt holds the ranges the management networks of the labs are taken from
+		mgmt config.MgmtConfig
 	}
 
 	// tpacketSource makes an afpacket capture safe to close from another goroutine. TPacket.Close unmaps the packet ring
@@ -100,7 +104,7 @@ type (
 	}
 )
 
-func CreateContainerlabProvider() *ContainerlabProvider {
+func CreateContainerlabProvider(mgmt config.MgmtConfig) *ContainerlabProvider {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("Failed to create containerlab client: %s", err.Error())
@@ -108,6 +112,7 @@ func CreateContainerlabProvider() *ContainerlabProvider {
 
 	provider := &ContainerlabProvider{
 		client: cli,
+		mgmt:   mgmt,
 	}
 
 	provider.statsReader = CreateStatsReader(createDockerSampler(provider.resolveNode))
@@ -121,6 +126,10 @@ func (p *ContainerlabProvider) Deploy(
 	instanceName string,
 	onLog LogFunc,
 ) error {
+	if err := p.ensureMgmtNetwork(ctx, topologyFile, instanceName, onLog); err != nil {
+		return err
+	}
+
 	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
@@ -135,6 +144,11 @@ func (p *ContainerlabProvider) Redeploy(
 	instanceName string,
 	onLog LogFunc,
 ) error {
+	// Labs that were deployed before they got networks of their own get one on their next redeploy
+	if err := p.ensureMgmtNetwork(ctx, topologyFile, instanceName, onLog); err != nil {
+		return err
+	}
+
 	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 

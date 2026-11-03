@@ -79,10 +79,10 @@ type DeploymentConfig struct {
 }
 
 type MgmtConfig struct {
-	IPv4 netip.Prefix `yaml:"ipv4"`
+	IPv4       netip.Prefix `yaml:"ipv4"`
 	IPv4Prefix int          `yaml:"ipv4Prefix"`
 	IPv6       netip.Prefix `yaml:"ipv6"`
-	IPv6Prefix int `yaml:"ipv6Prefix"`
+	IPv6Prefix int          `yaml:"ipv6Prefix"`
 }
 
 type SSHConfig struct {

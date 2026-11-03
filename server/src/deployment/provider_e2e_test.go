@@ -126,7 +126,7 @@ func newE2ELab(t *testing.T) *e2eLab {
 		if os.Geteuid() != 0 {
 			t.Fatal("the containerlab e2e tests need root, run them with task test-e2e-containerlab")
 		}
-		lab.provider = CreateContainerlabProvider()
+		lab.provider = CreateContainerlabProvider(testMgmt)
 		lab.deployTimeout = 3 * time.Minute
 	case "clabernetes":
 		lab.provider = CreateClabernetesProvider()

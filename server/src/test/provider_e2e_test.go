@@ -5,6 +5,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/antimony-team/antimony/server/src/config"
 	"github.com/antimony-team/antimony/server/src/deployment"
 	"github.com/antimony-team/antimony/server/src/domain/lab"
 	"github.com/antimony-team/antimony/server/src/domain/statusmessage"
@@ -81,7 +83,12 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		if os.Geteuid() != 0 {
 			t.Fatal("the containerlab e2e tests need root, run them with task test-e2e-containerlab")
 		}
-		provider = deployment.CreateContainerlabProvider()
+		provider = deployment.CreateContainerlabProvider(config.MgmtConfig{
+			IPv4:       netip.MustParsePrefix("10.200.0.0/16"),
+			IPv4Prefix: 24,
+			IPv6:       netip.MustParsePrefix("fd00:200::/48"),
+			IPv6Prefix: 64,
+		})
 		env.timeout = 2 * time.Minute
 	case "clabernetes":
 		provider = deployment.CreateClabernetesProvider()

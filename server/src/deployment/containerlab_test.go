@@ -489,7 +489,7 @@ func TestContainerlabLifecycle_RunsTheMatchingContainerlabCommand(t *testing.T) 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			clab := newFakeClab(t)
-			topologyFile := "/run/demo/topology.clab.yaml"
+			topologyFile := writeTopologyWithMgmtNetwork(t)
 
 			// The commands never call the log function when there is no output.
 			require.NoError(t, c.run(topologyFile))
@@ -503,20 +503,22 @@ func TestContainerlabDeploy_ForwardsTheCommandOutput(t *testing.T) {
 	clab := newFakeClab(t)
 	clab.respond(t, "\x1b[1m+---+\x1b[0m\n| summary |\n", "", 0)
 	logs := &logCollector{}
+	topologyFile := writeTopologyWithMgmtNetwork(t)
 
-	require.NoError(t, (&ContainerlabProvider{}).Deploy(context.Background(), "topology.clab.yaml", "demo", logs.log))
+	require.NoError(t, (&ContainerlabProvider{}).Deploy(context.Background(), topologyFile, "demo", logs.log))
 
-	assert.Equal(t, []string{"+---+", "| summary |"}, logs.all())
+	assert.Equal(t, []string{"+---+", "| summary |"}, withoutAntimonyLines(logs.all()))
 }
 
 func TestContainerlabDeploy_ForwardsContainerlabsLogAsClabLines(t *testing.T) {
 	clab := newFakeClab(t)
 	clab.respond(t, "", "14:15:16 INFO Creating lab directory\n14:15:17 WARN Unable to load kernel module\n", 0)
 	logs := &logCollector{}
+	topologyFile := writeTopologyWithMgmtNetwork(t)
 
-	require.NoError(t, (&ContainerlabProvider{}).Deploy(context.Background(), "topology.clab.yaml", "demo", logs.log))
+	require.NoError(t, (&ContainerlabProvider{}).Deploy(context.Background(), topologyFile, "demo", logs.log))
 
-	lines := logs.all()
+	lines := withoutAntimonyLines(logs.all())
 	require.Len(t, lines, 2)
 	assert.Contains(t, lines[0], "INFO CLAB Creating lab directory")
 	assert.Contains(t, lines[1], "WARNING CLAB Unable to load kernel module")
@@ -525,11 +527,12 @@ func TestContainerlabDeploy_ForwardsContainerlabsLogAsClabLines(t *testing.T) {
 func TestContainerlabDeploy_ReportsAFailingCommand(t *testing.T) {
 	clab := newFakeClab(t)
 	clab.respond(t, "", "", 1)
+	topologyFile := writeTopologyWithMgmtNetwork(t)
 
-	err := (&ContainerlabProvider{}).Deploy(context.Background(), "topology.clab.yaml", "demo", (&logCollector{}).log)
+	err := (&ContainerlabProvider{}).Deploy(context.Background(), topologyFile, "demo", (&logCollector{}).log)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "containerlab deploy -t topology.clab.yaml")
+	assert.Contains(t, err.Error(), "containerlab deploy -t "+topologyFile)
 }
 
 func TestContainerlabInspectLabs_DecodesEveryLab(t *testing.T) {
