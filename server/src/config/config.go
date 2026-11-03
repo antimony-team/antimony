@@ -1,6 +1,10 @@
 package config
 
-import "github.com/antimony-team/antimony/server/src/utils"
+import (
+	"net/netip"
+
+	"github.com/antimony-team/antimony/server/src/utils"
+)
 
 type AntimonyConfig struct {
 	Server       ServerConfig     `yaml:"server"`
@@ -71,6 +75,14 @@ func (m *AuthMethod) UnmarshalText(b []byte) error {
 
 type DeploymentConfig struct {
 	Provider DeploymentProvider `yaml:"provider"`
+	Mgmt     MgmtConfig         `yaml:"mgmt"`
+}
+
+type MgmtConfig struct {
+	IPv4 netip.Prefix `yaml:"ipv4"`
+	IPv4Prefix int          `yaml:"ipv4Prefix"`
+	IPv6       netip.Prefix `yaml:"ipv6"`
+	IPv6Prefix int `yaml:"ipv6Prefix"`
 }
 
 type SSHConfig struct {

@@ -34,6 +34,11 @@ server:
 
 deployment:
   provider: containerlab
+  mgmt:
+    ipv4: 10.200.0.0/16
+    ipv4Prefix: 24
+    ipv6: fd00:200::/48
+    ipv6Prefix: 64
 
 auth:
   methods: [admin]
@@ -100,6 +105,19 @@ Relative paths resolve against the server's working directory. In the Docker ima
 | `provider` | `containerlab` | How labs are deployed: `containerlab` (Docker on the same host), `clabernetes` ([Kubernetes](/docs/deployment/clabernetes/)) or `dummy`. The value is case-sensitive. An unknown value stops the server. |
 
 The `dummy` provider deploys nothing. It simulates labs with fake nodes, logs and statistics, which is useful for trying out the interface or running the end-to-end tests. Packet capture isn't available with it.
+
+#### deployment.mgmt
+
+Every running lab gets its own isolated management network, so the nodes of different labs can't get the same address or reach each other over the management network. The networks are taken from these ranges, which must not overlap with any other network on the host, including other Docker networks. An invalid value stops the server.
+
+These settings are only used by the `containerlab` provider, which creates the networks as Docker networks.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `ipv4` | `10.200.0.0/16` | IPv4 range the lab networks are taken from. |
+| `ipv4Prefix` | `24` | Prefix length of the IPv4 network every running lab gets, between the size of `ipv4` and `/30`. It limits how many labs can run at the same time and how many nodes each can have: a `/24` in a `/16` allows 256 running labs with 253 nodes each. |
+| `ipv6` | `fd00:200::/48` | IPv6 range the lab networks are taken from. It must hold at least as many lab networks as `ipv4`. |
+| `ipv6Prefix` | `64` | Prefix length of the IPv6 network every running lab gets. |
 
 ### auth
 

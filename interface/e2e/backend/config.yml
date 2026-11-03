@@ -13,6 +13,11 @@ server:
 deployment:
   # Nothing is deployed
   provider: dummy
+  # With SB_E2E_PROVIDER=containerlab, labs are deployed next to the ones of the development backend, so the
+  # management networks come from ranges of their own
+  mgmt:
+    ipv4: 10.201.0.0/16
+    ipv6: fd00:201::/48
 auth:
   # No OpenID provider runs in the tests. desktop lets the tests sign in like Antimony Desktop, with
   # SB_DESKTOP_TOKEN from e2e/scripts/start-backend.sh.

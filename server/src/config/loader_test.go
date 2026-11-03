@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -264,4 +265,51 @@ func TestLoad_IgnoresTheOldFileSystemKey(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "./storage/", loaded.FileSystem.Storage)
+}
+
+/*
+ * Management networks
+ */
+
+func TestLoad_MgmtDefaults(t *testing.T) {
+	loaded, err := Load(writeConfig(t, "server:\n  port: 9999\n"))
+	require.NoError(t, err)
+
+	assert.Equal(t, MgmtConfig{
+		IPv4:       netip.MustParsePrefix("10.200.0.0/16"),
+		IPv4Prefix: 24,
+		IPv6:       netip.MustParsePrefix("fd00:200::/48"),
+		IPv6Prefix: 64,
+	}, loaded.Deployment.Mgmt)
+}
+
+func TestLoad_MgmtKeepsDefaultsForAbsentKeys(t *testing.T) {
+	loaded, err := Load(writeConfig(t, `
+deployment:
+  provider: dummy
+  mgmt:
+    ipv4: 10.201.0.0/16
+`))
+	require.NoError(t, err)
+
+	assert.Equal(t, netip.MustParsePrefix("10.201.0.0/16"), loaded.Deployment.Mgmt.IPv4)
+	assert.Equal(t, 24, loaded.Deployment.Mgmt.IPv4Prefix, "an unset sibling key keeps its default")
+	assert.Equal(t, netip.MustParsePrefix("fd00:200::/48"), loaded.Deployment.Mgmt.IPv6)
+}
+
+func TestLoad_RejectsInvalidMgmt(t *testing.T) {
+	for name, mgmt := range map[string]string{
+		"not a network":            "ipv4: 10.200.0.0",
+		"IPv6 as the IPv4 range":   "ipv4: fd00:200::/48",
+		"IPv4 as the IPv6 range":   "ipv6: 10.200.0.0/16",
+		"host bits set":            "ipv4: 10.200.1.0/16",
+		"lab bigger than the pool": "ipv4Prefix: 8",
+		"lab without room":         "ipv4Prefix: 31",
+		"too few IPv6 networks":    "ipv6Prefix: 49",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(writeConfig(t, "deployment:\n  mgmt:\n    "+mgmt+"\n"))
+			assert.Error(t, err)
+		})
+	}
 }

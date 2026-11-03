@@ -9,6 +9,13 @@ server:
 deployment:
   # containerlab (Docker on this host), clabernetes (Kubernetes) or dummy.
   provider: containerlab
+  # Every running lab gets its own management network from these ranges. They must not
+  # overlap with any other network on the host. A /24 per lab in a /16 allows 256 running labs.
+  mgmt:
+    ipv4: 10.200.0.0/16
+    ipv4Prefix: 24
+    ipv6: fd00:200::/48
+    ipv6Prefix: 64
 
 auth:
   # The ways to sign in: admin, openid or both.

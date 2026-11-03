@@ -10,6 +10,23 @@ deployment:
   # Note: The dummy provider is only for testing purposes and doesn't deploy anything.
   # Default: containerlab
   provider: containerlab
+  # The management networks of the labs. Every running lab runs isolated and gets its own network, so the nodes of
+  # different labs can't get the same address or access each other via the mgmt network.
+  # Note: Only used by the containerlab provider in docker networks.
+  mgmt:
+    # The IPv4 range the lab networks are taken from.
+    # The range must not overlap with any other network on the host, including other Docker networks.
+    # Default: 10.200.0.0/16
+    ipv4: 10.200.0.0/16
+    # The prefix length of the IPv4 network every running lab gets.
+    # Default: 24
+    ipv4Prefix: 24
+    # The IPv6 range the lab networks are taken from. It must hold at least as many lab networks as the IPv4 range.
+    # Default: fd00:200::/48
+    ipv6: fd00:200::/48
+    # The prefix length of the IPv6 network every running lab gets.
+    # Default: 64
+    ipv6Prefix: 64
 auth:
   # The authentication methods that are enabled. ['admin', 'openid', 'desktop']
   # Admin: The admin login is enabled. Credentials have to be set via SB_ADMIN_USERNAME and SB_ADMIN_PASSWORD variables.
