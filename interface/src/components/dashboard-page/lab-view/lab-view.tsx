@@ -3,6 +3,7 @@ import React, {MouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import classNames from 'classnames';
 import cytoscape from 'cytoscape';
 import {observer} from 'mobx-react-lite';
+import {useSearchParams} from 'react-router';
 
 import {MenuItem} from 'primereact/menuitem';
 import {Splitter, SplitterPanel} from 'primereact/splitter';
@@ -24,6 +25,7 @@ import LogDialog, {
 } from '@sb/components/dashboard-page/log-dialog/log-dialog';
 import TerminalDialog, {
   TerminalDialogState,
+  terminalLink,
 } from '@sb/components/dashboard-page/terminal-dialog/terminal-dialog';
 import {
   annotationBoxes,
@@ -40,6 +42,7 @@ import {
   useDeviceStore,
   useLabStore,
   useServerConfig,
+  useShellStore,
   useStatusMessages,
 } from '@sb/lib/stores/root-store';
 import {useDialogState} from '@sb/lib/utils/hooks';
@@ -89,10 +92,15 @@ const LabView = observer((props: LabDialogProps) => {
   const logDialogState = useDialogState<LogDialogState>();
   const terminalDialogState = useDialogState<TerminalDialogState>();
 
+  // The shell that's shown in a fullscreen terminal. It's part of the URL, so the terminal has a link of its own.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const fullscreenShell = searchParams.get('t');
+
   const serverConfig = useServerConfig();
   const dataBinder = useDataBinder();
   const deviceStore = useDeviceStore();
   const labStore = useLabStore();
+  const shellStore = useShellStore();
 
   // Deploying, destroying and starting or stopping nodes is only for the lab's creator and admins
   const canControlLab = !!props.lab && labStore.canControl(props.lab);
@@ -241,6 +249,51 @@ const LabView = observer((props: LabDialogProps) => {
       lab: props.lab!,
       node: nodeId,
     });
+  }
+
+  async function onOpenTerminalInNewTab(nodeId: string | null) {
+    if (!nodeId || !props.lab) return;
+
+    // Browsers only open tabs right on a click, so the tab is opened before its shell is known
+    const tab = window.open('', '_blank');
+    const shell = await shellStore.findOrOpenShell(props.lab, nodeId);
+
+    if (!tab) return;
+    if (!shell) {
+      tab.close();
+      return;
+    }
+
+    tab.location.href = terminalLink(props.lab.id, shell.id);
+  }
+
+  // A terminal link opens its shell in a fullscreen terminal once the lab is running
+  useEffect(() => {
+    if (
+      !fullscreenShell ||
+      terminalDialogState.isOpen ||
+      props.lab?.instance?.state !== InstanceState.Running
+    ) {
+      return;
+    }
+
+    terminalDialogState.openWith({lab: props.lab, shellId: fullscreenShell});
+  }, [fullscreenShell, props.lab]);
+
+  function onTerminalFullscreenChange(shellId: string | null) {
+    if (shellId === fullscreenShell) return;
+
+    setSearchParams(
+      params => {
+        if (shellId) {
+          params.set('t', shellId);
+        } else {
+          params.delete('t');
+        }
+        return params;
+      },
+      {replace: true},
+    );
   }
 
   const graphContextMenuModel = [
@@ -548,6 +601,7 @@ const LabView = observer((props: LabDialogProps) => {
                   lab={props.lab}
                   nodeName={selectedNode}
                   onOpenTerminal={onOpenTerminal}
+                  onOpenTerminalInNewTab={onOpenTerminalInNewTab}
                   onOpenLogs={onOpenLogs}
                   onNodeStart={onNodeStart}
                   onNodeStop={onNodeStop}
@@ -580,7 +634,11 @@ const LabView = observer((props: LabDialogProps) => {
       </div>
       <SBContextMenu model={networkContextMenuItems} ref={contextMenuRef} />
       <LogDialog dialogState={logDialogState} />
-      <TerminalDialog dialogState={terminalDialogState} />
+      <TerminalDialog
+        dialogState={terminalDialogState}
+        isFullscreen={fullscreenShell !== null}
+        onFullscreenChange={onTerminalFullscreenChange}
+      />
     </>
   );
 });

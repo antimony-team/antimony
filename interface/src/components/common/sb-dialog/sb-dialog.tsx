@@ -20,6 +20,10 @@ interface SBDialogProps {
   draggable?: boolean;
   resizeable?: boolean;
   disableModal?: boolean;
+  maximized?: boolean;
+
+  // Buttons shown in the header next to the close button
+  headerButtons?: React.ReactNode;
 
   children: React.ReactNode;
   className?: string;
@@ -53,6 +57,9 @@ const SBDialog = (props: SBDialogProps) => {
       draggable={props.draggable}
       resizable={props.resizeable}
       modal={!props.disableModal}
+      // PrimeReact only takes the maximized state from the props if there is a maximize handler
+      maximized={props.maximized}
+      onMaximize={props.maximized !== undefined ? () => {} : undefined}
       onDragStart={props.onDragStart}
       onDragEnd={props.onDragEnd}
       keepInViewport={false}
@@ -81,6 +88,7 @@ const SBDialog = (props: SBDialogProps) => {
             </Choose>
           </div>
           <div className="sb-dialog-header-close">
+            {props.headerButtons}
             <Button
               outlined
               icon="pi pi-times"

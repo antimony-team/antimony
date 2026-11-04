@@ -1,3 +1,5 @@
+import {Page} from '@playwright/test';
+
 import {InstanceState} from '../fixtures/api';
 import {expect, test} from '../fixtures/test';
 import {clickGraphNode, graphEdges, graphNodes} from '../helpers/cytoscape';
@@ -395,6 +397,159 @@ test.describe('terminals', () => {
     await expect(terminal.tab('host2')).toHaveCount(0);
   });
 
+  test('a terminal can be put in fullscreen, which gives it a link', async ({
+    page,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    const labView = new LabView(page);
+    await labView.open(lab.id);
+    await labView.nodeMenu('host1', 'Open terminal');
+    const terminal = new TerminalDialog(page);
+    await expect(terminal.screen).toContainText('host1:~$');
+
+    await terminal.button('Fullscreen').click();
+    await expect.poll(() => linkedShell(page)).toBeTruthy();
+    const firstShell = linkedShell(page);
+
+    // A node can have several terminals, so the link leads to the selected one
+    await terminal.openNew('host1');
+    await expect(terminal.tabs).toHaveCount(2);
+    await expect.poll(() => linkedShell(page)).not.toBe(firstShell);
+
+    await terminal.button('Exit fullscreen').click();
+    await expect.poll(() => linkedShell(page)).toBeNull();
+    await expect(terminal.tabs).toHaveCount(2);
+  });
+
+  test('a terminal link opens its terminal right away', async ({
+    page,
+    browser,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    const link = await fullscreenTerminalLink(page, lab.id, 'host2');
+
+    const other = await browser.newPage();
+    await other.goto(link);
+
+    const terminal = new TerminalDialog(other);
+    await expect(terminal.tab('host2')).toBeVisible();
+    await expect(terminal.screen).toContainText('host2:~$');
+    await expect(terminal.button('Exit fullscreen')).toBeVisible();
+    await other.close();
+  });
+
+  test('a link to a terminal that was closed opens nothing', async ({
+    page,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+
+    await page.goto(`/#/?l=${lab.id}&t=00000000-0000-4000-8000-000000000000`);
+
+    await expect(
+      toast(page, "The terminal doesn't exist anymore."),
+    ).toBeVisible();
+    await expect(new TerminalDialog(page).root).toBeHidden();
+    await expect.poll(() => linkedShell(page)).toBeNull();
+  });
+
+  test('closing a fullscreen terminal removes it from the link', async ({
+    page,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    await fullscreenTerminalLink(page, lab.id, 'host1');
+    const terminal = new TerminalDialog(page);
+
+    await terminal.button('Close').click();
+
+    await expect(terminal.root).toBeHidden();
+    await expect.poll(() => linkedShell(page)).toBeNull();
+    await expect(new LabView(page).root).toBeVisible();
+  });
+
+  test('the terminal can be opened in a new tab', async ({
+    page,
+    context,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    const labView = new LabView(page);
+    await labView.open(lab.id);
+    await labView.nodeMenu('host1', 'Open terminal');
+    const terminal = new TerminalDialog(page);
+    await expect(terminal.screen).toContainText('host1:~$');
+
+    const [newTab] = await Promise.all([
+      context.waitForEvent('page'),
+      terminal.button('Open in new tab').click(),
+    ]);
+
+    await expect.poll(() => linkedShell(newTab)).toBeTruthy();
+    await expect(new TerminalDialog(newTab).screen).toContainText('host1:~$');
+    // The terminal moves to the new tab
+    await expect(terminal.root).toBeHidden();
+  });
+
+  test("the drawer opens a node's terminal in a new tab", async ({
+    page,
+    context,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    const labView = new LabView(page);
+    await labView.open(lab.id);
+    await labView.clickNode('host1');
+
+    const openInNewTab = async () => {
+      const [newTab] = await Promise.all([
+        context.waitForEvent('page'),
+        labView.drawer.button('Open terminal in new tab').click(),
+      ]);
+      await expect.poll(() => linkedShell(newTab)).toBeTruthy();
+      await expect(new TerminalDialog(newTab).screen).toContainText('host1:~$');
+      return newTab;
+    };
+
+    const first = await openInNewTab();
+    const second = await openInNewTab();
+
+    // The node's open terminal is reused instead of opening another one
+    expect(linkedShell(second)).toBe(linkedShell(first));
+    await expect(new TerminalDialog(second).tabs).toHaveCount(1);
+  });
+
+  test('a terminal opened from a link gets the size of the window', async ({
+    browser,
+    page,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    const link = await fullscreenTerminalLink(page, lab.id, 'host1');
+
+    const other = await browser.newPage({
+      viewport: {width: 1600, height: 1000},
+    });
+    const sentRows: number[] = [];
+    other.on('websocket', socket =>
+      socket.on('framesent', frame => {
+        const rows = /\\"rows\\":(\d+)/.exec(String(frame.payload));
+        if (rows) sentRows.push(Number(rows[1]));
+      }),
+    );
+    await other.goto(link);
+    const terminal = new TerminalDialog(other);
+    await expect(terminal.screen).toContainText('host1:~$');
+
+    // The shell must have been told the size the terminal has in the fullscreen window
+    const shownRows = () => terminal.screen.locator(':scope > div').count();
+    await expect.poll(async () => sentRows.at(-1)).toBe(await shownRows());
+    expect(await shownRows()).toBeGreaterThan(30);
+    await other.close();
+  });
+
   test('nodes of a lab that is not running have no menu', async ({
     page,
     createLab,
@@ -409,3 +564,25 @@ test.describe('terminals', () => {
     await expect(contextMenu(page)).toBeHidden();
   });
 });
+
+/** The shell of the fullscreen terminal in the page's link, or null. */
+function linkedShell(page: Page): string | null {
+  const hash = new URL(page.url()).hash;
+  return new URLSearchParams(hash.split('?')[1] ?? '').get('t');
+}
+
+/** Opens a terminal on the node in fullscreen and returns its link. */
+async function fullscreenTerminalLink(
+  page: Page,
+  labId: string,
+  node: string,
+): Promise<string> {
+  const labView = new LabView(page);
+  await labView.open(labId);
+  await labView.nodeMenu(node, 'Open terminal');
+  const terminal = new TerminalDialog(page);
+  await expect(terminal.screen).toContainText(`${node}:~$`);
+  await terminal.button('Fullscreen').click();
+  await expect.poll(() => linkedShell(page)).toBeTruthy();
+  return page.url();
+}

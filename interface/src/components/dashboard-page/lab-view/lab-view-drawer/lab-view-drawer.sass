@@ -28,6 +28,11 @@
       flex: 1
       gap: 8px
 
+      // PrimeReact puts an empty label next to the icon, which the gap would push the icon aside for
+      &.lab-dialog-drawer-icon-button
+        flex: none
+        gap: 0
+
 .lab-dialog-drawer-control-buttons
   display: flex
   flex-direction: column

@@ -227,8 +227,48 @@ describe('ShellStore', () => {
     });
   });
 
+  describe('redrawing', () => {
+    const redraw = '\x0c';
+
+    it('redraws a shell that was not opened in this window', async () => {
+      store.switchToShell(shell('s1'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(dataBinder.emitted).toMatchObject([
+        {shellId: 's1', command: RuntimeCommand.ResizeShell},
+      ]);
+      expect(dataBinder.sent).toEqual([redraw]);
+    });
+
+    it('does not redraw a shell that was opened in this window', async () => {
+      store.switchToShell(await openShell('a', 's1'));
+      await vi.advanceTimersByTimeAsync(0);
+      await store.claimCurrentShell();
+
+      expect(dataBinder.sent).toEqual([]);
+    });
+
+    it('redraws a shell again once another window has used it', async () => {
+      store.switchToShell(await openShell('a', 's1'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      const otherWindow = new BroadcastChannel('antimony-shells');
+      otherWindow.postMessage('s1');
+      vi.useRealTimers();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      otherWindow.close();
+
+      await store.claimCurrentShell();
+      expect(dataBinder.sent).toEqual([redraw]);
+
+      // Only once, until another window uses it again
+      await store.claimCurrentShell();
+      expect(dataBinder.sent).toEqual([redraw]);
+    });
+  });
+
   describe('switching', () => {
-    it('subscribes to the current shell and resizes it once connected', async () => {
+    it('subscribes to the current shell and resizes it when selected and once connected', async () => {
       const first = await openShell('a', 's1');
       const second = await openShell('a', 's2');
 
@@ -240,9 +280,20 @@ describe('ShellStore', () => {
         'shell/s2',
       ]);
 
+      // A shell can still have the size of another terminal, so it's resized as soon as it's selected
+      await vi.advanceTimersByTimeAsync(0);
+      expect(dataBinder.emitted).toMatchObject([
+        {shellId: 's1'},
+        {shellId: 's2'},
+      ]);
+
       dataBinder.onConnect.get('shell/s2')!();
       await vi.advanceTimersByTimeAsync(0);
-      expect(dataBinder.emitted).toMatchObject([{shellId: 's2'}]);
+      expect(dataBinder.emitted).toMatchObject([
+        {shellId: 's1'},
+        {shellId: 's2'},
+        {shellId: 's2'},
+      ]);
     });
 
     it('sends input to the current shell and passes on its output', async () => {

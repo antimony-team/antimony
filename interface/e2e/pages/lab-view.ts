@@ -187,6 +187,11 @@ export class TerminalDialog {
     return this.tabs.filter({hasText: node});
   }
 
+  /** A button in the header, e.g. "Fullscreen" or "Open in new tab". */
+  button(name: string): Locator {
+    return this.root.getByRole('button', {name, exact: true});
+  }
+
   /** Opens another terminal through the "+" picker. */
   async openNew(node: string) {
     await this.root.getByRole('button', {name: 'Open new terminal'}).click();

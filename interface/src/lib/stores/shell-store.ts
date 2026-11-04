@@ -37,9 +37,20 @@ export class ShellStore {
 
   private currentOnConnect: (() => void) | undefined = undefined;
 
+  // A shell can be shown in several browser windows, but it has only one size, the one of the window that used it
+  // last. The windows tell each other which shells they use, so the others redraw them once they're used again.
+  private readonly windowChannel = new BroadcastChannel('antimony-shells');
+  // The shells this window has shown, and the ones another window has used since
+  private readonly shownShells = new Set<string>();
+  private readonly shellsUsedElsewhere = new Set<string>();
+
   constructor(dataBinder: DataBinder, statusMessageStore: StatusMessageStore) {
     this.dataBinder = dataBinder;
     this.statusMessageStore = statusMessageStore;
+
+    this.windowChannel.onmessage = (event: MessageEvent<string>) => {
+      this.shellsUsedElsewhere.add(event.data);
+    };
 
     this.commandsSubscription = this.dataBinder.subscribeNamespace('cmd');
 
@@ -151,6 +162,46 @@ export class ShellStore {
       this.handleData,
       this.currentOnConnect,
     );
+
+    // The shell may still have the size of another terminal, e.g. in another browser tab. The resize on connect
+    // isn't enough, as the namespace may already be connected.
+    void this.claimCurrentShell();
+  }
+
+  /**
+   * Gives the current shell the size of this window's terminal. If the shell's screen may have been drawn for
+   * another size, because the shell wasn't opened in this window or another window used it since, it's redrawn.
+   */
+  public async claimCurrentShell() {
+    const shell = this.currentShell;
+    if (!shell || shell.expired) return;
+
+    const needsRedraw =
+      !this.shownShells.has(shell.id) || this.shellsUsedElsewhere.has(shell.id);
+    this.shownShells.add(shell.id);
+    this.shellsUsedElsewhere.delete(shell.id);
+    this.windowChannel.postMessage(shell.id);
+
+    await this.resizeShell(shell);
+
+    // Ctrl+L makes the shell redraw its screen. It's sent after the resize, so the shell redraws for the new size.
+    if (needsRedraw && this.currentShell?.id === shell.id) {
+      this.sendData('\x0c');
+    }
+  }
+
+  /** Returns an open shell of the node, or opens a new one if it has none. */
+  public async findOrOpenShell(
+    lab: Lab,
+    nodeName: string,
+  ): Promise<ShellData | null> {
+    await this.fetchShellsForLab(lab);
+
+    const shell = this.getShellsForLab(lab.id).find(
+      shell => shell.node === nodeName && !shell.expired,
+    );
+
+    return shell ?? this.openShell(lab, nodeName);
   }
 
   @action
@@ -216,6 +267,8 @@ export class ShellStore {
     };
 
     this.openShells.get(lab.id)!.push(shell);
+    // A new shell has only been drawn for this window, so it doesn't need to be redrawn
+    this.shownShells.add(shell.id);
 
     return shell;
   }

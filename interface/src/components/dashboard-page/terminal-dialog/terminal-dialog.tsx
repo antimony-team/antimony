@@ -1,4 +1,11 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {FitAddon} from '@xterm/addon-fit';
 import {Terminal} from '@xterm/xterm';
@@ -10,7 +17,11 @@ import {OverlayPanel} from 'primereact/overlaypanel';
 import {SelectItem} from 'primereact/selectitem';
 
 import SBDialog from '@sb/components/common/sb-dialog/sb-dialog';
-import {useLabStore, useShellStore} from '@sb/lib/stores/root-store';
+import {
+  useLabStore,
+  useShellStore,
+  useStatusMessages,
+} from '@sb/lib/stores/root-store';
 import {DialogState, useReturnFocus} from '@sb/lib/utils/hooks';
 import {NodeActionChecker} from '@sb/lib/utils/node-action-checker';
 import {If} from '@sb/types/control';
@@ -20,13 +31,23 @@ import {uuid4} from '@sb/types/types';
 import './terminal-dialog.sass';
 import '@xterm/xterm/css/xterm.css';
 
-export interface TerminalDialogState {
-  lab: Lab;
-  node: string;
-}
+// The dialog opens either a terminal of a node or a specific shell, e.g. the one of a terminal link
+export type TerminalDialogState =
+  | {lab: Lab; node: string; shellId?: never}
+  | {lab: Lab; shellId: uuid4; node?: never};
 
 interface TerminalDialogProps {
   dialogState: DialogState<TerminalDialogState>;
+
+  isFullscreen: boolean;
+  // Called with the shell of the selected tab when the terminal is in fullscreen, otherwise with null
+  onFullscreenChange: (shellId: uuid4 | null) => void;
+}
+
+/** The link that opens a shell in a fullscreen terminal. */
+export function terminalLink(labId: string, shellId: uuid4): string {
+  const params = new URLSearchParams({l: labId, t: shellId});
+  return `${location.origin}${location.pathname}#/?${params}`;
 }
 
 interface TerminalTab {
@@ -37,9 +58,14 @@ interface TerminalTab {
 
 const decoder = new TextDecoder('utf-8');
 
+const terminalFont = 'Iosevka';
+// xterm's default font size
+const terminalFontSize = 15;
+
 const TerminalDialog = observer((props: TerminalDialogProps) => {
   const labStore = useLabStore();
   const shellStore = useShellStore();
+  const statusMessageStore = useStatusMessages();
 
   const [isExpired, setExpired] = useState(false);
   const [isOpeningShell, setOpeningShell] = useState(false);
@@ -47,6 +73,7 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
 
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const resizeObserver = useRef<ResizeObserver | null>(null);
 
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const newTabOverlay = useRef<OverlayPanel>(null);
@@ -123,10 +150,90 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
     setExpired(shellStore.currentShell?.expired ?? false);
   }, [shellStore.currentShell, shellStore.openShells]);
 
+  // A fullscreen terminal that's closed stays maximized until it's gone, so it doesn't shrink back first
+  const wasMaximized = useRef(props.isFullscreen);
+  if (props.dialogState.isOpen) wasMaximized.current = props.isFullscreen;
+  const isMaximized = wasMaximized.current;
+
+  // Where the dialog was before it was maximized or restored, to animate it from there
+  const rectBeforeResize = useRef<DOMRect | null>(null);
+
+  useLayoutEffect(() => {
+    const from = rectBeforeResize.current;
+    rectBeforeResize.current = null;
+
+    const dialog = dialogElement();
+    if (
+      !from ||
+      !dialog ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
+
+    const to = dialog.getBoundingClientRect();
+    const translate = `translate(${from.left - to.left}px, ${from.top - to.top}px)`;
+    const scale = `scale(${from.width / to.width}, ${from.height / to.height})`;
+
+    dialog.animate(
+      [
+        {transformOrigin: 'top left', transform: `${translate} ${scale}`},
+        {transformOrigin: 'top left', transform: 'none'},
+      ],
+      {duration: 200, easing: 'ease-out'},
+    );
+  }, [isMaximized]);
+
+  function dialogElement(): HTMLElement | null {
+    return terminalContainerRef.current?.closest('.p-dialog') ?? null;
+  }
+
+  // A shell can be open in several browser tabs, but it has only one size. It gets the size of the tab that's used.
+  useEffect(() => {
+    if (!props.dialogState.isOpen) return;
+
+    const onFocus = () => void shellStore.claimCurrentShell();
+    window.addEventListener('focus', onFocus);
+
+    return () => window.removeEventListener('focus', onFocus);
+  }, [props.dialogState.isOpen]);
+
+  // In fullscreen, the link always leads to the selected tab
+  useEffect(() => {
+    if (!props.isFullscreen || !shellStore.currentShell) return;
+
+    props.onFullscreenChange(shellStore.currentShell.id);
+  }, [props.isFullscreen, shellStore.currentShell]);
+
+  function onToggleFullscreen() {
+    if (!shellStore.currentShell) return;
+
+    rectBeforeResize.current = dialogElement()?.getBoundingClientRect() ?? null;
+    props.onFullscreenChange(
+      props.isFullscreen ? null : shellStore.currentShell.id,
+    );
+  }
+
+  function onOpenInNewTab() {
+    if (!props.dialogState.state || !shellStore.currentShell) return;
+
+    window.open(
+      terminalLink(props.dialogState.state.lab.id, shellStore.currentShell.id),
+      '_blank',
+    );
+
+    // The terminal moves to the new tab. Kept open here, it would take the shell back whenever this window is used.
+    onClose();
+  }
+
   async function onOpen() {
     if (!props.dialogState.state) return;
 
     shellStore.clearExpiredShells();
+
+    // The terminal measures its characters with the font when it's opened, so the font has to be loaded by then.
+    // Otherwise, the size is calculated with the wider fallback font and the shell gets too few columns.
+    await document.fonts.load(`${terminalFontSize}px ${terminalFont}`);
 
     if (terminalContainerRef.current) {
       if (termRef.current) {
@@ -136,7 +243,8 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
         fitRef.current.dispose();
       }
       termRef.current = new Terminal({
-        fontFamily: 'Iosevka, monospace',
+        fontFamily: `${terminalFont}, monospace`,
+        fontSize: terminalFontSize,
         rows: 25,
         cols: 110,
       });
@@ -144,10 +252,11 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       fitRef.current = new FitAddon();
       termRef.current.loadAddon(fitRef.current);
       termRef.current.onResize(size => {
-        if (!props.dialogState.state || !shellStore.currentShell) return;
-
+        // The size is kept even without a shell yet, so the shell that's opened next gets it
         shellStore.terminalSize = size;
-        void shellStore.resizeShell(shellStore.currentShell);
+        if (shellStore.currentShell) {
+          void shellStore.resizeShell(shellStore.currentShell);
+        }
       });
 
       termRef.current.open(terminalContainerRef.current);
@@ -156,6 +265,12 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
         cols: termRef.current.cols,
         rows: termRef.current.rows,
       };
+
+      // The terminal is fitted whenever its space changes, e.g. when the dialog is maximized, restored or resized,
+      // or when the window is resized in fullscreen
+      resizeObserver.current?.disconnect();
+      resizeObserver.current = new ResizeObserver(() => fitRef.current?.fit());
+      resizeObserver.current.observe(terminalContainerRef.current);
 
       termRef.current.onData((data: string) => {
         shellStore.sendData(data);
@@ -183,20 +298,41 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
         .toArray(),
     );
 
+    const state = props.dialogState.state;
+
+    if (state.shellId !== undefined) {
+      const shell = currentShells.find(
+        shell => shell.id === state.shellId && !shell.expired,
+      );
+      if (shell) {
+        shellStore.switchToShell(shell);
+      } else {
+        statusMessageStore.error(
+          "The terminal doesn't exist anymore.",
+          'Failed to open terminal',
+        );
+        onClose();
+      }
+      return;
+    }
+
     const shellsForNode = currentShells.filter(
-      shell => shell.node === props.dialogState.state!.node,
+      shell => shell.node === state.node,
     );
 
     if (shellsForNode.length < 1) {
-      void switchToNewTab(props.dialogState.state.node);
+      void switchToNewTab(state.node);
     } else {
       shellStore.switchToShell(shellsForNode[0]);
     }
   }
 
   function onClose() {
+    resizeObserver.current?.disconnect();
     shellStore.onData.unregister(onData);
     shellStore.unsubscribeShell();
+
+    if (props.isFullscreen) props.onFullscreenChange(null);
 
     props.dialogState.close();
   }
@@ -350,9 +486,36 @@ const TerminalDialog = observer((props: TerminalDialogProps) => {
       }
       className="sb-terminal-dialog"
       hideButtons={true}
-      draggable={true}
-      resizeable={true}
+      draggable={!props.isFullscreen}
+      resizeable={!props.isFullscreen}
       disableModal={true}
+      maximized={isMaximized}
+      headerButtons={
+        <>
+          <Button
+            outlined
+            icon="pi pi-external-link"
+            size="large"
+            onClick={onOpenInNewTab}
+            tooltip="Open in new tab"
+            tooltipOptions={{position: 'bottom', showDelay: 500}}
+            aria-label="Open in new tab"
+          />
+          <Button
+            outlined
+            icon={
+              props.isFullscreen
+                ? 'pi pi-window-minimize'
+                : 'pi pi-window-maximize'
+            }
+            size="large"
+            onClick={onToggleFullscreen}
+            tooltip={props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            tooltipOptions={{position: 'bottom', showDelay: 500}}
+            aria-label={props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          />
+        </>
+      }
       onShow={onOpen}
       onResizeEnd={onResizeEnd}
       headerIcon={

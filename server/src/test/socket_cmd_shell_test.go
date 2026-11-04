@@ -86,6 +86,31 @@ func TestFetchShellsCommand_ListsTheCallersShells(t *testing.T) {
 	assert.Equal(t, NodeSRL, byId[second])
 }
 
+func TestFetchShellsCommand_ListsTheShellsInTheOrderTheyWereOpened(t *testing.T) {
+	h := NewHarness(t, WithShellLimits(10, 600))
+
+	h.DeployLab(LabAdminID)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	var opened []string
+	for _, node := range []string{NodeSRL, NodeHost, NodeSRL, NodeHost, NodeHost, NodeSRL} {
+		opened = append(opened, openShell(t, client, LabAdminID, node))
+	}
+
+	// The shells are kept in a map, so a single fetch could be in order by chance
+	for range 5 {
+		var shells []shellDataDTO
+		client.Emit(fetchShellsCommand(LabAdminID)).RequireOk(&shells)
+
+		ids := make([]string, 0, len(shells))
+		for _, shell := range shells {
+			ids = append(ids, shell.Id)
+		}
+		require.Equal(t, opened, ids)
+	}
+}
+
 func TestFetchShellsCommand_DoesNotLeakOtherUsersShells(t *testing.T) {
 	h := NewHarness(t)
 

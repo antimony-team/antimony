@@ -35,6 +35,7 @@ interface LabViewDrawer {
   nodeName: string | null;
 
   onOpenTerminal: (nodeId: string | null) => void;
+  onOpenTerminalInNewTab: (nodeId: string | null) => Promise<void>;
   onOpenLogs: (nodeId: string | null) => void;
 
   onNodeStart: (nodeId: string | null) => void;
@@ -460,6 +461,16 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
               aria-label="Open terminal"
               outlined
               onClick={() => props.onOpenTerminal(props.nodeName)}
+              disabled={!nodeActionChecker!.canOpenTerminal}
+            />
+            <Button
+              className="lab-dialog-drawer-icon-button"
+              icon="pi pi-external-link"
+              aria-label="Open terminal in new tab"
+              tooltip="Open terminal in new tab"
+              tooltipOptions={{position: 'bottom', showDelay: 500}}
+              outlined
+              onClick={() => void props.onOpenTerminalInNewTab(props.nodeName)}
               disabled={!nodeActionChecker!.canOpenTerminal}
             />
           </div>

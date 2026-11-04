@@ -58,6 +58,8 @@ type shellConfig struct {
 	labId        string
 	node         string
 	shellSession deployment.ShellExecSession
+	// openedAt orders the user's shells, so their tabs are in the same order in every browser tab
+	openedAt time.Time
 	// lastInteraction is written by the shell's data handler and read by the inactivity check
 	lastInteraction atomic.Int64
 	dataNamespace   *socket.IONamespace[string, byte]
@@ -176,6 +178,7 @@ func (s *Service) FetchShellsCommand(
 	}
 
 	var userShells []shellData
+	openedAt := make(map[string]time.Time)
 
 	s.openShellsMutex.Lock()
 	for shellId, shell := range s.openShells {
@@ -184,9 +187,14 @@ func (s *Service) FetchShellsCommand(
 				Id:   shellId,
 				Node: shell.node,
 			})
+			openedAt[shellId] = shell.openedAt
 		}
 	}
 	s.openShellsMutex.Unlock()
+
+	slices.SortFunc(userShells, func(a, b shellData) int {
+		return openedAt[a.Id].Compare(openedAt[b.Id])
+	})
 
 	return userShells, nil
 }
@@ -263,6 +271,7 @@ func (s *Service) OpenShellCommand(
 		node:          *nodeName,
 		labId:         labId,
 		shellSession:  shellSession,
+		openedAt:      time.Now(),
 		dataNamespace: dataNamespace,
 	}
 	shellConfig.lastInteraction.Store(time.Now().Unix())
