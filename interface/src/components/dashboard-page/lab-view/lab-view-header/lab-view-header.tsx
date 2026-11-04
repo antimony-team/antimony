@@ -23,6 +23,7 @@ export interface LabViewHeaderProps {
   onClose: () => void;
   onOpenLabLogs: () => void;
   onDestroyLabRequest: (lab: Lab) => void;
+  onDeleteLabRequest: (lab: Lab) => void;
 
   canDeployLab: () => boolean;
   canRedeployLab: () => boolean;
@@ -112,6 +113,15 @@ const LabViewHeader = observer((props: LabViewHeaderProps) => {
         <If condition={props.canControlLab}>
           <Choose>
             <When condition={props.canDeployLab()}>
+              <If condition={labStore.canDelete(props.lab)}>
+                <Button
+                  outlined
+                  icon="pi pi-trash"
+                  severity="danger"
+                  aria-label="Delete lab"
+                  onClick={() => props.onDeleteLabRequest(props.lab)}
+                />
+              </If>
               <Button
                 outlined
                 icon="pi pi-play"

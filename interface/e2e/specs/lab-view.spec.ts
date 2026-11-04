@@ -65,6 +65,35 @@ test.describe('deploying', () => {
     expect((await api.getLab(lab.id)).instance).not.toBeNull();
   });
 
+  test('an inactive lab can be deleted from its view', async ({
+    page,
+    api,
+    createLab,
+  }) => {
+    const lab = await createLab();
+    const labView = new LabView(page);
+    await labView.open(lab.id);
+
+    await labView.deleteButton.click();
+    await new ConfirmDialog(page).accept('Delete lab');
+
+    await expect(toast(page, 'Lab has been deleted.')).toBeVisible();
+    await expect(labView.root).toBeHidden();
+    expect((await api.getLabs()).map(l => l.id)).not.toContain(lab.id);
+  });
+
+  test('a running lab can not be deleted from its view', async ({
+    page,
+    createLab,
+  }) => {
+    const lab = await createLab({deployed: true});
+    const labView = new LabView(page);
+    await labView.open(lab.id);
+    await expect(labView.state).toHaveText('running');
+
+    await expect(labView.deleteButton).toBeHidden();
+  });
+
   test('the graph background menu has the lab actions', async ({
     page,
     createLab,

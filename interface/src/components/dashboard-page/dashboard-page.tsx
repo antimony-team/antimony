@@ -208,6 +208,7 @@ const DashboardPage = observer(() => {
         lab={openLab}
         onClose={onCloseLabView}
         onDestroyLabRequest={onDestroyLab}
+        onDeleteLabRequest={onDeleteLab}
       />
       <LabEditDialog dialogState={labEditDialogState} />
     </div>

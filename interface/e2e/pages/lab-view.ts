@@ -41,6 +41,10 @@ export class LabView {
     return this.button('Destroy lab');
   }
 
+  get deleteButton(): Locator {
+    return this.button('Delete lab');
+  }
+
   get logsButton(): Locator {
     return this.button('View logs');
   }

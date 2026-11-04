@@ -59,6 +59,7 @@ interface LabDialogProps {
   lab: Lab | null;
   onClose: () => void;
   onDestroyLabRequest: (lab: Lab) => void;
+  onDeleteLabRequest: (lab: Lab) => void;
 }
 
 const ALL_STATE_CLASSES = [
@@ -512,6 +513,7 @@ const LabView = observer((props: LabDialogProps) => {
             onClose={props.onClose}
             onOpenLabLogs={openLabLogs}
             onDestroyLabRequest={props.onDestroyLabRequest}
+            onDeleteLabRequest={props.onDeleteLabRequest}
             canDeployLab={canDeployLab}
             canRedeployLab={canRedeployLab}
             canDestroyLab={canDestroylab}
