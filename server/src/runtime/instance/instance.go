@@ -154,7 +154,9 @@ var InstanceStates = struct {
 type NodeKindConfig struct {
 	SSHUsername *string `yaml:"sshUsername"`
 	SSHPassword *string `yaml:"sshPassword"`
-	CanRestart  *bool   `yaml:"canRestart"`
+	// SSHNamespace is the network namespace in the node that its SSH server runs in, if it's not the node's own
+	SSHNamespace *string `yaml:"sshNamespace"`
+	CanRestart   *bool   `yaml:"canRestart"`
 }
 
 type instanceUpdate struct {

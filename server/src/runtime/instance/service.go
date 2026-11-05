@@ -910,7 +910,7 @@ func (s *Service) startNodeStartupListener(
 		"node", node.Name,
 	)
 
-	err := s.waitForNodeStarted(ctxTimeout, instance.Name, node.Name)
+	err := s.waitForNodeStarted(ctxTimeout, instance.Name, node.Name, node.Kind)
 
 	if startStreamingLogs {
 		err := s.deploymentProvider.StreamContainerLogs(
@@ -988,9 +988,16 @@ func (s *Service) waitForNodeStarted(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
+	nodeKind string,
 ) error {
+	probe := sshProbe
+	if kindConfig, ok := s.nodeKindConfigs[nodeKind]; ok && kindConfig.SSHNamespace != nil {
+		// Some kinds run their SSH server in a network namespace of their own (e.g., XRd)
+		probe = append([]string{"ip", "netns", "exec", *kindConfig.SSHNamespace}, sshProbe...)
+	}
+
 	for {
-		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, nodeName, sshProbe)
+		out, code, err := s.deploymentProvider.Exec(ctx, instanceName, nodeName, probe)
 
 		switch {
 		case errors.Is(err, utils.ErrNodeNotRunning):

@@ -6,6 +6,9 @@
 #                 Default: "admin"
 #   sshPassword - The password used to authenticate the SSH connection.
 #                 If not specified, SSH key authentication will be used instead.
+#   sshNamespace - The network namespace inside the node that its SSH server runs in, if it's not
+#                  the node's own (e.g., XRd). Used to wait for the node to be ready.
+#                  Default: none
 #   canRestart - Whether the node can be manually stopped and started. This is false
 #                by default because most instances' services cannot be restarted easily (e.g., SRLinux).
 #                Default: false
@@ -22,6 +25,11 @@ nokia_srlinux:
 cisco_csr1000v:
   sshUsername: admin
   sshPassword: admin
+
+cisco_xrd:
+  sshUsername: clab
+  sshPassword: clab@123
+  sshNamespace: vrf-default
 
 linux:
   canRestart: true

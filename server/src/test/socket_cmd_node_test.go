@@ -566,6 +566,30 @@ func TestStartupProbe_RetriesWhileTheNodeIsNotRunningYet(t *testing.T) {
 	assert.GreaterOrEqual(t, attempts.Load(), int64(2), "the probe must have retried")
 }
 
+func TestStartupProbe_RunsInTheSshNamespaceOfTheKind(t *testing.T) {
+	h := NewHarness(t, WithKindsConfig("linux:\n  sshNamespace: vrf-default\n"))
+
+	h.DeployLab(LabAdminID)
+
+	probes := func(nodeName string) [][]string {
+		var probes [][]string
+		for _, call := range h.Provider.Calls() {
+			if call.Method == "Exec" && call.Args["nodeName"] == nodeName {
+				probes = append(probes, call.Args["cmd"].([]string))
+			}
+		}
+		return probes
+	}
+
+	requireEventually(t, func() bool {
+		return len(probes(NodeHost)) > 0 && len(probes(NodeSRL)) > 0
+	}, "both nodes must be probed")
+
+	assert.Equal(t, []string{"ip", "netns", "exec", "vrf-default", "ssh"}, probes(NodeHost)[0][:5],
+		"the probe of the configured kind must run in its namespace")
+	assert.Equal(t, "ssh", probes(NodeSRL)[0][0], "other kinds must be probed in their own namespace")
+}
+
 func TestStartupProbe_ExcludedInterfacesAreFilteredOut(t *testing.T) {
 	h := NewHarness(t, WithExcludedInterfaces("eth1", "lo"))
 

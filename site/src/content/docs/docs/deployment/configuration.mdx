@@ -246,6 +246,7 @@ Settings per containerlab node kind. The keys are kind names, such as `nokia_srl
 | --- | --- | --- |
 | `sshUsername` | `admin` | Username Antimony uses to log in to the node when you open a terminal. |
 | `sshPassword` | none | Password for that login. Without one, Antimony tries the SSH keys in the server's `~/.ssh` directory. |
+| `sshNamespace` | none | Network namespace inside the node that its SSH server runs in. Antimony waits for that SSH server before it reports the node as ready. Only needed for images that don't run SSH in the container's own namespace, such as Cisco XRd. |
 | `canRestart` | `false` | Whether nodes of this kind can be stopped, started and restarted from the interface. Many network operating systems don't survive a container restart, so this is off by default. |
 
 ```yaml title="kinds.conf.yml"
