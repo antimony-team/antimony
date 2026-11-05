@@ -428,6 +428,7 @@ type fakeClab struct {
 
 const fakeClabScript = `#!/bin/sh
 printf '%%s\n' "$*" >> '%[1]s/calls'
+env > '%[1]s/env'
 [ -f '%[1]s/stderr' ] && cat '%[1]s/stderr' >&2
 [ -f '%[1]s/stdout' ] && cat '%[1]s/stdout'
 exit "$(cat '%[1]s/exit' 2>/dev/null || echo 0)"
@@ -464,6 +465,41 @@ func (f *fakeClab) calls(t *testing.T) []string {
 	require.NoError(t, err)
 
 	return strings.Split(strings.TrimSpace(string(content)), "\n")
+}
+
+// environment returns the environment variables the last call got, by name.
+func (f *fakeClab) environment(t *testing.T) map[string]string {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(f.dir, "env"))
+	require.NoError(t, err)
+
+	variables := make(map[string]string)
+	for line := range strings.Lines(string(content)) {
+		name, value, _ := strings.Cut(strings.TrimSuffix(line, "\n"), "=")
+		variables[name] = value
+	}
+
+	return variables
+}
+
+func TestContainerlabCommand_OnlyPassesOnTheEnvironmentContainerlabNeeds(t *testing.T) {
+	clab := newFakeClab(t)
+	t.Setenv("HOME", "/home/antimony")
+	t.Setenv("DOCKER_HOST", "unix:///run/docker.sock")
+	t.Setenv("ANTIMONY_SECRET", "secret")
+
+	require.NoError(t, (&ContainerlabProvider{}).Destroy(
+		context.Background(), "topology.clab.yaml", "demo", (&logCollector{}).log,
+	))
+
+	environment := clab.environment(t)
+	assert.Equal(t, os.Getenv("PATH"), environment["PATH"])
+	assert.Equal(t, "/home/antimony", environment["HOME"])
+	assert.Equal(t, "unix:///run/docker.sock", environment["DOCKER_HOST"])
+	// Checked by name only, since a failure must not print the environment of the test into the logs
+	_, leaked := environment["ANTIMONY_SECRET"]
+	assert.False(t, leaked, "a topology could read the variable through containerlab")
 }
 
 func TestContainerlabLifecycle_RunsTheMatchingContainerlabCommand(t *testing.T) {

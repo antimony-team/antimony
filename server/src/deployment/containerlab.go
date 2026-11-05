@@ -120,6 +120,26 @@ func CreateContainerlabProvider(mgmt config.MgmtConfig) *ContainerlabProvider {
 	return provider
 }
 
+// clabEnvironment is all of the server's environment containerlab gets: what it needs to run its helpers and to
+// reach Docker with the server's registry logins. Containerlab expands environment variables in topologies, so
+// anything else, such as the server's secrets, could be read through a topology.
+var clabEnvironment = []string{"PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG"}
+
+// clabCommand creates a containerlab command that only gets the variables of clabEnvironment.
+func clabCommand(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "containerlab", args...)
+
+	// A nil environment would inherit the server's whole environment
+	cmd.Env = []string{}
+	for _, name := range clabEnvironment {
+		if value, ok := os.LookupEnv(name); ok {
+			cmd.Env = append(cmd.Env, name+"="+value)
+		}
+	}
+
+	return cmd
+}
+
 func (p *ContainerlabProvider) Deploy(
 	ctx context.Context,
 	topologyFile string,
@@ -130,7 +150,7 @@ func (p *ContainerlabProvider) Deploy(
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, "containerlab", "deploy", "-t", topologyFile)
+	cmd := clabCommand(ctx, "deploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
 	sendClabOutput(output, onLog)
@@ -149,7 +169,7 @@ func (p *ContainerlabProvider) Redeploy(
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, "containerlab", "redeploy", "-t", topologyFile)
+	cmd := clabCommand(ctx, "redeploy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
 	sendClabOutput(output, onLog)
@@ -163,7 +183,7 @@ func (p *ContainerlabProvider) Destroy(
 	instanceName string,
 	onLog LogFunc,
 ) error {
-	cmd := exec.CommandContext(ctx, "containerlab", "destroy", "-t", topologyFile)
+	cmd := clabCommand(ctx, "destroy", "-t", topologyFile)
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 
 	sendClabOutput(output, onLog)
@@ -175,7 +195,7 @@ func (p *ContainerlabProvider) InspectLabs(
 	ctx context.Context,
 	onLog LogFunc,
 ) (map[string][]InspectContainer, error) {
-	cmd := exec.CommandContext(ctx, "containerlab", "inspect", "--all", "--format", "json")
+	cmd := clabCommand(ctx, "inspect", "--all", "--format", "json")
 
 	output, err := runCommandSync(cmd, serverlog.FormatClabLog(onLog))
 	if err != nil {
