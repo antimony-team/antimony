@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,6 +65,12 @@ const (
 	captureRunDuration = time.Hour
 	// captureSnapLength matches the snap length of the pcap stream the SSH server writes to its clients.
 	captureSnapLength = 65536
+
+	// labFilesConfigMap holds the files of a lab (startup configs, bind files, etc.), since the nodes run on a
+	// cluster that can't read them from Antimony's run directory.
+	labFilesConfigMap = "antimony-files"
+	// maxLabFilesSize is how much data Kubernetes allows in a ConfigMap.
+	maxLabFilesSize = 1024 * 1024
 )
 
 type (
@@ -167,6 +176,11 @@ func (p *ClabernetesProvider) Deploy(
 		return fmt.Errorf("parse topology %s: %w", topologyFile, err)
 	}
 
+	files, err := readLabFiles(topologyFile)
+	if err != nil {
+		return fmt.Errorf("read files of topology %s: %w", topologyFile, err)
+	}
+
 	onLog.Log(serverlog.CreateAntimonyLog(
 		serverlog.InfoLevel,
 		"Creating clabernetes topology",
@@ -174,7 +188,7 @@ func (p *ClabernetesProvider) Deploy(
 		"namespace", namespace,
 	))
 
-	if err := p.applyTopology(ctx, namespace, instanceName, definition); err != nil {
+	if err := p.applyTopology(ctx, namespace, instanceName, definition, files); err != nil {
 		onLog.Log(serverlog.CreateAntimonyLog(
 			serverlog.ErrorLevel,
 			"Creation of clabernetes topology failed",
@@ -1116,12 +1130,23 @@ func (p *ClabernetesProvider) podForNode(ctx context.Context, namespace, nodeNam
 }
 
 // applyTopology creates the namespace and the clabernetes Topology for a lab, or updates the Topology's
-// definition if it already exists.
-func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, instanceName, definition string) error {
+// definition if it already exists. The files of the lab, keyed by their path relative to the topology, are
+// handed to every node of the lab.
+func (p *ClabernetesProvider) applyTopology(
+	ctx context.Context,
+	namespace, instanceName, definition string,
+	files map[string][]byte,
+) error {
 	spec := c9sv1alpha1.TopologySpec{
 		Definition: c9sv1alpha1.Definition{Containerlab: definition},
 		Expose:     c9sv1alpha1.Expose{ExposeType: "None"},
 	}
+
+	filesConfigMap, nodeFiles, err := labFilesFor(definition, files)
+	if err != nil {
+		return err
+	}
+	spec.Deployment.FilesFromConfigMap = nodeFiles
 	topology := &c9sv1alpha1.Topology{
 		ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
 		Spec:       spec,
@@ -1133,7 +1158,7 @@ func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, inst
 		return fmt.Errorf("topology is not supported by clabernetes: %w", err)
 	}
 
-	_, err := p.clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, err = p.clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 			// Device pods run privileged containers
@@ -1143,6 +1168,12 @@ func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, inst
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("create namespace %s: %w", namespace, err)
+	}
+
+	if filesConfigMap != nil {
+		if err := p.applyConfigMap(ctx, namespace, filesConfigMap); err != nil {
+			return fmt.Errorf("store files of topology: %w", err)
+		}
 	}
 
 	topologies := p.c9s.C9sV1alpha1().Topologies(namespace)
@@ -1160,6 +1191,19 @@ func (p *ClabernetesProvider) applyTopology(ctx context.Context, namespace, inst
 	existing.Spec = spec
 	_, err = topologies.Update(ctx, existing, metav1.UpdateOptions{})
 
+	return err
+}
+
+// applyConfigMap creates a ConfigMap in namespace, or replaces it if it already exists.
+func (p *ClabernetesProvider) applyConfigMap(ctx context.Context, namespace string, configMap *corev1.ConfigMap) error {
+	configMaps := p.clientset.CoreV1().ConfigMaps(namespace)
+
+	_, err := configMaps.Create(ctx, configMap, metav1.CreateOptions{})
+	if !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	_, err = configMaps.Update(ctx, configMap, metav1.UpdateOptions{})
 	return err
 }
 
@@ -1503,6 +1547,97 @@ func stripTopologyLabels(content []byte) (string, error) {
 
 	out, err := yaml.Marshal(definition)
 	return string(out), err
+}
+
+// readLabFiles reads the files next to a lab's topology file, keyed by their slash-separated path relative to it,
+// which is how the topology refers to them. The topology file and the files that belong to it are left out.
+func readLabFiles(topologyFile string) (map[string][]byte, error) {
+	root := filepath.Dir(topologyFile)
+	topologyName := filepath.Base(topologyFile)
+	files := make(map[string][]byte)
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
+		// Such as the topology's annotations
+		if strings.HasPrefix(relativePath, topologyName) {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		files[filepath.ToSlash(relativePath)] = content
+		return nil
+	})
+
+	return files, err
+}
+
+// labFilesFor returns the ConfigMap that holds the files of a lab and the files every node of the lab mounts
+// from it, or nil if the lab has no files. c9s serves a file wherever the definition of a node refers to its
+// path (startup-config, binds, license, etc.), rooting relative paths at "/" like it does the mount paths.
+func labFilesFor(
+	definition string,
+	files map[string][]byte,
+) (*corev1.ConfigMap, map[string][]c9sv1alpha1.FileFromConfigMap, error) {
+	if len(files) == 0 {
+		return nil, nil, nil
+	}
+
+	var topology struct {
+		Topology struct {
+			Nodes map[string]any `yaml:"nodes"`
+		} `yaml:"topology"`
+	}
+	if err := yaml.Unmarshal([]byte(definition), &topology); err != nil {
+		return nil, nil, err
+	}
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: labFilesConfigMap},
+		BinaryData: make(map[string][]byte),
+	}
+
+	totalSize := 0
+	nodeFiles := make([]c9sv1alpha1.FileFromConfigMap, 0, len(files))
+
+	for index, path := range slices.Sorted(maps.Keys(files)) {
+		totalSize += len(files[path])
+
+		// ConfigMap keys can't contain slashes
+		key := "file-" + strconv.Itoa(index)
+		configMap.BinaryData[key] = files[path]
+
+		nodeFiles = append(nodeFiles, c9sv1alpha1.FileFromConfigMap{
+			FilePath:      "/" + path,
+			ConfigMapName: labFilesConfigMap,
+			ConfigMapPath: key,
+		})
+	}
+
+	if totalSize > maxLabFilesSize {
+		return nil, nil, fmt.Errorf(
+			"the files of the topology add up to %d bytes, but clabernetes labs can only have up to %d bytes of files",
+			totalSize, maxLabFilesSize,
+		)
+	}
+
+	filesByNode := make(map[string][]c9sv1alpha1.FileFromConfigMap, len(topology.Topology.Nodes))
+	for nodeName := range topology.Topology.Nodes {
+		filesByNode[nodeName] = slices.Clone(nodeFiles)
+	}
+
+	return configMap, filesByNode, nil
 }
 
 // packetCaptureCommand returns the sidecar command that captures an interface of the node the pod runs, as the

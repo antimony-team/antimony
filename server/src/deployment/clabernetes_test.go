@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -608,7 +609,7 @@ func TestApplyTopology_CreatesAPrivilegedNamespaceAndTheTopology(t *testing.T) {
 	cluster := newFakeCluster(t, nil, nil)
 	definition := "name: demo\ntopology:\n  nodes:\n    a1: {kind: linux, image: alpine:latest}\n"
 
-	require.NoError(t, cluster.provider.applyTopology(context.Background(), fakeNamespace, "demo", definition))
+	require.NoError(t, cluster.provider.applyTopology(context.Background(), fakeNamespace, "demo", definition, nil))
 
 	namespace, err := cluster.k8s.CoreV1().Namespaces().Get(context.Background(), fakeNamespace, metav1.GetOptions{})
 	require.NoError(t, err)
@@ -632,7 +633,7 @@ func TestApplyTopology_UpdatesAnExistingTopology(t *testing.T) {
 	}, []runtime.Object{existing})
 	definition := "name: demo\ntopology:\n  nodes:\n    a1: {kind: linux, image: alpine:latest}\n"
 
-	require.NoError(t, cluster.provider.applyTopology(context.Background(), fakeNamespace, "demo", definition))
+	require.NoError(t, cluster.provider.applyTopology(context.Background(), fakeNamespace, "demo", definition, nil))
 
 	topology, err := cluster.c9s.C9sV1alpha1().
 		Topologies(fakeNamespace).
@@ -655,7 +656,7 @@ topology:
     a2: {kind: linux, image: alpine:latest}
 `
 
-	err := cluster.provider.applyTopology(context.Background(), fakeNamespace, "demo", definition)
+	err := cluster.provider.applyTopology(context.Background(), fakeNamespace, "demo", definition, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "stages", "the c9s compiler's reason must be passed on")
@@ -702,6 +703,108 @@ func TestDeploy_FailsRightAwayForUnsupportedTopologies(t *testing.T) {
 	assert.Less(t, time.Since(start), time.Second, "a rejected topology must not wait for the deployment timeout")
 	assert.NotEmpty(t, linesContaining(logs, "Creation of clabernetes topology failed"))
 	assert.Empty(t, cluster.c9s.Actions())
+}
+
+func TestDeploy_HandsTheFilesOfTheLabToEveryNode(t *testing.T) {
+	cluster := newFakeCluster(t, nil, nil)
+	markTopologiesRunning(cluster.c9s)
+	topologyFile := writeTopologyFile(t, `name: demo
+topology:
+  nodes:
+    srl1: {kind: nokia_srlinux, image: ghcr.io/nokia/srlinux:latest, startup-config: configs/srl1.cfg}
+    host1: {kind: linux, image: alpine:latest, binds: ["files/motd:/etc/motd"]}
+`)
+	runDir := filepath.Dir(topologyFile)
+	require.NoError(t, os.MkdirAll(filepath.Join(runDir, "configs"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(runDir, "files"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(runDir, "configs", "srl1.cfg"), []byte("set / system"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(runDir, "files", "motd"), []byte("hello"), 0o600))
+	require.NoError(t, os.WriteFile(topologyFile+".annotations.json", []byte("{}"), 0o600))
+
+	require.NoError(t, cluster.provider.Deploy(context.Background(), topologyFile, "demo", (&logCollector{}).log))
+
+	configMap, err := cluster.k8s.CoreV1().
+		ConfigMaps(fakeNamespace).
+		Get(context.Background(), labFilesConfigMap, metav1.GetOptions{})
+	require.NoError(t, err)
+	topology, err := cluster.c9s.C9sV1alpha1().
+		Topologies(fakeNamespace).
+		Get(context.Background(), "demo", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	files := topology.Spec.Deployment.FilesFromConfigMap
+	assert.ElementsMatch(t, []string{"srl1", "host1"}, slices.Collect(maps.Keys(files)))
+	for node, nodeFiles := range files {
+		contents := make(map[string]string)
+		for _, file := range nodeFiles {
+			assert.Equal(t, labFilesConfigMap, file.ConfigMapName)
+			contents[file.FilePath] = string(configMap.BinaryData[file.ConfigMapPath])
+		}
+
+		assert.Equal(t, map[string]string{
+			"/configs/srl1.cfg": "set / system",
+			"/files/motd":       "hello",
+		}, contents, "node %s must get the files at the paths the topology refers to them by", node)
+	}
+}
+
+func TestDeploy_CreatesNoFilesForALabWithoutFiles(t *testing.T) {
+	cluster := newFakeCluster(t, nil, nil)
+	markTopologiesRunning(cluster.c9s)
+
+	err := cluster.provider.Deploy(
+		context.Background(), writeTopologyFile(t, antimonyTopologyFixture), "demo", (&logCollector{}).log,
+	)
+	require.NoError(t, err)
+
+	configMaps, err := cluster.k8s.CoreV1().ConfigMaps(fakeNamespace).List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	assert.Empty(t, configMaps.Items)
+
+	topology, err := cluster.c9s.C9sV1alpha1().
+		Topologies(fakeNamespace).
+		Get(context.Background(), "demo", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Empty(t, topology.Spec.Deployment.FilesFromConfigMap)
+}
+
+func TestDeploy_RejectsLabsWithMoreFilesThanAConfigMapHolds(t *testing.T) {
+	cluster := newFakeCluster(t, nil, nil)
+	topologyFile := writeTopologyFile(
+		t,
+		"name: demo\ntopology:\n  nodes:\n    a1: {kind: linux, image: alpine:latest}\n",
+	)
+	largeFile := filepath.Join(filepath.Dir(topologyFile), "large.bin")
+	require.NoError(t, os.WriteFile(largeFile, make([]byte, maxLabFilesSize+1), 0o600))
+
+	err := cluster.provider.Deploy(context.Background(), topologyFile, "demo", (&logCollector{}).log)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "files of the topology")
+	assert.Empty(t, cluster.k8s.Actions(), "nothing may be created for a rejected lab")
+	assert.Empty(t, cluster.c9s.Actions(), "nothing may be created for a rejected lab")
+}
+
+func TestApplyTopology_ReplacesTheFilesOfAnExistingLab(t *testing.T) {
+	cluster := newFakeCluster(t, []runtime.Object{
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: fakeNamespace}},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: labFilesConfigMap, Namespace: fakeNamespace},
+			BinaryData: map[string][]byte{"file-0": []byte("old")},
+		},
+	}, nil)
+	definition := "name: demo\ntopology:\n  nodes:\n    a1: {kind: linux, image: alpine:latest}\n"
+
+	err := cluster.provider.applyTopology(
+		context.Background(), fakeNamespace, "demo", definition, map[string][]byte{"motd": []byte("new")},
+	)
+	require.NoError(t, err)
+
+	configMap, err := cluster.k8s.CoreV1().
+		ConfigMaps(fakeNamespace).
+		Get(context.Background(), labFilesConfigMap, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]byte{"file-0": []byte("new")}, configMap.BinaryData)
 }
 
 func TestDeploy_FailsForAMissingTopologyFile(t *testing.T) {
