@@ -58,8 +58,9 @@ type InstanceNode struct {
 	// Kind is the type of the node as defined in the topology file.
 	Kind string `json:"kind"`
 
-	// CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.
-	CanRestart bool `json:"canRestart"`
+	// supportsLifecycle is whether the node can be started, stopped and restarted. Nodes without a container of
+	// their own and nodes that containerlab's node lifecycle doesn't support can't be.
+	supportsLifecycle bool
 
 	// LogNamespace is the namespace of the node's log streamer.
 	LogNamespace *socket.OutputNamespace[string] `json:"-"`
@@ -156,7 +157,6 @@ type NodeKindConfig struct {
 	SSHPassword *string `yaml:"sshPassword"`
 	// SSHNamespace is the network namespace in the node that its SSH server runs in, if it's not the node's own
 	SSHNamespace *string `yaml:"sshNamespace"`
-	CanRestart   *bool   `yaml:"canRestart"`
 }
 
 type instanceUpdate struct {

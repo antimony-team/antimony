@@ -50,14 +50,10 @@ import (
 // testDesktopToken is the SB_DESKTOP_TOKEN the harness exports unless WithDesktopToken overrides it.
 const testDesktopToken = "antimony-test-desktop-token"
 
-// defaultKindsConfig gives the tests one node kind that may be restarted (linux) and one that may
-// not (nokia_srlinux), so both branches of the node-command guard are reachable.
+// defaultKindsConfig gives the tests the terminal credentials of nokia_srlinux.
 const defaultKindsConfig = `nokia_srlinux:
   sshUsername: admin
   sshPassword: NokiaSrl1!
-
-linux:
-  canRestart: true
 `
 
 // Harness is the full Antimony service graph wired against temporary, in-process infrastructure:

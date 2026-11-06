@@ -87,10 +87,6 @@ definitions:
     type: object
   instance.InstanceNode:
     properties:
-      canRestart:
-        description: CanRestart whether the node can be restarted. Determined by the
-          node's kind and the kind config file.
-        type: boolean
       containerId:
         description: |-
           ContainerId is the globally unique identifier for the container running the node.

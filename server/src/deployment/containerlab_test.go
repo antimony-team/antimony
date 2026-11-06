@@ -708,7 +708,6 @@ type fakeDocker struct {
 	listOptions container.ListOptions
 
 	started, stopped, restarted []string
-	stopOptions                 []container.StopOptions
 
 	execCreateErr error
 	execOptions   container.ExecOptions
@@ -778,15 +777,13 @@ func (d *fakeDocker) ContainerStart(_ context.Context, id string, _ container.St
 	return nil
 }
 
-func (d *fakeDocker) ContainerStop(_ context.Context, id string, options container.StopOptions) error {
+func (d *fakeDocker) ContainerStop(_ context.Context, id string, _ container.StopOptions) error {
 	d.stopped = append(d.stopped, id)
-	d.stopOptions = append(d.stopOptions, options)
 	return nil
 }
 
-func (d *fakeDocker) ContainerRestart(_ context.Context, id string, options container.StopOptions) error {
+func (d *fakeDocker) ContainerRestart(_ context.Context, id string, _ container.StopOptions) error {
 	d.restarted = append(d.restarted, id)
-	d.stopOptions = append(d.stopOptions, options)
 	return nil
 }
 
@@ -1146,7 +1143,8 @@ func TestContainerlabOpenCapture_ReportsAnUnknownNode(t *testing.T) {
  * StartNode / StopNode / RestartNode
  */
 
-func TestContainerlabNodeLifecycle_ActsOnTheNodesContainer(t *testing.T) {
+func TestContainerlabNodeLifecycle_RunsContainerlabsLifecycleCommandOnTheNode(t *testing.T) {
+	clab := newFakeClab(t)
 	docker := newFakeDocker()
 	docker.addNode("demo", "srl1", "c-srl1", 4242)
 	provider := &ContainerlabProvider{client: docker}
@@ -1155,34 +1153,36 @@ func TestContainerlabNodeLifecycle_ActsOnTheNodesContainer(t *testing.T) {
 	require.NoError(t, provider.StopNode(context.Background(), "demo", "srl1"))
 	require.NoError(t, provider.RestartNode(context.Background(), "demo", "srl1"))
 
-	assert.Equal(t, []string{"c-srl1"}, docker.started)
-	assert.Equal(t, []string{"c-srl1"}, docker.stopped)
-	assert.Equal(t, []string{"c-srl1"}, docker.restarted)
+	assert.Equal(t, []string{
+		"start --name demo --node srl1",
+		"stop --name demo --node srl1",
+		"restart --name demo --node srl1",
+	}, clab.calls(t))
+	assert.Empty(t, docker.started, "docker would drop the links of the node")
+	assert.Empty(t, docker.stopped, "docker would drop the links of the node")
+	assert.Empty(t, docker.restarted, "docker would drop the links of the node")
 }
 
-func TestContainerlabNodeLifecycle_GivesTheNodeTenSecondsToStop(t *testing.T) {
+func TestContainerlabNodeLifecycle_ReportsWhyContainerlabFailed(t *testing.T) {
+	clab := newFakeClab(t)
+	clab.respond(t, "", "node \"srl1\" failed starting container\n", 1)
 	docker := newFakeDocker()
 	docker.addNode("demo", "srl1", "c-srl1", 4242)
-	provider := &ContainerlabProvider{client: docker}
 
-	require.NoError(t, provider.StopNode(context.Background(), "demo", "srl1"))
-	require.NoError(t, provider.RestartNode(context.Background(), "demo", "srl1"))
+	err := (&ContainerlabProvider{client: docker}).StartNode(context.Background(), "demo", "srl1")
 
-	// Docker's timeout is in seconds, a time.Duration here would make it wait practically forever
-	// for a node that ignores SIGTERM.
-	require.Len(t, docker.stopOptions, 2)
-	for _, options := range docker.stopOptions {
-		require.NotNil(t, options.Timeout)
-		assert.Equal(t, 10, *options.Timeout)
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed starting container")
 }
 
 func TestContainerlabNodeLifecycle_ReportsAnUnknownNode(t *testing.T) {
+	clab := newFakeClab(t)
 	provider := &ContainerlabProvider{client: newFakeDocker()}
 
 	require.ErrorIs(t, provider.StartNode(context.Background(), "demo", "x"), utils.ErrNodeNotFound)
 	require.ErrorIs(t, provider.StopNode(context.Background(), "demo", "x"), utils.ErrNodeNotFound)
-	assert.ErrorIs(t, provider.RestartNode(context.Background(), "demo", "x"), utils.ErrNodeNotFound)
+	require.ErrorIs(t, provider.RestartNode(context.Background(), "demo", "x"), utils.ErrNodeNotFound)
+	assert.Empty(t, clab.calls(t))
 }
 
 /*

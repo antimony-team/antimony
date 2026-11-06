@@ -147,28 +147,73 @@ func TestNodeCommand_AdminCanControlSomeoneElsesNodes(t *testing.T) {
 	waitForNodeState(t, h, LabMemberID, NodeHost, deployment.NodeStates.Running)
 }
 
-func TestNodeCommand_NonRestartableKindIsRejected(t *testing.T) {
-	h := NewHarness(t)
+// unsupportedLifecycleTopology has one node of every sort that can't be started, stopped or restarted, and a
+// router that can, including settings the nodes inherit from their group or the defaults.
+const unsupportedLifecycleTopology = `name: lifecycle
+topology:
+  kinds:
+    frr:
+      auto-remove: true
+  groups:
+    shared:
+      network-mode: host
+  nodes:
+    router: {kind: nokia_srlinux, image: ghcr.io/nokia/srlinux}
+    bridge: {kind: bridge}
+    hostnet: {kind: linux, image: alpine:latest, network-mode: host}
+    grouped: {kind: linux, image: alpine:latest, group: shared}
+    sidecar: {kind: linux, image: alpine:latest, network-mode: "container:router"}
+    removed: {kind: linux, image: alpine:latest, auto-remove: true}
+    inherited: {kind: frr, image: quay.io/frrouting/frr:10.2.1}
+`
 
-	h.DeployLab(LabAdminID)
+// deployLabOf creates a lab of a new topology with the given definition and deploys it.
+func deployLabOf(t *testing.T, h *Harness, definition string) string {
+	t.Helper()
+
+	var labId string
+	createLabOf(h, createTopology(t, h, definition), "Lifecycle", h.Seed.Admin.Token).RequireOk(&labId)
+	h.DeployLab(labId)
+
+	return labId
+}
+
+func TestNodeCommand_NodesWhoseLifecycleIsUnsupportedAreRejected(t *testing.T) {
+	h := NewHarness(t)
+	labId := deployLabOf(t, h, unsupportedLifecycleTopology)
 
 	client := h.Dial("/cmd", h.Seed.Admin.Token)
 
 	for name, command := range nodeCommands {
 		t.Run(name, func(t *testing.T) {
-			// NodeSRL is of kind nokia_srlinux, which the kinds config leaves at canRestart=false.
-			errorResponse := client.Emit(nodeCommand(command, LabAdminID, NodeSRL)).RequireError(5023)
+			errorResponse := client.Emit(nodeCommand(command, labId, "hostnet")).RequireError(5023)
 
-			assert.Contains(t, errorResponse.Message, "unable to manually start nodes of kind")
-			assert.Contains(t, errorResponse.Message, "nokia_srlinux")
+			assert.Contains(t, errorResponse.Message, "node 'hostnet' can't be started, stopped or restarted")
 		})
 	}
+
+	assert.Zero(t, h.Provider.CallCount("StartNode")+h.Provider.CallCount("StopNode")+
+		h.Provider.CallCount("RestartNode"))
 }
 
-func TestNodeCommand_KindsConfigDrivesTheRestartPolicy(t *testing.T) {
-	// Flipping the policy in the config file must flip the guard, which is what makes the
-	// kindsConfig path worth having.
-	h := NewHarness(t, WithKindsConfig("nokia_srlinux:\n  canRestart: true\n"))
+func TestNodeCommand_OnlyNodesWithASupportedLifecycleCanBeRestarted(t *testing.T) {
+	h := NewHarness(t)
+	labId := deployLabOf(t, h, unsupportedLifecycleTopology)
+
+	client := h.Dial("/cmd", h.Seed.Admin.Token)
+
+	for _, node := range []string{"bridge", "hostnet", "grouped", "sidecar", "removed", "inherited"} {
+		t.Run(node, func(t *testing.T) {
+			client.Emit(nodeCommand(cmdRestartNode, labId, node)).RequireError(5023)
+		})
+	}
+
+	client.Emit(nodeCommand(cmdRestartNode, labId, "router")).RequireOk(nil)
+	assert.Equal(t, 1, h.Provider.CallCount("RestartNode"))
+}
+
+func TestNodeCommand_NodesOfEveryKindCanBeRestarted(t *testing.T) {
+	h := NewHarness(t)
 
 	h.DeployLab(LabAdminID)
 
@@ -176,9 +221,6 @@ func TestNodeCommand_KindsConfigDrivesTheRestartPolicy(t *testing.T) {
 
 	client.Emit(nodeCommand(cmdRestartNode, LabAdminID, NodeSRL)).RequireOk(nil)
 	waitForNodeState(t, h, LabAdminID, NodeSRL, deployment.NodeStates.Running)
-
-	// And the linux node, absent from this config, now falls back to the default of false.
-	client.Emit(nodeCommand(cmdRestartNode, LabAdminID, NodeHost)).RequireError(5023)
 }
 
 /*

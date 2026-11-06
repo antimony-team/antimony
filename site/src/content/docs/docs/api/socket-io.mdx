@@ -223,7 +223,7 @@ cmd.emit('data', JSON.stringify({ command: 4, labId, node: 'leaf1' }), (response
 
 Deploying and destroying can take a while, and the response only comes when they're done. Follow the progress on `/lab-updates` and `/logs/<labId>`. Destroying a lab that isn't deployed fails with `5012`.
 
-Node commands only work on running labs, and only on nodes of kinds with `canRestart: true` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml).
+Node commands only work on running labs. Nodes that can't be started, stopped or restarted fail with `5023`; see [Node lifecycle](/docs/architecture/lab-lifecycle/#node-lifecycle) for which ones.
 
 ### `/shell/<shellId>`
 

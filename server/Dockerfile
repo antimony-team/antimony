@@ -20,7 +20,7 @@ RUN CGO_ENABLED=1 go build \
     -ldflags '-linkmode external -extldflags "-static"' \
     -o ./antimony-server
 
-FROM ghcr.io/srl-labs/clab:0.76.0
+FROM ghcr.io/srl-labs/clab:0.81.0
 WORKDIR /app
 
 COPY data ./data

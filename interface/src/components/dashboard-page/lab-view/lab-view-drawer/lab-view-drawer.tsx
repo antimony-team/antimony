@@ -5,7 +5,6 @@ import UplotReact from 'uplot-react';
 
 import {Button} from 'primereact/button';
 import {Divider} from 'primereact/divider';
-import {Message} from 'primereact/message';
 import {ProgressBar} from 'primereact/progressbar';
 
 import SBCopyableProperty from '@sb/components/common/sb-copyable-property/sb-copyable-property';
@@ -575,12 +574,6 @@ const LabDialogDrawer = (props: LabViewDrawer) => {
         </div>
         <If condition={props.canControlLab}>
           <div className="lab-dialog-drawer-control-buttons">
-            <If condition={!node?.canRestart}>
-              <Message
-                severity="info"
-                text={`Nodes with kind '${node?.kind}' can't be manually started`}
-              />
-            </If>
             <div className="flex gap-2">
               <Button
                 icon="pi pi-sync"

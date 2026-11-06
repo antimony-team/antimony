@@ -96,7 +96,6 @@ function instance(state: InstanceState): InstanceOut {
         interfaces: [],
         state: 2,
         isReady: true,
-        canRestart: true,
       },
     ],
     isRecovered: false,

@@ -6,6 +6,3 @@ nokia_srlinux:
 cisco_csr1000v:
   sshUsername: admin
   sshPassword: admin
-
-linux:
-  canRestart: true

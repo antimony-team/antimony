@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
+	clab "github.com/srl-labs/containerlab/types"
 	"gopkg.in/yaml.v3"
 
 	"github.com/antimony-team/antimony/server/src/auth"
@@ -212,8 +213,12 @@ func (s *Service) StartNodeCommand(
 
 	if node == nil {
 		return utils.ErrNodeNotFound
-	} else if !node.CanRestart {
-		return fmt.Errorf("%w: unable to manually start nodes of kind '%s'", utils.ErrInvalidNodeOperation, node.Kind)
+	} else if !node.supportsLifecycle {
+		return fmt.Errorf(
+			"%w: node '%s' can't be started, stopped or restarted",
+			utils.ErrInvalidNodeOperation,
+			node.Name,
+		)
 	}
 
 	instance.DataMutex.Lock()
@@ -289,8 +294,12 @@ func (s *Service) StopNodeCommand(
 
 	if node == nil {
 		return utils.ErrNodeNotFound
-	} else if !node.CanRestart {
-		return fmt.Errorf("%w: unable to manually start nodes of kind '%s'", utils.ErrInvalidNodeOperation, node.Kind)
+	} else if !node.supportsLifecycle {
+		return fmt.Errorf(
+			"%w: node '%s' can't be started, stopped or restarted",
+			utils.ErrInvalidNodeOperation,
+			node.Name,
+		)
 	}
 
 	instance.DataMutex.Lock()
@@ -369,8 +378,12 @@ func (s *Service) RestartNodeCommand(
 
 	if node == nil {
 		return utils.ErrNodeNotFound
-	} else if !node.CanRestart {
-		return fmt.Errorf("%w: unable to manually start nodes of kind '%s'", utils.ErrInvalidNodeOperation, node.Kind)
+	} else if !node.supportsLifecycle {
+		return fmt.Errorf(
+			"%w: node '%s' can't be started, stopped or restarted",
+			utils.ErrInvalidNodeOperation,
+			node.Name,
+		)
 	}
 
 	instance.DataMutex.Lock()
@@ -1171,18 +1184,13 @@ func (s *Service) createNodesFromTopology(
 			nodeName,
 		)
 
-		canRestart := false
-		if kindConfig, ok := s.nodeKindConfigs[kind]; ok {
-			canRestart = kindConfig.CanRestart != nil && *kindConfig.CanRestart
-		}
-
 		result[nodeName] = &InstanceNode{
-			Name:         nodeName,
-			Kind:         kind,
-			CanRestart:   canRestart,
-			State:        deployment.NodeStates.Stopped,
-			Interfaces:   make([]deployment.NodeInterface, 0),
-			LogNamespace: nodeLogNamespace,
+			Name:              nodeName,
+			Kind:              kind,
+			supportsLifecycle: supportsLifecycle(topologyContent, nodeName, kind),
+			State:             deployment.NodeStates.Stopped,
+			Interfaces:        make([]deployment.NodeInterface, 0),
+			LogNamespace:      nodeLogNamespace,
 		}
 	}
 
@@ -1520,28 +1528,6 @@ func (s *Service) canAccessLab(labId string) socket.AccessCheck {
 	}
 }
 
-func getNodeKindConfigs(path string) map[string]NodeKindConfig {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		log.Infof("No kind config file was specified: %s", err)
-		return make(map[string]NodeKindConfig)
-	}
-
-	log.Info("Loaded container kinds config file.", "file", path)
-
-	var configs map[string]NodeKindConfig
-	if err := yaml.Unmarshal(data, &configs); err != nil {
-		log.Warnf("Failed to parse node kind config: %s", err)
-		return make(map[string]NodeKindConfig)
-	}
-
-	for kind, nodeConfig := range configs {
-		configs[kind] = nodeConfig
-	}
-
-	return configs
-}
-
 func (s *Service) GetNodeKindsConfig() map[string]NodeKindConfig {
 	return s.nodeKindConfigs
 }
@@ -1681,6 +1667,44 @@ func (s *Service) CanDelete(labId string) bool {
 	defer instance.DataMutex.Unlock()
 
 	return instance.State == InstanceStates.Failed
+}
+
+// kindsWithoutContainer are the kinds whose nodes aren't a container of the lab that could be started and
+// stopped, like bridges, the host itself or containers and clusters that are created outside the lab.
+var kindsWithoutContainer = []string{"bridge", "ovs-bridge", "host", "ext-container", "k8s-kind"}
+
+// supportsLifecycle reports whether a node can be started, stopped, and restarted. Besides nodes without a container
+// of their own, containerlab's node lifecycle doesn't support nodes that share the network namespace of the host
+// or of another container, and nodes whose container is removed once it stops.
+func supportsLifecycle(topology *clab.Topology, nodeName, kind string) bool {
+	networkMode := topology.GetNodeNetworkMode(nodeName)
+
+	return !slices.Contains(kindsWithoutContainer, kind) &&
+		networkMode != "host" &&
+		!strings.HasPrefix(networkMode, "container:") &&
+		!topology.GetNodeAutoRemove(nodeName)
+}
+
+func getNodeKindConfigs(path string) map[string]NodeKindConfig {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Infof("No kind config file was specified: %s", err)
+		return make(map[string]NodeKindConfig)
+	}
+
+	log.Info("Loaded container kinds config file.", "file", path)
+
+	var configs map[string]NodeKindConfig
+	if err := yaml.Unmarshal(data, &configs); err != nil {
+		log.Warnf("Failed to parse node kind config: %s", err)
+		return make(map[string]NodeKindConfig)
+	}
+
+	for kind, nodeConfig := range configs {
+		configs[kind] = nodeConfig
+	}
+
+	return configs
 }
 
 // getInstanceNode looks a node up by name under the instance's data lock.

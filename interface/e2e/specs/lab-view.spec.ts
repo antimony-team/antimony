@@ -245,25 +245,24 @@ test.describe('nodes', () => {
     await expect.poll(nodeState).toBe(2);
   });
 
-  test('nodes of kinds that can not restart have no start and stop', async ({
+  test('restarting a node that can not restart says why', async ({
     page,
     createLab,
   }) => {
     const lab = await createLab({
       deployed: true,
       definition: name =>
-        `name: ${name}\ntopology:\n  nodes:\n    srl1:\n      kind: nokia_srlinux\n      image: ghcr.io/nokia/srlinux\n`,
+        `name: ${name}\ntopology:\n  nodes:\n    br1:\n      kind: bridge\n`,
       annotations: '{}',
     });
     const labView = new LabView(page);
     await labView.open(lab.id);
+    await labView.clickNode('br1');
 
-    await labView.clickNode('srl1');
+    await labView.drawer.button('Restart').click();
 
     await expect(
-      page.getByText(
-        "Nodes with kind 'nokia_srlinux' can't be manually started",
-      ),
+      toast(page, "node 'br1' can't be started, stopped or restarted"),
     ).toBeVisible();
   });
 

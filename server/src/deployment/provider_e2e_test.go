@@ -300,8 +300,16 @@ func (l *e2eLab) testNetworkInterfaces(t *testing.T) {
 
 // testLinkBetweenNodes addresses the link, the tests after it send traffic over it.
 func (l *e2eLab) testLinkBetweenNodes(t *testing.T) {
-	l.mustExec(t, "host1", "ip", "addr", "add", e2eHost1Address+"/30", "dev", "eth1")
-	l.mustExec(t, "host2", "ip", "addr", "add", e2eHost2Address+"/30", "dev", "eth1")
+	l.assertLinkCarriesTraffic(t)
+}
+
+// assertLinkCarriesTraffic addresses both ends of the link between the nodes and pings across it. A node
+// that was stopped loses the addresses, so they're set again every time.
+func (l *e2eLab) assertLinkCarriesTraffic(t *testing.T) {
+	t.Helper()
+
+	l.mustExec(t, "host1", "ip", "addr", "replace", e2eHost1Address+"/30", "dev", "eth1")
+	l.mustExec(t, "host2", "ip", "addr", "replace", e2eHost2Address+"/30", "dev", "eth1")
 	l.mustExec(t, "host1", "ip", "link", "set", "eth1", "up")
 	l.mustExec(t, "host2", "ip", "link", "set", "eth1", "up")
 
@@ -590,6 +598,9 @@ func (l *e2eLab) testNodeLifecycle(t *testing.T) {
 		l.waitForNodeState(t, "host2", NodeStates.Running)
 		events.waitFor(t, l.name+"/host2")
 		l.waitForExec(t, "host2")
+
+		// The node gets its links back
+		l.assertLinkCarriesTraffic(t)
 	})
 
 	t.Run("a restarted node", func(t *testing.T) {
@@ -605,6 +616,9 @@ func (l *e2eLab) testNodeLifecycle(t *testing.T) {
 		l.waitForExec(t, "host1")
 
 		assert.NotEqual(t, before, l.mustExec(t, "host1", startTime...), "the node wasn't restarted")
+
+		// The node keeps its links
+		l.assertLinkCarriesTraffic(t)
 	})
 
 	t.Run("an unknown node", func(t *testing.T) {

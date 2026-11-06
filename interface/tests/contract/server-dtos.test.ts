@@ -75,7 +75,6 @@ const TYPES: Record<string, string[]> = {
     interfaces: true,
     state: true,
     isReady: true,
-    canRestart: true,
   }),
   'deployment.NodeInterface': keys<NodeInterface>({
     name: true,

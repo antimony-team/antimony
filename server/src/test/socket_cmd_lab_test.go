@@ -298,21 +298,6 @@ func TestDeployCommand_MarksNodesReadyWithTheirInterfaces(t *testing.T) {
 	assert.ElementsMatch(t, []string{"eth0", "eth1"}, interfaceNames(host.Interfaces))
 }
 
-func TestDeployCommand_AppliesTheNodeKindRestartPolicy(t *testing.T) {
-	h := NewHarness(t)
-
-	client := h.Dial("/cmd", h.Seed.Admin.Token)
-	client.Emit(deployCommand(LabAdminID)).RequireOk(nil)
-
-	var labOut labDTO
-	h.GET("/labs/"+LabAdminID, h.Seed.Admin.Token).RequireOk(&labOut)
-	require.NotNil(t, labOut.Instance)
-
-	// The kinds config marks linux as restartable and leaves nokia_srlinux at the default.
-	assert.True(t, findNode(t, labOut.Instance.Nodes, NodeHost).CanRestart)
-	assert.False(t, findNode(t, labOut.Instance.Nodes, NodeSRL).CanRestart)
-}
-
 /*
  * destroyLab
  */

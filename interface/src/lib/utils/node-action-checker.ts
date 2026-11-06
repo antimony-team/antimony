@@ -16,25 +16,19 @@ export class NodeActionChecker {
 
   public get canStart() {
     return (
-      this.isInstanceRunning &&
-      this.node?.canRestart &&
-      this.assertNodeState(InstanceNodeState.Stopped)
+      this.isInstanceRunning && this.assertNodeState(InstanceNodeState.Stopped)
     );
   }
 
   public get canStop() {
     return (
-      this.isInstanceRunning &&
-      this.node?.canRestart &&
-      this.assertNodeState(InstanceNodeState.Running)
+      this.isInstanceRunning && this.assertNodeState(InstanceNodeState.Running)
     );
   }
 
   public get canRestart() {
     return (
-      this.isInstanceRunning &&
-      this.node?.canRestart &&
-      this.assertNodeState(InstanceNodeState.Running)
+      this.isInstanceRunning && this.assertNodeState(InstanceNodeState.Running)
     );
   }
 

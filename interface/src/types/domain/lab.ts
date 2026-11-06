@@ -61,8 +61,6 @@ export type InstanceNode = {
 
   state: InstanceNodeState;
   isReady: boolean;
-
-  canRestart: boolean;
 };
 
 export type NodeInterface = {

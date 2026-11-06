@@ -52,7 +52,17 @@ The lab's run directory still holds the topology from when the lab was created. 
 | Running | `2` | The node is running. |
 | Stopping | `3` | The node is stopping. |
 
-Nodes can be started, stopped and restarted individually, but only for kinds marked `canRestart: true` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml).
+## Node lifecycle
+
+Nodes of a running lab can be started, stopped and restarted individually, and keep their links while they do. containerlab uses `containerlab start`, `stop` and `restart`, which move the node's link interfaces out of the container before it stops, move them back once it started, and run the node's `exec` commands again. clabernetes stops a node by scaling it to zero and restarts it by recreating its pod, which gets its links wired up again.
+
+This doesn't work for some nodes. Commands for them fail with `5023`:
+
+- nodes without a container of their own: the kinds `bridge`, `ovs-bridge`, `host`, `ext-container` and `k8s-kind`
+- nodes with `network-mode: host` or `network-mode: container:<node>`
+- nodes with `auto-remove: true`
+
+These settings count wherever the node gets them from, its group, its kind or the defaults.
 
 ## Restarting the server
 

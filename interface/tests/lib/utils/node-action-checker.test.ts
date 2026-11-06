@@ -12,12 +12,8 @@ function createInstance(state: InstanceState) {
   return {state} as Instance;
 }
 
-function createNode(
-  state: InstanceNodeState,
-  isReady = true,
-  canRestart = true,
-) {
-  return {state, isReady, canRestart} as InstanceNode;
+function createNode(state: InstanceNodeState, isReady = true) {
+  return {state, isReady} as InstanceNode;
 }
 
 function actionsOf(checker: NodeActionChecker) {
@@ -76,13 +72,6 @@ describe('NodeActionChecker', () => {
         false,
       ]);
     }
-  });
-
-  it('allows no state changes for nodes that can not restart', () => {
-    const node = createNode(InstanceNodeState.Running, true, false);
-    const checker = new NodeActionChecker(running, node);
-    expect(!!checker.canStop || !!checker.canRestart).toBe(false);
-    expect(checker.canOpenTerminal).toBe(true);
   });
 
   it('only allows logs while the lab is not running', () => {

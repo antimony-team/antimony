@@ -58,9 +58,9 @@ const (
 
 // Node names declared by the seeded topologies.
 const (
-	// NodeSRL is of kind nokia_srlinux, which the default kinds config marks as not restartable.
+	// NodeSRL is of kind nokia_srlinux.
 	NodeSRL = "srl1"
-	// NodeHost is of kind linux, which the default kinds config marks as restartable.
+	// NodeHost is of kind linux.
 	NodeHost = "host1"
 )
 

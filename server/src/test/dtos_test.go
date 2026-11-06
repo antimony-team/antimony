@@ -62,7 +62,6 @@ type nodeDTO struct {
 	ContainerId   string         `json:"containerId"`
 	ContainerName string         `json:"containerName"`
 	Interfaces    []interfaceDTO `json:"interfaces"`
-	CanRestart    bool           `json:"canRestart"`
 }
 
 // interfaceDTO mirrors deployment.NodeInterface.

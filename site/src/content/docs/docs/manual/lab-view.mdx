@@ -61,7 +61,7 @@ The node panel shows the node's name, kind, container ID and name, management IP
 | --- | --- |
 | **Node logs** | Opens the logs window with this node's container log. |
 | **Open terminal** | Opens a [terminal](#terminals) on the node. Available once the node is ready. |
-| **Restart** / **Start** / **Shutdown** | Restarts, starts or stops the node. Only available for kinds marked `canRestart` in [`kinds.conf.yml`](/docs/deployment/configuration/#node-kinds-kindsconfyml); for other kinds the panel says so. |
+| **Restart** / **Start** / **Shutdown** | Restarts, starts or stops the node. Some nodes, such as bridges, can't be (see [Node lifecycle](/docs/architecture/lab-lifecycle/#node-lifecycle)); for those you get a message saying so. |
 
 ### Statistics
 

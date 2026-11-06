@@ -451,17 +451,15 @@ func (p *ContainerlabProvider) OpenCapture(
 	return &tpacketSource{tp: tp}, nil
 }
 
+// StartNode, StopNode and RestartNode use containerlab's node lifecycle instead of docker's. A container
+// that docker stops loses its network namespace and the links in it, containerlab moves the links out of
+// the node before it stops and back in once it started, and runs the node's exec commands again.
 func (p *ContainerlabProvider) StartNode(
 	ctx context.Context,
 	instanceName string,
 	nodeName string,
 ) error {
-	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
-	if err != nil {
-		return err
-	}
-
-	return p.client.ContainerStart(ctx, containerId, container.StartOptions{})
+	return p.runNodeLifecycleCommand(ctx, "start", instanceName, nodeName)
 }
 
 func (p *ContainerlabProvider) StopNode(
@@ -469,12 +467,7 @@ func (p *ContainerlabProvider) StopNode(
 	instanceName string,
 	nodeName string,
 ) error {
-	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
-	if err != nil {
-		return err
-	}
-
-	return p.client.ContainerStop(ctx, containerId, container.StopOptions{Timeout: new(10)})
+	return p.runNodeLifecycleCommand(ctx, "stop", instanceName, nodeName)
 }
 
 func (p *ContainerlabProvider) RestartNode(
@@ -482,12 +475,29 @@ func (p *ContainerlabProvider) RestartNode(
 	instanceName string,
 	nodeName string,
 ) error {
-	containerId, err := p.containerForNode(ctx, instanceName, nodeName)
-	if err != nil {
+	return p.runNodeLifecycleCommand(ctx, "restart", instanceName, nodeName)
+}
+
+// runNodeLifecycleCommand runs a containerlab node lifecycle command on a node of a lab.
+func (p *ContainerlabProvider) runNodeLifecycleCommand(
+	ctx context.Context,
+	command string,
+	instanceName string,
+	nodeName string,
+) error {
+	// Containerlab only reports an unknown node in its output
+	if _, err := p.containerForNode(ctx, instanceName, nodeName); err != nil {
 		return err
 	}
 
-	return p.client.ContainerRestart(ctx, containerId, container.StopOptions{Timeout: new(10)})
+	var output []string
+	cmd := clabCommand(ctx, command, "--name", instanceName, "--node", nodeName)
+	if _, err := runCommandSync(cmd, func(line string) { output = append(output, line) }); err != nil {
+		// The exit code alone doesn't say what went wrong
+		return fmt.Errorf("%w: %s", err, strings.Join(output, "\n"))
+	}
+
+	return nil
 }
 
 func (p *ContainerlabProvider) StreamContainerLogs(

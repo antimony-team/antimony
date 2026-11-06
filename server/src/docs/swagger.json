@@ -1278,10 +1278,6 @@
         "instance.InstanceNode": {
             "type": "object",
             "properties": {
-                "canRestart": {
-                    "description": "CanRestart whether the node can be restarted. Determined by the node's kind and the kind config file.",
-                    "type": "boolean"
-                },
                 "containerId": {
                     "description": "ContainerId is the globally unique identifier for the container running the node.\n\nWith containerlab as the deployment provider, this is the node's docker container ID.\nWith clabernetes as the deployment provider, this is the node's pod UID.\n\nLeft empty if the node is currently not running.",
                     "type": "string"

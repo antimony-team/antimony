@@ -71,7 +71,7 @@ jobs:
           version: 3.x
 
       - name: Install containerlab
-        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.78.2
+        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.81.0
 
       - name: Run the provider e2e tests
         run: task test-e2e-containerlab
@@ -224,7 +224,7 @@ jobs:
           cache-dependency-path: interface/yarn.lock
 
       - name: Install containerlab
-        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.78.2
+        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- -v 0.81.0
 
       - name: Pull the node image
         run: docker pull alpine:latest
