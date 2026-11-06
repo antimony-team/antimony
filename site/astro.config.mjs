@@ -43,6 +43,7 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Introduction', slug: 'docs' },
+						'docs/getting-started/why-antimony',
 						'docs/getting-started/quick-start',
 						'docs/getting-started/concepts',
 					],

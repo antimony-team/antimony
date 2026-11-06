@@ -63,6 +63,15 @@ More in the [Antimony Desktop guide](https://antimony.run/docs/deployment/deskto
 * **Made for classrooms**: collections with per-group access, sign-in through your OpenID provider, and a topology policy that keeps users' labs from reaching the server.
 * **Scales out**: run labs on one Docker host, or on Kubernetes with [clabernetes](https://containerlab.dev/manual/clabernetes/).
 
+## 🤝 Antimony or the Containerlab apps?
+
+containerlab has its own [apps for VS Code, desktop and web](https://github.com/srl-labs/containerlab-app). Both draw topologies, deploy labs and open terminals, but they're different kinds of software:
+
+* **The Containerlab apps are a graphical front end for containerlab.** They run containerlab on your machine or on a lab host and show what it does. Your topologies are files in your workspace, your login is a Linux account on the lab host.
+* **Antimony is a multi-user platform.** It has its own server, database, users and permissions. People sign in through your OpenID provider, their groups decide which collections of topologies they see and deploy from, a topology can be deployed as many scheduled labs at once, and a topology policy keeps users' labs away from the server.
+
+For your own labs, the Containerlab apps are a good fit. For labs that many people work with on shared infrastructure, such as a class, a training or a team, use Antimony. Both use containerlab's annotations file for the layout, so a lab built in VS Code deploys in Antimony as is. [Antimony and the Containerlab apps](https://antimony.run/docs/getting-started/why-antimony/) compares them in detail.
+
 ## 📚 Documentation
 
 Everything else is on [antimony.run](https://antimony.run/docs/): the [concepts](https://antimony.run/docs/getting-started/concepts/), the [user manual](https://antimony.run/docs/manual/dashboard/), the [configuration](https://antimony.run/docs/deployment/configuration/) and the [REST and Socket.IO APIs](https://antimony.run/docs/api/rest/).

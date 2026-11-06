@@ -17,6 +17,7 @@ import EditorLayers from '../components/diagrams/EditorLayers.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const docs = `${base}/docs/`;
 const quickStart = `${base}/docs/getting-started/quick-start/`;
+const whyAntimony = `${base}/docs/getting-started/why-antimony/`;
 const github = 'https://github.com/antimony-team/antimony';
 const installCommand = 'curl -fsSL https://antimony.run/deploy.sh | bash';
 
@@ -238,6 +239,27 @@ ethernet-1/1 is <span class="t-ok">up</span>, speed 25G, type None
 						</div>
 					</div>
 				</div>
+			</section>
+
+			<!-- Containerlab apps -->
+			<section class="companion">
+				<p class="step">Already using containerlab's apps?</p>
+				<h2>A front end, or a platform.</h2>
+				<p class="companion-lede">
+					The Containerlab apps for VS Code, desktop and web put a graphical front end on containerlab. Antimony is a
+					multi-user platform built on top of it, for labs that many people share.
+				</p>
+				<div class="grid grid-two">
+					<div class="tile">
+						<h3>Containerlab apps</h3>
+						<p>Run containerlab on your machine or a lab host, with your topologies as files in your workspace and a Linux account as your login.</p>
+					</div>
+					<div class="tile">
+						<h3>Antimony</h3>
+						<p>Its own server, users and permissions: sign-in through OpenID, collections per group, scheduled labs for a whole class, and a policy that keeps labs away from the server.</p>
+					</div>
+				</div>
+				<a class="btn btn-ghost" href={whyAntimony}>Compare them</a>
 			</section>
 
 			<!-- Extras -->

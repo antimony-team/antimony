@@ -940,6 +940,33 @@ main > section {
 	text-align: left;
 }
 
+/* Containerlab apps */
+.companion {
+	padding-block: clamp(4rem, 9vw, 7rem) 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+
+.companion-lede {
+	color: var(--text-muted);
+	font-size: 1.08rem;
+	max-width: 40rem;
+	margin-bottom: 2.4rem;
+}
+
+.companion .grid {
+	width: 100%;
+	max-width: 900px;
+	margin-bottom: 2rem;
+	text-align: left;
+}
+
+.grid.grid-two {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 /* Extras */
 .extras {
 	padding-block: clamp(4rem, 9vw, 7rem) 0;
@@ -1125,7 +1152,8 @@ main > section {
 		margin-left: auto;
 	}
 
-	.grid {
+	.grid,
+	.grid.grid-two {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
