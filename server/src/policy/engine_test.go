@@ -203,8 +203,7 @@ var deniedFieldValues = map[string]string{
 	"volumes":       "[data:/data]",
 	"mgmt-ipv4":     "172.20.20.250",
 	"mgmt-ipv6":     "\"2001:db8::1\"",
-	"extras":        "{}",
-	"components":    "[]",
+	"mgmt-net":      "custom",
 }
 
 func TestCheck_EveryDeniedNodeFieldIsReported(t *testing.T) {
@@ -302,13 +301,12 @@ func TestNodeFields_OnlyNameContainerlabNodeFields(t *testing.T) {
 
 // Fields that only exist under credentials or on the management network aren't node fields.
 func TestCheck_FieldsThatArentNodeFieldsAreNotReviewed(t *testing.T) {
-	definition := nodeTopology("username: admin", "password: admin", "identity-file: /etc/shadow", "mgmt-net: custom")
+	definition := nodeTopology("username: admin", "password: admin", "identity-file: /etc/shadow")
 
 	assert.ElementsMatch(t, []string{
 		"unreviewed-field@topology.nodes.n.username",
 		"unreviewed-field@topology.nodes.n.password",
 		"unreviewed-field@topology.nodes.n.identity-file",
-		"unreviewed-field@topology.nodes.n.mgmt-net",
 	}, findingKeys(checkTopology(t, Options{}, definition)))
 }
 

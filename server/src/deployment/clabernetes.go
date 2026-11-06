@@ -25,7 +25,6 @@ import (
 	clabernetesconstants "github.com/clabernetes/clabernetes/constants"
 	c9sclientset "github.com/clabernetes/clabernetes/generated/clientset"
 	claberneteslogging "github.com/clabernetes/clabernetes/logging"
-	clabernetesutilkubernetes "github.com/clabernetes/clabernetes/util/kubernetes"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcapgo"
 	"github.com/samber/lo"
@@ -1489,7 +1488,7 @@ func namespaceFor(topologyName string) string {
 // pods. c9s renames the nodes Kubernetes can't carry as written (XR-5 runs as xr-5) and rejects topologies where two
 // nodes would get the same name. Names Kubernetes accepts map onto themselves.
 func kubeNodeName(nodeName string) string {
-	return clabernetesutilkubernetes.SanitizeName(nodeName)
+	return clabernetescompiler.SanitizeName(nodeName)
 }
 
 // nodeNameSources maps the names c9s runs the nodes of the topologies in namespace (all namespaces when empty)

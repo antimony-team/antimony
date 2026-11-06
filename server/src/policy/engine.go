@@ -294,12 +294,7 @@ var nodeFields = map[string]nodeField{
 		Impacts.Shell,
 		"static management addresses can take another lab's address",
 	),
-	"extras": denied(
-		Rules.UnreviewedField,
-		Impacts.Unreviewed,
-		"kind-specific extras can reference files on the server",
-	),
-	"components": denied(Rules.UnreviewedField, Impacts.Unreviewed, "node components are not reviewed"),
+	"mgmt-net": denied(Rules.Mgmt, Impacts.Shell, "the management network is set by Antimony"),
 }
 
 // hostReachingKinds connect a lab to the server or to networks outside the lab.

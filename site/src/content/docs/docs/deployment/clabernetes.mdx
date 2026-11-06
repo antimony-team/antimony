@@ -22,7 +22,7 @@ The Antimony server itself still runs outside the cluster, for example with the 
 
 ## Requirements
 
-Antimony is built against **clabernetes 0.9.0**, which uses the native "direct" runtime. Your cluster must meet the clabernetes 0.9 requirements:
+Antimony is built against **clabernetes 0.10.1**, which uses the native "direct" runtime. Your cluster must meet the clabernetes 0.10 requirements:
 
 - **Kubernetes 1.31 or newer.** The direct runtime uses native sidecar containers.
 - **Privileged pods allowed** in lab namespaces. Antimony labels every lab namespace with `pod-security.kubernetes.io/enforce: privileged`. If you run an admission controller such as Kyverno or Gatekeeper, allow privileged pods in `c9s-*` namespaces.
@@ -31,8 +31,19 @@ Antimony is built against **clabernetes 0.9.0**, which uses the native "direct" 
 - **NetworkPolicies** that allow UDP 14789 and 14790 between device pods, TCP 14791 from the kubelet, and egress to the API server.
 - **cgroup v2** on the workers, and device images that contain `sh`, `cat` and `sleep`. Antimony reads node statistics and interfaces by running small shell commands inside the device container.
 
+<Aside type="caution" title="Upgrading from clabernetes 0.9">
+	Helm doesn't update CRDs on an upgrade, so apply the CRDs of the new chart before you upgrade the release:
+
+	```bash
+	helm pull --untar --version 0.10.1 oci://ghcr.io/clabernetes/clabernetes/clabernetes
+	kubectl apply --server-side --force-conflicts -f clabernetes/crds/
+	```
+
+	Every node of a running lab restarts once after the upgrade. Topologies that still use the node `extras` field no longer deploy; containerlab replaced it with [kind-specific keys](https://containerlab.dev/manual/nodes/#kind-specific-config).
+</Aside>
+
 <Aside type="caution" title="Upgrading from clabernetes 0.8 or older">
-	Clabernetes 0.9 has no in-place upgrade path. Uninstall the old release before you install 0.9.0.
+	Clabernetes 0.9 has no in-place upgrade path from 0.8. Uninstall the old release before you install 0.10.1.
 </Aside>
 
 ## Set up
@@ -41,10 +52,10 @@ Start from the [Docker deployment](/docs/deployment/docker/). Then:
 
 <Steps>
 
-1. **Install clabernetes 0.9.0** in your cluster.
+1. **Install clabernetes 0.10.1** in your cluster.
 
     ```bash
-    helm upgrade --install --create-namespace --namespace c9s --version 0.9.0 \
+    helm upgrade --install --create-namespace --namespace c9s --version 0.10.1 \
       clabernetes oci://ghcr.io/clabernetes/clabernetes/clabernetes
     ```
 
