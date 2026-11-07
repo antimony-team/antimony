@@ -52,6 +52,17 @@ jobs:
             release/*.rpm
             release/antimony-deployment.tar.gz
 
+      # The notes are the version's section of CHANGELOG.md, followed by GitHub's generated notes. A pre-release
+      # such as v1.5.0-rc.1 uses the section of v1.5.0, and a version without a section only gets the generated notes.
+      - name: Extract the changelog
+        run: |
+          version="${GITHUB_REF_NAME%%-*}"
+          awk -v heading="## Antimony $version" '
+            index($0, "## ") == 1 { if (found) exit; found = ($0 == heading || index($0, heading " ") == 1); next }
+            found
+          ' CHANGELOG.md > notes.md
+          cat notes.md
+
       # Pre-release versions such as v1.5.0-rc.1 become pre-releases
       - name: Create the release
         run: |
@@ -61,6 +72,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" release/*.AppImage release/*.deb release/*.rpm \
             release/antimony-deployment.tar.gz release/SHA256SUMS \
             --title "Antimony $GITHUB_REF_NAME" \
+            --notes-file notes.md \
             --generate-notes \
             $prerelease
         env:
