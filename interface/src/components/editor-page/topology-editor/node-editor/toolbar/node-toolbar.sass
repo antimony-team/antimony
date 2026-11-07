@@ -1,0 +1,30 @@
+.sb-node-editor-toolbar
+  position: absolute
+  left: 12px
+  top: 12px
+  background-color: var(--surface-raised)
+  border: 1px solid var(--border)
+  z-index: 10
+  border-radius: 8px
+  display: flex
+  flex-direction: column
+  padding: 8px
+
+  .p-button
+    width: 36px
+
+    &:not(.sb-iconoir-button)
+      padding: 8px !important
+
+    &.toggled
+      border-color: var(--border)
+      backdrop-filter: brightness(calc(1 + 0.4 * var(--lighten)))
+
+  .p-divider
+    padding: 0
+    margin-top: 4px
+    margin-bottom: 4px
+
+    &::before
+      border-top-color: var(--border)
+      filter: brightness(0.7)

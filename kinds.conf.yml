@@ -2,7 +2,6 @@
 #
 #   sshUsername  Username for terminals. Default: admin
 #   sshPassword  Password for terminals. Without one, the server's SSH keys are used.
-#   canRestart   Allow stopping, starting and restarting nodes of this kind. Default: false
 
 nokia_srlinux:
   sshUsername: admin
@@ -11,6 +10,3 @@ nokia_srlinux:
 cisco_csr1000v:
   sshUsername: admin
   sshPassword: admin
-
-linux:
-  canRestart: true

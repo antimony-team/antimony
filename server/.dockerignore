@@ -1,0 +1,5 @@
+# The image only needs the sources and the data files, everything else stays
+# out of the build context, e.g. the database files of docker-compose
+*
+!src
+!data

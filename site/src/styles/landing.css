@@ -1,4 +1,4 @@
-/* Landing page. Colours follow antimony-interface/src/theme/sb-colors.sass */
+/* Landing page. Colours follow interface/src/theme/sb-colors.sass */
 :root {
 	--page: #101114;
 	--raised: #18191e;
@@ -302,20 +302,26 @@ main > section {
 	user-select: none;
 }
 
+.cmd-text {
+	font-size: inherit;
+	user-select: text;
+}
+
 .cmd-hint {
 	margin-left: 0.8rem;
+	padding: 0;
+	background: none;
+	border: 0;
+	font: inherit;
 	font-size: 0.72rem;
 	color: var(--text-faint);
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
+	cursor: pointer;
 }
 
 .cmd.copied .cmd-hint {
 	color: var(--accent);
-}
-
-.cmd.copied .cmd-hint::before {
-	content: '✓ ';
 }
 
 /* Topology */
@@ -934,6 +940,33 @@ main > section {
 	text-align: left;
 }
 
+/* Containerlab apps */
+.companion {
+	padding-block: clamp(4rem, 9vw, 7rem) 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+
+.companion-lede {
+	color: var(--text-muted);
+	font-size: 1.08rem;
+	max-width: 40rem;
+	margin-bottom: 2.4rem;
+}
+
+.companion .grid {
+	width: 100%;
+	max-width: 900px;
+	margin-bottom: 2rem;
+	text-align: left;
+}
+
+.grid.grid-two {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 /* Extras */
 .extras {
 	padding-block: clamp(4rem, 9vw, 7rem) 0;
@@ -1119,7 +1152,8 @@ main > section {
 		margin-left: auto;
 	}
 
-	.grid {
+	.grid,
+	.grid.grid-two {
 		grid-template-columns: minmax(0, 1fr);
 	}
 

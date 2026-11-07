@@ -1,0 +1,311 @@
+---
+// Feature comparison between the Containerlab apps and Antimony. A mark is 'yes', 'no' or 'partly'; a note is shown
+// under the feature, so the reader doesn't have to look up a footnote.
+type Mark = 'yes' | 'no' | 'partly';
+
+interface Feature {
+	name: string;
+	note?: string;
+	clab: Mark;
+	antimony: Mark;
+}
+
+const groups: {title: string; features: Feature[]}[] = [
+	{
+		title: 'Users and permissions',
+		features: [
+			{name: 'Several users on one server', clab: 'yes', antimony: 'yes'},
+			{
+				name: "Sign-in and access control through your organisation's identity provider",
+				note: 'Microsoft Entra ID, Keycloak, authentik or any other OpenID Connect provider. Users and groups are managed where they already are, not in Antimony.',
+				clab: 'no',
+				antimony: 'yes',
+			},
+			{
+				name: 'Give a group, such as a class, access to its own labs',
+				note: 'Use the groups you already have in your identity provider, for example hs25-cn1. A group gets access to a collection, and its members only see the topologies and labs in it, while administrators see everything.',
+				clab: 'no',
+				antimony: 'yes',
+			},
+			{name: 'Per-group rights to view, edit and deploy', clab: 'no', antimony: 'yes'},
+			{
+				name: 'Topologies shared between users',
+				note: 'The Containerlab apps have one shared folder that every user can edit, deploy and destroy.',
+				clab: 'partly',
+				antimony: 'yes',
+			},
+		],
+	},
+	{
+		title: 'Security',
+		features: [
+			{
+				name: "Safe for users you don't trust with the server",
+				note: "In the Containerlab apps, users can deploy whatever containerlab accepts, for example a topology that mounts the host's files. Antimony's topology policy blocks such features.",
+				clab: 'no',
+				antimony: 'yes',
+			},
+			{name: 'Restrict nodes to images from allowed registries', clab: 'no', antimony: 'yes'},
+			{
+				name: 'Users get no login on the lab host',
+				note: 'clab-api-server signs users in with their Linux account and password on the lab host, so every user is a user of that machine.',
+				clab: 'no',
+				antimony: 'yes',
+			},
+			{
+				name: 'Only administrators can deploy topologies with unsafe features',
+				clab: 'no',
+				antimony: 'yes',
+			},
+		],
+	},
+	{
+		title: 'Labs',
+		features: [
+			{name: 'Deploy labs and control their nodes, on Docker or Kubernetes', clab: 'yes', antimony: 'yes'},
+			{name: 'Terminals, logs, node statistics and packet capture', clab: 'yes', antimony: 'yes'},
+			{
+				name: 'Every node through one SSH port, from your own SSH client and Wireshark',
+				note: 'The Containerlab apps open captures in your own Wireshark from the desktop app or VS Code, and SSH goes through a port clab-api-server forwards for each session. With Antimony, plain ssh is all you need: every node of every lab is reachable through one address.',
+				clab: 'partly',
+				antimony: 'yes',
+			},
+			{name: 'Many labs from one topology in one step', clab: 'no', antimony: 'yes'},
+			{name: 'Scheduled labs with a start and end time', clab: 'no', antimony: 'yes'},
+			{name: 'Several lab hosts from one app', clab: 'yes', antimony: 'no'},
+			{name: 'Link impairments (delay, loss, rate)', clab: 'yes', antimony: 'no'},
+		],
+	},
+	{
+		title: 'Tools',
+		features: [
+			{name: 'Graph and YAML editor, config files and Git', clab: 'yes', antimony: 'yes'},
+			{name: 'Web app, desktop app and REST API', clab: 'yes', antimony: 'yes'},
+			{name: 'Integrated into VS Code', clab: 'yes', antimony: 'no'},
+			{name: 'Editor can be embedded in other tools', clab: 'yes', antimony: 'no'},
+			{name: 'Desktop app on macOS and Windows', clab: 'yes', antimony: 'no'},
+		],
+	},
+];
+
+const labels: Record<Mark, string> = {yes: 'Yes', no: 'No', partly: 'Partly'};
+---
+
+<div class="feature-comparison not-content">
+	<table>
+		<thead>
+			<tr>
+				<th scope="col"><span class="sr-only">Feature</span></th>
+				<th scope="col">Containerlab apps</th>
+				<th scope="col" class="ours">Antimony</th>
+			</tr>
+		</thead>
+		{groups.map((group) => (
+			<tbody>
+				<tr class="group">
+					<th scope="colgroup" colspan="3">{group.title}</th>
+				</tr>
+				{group.features.map((feature) => (
+					<tr>
+						<th scope="row">
+							{feature.name}
+							{feature.note && <span class="note">{feature.note}</span>}
+						</th>
+						{[feature.clab, feature.antimony].map((mark, i) => (
+							<td class:list={[mark, {ours: i === 1}]}>
+								<span class="mark" role="img" aria-label={labels[mark]}>
+									{mark === 'yes' && (
+										<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+									)}
+									{mark === 'no' && (
+										<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg>
+									)}
+									{mark === 'partly' && (
+										<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12h10" /></svg>
+									)}
+								</span>
+							</td>
+						))}
+					</tr>
+				))}
+			</tbody>
+		))}
+	</table>
+	<p class="legend">
+		<span><span class="mark yes" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span> Supported</span>
+		<span><span class="mark partly" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 12h10" /></svg></span> Partly</span>
+		<span><span class="mark no" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" /></svg></span> Not supported</span>
+	</p>
+</div>
+
+<style>
+	.feature-comparison {
+		margin-block: 1.5rem;
+		--yes: #3fcfad;
+		--partly: #faa34b;
+		--no: #8e9098;
+	}
+
+	:global(:root[data-theme='light']) .feature-comparison {
+		--yes: #137a62;
+		--partly: #8f4b0c;
+		--no: #55575f;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
+		font-size: 0.95rem;
+		line-height: 1.4;
+	}
+
+	/* The feature names get the room, the two product columns only need to fit their heading */
+	thead th:nth-child(2),
+	thead th:nth-child(3) {
+		width: 10rem;
+	}
+
+	thead th {
+		padding: 0 0.5rem 0.75rem;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		text-align: center;
+		vertical-align: bottom;
+	}
+
+	.ours {
+		background: color-mix(in srgb, var(--sl-color-accent) 7%, transparent);
+	}
+
+	thead th.ours {
+		color: var(--sl-color-accent);
+		border-radius: 10px 10px 0 0;
+		padding-top: 0.6rem;
+	}
+
+	tr.group th {
+		padding: 1.4rem 0.75rem 0.5rem 0;
+		text-align: left;
+		font-size: 0.78rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+
+	tbody tr:not(.group) th {
+		padding: 0.55rem 0.75rem 0.55rem 0;
+		text-align: left;
+		font-weight: 400;
+		color: var(--sl-color-gray-1);
+	}
+
+	tbody tr:not(.group) {
+		border-bottom: 1px solid color-mix(in srgb, var(--sl-color-gray-5) 60%, transparent);
+	}
+
+	tbody tr:not(.group):hover {
+		background: color-mix(in srgb, var(--sl-color-gray-5) 35%, transparent);
+	}
+
+	.note {
+		display: block;
+		margin-top: 0.15rem;
+		font-size: 0.85rem;
+		color: var(--sl-color-gray-3);
+	}
+
+	td {
+		text-align: center;
+		vertical-align: middle;
+		padding: 0.55rem 0.5rem;
+	}
+
+	.mark {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.6rem;
+		height: 1.6rem;
+		border-radius: 50%;
+		vertical-align: middle;
+	}
+
+	.mark svg {
+		width: 1rem;
+		height: 1rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.yes .mark,
+	.mark.yes {
+		color: var(--yes);
+		background: color-mix(in srgb, var(--yes) 16%, transparent);
+	}
+
+	.partly .mark,
+	.mark.partly {
+		color: var(--partly);
+		background: color-mix(in srgb, var(--partly) 16%, transparent);
+	}
+
+	.no .mark,
+	.mark.no {
+		color: var(--no);
+	}
+
+	.legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1.5rem;
+		margin-top: 1rem;
+		font-size: 0.85rem;
+		color: var(--sl-color-gray-3);
+	}
+
+	.legend > span {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.legend .mark {
+		width: 1.3rem;
+		height: 1.3rem;
+	}
+
+	.legend .mark svg {
+		width: 0.8rem;
+		height: 0.8rem;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	@media (max-width: 640px) {
+		thead th:nth-child(2),
+		thead th:nth-child(3) {
+			width: 5.5rem;
+		}
+
+		thead th {
+			font-size: 0.85rem;
+		}
+
+		table {
+			font-size: 0.9rem;
+		}
+	}
+</style>

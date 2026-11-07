@@ -1,0 +1,23 @@
+// The handles to resize an annotation, themed like the selection in the graph
+.sb-moveable-handles
+  z-index: 10 !important
+
+  .moveable-padding
+    pointer-events: none
+
+  // The outline of the selection is drawn by the element, the lines only resize it when dragged
+  .moveable-line
+    background: transparent !important
+
+  // A selection of several elements has no outline of its own, the lines frame it
+  &.selection .moveable-line
+    background: var(--accent) !important
+
+  .moveable-control
+    width: 9px !important
+    height: 9px !important
+    margin-top: -4.5px !important
+    margin-left: -4.5px !important
+    border: 1.5px solid var(--accent) !important
+    border-radius: 2px !important
+    background: #ffffff !important

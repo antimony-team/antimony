@@ -1,10 +1,8 @@
-// Fetches the backend's generated Swagger spec and prepares it for starlight-openapi.
+// Reads the server's generated Swagger spec and prepares it for starlight-openapi.
 // Usage: npm run sync-api [-- <path or URL>]
 import { writeFile, readFile } from 'node:fs/promises';
 
-const DEFAULT_SOURCE =
-	'https://raw.githubusercontent.com/antimony-team/antimony-server/refs/heads/development/src/docs/swagger.json';
-const source = process.argv[2] ?? DEFAULT_SOURCE;
+const source = process.argv[2] ?? new URL('../../server/src/docs/swagger.json', import.meta.url).pathname;
 const target = new URL('../openapi/antimony.swagger.json', import.meta.url);
 
 const raw = source.startsWith('http')

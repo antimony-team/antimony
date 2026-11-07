@@ -22,7 +22,7 @@ Every key is optional. Antimony starts from built-in defaults and overrides what
 </Aside>
 
 <Aside type="note" title="The Docker image has no config file">
-	The backend repository's `config.default.yml` lists every setting with its default, but the Docker image doesn't contain a config file. Mount your own, as the [Docker deployment](/docs/deployment/docker/) does.
+	[`server/config.default.yml`](https://github.com/antimony-team/antimony/blob/main/server/config.default.yml) in the Antimony repository lists every setting with its default, but the Docker image doesn't contain a config file. Mount your own, as the [Docker deployment](/docs/deployment/docker/) does.
 </Aside>
 
 A complete example with the defaults:
@@ -34,6 +34,11 @@ server:
 
 deployment:
   provider: containerlab
+  mgmt:
+    ipv4: 10.200.0.0/16
+    ipv4Prefix: 24
+    ipv6: fd00:200::/48
+    ipv6Prefix: 64
 
 auth:
   methods: [admin]
@@ -97,9 +102,22 @@ Relative paths resolve against the server's working directory. In the Docker ima
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `provider` | `containerlab` | How labs are deployed: `containerlab` (Docker on the same host), `clabernetes` ([Kubernetes](/docs/deployment/clabernetes/)) or `dummy`. The value isn't case-sensitive. An unknown value stops the server. |
+| `provider` | `containerlab` | How labs are deployed: `containerlab` (Docker on the same host), `clabernetes` ([Kubernetes](/docs/deployment/clabernetes/)) or `dummy`. The value is case-sensitive. An unknown value stops the server. |
 
 The `dummy` provider deploys nothing. It simulates labs with fake nodes, logs and statistics, which is useful for trying out the interface or running the end-to-end tests. Packet capture isn't available with it.
+
+#### deployment.mgmt
+
+Every running lab gets its own isolated management network, so the nodes of different labs can't get the same address or reach each other over the management network. The networks are taken from these ranges, which must not overlap with any other network on the host, including other Docker networks. An invalid value stops the server.
+
+These settings are only used by the `containerlab` provider, which creates the networks as Docker networks.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `ipv4` | `10.200.0.0/16` | IPv4 range the lab networks are taken from. |
+| `ipv4Prefix` | `24` | Prefix length of the IPv4 network every running lab gets, between the size of `ipv4` and `/30`. It limits how many labs can run at the same time and how many nodes each can have: a `/24` in a `/16` allows 256 running labs with 253 nodes each. |
+| `ipv6` | `fd00:200::/48` | IPv6 range the lab networks are taken from. It must hold at least as many lab networks as `ipv4`. |
+| `ipv6Prefix` | `64` | Prefix length of the IPv6 network every running lab gets. |
 
 ### auth
 
@@ -158,7 +176,7 @@ Settings of the [SSH server](/docs/manual/ssh-server/) for node shells and packe
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `enabled` | `true` | Whether the interface shows capture commands. Capturing over SSH itself is always possible while the SSH server runs. |
+| `enabled` | `true` | Whether packet capture over the [SSH server](/docs/manual/ssh-server/#capturing-traffic) is allowed. With `false`, the SSH server rejects capture commands and the lab view's right-click menu leaves out the capture entries. Shells keep working. |
 | `excludedInterfaces` | `["lo", "gway-*", "monit_in", "mgmt0*", "c9s*"]` | Glob patterns of interfaces hidden from node interface lists and statistics. This doesn't prevent capturing them by name. |
 
 ### streaming
@@ -228,7 +246,7 @@ Settings per containerlab node kind. The keys are kind names, such as `nokia_srl
 | --- | --- | --- |
 | `sshUsername` | `admin` | Username Antimony uses to log in to the node when you open a terminal. |
 | `sshPassword` | none | Password for that login. Without one, Antimony tries the SSH keys in the server's `~/.ssh` directory. |
-| `canRestart` | `false` | Whether nodes of this kind can be stopped, started and restarted from the interface. Many network operating systems don't survive a container restart, so this is off by default. |
+| `sshNamespace` | none | Network namespace inside the node that its SSH server runs in. Antimony waits for that SSH server before it reports the node as ready. Only needed for images that don't run SSH in the container's own namespace, such as Cisco XRd. |
 
 ```yaml title="kinds.conf.yml"
 nokia_srlinux:
@@ -238,9 +256,6 @@ nokia_srlinux:
 cisco_csr1000v:
   sshUsername: admin
   sshPassword: admin
-
-linux:
-  canRestart: true
 ```
 
 If the SSH login fails, for example on a container without an SSH daemon, the terminal falls back to a shell inside the container.

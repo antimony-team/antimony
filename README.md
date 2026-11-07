@@ -11,8 +11,8 @@
 
 Design, deploy and operate [containerlab](https://containerlab.dev) networks from your browser.
 
-[![Server CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-server/ci.yml?branch=development&label=server)](https://github.com/antimony-team/antimony-server/actions/workflows/ci.yml)
-[![Interface CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony-interface/ci.yml?branch=development&label=interface)](https://github.com/antimony-team/antimony-interface/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony/ci.yml?branch=development&label=CI)](https://github.com/antimony-team/antimony/actions/workflows/ci.yml)
+[![E2E](https://img.shields.io/github/actions/workflow/status/antimony-team/antimony/e2e.yml?branch=development&label=e2e)](https://github.com/antimony-team/antimony/actions/workflows/e2e.yml)
 [![Release](https://img.shields.io/github/v/release/antimony-team/antimony?include_prereleases&label=release&color=3fcfad)](https://github.com/antimony-team/antimony/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Powered by containerlab](https://img.shields.io/badge/powered%20by-containerlab-3fcfad)](https://containerlab.dev)
@@ -63,19 +63,31 @@ More in the [Antimony Desktop guide](https://antimony.run/docs/deployment/deskto
 * **Made for classrooms**: collections with per-group access, sign-in through your OpenID provider, and a topology policy that keeps users' labs from reaching the server.
 * **Scales out**: run labs on one Docker host, or on Kubernetes with [clabernetes](https://containerlab.dev/manual/clabernetes/).
 
+## 🤝 Antimony or the Containerlab apps?
+
+containerlab has its own [apps for VS Code, desktop and web](https://github.com/srl-labs/containerlab-app). Both draw topologies, deploy labs and open terminals, but they're different kinds of software:
+
+* **The Containerlab apps are a graphical front end for containerlab.** They run containerlab on your machine or on a lab host and show what it does. Your topologies are files in your workspace, your login is a Linux account on the lab host.
+* **Antimony is a multi-user platform.** It has its own server, database, users and permissions. People sign in through your OpenID provider, their groups decide which collections of topologies they see and deploy from, a topology can be deployed as many scheduled labs at once, and a topology policy keeps users' labs away from the server.
+
+For your own labs, the Containerlab apps are a good fit. For labs that many people work with on shared infrastructure, such as a class, a training or a team, use Antimony. Both use containerlab's annotations file for the layout, so a lab built in VS Code deploys in Antimony as is. [Antimony and the Containerlab apps](https://antimony.run/docs/getting-started/why-antimony/) compares them in detail.
+
 ## 📚 Documentation
 
 Everything else is on [antimony.run](https://antimony.run/docs/): the [concepts](https://antimony.run/docs/getting-started/concepts/), the [user manual](https://antimony.run/docs/manual/dashboard/), the [configuration](https://antimony.run/docs/deployment/configuration/) and the [REST and Socket.IO APIs](https://antimony.run/docs/api/rest/).
 
-## 🧩 Repositories
+## 🧩 Repository structure
 
-| Repository | Contents |
-| --- | --- |
-| [antimony](https://github.com/antimony-team/antimony) | Deployment files, releases and the website with the documentation |
-| [antimony-server](https://github.com/antimony-team/antimony-server) | The Antimony server, written in Go |
-| [antimony-interface](https://github.com/antimony-team/antimony-interface) | The web interface and Antimony Desktop, written in React and Electron |
+```
+antimony/
+├── server/       The Antimony server, written in Go
+├── interface/    The web interface and Antimony Desktop, written in React and Electron
+├── site/         The website with the documentation
+├── .github/      CI, end-to-end tests and releases
+└── docker-compose.yml, config.yml, …   The deployment files that come with every release
+```
 
-Found a bug or have an idea? Open an issue in the repository it belongs to. To work on Antimony, start with the [development setup](https://antimony.run/docs/development/setup/).
+Found a bug or have an idea? [Open an issue](https://github.com/antimony-team/antimony/issues). To work on Antimony, start with the [development setup](https://antimony.run/docs/development/setup/).
 
 ## 📄 License
 

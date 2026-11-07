@@ -1,0 +1,145 @@
+import React, {forwardRef} from 'react';
+
+import classNames from 'classnames';
+import {observer} from 'mobx-react-lite';
+
+import {Badge} from 'primereact/badge';
+import {Button} from 'primereact/button';
+import {Chip} from 'primereact/chip';
+import {ListBox} from 'primereact/listbox';
+import {OverlayPanel} from 'primereact/overlaypanel';
+
+import {useStatusMessages} from '@sb/lib/stores/root-store';
+import {useReturnFocus} from '@sb/lib/utils/hooks';
+import {formatDate, formatTime} from '@sb/lib/utils/utils';
+import {If} from '@sb/types/control';
+import {
+  Severity,
+  SeverityIconMap,
+  SeverityMapping,
+  StatusMessage,
+} from '@sb/types/domain/status-message';
+
+import './status-message-panel.sass';
+
+const StatusMessagePanel = observer(
+  forwardRef<OverlayPanel>((_, overlayRef) => {
+    const statusMessageStore = useStatusMessages();
+    const returnFocus = useReturnFocus();
+
+    const messageTemplate = (message: StatusMessage) => {
+      return (
+        <div
+          className="sb-dock-status-messages-item-container"
+          onMouseEnter={() => {
+            statusMessageStore.maskAsRead(message.id);
+          }}
+        >
+          <div
+            className={classNames(
+              'sb-dock-status-messages-item',
+              SeverityMapping[message.severity],
+            )}
+          >
+            <i
+              className={SeverityIconMap[message.severity]}
+              role="img"
+              aria-label={Severity[message.severity]}
+            ></i>
+            <div className="sb-dock-status-messages-date">
+              <span>{formatTime(message.timestamp, true)}</span>
+              <span>{formatDate(message.timestamp)}</span>
+            </div>
+            <If condition={!message.isRead}>
+              <Badge severity="danger" role="img" aria-label="Unread"></Badge>
+            </If>
+            <div className="sb-dock-status-messages-text">
+              <div className="sb-dock-status-messages-summary">
+                {message.content}
+              </div>
+              <div className="sb-dock-status-messages-detail">
+                {message.source}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // const filteredStatusMessages = useMemo(() => {
+    //   if (severityFilter.size < 1) return statusMessageStore.data.toReversed();
+    //
+    //   return statusMessageStore.data
+    //     .filter(msg => severityFilter.has(msg.severity))
+    //     .toReversed();
+    // }, [statusMessageStore.data, severityFilter]);
+
+    const FilterChip = observer(({severity}: {severity: Severity}) => {
+      const label = statusMessageStore.countBySeverity.has(severity)
+        ? String(statusMessageStore.countBySeverity.get(severity))
+        : '0';
+
+      return (
+        <Chip
+          label={label}
+          icon={SeverityIconMap[severity]}
+          className={classNames(SeverityMapping[severity], {
+            selected: statusMessageStore.severityFilter.has(severity),
+          })}
+          role="button"
+          tabIndex={0}
+          aria-label={`${Severity[severity]} (${label})`}
+          aria-pressed={statusMessageStore.severityFilter.has(severity)}
+          onClick={() => statusMessageStore.toggleSeverity(severity)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              statusMessageStore.toggleSeverity(severity);
+            }
+          }}
+        />
+      );
+    });
+
+    return (
+      <OverlayPanel
+        ref={overlayRef}
+        className="sb-dock-status-messages"
+        onShow={returnFocus.onShow}
+        onHide={() =>
+          returnFocus.onHide(
+            typeof overlayRef === 'object'
+              ? overlayRef?.current?.getElement()
+              : undefined,
+          )
+        }
+      >
+        <div className="sb-dock-status-messages-header">
+          <div className="sb-dock-status-messages-left">
+            <span>Filter by</span>
+            <FilterChip severity={Severity.Error} />
+            <FilterChip severity={Severity.Warning} />
+            <FilterChip severity={Severity.Success} />
+            <FilterChip severity={Severity.Info} />
+          </div>
+          <Button
+            text
+            rounded
+            icon="pi pi-eye"
+            tooltip="Mark all as read"
+            onClick={() => statusMessageStore.markAllAsRead()}
+            aria-label="Mark all as read"
+          />
+        </div>
+        <ListBox
+          options={statusMessageStore.filteredMessages}
+          optionLabel="name"
+          itemTemplate={messageTemplate}
+          emptyMessage="No status messages"
+        />
+      </OverlayPanel>
+    );
+  }),
+);
+
+export default StatusMessagePanel;

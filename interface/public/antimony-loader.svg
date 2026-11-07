@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 26 156 246" width="156" height="246" color="#3fcfad" role="img" aria-label="Loading">
+  <style>
+    .mark{animation:fade 2.0s ease-in-out infinite}
+    @keyframes fade{0%,84%{opacity:1}100%{opacity:0}}
+    .e{fill:none;stroke:currentColor;stroke-width:7;stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:1;stroke-dashoffset:1;animation-duration:2.0s;
+    animation-timing-function:cubic-bezier(.45,0,.2,1);animation-iteration-count:infinite}
+    .n{fill:none;stroke:currentColor;stroke-width:7;
+    animation-duration:2.0s;animation-timing-function:cubic-bezier(.34,1.4,.64,1);
+    animation-iteration-count:infinite;transform:scale(0)}
+    .n.h{stroke:none;fill:#000}
+    #e_up{animation-name:e_up}@keyframes e_up{0%{stroke-dashoffset:1}30%,100%{stroke-dashoffset:0}}
+    #e_bar{animation-name:e_bar}@keyframes e_bar{0%,15%{stroke-dashoffset:1}25%,100%{stroke-dashoffset:0}}
+    #e_lo{animation-name:e_lo}@keyframes e_lo{0%,27%{stroke-dashoffset:1}57%,100%{stroke-dashoffset:0}}
+    .n_top{animation-name:n_top}@keyframes n_top{0%,0%{transform:scale(0)}7%{transform:scale(1.12)}11%,100%{transform:scale(1)}}
+    .n_ur{animation-name:n_ur}@keyframes n_ur{0%,7%{transform:scale(0)}14%{transform:scale(1.12)}18%,100%{transform:scale(1)}}
+    .n_ul{animation-name:n_ul}@keyframes n_ul{0%,22%{transform:scale(0)}29%{transform:scale(1.12)}33%,100%{transform:scale(1)}}
+    .n_lr{animation-name:n_lr}@keyframes n_lr{0%,34%{transform:scale(0)}41%{transform:scale(1.12)}45%,100%{transform:scale(1)}}
+    .n_bot{animation-name:n_bot}@keyframes n_bot{0%,41%{transform:scale(0)}48%{transform:scale(1.12)}52%,100%{transform:scale(1)}}
+    .n_ll{animation-name:n_ll}@keyframes n_ll{0%,49%{transform:scale(0)}56%{transform:scale(1.12)}60%,100%{transform:scale(1)}}
+    .s_l{animation-name:s_l}@keyframes s_l{0%,15%{transform:scale(0)}22%{transform:scale(1.12)}26%,100%{transform:scale(1)}}
+    .s_r{animation-name:s_r}@keyframes s_r{0%,25%{transform:scale(0)}32%{transform:scale(1.12)}36%,100%{transform:scale(1)}}
+    @media (prefers-reduced-motion:reduce){
+    .mark,.e,.n{animation:none}
+    .e{stroke-dashoffset:0}
+    .n{transform:none}
+    }
+  </style>
+  <defs>
+    <!-- each node punches a hole in the lines that scales with its ring, so lines always sit behind the rings -->
+    <mask id="behind" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="300">
+      <rect x="0" y="0" width="200" height="300" fill="#fff"/>
+        <g transform="translate(89.09 55.73)"><circle class="n n_top h" r="19.54"/></g>
+        <g transform="translate(136.24 100.24)"><circle class="n n_ur h" r="19.54"/></g>
+        <g transform="translate(39.97 100.24)"><circle class="n n_ul h" r="19.54"/></g>
+        <g transform="translate(136.24 197.49)"><circle class="n n_lr h" r="19.54"/></g>
+        <g transform="translate(89.09 242.99)"><circle class="n n_bot h" r="19.54"/></g>
+        <g transform="translate(39.97 197.49)"><circle class="n n_ll h" r="19.54"/></g>
+        <g transform="translate(43.385 148.645)"><rect class="n s_l h" x="-11.925" y="-11.925" width="23.85" height="23.85" rx="4.15"/></g>
+        <g transform="translate(134.065 148.645)"><rect class="n s_r h" x="-11.925" y="-11.925" width="23.85" height="23.85" rx="4.15"/></g>
+    </mask>
+  </defs>
+  <g class="mark">
+    <g mask="url(#behind)">
+      <path id="e_up" class="e" pathLength="1" d="M89.09 55.73 136.24 100.24 88.73 148.645 39.97 100.24Z"/>
+      <path id="e_bar" class="e" pathLength="1" d="M43.385 148.645H134.065"/>
+      <path id="e_lo" class="e" pathLength="1" d="M88.73 148.645 136.24 197.49 89.09 242.99 39.97 197.49Z"/>
+    </g>
+    <g transform="translate(43.385 148.645)"><rect class="n s_l" x="-11.925" y="-11.925" width="23.85" height="23.85" rx="4.15"/></g>
+    <g transform="translate(134.065 148.645)"><rect class="n s_r" x="-11.925" y="-11.925" width="23.85" height="23.85" rx="4.15"/></g>
+    <g transform="translate(89.09 55.73)"><circle class="n n_top" r="19.54"/></g>
+    <g transform="translate(136.24 100.24)"><circle class="n n_ur" r="19.54"/></g>
+    <g transform="translate(39.97 100.24)"><circle class="n n_ul" r="19.54"/></g>
+    <g transform="translate(136.24 197.49)"><circle class="n n_lr" r="19.54"/></g>
+    <g transform="translate(89.09 242.99)"><circle class="n n_bot" r="19.54"/></g>
+    <g transform="translate(39.97 197.49)"><circle class="n n_ll" r="19.54"/></g>
+  </g>
+</svg>

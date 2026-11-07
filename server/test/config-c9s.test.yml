@@ -1,0 +1,20 @@
+# This file is used for testing Antimony locally in native mode with clabernetes as provider.
+# Only settings that differ from the defaults in ../config.default.yml are listed.
+server:
+  port: 3100
+deployment:
+  provider: clabernetes
+auth:
+  methods:
+    - admin
+    - openid
+  openIdIssuer: "http://localhost:4022/realms/antimony"
+  openIdClientId: 5c5fefc302e06bc577a0a61922a3eae620445436f6b02628ba5cdccf1f0e78bc
+  openIdRedirectHost: "http://localhost:3100"
+  openIdAdminGroups:
+    - antimony-admin
+database:
+  localFile: ./db/antimony.db
+ssh:
+  sshHost: 127.0.0.1
+  sshPort: 6767

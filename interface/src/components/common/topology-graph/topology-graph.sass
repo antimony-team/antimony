@@ -1,0 +1,27 @@
+.sb-topology-graph
+  position: absolute
+  inset: 0
+
+  // The layers are regular elements, unlike the canvas they aren't cut off at the edge on their own
+  overflow: hidden
+  background-image: radial-gradient(circle, rgba(150, 150, 170, 0.4) var(--grid-dot-radius, 1.2px), transparent calc(var(--grid-dot-radius, 1.2px) + 0.5px))
+
+  .cytoscape-container
+    position: absolute
+    width: 100%
+    height: 100%
+    z-index: 0
+
+  .sb-topology-graph-layer
+    position: absolute
+    left: 0
+    top: 0
+    width: 0
+    height: 0
+    transform-origin: 0 0
+    z-index: 0
+
+  // Only the interactive parts of the overlay take pointer events, the rest go to the graph
+  .sb-topology-graph-overlay
+    pointer-events: none
+    z-index: 1

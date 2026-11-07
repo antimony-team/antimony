@@ -1,0 +1,38 @@
+.sb-input
+  &:placeholder-shown
+    font-weight: 200
+    font-style: italic
+
+  &.sb-input-hidden
+    padding: 8px 12px
+
+  &.sb-input-disabled
+    background-color: transparent
+    border: 1px solid transparent
+    cursor: pointer
+
+  &.sb-input-error, &.p-invalid
+    border: 1px solid var(--danger-color-text)
+
+.sb-input-label
+  font-size: 15px
+  font-weight: 500
+  color: var(--text-muted)
+
+.sb-input-prefixed
+  display: flex
+  align-items: center
+  gap: 2px
+
+  .sb-input
+    flex: 1 1 0
+    min-width: 0
+
+.sb-input-prefix
+  flex: 0 1 auto
+  min-width: 0
+  max-width: 50%
+  overflow: hidden
+  white-space: nowrap
+  text-overflow: ellipsis
+  color: var(--text-muted)

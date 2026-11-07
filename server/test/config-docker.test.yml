@@ -1,0 +1,12 @@
+# This file is used for testing Antimony locally in a Docker container.
+# Only settings that differ from the defaults in ../config.default.yml are listed.
+server:
+  port: 3100
+auth:
+  methods:
+    - admin
+database:
+  localFile: ./db/antimony.db
+ssh:
+  sshHost: 127.0.0.1
+  sshPort: 6767

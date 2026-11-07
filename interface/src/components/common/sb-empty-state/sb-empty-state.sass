@@ -1,0 +1,45 @@
+.sb-empty-state
+  align-self: stretch
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 14px
+  padding-top: 72px
+  text-align: center
+
+.sb-empty-state-icon
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 48px
+  height: 48px
+  border-radius: 12px
+  border: 1px solid var(--border)
+  background-color: var(--hover)
+  color: var(--text-muted)
+
+  i
+    font-size: 20px
+
+  &.accent
+    color: var(--accent)
+    background-color: color-mix(in oklab, var(--accent) 12%, transparent)
+
+.sb-empty-state-text
+  display: flex
+  flex-direction: column
+  gap: 8px
+  max-width: 400px
+  font-size: 14px
+  line-height: 20px
+  color: var(--text-muted)
+
+.sb-empty-state-title
+  font-size: 19px
+  font-weight: 500
+  color: var(--text)
+
+.sb-empty-state-actions
+  display: flex
+  gap: 8px
+  margin-top: 4px

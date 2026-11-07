@@ -1,0 +1,132 @@
+package utils
+
+import (
+	"errors"
+	"net/http"
+)
+
+type ErrorResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type OkResponse[T any] struct {
+	Payload T `json:"payload"`
+}
+
+func CreateOkResponse[T any](obj T) (int, OkResponse[T]) {
+	return http.StatusOK, OkResponse[T]{Payload: obj}
+}
+
+func CreateErrorResponse(err error) (int, ErrorResponse) {
+	switch {
+	case errors.Is(err, ErrUuidNotFound):
+		return http.StatusNotFound, ErrorResponse{Code: -1, Message: err.Error()}
+	case errors.Is(err, ErrInvalidCredentials):
+		return http.StatusBadRequest, ErrorResponse{Code: 1001, Message: err.Error()}
+	case errors.Is(err, ErrCollectionNameExists):
+		return http.StatusBadRequest, ErrorResponse{Code: 2001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidCollectionName):
+		return http.StatusBadRequest, ErrorResponse{Code: 2002, Message: err.Error()}
+	case errors.Is(err, ErrTopologyNameExists):
+		return http.StatusBadRequest, ErrorResponse{Code: 3001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidTopology):
+		return http.StatusBadRequest, ErrorResponse{Code: 3003, Message: err.Error()}
+	case errors.Is(err, ErrInvalidTopologyName):
+		return http.StatusBadRequest, ErrorResponse{Code: 3004, Message: err.Error()}
+	case errors.Is(err, ErrUnsafeTopology):
+		return http.StatusBadRequest, ErrorResponse{Code: 3005, Message: err.Error()}
+	case errors.Is(err, ErrBindFileExists):
+		return http.StatusBadRequest, ErrorResponse{Code: 4001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidBindFilePath):
+		return http.StatusBadRequest, ErrorResponse{Code: 4002, Message: err.Error()}
+	case errors.Is(err, ErrLabRunning):
+		return http.StatusBadRequest, ErrorResponse{Code: 4003, Message: err.Error()}
+	case errors.Is(err, ErrLabNameExists):
+		return http.StatusBadRequest, ErrorResponse{Code: 5001, Message: err.Error()}
+	case errors.Is(err, ErrInvalidLabName):
+		return http.StatusBadRequest, ErrorResponse{Code: 5002, Message: err.Error()}
+	case errors.Is(err, ErrInvalidLabTime):
+		return http.StatusBadRequest, ErrorResponse{Code: 5003, Message: err.Error()}
+	case errors.Is(err, ErrDatabaseError):
+		return http.StatusInternalServerError, ErrorResponse{Code: 500, Message: err.Error()}
+	// Permission / Access errors
+	case errors.Is(err, ErrUnauthorized),
+		errors.Is(err, ErrAdminAuthDisabledError),
+		errors.Is(err, ErrOpenIDAuthDisabledError),
+		errors.Is(err, ErrDesktopAuthDisabledError):
+		return http.StatusUnauthorized, ErrorResponse{Code: 401, Message: err.Error()}
+	case errors.Is(err, ErrAccessTokenInvalid):
+		return 498, ErrorResponse{Code: 498, Message: err.Error()}
+	case errors.Is(err, ErrForbidden),
+		errors.Is(err, ErrDesktopTokenInvalid),
+		errors.Is(err, ErrNoAccessToLab),
+		errors.Is(err, ErrNoAccessToTopology),
+		errors.Is(err, ErrNoWriteAccessToLab),
+		errors.Is(err, ErrNoWriteAccessToBindFile),
+		errors.Is(err, ErrNoWriteAccessToTopology),
+		errors.Is(err, ErrNoWriteAccessToCollection),
+		errors.Is(err, ErrNoDeployAccessToCollection),
+		errors.Is(err, ErrNoDeployAccessToLab),
+		errors.Is(err, ErrNoPermissionToCreateCollections):
+		return http.StatusForbidden, ErrorResponse{Code: 403, Message: err.Error()}
+	}
+
+	return http.StatusInternalServerError, ErrorResponse{Code: -1, Message: err.Error()}
+}
+
+func CreateValidationError(err error) (int, ErrorResponse) {
+	return http.StatusUnprocessableEntity, ErrorResponse{Code: 422, Message: err.Error()}
+}
+
+func CreateSocketErrorResponse(err error) ErrorResponse {
+	switch {
+	// Generic request errors
+	case errors.Is(err, ErrAntimony):
+		return ErrorResponse{Code: 5000, Message: err.Error()}
+	case errors.Is(err, ErrInvalidRuntimeCommand):
+		return ErrorResponse{Code: 5400, Message: err.Error()}
+	case errors.Is(err, ErrInvalidSocketRequest):
+		return ErrorResponse{Code: 5422, Message: err.Error()}
+	case errors.Is(err, ErrUuidNotFound):
+		return ErrorResponse{Code: 5404, Message: err.Error()}
+	case errors.Is(err, ErrProvider):
+		return ErrorResponse{Code: 5500, Message: err.Error()}
+
+	// Lab errors
+	case errors.Is(err, ErrLabNotFound):
+		return ErrorResponse{Code: 5011, Message: err.Error()}
+	case errors.Is(err, ErrLabNotRunning):
+		return ErrorResponse{Code: 5012, Message: err.Error()}
+	case errors.Is(err, ErrLabOperationInProgress):
+		return ErrorResponse{Code: 5013, Message: err.Error()}
+
+	// Node errors
+	case errors.Is(err, ErrNodeNotFound):
+		return ErrorResponse{Code: 5021, Message: err.Error()}
+	case errors.Is(err, ErrNodeNotRunning):
+		return ErrorResponse{Code: 5022, Message: err.Error()}
+	case errors.Is(err, ErrInvalidNodeOperation):
+		return ErrorResponse{Code: 5023, Message: err.Error()}
+
+	// Shell errors
+	case errors.Is(err, ErrShellNotFound):
+		return ErrorResponse{Code: 5031, Message: err.Error()}
+	case errors.Is(err, ErrShellLimitReached):
+		return ErrorResponse{Code: 5032, Message: err.Error()}
+
+	// Permission / Access errors
+	case errors.Is(err, ErrNoDestroyAccessToLab),
+		errors.Is(err, ErrNoDeployAccessToLab),
+		errors.Is(err, ErrNoAccessToShell),
+		errors.Is(err, ErrNoAccessToLab),
+		errors.Is(err, ErrNoAccessToTopology):
+		return ErrorResponse{Code: 5403, Message: err.Error()}
+	}
+
+	return ErrorResponse{Code: 5000, Message: err.Error()}
+}
+
+func CreateSocketOkResponse[T any](obj T) OkResponse[T] {
+	return OkResponse[T]{Payload: obj}
+}

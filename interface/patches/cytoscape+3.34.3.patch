@@ -1,0 +1,50 @@
+diff --git a/node_modules/cytoscape/dist/cytoscape.cjs.js b/node_modules/cytoscape/dist/cytoscape.cjs.js
+index a414944..34b6eea 100644
+--- a/node_modules/cytoscape/dist/cytoscape.cjs.js
++++ b/node_modules/cytoscape/dist/cytoscape.cjs.js
+@@ -26598,10 +26598,6 @@ BRp$3.load = function () {
+         clamp = true;
+         // console.log('Clamping initial wheel events until we get a good sample');
+       }
+-    } else if (inaccurateScrollDevice) {
+-      // keep updating
+-      inaccurateScrollFactor = Math.min(Math.abs(delta), inaccurateScrollFactor);
+-      // console.log('Keep updating inaccurateScrollFactor beyond sample in case we did not get the smallest possible val:', inaccurateScrollFactor);
+     }
+     if (r.scrollingPage) {
+       return;
+@@ -26631,7 +26627,8 @@ BRp$3.load = function () {
+         delta = signum(delta) * 5;
+       }
+       diff = delta / -250;
+-      if (inaccurateScrollDevice) {
++      // Only deltas that are multiples of the factor come from the wheel, the rest e.g. from a trackpad
++      if (inaccurateScrollDevice && Number.isInteger(delta / inaccurateScrollFactor)) {
+         diff /= inaccurateScrollFactor;
+         diff *= 3;
+       }
+diff --git a/node_modules/cytoscape/dist/cytoscape.esm.mjs b/node_modules/cytoscape/dist/cytoscape.esm.mjs
+index c3af47e..34904e9 100644
+--- a/node_modules/cytoscape/dist/cytoscape.esm.mjs
++++ b/node_modules/cytoscape/dist/cytoscape.esm.mjs
+@@ -26596,10 +26596,6 @@ BRp$3.load = function () {
+         clamp = true;
+         // console.log('Clamping initial wheel events until we get a good sample');
+       }
+-    } else if (inaccurateScrollDevice) {
+-      // keep updating
+-      inaccurateScrollFactor = Math.min(Math.abs(delta), inaccurateScrollFactor);
+-      // console.log('Keep updating inaccurateScrollFactor beyond sample in case we did not get the smallest possible val:', inaccurateScrollFactor);
+     }
+     if (r.scrollingPage) {
+       return;
+@@ -26629,7 +26625,8 @@ BRp$3.load = function () {
+         delta = signum(delta) * 5;
+       }
+       diff = delta / -250;
+-      if (inaccurateScrollDevice) {
++      // Only deltas that are multiples of the factor come from the wheel, the rest e.g. from a trackpad
++      if (inaccurateScrollDevice && Number.isInteger(delta / inaccurateScrollFactor)) {
+         diff /= inaccurateScrollFactor;
+         diff *= 3;
+       }

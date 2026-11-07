@@ -1,0 +1,389 @@
+import React, {
+  cloneElement,
+  isValidElement,
+  ReactElement,
+  ReactNode,
+} from 'react';
+
+import {MenuItem} from 'primereact/menuitem';
+
+import {DrawKind} from '@sb/lib/graph/annotation-geometry';
+import {GraphAction, keybindLabel} from '@sb/lib/graph/graph-keybinds';
+import {FreeShapeAnnotation} from '@sb/types/domain/topology';
+
+const SEPARATOR: MenuItem = {separator: true};
+
+/**
+ * Shows the keybind of the action at the end of the menu item.
+ */
+function withKeybind(item: MenuItem, action: GraphAction): MenuItem {
+  return {
+    ...item,
+    template: (_, options) =>
+      withLinkChild(
+        options.element as ReactElement<{children?: ReactNode}>,
+        <span key="keybind" className="sb-menuitem-keybind">
+          {keybindLabel(action)}
+        </span>,
+      ),
+  };
+}
+
+// The context menu passes the link of the item, the menu the content around the link
+function withLinkChild(
+  element: ReactElement<{children?: ReactNode}>,
+  child: ReactNode,
+): ReactElement {
+  const children = React.Children.toArray(element.props.children);
+
+  if (element.type !== 'a') {
+    return cloneElement(
+      element,
+      undefined,
+      ...children.map(other =>
+        isValidElement<{children?: ReactNode}>(other) && other.type === 'a'
+          ? withLinkChild(other, child)
+          : other,
+      ),
+    );
+  }
+
+  return cloneElement(element, undefined, ...children, child);
+}
+
+function icon(name: string) {
+  return <span className="material-symbols-outlined">{name}</span>;
+}
+
+interface ClipboardOptions {
+  onCopy: () => void;
+  onCut: () => void;
+  onDuplicate: () => void;
+}
+
+// Copy, cut and duplicate, after the first items of a menu
+function clipboardItems(options: ClipboardOptions): MenuItem[] {
+  return [
+    SEPARATOR,
+    withKeybind(
+      {label: 'Copy', icon: icon('content_copy'), command: options.onCopy},
+      GraphAction.Copy,
+    ),
+    withKeybind(
+      {label: 'Cut', icon: icon('content_cut'), command: options.onCut},
+      GraphAction.Cut,
+    ),
+    withKeybind(
+      {
+        label: 'Duplicate',
+        icon: icon('library_add'),
+        command: options.onDuplicate,
+      },
+      GraphAction.Duplicate,
+    ),
+  ];
+}
+
+interface NodeMenuOptions extends ClipboardOptions {
+  onRename: () => void;
+  onEdit: () => void;
+  onConnect: () => void;
+  onDelete: () => void;
+}
+
+export function nodeMenu(options: NodeMenuOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {label: 'Rename…', icon: icon('edit'), command: options.onRename},
+      GraphAction.Rename,
+    ),
+    {label: 'Edit node…', icon: icon('edit_square'), command: options.onEdit},
+    {
+      label: 'Connect',
+      icon: 'pi pi-arrow-right-arrow-left',
+      command: options.onConnect,
+    },
+    ...clipboardItems(options),
+    SEPARATOR,
+    withKeybind(
+      {
+        label: 'Delete',
+        icon: 'pi pi-trash',
+        className: 'sb-menuitem-danger',
+        command: options.onDelete,
+      },
+      GraphAction.Delete,
+    ),
+  ];
+}
+
+interface LinkMenuOptions {
+  // The endpoints of the link, e.g. srl1:e1-1
+  endpoints: [string, string];
+
+  onRenameInterface: (endpointIndex: number) => void;
+  onDelete: () => void;
+}
+
+export function linkMenu(options: LinkMenuOptions): MenuItem[] {
+  return [
+    ...options.endpoints.map((endpoint, index) => ({
+      label: `Rename ${endpoint}`,
+      icon: icon('edit'),
+      command: () => options.onRenameInterface(index),
+    })),
+    SEPARATOR,
+    withKeybind(
+      {
+        label: 'Delete link',
+        icon: 'pi pi-trash',
+        className: 'sb-menuitem-danger',
+        command: options.onDelete,
+      },
+      GraphAction.Delete,
+    ),
+  ];
+}
+
+export interface ArrangeOptions {
+  onBringToFront: () => void;
+  onBringForward: () => void;
+  onBringBackward: () => void;
+  onSendToBack: () => void;
+}
+
+// Changes the order of groups and shapes, texts are always drawn above them
+export function arrangeItems(options: ArrangeOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {
+        label: 'Bring forward',
+        icon: icon('arrow_upward'),
+        command: options.onBringForward,
+      },
+      GraphAction.BringForward,
+    ),
+    withKeybind(
+      {
+        label: 'Bring backward',
+        icon: icon('arrow_downward'),
+        command: options.onBringBackward,
+      },
+      GraphAction.BringBackward,
+    ),
+    withKeybind(
+      {
+        label: 'Bring to front',
+        icon: icon('flip_to_front'),
+        command: options.onBringToFront,
+      },
+      GraphAction.BringToFront,
+    ),
+    withKeybind(
+      {
+        label: 'Send to back',
+        icon: icon('flip_to_back'),
+        command: options.onSendToBack,
+      },
+      GraphAction.SendToBack,
+    ),
+  ];
+}
+
+interface SelectionMenuOptions extends ClipboardOptions, ArrangeOptions {
+  count: number;
+  canGroup: boolean;
+  canReorder: boolean;
+
+  onGroup: () => void;
+  onDelete: () => void;
+}
+
+export function selectionMenu(options: SelectionMenuOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {
+        label: 'Group',
+        icon: icon('select'),
+        disabled: !options.canGroup,
+        command: options.onGroup,
+      },
+      GraphAction.Group,
+    ),
+    ...clipboardItems(options),
+    ...(options.canReorder ? [SEPARATOR, ...arrangeItems(options)] : []),
+    SEPARATOR,
+    withKeybind(
+      {
+        label: `Delete ${options.count} items`,
+        icon: 'pi pi-trash',
+        className: 'sb-menuitem-danger',
+        command: options.onDelete,
+      },
+      GraphAction.Delete,
+    ),
+  ];
+}
+
+interface GroupMenuOptions extends ClipboardOptions, ArrangeOptions {
+  onRename: () => void;
+  onSelectMembers: () => void;
+  onUngroup: () => void;
+  onDelete: () => void;
+}
+
+export function groupMenu(options: GroupMenuOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {label: 'Rename…', icon: icon('edit'), command: options.onRename},
+      GraphAction.Rename,
+    ),
+    {
+      label: 'Select group',
+      icon: icon('select_all'),
+      command: options.onSelectMembers,
+    },
+    ...clipboardItems(options),
+    SEPARATOR,
+    ...arrangeItems(options),
+    SEPARATOR,
+    withKeybind(
+      {label: 'Ungroup', icon: icon('ungroup'), command: options.onUngroup},
+      GraphAction.Ungroup,
+    ),
+    {
+      label: 'Delete group and nodes',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: options.onDelete,
+    },
+  ];
+}
+
+interface ShapeMenuOptions extends DeleteOptions, ArrangeOptions {
+  shapeType: FreeShapeAnnotation['shapeType'];
+
+  // Changes a rectangle to an ellipse and back, or reverses a line
+  onChangeShape: () => void;
+}
+
+export function shapeMenu(options: ShapeMenuOptions): MenuItem[] {
+  const changeItem: MenuItem =
+    options.shapeType === 'line'
+      ? {label: 'Reverse direction', icon: icon('swap_horiz')}
+      : options.shapeType === 'rectangle'
+        ? {label: 'Change to ellipse', icon: icon('circle')}
+        : {label: 'Change to rectangle', icon: icon('rectangle')};
+
+  return [
+    {...changeItem, command: options.onChangeShape},
+    ...clipboardItems(options),
+    SEPARATOR,
+    ...arrangeItems(options),
+    SEPARATOR,
+    deleteItem(options),
+  ];
+}
+
+interface DeleteOptions extends ClipboardOptions {
+  onDelete: () => void;
+}
+
+function deleteItem(options: DeleteOptions): MenuItem {
+  return withKeybind(
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: options.onDelete,
+    },
+    GraphAction.Delete,
+  );
+}
+
+interface TextMenuOptions extends DeleteOptions {
+  onEdit: () => void;
+}
+
+// Texts are drawn above the graph, so they can't be reordered with shapes and groups
+export function textMenu(options: TextMenuOptions): MenuItem[] {
+  return [
+    withKeybind(
+      {label: 'Edit text', icon: icon('edit'), command: options.onEdit},
+      GraphAction.EditText,
+    ),
+    ...clipboardItems(options),
+    SEPARATOR,
+    deleteItem(options),
+  ];
+}
+
+interface GraphMenuOptions {
+  canPaste: boolean;
+
+  onAddNode: () => void;
+  onAddAnnotation: (kind: DrawKind) => void;
+  onPaste: () => void;
+  onSelectAll: () => void;
+  onFit: () => void;
+  onClear: () => void;
+}
+
+export function graphMenu(options: GraphMenuOptions): MenuItem[] {
+  return [
+    {label: 'Add node here', icon: 'pi pi-plus', command: options.onAddNode},
+    SEPARATOR,
+    {
+      label: 'Add rectangle',
+      icon: icon('rectangle'),
+      command: () => options.onAddAnnotation('rectangle'),
+    },
+    {
+      label: 'Add ellipse',
+      icon: icon('circle'),
+      command: () => options.onAddAnnotation('circle'),
+    },
+    {
+      label: 'Add line',
+      icon: icon('north_east'),
+      command: () => options.onAddAnnotation('line'),
+    },
+    {
+      label: 'Add text',
+      icon: icon('text_fields'),
+      command: () => options.onAddAnnotation('text'),
+    },
+    {
+      label: 'Add group',
+      icon: icon('select'),
+      command: () => options.onAddAnnotation('group'),
+    },
+    SEPARATOR,
+    withKeybind(
+      {
+        label: 'Paste',
+        icon: icon('content_paste'),
+        disabled: !options.canPaste,
+        command: options.onPaste,
+      },
+      GraphAction.Paste,
+    ),
+    SEPARATOR,
+    withKeybind(
+      {
+        label: 'Select all',
+        icon: icon('select_all'),
+        command: options.onSelectAll,
+      },
+      GraphAction.SelectAll,
+    ),
+    {label: 'Fit graph', icon: icon('fit_screen'), command: options.onFit},
+    SEPARATOR,
+    {
+      label: 'Clear graph',
+      icon: 'pi pi-trash',
+      className: 'sb-menuitem-danger',
+      command: options.onClear,
+    },
+  ];
+}

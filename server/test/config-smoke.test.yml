@@ -1,0 +1,14 @@
+# This file is used by the CI startup smoke test; it needs no containerlab, database server or network access.
+# Only settings that differ from the defaults in ../config.default.yml are listed.
+server:
+  port: 3999
+deployment:
+  provider: dummy
+database:
+  localFile: ./db/antimony.db
+ssh:
+  enabled: no
+capture:
+  enabled: no
+containerlab:
+  schemaUrl: ""

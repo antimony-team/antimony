@@ -1,0 +1,39 @@
+---
+title: Antimony and the Containerlab apps
+description: How Antimony, a multi-user lab platform, differs from the Containerlab apps for VS Code, desktop and web.
+sidebar:
+  label: Why Antimony?
+---
+
+import FeatureComparison from '../../../../components/FeatureComparison.astro';
+
+containerlab has its own graphical tools: the [Containerlab apps](https://github.com/srl-labs/containerlab-app), a VS Code extension, a desktop app and a web app that share one topology editor. They look similar to Antimony at first glance, since both draw topologies, deploy labs and open terminals. Underneath, they're different kinds of software.
+
+## In short
+
+- **The Containerlab apps are a graphical front end for containerlab.** They run containerlab on your machine, or through `clab-api-server` on a lab host, and show what it does. Your topologies are files in your workspace, and your login is a Linux account on the lab host.
+- **Antimony is a multi-user platform.** It has its own server and database, its own users and permissions, and its own model of topologies, labs and schedules. containerlab is the engine it deploys with, not the product.
+
+If you build and debug labs for yourself, the Containerlab apps are a good fit. If many people should work with labs on shared infrastructure, such as a class, a training or a team, with control over who sees and deploys what, you want a platform, and that's what Antimony is.
+
+## What a platform adds
+
+Everything below is part of Antimony itself, not something you assemble around it:
+
+- **Access control through your identity provider.** People sign in through your [OpenID Connect provider](/docs/deployment/authentication/), such as Microsoft Entra ID, Keycloak or authentik, and the groups you already have there decide which [collections](/docs/getting-started/concepts/) they see, and whether they may edit or deploy from them. Add a student to a class group and they get its labs the next time they sign in. No accounts to manage in Antimony or on the server.
+- **Topologies managed centrally.** Topologies live on the server, organised in collections, with their config and bind files. Instructors prepare them once, everyone with access uses the same version.
+- **Labs for many people at once.** A topology can be deployed as [many labs in one step](/docs/manual/deploying-labs/#creating-labs-for-a-whole-class), one per student, each with its own start and end time. Antimony deploys and destroys them on schedule.
+- **Untrusted users, safely.** A [topology policy](/docs/deployment/topology-policy/) blocks every topology feature that would let a lab reach the server, its secrets or another user's lab, so students can deploy labs without being trusted with the server.
+- **Access to nodes without host access.** Terminals open in the browser for the people allowed to use the lab, and an [SSH server](/docs/manual/ssh-server/) gives shells and packet capture from your own tools. Nobody needs an account on the machine that runs the labs.
+- **A server that keeps running.** Labs are recovered after a restart, their state is tracked live, and their recent logs are kept, whether or not anyone has the page open.
+- **An API for everything.** The [REST and Socket.IO APIs](/docs/api/rest/) do everything the interface does.
+
+## Feature comparison
+
+<FeatureComparison />
+
+## Where they overlap
+
+Both edit topologies in a graph and as YAML, deploy and destroy labs, start, stop and restart nodes, open terminals, stream logs and capture packets, and run labs on Docker or on Kubernetes with [clabernetes](https://containerlab.dev/manual/clabernetes/).
+
+They also share a file format. Antimony stores the layout in containerlab's annotations file, `<topology>.clab.yml.annotations.json`, the same one the Containerlab apps use, so a topology drawn in one opens with its layout in the other. You can build a lab in VS Code with the Containerlab extension, then upload it to a collection in Antimony and deploy it for everyone who needs it, without converting anything.
