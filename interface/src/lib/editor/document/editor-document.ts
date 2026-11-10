@@ -3,7 +3,8 @@ import {FileBuffer} from '@sb/lib/editor/file-buffer';
 import {GraphModel} from '@sb/lib/editor/graph-model';
 import {Result} from '@sb/types/result';
 
-export type EditorView = 'code' | 'split' | 'graph';
+// How a document is shown: its files as text, as a graph or both, or an overview without files
+export type EditorView = 'code' | 'split' | 'graph' | 'overview';
 
 /**
  * What the editor offers for a document. Computed from the stores, so it
@@ -97,8 +98,8 @@ export interface EditorDocument {
   // The ID of the topology or bind file
   readonly id: string;
 
-  // The topology itself, or the one a bind file belongs to
-  readonly topologyId: string;
+  // The topology itself, or the one a bind file belongs to; none for a collection
+  readonly topologyId: string | null;
 
   readonly title: string;
   readonly subtitle: string;
@@ -108,7 +109,7 @@ export interface EditorDocument {
 
   // The file picker is shown if there is more than one
   readonly files: readonly DocumentFile[];
-  readonly activeFile: DocumentFile;
+  readonly activeFile: DocumentFile | null;
   selectFile(fileId: string): void;
 
   // The graph of the document, null if it has none

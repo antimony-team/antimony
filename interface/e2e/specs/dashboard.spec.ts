@@ -1,5 +1,6 @@
 import {expect, test} from '../fixtures/test';
 import {DashboardPage} from '../pages/dashboard-page';
+import {Dock} from '../pages/dock';
 import {LabView} from '../pages/lab-view';
 
 /*
@@ -263,6 +264,30 @@ test('clicking a card opens the lab and Back returns', async ({
   await expect(page).toHaveTitle(`Antimony | ${lab.name}`);
 
   await labView.close();
+  await expect(labView.root).toBeHidden();
+  await expect(dashboard.card(lab.name)).toBeVisible();
+});
+
+test('an open lab stays open after switching to the editor and back', async ({
+  page,
+  createLab,
+}) => {
+  const lab = await createLab();
+  const dashboard = new DashboardPage(page);
+  const dock = new Dock(page);
+  await dashboard.goto();
+  await dashboard.openLab(lab.name);
+  const labView = new LabView(page);
+  await expect(labView.root).toBeVisible();
+
+  await dock.editor.click();
+  await expect(labView.root).toBeHidden();
+  await dock.dashboard.click();
+  await expect(labView.title).toContainText(lab.name);
+  await expect(page).toHaveURL(new RegExp(`l=${lab.id}`));
+
+  // On the dashboard, the button goes back to all labs
+  await dock.dashboard.click();
   await expect(labView.root).toBeHidden();
   await expect(dashboard.card(lab.name)).toBeVisible();
 });

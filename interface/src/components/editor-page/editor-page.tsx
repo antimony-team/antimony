@@ -37,6 +37,7 @@ import BindFileDirectoryEditDialog, {
 import CollectionEditDialog, {
   CollectionEditDialogState,
 } from './collection-edit-dialog/collection-edit-dialog';
+import CollectionOverview from './collection-overview/collection-overview';
 import EditorSetup from './editor-setup/editor-setup';
 import EditorStartPane from './editor-start-pane/editor-start-pane';
 import EditorTabs from './editor-tabs/editor-tabs';
@@ -142,10 +143,10 @@ const EditorPage = observer(() => {
     void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
   }
 
-  function onAddTopology() {
+  function onAddTopology(collectionId: string | null = null) {
     editTopologyState.openWith({
       topology: null,
-      collectionId: null,
+      collectionId,
       action: DialogAction.Add,
     });
   }
@@ -211,6 +212,23 @@ const EditorPage = observer(() => {
                 <Choose>
                   <When condition={missingId !== null || !tabStore.active}>
                     <EditorStartPane onAddTopology={onAddTopology} />
+                  </When>
+                  <When
+                    condition={tabStore.active?.capabilities.views.includes(
+                      'overview',
+                    )}
+                  >
+                    <CollectionOverview
+                      key={tabStore.active?.id}
+                      collectionId={tabStore.active?.id ?? ''}
+                      onEdit={collection =>
+                        editCollectionState.openWith({
+                          editingCollection: collection,
+                          action: DialogAction.Edit,
+                        })
+                      }
+                      onAddTopology={onAddTopology}
+                    />
                   </When>
                   <Otherwise>
                     <TopologyEditor

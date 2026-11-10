@@ -176,7 +176,18 @@ export class EditorTestBed {
   public readonly topologyStore = new FakeTopologyStore();
   public readonly deviceStore = new FakeDeviceStore();
   public readonly collectionStore = {
-    lookup: new Map([['collection-id', {name: 'collection'}]]),
+    lookup: observable.map([
+      [
+        'collection-id',
+        {
+          id: 'collection-id',
+          name: 'collection',
+          creator: {id: 'user-id', name: 'user'},
+          publicWrite: true,
+          publicDeploy: true,
+        },
+      ],
+    ]),
     canDeployIn: () => true,
   };
   public readonly schemaStore = {annotationsValidator: null};

@@ -1,6 +1,7 @@
 import {action, computed, observable, reaction} from 'mobx';
 
 import {BindFileDocument} from '@sb/lib/editor/document/bind-file-document';
+import {CollectionDocument} from '@sb/lib/editor/document/collection-document';
 import {EditorDocument} from '@sb/lib/editor/document/editor-document';
 import {TopologyDocument} from '@sb/lib/editor/document/topology-document';
 import {DraftStorage} from '@sb/lib/editor/draft-storage';
@@ -79,10 +80,19 @@ export class EditorTabStore {
   }
 
   /**
-   * The title, subtitle and icon of a topology or bind file, like its tab
-   * shows them, null if there is none with the ID.
+   * The title, subtitle and icon of a topology, bind file or collection, like
+   * its tab shows them, null if there is none with the ID.
    */
   public summary(id: string): FileSummary | null {
+    const collection = this.collectionStore.lookup.get(id);
+    if (collection) {
+      return {
+        title: collection.name,
+        subtitle: 'Collection',
+        icon: 'inventory_2',
+      };
+    }
+
     const topology = this.topologyStore.lookup.get(id);
     if (topology) {
       return {
@@ -258,10 +268,15 @@ export class EditorTabStore {
   }
 
   /**
-   * Creates the document of a topology or bind file, null if there is none with
-   * the ID. The only place that tells the kinds of files apart.
+   * Creates the document of a topology, bind file or collection, null if there
+   * is none with the ID. The only place that tells the kinds of files apart.
    */
   private createDocument(id: string): EditorDocument | null {
+    const collection = this.collectionStore.lookup.get(id);
+    if (collection) {
+      return new CollectionDocument(collection, this.collectionStore);
+    }
+
     const topology = this.topologyStore.lookup.get(id);
     if (topology) {
       return new TopologyDocument(
@@ -335,12 +350,13 @@ export class EditorTabStore {
   }
 
   /**
-   * Whether there is a topology or bind file with the ID. A bind file is only there while
-   * its topology lists it, the lookup of the bind files keeps deleted files
-   * until all topologies are loaded again.
+   * Whether there is a topology, bind file or collection with the ID. A bind
+   * file is only there while its topology lists it, the lookup of the bind
+   * files keeps deleted files until all topologies are loaded again.
    */
   public canOpen(id: string): boolean {
     if (this.topologyStore.lookup.has(id)) return true;
+    if (this.collectionStore.lookup.has(id)) return true;
 
     const bindFile = this.topologyStore.bindFileLookup.get(id);
     if (!bindFile) return false;

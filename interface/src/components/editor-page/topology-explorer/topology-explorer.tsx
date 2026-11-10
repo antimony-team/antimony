@@ -269,12 +269,14 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     const key = e.value as string;
     if (
       topologyStore.lookup.has(key) ||
-      topologyStore.bindFileLookup.has(key)
+      topologyStore.bindFileLookup.has(key) ||
+      collectionStore.lookup.has(key)
     ) {
-      // A single click previews the topology or bind file, a double click keeps it open
+      // A single click previews the topology, bind file or collection, a double click keeps it open.
+      // The chevron of a collection still expands it.
       props.onOpenFile(key, true);
     } else if (expandedNodes.has(key)) {
-      // Collections and bind file directories toggle on click
+      // Bind file directories toggle on click
       collapseNode(key);
     } else {
       expandNode(key);

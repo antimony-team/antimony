@@ -1,0 +1,238 @@
+// Laid out like the lab grid of the dashboard: its header, group headers and cards
+.sb-collection-overview
+  display: flex
+  flex-direction: column
+  flex-grow: 1
+  min-height: 0
+  overflow-y: auto
+
+  h1, h2
+    margin: 0
+    font: inherit
+
+.sb-collection-overview-header
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+  gap: 12px
+  padding: 16px 16px 8px
+
+  .p-button
+    flex-shrink: 0
+
+.sb-collection-overview-label
+  display: flex
+  align-items: center
+  flex-grow: 1
+  min-width: 0
+
+  .material-symbols-outlined
+    font-size: 22px
+    margin-right: 10px
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24
+
+  .sb-collection-overview-count
+    margin-left: 12px
+
+.sb-collection-overview-title
+  font-size: 20px !important
+  overflow-wrap: anywhere
+
+  &::after
+    display: inline-block
+    content: ""
+    width: 3px
+    height: 3px
+    border-radius: 50%
+    background: var(--text-muted)
+    margin: 0 8px
+    vertical-align: calc(0.35em - 2px)
+
+.sb-collection-overview-subtitle
+  color: var(--text-muted)
+  white-space: nowrap
+
+// Like the count of a group of labs
+.sb-collection-overview-count
+  display: inline-flex
+  align-items: center
+  height: 18px
+  padding: 0 7px
+  border-radius: 9px
+  font-size: 12px
+  font-weight: 400
+  color: var(--text-muted)
+  background-color: var(--hover)
+  font-variant-numeric: tabular-nums
+  white-space: nowrap
+
+// The topologies take the room left of the running labs, which go below on narrow screens
+.sb-collection-overview-body
+  display: grid
+  grid-template-columns: minmax(0, 1fr) 320px
+  align-items: start
+  gap: 24px
+  padding: 8px 16px 16px
+
+  @media (max-width: 1100px)
+    grid-template-columns: minmax(0, 1fr)
+
+  .sb-empty-state
+    padding-top: 32px
+
+// Like the header of a group of labs, without collapsing
+.sb-collection-overview-section-header
+  display: flex
+  align-items: center
+  gap: 10px
+  height: 32px
+  font-size: 15px
+  font-weight: 500
+
+  // The divider line ends the header, unless something follows it
+  &::after, .sb-collection-overview-line
+    content: ''
+    flex-grow: 1
+    height: 1px
+    margin-left: 6px
+    background-color: var(--border)
+
+  &:has(.sb-collection-overview-line)::after
+    display: none
+
+  .p-button
+    flex-shrink: 0
+    margin-right: -8px
+
+.sb-collection-overview-topologies
+  display: grid
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))
+  gap: 12px
+  margin: 0
+  padding: 10px 0 0
+  list-style: none
+
+// Like a lab card
+.sb-collection-overview-card
+  display: flex
+  flex-direction: column
+  width: 100%
+  padding: 0
+  overflow: hidden
+  border: 1px solid var(--border)
+  border-radius: 8px
+  background-color: var(--surface-inset)
+  color: var(--text)
+  font: inherit
+  text-align: left
+  cursor: pointer
+
+  &:hover
+    border-color: var(--border-strong)
+
+  &:focus-visible
+    outline: 2px solid var(--accent)
+    outline-offset: 1px
+
+.sb-collection-overview-card-content
+  display: flex
+  flex-direction: column
+  gap: 10px
+  padding: 14px
+
+.sb-collection-overview-card-header
+  display: flex
+  justify-content: space-between
+  gap: 8px
+
+.sb-collection-overview-card-name
+  min-width: 0
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.sb-collection-overview-card-nodes
+  flex-shrink: 0
+  padding: 2px 8px
+  border-radius: 9999px
+  background-color: var(--surface-selected)
+  color: var(--text-muted)
+
+.sb-collection-overview-card-footer
+  display: flex
+  align-items: center
+  gap: 6px
+  font-size: 14px
+  color: var(--text-muted)
+
+.sb-collection-overview-dot
+  flex: 0 0 auto
+  width: 8px
+  height: 8px
+  border-radius: 50%
+  background-color: var(--success-color-text)
+
+.sb-collection-overview-labs
+  margin: 10px 0 0
+  padding: 0
+  list-style: none
+  border: 1px solid var(--border)
+  border-radius: 8px
+  background-color: var(--surface-inset)
+  overflow: hidden
+
+  li + li
+    border-top: 1px solid var(--border)
+
+  button
+    display: flex
+    align-items: center
+    gap: 10px
+    width: 100%
+    padding: 10px 14px
+    border: none
+    background: none
+    color: var(--text)
+    font: inherit
+    text-align: left
+    cursor: pointer
+
+    &:hover
+      background-color: var(--hover)
+
+    &:active
+      background-color: var(--active)
+
+    &:focus-visible
+      outline: 2px solid var(--accent)
+      outline-offset: -2px
+
+.sb-collection-overview-lab
+  display: flex
+  flex-direction: column
+  gap: 2px
+  flex: 1
+  min-width: 0
+
+.sb-collection-overview-lab-meta
+  display: flex
+  align-items: center
+  gap: 4px
+  font-size: 14px
+  color: var(--text-muted)
+
+  .material-symbols-outlined
+    font-size: 16px
+
+  .pi
+    margin-left: 8px
+    font-size: 13px
+
+.sb-collection-overview-uptime
+  font-size: 14px
+  color: var(--text-muted)
+  white-space: nowrap
+
+.sb-collection-overview-none
+  margin: 10px 0 0
+  color: var(--text-muted)

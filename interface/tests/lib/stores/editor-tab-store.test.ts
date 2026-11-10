@@ -2,6 +2,7 @@ import {runInAction} from 'mobx';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {BindFileDocument} from '@sb/lib/editor/document/bind-file-document';
+import {CollectionDocument} from '@sb/lib/editor/document/collection-document';
 import {TopologyDocument} from '@sb/lib/editor/document/topology-document';
 import {DraftStorage} from '@sb/lib/editor/draft-storage';
 import {EditorTabStore} from '@sb/lib/stores/editor-tab-store';
@@ -229,6 +230,27 @@ describe('EditorTabStore', () => {
     expect(tabs.recentFiles).toEqual([]);
   });
 
+  it('opens a collection as an overview without files', () => {
+    const collection = tabs.open('collection-id')!;
+
+    expect(collection).toBeInstanceOf(CollectionDocument);
+    expect(collection.title).toBe('collection');
+    expect(collection.capabilities.views).toEqual(['overview']);
+    expect(collection.files).toEqual([]);
+    expect(collection.activeFile).toBeNull();
+    expect(collection.isEdited).toBe(false);
+  });
+
+  it('closes the tab of a deleted collection', () => {
+    tabs.open('topology-id');
+    tabs.open('collection-id');
+    runInAction(() => bed.collectionStore.lookup.delete('collection-id'));
+
+    expect(tabs.documents.map(document => document.id)).toEqual([
+      'topology-id',
+    ]);
+  });
+
   it('names topologies and bind files like their tabs', () => {
     expect(tabs.summary('topology-id')).toEqual({
       title: 'test',
@@ -239,6 +261,11 @@ describe('EditorTabStore', () => {
       title: 'r1.cfg',
       subtitle: 'test',
       icon: 'description',
+    });
+    expect(tabs.summary('collection-id')).toEqual({
+      title: 'collection',
+      subtitle: 'Collection',
+      icon: 'inventory_2',
     });
     expect(tabs.summary('unknown')).toBeNull();
   });

@@ -62,7 +62,7 @@ const EditorStartPane = observer((props: EditorStartPaneProps) => {
               icon="pi pi-plus"
               label="New topology"
               className="sb-button-accent"
-              onClick={props.onAddTopology}
+              onClick={() => props.onAddTopology()}
             />
           </SBEmptyState>
         </Otherwise>

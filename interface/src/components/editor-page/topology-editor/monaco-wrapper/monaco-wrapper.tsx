@@ -140,7 +140,7 @@ const MonacoWrapper = observer(
     const isReadOnly =
       !!document && (document.capabilities.readOnly || !activeFile?.editable);
     const hasLastDeployFailed =
-      !!document &&
+      !!document?.topologyId &&
       !!topologyStore.lookup.get(document.topologyId)?.lastDeployFailed;
 
     // The themes are defined once the editor is created, which also picks the scheme's theme
@@ -335,7 +335,7 @@ const MonacoWrapper = observer(
       props.graphSelection.setPendingSelection(restored.graphSelection ?? null);
 
       const selections = restored.selections as monaco.ISelection[] | null;
-      if (restored.file !== document.activeFile.id) {
+      if (restored.file !== document.activeFile?.id) {
         // The selections are restored once the file is shown
         pendingSelections.current = selections;
         document.selectFile(restored.file);

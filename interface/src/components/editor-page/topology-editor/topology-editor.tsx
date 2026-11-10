@@ -155,7 +155,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
   }
 
   function onDeployTopoplogy() {
-    if (!document) return;
+    if (!document?.topologyId) return;
 
     props.onTopologyDeploy(document.topologyId);
   }
@@ -171,7 +171,7 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
 
   const onFileLinkClick = useCallback(
     (filePath: string) => {
-      if (!document) return;
+      if (!document?.topologyId) return;
 
       const topology = topologyStore.lookup.get(document.topologyId);
       const bindFile = topology?.bindFiles.find(
@@ -491,7 +491,11 @@ const TopologyEditor = observer((props: TopologyEditorProps) => {
       />
       <SyncOverlay
         popOverRef={syncOverlayRef}
-        topology={topologyStore.lookup.get(document.topologyId) ?? null}
+        topology={
+          document.topologyId
+            ? (topologyStore.lookup.get(document.topologyId) ?? null)
+            : null
+        }
         onSetContent={content =>
           document.replaceText(document.files[0].id, content)
         }
