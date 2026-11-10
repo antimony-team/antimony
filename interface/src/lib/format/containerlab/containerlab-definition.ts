@@ -9,18 +9,18 @@ import {
   YAMLSeq,
 } from 'yaml';
 
-import {ContainerlabLink} from '@sb/lib/topology/containerlab/containerlab-link';
+import {ContainerlabLink} from '@sb/lib/format/containerlab/containerlab-link';
 import {
   ContainerlabNode,
   NodeParts,
   NodeWriter,
-} from '@sb/lib/topology/containerlab/containerlab-node';
+} from '@sb/lib/format/containerlab/containerlab-node';
 import {
   ContainerlabFile,
   ContainerlabLinkDefinition,
   ContainerlabNodeDefinition,
-} from '@sb/lib/topology/containerlab/containerlab-types';
-import {asDefinition} from '@sb/lib/topology/containerlab/property-rules';
+} from '@sb/lib/format/containerlab/containerlab-types';
+import {asDefinition} from '@sb/lib/format/containerlab/property-rules';
 import {
   AddedNode,
   LinkEndpoint,

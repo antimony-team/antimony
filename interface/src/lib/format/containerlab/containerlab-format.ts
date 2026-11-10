@@ -1,9 +1,9 @@
 import {ValidateFunction} from 'ajv';
 import {parseDocument} from 'yaml';
 
-import {ContainerlabDefinition} from '@sb/lib/topology/containerlab/containerlab-definition';
-import {ContainerlabFile} from '@sb/lib/topology/containerlab/containerlab-types';
-import {TopologyFormat} from '@sb/lib/topology/topology-format';
+import {ContainerlabDefinition} from '@sb/lib/format/containerlab/containerlab-definition';
+import {ContainerlabFile} from '@sb/lib/format/containerlab/containerlab-types';
+import {TopologyFormat} from '@sb/lib/format/topology-format';
 import {
   TopologyCapabilities,
   TopologyDefinition,

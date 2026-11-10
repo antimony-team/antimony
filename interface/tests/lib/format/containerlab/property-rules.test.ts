@@ -6,7 +6,7 @@ import {
   isSet,
   LevelValue,
   PROPERTY_RULES,
-} from '@sb/lib/topology/containerlab/property-rules';
+} from '@sb/lib/format/containerlab/property-rules';
 import {PropertySource} from '@sb/types/domain/topology-definition';
 
 const NODE: PropertySource = {level: 'node'};

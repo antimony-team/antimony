@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {ContainerlabLink} from '@sb/lib/topology/containerlab/containerlab-link';
+import {ContainerlabLink} from '@sb/lib/format/containerlab/containerlab-link';
 
 describe('brief links', () => {
   it('reads a link between two nodes as veth link', () => {

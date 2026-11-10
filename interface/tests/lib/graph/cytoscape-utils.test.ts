@@ -1,6 +1,7 @@
 import cytoscape from 'cytoscape';
 import {describe, expect, it} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {
   boundsToBox,
   fitGraph,
@@ -12,7 +13,6 @@ import {
   updateGrid,
   updateLayerTransform,
 } from '@sb/lib/graph/cytoscape-utils';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {RunTopology} from '@sb/types/domain/topology';
 
 const format = new ContainerlabFormat(() => null);

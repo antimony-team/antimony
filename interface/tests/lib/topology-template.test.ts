@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {createTopologyTemplate} from '@sb/lib/topology-template';
 
 describe('createTopologyTemplate', () => {

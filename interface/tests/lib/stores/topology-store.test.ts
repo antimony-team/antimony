@@ -2,12 +2,12 @@ import Ajv from 'ajv';
 import {makeObservable, observable} from 'mobx';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {BindFile, Topology, TopologyOut} from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 

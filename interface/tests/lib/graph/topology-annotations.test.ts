@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {groupBoxAround} from '@sb/lib/graph/annotation-geometry';
 import {
   addAnnotationItem,
@@ -20,7 +21,6 @@ import {
   updateNodeAnnotations,
 } from '@sb/lib/graph/topology-annotations';
 import {convertLatLngToXY} from '@sb/lib/graph/topology-graph';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {
   FreeShapeAnnotation,
   GroupStyleAnnotation,

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
-import {ContainerlabNode} from '@sb/lib/topology/containerlab/containerlab-node';
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
+import {ContainerlabNode} from '@sb/lib/format/containerlab/containerlab-node';
 
 const format = new ContainerlabFormat(() => null);
 

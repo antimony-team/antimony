@@ -1,6 +1,7 @@
 import {isEqual} from 'lodash-es';
 import objectPath from 'object-path';
 
+import {TopologyFormat} from '@sb/lib/format/topology-format';
 import {
   findNodeAnnotation,
   renameNodeAnnotation,
@@ -8,7 +9,6 @@ import {
 } from '@sb/lib/graph/topology-annotations';
 import {readNodeIcon} from '@sb/lib/graph/topology-graph';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
-import {TopologyFormat} from '@sb/lib/topology/topology-format';
 import {Binding} from '@sb/lib/utils/binding';
 import {arrayOf, filterSchemaEnum} from '@sb/lib/utils/utils';
 import {

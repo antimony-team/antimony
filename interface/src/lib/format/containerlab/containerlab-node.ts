@@ -1,14 +1,14 @@
 import {
   ContainerlabDefinitions,
   ContainerlabNodeDefinition as Definition,
-} from '@sb/lib/topology/containerlab/containerlab-types';
+} from '@sb/lib/format/containerlab/containerlab-types';
 import {
   asDefinition,
   DEFAULT_RULE,
   isSet,
   LevelValue,
   PROPERTY_RULES,
-} from '@sb/lib/topology/containerlab/property-rules';
+} from '@sb/lib/format/containerlab/property-rules';
 import {
   NodeProperty,
   PropertySource,

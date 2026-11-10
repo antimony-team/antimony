@@ -1,12 +1,12 @@
 import {makeObservable, observable, runInAction} from 'mobx';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {LabStore} from '@sb/lib/stores/lab-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {
   InstanceOut,
   InstanceState,

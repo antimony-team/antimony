@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {
   convertLatLngToXY,
   convertXYToLatLng,
@@ -10,7 +11,6 @@ import {
   readGraphNodes,
   readNodeIcon,
 } from '@sb/lib/graph/topology-graph';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 
 const format = new ContainerlabFormat(() => null);
 

@@ -1,12 +1,12 @@
 import {action, observable, runInAction} from 'mobx';
 
 import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
+import {TopologyFormat} from '@sb/lib/format/topology-format';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
 import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
-import {TopologyFormat} from '@sb/lib/topology/topology-format';
 import {TopologyManager} from '@sb/lib/topology-manager';
 import {createDuplicateName} from '@sb/lib/utils/utils';
 import {

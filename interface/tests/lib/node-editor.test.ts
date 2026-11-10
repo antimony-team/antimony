@@ -1,9 +1,9 @@
 import Ajv from 'ajv';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {NodeEditor, PropertyIO} from '@sb/lib/node-editor';
 import {StatusMessageStore} from '@sb/lib/stores/status-message-store';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {ClabSchema} from '@sb/types/domain/schema';
 import {TopologyAnnotations} from '@sb/types/domain/topology';
 

@@ -1,4 +1,4 @@
-import {ContainerlabNodeDefinition as Definition} from '@sb/lib/topology/containerlab/containerlab-types';
+import {ContainerlabNodeDefinition as Definition} from '@sb/lib/format/containerlab/containerlab-types';
 import {
   NodeProperty,
   PropertySource,

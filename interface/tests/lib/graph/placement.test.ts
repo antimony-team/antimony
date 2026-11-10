@@ -1,11 +1,11 @@
 import {describe, expect, it} from 'vitest';
 
+import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {
   GRID_SPACING,
   OccupiedPositions,
   placeNodes,
 } from '@sb/lib/graph/placement';
-import {ContainerlabFormat} from '@sb/lib/topology/containerlab/containerlab-format';
 import {TopologyAnnotations} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 
