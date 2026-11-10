@@ -182,4 +182,64 @@ describe('EditorTabStore', () => {
     expect(tabs.open('unknown')).toBeNull();
     expect(tabs.documents).toHaveLength(0);
   });
+
+  it('shows an unknown ID as missing instead of the open tab', () => {
+    tabs.open('topology-id');
+    tabs.open('unknown');
+
+    expect(tabs.missingId).toBe('unknown');
+    expect(tabs.activeId).toBe('topology-id');
+
+    tabs.dismissMissing();
+    expect(tabs.missingId).toBeNull();
+  });
+
+  it('goes back to the tabs when one is shown', () => {
+    tabs.open('topology-id');
+    tabs.open('unknown');
+    tabs.activate('topology-id');
+
+    expect(tabs.missingId).toBeNull();
+  });
+
+  it('keeps the files that were opened last, newest first', () => {
+    tabs.open('topology-id');
+    tabs.open('file-id');
+    tabs.activate('topology-id');
+    tabs.close('file-id');
+
+    expect(tabs.recentFiles.map(file => file.id)).toEqual([
+      'topology-id',
+      'file-id',
+    ]);
+
+    const reloaded = bed.tabStore();
+    reloaded.load('user-id');
+    expect(reloaded.recentFiles.map(file => file.id)).toEqual([
+      'topology-id',
+      'file-id',
+    ]);
+  });
+
+  it('leaves deleted files out of the recently opened ones', () => {
+    tabs.open('other-id');
+    tabs.close('other-id');
+    runInAction(() => topologyStore.lookup.delete('other-id'));
+
+    expect(tabs.recentFiles).toEqual([]);
+  });
+
+  it('names topologies and bind files like their tabs', () => {
+    expect(tabs.summary('topology-id')).toEqual({
+      title: 'test',
+      subtitle: 'collection',
+      icon: 'network_node',
+    });
+    expect(tabs.summary('file-id')).toEqual({
+      title: 'r1.cfg',
+      subtitle: 'test',
+      icon: 'description',
+    });
+    expect(tabs.summary('unknown')).toBeNull();
+  });
 });

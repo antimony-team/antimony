@@ -11,6 +11,23 @@ import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {FetchState} from '@sb/types/types';
 
 const TABS_STORAGE_PREFIX = 'sb:editor-tabs:';
+const RECENT_STORAGE_PREFIX = 'sb:editor-recent:';
+
+// How many recently opened files are kept
+const RECENT_LIMIT = 8;
+
+// A file the user opened, and when
+export interface RecentFile {
+  id: string;
+  openedAt: number;
+}
+
+// What a file is called in lists, without opening it
+export interface FileSummary {
+  title: string;
+  subtitle: string;
+  icon: string;
+}
 
 interface StoredTabs {
   ids: string[];
@@ -30,6 +47,12 @@ export class EditorTabStore {
   // The tab that is replaced by the next file opened as preview, e.g. by a single click
   @observable accessor previewId: string | null = null;
 
+  // A file that was asked for but doesn't exist, e.g. by an old link; shown instead of the tabs until dismissed
+  @observable accessor missingId: string | null = null;
+
+  // The files the user opened last, newest first, also ones that were closed since
+  @observable.shallow accessor recent: RecentFile[] = [];
+
   // The unsaved changes of the logged in user, set once the tabs are loaded
   private drafts: DraftStorage | null = null;
   private userId: string | null = null;
@@ -47,6 +70,41 @@ export class EditorTabStore {
   @computed
   public get active(): EditorDocument | null {
     return this.find(this.activeId);
+  }
+
+  // The recently opened files that still exist
+  @computed
+  public get recentFiles(): RecentFile[] {
+    return this.recent.filter(file => this.canOpen(file.id));
+  }
+
+  /**
+   * The title, subtitle and icon of a topology or bind file, like its tab
+   * shows them, null if there is none with the ID.
+   */
+  public summary(id: string): FileSummary | null {
+    const topology = this.topologyStore.lookup.get(id);
+    if (topology) {
+      return {
+        title: topology.definition.name ?? '',
+        subtitle:
+          this.collectionStore.lookup.get(topology.collectionId)?.name ?? '',
+        icon: 'network_node',
+      };
+    }
+
+    const bindFile = this.topologyStore.bindFileLookup.get(id);
+    if (bindFile) {
+      return {
+        title: bindFile.filePath.split('/').pop() ?? '',
+        subtitle:
+          this.topologyStore.lookup.get(bindFile.topologyId)?.definition.name ??
+          '',
+        icon: 'description',
+      };
+    }
+
+    return null;
   }
 
   public find(id: string | null): EditorDocument | null {
@@ -68,6 +126,9 @@ export class EditorTabStore {
     this.reset();
     this.userId = userId;
     this.drafts = new DraftStorage(userId);
+
+    this.recent = this.readRecent();
+    this.missingId = null;
 
     const stored = this.readStored();
     for (const id of stored?.ids ?? []) {
@@ -131,13 +192,16 @@ export class EditorTabStore {
     const open = this.find(id);
     if (open) {
       if (!preview && this.previewId === id) this.previewId = null;
-      this.activeId = id;
+      this.show(id);
       this.persist();
       return open;
     }
 
     const document = this.createDocument(id);
-    if (!document) return null;
+    if (!document) {
+      this.missingId = id;
+      return null;
+    }
 
     const replaced = preview ? this.find(this.previewId) : null;
     if (replaced && !replaced.isEdited) {
@@ -150,7 +214,7 @@ export class EditorTabStore {
     }
 
     this.previewId = preview ? id : this.previewId;
-    this.activeId = id;
+    this.show(id);
     this.persist();
 
     return document;
@@ -183,8 +247,14 @@ export class EditorTabStore {
   public activate(id: string) {
     if (!this.isOpen(id)) return;
 
-    this.activeId = id;
+    this.show(id);
     this.persist();
+  }
+
+  // Goes back to the tabs from a file that doesn't exist
+  @action
+  public dismissMissing() {
+    this.missingId = null;
   }
 
   /**
@@ -210,6 +280,19 @@ export class EditorTabStore {
     }
 
     return null;
+  }
+
+  // Shows an open tab and counts it as recently opened
+  @action
+  private show(id: string) {
+    this.activeId = id;
+    this.missingId = null;
+
+    this.recent = [
+      {id, openedAt: Date.now()},
+      ...this.recent.filter(file => file.id !== id),
+    ].slice(0, RECENT_LIMIT);
+    this.write(RECENT_STORAGE_PREFIX, this.recent);
   }
 
   @action
@@ -247,6 +330,8 @@ export class EditorTabStore {
     this.documents = [];
     this.activeId = null;
     this.previewId = null;
+    this.missingId = null;
+    this.recent = [];
   }
 
   /**
@@ -277,20 +362,34 @@ export class EditorTabStore {
     }
   }
 
-  private persist() {
-    if (!this.userId) return;
+  private readRecent(): RecentFile[] {
+    try {
+      const stored = localStorage.getItem(RECENT_STORAGE_PREFIX + this.userId);
+      const recent = stored === null ? [] : (JSON.parse(stored) as unknown);
+      if (!Array.isArray(recent)) return [];
 
-    const tabs: StoredTabs = {
+      return recent.filter(
+        (file): file is RecentFile =>
+          typeof file?.id === 'string' && typeof file?.openedAt === 'number',
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private persist() {
+    this.write(TABS_STORAGE_PREFIX, {
       ids: this.documents.map(document => document.id),
       activeId: this.activeId,
       previewId: this.previewId,
-    };
+    } satisfies StoredTabs);
+  }
+
+  private write(prefix: string, value: unknown) {
+    if (!this.userId) return;
 
     try {
-      localStorage.setItem(
-        TABS_STORAGE_PREFIX + this.userId,
-        JSON.stringify(tabs),
-      );
+      localStorage.setItem(prefix + this.userId, JSON.stringify(value));
     } catch {
       // Storage full or blocked: the tabs still work while the page is open
     }

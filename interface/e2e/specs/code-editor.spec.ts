@@ -177,6 +177,51 @@ test('going back to the editor shows only the tab that was shown', async ({
   ).toEqual([first.name]);
 });
 
+test('a link to a topology that does not exist says so instead of showing a tab', async ({
+  page,
+  createTopology,
+}) => {
+  const topology = await createTopology();
+  const editor = new EditorPage(page);
+  await editor.open(topology.id, topology.name);
+
+  const missingId = '00000000-0000-4000-8000-000000000000';
+  await page.goto(`/#/editor?f=${missingId}`);
+  await expect(page.getByText('Topology not found')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`f=${missingId}$`));
+  await expect(
+    editor.editor.tab(topology.name).getByRole('tab'),
+  ).toHaveAttribute('aria-selected', 'false');
+
+  await page.getByRole('button', {name: 'Close', exact: true}).click();
+  await expect(editor.editor.title).toHaveText(new RegExp(`${topology.name}$`));
+  await expect(page).toHaveURL(new RegExp(`f=${topology.id}$`));
+});
+
+test('recently opened topologies can be opened again', async ({
+  page,
+  createTopology,
+}) => {
+  const first = await createTopology();
+  const second = await createTopology({collection: first.collection});
+  const editor = new EditorPage(page);
+  await editor.open(first.id, first.name);
+  await editor.open(second.id, second.name);
+  await editor.editor.closeTab(second.name);
+  await editor.editor.closeTab(first.name);
+
+  await expect(page.getByText('No topology open')).toBeVisible();
+  // The topology opened last comes first
+  const recent = page.getByRole('region', {name: 'Recently opened'});
+  await expect(recent.getByRole('button')).toHaveText([
+    new RegExp(`^network_node${second.name}`),
+    new RegExp(`^network_node${first.name}`),
+  ]);
+
+  await recent.getByRole('button', {name: new RegExp(first.name)}).click();
+  await expect(editor.editor.title).toHaveText(new RegExp(`${first.name}$`));
+});
+
 test('unsaved edits are kept after a reload', async ({
   page,
   createTopology,

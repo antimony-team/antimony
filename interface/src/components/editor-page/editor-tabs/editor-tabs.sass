@@ -99,11 +99,12 @@
   display: inline-flex
   align-items: center
   justify-content: center
-  width: 22px
-  height: 22px
+  // Round like the close buttons of the terminal tabs
+  width: 20px
+  height: 20px
   padding: 0
   border: none
-  border-radius: 4px
+  border-radius: 50%
   background: none
   color: var(--text-muted)
   cursor: pointer
@@ -115,8 +116,11 @@
   &:focus-visible
     outline: 2px solid var(--accent)
 
+  .sb-editor-tab.active &
+    color: var(--text)
+
 .sb-editor-tab-x
-  font-size: 18px
+  font-size: 10px
   visibility: hidden
 
 .sb-editor-tab-dot

@@ -38,6 +38,7 @@ import CollectionEditDialog, {
   CollectionEditDialogState,
 } from './collection-edit-dialog/collection-edit-dialog';
 import EditorSetup from './editor-setup/editor-setup';
+import EditorStartPane from './editor-start-pane/editor-start-pane';
 import EditorTabs from './editor-tabs/editor-tabs';
 import TopologyEditDialog, {
   TopologyEditDialogState,
@@ -71,6 +72,7 @@ const EditorPage = observer(() => {
 
   const isLoaded = topologyStore.fetchReport.state === FetchState.Done;
   const activeId = tabStore.activeId;
+  const missingId = tabStore.missingId;
 
   // The tabs of the last visit are restored once the topologies are loaded
   useEffect(() => {
@@ -82,18 +84,25 @@ const EditorPage = observer(() => {
     if (!isLoaded || !authUser.id) return;
 
     const fileId = searchParams.get('f');
-    if (fileId && fileId !== tabStore.activeId) tabStore.open(fileId);
+    if (
+      fileId &&
+      fileId !== tabStore.activeId &&
+      fileId !== tabStore.missingId
+    ) {
+      tabStore.open(fileId);
+    }
   }, [searchParams, isLoaded, authUser.id]);
 
-  // Reads the shown tab when it runs: the effect above may have just opened the file of the URL
+  // Reads the shown tab when it runs: the effect above may have just opened the file of the URL.
+  // A file that wasn't found stays in the URL, so the link can be checked.
   useEffect(() => {
     if (!isLoaded) return;
 
-    const shownId = tabStore.activeId;
+    const shownId = tabStore.missingId ?? tabStore.activeId;
     if ((searchParams.get('f') ?? null) === shownId) return;
 
     setSearchParams(shownId ? {f: shownId} : {}, {replace: true});
-  }, [activeId, isLoaded]);
+  }, [activeId, missingId, isLoaded]);
 
   // Unsaved changes are kept in the browser, also when the page is left right after a change
   useEffect(() => {
@@ -131,6 +140,14 @@ const EditorPage = observer(() => {
     });
 
     void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
+  }
+
+  function onAddTopology() {
+    editTopologyState.openWith({
+      topology: null,
+      collectionId: null,
+      action: DialogAction.Add,
+    });
   }
 
   function onOpenFile(id: string, preview = false) {
@@ -186,16 +203,25 @@ const EditorPage = observer(() => {
               <div
                 className={classNames('sb-island sb-editor-island', {
                   'first-tab-active':
-                    !!activeId && tabStore.documents[0]?.id === activeId,
+                    !missingId &&
+                    !!activeId &&
+                    tabStore.documents[0]?.id === activeId,
                 })}
               >
-                <TopologyEditor
-                  document={tabStore.active}
-                  isMaximized={isMaximized}
-                  setMaximized={setMaximized}
-                  onTopologyDeploy={onDeployTopology}
-                  editTopologyState={editTopologyState}
-                />
+                <Choose>
+                  <When condition={missingId !== null || !tabStore.active}>
+                    <EditorStartPane onAddTopology={onAddTopology} />
+                  </When>
+                  <Otherwise>
+                    <TopologyEditor
+                      document={tabStore.active}
+                      isMaximized={isMaximized}
+                      setMaximized={setMaximized}
+                      onTopologyDeploy={onDeployTopology}
+                      editTopologyState={editTopologyState}
+                    />
+                  </Otherwise>
+                </Choose>
               </div>
             </SplitterPanel>
           </Splitter>

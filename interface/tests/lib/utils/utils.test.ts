@@ -15,6 +15,7 @@ import {
   formatBytes,
   formatDate,
   formatDateTime,
+  formatTimeAgo,
   formatDuration,
   formatTime,
   formatUptime,
@@ -591,5 +592,29 @@ describe('small helpers', () => {
     expect(pluralize(1, 'node', 'nodes')).toBe('1 node');
     expect(pluralize(0, 'node', 'nodes')).toBe('0 nodes');
     expect(pluralize(2, 'node', 'nodes')).toBe('2 nodes');
+  });
+});
+
+describe('formatTimeAgo', () => {
+  const now = new Date('2024-01-20T12:00:00').getTime();
+  const minute = 60_000;
+  const relative = new Intl.RelativeTimeFormat([], {numeric: 'auto'});
+
+  it('counts minutes, hours and days in the browser language', () => {
+    expect(formatTimeAgo(now - 20_000, now)).toBe(relative.format(0, 'second'));
+    expect(formatTimeAgo(now - 12 * minute, now)).toBe(
+      relative.format(-12, 'minute'),
+    );
+    expect(formatTimeAgo(now - 3 * 60 * minute, now)).toBe(
+      relative.format(-3, 'hour'),
+    );
+    expect(formatTimeAgo(now - 26 * 60 * minute, now)).toBe(
+      relative.format(-1, 'day'),
+    );
+  });
+
+  it('shows the date of times older than a week', () => {
+    const time = now - 10 * 24 * 60 * minute;
+    expect(formatTimeAgo(time, now)).toBe(formatDate(new Date(time)));
   });
 });

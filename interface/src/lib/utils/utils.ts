@@ -171,6 +171,26 @@ export function formatTime(date: string | Date, withSeconds = false) {
   });
 }
 
+/**
+ * How long ago a time was, in the user's language, e.g. "12 minutes ago" or
+ * "yesterday". Times older than a week are shown as their date.
+ */
+export function formatTimeAgo(time: number, now = Date.now()) {
+  const minutes = Math.round((now - time) / 60_000);
+  const format = new Intl.RelativeTimeFormat([], {numeric: 'auto'});
+
+  if (minutes < 1) return format.format(0, 'second');
+  if (minutes < 60) return format.format(-minutes, 'minute');
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return format.format(-hours, 'hour');
+
+  const days = Math.round(hours / 24);
+  if (days <= 7) return format.format(-days, 'day');
+
+  return formatDate(new Date(time));
+}
+
 export function uses12HourClock() {
   const hourCycle = new Intl.DateTimeFormat([], {
     hour: 'numeric',

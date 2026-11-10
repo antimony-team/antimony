@@ -46,7 +46,9 @@ const EditorTabs = observer(() => {
   return (
     <div className="sb-editor-tabs" role="tablist" aria-label="Open files">
       {tabStore.documents.map(document => {
-        const isActive = document.id === tabStore.activeId;
+        // No tab is shown while a file that wasn't found is
+        const isActive =
+          document.id === tabStore.activeId && tabStore.missingId === null;
         const isPreview = document.id === tabStore.previewId;
 
         return (
@@ -94,11 +96,9 @@ const EditorTabs = observer(() => {
             >
               <span className="sb-editor-tab-dot" aria-hidden="true" />
               <span
-                className="material-symbols-outlined sb-editor-tab-x"
+                className="pi pi-times sb-editor-tab-x"
                 aria-hidden="true"
-              >
-                close
-              </span>
+              />
             </button>
           </div>
         );

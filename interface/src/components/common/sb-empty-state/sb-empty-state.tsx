@@ -18,6 +18,9 @@ interface EmptyStateProps {
     | ((option: SelectItem) => string | ReactElement);
 
   accent?: boolean;
+
+  // Something the user asked for isn't there, e.g. an old link
+  warning?: boolean;
   children?: React.ReactNode;
 }
 
@@ -35,7 +38,10 @@ const SBEmptyState = (props: EmptyStateProps) => {
   return (
     <div className="sb-empty-state">
       <span
-        className={classNames('sb-empty-state-icon', {accent: props.accent})}
+        className={classNames('sb-empty-state-icon', {
+          accent: props.accent,
+          warning: props.warning,
+        })}
         aria-hidden="true"
       >
         {getIcon()}

@@ -1,0 +1,102 @@
+.sb-editor-start-pane
+  display: flex
+  flex-direction: column
+  align-items: center
+  flex-grow: 1
+  gap: 32px
+  padding: 0 16px 32px
+  overflow-y: auto
+
+  // The link that was asked for above the button that closes it
+  .sb-editor-start-pane-missing
+    display: flex
+    flex-direction: column
+    align-items: center
+    gap: 12px
+    max-width: 100%
+
+  // The path that was asked for, so it can be checked or copied
+  .sb-editor-start-pane-link
+    display: inline-flex
+    align-items: center
+    max-width: 100%
+    height: 34px
+    padding: 0 12px
+    box-sizing: border-box
+    border: 1px solid var(--border)
+    border-radius: 8px
+    background-color: var(--surface-inset)
+    color: var(--text-muted)
+    font-family: 'JetBrains Mono Variable', monospace
+    font-size: 13px
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    user-select: all
+
+.sb-editor-start-pane-recent
+  display: flex
+  flex-direction: column
+  gap: 8px
+  width: min(460px, 100%)
+
+  h2
+    margin: 0
+    padding-left: 2px
+    font-size: 13px
+    font-weight: 500
+    color: var(--text-muted)
+
+  ul
+    margin: 0
+    padding: 0
+    list-style: none
+    border: 1px solid var(--border)
+    border-radius: 10px
+    background-color: var(--surface-inset)
+    overflow: hidden
+
+  li + li
+    border-top: 1px solid var(--border)
+
+  button
+    display: flex
+    align-items: center
+    gap: 12px
+    width: 100%
+    height: 46px
+    padding: 0 14px
+    border: none
+    background: none
+    color: var(--text)
+    font: inherit
+    text-align: left
+    cursor: pointer
+
+    &:hover
+      background-color: var(--hover)
+
+    &:focus-visible
+      outline: 2px solid var(--accent)
+      outline-offset: -2px
+
+.sb-editor-start-pane-icon
+  font-size: 18px
+  color: var(--text-muted)
+
+.sb-editor-start-pane-title
+  font-size: 15px
+  white-space: nowrap
+  overflow: hidden
+  text-overflow: ellipsis
+
+.sb-editor-start-pane-subtitle
+  flex-grow: 1
+  font-size: 13px
+  color: var(--text-faint)
+  white-space: nowrap
+
+.sb-editor-start-pane-time
+  font-size: 13px
+  color: var(--text-faint)
+  white-space: nowrap
