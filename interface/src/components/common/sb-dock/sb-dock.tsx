@@ -1,4 +1,10 @@
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
@@ -36,7 +42,14 @@ const SBDock = observer(() => {
   const notificationStore = useStatusMessages();
   const themeStore = useTheme();
 
-  const {pathname} = useLocation();
+  const {pathname, search} = useLocation();
+  const isDashboard = pathname === '/' || pathname === '';
+
+  // The address of the dashboard when it was left, e.g. with a lab open
+  const dashboardSearch = useRef('');
+  useEffect(() => {
+    if (isDashboard) dashboardSearch.current = search;
+  }, [isDashboard, search]);
 
   const overlayRef = useRef<OverlayPanel>(null);
 
@@ -78,6 +91,11 @@ const SBDock = observer(() => {
   }
 
   // The editor shows the tab that was shown last, its tabs are kept
+  // Back from another page, the dashboard shows what it showed, e.g. the open lab
+  function openDashboard() {
+    void navigate(isDashboard ? '/' : `/${dashboardSearch.current}`);
+  }
+
   function openEditor() {
     void navigate('/editor');
   }
@@ -117,8 +135,8 @@ const SBDock = observer(() => {
                   selected: pathname === '/' || pathname === '',
                 })}
                 label="Dashboard"
-                onMouseDown={() => navigate('/')}
-                onKeyDown={e => isActivationKey(e) && navigate('/')}
+                onMouseDown={openDashboard}
+                onKeyDown={e => isActivationKey(e) && openDashboard()}
                 aria-label="Dashboard page"
                 aria-current={
                   pathname === '/' || pathname === '' ? 'page' : undefined
