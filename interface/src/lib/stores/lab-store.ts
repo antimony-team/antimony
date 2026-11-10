@@ -322,6 +322,17 @@ export class LabStore extends DataStore<Lab, LabIn, LabOut> {
 
     if (response.isOk()) {
       const updatedLab = this.parseLab(response.data.payload);
+      const previousState = this.lookup.get(labId)?.state;
+
+      // A deployment that just ended changed whether its topology's last deployment failed
+      if (
+        updatedLab?.topologyId &&
+        updatedLab.state !== previousState &&
+        (updatedLab.state === InstanceState.Running ||
+          updatedLab.state === InstanceState.Failed)
+      ) {
+        void this.topologyStore.fetchSingle(updatedLab.topologyId);
+      }
 
       runInAction(() => {
         this.data = [

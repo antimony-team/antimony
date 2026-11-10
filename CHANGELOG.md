@@ -6,6 +6,7 @@
 
 - The topology editor now opens topologies and bind files in tabs. A single click previews a file, a double click or a change keeps its tab open. The graph of each tab keeps its zoom and position, also when switching to the dashboard and back.
 - Unsaved changes in the editor are kept in the browser, also over a reload, so opening another file no longer asks to discard them. Only closing a tab with unsaved changes asks first.
+- The editor's warning that the last deployment of a topology failed now appears and disappears as soon as a deployment ends, without reloading the page.
 - An open lab stays open on the dashboard when switching to the editor and back.
 - Clicking a collection in the editor opens its overview in a tab, with its topologies and running labs. The arrow next to it still expands it.
 - The editor lists the topologies and files you opened last when no tab is open, and a link to a topology that doesn't exist anymore now says so instead of showing the last open tab.

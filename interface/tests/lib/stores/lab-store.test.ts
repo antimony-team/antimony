@@ -111,6 +111,7 @@ describe('LabStore', () => {
   let clock: {now: number};
   let collectionStore: {fetch: () => Promise<void>};
   let statusMessageStore: {error: (message: string, title: string) => void};
+  let fetchTopology: (id: string) => Promise<void>;
   let store: LabStore;
 
   beforeEach(() => {
@@ -123,7 +124,9 @@ describe('LabStore', () => {
     collectionStore = {fetch: vi.fn(async () => {})};
     statusMessageStore = {error: vi.fn()};
 
+    fetchTopology = vi.fn(async () => {});
     const topologyStore = {
+      fetchSingle: fetchTopology,
       readTopology: (text: string) =>
         text.includes('invalid') ? null : format.read(text),
       parseTopologyAnnotations: (text: string) => {
@@ -458,6 +461,40 @@ describe('LabStore', () => {
       );
       expect(dataBinder.requests).toEqual(['/labs/a']);
       expect(store.data.map(lab => lab.id)).toEqual(['a', 'b']);
+    });
+
+    it('refetches the topology of a lab whose deployment ended', async () => {
+      store.init(false);
+      await fetchLabs(
+        labOut('a', {instance: instance(InstanceState.Deploying)}),
+        labOut('b', {instance: instance(InstanceState.Deploying)}),
+      );
+      dataBinder.labs = [
+        labOut('a', {instance: instance(InstanceState.Failed)}),
+        labOut('b', {instance: instance(InstanceState.Running)}),
+      ];
+
+      dataBinder.callbacks.get('lab-updates')!({payload: {labId: 'a'}});
+      dataBinder.callbacks.get('lab-updates')!({payload: {labId: 'b'}});
+
+      await vi.waitFor(() => expect(fetchTopology).toHaveBeenCalledTimes(2));
+      expect(fetchTopology).toHaveBeenCalledWith('topology');
+    });
+
+    it('does not refetch the topology if the state of a lab stays the same', async () => {
+      store.init(false);
+      await fetchLabs(labOut('a', {instance: instance(InstanceState.Running)}));
+      dataBinder.labs = [
+        labOut('a', {
+          name: 'renamed',
+          instance: instance(InstanceState.Running),
+        }),
+      ];
+
+      dataBinder.callbacks.get('lab-updates')!({payload: {labId: 'a'}});
+
+      await vi.waitFor(() => expect(lab('a').name).toBe('renamed'));
+      expect(fetchTopology).not.toHaveBeenCalled();
     });
 
     it('refetches the collections and all labs if a new lab appears', async () => {

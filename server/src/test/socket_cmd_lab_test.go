@@ -1,6 +1,7 @@
 package test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -113,15 +114,19 @@ func TestDeployCommand_SendsProgressAndSuccessStatusMessages(t *testing.T) {
 
 	client.Emit(deployCommand(LabAdminID)).RequireOk(nil)
 
-	// Assert on the set rather than the sequence: socket delivery is not order preserving.
-	messages := CollectPayloads[statusmessage.Message](status, 2)
+	// Assert on the set rather than the sequence: socket delivery is not order preserving, and
+	// the nodes report that they started in between.
+	messages := collectStatusMessagesUntil(t, status, func(messages []statusmessage.Message) bool {
+		return hasStatusMessage(messages, "Deploying lab") &&
+			hasStatusMessage(messages, "Successfully deployed lab")
+	})
 
-	progress := findStatusMessage(t, messages, serverlog.InfoLevel)
-	assert.Contains(t, progress.Content, "Deploying lab")
+	progress := findStatusMessageWith(t, messages, "Deploying lab")
+	assert.Equal(t, serverlog.InfoLevel, progress.Severity)
 	assert.Equal(t, "Runtime", progress.Source)
 
-	success := findStatusMessage(t, messages, serverlog.SuccessLevel)
-	assert.Contains(t, success.Content, "Successfully deployed lab")
+	success := findStatusMessageWith(t, messages, "Successfully deployed lab")
+	assert.Equal(t, serverlog.SuccessLevel, success.Severity)
 	assert.NotEmpty(t, success.ID)
 	assert.False(t, success.Timestamp.IsZero())
 }
@@ -507,4 +512,52 @@ func requireEventuallyWithin(t *testing.T, timeout time.Duration, condition func
 	}
 
 	t.Fatal(message)
+}
+
+// collectStatusMessagesUntil reads status messages until done is true for the ones read so far.
+func collectStatusMessagesUntil(
+	t *testing.T,
+	client *SocketClient,
+	done func([]statusmessage.Message) bool,
+) []statusmessage.Message {
+	t.Helper()
+
+	var messages []statusmessage.Message
+	for !done(messages) {
+		value, ok := client.NextDataWithin(5 * time.Second)
+		require.Truef(t, ok, "expected more status messages, got %d", len(messages))
+
+		var message statusmessage.Message
+		DecodePayload(t, value, &message)
+		messages = append(messages, message)
+	}
+
+	return messages
+}
+
+func hasStatusMessage(messages []statusmessage.Message, content string) bool {
+	for _, message := range messages {
+		if strings.Contains(message.Content, content) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func findStatusMessageWith(
+	t *testing.T,
+	messages []statusmessage.Message,
+	content string,
+) statusmessage.Message {
+	t.Helper()
+
+	for _, message := range messages {
+		if strings.Contains(message.Content, content) {
+			return message
+		}
+	}
+
+	t.Fatalf("no status message containing %q", content)
+	return statusmessage.Message{}
 }

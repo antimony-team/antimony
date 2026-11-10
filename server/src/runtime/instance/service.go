@@ -624,6 +624,9 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 				"err", err.Error(),
 			)
 
+			// Before the update, so clients that fetch the topology on it see the failure
+			s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
+
 			s.sendLabUpdate(
 				lab, statusmessage.Error(
 					"Runtime", fmt.Sprintf("Failed to get environment for lab '%s'", lab.Name),
@@ -632,8 +635,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 				),
 				nil,
 			)
-
-			s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
 
 			s.instancesMutex.Unlock()
 			return utils.ErrAntimony
@@ -774,6 +775,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		}
 		instance.DataMutex.Unlock()
 
+		s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
+
 		s.updateLabAndSendUpdate(
 			lab, instance, InstanceStates.Failed,
 			statusmessage.Error("Runtime",
@@ -782,8 +785,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			),
 			instance.LogNamespace,
 		)
-
-		s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
 		return utils.ErrProvider
 	}
 
@@ -806,6 +807,8 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			"err", err.Error(),
 		)
 
+		s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
+
 		s.updateLabAndSendUpdate(lab, instance, InstanceStates.Failed,
 			statusmessage.Warning("Runtime",
 				fmt.Sprintf("Failed to inspect lab '%s': %s", lab.Name, err.Error()),
@@ -813,8 +816,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 			),
 			instance.LogNamespace,
 		)
-
-		s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, true)
 		return utils.ErrProvider
 	}
 
@@ -860,6 +861,9 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		"instance", instance.Name,
 	)
 
+	// Before the update, so clients that fetch the topology on it see the success
+	s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, false)
+
 	s.updateLabAndSendUpdate(lab, instance, InstanceStates.Running,
 		statusmessage.Success(
 			"Runtime", fmt.Sprintf("Successfully deployed lab '%s'", lab.Name),
@@ -867,8 +871,6 @@ func (s *Service) DeployLab(lab *lab.Lab) error {
 		),
 		instance.LogNamespace,
 	)
-
-	s.topologyService.SetLastDeployFailed(context.Background(), &lab.Topology, false)
 
 	return nil
 }
