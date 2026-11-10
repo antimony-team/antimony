@@ -130,10 +130,7 @@ const CollectionOverview = observer((props: CollectionOverviewProps) => {
                         className="sb-collection-overview-card"
                         onClick={() => tabStore.open(topology.id)}
                       >
-                        <LabEntryPreview
-                          topology={topology}
-                          className={running > 0 ? 'running' : undefined}
-                        />
+                        <LabEntryPreview topology={topology} />
                         <span className="sb-collection-overview-card-content">
                           <span className="sb-collection-overview-card-header">
                             <span className="sb-collection-overview-card-name">
