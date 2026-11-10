@@ -3732,6 +3732,8 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         ref={graphRef}
         elements={elements}
         fitKey={props.openTopology?.id ?? null}
+        initialViewport={props.graph.viewport}
+        onViewportChange={viewport => (props.graph.viewport = viewport)}
         events={{
           'click node': onNodeClick,
           tap: onTap,

@@ -8,6 +8,7 @@ import {
   Position,
 } from '../helpers/cytoscape';
 import {ConfirmDialog, Dialog, menuItem} from '../pages/dialogs';
+import {Dock} from '../pages/dock';
 import {EditorPage} from '../pages/editor-page';
 import {GraphEditor} from '../pages/graph';
 
@@ -877,4 +878,35 @@ test('closing a node dialog with changes asks first', async ({
   await expect(new ConfirmDialog(page).root).toContainText(
     'Discard unsaved changes?',
   );
+});
+
+test('the graph keeps its zoom when switching tabs and pages', async ({
+  page,
+  createTopology,
+}) => {
+  const first = await createTopology();
+  const second = await createTopology({collection: first.collection});
+  const {editor, graph} = await openGraph(page, first);
+  const dock = new Dock(page);
+
+  const box = (await graph.canvas.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const fitted = await graphZoom(graph.canvas);
+  await page.mouse.wheel(0, -300);
+  await expect.poll(() => graphZoom(graph.canvas)).toBeGreaterThan(fitted);
+  const zoomed = await graphZoom(graph.canvas);
+
+  await editor.explorer.expand(first.collection.name);
+  await editor.explorer.open(second.name);
+  await editor.editor.waitForTitle(second.name);
+  await editor.editor.tab(first.name).getByRole('tab').click();
+  await editor.editor.waitForTitle(first.name);
+  await graph.waitForNodes(first.nodes.length);
+  await expect.poll(() => graphZoom(graph.canvas)).toBeCloseTo(zoomed, 5);
+
+  await dock.dashboard.click();
+  await dock.editor.click();
+  await editor.editor.waitForTitle(first.name);
+  await graph.waitForNodes(first.nodes.length);
+  await expect.poll(() => graphZoom(graph.canvas)).toBeCloseTo(zoomed, 5);
 });

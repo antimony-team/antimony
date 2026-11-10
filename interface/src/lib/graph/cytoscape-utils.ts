@@ -149,6 +149,43 @@ export function fitGraph(
   }
 }
 
+/**
+ * Where the graph was looked at: the zoom and the point in graph coordinates at
+ * the center of the view. The center, unlike cytoscape's pan, still fits when
+ * the graph is shown at another size.
+ */
+export interface GraphViewport {
+  zoom: number;
+  center: Position;
+}
+
+// The viewport of a graph, null while it has no size, e.g. when it's hidden
+export function readViewport(cy: cytoscape.Core): GraphViewport | null {
+  if (cy.width() === 0 || cy.height() === 0) return null;
+
+  const zoom = cy.zoom();
+  const pan = cy.pan();
+  return {
+    zoom,
+    center: {
+      x: (cy.width() / 2 - pan.x) / zoom,
+      y: (cy.height() / 2 - pan.y) / zoom,
+    },
+  };
+}
+
+// Shows a graph the way it was looked at, centered on the same point
+export function applyViewport(cy: cytoscape.Core, viewport: GraphViewport) {
+  const zoom = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), viewport.zoom));
+  cy.viewport({
+    zoom,
+    pan: {
+      x: cy.width() / 2 - zoom * viewport.center.x,
+      y: cy.height() / 2 - zoom * viewport.center.y,
+    },
+  });
+}
+
 export function boundsToBox(
   bounds: cytoscape.BoundingBox12 & {w: number; h: number},
 ): Box {

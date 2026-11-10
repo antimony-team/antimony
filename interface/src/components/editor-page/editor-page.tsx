@@ -85,11 +85,14 @@ const EditorPage = observer(() => {
     if (fileId && fileId !== tabStore.activeId) tabStore.open(fileId);
   }, [searchParams, isLoaded, authUser.id]);
 
+  // Reads the shown tab when it runs: the effect above may have just opened the file of the URL
   useEffect(() => {
     if (!isLoaded) return;
-    if ((searchParams.get('f') ?? null) === activeId) return;
 
-    setSearchParams(activeId ? {f: activeId} : {}, {replace: true});
+    const shownId = tabStore.activeId;
+    if ((searchParams.get('f') ?? null) === shownId) return;
+
+    setSearchParams(shownId ? {f: shownId} : {}, {replace: true});
   }, [activeId, isLoaded]);
 
   // Unsaved changes are kept in the browser, also when the page is left right after a change

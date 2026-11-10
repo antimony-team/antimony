@@ -14,7 +14,10 @@ import CytoscapeComponent from 'react-cytoscapejs';
 import {Box} from '@sb/lib/graph/annotation-geometry';
 import {topologyStyles} from '@sb/lib/graph/cytoscape-styles';
 import {
+  applyViewport,
   fitGraph,
+  GraphViewport,
+  readViewport,
   updateGrid,
   updateLayerTransform,
 } from '@sb/lib/graph/cytoscape-utils';
@@ -27,6 +30,12 @@ interface TopologyGraphProps {
 
   // The graph is fitted to its elements whenever this changes, e.g. when another topology is shown
   fitKey: string | null;
+
+  // Shown instead of fitting the graph, e.g. how the graph was looked at before
+  initialViewport?: GraphViewport | null;
+
+  // Called when the graph is zoomed or panned, not while it has no size
+  onViewportChange?: (viewport: GraphViewport) => void;
 
   isLocked?: boolean;
 
@@ -210,6 +219,12 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
     const getLayerBoxesRef = useRef(props.getLayerBoxes);
     getLayerBoxesRef.current = props.getLayerBoxes;
 
+    const initialViewportRef = useRef(props.initialViewport);
+    initialViewportRef.current = props.initialViewport;
+
+    const onViewportChangeRef = useRef(props.onViewportChange);
+    onViewportChangeRef.current = props.onViewportChange;
+
     useImperativeHandle(ref, () => ({
       fit: (animated: boolean) => {
         if (cyRef.current) fit(cyRef.current, animated);
@@ -260,7 +275,17 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       }
 
       isFitPending.current = false;
-      fit(cy, false);
+      showInitially(cy);
+    }
+
+    // Shows the given viewport, the graph is fitted if there is none
+    function showInitially(cy: cytoscape.Core) {
+      const viewport = initialViewportRef.current;
+      if (viewport) {
+        applyViewport(cy, viewport);
+      } else {
+        fit(cy, false);
+      }
     }
 
     function initCytoscape(cy: cytoscape.Core) {
@@ -285,6 +310,12 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
 
     function onViewport(event: EventObject) {
       updateViewport(event.cy);
+
+      // The viewport before the graph is shown the first time isn't one the user looked at
+      if (isFitPending.current || fittedKey.current === null) return;
+
+      const viewport = readViewport(event.cy);
+      if (viewport) onViewportChangeRef.current?.(viewport);
     }
 
     function updateViewport(cy: cytoscape.Core) {
@@ -301,7 +332,7 @@ const TopologyGraph = forwardRef<TopologyGraphRef, TopologyGraphProps>(
       }
 
       isFitPending.current = false;
-      fit(cy, false);
+      showInitially(cy);
     }
 
     return (

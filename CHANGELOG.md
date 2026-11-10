@@ -4,7 +4,7 @@
 
 ### General Changes
 
-- The topology editor now opens topologies and bind files in tabs. A single click previews a file, a double click or a change keeps its tab open.
+- The topology editor now opens topologies and bind files in tabs. A single click previews a file, a double click or a change keeps its tab open. The graph of each tab keeps its zoom and position, also when switching to the dashboard and back.
 - Unsaved changes in the editor are kept in the browser, also over a reload, so opening another file no longer asks to discard them. Only closing a tab with unsaved changes asks first.
 
 ## Antimony v0.2.0 - Light Mode and Lab Improvements

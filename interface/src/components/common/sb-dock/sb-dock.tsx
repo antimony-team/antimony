@@ -21,7 +21,6 @@ import {
   useStatusMessages,
   useTheme,
 } from '@sb/lib/stores/root-store';
-import {readPersistentValue} from '@sb/lib/utils/persistent-state';
 import {Choose, If, Otherwise, When} from '@sb/types/control';
 
 import './sb-dock.sass';
@@ -78,13 +77,9 @@ const SBDock = observer(() => {
     return event.key === 'Enter' || event.key === ' ';
   }
 
+  // The editor shows the tab that was shown last, its tabs are kept
   function openEditor() {
-    let path = '/editor';
-    const lastOpenFile = readPersistentValue('last-open-file');
-    if (lastOpenFile) {
-      path += `?f=${lastOpenFile}`;
-    }
-    void navigate(path);
+    void navigate('/editor');
   }
 
   return (

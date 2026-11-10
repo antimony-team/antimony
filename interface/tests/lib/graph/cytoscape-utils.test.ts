@@ -3,12 +3,14 @@ import {describe, expect, it} from 'vitest';
 
 import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {
+  applyViewport,
   boundsToBox,
   fitGraph,
   generateGraph,
   generateGroups,
   generateLayerItems,
   getFitPadding,
+  readViewport,
   toGraphPosition,
   updateGrid,
   updateLayerTransform,
@@ -238,5 +240,49 @@ describe('viewport helpers', () => {
       x: 10,
       y: 10,
     });
+  });
+});
+
+describe('viewport', () => {
+  // A graph of 1000 by 500 that shows the point (200, 100) in its center at a zoom of 2
+  function viewGraph(width = 1000, height = 500) {
+    let viewport = {zoom: 2, pan: {x: 100, y: 150}};
+    const cy = {
+      width: () => width,
+      height: () => height,
+      zoom: () => viewport.zoom,
+      pan: () => viewport.pan,
+      minZoom: () => 0.1,
+      maxZoom: () => 10,
+      viewport: (next: typeof viewport) => (viewport = next),
+    } as unknown as cytoscape.Core;
+
+    return {cy, current: () => viewport};
+  }
+
+  it('reads the zoom and the point at the center', () => {
+    expect(readViewport(viewGraph().cy)).toEqual({
+      zoom: 2,
+      center: {x: 200, y: 50},
+    });
+  });
+
+  it('reads nothing while the graph has no size', () => {
+    expect(readViewport(viewGraph(0, 0).cy)).toBeNull();
+  });
+
+  it('shows the same point in the center at another size', () => {
+    const viewport = readViewport(viewGraph().cy)!;
+    const smaller = viewGraph(600, 400);
+    applyViewport(smaller.cy, viewport);
+
+    expect(smaller.current()).toEqual({zoom: 2, pan: {x: -100, y: 100}});
+    expect(readViewport(smaller.cy)).toEqual(viewport);
+  });
+
+  it('keeps the zoom within the limits of the graph', () => {
+    const graph = viewGraph();
+    applyViewport(graph.cy, {zoom: 50, center: {x: 0, y: 0}});
+    expect(graph.current().zoom).toBe(10);
   });
 });

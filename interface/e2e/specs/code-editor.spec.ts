@@ -2,6 +2,7 @@ import {topologyDefinition} from '../fixtures/api';
 import {expect, test} from '../fixtures/test';
 import {graphNodes, nodeModelPosition} from '../helpers/cytoscape';
 import {toast} from '../pages/dialogs';
+import {Dock} from '../pages/dock';
 import {EditorPage} from '../pages/editor-page';
 
 /*
@@ -129,6 +130,51 @@ test('opening another topology keeps the unsaved edits in their tab', async ({
   await editor.editor.tab(first.name).getByRole('tab').click();
   await expect(editor.editor.title).toHaveText(new RegExp(`${first.name}\\*$`));
   expect(await editor.editor.text()).toContain('changed');
+});
+
+test('going back to the editor shows only the tab that was shown', async ({
+  page,
+  createTopology,
+}) => {
+  const first = await createTopology();
+  const second = await createTopology({collection: first.collection});
+  const editor = new EditorPage(page);
+  const dock = new Dock(page);
+  await editor.open(second.id, second.name);
+  await editor.open(first.id, first.name);
+
+  // The file the editor before the tabs opened last, still kept by browsers that used it
+  await page.evaluate(
+    id => localStorage.setItem('sb:last-open-file', JSON.stringify(id)),
+    second.id,
+  );
+  await dock.dashboard.click();
+
+  // Every tab that is shown on the way back
+  await page.evaluate(() => {
+    const shown: string[] = [];
+    Object.assign(window, {shownTabs: shown});
+    new MutationObserver(() => {
+      const title = document.querySelector(
+        '.sb-editor-tab.active .sb-editor-tab-title',
+      )?.textContent;
+      if (title && shown[shown.length - 1] !== title) shown.push(title);
+    }).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
+  });
+
+  await dock.editor.click();
+  await expect(editor.editor.title).toHaveText(new RegExp(`${first.name}$`));
+  await expect(page).toHaveURL(new RegExp(`f=${first.id}$`));
+  expect(
+    await page.evaluate(
+      () => (window as unknown as {shownTabs: string[]}).shownTabs,
+    ),
+  ).toEqual([first.name]);
 });
 
 test('unsaved edits are kept after a reload', async ({

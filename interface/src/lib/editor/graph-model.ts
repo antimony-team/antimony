@@ -2,6 +2,7 @@ import {computed} from 'mobx';
 
 import {FileBuffer, FileEditSource} from '@sb/lib/editor/file-buffer';
 import {serializeAnnotations} from '@sb/lib/format/annotations-format';
+import {GraphViewport} from '@sb/lib/graph/cytoscape-utils';
 import {PastedElements} from '@sb/lib/graph/graph-clipboard';
 import {nextInterface} from '@sb/lib/graph/interfaces';
 import {placeNodes} from '@sb/lib/graph/placement';
@@ -104,6 +105,9 @@ export class GraphModel {
   private readonly readOnly: () => boolean;
   private readonly savedTopology: () => Topology | undefined;
   private readonly deviceStore: GraphDevices;
+
+  // How the graph was looked at last, it's shown that way again, e.g. after switching tabs
+  public viewport: GraphViewport | null = null;
 
   constructor(options: GraphModelOptions) {
     this.definitionBuffer = options.definition;
