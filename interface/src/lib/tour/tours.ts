@@ -77,7 +77,7 @@ export const tours: Record<TourId, TourStep[]> = {
     {
       element: '.sb-topology-editor-toolbar-right button[aria-label="Save"]',
       title: 'Saving',
-      text: 'Changes are not saved automatically. A * next to the topology name means there are unsaved changes, save them here or with Ctrl+S.',
+      text: 'Changes are kept in your browser until you save them, also over a reload. A * next to the name means there are unsaved changes, save them here or with Ctrl+S.',
       side: 'bottom',
       align: 'end',
     },

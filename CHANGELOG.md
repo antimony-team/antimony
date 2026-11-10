@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### General Changes
+
+- The topology editor now opens topologies and bind files in tabs. A single click previews a file, a double click or a change keeps its tab open.
+- Unsaved changes in the editor are kept in the browser, also over a reload, so opening another file no longer asks to discard them. Only closing a tab with unsaved changes asks first.
+
 ## Antimony v0.2.0 - Light Mode and Lab Improvements
 
 This update brings a light mode to the interface, a [separate management network](https://antimony.run/docs/deployment/configuration/#deploymentmgmt) for every lab and a long list of fixes for labs on Docker and on Kubernetes with [clabernetes](https://antimony.run/docs/deployment/clabernetes/). The server and the interface now also live in [one repository](https://github.com/antimony-team/antimony), together with the [documentation](https://antimony.run/docs/).

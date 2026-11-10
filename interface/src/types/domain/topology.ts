@@ -2,14 +2,6 @@ import {TopologyDefinition} from '@sb/types/domain/topology-definition';
 import {User} from '@sb/types/domain/user';
 import {Position, uuid4} from '@sb/types/types';
 
-export type EditingFile = BindFile | Topology;
-
-// The files of a topology that can be opened in the text editor
-export enum TopologyFileType {
-  Definition,
-  Annotations,
-}
-
 export type BindFileIn = {
   filePath: string;
   content: string;

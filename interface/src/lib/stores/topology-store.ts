@@ -1,13 +1,12 @@
 import {action, observable, runInAction} from 'mobx';
 
 import {ArchiveUploadFile} from '@sb/components/editor-page/archive-upload-dialog/archive-upload-dialog';
+import {AnnotationsFormat} from '@sb/lib/format/annotations-format';
 import {TopologyFormat} from '@sb/lib/format/topology-format';
 import {DataBinder, DataResponse} from '@sb/lib/stores/data-binder/data-binder';
 import {DataStore, DataStoreDependency} from '@sb/lib/stores/data-store';
-import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
-import {TopologyManager} from '@sb/lib/topology-manager';
 import {createDuplicateName} from '@sb/lib/utils/utils';
 import {
   BindFile,
@@ -28,19 +27,20 @@ export class TopologyStore extends DataStore<
 > {
   @observable accessor bindFileLookup: Map<string, BindFile> = new Map();
 
-  public manager: TopologyManager;
-
   // The format the topologies are written in
   public readonly format: TopologyFormat;
 
   private dataBinder: DataBinder;
   private schemaStore: SchemaStore;
 
+  private readonly annotationsFormat = new AnnotationsFormat(
+    () => this.schemaStore.annotationsValidator,
+  );
+
   constructor(
     rootStore: RootStore,
     dataBinder: DataBinder,
     schemaStore: SchemaStore,
-    deviceStore: DeviceStore,
     format: TopologyFormat,
     dependencies: DataStoreDependency[] = [],
   ) {
@@ -48,8 +48,6 @@ export class TopologyStore extends DataStore<
     this.dataBinder = dataBinder;
     this.schemaStore = schemaStore;
     this.format = format;
-
-    this.manager = new TopologyManager(this, deviceStore);
   }
 
   protected get resourcePath(): string {
@@ -210,31 +208,17 @@ export class TopologyStore extends DataStore<
    * The definition keeps the text as it's written.
    */
   public readTopology(definitionString: string): TopologyDefinition | null {
-    const definition = this.format.read(definitionString);
-    if (!definition || this.format.validate(definition) !== null) return null;
-
-    return definition;
+    return this.format.parse(definitionString);
   }
 
+  /**
+   * Reads the annotations of a topology, null if they aren't valid. They're
+   * checked against the annotations schema once it's loaded.
+   */
   public parseTopologyAnnotations(
     annotationsString: string,
   ): TopologyAnnotations | null {
-    let annotations: TopologyAnnotations;
-
-    try {
-      annotations = JSON.parse(annotationsString);
-    } catch {
-      return null;
-    }
-
-    if (
-      this.schemaStore.annotationsValidator &&
-      !this.schemaStore.annotationsValidator(annotations)
-    ) {
-      return null;
-    }
-
-    return annotations;
+    return this.annotationsFormat.parse(annotationsString);
   }
 
   public createDuplicateName(topologyName: string) {

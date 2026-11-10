@@ -11,6 +11,7 @@ import SBDropdown, {
   SBDropdownRef,
 } from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {GraphModel} from '@sb/lib/editor/graph-model';
 import {updateNodeAnnotations} from '@sb/lib/graph/topology-annotations';
 import {NodeEditor} from '@sb/lib/node-editor';
 import {
@@ -19,7 +20,6 @@ import {
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyEditSource} from '@sb/lib/topology-manager';
 import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {TopologyAnnotations} from '@sb/types/domain/topology';
@@ -32,6 +32,9 @@ import NodePropertyTable from './node-property-table/node-property-table';
 import './node-edit-dialog.sass';
 
 interface NodeEditDialogProps {
+  // The graph of the open topology, it applies the changes of the node
+  graph: GraphModel | null;
+
   editingTopology: TopologyDefinition | null;
   editingAnnotations: TopologyAnnotations | null;
 
@@ -172,11 +175,7 @@ const NodeEditDialog = (props: NodeEditDialogProps) => {
         );
       }
 
-      topologyStore.manager.editTopology(
-        nodeEditor.getTopology(),
-        TopologyEditSource.NodeEditor,
-        annotations,
-      );
+      props.graph?.edit(nodeEditor.getTopology(), annotations);
     }
 
     onClose();

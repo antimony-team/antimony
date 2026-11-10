@@ -64,7 +64,17 @@ topology:
 
 You can edit a topology if you're an administrator, or if you created it and its collection has **Anyone can edit** turned on. Other topologies open read-only.
 
-The toolbar shows the topology's collection and name. An asterisk marks unsaved changes.
+### Tabs
+
+Topologies and bind files open in tabs above the editor. A single click in the explorer opens the file in a preview tab, shown in italics, which the next file you click replaces. Double-click the file or its tab, or change it, to keep the tab open. A file that is already open just shows its tab.
+
+A dot in place of a tab's **×** marks unsaved changes. Unsaved changes are kept in your browser, also when you switch tabs or reload the page, until you save them. Closing a tab with unsaved changes asks whether to **Discard changes** or **Keep editing**. The open tabs are remembered as well.
+
+If a file was saved somewhere else while you have unsaved changes in it, e.g. by someone else, the editor tells you so. Choose **Keep my changes** to save over the other version, or **Load the saved version** to discard your changes.
+
+### The toolbar
+
+The toolbar shows the file's collection or topology and its name. An asterisk marks unsaved changes.
 
 | Control | What it does |
 | --- | --- |
@@ -74,8 +84,6 @@ The toolbar shows the topology's collection and name. An asterisk marks unsaved 
 | **Save** | Save the topology. Also <kbd>Ctrl</kbd>+<kbd>S</kbd>. Disabled while the topology is invalid. A red dot means there are unsaved changes. |
 | **Download** | Download the open file: the YAML as `<collection>_<topology>.yaml`, or the annotations as `<collection>_<topology>.annotations.json`. |
 | **Deploy** | Open the [deploy dialog](/docs/manual/deploying-labs/) for this topology. Only shown if you may deploy from its collection. |
-
-If you try to leave with unsaved changes, Antimony asks whether to **Discard changes** or **Keep editing**.
 
 **Tour** (the question mark in the top bar) takes you through the editor. It starts by itself the first time you open a topology.
 

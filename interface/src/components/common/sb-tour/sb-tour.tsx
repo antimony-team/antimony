@@ -1,10 +1,11 @@
 import React, {useEffect} from 'react';
 
+import {reaction} from 'mobx';
 import {useLocation} from 'react-router';
 
 import {Button} from 'primereact/button';
 
-import {useTopologyStore} from '@sb/lib/stores/root-store';
+import {useEditorTabStore, useTopologyStore} from '@sb/lib/stores/root-store';
 import {startTour} from '@sb/lib/tour/tour';
 import {TourId, tourRoutes} from '@sb/lib/tour/tours';
 import {
@@ -27,6 +28,7 @@ const isTourId = oneOf(...Object.values(TourId));
 const SBTour = () => {
   const {pathname} = useLocation();
   const topologyStore = useTopologyStore();
+  const tabStore = useEditorTabStore();
 
   const [completedTours, setCompletedTours] = usePersistentState<TourId[]>(
     'completed-tours',
@@ -45,7 +47,9 @@ const SBTour = () => {
   }
 
   useEffect(() => {
-    if (completedTours.includes(TourId.Editor)) return;
+    if (tourId !== TourId.Editor || completedTours.includes(TourId.Editor)) {
+      return;
+    }
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -59,13 +63,21 @@ const SBTour = () => {
       }, AUTO_START_DELAY);
     };
 
-    topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
+    // The editor tour starts once a topology is shown in the editor, also
+    // if one is already shown when the editor is opened
+    const disposeReaction = reaction(
+      () => (tabStore.active?.graph ? tabStore.active.id : null),
+      topologyId => {
+        if (topologyId) onTopologyOpen();
+      },
+      {fireImmediately: true},
+    );
 
     return () => {
       clearTimeout(timeout);
-      topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
+      disposeReaction();
     };
-  }, [completedTours]);
+  }, [completedTours, tourId]);
 
   if (tourId === null || topologyStore.data.length === 0) return null;
 

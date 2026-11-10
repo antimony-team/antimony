@@ -2,7 +2,8 @@
   display: flex
   flex-direction: column
   background-color: var(--surface-raised)
-  border-radius: 12px
+  // The island around it decides the corners, the one under the shown tab is square
+  border-radius: inherit
   height: 100%
   overflow: hidden
   flex-grow: 1
@@ -210,3 +211,22 @@
   word-wrap: break-word
   user-select: none
 
+
+// Shown when the file was saved somewhere else while it has unsaved changes
+.sb-topology-editor-conflict
+  display: flex
+  align-items: center
+  flex-wrap: wrap
+  gap: 8px
+  padding: 6px 12px
+  border-bottom: 1px solid var(--border)
+  background-color: var(--warning-color)
+  color: var(--text)
+  font-size: 14px
+
+  > .material-symbols-outlined
+    font-size: 18px
+    color: var(--warning-color-text)
+
+  > span:nth-child(2)
+    flex: 1 1 240px

@@ -1,7 +1,5 @@
 import {action, computed, observable} from 'mobx';
 
-import {TopologyFileType} from '@sb/types/domain/topology';
-
 // Consecutive changes with the same merge key are merged into one entry within this interval
 const MERGE_INTERVAL = 1000;
 
@@ -23,14 +21,13 @@ export interface GraphSelectionSnapshot {
 }
 
 /**
- * The content of both files of a topology after a change.
+ * The content of all files of a document after a change, by the ID of the file.
  */
-export interface TopologyHistoryEntry {
-  definition: string;
-  annotations: string;
+export interface EditHistoryEntry {
+  texts: Readonly<Record<string, string>>;
 
-  // The file that was changed and its selections after the change
-  file: TopologyFileType;
+  // The ID of the file that was changed and its selections after the change
+  file: string;
   selections: HistorySelection[] | null;
 
   // The selection of the graph before and after a change of the graph, restored by undo and redo
@@ -39,15 +36,15 @@ export interface TopologyHistoryEntry {
 }
 
 /**
- * The undo history of a topology. Contrary to the topology manager, it holds the
- * raw content of the files, so states that don't pass validation can be restored
- * as well.
+ * The undo history of a document. It holds the raw text of all of its files, so
+ * a change that touches several files is undone in one step, and states that
+ * don't pass validation can be restored as well.
  */
-export class TopologyHistory {
+export class EditHistory {
   @observable accessor position: number = 0;
   @observable accessor length: number = 0;
 
-  private entries: TopologyHistoryEntry[] = [];
+  private entries: EditHistoryEntry[] = [];
 
   // Merge key and time of the last entry that further changes can be merged into
   private lastMerge: {key: string; time: number} | null = null;
@@ -63,7 +60,7 @@ export class TopologyHistory {
   }
 
   @action
-  public reset(entry: TopologyHistoryEntry) {
+  public reset(entry: EditHistoryEntry) {
     this.entries = [entry];
     this.lastMerge = null;
     this.update(0);
@@ -78,7 +75,7 @@ export class TopologyHistory {
    * before, e.g. typing in the same file. Null if it is never merged.
    */
   @action
-  public record(entry: TopologyHistoryEntry, mergeKey: string | null) {
+  public record(entry: EditHistoryEntry, mergeKey: string | null) {
     this.entries.splice(this.position + 1);
 
     const now = Date.now();
@@ -113,8 +110,8 @@ export class TopologyHistory {
    */
   @action
   public undo(graphSelection?: GraphSelectionSnapshot): {
-    entry: TopologyHistoryEntry;
-    file: TopologyFileType;
+    entry: EditHistoryEntry;
+    file: string;
     graphSelection?: GraphSelectionSnapshot;
   } | null {
     if (!this.canUndo) return null;
@@ -141,8 +138,8 @@ export class TopologyHistory {
    */
   @action
   public redo(): {
-    entry: TopologyHistoryEntry;
-    file: TopologyFileType;
+    entry: EditHistoryEntry;
+    file: string;
     graphSelection?: GraphSelectionSnapshot;
   } | null {
     if (!this.canRedo) return null;

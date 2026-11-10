@@ -183,7 +183,7 @@ export class TopologyEditor {
   async switchFile(file: 'Topology' | 'Annotations') {
     await this.fileSwitch.click();
     await this.page
-      .getByRole('listbox', {name: 'Topology files'})
+      .getByRole('listbox', {name: 'Files'})
       .locator('.sb-topology-file-switch-option')
       .filter({
         has: this.page
@@ -205,7 +205,23 @@ export class TopologyEditor {
     await this.page.keyboard.press('Control+s');
   }
 
-  /** Accepts or rejects the confirmation shown when leaving a file with unsaved changes. */
+  /** The tab of an open file, by the name it shows. */
+  tab(name: string): Locator {
+    return this.page.locator('.sb-editor-tab').filter({
+      has: this.page
+        .locator('.sb-editor-tab-title')
+        .getByText(name, {exact: true}),
+    });
+  }
+
+  /** Closes the tab of an open file. */
+  async closeTab(name: string) {
+    await this.tab(name)
+      .getByRole('button', {name: new RegExp(`^Close ${escape(name)}`)})
+      .click();
+  }
+
+  /** Accepts or rejects the confirmation shown when closing a tab with unsaved changes. */
   async discardChanges(discard: boolean) {
     const confirm = new ConfirmDialog(this.page);
     if (discard) await confirm.accept('Discard changes');

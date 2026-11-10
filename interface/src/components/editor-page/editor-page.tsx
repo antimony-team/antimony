@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 
+import classNames from 'classnames';
 import {observer} from 'mobx-react-lite';
 import {useSearchParams} from 'react-router';
 
@@ -12,16 +13,16 @@ import {
 import LabEditDialog, {
   LabEditDialogState,
 } from '@sb/components/common/lab-edit-dialog/lab-edit-dialog';
-import {useTopologyStore} from '@sb/lib/stores/root-store';
-import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
 import {
-  isNumber,
-  isString,
-  usePersistentState,
-} from '@sb/lib/utils/persistent-state';
+  useAuthUser,
+  useEditorTabStore,
+  useTopologyStore,
+} from '@sb/lib/stores/root-store';
+import {DialogAction, useDialogState} from '@sb/lib/utils/hooks';
+import {isNumber, usePersistentState} from '@sb/lib/utils/persistent-state';
 import {Choose, Otherwise, When} from '@sb/types/control';
-import {BindFile, EditingFile, Topology} from '@sb/types/domain/topology';
-import {uuid4} from '@sb/types/types';
+import {Topology} from '@sb/types/domain/topology';
+import {FetchState, uuid4} from '@sb/types/types';
 
 import ArchiveUploadDialog, {
   ArchiveUploadDialogState,
@@ -37,6 +38,7 @@ import CollectionEditDialog, {
   CollectionEditDialogState,
 } from './collection-edit-dialog/collection-edit-dialog';
 import EditorSetup from './editor-setup/editor-setup';
+import EditorTabs from './editor-tabs/editor-tabs';
 import TopologyEditDialog, {
   TopologyEditDialogState,
 } from './topology-edit-dialog/topology-edit-dialog';
@@ -48,10 +50,11 @@ import './editor-page.sass';
 const EditorPage = observer(() => {
   const [isMaximized, setMaximized] = useState(false);
   const labEditDialogState = useDialogState<LabEditDialogState>(null);
-  const [openFile, setOpenFile] = useState<EditingFile | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const topologyStore = useTopologyStore();
+  const tabStore = useEditorTabStore();
+  const authUser = useAuthUser();
 
   const editCollectionState = useDialogState<CollectionEditDialogState>(null);
   const editTopologyState = useDialogState<TopologyEditDialogState>(null);
@@ -66,47 +69,39 @@ const EditorPage = observer(() => {
     isNumber,
   );
 
-  const [, setLastOpenFile] = usePersistentState<string>(
-    'last-open-file',
-    '',
-    isString,
-  );
+  const isLoaded = topologyStore.fetchReport.state === FetchState.Done;
+  const activeId = tabStore.activeId;
+
+  // The tabs of the last visit are restored once the topologies are loaded
+  useEffect(() => {
+    if (isLoaded && authUser.id) tabStore.load(authUser.id);
+  }, [isLoaded, authUser.id]);
+
+  // A link to a file opens it, and the URL names the file of the shown tab
+  useEffect(() => {
+    if (!isLoaded || !authUser.id) return;
+
+    const fileId = searchParams.get('f');
+    if (fileId && fileId !== tabStore.activeId) tabStore.open(fileId);
+  }, [searchParams, isLoaded, authUser.id]);
 
   useEffect(() => {
-    topologyStore.manager.onTopologyOpen.register(onTopologyOpen);
-    topologyStore.manager.onBindFileOpen.register(onBindFileOpen);
+    if (!isLoaded) return;
+    if ((searchParams.get('f') ?? null) === activeId) return;
+
+    setSearchParams(activeId ? {f: activeId} : {}, {replace: true});
+  }, [activeId, isLoaded]);
+
+  // Unsaved changes are kept in the browser, also when the page is left right after a change
+  useEffect(() => {
+    const flush = () => tabStore.flushDrafts();
+    window.addEventListener('pagehide', flush);
 
     return () => {
-      topologyStore.manager.onTopologyOpen.unregister(onTopologyOpen);
-      topologyStore.manager.onBindFileOpen.unregister(onBindFileOpen);
+      flush();
+      window.removeEventListener('pagehide', flush);
     };
-  }, [topologyStore, onTopologyOpen, onBindFileOpen]);
-
-  useEffect(() => {
-    if (!searchParams.has('f')) return;
-
-    const fileId = searchParams.get('f')!;
-
-    if (topologyStore.lookup.has(fileId)) {
-      topologyStore.manager.openTopology(topologyStore.lookup.get(fileId)!);
-    } else if (topologyStore.bindFileLookup.has(fileId)) {
-      topologyStore.manager.openBindFile(
-        topologyStore.bindFileLookup.get(fileId)!,
-      );
-    }
-  }, [searchParams, topologyStore.lookup]);
-
-  function onTopologyOpen(topology: Topology) {
-    setOpenFile(topology);
-    setLastOpenFile(topology.id);
-    setSearchParams({f: topology.id});
-  }
-
-  function onBindFileOpen(bindFile: BindFile) {
-    setOpenFile(bindFile);
-    setLastOpenFile(bindFile.id);
-    setSearchParams({f: bindFile.id});
-  }
+  }, []);
 
   const isSetup = topologyStore.data.length === 0;
 
@@ -135,12 +130,8 @@ const EditorPage = observer(() => {
     void topologyStore.uploadArchiveFiles(topology.id, bindFiles);
   }
 
-  function onOpenFile(id: string) {
-    if (topologyStore.lookup.has(id)) {
-      topologyStore.manager.openTopology(topologyStore.lookup.get(id)!);
-    } else if (topologyStore.bindFileLookup.has(id)) {
-      topologyStore.manager.openBindFile(topologyStore.bindFileLookup.get(id)!);
-    }
+  function onOpenFile(id: string, preview = false) {
+    tabStore.open(id, preview);
   }
 
   return (
@@ -173,7 +164,7 @@ const EditorPage = observer(() => {
           >
             <SplitterPanel className="sb-island" size={splitterPosition}>
               <TopologyExplorer
-                selectedId={openFile?.id}
+                selectedId={activeId}
                 onOpenFile={onOpenFile}
                 onTopologyDeploy={onDeployTopology}
                 archiveUploadState={archiveUploadState}
@@ -184,16 +175,25 @@ const EditorPage = observer(() => {
               />
             </SplitterPanel>
             <SplitterPanel
-              className="sb-island"
+              className="sb-editor-panel"
               minSize={40}
               size={100 - splitterPosition}
             >
-              <TopologyEditor
-                isMaximized={isMaximized}
-                setMaximized={setMaximized}
-                onTopologyDeploy={onDeployTopology}
-                editTopologyState={editTopologyState}
-              />
+              <EditorTabs />
+              <div
+                className={classNames('sb-island sb-editor-island', {
+                  'first-tab-active':
+                    !!activeId && tabStore.documents[0]?.id === activeId,
+                })}
+              >
+                <TopologyEditor
+                  document={tabStore.active}
+                  isMaximized={isMaximized}
+                  setMaximized={setMaximized}
+                  onTopologyDeploy={onDeployTopology}
+                  editTopologyState={editTopologyState}
+                />
+              </div>
             </SplitterPanel>
           </Splitter>
         </Otherwise>
@@ -202,7 +202,7 @@ const EditorPage = observer(() => {
       <TopologyEditDialog
         key={editTopologyState.state?.topology?.id}
         dialogState={editTopologyState}
-        onCreated={onOpenFile}
+        onCreated={id => onOpenFile(id)}
       />
       <CollectionEditDialog
         key={editCollectionState.state?.editingCollection?.id}

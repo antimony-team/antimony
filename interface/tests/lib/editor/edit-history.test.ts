@@ -1,20 +1,18 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {
+  EditHistory,
+  EditHistoryEntry,
   GraphSelectionSnapshot,
-  TopologyHistory,
-  TopologyHistoryEntry,
-} from '@sb/lib/topology-history';
-import {TopologyFileType} from '@sb/types/domain/topology';
+} from '@sb/lib/editor/edit-history';
 
 function entry(
   definition: string,
-  overrides: Partial<TopologyHistoryEntry> = {},
-): TopologyHistoryEntry {
+  overrides: Partial<EditHistoryEntry> = {},
+): EditHistoryEntry {
   return {
-    definition,
-    annotations: '{}',
-    file: TopologyFileType.Definition,
+    texts: {definition, annotations: '{}'},
+    file: 'definition',
     selections: null,
     ...overrides,
   };
@@ -24,13 +22,13 @@ function selection(...nodeIds: string[]): GraphSelectionSnapshot {
   return {nodeIds, groupIds: [], shapeIds: [], textIds: []};
 }
 
-describe('TopologyHistory', () => {
-  let history: TopologyHistory;
+describe('EditHistory', () => {
+  let history: EditHistory;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
-    history = new TopologyHistory();
+    history = new EditHistory();
     history.reset(entry('a'));
   });
 
@@ -50,20 +48,20 @@ describe('TopologyHistory', () => {
     history.record(entry('b'), null);
     history.record(entry('c'), null);
 
-    expect(history.undo()?.entry.definition).toBe('b');
-    expect(history.undo()?.entry.definition).toBe('a');
+    expect(history.undo()?.entry.texts.definition).toBe('b');
+    expect(history.undo()?.entry.texts.definition).toBe('a');
     expect(history.canUndo).toBe(false);
-    expect(history.redo()?.entry.definition).toBe('b');
-    expect(history.redo()?.entry.definition).toBe('c');
+    expect(history.redo()?.entry.texts.definition).toBe('b');
+    expect(history.redo()?.entry.texts.definition).toBe('c');
     expect(history.canRedo).toBe(false);
   });
 
   it('reports the file of the undone change instead of the restored one', () => {
-    history.record(entry('b', {file: TopologyFileType.Annotations}), null);
+    history.record(entry('b', {file: 'annotations'}), null);
 
     const undone = history.undo();
-    expect(undone?.entry.file).toBe(TopologyFileType.Definition);
-    expect(undone?.file).toBe(TopologyFileType.Annotations);
+    expect(undone?.entry.file).toBe('definition');
+    expect(undone?.file).toBe('annotations');
   });
 
   it('drops the changes that could be redone when a new change is recorded', () => {
@@ -74,7 +72,7 @@ describe('TopologyHistory', () => {
 
     expect(history.canRedo).toBe(false);
     expect(history.length).toBe(3);
-    expect(history.undo()?.entry.definition).toBe('b');
+    expect(history.undo()?.entry.texts.definition).toBe('b');
   });
 
   it('merges changes with the same key within a second', () => {
@@ -83,8 +81,8 @@ describe('TopologyHistory', () => {
     history.record(entry('bc'), 'typing');
 
     expect(history.length).toBe(2);
-    expect(history.undo()?.entry.definition).toBe('a');
-    expect(history.redo()?.entry.definition).toBe('bc');
+    expect(history.undo()?.entry.texts.definition).toBe('a');
+    expect(history.redo()?.entry.texts.definition).toBe('bc');
   });
 
   it('keeps changes with the same key apart after a second', () => {
@@ -157,7 +155,7 @@ describe('TopologyHistory', () => {
 
     let oldest = null;
     while (history.canUndo) oldest = history.undo();
-    expect(oldest?.entry.definition).toBe('v51');
+    expect(oldest?.entry.texts.definition).toBe('v51');
   });
 
   it('starts over after another reset', () => {
@@ -166,6 +164,6 @@ describe('TopologyHistory', () => {
     history.record(entry('y'), 'typing');
 
     expect(history.length).toBe(2);
-    expect(history.undo()?.entry.definition).toBe('x');
+    expect(history.undo()?.entry.texts.definition).toBe('x');
   });
 });

@@ -1,283 +1,368 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
-import {DataResponse} from '@sb/lib/stores/data-binder/data-binder';
-import {DeviceStore} from '@sb/lib/stores/device-store';
-import {TopologyStore} from '@sb/lib/stores/topology-store';
 import {
-  BindFileEditSource,
-  OpenFileType,
-  TopologyEditReport,
-  TopologyEditSource,
-  TopologyManager,
-} from '@sb/lib/topology-manager';
-import {
-  BindFile,
-  Topology,
-  TopologyAnnotations,
-  TopologyIn,
-} from '@sb/types/domain/topology';
-import {TopologyDefinition} from '@sb/types/domain/topology-definition';
+  ANNOTATIONS_FILE,
+  DEFINITION_FILE,
+  TopologyDocument,
+} from '@sb/lib/editor/document/topology-document';
+import {DraftStorage} from '@sb/lib/editor/draft-storage';
+import {FileEditSource} from '@sb/lib/editor/file-buffer';
+import {GraphModel} from '@sb/lib/editor/graph-model';
+import {serializeAnnotations} from '@sb/lib/format/annotations-format';
+import {Topology, TopologyAnnotations} from '@sb/types/domain/topology';
 import {Result} from '@sb/types/result';
 
-const format = new ContainerlabFormat(() => null);
+import {
+  ANNOTATIONS,
+  createTopology,
+  EditorTestBed,
+  FakeTopologyStore,
+  setUpEditorTest,
+  tearDownEditorTest,
+  TOPOLOGY,
+} from '../fakes';
 
-const TOPOLOGY = `name: test
-topology:
-  nodes:
-    r1:
-      kind: nokia_srlinux
-    r2:
-      kind: nokia_srlinux
-    pc:
-      kind: linux
-  links:
-    - endpoints: ["r1:e1-1", "r2:e1-1"]
-    - endpoints: ["r2:e1-2", "pc:eth1"]
-`;
+let bed: EditorTestBed;
+let topologyStore: FakeTopologyStore;
+let drafts: DraftStorage;
 
-const ANNOTATIONS: TopologyAnnotations = {
-  nodeAnnotations: [
-    {id: 'r1', position: {x: 0, y: 0}},
-    {id: 'r2', position: {x: 100, y: 0}},
-    {id: 'pc', position: {x: 200, y: 0}},
-  ],
-};
+beforeEach(() => {
+  bed = setUpEditorTest();
+  ({topologyStore, drafts} = bed);
+});
 
-function read(source: string): TopologyDefinition {
-  return format.read(source)!;
-}
+afterEach(tearDownEditorTest);
 
-function createTopology(
-  source = TOPOLOGY,
-  annotations: TopologyAnnotations = ANNOTATIONS,
-): Topology {
-  return {
-    id: 'topology-id',
-    collectionId: 'collection-id',
-    creator: {id: 'user-id', name: 'user'},
-    syncUrl: '',
-    bindFiles: [],
-    lastDeployFailed: false,
-    definition: read(source),
-    annotations: structuredClone(annotations),
-  };
-}
+const addTopology = (topology?: Topology) => bed.addTopology(topology);
 
-class FakeTopologyStore {
-  public lookup = new Map<string, Topology>();
-  public isEditable = true;
-  public updateResult: Result<DataResponse<void>> = Result.createOk({
-    payload: undefined,
-  });
-  public updates: {id: string; body: Partial<TopologyIn>}[] = [];
-  public bindFileUpdates: {id: string; content?: string}[] = [];
-  public fetchSingle = vi.fn(async () => {});
-
-  public canEdit() {
-    return this.isEditable;
-  }
-
-  public async update(id: string, body: Partial<TopologyIn>) {
-    this.updates.push({id, body});
-    return this.updateResult;
-  }
-
-  public async updateBindFile(
-    _topologyId: string,
-    id: string,
-    body: {content?: string},
-  ) {
-    this.bindFileUpdates.push({id, content: body.content});
-    return this.updateResult;
-  }
-}
-
-class FakeDeviceStore {
-  public data = [{kind: 'nokia_srlinux'}];
-
-  public getInterfaceConfig(kind?: string) {
-    if (kind === 'nokia_srlinux') {
-      return {interfaces: [{pattern: 'e1-$', start: 1}]};
-    }
-    return {interfaces: [{pattern: 'eth$', start: 1}]};
-  }
-}
-
-describe('TopologyManager', () => {
-  let topologyStore: FakeTopologyStore;
-  let deviceStore: FakeDeviceStore;
-  let manager: TopologyManager;
-  let edits: TopologyEditReport[];
+describe('TopologyDocument', () => {
+  let doc: TopologyDocument;
+  let manager: GraphModel;
 
   function open(topology = createTopology()) {
-    manager.openTopology(topology);
+    addTopology(topology);
+    doc = bed.topologyDocument(topology);
+    manager = doc.graph;
     return topology;
   }
 
-  function lastEdit() {
-    return edits[edits.length - 1];
+  function definitionBuffer() {
+    return doc.files.find(file => file.id === DEFINITION_FILE)!.buffer!;
   }
 
-  beforeEach(() => {
-    topologyStore = new FakeTopologyStore();
-    deviceStore = new FakeDeviceStore();
-    manager = new TopologyManager(
-      topologyStore as unknown as TopologyStore,
-      deviceStore as unknown as DeviceStore,
-    );
-    edits = [];
-    manager.onTopologyEdit.register(report => edits.push(report));
-  });
+  function annotationsBuffer() {
+    return doc.files.find(file => file.id === ANNOTATIONS_FILE)!.buffer!;
+  }
 
-  describe('opening and closing', () => {
-    it('opens a topology without edits', () => {
-      const opened = vi.fn();
-      manager.onTopologyOpen.register(opened);
+  // Types the text of the definition and waits until it's read
+  function type(text: string) {
+    definitionBuffer().setText(text, FileEditSource.TextEditor);
+    vi.runOnlyPendingTimers();
+  }
+
+  describe('opening', () => {
+    it('opens a topology without edits, showing its definition', () => {
+      open();
+
+      expect(doc.title).toBe('test');
+      expect(doc.subtitle).toBe('collection');
+      expect(doc.files.map(file => file.id)).toEqual([
+        DEFINITION_FILE,
+        ANNOTATIONS_FILE,
+      ]);
+      expect(doc.files[0].fileName).toBe('test.clab.yml');
+      expect(doc.activeFile.id).toBe(DEFINITION_FILE);
+      expect(doc.isEdited).toBe(false);
+      expect(doc.history.canUndo).toBe(false);
+      expect(doc.capabilities).toEqual({
+        views: ['split', 'code', 'graph'],
+        sync: true,
+        deploy: true,
+        readOnly: false,
+      });
+    });
+
+    it('works on its own copy, the saved topology stays as it is', () => {
       const topology = open();
+      manager.renameNode('pc', 'client');
 
-      expect(opened).toHaveBeenCalledWith(topology);
-      expect(manager.isOpen()).toBe(true);
-      expect(manager.topology).toBe(topology);
-      expect(manager.editingFileId).toBe('topology-id');
-      expect(manager.currentFileType).toBe(OpenFileType.Topology);
-      expect(manager.hasEdits()).toBe(false);
-    });
-
-    it('refetches the previous topology when another one is opened', () => {
-      open();
-      open({...createTopology(), id: 'other-id'});
-
-      expect(topologyStore.fetchSingle).toHaveBeenCalledWith('topology-id');
-    });
-
-    it('does not refetch anything when the first topology is opened', () => {
-      open();
-
-      expect(topologyStore.fetchSingle).not.toHaveBeenCalled();
-    });
-
-    it('closes the open topology', () => {
-      const closed = vi.fn();
-      manager.onClose.register(closed);
-      open();
-      manager.close();
-
-      expect(closed).toHaveBeenCalled();
-      expect(manager.isOpen()).toBe(false);
-      expect(manager.topology).toBeNull();
-      expect(manager.editingFileId).toBeNull();
-    });
-
-    it('ignores edits while no topology is open', () => {
-      manager.editTopology(read(TOPOLOGY), TopologyEditSource.TextEditor);
-      manager.renameNode('r1', 'r3');
-      manager.deleteElements(['r1'], [], [], []);
-
-      expect(edits).toHaveLength(0);
-      expect(manager.addText({text: 'a', position: {x: 0, y: 0}})).toBeNull();
-    });
-
-    it('returns the saved topology from the store if it is not open', () => {
-      const stored = createTopology();
-      topologyStore.lookup.set('stored-id', stored);
-
-      expect(manager.savedTopology('stored-id')).toBe(stored);
-      expect(manager.savedTopology('unknown')).toBeUndefined();
+      expect(manager.topology!.definition.nodeNames).toContain('client');
+      expect(topology.definition.nodeNames).toContain('pc');
     });
   });
 
   describe('editing', () => {
-    it('marks a topology as edited until the edit is reverted', () => {
+    it('marks the document as edited until the text is the saved one again', () => {
       open();
-      manager.editTopology(
-        read(TOPOLOGY.replace('kind: linux', 'kind: alpine')),
-        TopologyEditSource.TextEditor,
+      type(TOPOLOGY.replace('kind: linux', 'kind: alpine'));
+
+      expect(doc.isEdited).toBe(true);
+      expect(manager.topology!.definition.nodes.get('pc')!.get('kind')).toBe(
+        'alpine',
       );
 
-      expect(lastEdit().isEdited).toBe(true);
-      expect(lastEdit().source).toBe(TopologyEditSource.TextEditor);
-      expect(manager.hasEdits()).toBe(true);
-
-      manager.editTopology(read(TOPOLOGY), TopologyEditSource.TextEditor);
-      expect(lastEdit().isEdited).toBe(false);
-      expect(manager.hasEdits()).toBe(false);
+      type(TOPOLOGY);
+      expect(doc.isEdited).toBe(false);
     });
 
-    it('does not count a change of the formatting as an edit', () => {
+    it('counts a change of the annotations as an edit of the document', () => {
       open();
-      manager.editTopology(
-        read(
-          TOPOLOGY.replace(
-            '["r1:e1-1", "r2:e1-1"]',
-            '\n        - "r1:e1-1"\n        - "r2:e1-1"',
-          ) + '\n\n',
-        ),
-        TopologyEditSource.TextEditor,
+      manager.updateLayout({
+        nodes: new Map([['r1', {position: {x: 5, y: 5}, groupId: null}]]),
+      });
+
+      expect(annotationsBuffer().isEdited).toBe(true);
+      expect(definitionBuffer().isEdited).toBe(false);
+      expect(doc.isEdited).toBe(true);
+    });
+
+    it('keeps showing the last valid definition while the text is invalid', () => {
+      open();
+      type('name: [');
+
+      expect(doc.isValid).toBe(false);
+      expect(manager.topology!.definition.name).toBe('test');
+    });
+
+    it('reads typed text only after a short delay', () => {
+      open();
+      definitionBuffer().setText(
+        TOPOLOGY.replace('name: test', 'name: x'),
+        FileEditSource.TextEditor,
       );
 
-      expect(lastEdit().isEdited).toBe(false);
-    });
+      expect(doc.isParsing).toBe(true);
+      expect(manager.topology!.definition.name).toBe('test');
 
-    it('counts a change of the annotations as an edit', () => {
+      vi.runOnlyPendingTimers();
+      expect(doc.isParsing).toBe(false);
+      expect(manager.topology!.definition.name).toBe('x');
+    });
+  });
+
+  describe('undo and redo', () => {
+    it('undoes a change of the graph that changes both files in one step', () => {
       open();
-      manager.editAnnotations(
-        {...ANNOTATIONS, freeTextAnnotations: []},
-        TopologyEditSource.TextEditor,
-      );
+      manager.renameNode('r1', 'core');
+      const undone = doc.undo();
 
-      expect(lastEdit().isEdited).toBe(true);
-    });
-
-    it('passes the merge key on with the edit', () => {
-      open();
-      manager.updateLayout(
-        {nodes: new Map([['r1', {position: {x: 5, y: 5}, groupId: null}]])},
-        'nudge',
-      );
-
-      expect(lastEdit().mergeKey).toBe('nudge');
-      expect(lastEdit().source).toBe(TopologyEditSource.NodeEditor);
-    });
-
-    it('discards edits by restoring the original topology', () => {
-      const topology = open();
-      manager.renameNode('pc', 'client');
-      manager.discardEdits();
-
-      expect(lastEdit().isEdited).toBe(false);
-      expect(lastEdit().source).toBe(TopologyEditSource.System);
+      expect(undone?.file).toBe(DEFINITION_FILE);
       expect(manager.topology!.definition.nodeNames).toEqual([
         'r1',
         'r2',
         'pc',
       ]);
-      expect(manager.topology).not.toBe(topology);
-      expect(manager.hasEdits()).toBe(false);
+      expect(manager.topology!.annotations.nodeAnnotations![0].id).toBe('r1');
+      expect(doc.isEdited).toBe(false);
+
+      doc.redo();
+      expect(manager.topology!.definition.nodeNames).toContain('core');
+      expect(manager.topology!.annotations.nodeAnnotations![0].id).toBe('core');
     });
 
-    it('counts edits after discarding as edits', () => {
+    it('reports the annotations as the file of a change of the layout', () => {
+      open();
+      manager.updateLayout({
+        nodes: new Map([['r1', {position: {x: 5, y: 5}, groupId: null}]]),
+      });
+
+      expect(doc.undo()?.file).toBe(ANNOTATIONS_FILE);
+    });
+
+    it('merges typing in a file into one change', () => {
+      open();
+      definitionBuffer().setText(TOPOLOGY + '#', FileEditSource.TextEditor);
+      definitionBuffer().setText(TOPOLOGY + '#a', FileEditSource.TextEditor);
+
+      expect(doc.history.length).toBe(2);
+    });
+
+    it('records a replaced text as its own change', () => {
+      open();
+      doc.replaceText(DEFINITION_FILE, TOPOLOGY.replace('test', 'pulled'));
+
+      expect(doc.history.length).toBe(2);
+      expect(manager.topology!.definition.name).toBe('pulled');
+    });
+
+    it('keeps the selection of the graph before a change for undo', () => {
+      open();
+      const selection = {
+        nodeIds: ['r1'],
+        groupIds: [],
+        shapeIds: [],
+        textIds: [],
+      };
+      doc.setSelectionProviders(null, () => selection);
+      manager.renameNode('r1', 'core');
+
+      expect(doc.undo()?.graphSelection).toEqual(selection);
+    });
+  });
+
+  describe('drafts', () => {
+    it('keeps unsaved changes as a draft and restores them', () => {
+      const topology = open();
+      manager.renameNode('pc', 'client');
+      vi.runOnlyPendingTimers();
+      doc.dispose();
+
+      const reopened = bed.topologyDocument(topology);
+      expect(reopened.isEdited).toBe(true);
+      expect(reopened.hasConflict).toBe(false);
+      expect(reopened.graph.topology!.definition.nodeNames).toContain('client');
+    });
+
+    it('deletes the draft once the changes are undone', () => {
       open();
       manager.renameNode('pc', 'client');
-      manager.discardEdits();
-      manager.renameNode('pc', 'server');
+      vi.runOnlyPendingTimers();
+      doc.undo();
+      vi.runOnlyPendingTimers();
 
-      expect(manager.hasEdits()).toBe(true);
-      expect(
-        manager.savedTopology('topology-id')!.definition.nodeNames,
-      ).toEqual(['r1', 'r2', 'pc']);
+      expect(drafts.load('topology-id')).toBeNull();
     });
 
-    it('takes a replaced topology as the new original', () => {
-      open();
-      const replaced = createTopology(
-        TOPOLOGY.replace('name: test', 'name: x'),
-      );
-      manager.replaceTopology(replaced);
+    it('restores a draft made on an older version as a conflict', () => {
+      const topology = open();
+      manager.renameNode('pc', 'client');
+      vi.runOnlyPendingTimers();
+      doc.dispose();
 
-      expect(lastEdit().isEdited).toBe(false);
-      expect(manager.topology).toBe(replaced);
-      expect(manager.savedTopology('topology-id')!.definition.name).toBe('x');
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+      const reopened = bed.topologyDocument(topology);
+
+      expect(reopened.hasConflict).toBe(true);
+      expect(reopened.graph.topology!.definition.nodeNames).toContain('client');
+    });
+
+    it('ignores the draft of another user', () => {
+      const topology = open();
+      manager.renameNode('pc', 'client');
+      vi.runOnlyPendingTimers();
+      doc.dispose();
+
+      const other = bed.topologyDocument(
+        topology,
+        new DraftStorage('other-user'),
+      );
+      expect(other.isEdited).toBe(false);
+    });
+  });
+
+  describe('newer saved versions', () => {
+    it('shows a newer saved version if there are no changes', () => {
+      open();
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+
+      expect(doc.hasConflict).toBe(false);
+      expect(doc.isEdited).toBe(false);
+      expect(manager.topology!.definition.name).toBe('renamed');
+    });
+
+    it('keeps the changes and reports a conflict if there are changes', () => {
+      open();
+      manager.renameNode('pc', 'client');
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+
+      expect(doc.hasConflict).toBe(true);
+      expect(manager.topology!.definition.nodeNames).toContain('client');
+    });
+
+    it('keeps the changes on top of the newer version', () => {
+      open();
+      manager.renameNode('pc', 'client');
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+      doc.keepChanges();
+
+      expect(doc.hasConflict).toBe(false);
+      expect(doc.isEdited).toBe(true);
+      expect(manager.topology!.definition.nodeNames).toContain('client');
+    });
+
+    it('goes back to the newer version when the changes are reverted', () => {
+      open();
+      manager.renameNode('pc', 'client');
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+      doc.revert();
+
+      expect(doc.hasConflict).toBe(false);
+      expect(doc.isEdited).toBe(false);
+      expect(manager.topology!.definition.name).toBe('renamed');
+      expect(manager.topology!.definition.nodeNames).toContain('pc');
+    });
+
+    it('renames the topology in the changes', () => {
+      open();
+      manager.renameNode('pc', 'client');
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+      doc.applyRename('renamed');
+
+      expect(doc.hasConflict).toBe(false);
+      expect(manager.topology!.definition.name).toBe('renamed');
+      expect(manager.topology!.definition.nodeNames).toContain('client');
+    });
+
+    it('keeps text that is not valid when the topology is renamed', () => {
+      open();
+      const invalid = TOPOLOGY + '  - [';
+      definitionBuffer().setText(invalid, FileEditSource.TextEditor);
+      topologyStore.store('topology-id', {
+        definition: TOPOLOGY.replace('name: test', 'name: renamed'),
+      });
+      doc.applyRename('renamed');
+
+      expect(doc.hasConflict).toBe(false);
+      expect(definitionBuffer().text).toBe(invalid);
+    });
+
+    it('takes annotations the server stores reformatted as saved', async () => {
+      open();
+      const reformatted = JSON.stringify(
+        {...ANNOTATIONS, freeTextAnnotations: []},
+        null,
+        4,
+      );
+      annotationsBuffer().setText(reformatted, FileEditSource.TextEditor);
+      vi.runOnlyPendingTimers();
+      await doc.save();
+
+      expect(doc.isEdited).toBe(false);
+      expect(annotationsBuffer().text).toBe(
+        serializeAnnotations({...ANNOTATIONS, freeTextAnnotations: []}),
+      );
+    });
+  });
+
+  describe('saving', () => {
+    it('does not save a file that can not be read', async () => {
+      open();
+      type('name: [');
+      const result = await doc.save();
+
+      expect(result.isErr()).toBe(true);
+      expect(topologyStore.updates).toHaveLength(0);
+    });
+
+    it('deletes the draft after saving', async () => {
+      open();
+      manager.renameNode('pc', 'client');
+      vi.runOnlyPendingTimers();
+      await doc.save();
+
+      expect(drafts.load('topology-id')).toBeNull();
     });
   });
 
@@ -289,6 +374,7 @@ describe('TopologyManager', () => {
 
     it('is read-only if the user can not edit it', () => {
       expect(manager.isReadOnly).toBe(true);
+      expect(doc.capabilities.readOnly).toBe(true);
     });
 
     it('ignores edits from the graph', () => {
@@ -296,23 +382,14 @@ describe('TopologyManager', () => {
       manager.addShape({shapeType: 'rectangle', position: {x: 0, y: 0}});
       manager.deleteElements(['r1'], [], [], []);
 
-      expect(edits).toHaveLength(0);
+      expect(doc.history.length).toBe(1);
       expect(manager.topology!.definition.nodeNames).toContain('r1');
-    });
-
-    it('still applies edits from the text editor and the system', () => {
-      manager.editTopology(
-        read(TOPOLOGY.replace('name: test', 'name: x')),
-        TopologyEditSource.TextEditor,
-      );
-
-      expect(manager.topology!.definition.name).toBe('x');
     });
 
     it('can not be cleared', () => {
       manager.clear();
 
-      expect(edits).toHaveLength(0);
+      expect(doc.history.length).toBe(1);
     });
   });
 
@@ -335,7 +412,7 @@ describe('TopologyManager', () => {
       open();
       manager.renameNode('r1', 'r1');
 
-      expect(edits).toHaveLength(0);
+      expect(doc.history.length).toBe(1);
     });
 
     it('renames the interface at one end of a link', () => {
@@ -371,11 +448,11 @@ describe('TopologyManager', () => {
     });
 
     it('does not connect nodes before the devices are loaded', () => {
-      (deviceStore as {data: unknown}).data = undefined;
+      (bed.deviceStore as {data: unknown}).data = undefined;
       open();
       manager.connectNodes('r1', 'pc');
 
-      expect(edits).toHaveLength(0);
+      expect(doc.history.length).toBe(1);
     });
 
     it('clears all nodes and links of a topology', () => {
@@ -386,7 +463,7 @@ describe('TopologyManager', () => {
       expect(definition.nodeNames).toEqual([]);
       expect(definition.links).toEqual([]);
       expect(annotations.nodeAnnotations).toEqual([]);
-      expect(lastEdit().isEdited).toBe(true);
+      expect(doc.isEdited).toBe(true);
     });
   });
 
@@ -460,7 +537,7 @@ describe('TopologyManager', () => {
       open(createTopology(TOPOLOGY, annotations));
       manager.deleteElements(['pc'], [0], ['group-1'], ['shape-1']);
 
-      expect(edits).toHaveLength(1);
+      expect(doc.history.length).toBe(2);
       expect(manager.topology!.definition.links).toHaveLength(0);
     });
   });
@@ -477,7 +554,7 @@ describe('TopologyManager', () => {
       );
 
       expect(groupId).toBe('group-1');
-      expect(edits).toHaveLength(1);
+      expect(doc.history.length).toBe(2);
 
       const {annotations} = manager.topology!;
       expect(annotations.groupStyleAnnotations).toEqual([
@@ -531,7 +608,7 @@ describe('TopologyManager', () => {
       manager.reorderAnnotations([], true);
       manager.stepAnnotations([], true);
 
-      expect(edits).toHaveLength(0);
+      expect(doc.history.length).toBe(1);
     });
 
     it('adds shapes in front of all groups and shapes', () => {
@@ -558,10 +635,8 @@ describe('TopologyManager', () => {
       manager.setText(textId!, 'ab');
 
       expect(textId).toBe('text-1');
-      expect(edits.map(edit => edit.mergeKey)).toEqual([
-        'text-text-1',
-        'text-text-1',
-      ]);
+      // Adding the text and writing it are one change
+      expect(doc.history.length).toBe(2);
       expect(manager.topology!.annotations.freeTextAnnotations![0]).toEqual({
         id: 'text-1',
         text: 'ab',
@@ -646,7 +721,7 @@ describe('TopologyManager', () => {
         texts: [],
       });
 
-      expect(edits).toHaveLength(1);
+      expect(doc.history.length).toBe(2);
 
       const {definition, annotations} = manager.topology!;
       expect(definition.nodeNames).toEqual(['r1', 'r2', 'pc', 'r1-1', 'r2-1']);
@@ -701,10 +776,7 @@ topology:
 
     it('keeps graph labels on edits from the text editor', () => {
       open(createTopology(LABELED, {}));
-      manager.editTopology(
-        read(LABELED.replace('name: test', 'name: x')),
-        TopologyEditSource.TextEditor,
-      );
+      type(LABELED.replace('name: test', 'name: x'));
 
       expect(
         manager.topology!.definition.nodes.get('r1')!.own(['labels']),
@@ -747,11 +819,8 @@ topology:
   describe('saving', () => {
     it('sends the definition and leaves unchanged annotations out', async () => {
       open();
-      manager.editTopology(
-        read(TOPOLOGY.replace('name: test', 'name: saved')),
-        TopologyEditSource.TextEditor,
-      );
-      await manager.save();
+      type(TOPOLOGY.replace('name: test', 'name: saved'));
+      await doc.save();
 
       expect(topologyStore.updates).toHaveLength(1);
       expect(topologyStore.updates[0].id).toBe('topology-id');
@@ -764,7 +833,7 @@ topology:
       manager.updateLayout({
         nodes: new Map([['r1', {position: {x: 7, y: 7}, groupId: null}]]),
       });
-      await manager.save();
+      await doc.save();
 
       const body = topologyStore.updates[0].body;
       expect(JSON.parse(body.annotations!).nodeAnnotations[0].position).toEqual(
@@ -775,12 +844,11 @@ topology:
     it('has no edits after a successful save', async () => {
       open();
       manager.renameNode('pc', 'client');
-      await manager.save();
+      await doc.save();
 
-      expect(lastEdit().isEdited).toBe(false);
-      expect(manager.hasEdits()).toBe(false);
+      expect(doc.isEdited).toBe(false);
       expect(
-        manager.savedTopology('topology-id')!.definition.nodeNames,
+        topologyStore.lookup.get('topology-id')!.definition.nodeNames,
       ).toContain('client');
     });
 
@@ -788,10 +856,10 @@ topology:
       topologyStore.updateResult = Result.createErr({code: 500, message: ''});
       open();
       manager.renameNode('pc', 'client');
-      const result = await manager.save();
+      const result = await doc.save();
 
-      expect(result!.isErr()).toBe(true);
-      expect(manager.hasEdits()).toBe(true);
+      expect(result.isErr()).toBe(true);
+      expect(doc.isEdited).toBe(true);
     });
 
     it('completes the layout before saving', async () => {
@@ -805,7 +873,7 @@ topology:
           ],
         }),
       );
-      await manager.save();
+      await doc.save();
 
       const saved = JSON.parse(topologyStore.updates[0].body.annotations!);
       expect(saved.nodeAnnotations.map((a: {id: string}) => a.id)).toEqual([
@@ -813,88 +881,6 @@ topology:
         'r2',
         'pc',
       ]);
-    });
-  });
-
-  describe('bind files', () => {
-    const bindFile: BindFile = {
-      id: 'file-id',
-      topologyId: 'topology-id',
-      filePath: 'r1/config.cfg',
-      content: 'hostname r1',
-    };
-
-    it('opens a bind file without edits', () => {
-      const opened = vi.fn();
-      manager.onBindFileOpen.register(opened);
-      manager.openBindFile({...bindFile});
-
-      expect(opened).toHaveBeenCalled();
-      expect(manager.currentFileType).toBe(OpenFileType.BindFile);
-      expect(manager.editingFileId).toBe('file-id');
-      expect(manager.topology).toBeNull();
-      expect(manager.hasEdits()).toBe(false);
-    });
-
-    it('marks a bind file as edited until its content is the original', () => {
-      const reports: boolean[] = [];
-      manager.onBindFileEdit.register(report => reports.push(report.isEdited));
-      manager.openBindFile({...bindFile});
-
-      manager.editBindFile('hostname r2', BindFileEditSource.TextEditor);
-      expect(manager.hasEdits()).toBe(true);
-
-      manager.editBindFile('hostname r1', BindFileEditSource.TextEditor);
-      expect(manager.hasEdits()).toBe(false);
-      expect(reports).toEqual([true, false]);
-    });
-
-    it('discards the edits of a bind file', () => {
-      vi.spyOn(console, 'log').mockImplementation(() => {});
-      manager.openBindFile({...bindFile});
-      manager.editBindFile('changed', BindFileEditSource.TextEditor);
-      manager.discardEdits();
-
-      expect(manager.bindFile!.content).toBe('hostname r1');
-      expect(manager.hasEdits()).toBe(false);
-    });
-
-    it('clears the content of a bind file', () => {
-      manager.openBindFile({...bindFile});
-      manager.clear();
-
-      expect(manager.bindFile!.content).toBe('');
-    });
-
-    it('saves a bind file', async () => {
-      manager.openBindFile({...bindFile});
-      manager.editBindFile('changed', BindFileEditSource.TextEditor);
-      await manager.save();
-
-      expect(topologyStore.bindFileUpdates).toEqual([
-        {id: 'file-id', content: 'changed'},
-      ]);
-      expect(manager.hasEdits()).toBe(false);
-    });
-
-    it('refetches the topology of the bind file when another file is opened', () => {
-      manager.openBindFile({...bindFile});
-      open();
-
-      expect(topologyStore.fetchSingle).toHaveBeenCalledWith('topology-id');
-    });
-  });
-
-  describe('serializing annotations', () => {
-    it('serializes the same annotations only once', () => {
-      const annotations: TopologyAnnotations = {nodeAnnotations: []};
-      const first = TopologyManager.serializeAnnotations(annotations);
-
-      // The cache relies on edits replacing the annotations instead of changing them
-      annotations.nodeAnnotations!.push({id: 'r1'});
-
-      expect(TopologyManager.serializeAnnotations(annotations)).toBe(first);
-      expect(first).toBe(JSON.stringify({nodeAnnotations: []}, null, 2));
     });
   });
 });

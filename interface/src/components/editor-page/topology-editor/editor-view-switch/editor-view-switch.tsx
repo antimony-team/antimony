@@ -1,8 +1,8 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 
-import './editor-view-switch.sass';
+import {EditorView} from '@sb/lib/editor/document/editor-document';
 
-export type EditorView = 'code' | 'split' | 'graph';
+import './editor-view-switch.sass';
 
 const editorViews: readonly EditorView[] = ['code', 'split', 'graph'];
 

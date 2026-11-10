@@ -8,6 +8,7 @@ import {CollectionStore} from '@sb/lib/stores/collection-store';
 import {ContextMenuStore} from '@sb/lib/stores/context-menu-store';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
 import {DeviceStore} from '@sb/lib/stores/device-store';
+import {EditorTabStore} from '@sb/lib/stores/editor-tab-store';
 import {LabStore} from '@sb/lib/stores/lab-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {ServerConfigStore} from '@sb/lib/stores/server-config-store';
@@ -31,6 +32,7 @@ export class RootStore {
   _schemaStore: SchemaStore;
   _statusMessagesStore: StatusMessageStore;
   _shellStore: ShellStore;
+  _editorTabStore: EditorTabStore;
 
   /**
    * Latch that stays set once the initial fetch of every store has completed.
@@ -62,7 +64,6 @@ export class RootStore {
       this,
       this._dataBinder,
       this._schemaStore,
-      this._deviceStore,
       new ContainerlabFormat(() => this._schemaStore.clabValidator),
       [this._schemaStore],
     );
@@ -79,6 +80,14 @@ export class RootStore {
     this._shellStore = new ShellStore(
       this._dataBinder,
       this._statusMessagesStore,
+    );
+
+    this._editorTabStore = new EditorTabStore(
+      this._dataBinder,
+      this._topologyStore,
+      this._collectionStore,
+      this._deviceStore,
+      this._schemaStore,
     );
 
     autorun(() => {
@@ -185,6 +194,10 @@ export const useStatusMessages = () => {
 
 export const useShellStore = () => {
   return useContext(RootStoreContext)._shellStore;
+};
+
+export const useEditorTabStore = () => {
+  return useContext(RootStoreContext)._editorTabStore;
 };
 
 export const useContextMenuStore = () => {

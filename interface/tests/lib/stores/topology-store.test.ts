@@ -4,7 +4,6 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {ContainerlabFormat} from '@sb/lib/format/containerlab/containerlab-format';
 import {DataBinder} from '@sb/lib/stores/data-binder/data-binder';
-import {DeviceStore} from '@sb/lib/stores/device-store';
 import {RootStore} from '@sb/lib/stores/root-store';
 import {SchemaStore} from '@sb/lib/stores/schema-store';
 import {TopologyStore} from '@sb/lib/stores/topology-store';
@@ -109,7 +108,6 @@ describe('TopologyStore', () => {
       } as unknown as RootStore,
       dataBinder as unknown as DataBinder,
       schemaStore as unknown as SchemaStore,
-      {} as DeviceStore,
       new ContainerlabFormat(() => clabValidator),
     );
     store.dispose();

@@ -34,10 +34,10 @@ import {TopologyEditDialogState} from '@sb/components/editor-page/topology-edit-
 import {
   useAuthUser,
   useCollectionStore,
+  useEditorTabStore,
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyEditSource} from '@sb/lib/topology-manager';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {
   isString,
@@ -61,7 +61,8 @@ interface TopologyBrowserProps {
 
   onTopologyDeploy: (id: uuid4) => void;
 
-  onOpenFile: (id: string) => void;
+  // Opens a topology or bind file in a tab; a preview tab is replaced by the next preview
+  onOpenFile: (id: string, preview?: boolean) => void;
 
   editCollectionState: DialogState<CollectionEditDialogState>;
   editTopologyState: DialogState<TopologyEditDialogState>;
@@ -77,6 +78,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
 
   const authUser = useAuthUser();
   const topologyStore = useTopologyStore();
+  const tabStore = useEditorTabStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
@@ -269,8 +271,8 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       topologyStore.lookup.has(key) ||
       topologyStore.bindFileLookup.has(key)
     ) {
-      // If the node is a topology or a bind file, open the topology / bind file
-      executeEditDiscardingAction(() => props.onOpenFile(key));
+      // A single click previews the topology or bind file, a double click keeps it open
+      props.onOpenFile(key, true);
     } else if (expandedNodes.has(key)) {
       // Collections and bind file directories toggle on click
       collapseNode(key);
@@ -408,72 +410,39 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         'Failed to delete collection',
       );
     } else {
+      // The tabs of its topologies and files close once they are gone
       notificationStore.success('Collection has been deleted.');
-
-      // Close editor if topology in collection or bind file belonging to topology in collection is currently being edited
-      if (
-        topologyStore.manager.topology?.collectionId === collectionId ||
-        (topologyStore.manager.bindFile &&
-          topologyStore.lookup.get(topologyStore.manager.bindFile.topologyId)
-            ?.collectionId === collectionId)
-      ) {
-        topologyStore.manager.close();
-      }
     }
   }
 
   function onAddTopology(collectionId: uuid4 | null) {
     if (!collectionId || !collectionStore.lookup.has(collectionId)) return;
 
-    executeEditDiscardingAction(() => {
-      props.editTopologyState.openWith({
-        topology: null,
-        collectionId: collectionId,
-        action: DialogAction.Add,
-      });
+    props.editTopologyState.openWith({
+      topology: null,
+      collectionId: collectionId,
+      action: DialogAction.Add,
     });
   }
 
   function onEditTopology(topologyId: string) {
     if (!topologyStore.lookup.has(topologyId)) return;
 
-    executeEditDiscardingAction(() => {
-      const topology = topologyStore.lookup.get(topologyId)!;
-      props.editTopologyState.openWith({
-        topology: topology,
-        collectionId: topology.collectionId,
-        action: DialogAction.Edit,
-      });
+    const topology = topologyStore.lookup.get(topologyId)!;
+    props.editTopologyState.openWith({
+      topology: topology,
+      collectionId: topology.collectionId,
+      action: DialogAction.Edit,
     });
   }
 
   function onDuplicateTopology(topologyId: string) {
-    executeEditDiscardingAction(() => {
-      const topology = topologyStore.lookup.get(topologyId)!;
-      props.editTopologyState.openWith({
-        topology: topology,
-        collectionId: topology.collectionId,
-        action: DialogAction.Duplicate,
-      });
+    const topology = topologyStore.lookup.get(topologyId)!;
+    props.editTopologyState.openWith({
+      topology: topology,
+      collectionId: topology.collectionId,
+      action: DialogAction.Duplicate,
     });
-  }
-
-  function executeEditDiscardingAction(action: () => void) {
-    if (topologyStore.manager.hasEdits()) {
-      notificationStore.confirm({
-        header: 'Discard unsaved changes?',
-        message: `Your changes to "${topologyStore.manager.topology?.definition.name}" haven't been saved.`,
-        severity: 'warning',
-        acceptText: 'Discard changes',
-        rejectText: 'Keep editing',
-        onAccept: () => {
-          topologyStore.manager.discardEdits();
-          action();
-        },
-      });
-    } else {
-      action();
-    }
   }
 
   function onDeleteTopology(id: string) {
@@ -512,15 +481,8 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         'Failed to delete topology',
       );
     } else {
+      // The tabs of the topology and its files close once they are gone
       notificationStore.success('Topology has been deleted.');
-
-      // Close editor if topology or bind file belonging to topology is currently being edited
-      if (
-        topologyStore.manager.editingFileId === topologyId ||
-        topologyStore.manager.bindFile?.topologyId === topologyId
-      ) {
-        topologyStore.manager.close();
-      }
     }
   }
 
@@ -545,10 +507,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       notificationStore.error(result.error.message, 'Failed to delete file');
     } else {
       notificationStore.success('File has been deleted.');
-    }
-
-    if (topologyStore.manager.editingFileId === bindFileId) {
-      topologyStore.manager.close();
     }
   }
 
@@ -639,9 +597,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
   const onDownloadTopologyContext = () => {
     if (!contextMenuTarget.current) return;
 
-    const topology = topologyStore.manager.savedTopology(
-      contextMenuTarget.current,
-    );
+    const topology = topologyStore.lookup.get(contextMenuTarget.current);
     if (!topology) return;
 
     downloadTopologyDefinition(
@@ -912,14 +868,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
-    // The update and single fetch reset the open topology, so if it's the one
-    // being moved, its content in the editor (with unsaved edits) is restored
-    // afterward. Other topologies don't touch the editor.
-    const editorBackup =
-      topologyStore.manager.editingFileId === topology.id
-        ? topologyStore.manager.topology?.definition
-        : null;
-
     const result = await topologyStore.update(topology.id, {
       collectionId: collectionId,
     });
@@ -927,13 +875,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     if (result.isErr()) {
       notificationStore.error(result.error.message, 'Failed to move topology');
     } else {
-      if (editorBackup) {
-        topologyStore.manager.editTopology(
-          editorBackup,
-          TopologyEditSource.System,
-        );
-      }
-
       // If the move was successful, expand the target collection node
       expandNode(collectionId);
       // setNodeExpanded(collectionId, true);
@@ -982,10 +923,10 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
+    // Moving to another topology makes a new file, unsaved changes of the old one are lost
     if (
       bindFile.topologyId !== topologyId &&
-      topologyStore.manager.editingFileId === bindFileId &&
-      topologyStore.manager.hasEdits()
+      tabStore.find(bindFileId)?.isEdited
     ) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
@@ -1029,9 +970,6 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
-    // Discard edits before we move the file to a new topology
-    topologyStore.manager.discardEdits();
-
     // Add bind file to target topology
     const addResult = await topologyStore.addBindFile(
       topology.id,
@@ -1064,9 +1002,7 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
     }
 
     // Open moved bind file in topology editor
-    topologyStore.manager.openBindFile(
-      topologyStore.bindFileLookup.get(addResult.data.payload)!,
-    );
+    tabStore.open(addResult.data.payload);
   }
 
   /**
@@ -1101,19 +1037,13 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
       return;
     }
 
-    if (
-      topologyStore.manager.editingFileId === bindFileId &&
-      topologyStore.manager.hasEdits()
-    ) {
+    if (tabStore.find(bindFileId)?.isEdited) {
       notificationStore.confirm({
         message: 'Discard unsaved changes?',
         header: 'Unsaved changes',
         icon: 'pi pi-info-circle',
         severity: 'warning',
         onAccept: () => {
-          // We need to discard edits here already because we are creating a new object
-          topologyStore.manager.discardEdits();
-
           void moveBindFileToTopologyConfirm(
             {...sourceBindFile, filePath: newFilePath},
             targetTopology,
@@ -1205,6 +1135,10 @@ const TopologyExplorer = observer((props: TopologyBrowserProps) => {
         onExpand={onNodeExpand}
         onCollapse={onNodeCollapse}
         selectionKeys={props.selectedId}
+        onNodeDoubleClick={e => {
+          const key = e.node.key as string;
+          if (tabStore.canOpen(key)) props.onOpenFile(key);
+        }}
         nodeTemplate={node => (
           <ExplorerTreeNode
             node={node as ExplorerTreeNodeData}

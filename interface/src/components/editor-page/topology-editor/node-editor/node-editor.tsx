@@ -52,6 +52,8 @@ import {
   TOOL_DRAW_KINDS,
   useGraphSelection,
 } from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
+import {GraphSelectionSnapshot} from '@sb/lib/editor/edit-history';
+import {GraphModel} from '@sb/lib/editor/graph-model';
 import {
   annotationBoxes,
   AnnotationItem,
@@ -159,8 +161,7 @@ import {
   groupParentUpdate,
 } from '@sb/lib/graph/topology-annotations';
 import {NodeLayout} from '@sb/lib/graph/topology-graph';
-import {useDeviceStore, useTopologyStore} from '@sb/lib/stores/root-store';
-import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
+import {useDeviceStore} from '@sb/lib/stores/root-store';
 import {useStableCallbacks} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
 import {
@@ -177,6 +178,10 @@ import ZoomControl from './zoom-control/zoom-control';
 import './node-editor.sass';
 
 interface NodeEditorProps {
+  // The graph of the open document, it makes all edits
+  graph: GraphModel;
+
+  // The topology the graph shows, null until its definition could be read
   openTopology: Topology | null;
 
   onEditNode: (nodeName: string) => void;
@@ -337,9 +342,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   );
 
   const deviceStore = useDeviceStore();
-  const topologyStore = useTopologyStore();
-  const isReadOnly =
-    !!props.openTopology && !topologyStore.canEdit(props.openTopology);
+  const isReadOnly = props.graph.isReadOnly;
   const graphSelection = useGraphSelection();
 
   const graphRef = useRef<TopologyGraphRef>(null);
@@ -976,7 +979,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       return;
     }
 
-    topologyStore.manager.setText(textId, value);
+    props.graph.setText(textId, value);
   }
 
   function onGraphPointerDown(event: EventObject) {
@@ -2051,7 +2054,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     };
 
     graphSelection.clearDrag();
-    topologyStore.manager.updateLayout(
+    props.graph.updateLayout(
       {
         nodes: nodeLayouts,
         groups: groupUpdates,
@@ -2147,7 +2150,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       graphSelection.clearDrag();
       if (!action.hasMoved || !geometry) return;
 
-      topologyStore.manager.updateLayout({
+      props.graph.updateLayout({
         shapes: new Map([[action.shapeId, geometry]]),
       });
       return;
@@ -2247,7 +2250,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     }
 
     if (drawKind === 'text') {
-      const textId = topologyStore.manager.addText({text: '', ...geometry});
+      const textId = props.graph.addText({text: '', ...geometry});
       if (textId === null) return;
 
       graphSelection.select({textIds: [textId]});
@@ -2255,7 +2258,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       return;
     }
 
-    const shapeId = topologyStore.manager.addShape({
+    const shapeId = props.graph.addShape({
       shapeType: drawKind,
       ...geometry,
       ...newShapeStyle(drawKind),
@@ -2307,7 +2310,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     // Clicking the source node again links it to itself, which containerlab allows
     if (nodeConnectionSource.current) {
-      topologyStore.manager.connectNodes(nodeConnectionSource.current, nodeId);
+      props.graph.connectNodes(nodeConnectionSource.current, nodeId);
       exitConnectionMode();
     }
   }
@@ -2437,7 +2440,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onRenameInterface: endpointIndex =>
           startInterfaceRename(edge.id(), endpointIndex),
         onDelete: () =>
-          topologyStore.manager.deleteElements([], [Number(edge.id())], [], []),
+          props.graph.deleteElements([], [Number(edge.id())], [], []),
       }),
     );
     showContextMenu(mouseEvent);
@@ -2807,7 +2810,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const idsOf = (kind: ElementKind) =>
       members.filter(member => member.kind === kind).map(member => member.id);
 
-    const groupId = topologyStore.manager.addGroup(
+    const groupId = props.graph.addGroup(
       {
         name,
         position: {x: box.x, y: box.y},
@@ -3015,7 +3018,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       shapeIds: pasted.shapes.map(shape => shape.id),
       textIds: pasted.texts.map(text => text.id),
     });
-    topologyStore.manager.pasteElements(pasted);
+    props.graph.pasteElements(pasted);
   }
 
   // The position of the pointer in the graph, or null if it isn't over the graph
@@ -3051,11 +3054,11 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onStep(isForward: boolean) {
-    topologyStore.manager.stepAnnotations(graphSelection.layerIds, isForward);
+    props.graph.stepAnnotations(graphSelection.layerIds, isForward);
   }
 
   function onReorder(toFront: boolean) {
-    topologyStore.manager.reorderAnnotations(graphSelection.layerIds, toFront);
+    props.graph.reorderAnnotations(graphSelection.layerIds, toFront);
   }
 
   // Selects the group with everything inside it
@@ -3086,7 +3089,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     ];
 
     // The contents of deleted groups are kept, the selection is cleared after the change for undo
-    topologyStore.manager.deleteElements(
+    props.graph.deleteElements(
       nodeNames,
       [],
       deletedGroups.map(group => group.id),
@@ -3104,7 +3107,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     );
     const unique = (ids: string[]) => [...new Set(ids)];
 
-    topologyStore.manager.deleteElements(
+    props.graph.deleteElements(
       unique([
         ...graphSelection.nodeIds,
         ...contents.flatMap(content => content.nodeIds),
@@ -3152,7 +3155,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   function onUngroup() {
     if (graphSelection.groupIds.length === 0) return;
 
-    topologyStore.manager.removeGroups(graphSelection.groupIds);
+    props.graph.removeGroups(graphSelection.groupIds);
     graphSelection.setGroups([]);
   }
 
@@ -3161,7 +3164,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
     const shapeIds = graphSelection.shapeIds;
 
     graphSelection.setStylePreview([], null);
-    topologyStore.manager.updateLayout({
+    props.graph.updateLayout({
       groups: new Map(groupIds.map(id => [id, groupStyleUpdate(style)])),
       shapes: new Map(shapeIds.map(id => [id, shapeStyleUpdate(style)])),
     });
@@ -3185,7 +3188,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
       }),
     );
 
-    topologyStore.manager.updateLayout({
+    props.graph.updateLayout({
       groups: new Map(
         graphSelection.groupIds.map(id => [id, groupStyleReset(fields)]),
       ),
@@ -3195,7 +3198,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
   function onTextStyle(update: Partial<FreeTextAnnotation>) {
     graphSelection.setTextPreviews(new Map());
-    topologyStore.manager.updateLayout({
+    props.graph.updateLayout({
       texts: new Map(graphSelection.textIds.map(id => [id, update])),
     });
   }
@@ -3225,7 +3228,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
               annotation.shapeType === 'rectangle' ? 'circle' : 'rectangle',
           };
 
-    topologyStore.manager.updateLayout({shapes: new Map([[shapeId, update]])});
+    props.graph.updateLayout({shapes: new Map([[shapeId, update]])});
   }
 
   function onRenameSelection() {
@@ -3317,18 +3320,18 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     switch (labelEdit.kind) {
       case LabelKind.Group:
-        topologyStore.manager.updateLayout({
+        props.graph.updateLayout({
           groups: new Map([[labelEdit.id, {name}]]),
         });
         break;
       case LabelKind.Node:
-        topologyStore.manager.renameNode(labelEdit.id, name);
+        props.graph.renameNode(labelEdit.id, name);
         break;
       case LabelKind.Interface: {
         const edge = cyRef.current?.getElementById(labelEdit.id);
         if (!edge?.nonempty()) break;
 
-        topologyStore.manager.renameInterface(
+        props.graph.renameInterface(
           Number(labelEdit.id),
           labelEdit.endpointIndex!,
           name,
@@ -3424,7 +3427,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     resizeAttachments.current = null;
     graphSelection.setShapePreviews(new Map());
-    topologyStore.manager.updateLayout({
+    props.graph.updateLayout({
       shapes: new Map<string, Partial<FreeShapeAnnotation>>([
         ...(item.kind === 'shape' ? [[item.id, boxFields(box)] as const] : []),
         ...lines,
@@ -3517,7 +3520,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
 
     groupResizeStarts.current = null;
     graphSelection.clearDrag();
-    topologyStore.manager.updateLayout({
+    props.graph.updateLayout({
       nodes: nodeLayouts,
       groups: boxUpdates(changedGroups),
       shapes: new Map([...shapes, ...lines]),
@@ -3628,7 +3631,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
   }
 
   function onClearGraph() {
-    topologyStore.manager.clear();
+    props.graph.clear();
     graphSelection.clear();
   }
 
@@ -3804,6 +3807,7 @@ const NodeEditor = observer((props: NodeEditorProps) => {
         onAddNode={callbacks.onAddNode}
         onFitGraph={callbacks.onFitGraph}
         onGroupSelection={callbacks.onGroupSelection}
+        onClear={() => props.graph.clear()}
         readOnly={isReadOnly}
       />
       <If condition={isReadOnly}>

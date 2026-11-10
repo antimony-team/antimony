@@ -11,7 +11,6 @@ import {
   useGraphSelection,
 } from '@sb/components/editor-page/topology-editor/node-editor/state/graph-selection';
 import {GraphAction, keybindLabel} from '@sb/lib/graph/graph-keybinds';
-import {useTopologyStore} from '@sb/lib/stores/root-store';
 
 import './node-toolbar.sass';
 
@@ -75,12 +74,14 @@ interface NodeToolbarProps {
   onFitGraph: () => void;
   onGroupSelection: () => void;
 
+  // Deletes all nodes and links
+  onClear: () => void;
+
   // Only the tools for looking at the graph, without the ones that change it
   readOnly: boolean;
 }
 
 const NodeToolbar = observer((props: NodeToolbarProps) => {
-  const topologyStore = useTopologyStore();
   const graphSelection = useGraphSelection();
 
   const toolButton = (tool: ToolButton) => (
@@ -145,7 +146,7 @@ const NodeToolbar = observer((props: NodeToolbarProps) => {
       <Button
         icon="pi pi-trash"
         text
-        onClick={topologyStore.manager.clear}
+        onClick={props.onClear}
         tooltip="Clear graph"
         aria-label="Clear graph"
       />

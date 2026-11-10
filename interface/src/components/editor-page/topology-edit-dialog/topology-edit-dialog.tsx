@@ -10,12 +10,14 @@ import SBDropdown, {
   SBDropdownRef,
 } from '@sb/components/common/sb-dropdown/sb-dropdown';
 import SBInput, {SBInputRef} from '@sb/components/common/sb-input/sb-input';
+import {TopologyDocument} from '@sb/lib/editor/document/topology-document';
+import {serializeAnnotations} from '@sb/lib/format/annotations-format';
 import {
   useCollectionStore,
+  useEditorTabStore,
   useStatusMessages,
   useTopologyStore,
 } from '@sb/lib/stores/root-store';
-import {TopologyManager} from '@sb/lib/topology-manager';
 import {createTopologyTemplate} from '@sb/lib/topology-template';
 import {DialogAction, DialogState} from '@sb/lib/utils/hooks';
 import {fetchSyncUrl} from '@sb/lib/utils/utils';
@@ -53,6 +55,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
   }));
 
   const topologyStore = useTopologyStore();
+  const tabStore = useEditorTabStore();
   const collectionStore = useCollectionStore();
   const notificationStore = useStatusMessages();
 
@@ -162,9 +165,7 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
 
       const newTopology: TopologyIn = {
         definition: newTopologyDefinition.toString(),
-        annotations: TopologyManager.serializeAnnotations(
-          currentTopology.annotations,
-        ),
+        annotations: serializeAnnotations(currentTopology.annotations),
         syncUrl: editingTopology.syncUrl,
         collectionId: editingTopology.collectionId,
       };
@@ -194,11 +195,11 @@ const TopologyEditDialog = observer((props: TopologyEditDialogProps) => {
         );
       }
     } else {
-      // If the topology was currently opened, replace the topology to refresh it
-      if (topologyStore.manager.topology?.id === topologyId) {
-        topologyStore.manager.replaceTopology(
-          topologyStore.lookup.get(topologyId)!,
-        );
+      // An open tab with unsaved changes keeps them under the new name
+      const document = tabStore.find(topologyId);
+      if (document instanceof TopologyDocument && updatedTopology.definition) {
+        const name = topologyStore.lookup.get(topologyId)?.definition.name;
+        if (name) document.applyRename(name);
       }
 
       notificationStore.success('Topology has been updated successfully.');

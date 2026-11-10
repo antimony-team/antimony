@@ -2,6 +2,7 @@ import {createContext, useContext} from 'react';
 
 import {action, computed, observable} from 'mobx';
 
+import {GraphSelectionSnapshot} from '@sb/lib/editor/edit-history';
 import {
   AnnotationItem,
   Box,
@@ -16,7 +17,6 @@ import {
 import {AnnotationStyle} from '@sb/lib/graph/annotation-style';
 import {ConnectionSide} from '@sb/lib/graph/connections';
 import {SnapGuide} from '@sb/lib/graph/snapping';
-import {GraphSelectionSnapshot} from '@sb/lib/topology-history';
 import {FreeTextAnnotation} from '@sb/types/domain/topology';
 import {Position} from '@sb/types/types';
 

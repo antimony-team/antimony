@@ -96,3 +96,28 @@ describe('validation', () => {
     );
   });
 });
+
+describe('codec', () => {
+  const format = new ContainerlabFormat(() => validator);
+
+  it('parses a valid topology', () => {
+    expect(format.parse('name: lab\n')?.name).toBe('lab');
+  });
+
+  it('does not parse a topology that fails validation', () => {
+    expect(format.parse('topology: {}\n')).toBeNull();
+  });
+
+  it('does not parse invalid YAML', () => {
+    expect(format.parse('name: [')).toBeNull();
+  });
+
+  it('does not parse an empty file', () => {
+    expect(format.parse('  \n')).toBeNull();
+  });
+
+  it('serializes a definition to its text as written', () => {
+    const text = '# comment\nname: lab\n';
+    expect(format.serialize(format.parse(text)!)).toBe(text);
+  });
+});

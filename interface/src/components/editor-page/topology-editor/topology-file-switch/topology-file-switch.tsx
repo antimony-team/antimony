@@ -2,16 +2,19 @@ import React, {useRef, useState} from 'react';
 
 import {OverlayPanel} from 'primereact/overlaypanel';
 
+import {DocumentFile} from '@sb/lib/editor/document/editor-document';
 import {useReturnFocus} from '@sb/lib/utils/hooks';
 import {If} from '@sb/types/control';
-import {TopologyFileType} from '@sb/types/domain/topology';
 
 import './topology-file-switch.sass';
 
 interface TopologyFileSwitchProps {
-  value: TopologyFileType;
-  topologyName: string;
-  onChange: (file: TopologyFileType) => void;
+  // The files of the open document
+  files: readonly DocumentFile[];
+
+  // The ID of the shown file
+  value: string;
+  onChange: (fileId: string) => void;
 }
 
 const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
@@ -19,29 +22,17 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
   const returnFocus = useReturnFocus();
   const [isOpen, setOpen] = useState(false);
 
-  const files: {
-    value: TopologyFileType;
-    label: string;
-    icon: string;
-    fileName: string;
-  }[] = [
-    {
-      value: TopologyFileType.Definition,
-      label: 'Topology',
-      icon: 'notes',
-      fileName: `${props.topologyName}.clab.yml`,
-    },
-    {
-      value: TopologyFileType.Annotations,
-      label: 'Annotations',
-      icon: 'data_object',
-      fileName: `${props.topologyName}.clab.yml.annotations.json`,
-    },
-  ];
+  const files = props.files.map(file => ({
+    value: file.id,
+    label: file.label,
+    icon: file.icon,
+    fileName: file.fileName,
+  }));
 
-  const selectedFile = files.find(file => file.value === props.value)!;
+  const selectedFile =
+    files.find(file => file.value === props.value) ?? files[0];
 
-  function onSelect(file: TopologyFileType) {
+  function onSelect(file: string) {
     overlayRef.current?.hide();
     props.onChange(file);
   }
@@ -82,7 +73,7 @@ const TopologyFileSwitch = (props: TopologyFileSwitchProps) => {
           returnFocus.onHide(overlayRef.current?.getElement());
         }}
       >
-        <div role="listbox" aria-label="Topology files">
+        <div role="listbox" aria-label="Files">
           {files.map((file, i) => (
             <button
               key={i}

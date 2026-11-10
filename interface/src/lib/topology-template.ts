@@ -1,6 +1,6 @@
 import YAML from 'yaml';
 
-import {TopologyManager} from '@sb/lib/topology-manager';
+import {serializeAnnotations} from '@sb/lib/format/annotations-format';
 import {NodeAnnotation, TopologyIn} from '@sb/types/domain/topology';
 
 /**
@@ -31,7 +31,7 @@ export function createTopologyTemplate(
 
   return {
     definition: YAML.stringify(definition),
-    annotations: TopologyManager.serializeAnnotations(annotations),
+    annotations: serializeAnnotations(annotations),
   };
 }
 

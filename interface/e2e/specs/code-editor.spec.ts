@@ -1,6 +1,6 @@
 import {topologyDefinition} from '../fixtures/api';
 import {expect, test} from '../fixtures/test';
-import {graphNodes} from '../helpers/cytoscape';
+import {graphNodes, nodeModelPosition} from '../helpers/cytoscape';
 import {toast} from '../pages/dialogs';
 import {EditorPage} from '../pages/editor-page';
 
@@ -110,7 +110,7 @@ test('edits can be undone and redone', async ({page, createTopology}) => {
   await expect.poll(() => code.text()).toContain('solo:');
 });
 
-test('leaving a topology with unsaved edits asks first', async ({
+test('opening another topology keeps the unsaved edits in their tab', async ({
   page,
   createTopology,
 }) => {
@@ -123,13 +123,90 @@ test('leaving a topology with unsaved edits asks first', async ({
 
   await editor.explorer.expand(first.collection.name);
   await editor.explorer.open(second.name);
-  await editor.editor.discardChanges(false);
-  await expect(editor.editor.title).toHaveText(new RegExp(`${first.name}\\*$`));
-
-  await editor.explorer.open(second.name);
-  await editor.editor.discardChanges(true);
   await editor.editor.waitForTitle(second.name);
   await expect(editor.editor.title).toHaveText(new RegExp(`${second.name}$`));
+
+  await editor.editor.tab(first.name).getByRole('tab').click();
+  await expect(editor.editor.title).toHaveText(new RegExp(`${first.name}\\*$`));
+  expect(await editor.editor.text()).toContain('changed');
+});
+
+test('unsaved edits are kept after a reload', async ({
+  page,
+  createTopology,
+}) => {
+  const topology = await createTopology();
+  const editor = new EditorPage(page);
+  await editor.open(topology.id, topology.name);
+  await editor.editor.setText(topologyDefinition(topology.name, ['changed']));
+  await expect(editor.editor.title).toHaveText(
+    new RegExp(`${topology.name}\\*$`),
+  );
+
+  await page.reload();
+  await editor.editor.waitForTitle(topology.name);
+  await expect(editor.editor.title).toHaveText(
+    new RegExp(`${topology.name}\\*$`),
+  );
+  expect(await editor.editor.text()).toContain('changed');
+});
+
+test('each tab shows the layout of its own topology', async ({
+  page,
+  createTopology,
+}) => {
+  // Both topologies have the same nodes, only placed differently
+  const layout = (y: number) =>
+    JSON.stringify({
+      nodeAnnotations: [
+        {id: 'host1', position: {x: 0, y}},
+        {id: 'host2', position: {x: 300, y: 0}},
+      ],
+    });
+  const first = await createTopology({annotations: layout(0)});
+  const second = await createTopology({
+    collection: first.collection,
+    annotations: layout(250),
+  });
+  const editor = new EditorPage(page);
+  await editor.open(first.id, first.name);
+  await editor.explorer.expand(first.collection.name);
+  await editor.explorer.open(second.name);
+  await editor.editor.waitForTitle(second.name);
+  await expect
+    .poll(() => nodeModelPosition(editor.graph.canvas, 'host1'))
+    .toEqual({x: 0, y: 250});
+
+  await editor.editor.tab(first.name).getByRole('tab').click();
+  await editor.editor.waitForTitle(first.name);
+  await expect
+    .poll(() => nodeModelPosition(editor.graph.canvas, 'host1'))
+    .toEqual({x: 0, y: 0});
+});
+
+test('closing a tab with unsaved edits asks first', async ({
+  page,
+  createTopology,
+}) => {
+  const topology = await createTopology();
+  const editor = new EditorPage(page);
+  await editor.open(topology.id, topology.name);
+  await editor.editor.setText(topologyDefinition(topology.name, ['changed']));
+  await expect(editor.editor.title).toHaveText(
+    new RegExp(`${topology.name}\\*$`),
+  );
+
+  await editor.editor.closeTab(topology.name);
+  await editor.editor.discardChanges(false);
+  await expect(editor.editor.tab(topology.name)).toBeVisible();
+
+  await editor.editor.closeTab(topology.name);
+  await editor.editor.discardChanges(true);
+  await expect(editor.editor.tab(topology.name)).toHaveCount(0);
+
+  await editor.explorer.expand(topology.collection.name);
+  await editor.explorer.open(topology.name);
+  await expect(editor.editor.title).toHaveText(new RegExp(`${topology.name}$`));
 });
 
 test.describe('views', () => {
